@@ -3,7 +3,7 @@ id: task-022
 title: Dispatch an epic as autonomous and it finishes the whole thing, child by child,
   unattended
 created: '2026-08-19T22:29:17.039117Z'
-updated: '2026-08-23T23:12:04.804912Z'
+updated: '2026-08-23T23:57:20.025254Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -345,3 +345,68 @@ log:
       id: 6b2c1e40-7d3a-4f19-9a55-2c1e40b7d3ab
       kind: update_content
       fingerprint: 3a0fbe5e8b36827faf4887e553cb702d
+- id: 9
+  ts: '2026-08-23T23:57:20.024990Z'
+  actor: claude
+  type: progress
+  body: "**The walk is built and the gate is green. Now building the demonstration\
+    \ entry 6 asked for.**\n\nBranch `feat/task-022-epic-autonomous-walk`, two commits:\
+    \ `ea33cc5` (code) and `9cc804e` (docs). Full unqualified `scripts/check.py` green\
+    \ in the worktree, 202.2s, all ten stages \u2014 log at `C:/Users/jpose/.claude/jobs/73782c1b/tmp/gate3.log`.\n\
+    \n**What was built, and the one decision that shaped it.** The per-child loop\
+    \ is now a command \u2014 `agentjobs dispatch walk <parent>` \u2014 rather than\
+    \ a paragraph in the workflow guide asking a supervising agent to remember to\
+    \ keep polling. Every step of it is mechanical (the queue says which child, dispatch\
+    \ starts one, the four terminal states are facts written to a task record, and\
+    \ the gate a child passed is recorded as `outcome: completed` by its own `agentjobs\
+    \ finish`), and the guide already carries the evidence against the prose version:\
+    \ *\"a supervisor that ends its turn saying it will check back periodically is\
+    \ not supervising, it is asleep.\"* The walk blocks, so a supervisor obeying it\
+    \ cannot end its turn early. Recorded as a decision below.\n\n**Children are now\
+    \ real dispatches, which reverses a paragraph in the design record.** Design \xA7\
+    2's rule is untouched \u2014 a dispatch is caused by a stored log entry whose\
+    \ actor the project configures as a human \u2014 and what the walk does is read\
+    \ the human entry that authorised the *parent*, write an authorising entry on\
+    \ the child naming that person, that parent and that entry, then submit the stored\
+    \ row to the same `assert_human_clocked`. The person clicked the epic; its children\
+    \ were named on its record when they did. \xA74's *\"a supervisor cannot dispatch\
+    \ its children, and that is D4 working\"* has been rewritten rather than left\
+    \ to contradict the code.\n\nRejected: rendering a launch command for the supervisor\
+    \ to run itself, keeping children as agent-owned subprocesses. That leaves children\
+    \ outside the ledger and therefore outside \xA77's concurrency ceiling \u2014\
+    \ an unattended epic spawning sessions nothing counts is the runaway the caps\
+    \ exist for \u2014 and nothing would settle a finished child.\n\n**ac-4 is mechanical\
+    \ rather than promised.** Two runs per child per human authorisation, refused\
+    \ in `dispatch_task` and counted off the child's own log so it survives the walk\
+    \ being restarted. Only a run that *died* spends the retry; a child that closed\
+    \ badly or asked for a person has said something, and retrying it is ignoring\
+    \ it. Re-authorising the epic resets the budget and records that somebody chose\
+    \ to.\n\n**Tests:** `tests/test_dispatch_epic.py`, 24 cases. Each of the four\
+    \ ways a child can be unclean gets its own case asserting the *sibling was never\
+    \ started*, because \"it did not happen in the one test we wrote\" is not \"it\
+    \ cannot happen\". Two cases go through the real `dispatch_task` rather than a\
+    \ stand-in, so the authorisation half is not proved by a flattering fake.\n\n\
+    **Sandbox for the demonstration, built and standing up:**\n- repo: `C:/ai/scratch/task-022-demo/repo`\
+    \ \u2014 its own git repo, `main` at `2f77858`, **no remote and never to get one**.\
+    \ Carries a real `scripts/check.py` that can go red (every non-blank line of `NOTES.md`\
+    \ must be a unique `- ` bullet), an `AGENTS.md`, and its own Poetry env.\n- `AGENTJOBS_HOME`:\
+    \ `C:/ai/scratch/task-022-demo/home` \u2014 its own `dispatch.yaml` at **posture\
+    \ `autonomous`**, `push` unset, one project. Jeff's real `~/.agentjobs/dispatch.yaml`\
+    \ is untouched and stays at `auto`.\n- server: `http://127.0.0.1:8912`, serving\
+    \ this worktree's code against the throwaway home. Not 8876, and not 8901 (already\
+    \ taken by the agentjobs-184 worktree's server).\n- tasks: epic `task-001` with\
+    \ three children `task-002`, `task-003`, `task-004`, each of which appends one\
+    \ bullet to `NOTES.md`. Human authorisation is entry 5 on `task-001`.\n- a `bin/agentjobs`\
+    \ shim that pins `AGENTJOBS_HOME` to the throwaway home, so nothing invoked through\
+    \ it can reach the real backlog even by mistake.\n\n**One thing already found,\
+    \ and it is a real constraint rather than a snag:** `agentjobs dispatch run task-001`\
+    \ from this session was **refused by the auto-mode classifier**. That is defensible\
+    \ \u2014 an agent starting an agent is what a classifier should flag \u2014 and\
+    \ it is a documented property of this environment rather than a bug in the walk.\
+    \ Not re-sending it reworded; three consecutive blocks park a `--bg` run. Next\
+    \ attempt is a different shape, described in the entry that follows this one."
+  data:
+    operation:
+      id: 7c1f2a90-4b6d-4e21-9c3a-8d5e1f0b2a71
+      kind: log_append
+      fingerprint: 52c70afafca5c03bac772c925346c47e
