@@ -1,0 +1,134 @@
+schema: 2
+id: task-291
+title: Reorder the agentjobs backlog
+created: '2026-08-23T18:49:18.949979Z'
+updated: '2026-08-23T18:50:59.808321Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
+archived: false
+priority: medium
+queue_position: 8000
+category: meta
+tags:
+- queue
+- playbook
+assignment:
+  owner: claude
+  eligible: []
+spec:
+  summary: 'Run of the `reorder` playbook: Order the open backlog band by band, with
+    a recorded reason on every move and human anchors respected.'
+  description: 'Run of playbook `reorder`. The playbook file is the specification
+    for this run: read playbooks/reorder.md (sha256 60b4ad542386 at the moment this
+    run was created). It is deliberately not copied here -- a copy would fork the
+    brief the first time somebody improves it.'
+  context:
+  - path: playbooks/reorder.md
+    why: The brief this run executes. It is the specification; this task record is
+      the run's memory.
+acceptance:
+- id: ac-1
+  text: Every move was made through the queue_move verb, and its entry says why this
+    task now sits where it does rather than that it moved.
+  status: pending
+- id: ac-2
+  text: Every anchor in the bands touched was respected, or overridden with the anchor
+    named and the grounds stated on this task. No strong anchor was moved.
+  status: pending
+- id: ac-3
+  text: Nothing was closed, no spec was edited, no priority band was changed, no dependency
+    was added or removed, and no strong anchor was written.
+  status: pending
+- id: ac-4
+  text: This task records the trigger, what the run read, every move with its reason,
+    every anchor decision, and the questions raised.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T18:49:19.671730Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7a1f0c2e-2170-4a11-9b01-000000000010
+      kind: create
+      fingerprint: 0bb6f37d308e195b2afb8e0341bfc372
+- id: 2
+  ts: '2026-08-23T18:49:27.965996Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 7a1f0c2e-2170-4a11-9b01-000000000011
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-23T18:50:59.808101Z'
+  actor: claude
+  type: progress
+  body: "# What this run read, before it moved anything\n\n**Trigger** (`playbooks/reorder.md`\
+    \ \xA73): Jeff authorised this run in chat on 2026-08-23; it is recorded as an\
+    \ `instruction` on task-217, log entry 6. Not a schedule and not a step inside\
+    \ another run.\n\n**Read at 2026-08-23T18:45Z** through `GET /api/projects/agentjobs/queue`\
+    \ and `/tasks` \u2014 113 open tasks:\n\n| Band | Open | Claimable | Ever moved\
+    \ | Anchors |\n|---|---|---|---|---|\n| critical | 5 | 0 | 5 | 0 |\n| high | 66\
+    \ | ~20 | 12 | 5 |\n| medium | 38 | ~15 | 10 | 0 |\n| low | 4 | 3 | 0 | 0 |\n\n\
+    ## The anchors, all five in the head of HIGH\n\nDerived from `last_move` in the\
+    \ queue listing, per \xA76.1. **No strong anchor exists anywhere in this corpus**\
+    \ \u2014 `keep` shipped three commits ago and nobody has kept a move over a warning\
+    \ yet.\n\n1. **task-211** (pos 31) \u2014 `claude`/agent. Body quotes Jeff, 2026-08-21:\
+    \ *\"I want to start it very soon, most of the current top queued tasks are not\
+    \ as important if you ask me ... we need to start getting a handle on the backlog\
+    \ and grooming and reordering regularly, using playbooks, will help.\"* Agent\
+    \ hand, human decision named \u2192 **anchor**. Respected.\n2. **task-017** (pos\
+    \ 171) \u2014 `claude`/agent. Body: *\"Jeff asked for this a second time on 2026-08-21,\
+    \ in nearly the same words as the first asking three days earlier.\"* \u2192 **anchor**.\
+    \ Respected. It is also what `next` currently returns, which is the right answer.\n\
+    3. **task-021** (pos 187) \u2014 `Jeff Posey`/human \u2192 **anchor**. Respected.\n\
+    4. **task-022** (pos 281) \u2014 `Jeff Posey`/human \u2192 **anchor**. Respected.\n\
+    5. **task-018** (pos 328) \u2014 `Jeff Posey`/human \u2192 **anchor**. Respected.\
+    \ Its body invites a reorder (*\"Reorder if the cheap fix should come first\"\
+    *), which is an anchor volunteering to be overridden; it is left where it is because\
+    \ the two tasks ahead of it are the capability Jeff asked for and this is the\
+    \ correctness fix behind them, exactly as his own body says.\n\n**Nothing was\
+    \ overridden.** That is the honest outcome rather than a missed opportunity: I\
+    \ have no information about those five positions that the person who set them\
+    \ did not have, and the brief's \xA79 says a pass that changes little is a result.\n\
+    \n## What is deliberately *not* an anchor, and was read before being disagreed\
+    \ with\n\nTwenty-two positions carry the body *\"task-209: applying the ordering\
+    \ approved by Jeff on 2026-08-21\"*, and several more carry an agent's own reasoning\
+    \ from the ad-hoc pass of 2026-08-23T05:15Z (recorded on task-289). Under \xA7\
+    6.1 the first group is an agent's move whose body attributes the placement to\
+    \ a person \u2014 an **anchor**, wherever it falls in a band I touch \u2014 and\
+    \ the second is a previous run's argument, which is mine to disagree with on grounds.\n\
+    \n## The CRITICAL band: read, and left entirely alone\n\nAll five positions were\
+    \ set 13 hours ago by the ad-hoc run, whose reasoning I read in full: an unauthenticated\
+    \ public REST surface leading a chain of three dispatch-surface findings, then\
+    \ non-atomic corpus writes, with the measurement task demoted to the foot because\
+    \ it is held by an agent and its own deliverable has landed. I agree with it and\
+    \ have nothing new. **Re-deriving a band on no new information is the churn \xA7\
+    3 exists to prevent**, so CRITICAL is untouched and this paragraph is the whole\
+    \ of my report on it.\n\n## Effort spent, per \xA74\n\n- **critical** (5 open)\
+    \ \u2014 head is the whole band; read exactly, moved nothing.\n- **high** (66)\
+    \ \u2014 head of six read exactly (five anchors and task-217, which is being worked);\
+    \ one move in the 5\u201310 bucket region; triage scan over the 47-task audit-draft\
+    \ tail.\n- **medium** (38) \u2014 head of five read exactly; one move at the foot\
+    \ of that head; triage scan over the tail.\n- **low** (4) \u2014 the band is smaller\
+    \ than a head; ordered exactly, one move."
+  data:
+    operation:
+      id: 7a1f0c2e-2170-4a11-9b01-000000000012
+      kind: log_append
+      fingerprint: 5ed9eca2d6147172851e60da0091a7ab

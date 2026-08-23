@@ -1,0 +1,172 @@
+schema: 2
+id: task-298
+title: The run-lock refusal blames a stuck dispatch when the holder is a scripted
+  finish, and never says the merge is already happening
+created: '2026-08-23T20:58:00.297051Z'
+updated: '2026-08-23T20:58:00.729139Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 493
+category: ux
+tags:
+- dispatch
+- finish
+- error-messages
+- agent-dx
+assignment:
+  eligible: []
+spec:
+  summary: Approving a task now starts a scripted finish, which holds the task's run
+    lock. Clicking Dispatch during it is refused with a message about "a dispatch
+    that started (pid N) and has not yet said which run it became", suggesting a stuck
+    process and offering a server restart. The holder is a healthy finish doing the
+    merge. It read as breakage twice in one evening and the suggested remedy would
+    have made it worse.
+  intent: 'Turning on `finish.enabled` silently changes the workflow from approve-then-dispatch
+    to approve-and-you-are-done, and the only thing that tells a user is an error
+    message written for the old world. A refusal that misidentifies a healthy process
+    as stuck and recommends restarting the server is worse than no message: it invites
+    the user to break the very thing that is working.'
+  description: '**Observed twice on 2026-08-23, on task-224 and task-233, by the person
+    who had just approved each of them.**
+
+
+    With `finish.enabled` set, clicking Approve spawns a detached `agentjobs finish`
+    that takes the task''s run lock for the whole attempt -- deliberately, because
+    a finish and a dispatch are alternatives that would otherwise race for the same
+    branch and the same worktree. Clicking Dispatch during that window is correctly
+    refused. The message is:
+
+
+    > task-224 is held by a dispatch that started (pid 661656) and has not yet said
+    which run it became, so it cannot be shown to be over. If it is genuinely stuck,
+    restarting AgentJobs clears locks whose runs have ended.
+
+    >
+
+    > Wait for the run to finish, or cancel it.
+
+
+    Four things wrong with it, in rising order of seriousness:
+
+
+    1. **It says "a dispatch".** The holder was `python -m agentjobs.cli finish task-224
+    --project agentjobs --approver "Jeff Posey"`. The lock knows the pid; it evidently
+    does not know, or does not say, what kind of holder it is.
+
+    2. **"has not yet said which run it became" is true of a finish permanently.**
+    A finish never becomes a run -- it has a finish id, not a run id. So the sentence
+    describes a normal, healthy, expected state as if it were an anomaly, and it will
+    do so for every finish forever.
+
+    3. **It suggests restarting AgentJobs.** During a finish that is mid-gate or mid-merge,
+    that is the single most harmful thing offered. The advice is sound for its intended
+    case -- a lock outliving a dead run -- and actively dangerous here.
+
+    4. **It never says what is actually happening.** The user does not need to dispatch:
+    the merge they were about to ask for is already underway. Saying so turns a dead
+    end into an answer.
+
+
+    **The user''s read, verbatim, was "shit''s all broke nothing lets me dispatch
+    anymore".** Nothing was broken. Both finishes were healthy; one was 3.5 minutes
+    into a full gate. The cost was a false breakage diagnosis and two rounds of investigation
+    to establish that the system was working correctly.
+
+
+    ## What to fix
+
+
+    - **Name the holder honestly.** Record enough with the lock -- kind, and a finish
+    id where there is one -- that the message can say "a scripted finish (`fin_689a7558`)
+    started at 13:38 is merging this task" instead of guessing at a dispatch.
+
+    - **Say what it means for the user.** For a finish holder, the useful sentence
+    is that the approval already triggers the merge and no dispatch is needed. That
+    is a workflow change many users will not know they made when they set `finish.enabled`.
+
+    - **Do not offer the restart remedy when the holder is a live finish.** Keep it
+    for the case it was written for.
+
+    - **Distinguish "cannot be shown to be over" from "has not reported yet".** A
+    finish that has been running for four seconds and one whose process is gone are
+    different situations and currently read identically.
+
+
+    Consider also whether the GUI should hide or disable Dispatch while a finish holds
+    the lock, rather than offering a button that cannot work -- but that is a second
+    question and this task is fixable without it.
+
+
+    ## Related
+
+
+    Task-297 covers the finish failing under concurrency; task-293 covers merged branches
+    never being deleted. This one is only about what the refusal says.'
+  constraints: '- Keep the restart advice for the case it is right about: a lock genuinely
+    outliving a dead run. This task narrows when it is shown, it does not delete it.
+
+    - The message must not claim more than the lock actually knows. If the holder''s
+    kind is not recorded today, record it rather than inferring it from a pid''s command
+    line.
+
+    - Do not weaken the lock itself. Refusing a dispatch while a finish holds the
+    task is correct and is what stops a session being started into a tree that is
+    being rebased.'
+  out_of_scope: The concurrency failures in task-297 and the branch cleanup in task-293.
+    Any change to when a finish is spawned or to the approve flow itself -- this is
+    about the refusal text and what the lock records.
+  context:
+  - path: src/agentjobs/dispatch/finish.py
+    why: Takes the run lock for the whole attempt and is the holder being misdescribed;
+      also where a finish id exists that the message could name.
+  - path: src/agentjobs/dispatch/ledger.py
+    why: The run lock and the code that composes this refusal from what the lock knows.
+  - path: ENGINEERING.md
+    why: Documents that approval runs the finish itself where enabled -- the workflow
+      change the message fails to convey.
+acceptance:
+- id: sc-1
+  text: When a scripted finish holds the lock, the refusal identifies it as a finish,
+    names its finish id and when it started, and does not call it a dispatch.
+  verify: the refusal text, reproduced against a live finish
+  status: pending
+- id: sc-2
+  text: The refusal tells the user that the approval already runs the merge and no
+    dispatch is needed.
+  verify: the refusal text
+  status: pending
+- id: sc-3
+  text: The restart-AgentJobs suggestion is not shown when the holder is a live finish,
+    and is still shown for a lock outliving a dead run.
+  verify: both cases, tested
+  status: pending
+- id: sc-4
+  text: The lock records the holder's kind rather than the message inferring it; a
+    test proves a finish holder and a dispatch holder produce different text.
+  verify: ledger tests
+  status: pending
+- id: sc-5
+  text: 'Reproduced live: approve a task with finish enabled, attempt a dispatch during
+    the finish, and read the message a user would actually see.'
+  verify: live evidence, not asserted
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T20:58:00.728329Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c1d2e3f4-0004-4a00-9e00-2b3c4d5e0296
+      kind: create
+      fingerprint: c196b8c403fe647b12789d723fd8abcf

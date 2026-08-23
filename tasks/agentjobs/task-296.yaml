@@ -1,0 +1,192 @@
+schema: 2
+id: task-296
+title: 'A dispatched session that parks is invisible: the task record still reads
+  agent/work and nobody is told'
+created: '2026-08-23T20:56:33.153215Z'
+updated: '2026-08-23T20:56:33.802038Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 293
+category: reliability
+tags:
+- dispatch
+- reliability
+- agent-dx
+- observability
+assignment:
+  eligible: []
+spec:
+  summary: When a dispatched or spawned session stalls -- a transient tool-classifier
+    outage is the observed cause -- it goes waiting/blocked and stops, but its task
+    keeps reading `agent`/`work` forever. Nothing on the record, no notification,
+    no timeout. Task-217 sat dead for roughly four hours tonight and was only found
+    because a human asked why nothing had happened.
+  intent: 'The whole promise of dispatch is that work proceeds while nobody is watching.
+    A stall that produces no signal breaks that promise silently and in the worst
+    possible way: the record says the agent has it, so a supervisor waits, a human
+    waits, and the queue behind it waits, all on a process that stopped.'
+  description: '**Observed twice on 2026-08-23 during the task-211 playbooks epic,
+    on the same task, hours apart.**
+
+
+    The session working task-217 entered `waiting`/`blocked` -- `claude agents --json`
+    reports it, the process is alive, and it does nothing. Meanwhile task-217 reads
+    `lifecycle: active`, `ball: agent`, `ball_reason: work`, exactly as it would if
+    the agent were busy. The supervisor''s watcher polls the record, sees `agent/work`,
+    and correctly concludes it should keep waiting. It waited for hours.
+
+
+    **The trigger, at least this time, was transient and external.** The tool-permission
+    classifier returned `claude-sonnet-5[1m] is temporarily unavailable, so auto mode
+    cannot determine the safety of Bash right now`. A session under `--permission-mode
+    auto` cannot proceed without the classifier and cannot ask a human, because there
+    is no TTY. So it parks. The supervising session hit the identical error at the
+    same moment and recovered by retrying, which is what makes the diagnosis solid.
+
+
+    **Do not over-fit to that cause.** Any stall with the same shape -- a session
+    that stops without writing anything -- produces the same invisibility: an API-limit
+    exhaustion, an auth expiry (see task-224), a crash after the last log write, a
+    machine sleeping. The defect is not the classifier. The defect is that **a task
+    can be `agent`/`work` with no agent working it, and nothing in the system can
+    tell.**
+
+
+    ## Why the existing signals do not cover this
+
+
+    - **`ALLAGENTS.md` says the signal is the task record, not the process**, and
+    that is the right rule -- a live process proves nothing, and a parked one is precisely
+    the case the rule was written for. But it assumes the record moves. Here nothing
+    moves at all.
+
+    - **`session_stale_seconds: 3600` exists in the dispatch limits.** Establish what
+    it currently does and whether it fired here; if it did fire, the failure is that
+    firing had no visible effect on the record, which is a different fix from it not
+    firing.
+
+    - **`agentjobs dispatch status`** showed the run and did not distinguish a working
+    session from a parked one.
+
+    - **A supervisor polling the record cannot see it by construction.** That is the
+    whole finding.
+
+
+    ## What to work out
+
+
+    The shape of the fix is a genuine design question and should be argued on the
+    record before it is built. Some directions, none of them decided:
+
+
+    - **A heartbeat.** A run that has written nothing -- no log entry, no commit,
+    no phase record -- for N minutes is reported as stalled. Cheap, and it catches
+    every cause rather than this one. The hard part is choosing N without producing
+    false alarms on a session that is legitimately thinking or running a four-minute
+    gate, and deciding whether "written nothing" means to the task record or to anything
+    at all.
+
+    - **Ask the runner.** `claude agents --json` already distinguishes `busy`/`working`
+    from `waiting`/`blocked`. Reading it turns a guess into a fact, but it couples
+    AgentJobs to one runner''s CLI, and the codex driver has no equivalent. Consider
+    whether the driver abstraction should carry a `liveness()` the runner implements
+    or declines to.
+
+    - **Make the record say it.** Whatever detects the stall should write a log entry
+    and move the ball, so the existing machinery -- the dashboard, `task_next`, a
+    supervisor''s poll -- surfaces it with no new concepts. This is likely required
+    whichever detection wins.
+
+
+    Also decide **what should happen after detection**, separately: reporting a stall
+    and recovering from one are different problems, and auto-restarting a session
+    that may hold a dirty worktree is not obviously safe. Reporting alone would have
+    saved four hours tonight.
+
+
+    ## Evidence to preserve
+
+
+    Tonight''s incident is on task-217''s own record and in this session''s history:
+    two parks, a nudge that did not take, and eventual recovery by killing the session
+    and starting a fresh one against the record -- which worked cleanly, because the
+    branch and worktree were intact. That recovery path working is itself useful data
+    for the "what happens after detection" question.'
+  constraints: '- Whatever detects a stall must write it to the task record. A detection
+    visible only in a CLI or a log repeats the defect in a new place.
+
+    - Do not couple stall detection to one runner''s CLI without going through the
+    driver abstraction -- the codex driver must be able to decline to answer rather
+    than be assumed absent.
+
+    - Recovery is a separate decision from detection and must not be bundled in silently.
+    If the task ships detection only, say so and say why.
+
+    - No false-alarm-prone threshold without evidence: a gate run legitimately takes
+    three to four minutes on this machine under load, and a session mid-gate must
+    not be reported as stalled.'
+  out_of_scope: Fixing the tool-permission classifier's availability -- it is external
+    and not this project's. The dispatch auth-expiry case, which task-224 already
+    covered. Automatic restart of a stalled session, unless this task explicitly decides
+    to include it and argues for it.
+  context:
+  - path: src/agentjobs/dispatch/poller.py
+    why: Where run liveness is currently reconciled, and the most likely home for
+      a heartbeat or stall check.
+  - path: src/agentjobs/dispatch/ledger.py
+    why: The run ledger a stall check would read, and where session_stale_seconds
+      is applied.
+  - path: src/agentjobs/dispatch/phases.py
+    why: Phase records are an existing did-something signal that a heartbeat could
+      reuse rather than inventing a new one.
+  - path: ALLAGENTS.md
+    why: States that the signal is the task record and not the process. This defect
+      is the case that rule does not cover, and the rule may need a sentence.
+acceptance:
+- id: sc-1
+  text: A session that stops without writing anything is detected, and the detection
+    is written to the task record -- a log entry and a ball move -- not only to a
+    CLI or a log file.
+  verify: the record of a deliberately stalled run
+  status: pending
+- id: sc-2
+  text: The detection mechanism and its threshold are argued on the record with their
+    rejected alternatives, including why the threshold cannot fire on a session legitimately
+    running a four-minute gate.
+  verify: this task's log
+  status: pending
+- id: sc-3
+  text: Whether AgentJobs asks the runner for liveness is decided; if it does, it
+    goes through the driver abstraction and the codex driver may decline rather than
+    be assumed dead.
+  verify: the driver interface and its tests
+  status: pending
+- id: sc-4
+  text: Whether recovery is in scope is decided explicitly and recorded, rather than
+    left ambiguous by shipping detection alone.
+  verify: this task's log
+  status: pending
+- id: sc-5
+  text: 'Demonstrated on a real stalled session, not only in tests: a session is made
+    to stop without writing, and the record surfaces it.'
+  verify: live evidence on the record
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T20:56:33.801267Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c1d2e3f4-0002-4a00-9e00-2b3c4d5e0294
+      kind: create
+      fingerprint: de0ddea344a908f5b0ca34fd571520c6

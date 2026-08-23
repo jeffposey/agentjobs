@@ -2,13 +2,13 @@ schema: 2
 id: task-198
 title: Enabling dispatch from the UI destroys every comment in dispatch.yaml
 created: '2026-08-20T20:33:06.424323Z'
-updated: '2026-08-23T05:15:55.869482Z'
+updated: '2026-08-23T18:55:16.872195Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 1875
+queue_position: 525
 category: infrastructure
 tags:
 - dispatch
@@ -179,3 +179,31 @@ log:
       id: a1b2c3d4-0006-4000-8000-000000000006
       kind: queue_move
       fingerprint: 30bc418c5c5c1245636c173caea7871a
+- id: 4
+  ts: '2026-08-23T18:55:16.871993Z'
+  actor: claude
+  type: queue_move
+  body: "Ahead of task-230, and so to the head of the claimable part of HIGH, behind\
+    \ the five anchored positions this run left alone. One click on a toggle in the\
+    \ dispatch UI rewrites the machine's dispatch config without its comments, and\
+    \ that file has no version history, so the reasoning behind each setting on this\
+    \ machine cannot be recovered afterwards; it has already produced one wrong diagnosis.\
+    \ The two tasks it now stands in front of are features: task-230 is browser editing\
+    \ of authoring fields, and task-232 saves ceremony on future epics and says in\
+    \ its own placement that nothing is waiting on it.\n\nWhat is new since its last\
+    \ placement is not the defect, it is the follow-through. The ad-hoc pass of 2026-08-23T05:15Z\
+    \ promoted it from 6100 calling it \"the best value-per-effort item in the band\"\
+    , then left it behind two features \u2014 the half of its own argument it did\
+    \ not finish. That body is an agent's own reasoning and not an anchor under playbooks/reorder.md\
+    \ section 6.1; I read it in full before continuing it.\n\nReorder run task-291."
+  data:
+    band: high
+    from: 1875
+    to: 525
+    placement:
+      kind: before
+      target: task-230
+    operation:
+      id: 7a1f0c2e-2170-4a11-9b01-000000000021
+      kind: queue_move
+      fingerprint: 38fd3523f0ceafb3fc8fcc5a24a6b104

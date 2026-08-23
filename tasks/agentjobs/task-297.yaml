@@ -1,0 +1,189 @@
+schema: 2
+id: task-297
+title: 'The scripted finish cannot merge under concurrency: base_moved fires on task-record
+  commits, and each escalation causes the next'
+created: '2026-08-23T20:57:20.855780Z'
+updated: '2026-08-23T20:57:21.496136Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 393
+category: reliability
+tags:
+- dispatch
+- finish
+- concurrency
+- reliability
+assignment:
+  eligible: []
+spec:
+  summary: The finish refuses to merge if `main` moved during its gate. Every session
+    commits task records to `main` by design, and a gate takes three to five minutes
+    under load, so with several sessions live a finish loses that race almost every
+    time -- and its own escalation writes a record commit that kills the next one.
+    Task-224 failed twice this way before a hand-made quiet window got it through.
+  intent: The scripted finish is now the normal path for every approval, so a failure
+    mode that scales with how busy the machine is makes approvals unreliable exactly
+    when the most work is in flight. Worse, the failure is self-amplifying rather
+    than merely likely, which turns a busy evening into a queue that cannot drain
+    without a human standing over it.
+  description: '**Observed repeatedly on 2026-08-23 with four to five sessions live.**
+
+
+    `finish.py` compares `main` before and after its gate and refuses to merge when
+    it moved, with the sound reasoning that *what it verified is no longer what would
+    be merged*. That check is correct and should not be deleted. The problem is what
+    it collides with.
+
+
+    **ENGINEERING.md requires every session to commit task records to `main`** --
+    claims, progress, handoffs, decisions, dispatch results, all of it, deliberately,
+    so the dashboard can see them. So `main` moves every couple of minutes whenever
+    anything is happening. A full gate is 96 seconds idle and was measured at **169-285
+    seconds** under tonight''s load. The two facts are incompatible: the finish''s
+    window is minutes long and `main`''s quiet periods are seconds long.
+
+
+    **The measured sequence, from tonight:**
+
+
+    1. `fin_689a7558`, task-224. Gate green in 288s. Refused at `merge`: `main` moved
+    `0571801` to `40b9b17`. The three commits were `chore(task-233): ... hand off
+    for review`, `chore(task-217): answer the anchor-derivation question`, `chore(task-218):
+    record the sc-2 blockers`. **All three are task-record commits. None could have
+    changed what the gate verified in any way that matters.**
+
+    2. `fin_a790b54d`, task-233. Gate red at 133s on task-243''s known flake. Escalated
+    -- **and its escalation wrote `3b9f463 chore(task-233): escalate the scripted
+    finish at gate` to `main`.**
+
+    3. `fin_736e455c`, task-224 again. Gate green in 169s. Refused at `merge`: `main`
+    moved `df87156` to `3b9f463` -- **killed by the escalation from step 2.**
+
+
+    Step 3 is the finding. **An escalation writes a record commit, which moves `main`,
+    which escalates any other finish mid-gate, which writes another record commit.**
+    The failure feeds itself, and the more finishes are queued the worse it gets.
+
+
+    Both eventually merged only because a human serialised them by hand: one finish
+    at a time, with every other session told to hold its record commits. That worked
+    first try for both. **Serialisation is the known-good answer; the question is
+    what the system should do about it rather than a person.**
+
+
+    ## What to work out, argued before built
+
+
+    - **Should a task-record-only move count as `base_moved` at all?** Tempting and
+    not obviously safe. `ENGINEERING.md`''s own `--since-gate` rules already establish
+    that `tasks/` is *not* inert: `tests/test_validate.py::TestRealCorpus` loads this
+    repository''s own records, so a task YAML genuinely can turn the suite red. A
+    narrow exemption would have to argue against that precedent explicitly, and "nearly
+    always harmless" is not the same as "cannot affect the gate".
+
+    - **Should the finish re-verify instead of refusing?** If `main` moved, rebase
+    onto the new tip and re-run only what the diff can reach -- `--since-gate` already
+    exists and already classifies `tasks/` as pytest-only. That turns a hard refusal
+    into a cheap re-check, and it uses machinery that is already built and already
+    audited. Probably the strongest candidate.
+
+    - **Should finishes serialise?** A machine-wide finish lock would make the queue
+    drain reliably at the cost of throughput, and would exactly replicate what the
+    human did by hand. Cheap to build; consider it as a floor even if a smarter fix
+    lands.
+
+    - **Should an escalation avoid moving `main`?** The self-amplification specifically
+    comes from escalations committing records mid-flight. Deferring or batching that
+    one commit would break the feedback loop without touching the check itself. Narrow,
+    but it targets the amplifier rather than the trigger.
+
+
+    Do not just pick one. The interaction with `--since-gate` and with `TestRealCorpus`
+    is the substance here, and whatever ships should say what it does when a *code*
+    commit lands mid-gate, which must still refuse.
+
+
+    ## Related
+
+
+    Task-243 is the flake that supplied step 2''s escalation and should be fixed regardless;
+    it makes this worse but is not its cause. Task-293 covers a different finish gap
+    (merged branches never deleted).'
+  constraints: '- Do not simply delete the `base_moved` check. It is correct: a gate
+    that verified one tree must not merge a different one. Any change must keep refusing
+    when a code commit lands mid-gate.
+
+    - Any exemption for `tasks/` must argue against the existing precedent that `TestRealCorpus`
+    loads this repository''s own task records, rather than assuming task files are
+    inert.
+
+    - Whatever ships must be demonstrated under real concurrency, not only in tests.
+    A green single-finish run proves nothing about the failure being fixed.
+
+    - Reuse `--since-gate`''s classification rather than writing a second, divergent
+    notion of what a changed path can reach.'
+  out_of_scope: Task-243's flaky test, which has its own task. Changing the rule that
+    task records live on `main` -- that rule exists because a handoff on a branch
+    is invisible to the human it addresses, and reopening it is a much larger decision
+    than this defect warrants.
+  context:
+  - path: src/agentjobs/dispatch/finish.py
+    why: The base_moved check and the merge step it guards; also where an escalation
+      writes its record commit.
+  - path: scripts/gate_scope.py
+    why: The --since-gate classification table, which already decides what a changed
+      path can reach and is the natural basis for a re-verify.
+  - path: ENGINEERING.md
+    why: 'Both halves of the collision: ''Task files live on main, always'', and the
+      --since-gate rules including why tasks/ maps to pytest.'
+  - path: tests/test_validate.py
+    why: TestRealCorpus is the reason a task YAML is not inert, and therefore the
+      reason a tasks-only exemption is not free.
+acceptance:
+- id: sc-1
+  text: A finish whose gate is interrupted only by task-record commits to main completes
+    the merge rather than refusing, or refuses for a reason that is argued and recorded
+    as deliberate.
+  verify: the finish's behaviour under a reproduced concurrent case
+  status: pending
+- id: sc-2
+  text: A finish whose gate is interrupted by a commit touching code still refuses.
+    Proven by a test that lands a source commit mid-gate.
+  verify: finish tests
+  status: pending
+- id: sc-3
+  text: 'The self-amplification is broken: an escalation from one finish no longer
+    causes a base_moved escalation in another. Demonstrated with two concurrent finishes,
+    one of which escalates.'
+  verify: live, under real concurrency
+  status: pending
+- id: sc-4
+  text: The chosen approach is argued on the record against the alternatives listed
+    in the description, including what it does about TestRealCorpus loading real task
+    records.
+  verify: this task's log
+  status: pending
+- id: sc-5
+  text: Two or more finishes started close together both reach a merge without a human
+    serialising them by hand.
+  verify: live, demonstrated not asserted
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T20:57:21.495177Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c1d2e3f4-0003-4a00-9e00-2b3c4d5e0295
+      kind: create
+      fingerprint: be88b2b232e059ec62fc0c628c00f819
