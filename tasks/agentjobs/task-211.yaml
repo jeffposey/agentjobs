@@ -3,7 +3,7 @@ id: task-211
 title: 'Playbooks: named, reusable briefs for AI-judgment work like groom, reorder
   and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-23T10:14:55.952942Z'
+updated: '2026-08-23T10:29:10.911972Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1560,3 +1560,80 @@ log:
       id: c7fa0641-491d-494f-8bc4-469bf89cb762
       kind: log_append
       fingerprint: ee5cdd28d8f8e77eb2d47dadca2bdf14
+- id: 49
+  ts: '2026-08-23T10:29:10.911615Z'
+  actor: claude
+  type: decision
+  body: '**A boundary in Jeff''s overnight grant, found at the start of the last three
+    children, and how the supervisor is handling it without stopping.**
+
+
+    Jeff''s grant was "auto approve and merge each subtask". That is approval to **ship
+    code**. task-216, task-217 and task-218 each additionally require a **live run
+    against this real backlog**, and the acts those runs perform are not code review:
+
+
+    - **task-216 (groom)** proposes closures and then closes real tasks with outcome
+    duplicate or superseded. Its own sc-2 requires "Jeff''s approval recorded" --
+    that is the design''s in-run gate, not the merge gate, and it is addressed to
+    him specifically.
+
+    - **task-217 (reorder)** rewrites the order of his live queue.
+
+    - **task-218 (flesh-out)** writes a spec onto one thin task and parks it at human/review.
+    Nothing is destroyed, nothing is closed, nothing is reordered.
+
+
+    "Approve this branch" and "yes, close these tasks of mine as duplicates" are different
+    acts, and the second was not granted. Nobody delegated the backlog itself.
+
+
+    **What the supervisor is doing instead of stopping.** Everything that does not
+    need him proceeds:
+
+
+    1. Author all three briefs -- sc-1 on each -- which is the bulk of the work and
+    is ordinary repository content. Merge each on the standing grant as before.
+
+    2. **task-218''s live run proceeds.** Writing a spec onto a thin task and parking
+    it for review destroys nothing and decides nothing; the park *is* the gate, and
+    he reviews the result the same way he would review it from a human. task-218 can
+    close tonight.
+
+    3. **task-216''s live run proceeds up to its proposal gate, and stops there.**
+    The run records its closure proposal on the run task and parks at human/approval,
+    closing nothing. That is exactly the shape the design specifies, so this is the
+    playbook working rather than a workaround, and it proves everything about the
+    run except the execution half.
+
+    4. **task-217''s live run is held entirely.** Unlike groom, reorder has no propose-then-approve
+    step -- it writes moves directly, by design -- so there is no partial form of
+    it that leaves his queue untouched. Splitting one in would be relitigating a settled
+    design at 5am to get around a permission, which is the wrong reason to change
+    a design.
+
+
+    **Consequence, stated plainly: task-216 and task-217 will merge but will not close
+    tonight.** Each will sit with an open acceptance criterion naming exactly what
+    is outstanding and the ball with Jeff. That makes task-211''s own sc-6 and sc-7
+    unmeetable tonight, so **the epic will not close either**. That is the honest
+    outcome and it is better than the alternative, which is an agent deciding overnight
+    which of Jeff''s tasks are duplicates.
+
+
+    *Rejected: treating the overnight grant as covering the live runs.* It reads as
+    covering them only if "approve each subtask" is stretched to mean every act performed
+    in the course of a subtask. The grant was given in the context of merges, and
+    the one criterion that names Jeff by name -- task-216 sc-2 -- is evidence the
+    task author expected him personally, not his delegate.
+
+
+    *Rejected: waking him.* He asked to be woken only for something absolutely needed
+    to continue, and this does not stop the work; roughly nine tenths of the remaining
+    scope proceeds. It is written here and raised in chat so it is the first thing
+    he sees.'
+  data:
+    operation:
+      id: e3f5c639-04df-4875-9a99-8486c69f195b
+      kind: log_append
+      fingerprint: 07dac074dcf0d1698361d5edbfca57aa
