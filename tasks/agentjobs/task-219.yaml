@@ -2,82 +2,64 @@ schema: 2
 id: task-219
 title: 'The queue-move check: deterministic warnings when a human reorders'
 created: '2026-08-21T04:57:23.007031Z'
-updated: '2026-08-23T08:27:39.306121Z'
+updated: '2026-08-23T08:31:52.671414Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review `feat/task-219-queue-move-check` (worktree `C:/projects/worktrees/aj-219`,
-  four commits on top of fb79be4). Section 5.4 of the playbooks design, built deterministic
-  per P8 (revised) -- no model, no dispatch, no debounce anywhere in the path.
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.
 
 
-  **What it does.** A queue move lands exactly as before and is never blocked. The
-  response now carries what the move is worth saying, computed synchronously from
-  the corpus the move handler had already read under the lock. Five findings, each
-  needing its own construction: the promoted task will be skipped and why; it now
-  stands ahead of something it needs; what it displaced is gating other work; the
-  band came out as it went in; the band is corrupt. **Most moves earn none of them**
-  -- that is a requirement here, not an aspiration, and `TestSilenceIsNormal` is the
-  test that guards it.
+  Note from Jeff Posey:
 
 
-  The `queue_move` entry records the findings and the placement that undoes them.
-  A new verb, `keep_queue_move` / `POST .../queue-keep`, records the strong anchor
-  -- a `decision` threaded to the move it answers, carrying the warnings verbatim
-  -- which task-217''s `reorder` must not overturn. It is refused when the move produced
-  no warnings. Undo needs no new route: it is a move back.
+  Standing approval, granted by Jeff in chat on 2026-08-23 before the work started,
+  for every child of the task-211 epic run overnight and autonomously. Not a per-task
+  click; relayed by the task-211 supervisor after reviewing the branch and this record.
 
 
-  CLI, REST (`?envelope=true`), MCP and the React list all read one implementation,
-  `src/agentjobs/queue_check.py`.
+  What the supervisor checked. Four commits, +3048, both trees clean, all five acceptance
+  criteria met. sc-5''s two halves are asserted rather than claimed: TestTheCheckIsFree
+  computes the warnings inside count_task_parses and asserts zero parses, and separately
+  asserts a warning-producing move costs the same parses as a silent one -- the performance
+  convention this repository asks for, on parse counts rather than wall clock. TestSilenceIsNormal
+  is the guard on the requirement that most moves say nothing.
 
 
-  **See it running.** A review server is up on **http://127.0.0.1:8899/app/p/sandbox-warned/tasks**
-  -- throwaway data, its own port, nothing to do with 8876. Its `high` band is built
-  so that promoting anything earns a notice; its `medium` band is the control, where
-  every drag must leave the screen silent. Both halves are seeded because the silent
-  half is the one that decides whether this is a check or wallpaper. The other four
-  sandbox projects are unchanged. Stop it by killing the `review_queue_sandbox.py`
-  process, or ask and I will; its temp directory is deleted with it.
+  The four departures the handoff flags were each read and each stands:
 
 
-  **Worth looking at closely:**
+  1. `no_op` is implemented as "the band''s order is identical before and after" rather
+  than section 5.4''s literal "the head of the band above the drop is unclaimable".
+  The literal reading fires on nearly every move, which is the wallpaper the same
+  section forbids, and the implemented version entails the design''s claim. Correct
+  call, and the decision entry has the rejected alternatives.
+
+  2. `queue_warnings` rides the mutation envelope, so a plain REST POST without `?envelope=true`
+  does not see them. Always-on would break every existing caller; the findings are
+  still in the task''s own `queue_move` entry, and the Python client and MCP always
+  ask for the envelope.
+
+  3. `above_prerequisite` is same-band only, because cross-band would put a permanent
+  warning on every move of a high task with a medium prerequisite. The case is not
+  lost -- `promoted_unclaimable` names the same dependency.
+
+  4. Commit ff1f734 fixes an out-of-order refetch found in Chrome and not in jsdom:
+  two Alt+Up presses raced and the first move''s verdict overwrote the second''s,
+  so the notice described a queue that no longer existed. Both new tests fail without
+  the guard. This is the repository''s own rule about automated gestures being weak
+  evidence, obeyed rather than quoted.
 
 
-  1. **The `no_op` wording is a departure from section 5.4, argued on the record.**
-  The design says "the head of the band above the drop is unclaimable, so `next` returns
-  exactly what it returned before". Read literally that fires on almost every move
-  ever made, which is the wallpaper the same section forbids. It is implemented as
-  "the band''s order is identical before and after" -- rare, always worth knowing,
-  and it entails the design''s claim. The decision entry has the alternatives and
-  why each was rejected. This is the one place I did not follow the text as written.
-
-  2. **`queue_warnings` is on the mutation envelope, so a plain REST POST without
-  `?envelope=true` is not shown them.** The cost is stated in the decision entry.
-  Making the route always answer with the envelope would break every existing caller;
-  the findings are still in the `queue_move` entry of the task that comes back, and
-  the Python client and MCP always ask for the envelope.
-
-  3. **ff1f734 fixes a race the tests could not have found.** Two Alt+Up presses is
-  one gesture, each fires its own request and refetch, and they do not finish in order
-  -- the first move''s single finding landed last and replaced the second move''s
-  three, so the notice described a queue state that no longer existed. I saw it in
-  Chrome, not in jsdom. Both new tests fail without the guard; I checked.
-
-  4. **`above_prerequisite` is same-band only.** Cross-band would mean a permanent
-  warning on every move of a `high` task with a `medium` prerequisite. The case is
-  not lost -- such a task is unclaimable, so `promoted_unclaimable` names the same
-  dependency.
+  The child''s session was stopped before this approval so its working directory does
+  not pin the worktree the finish removes. Its review sandbox on port 8899 is a separate
+  process and survived; the supervisor will stand a fresh one up from merged main
+  so Jeff has a live URL in the morning.
 
 
-  **Verified:** full gate green, all ten stages, on ff1f734 (157.9s, receipt written).
-  52 new Python tests, 40 jsdom tests on the notice, 3 Playwright tests that drive
-  both buttons against a live server and read the anchor back out of the API. Exercised
-  by hand on the CLI and in Chrome -- the plural bug, the undo-a-no-op nonsense, and
-  the race above all came from doing that rather than from the suite.
-
-
-  Not merged, not pushed, task still open, per the task-211 posture.'
+  That note is context to carry into the merge, not another review round: you are
+  still cleared to merge.'
 archived: false
 priority: medium
 queue_position: 6900
@@ -536,3 +518,71 @@ log:
       id: 7c1e2a90-1d44-4f2a-9b31-2190a0005001
       kind: handoff
       fingerprint: 5886dadb95e37c5c49f39b5e17cda606
+- id: 14
+  ts: '2026-08-23T08:31:50.546086Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    Standing approval, granted by Jeff in chat on 2026-08-23 before the work started,
+    for every child of the task-211 epic run overnight and autonomously. Not a per-task
+    click; relayed by the task-211 supervisor after reviewing the branch and this
+    record.
+
+
+    What the supervisor checked. Four commits, +3048, both trees clean, all five acceptance
+    criteria met. sc-5''s two halves are asserted rather than claimed: TestTheCheckIsFree
+    computes the warnings inside count_task_parses and asserts zero parses, and separately
+    asserts a warning-producing move costs the same parses as a silent one -- the
+    performance convention this repository asks for, on parse counts rather than wall
+    clock. TestSilenceIsNormal is the guard on the requirement that most moves say
+    nothing.
+
+
+    The four departures the handoff flags were each read and each stands:
+
+
+    1. `no_op` is implemented as "the band''s order is identical before and after"
+    rather than section 5.4''s literal "the head of the band above the drop is unclaimable".
+    The literal reading fires on nearly every move, which is the wallpaper the same
+    section forbids, and the implemented version entails the design''s claim. Correct
+    call, and the decision entry has the rejected alternatives.
+
+    2. `queue_warnings` rides the mutation envelope, so a plain REST POST without
+    `?envelope=true` does not see them. Always-on would break every existing caller;
+    the findings are still in the task''s own `queue_move` entry, and the Python client
+    and MCP always ask for the envelope.
+
+    3. `above_prerequisite` is same-band only, because cross-band would put a permanent
+    warning on every move of a high task with a medium prerequisite. The case is not
+    lost -- `promoted_unclaimable` names the same dependency.
+
+    4. Commit ff1f734 fixes an out-of-order refetch found in Chrome and not in jsdom:
+    two Alt+Up presses raced and the first move''s verdict overwrote the second''s,
+    so the notice described a queue that no longer existed. Both new tests fail without
+    the guard. This is the repository''s own rule about automated gestures being weak
+    evidence, obeyed rather than quoted.
+
+
+    The child''s session was stopped before this approval so its working directory
+    does not pin the worktree the finish removes. Its review sandbox on port 8899
+    is a separate process and survived; the supervisor will stand a fresh one up from
+    merged main so Jeff has a live URL in the morning.'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 15
+  ts: '2026-08-23T08:31:52.671210Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-219-queue-move-check` (ff1f734a).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\aj-219.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_b68465f4\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-219-queue-move-check
+    finish_id: fin_b68465f4
