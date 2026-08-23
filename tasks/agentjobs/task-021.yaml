@@ -3,7 +3,7 @@ id: task-021
 title: Posture should decide whether a run merges and pushes, not only what it may
   execute
 created: '2026-08-19T22:28:28.717331Z'
-updated: '2026-08-23T22:57:21.128900Z'
+updated: '2026-08-23T22:59:02.554809Z'
 lifecycle: active
 ball: human
 ball_reason: input
@@ -699,3 +699,14 @@ log:
   data:
     ball: human
     ball_reason: input
+- id: 14
+  ts: '2026-08-23T22:59:02.554635Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: stopped session c415e796
+  re: 5
+  data:
+    run_id: run_131023d2
+    outcome: cancelled
+    duration_seconds: 2841.77466
+    log_path: C:\Users\jpose\.agentjobs\runs\run_131023d2
