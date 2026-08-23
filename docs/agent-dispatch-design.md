@@ -740,12 +740,16 @@ was a real dilemma only because a batch run has no third move. A session has one
 
 Machine-local in `~/.agentjobs/dispatch.yaml`, like every other dispatch setting.
 
-| Posture | Flags | For |
-|---|---|---|
-| `read_only` | `--tools "Read,Glob,Grep,WebFetch"` | Review, triage, plans, defect reports. Verified enforceable: the agent has no shell at all. |
-| `auto` **(default)** | `--permission-mode auto` plus the project allow-list via `--settings` | Normal dispatched work. A classifier reviews each action, so the run keeps a gate and never needs a terminal. |
-| `supervised` | `--permission-mode acceptEdits` plus the project allow-list via `--settings` | A run a human is actually watching and willing to answer. |
-| `autonomous` | `--permission-mode bypassPermissions` | Per-project opt-in. Never the default. |
+| Posture | Flags | Merge | For |
+|---|---|---|---|
+| `read_only` | `--tools "Read,Glob,Grep,WebFetch"` | no branch | Review, triage, plans, defect reports. Verified enforceable: the agent has no shell at all. |
+| `auto` **(default)** | `--permission-mode auto` plus the project allow-list via `--settings` | stop, hand off | Normal dispatched work. A classifier reviews each action, so the run keeps a gate and never needs a terminal. |
+| `supervised` | `--permission-mode acceptEdits` plus the project allow-list via `--settings` | stop, hand off | A run a human is actually watching and willing to answer. |
+| `autonomous` | `--permission-mode bypassPermissions` | merges itself | Per-project opt-in. Never the default. |
+
+The **Merge** column is task-021 and is derived from the posture rather than configured;
+pushing is a separate per-project switch that defaults to off. See [A posture also decides
+what happens to the branch](#a-posture-also-decides-what-happens-to-the-branch-task-021-2026-08-23).
 
 Every posture except `autonomous` also carries the dispatched project's own `.mcp.json`
 server names in `--settings`, which is the only way a `--bg` run gets past the MCP
@@ -925,6 +929,86 @@ anything, and it still does **not** justify making `autonomous` a default.
 - **A bespoke per-runner argv allow-list.** Rejected: `--settings permissions.allow`
   already does this, is enforced, and is settable per invocation. A second mechanism
   would need a translation layer to the one that actually works.
+
+#### A posture also decides what happens to the branch (task-021, 2026-08-23)
+
+Everything above is about **what a process may execute**. Until task-021 that was the
+whole of what a posture meant, and what became of the *branch* afterwards was governed
+entirely by prose — ENGINEERING.md's merge gate, which says work does not merge itself,
+read as unconditional by every agent in the repository.
+
+Jeff's requirement is that a posture carry both: `auto` and `supervised` stop for a
+human, `autonomous` merges when it finds no serious problem. Push stays a separate
+per-project switch, because the same posture should push in one of his repositories and
+never in this one.
+
+**Derived from the posture, not configured beside it.** A separate `merge_policy:` key
+would be two switches with four combinations, of which "autonomous execution, but stop
+for review" is one nobody has ever wanted and "classifier-gated execution, merges
+unreviewed" is one nobody should get by typo. `Posture.merge_policy` is a property; there
+is nothing to set.
+
+**`auto` and `supervised` are identical here on purpose.** They differ in how the process
+is gated *while it runs*. Who authorises the merge is a different question, and giving
+them different answers would make the choice between two execution modes silently decide
+a workflow policy nobody was choosing.
+
+##### The weak point, and what is actually load-bearing
+
+"No serious issue detected by the agent" is the agent grading its own homework, and it is
+the least reliable gate available. It is therefore **not the authorising one**. The
+authorising one is `scripts/check.py` exit 0, run by the finisher on the rebased branch,
+unqualified — not `--only`, not `--from`, not `--since-gate`, and not reported by the
+agent. Both have to hold: the agent's judgement is a veto it can always exercise, and the
+gate is the floor it cannot talk its way past.
+
+That is why an autonomous merge goes through `agentjobs finish --posture-release` rather
+than through the agent running `git merge`. Routing it there means the merge, the rebuild,
+the restart, the verification and the close are the identical sequence a human approval
+takes, with one substitution: what authorised it. The authority is re-checked inside
+`finish_task` against the project's machine-local posture, so a prompt that is wrong,
+stale, or copied from another project's run fails closed.
+
+**What that check is and is not.** It is a guarantee about the sanctioned path. It is not
+containment against a misbehaving agent — `autonomous` *is* `bypassPermissions`, and a run
+that ignored its instructions could merge by hand with nothing in the way. Containment of
+that kind was given up when the posture was chosen, and pretending otherwise here would
+be the kind of decoration this repository's verification rules warn about.
+
+##### Push is not a posture property, and nothing here runs `git push`
+
+Per project, defaulting to `false`, and `false` for AgentJobs. Two reasons it is not
+folded into the posture: the same posture genuinely should push in one repository and not
+another, and merging and publishing have different reach. A merge into a local `main` is
+recoverable by anyone with a reflog. A push is not.
+
+**The switch tells the agent; no code in AgentJobs pushes.** Making the scripted finish
+push was rejected while there is no repository on this machine with a remote to prove it
+against — an unverified publication step inside a script that runs unattended is exactly
+the shape of thing that gets shipped on a hunch and discovered by someone else. Reopen it
+when a project that wants it exists to test against.
+
+##### What happens when an autonomous run merges something bad
+
+It reaches `main`, it is found by whoever next reads `main`, and it is reverted. Nothing
+left the machine. **That is the entire recovery argument**, and it is why `push: false`
+matters more here than the merge policy does: a project that both releases the merge gate
+and permits pushing has spent the recovery, and needs a much stronger justification than
+this decision provides.
+
+##### The policy travels in the prompt, and only there
+
+A configuration key the agent never reads changes nothing. The posture's merge and push
+policy is therefore rendered into the generated prompt (`dispatch.runner.policy_clause`)
+as one or two sentences, which is a deliberate exception to §4's pointer-not-composition
+rule and the second one after the worktree paragraph. The justification is the same
+shape: everything else the stub gestures at is *in the record*, and this is not — it is
+derived from a machine-local file the agent cannot read, and the repository's own
+committed prose says the opposite by default. A run not told otherwise obeys the prose,
+correctly, and `autonomous` would mean nothing at all.
+
+A supervisor gets the same policy phrased for a run that holds no branch: what the
+children it starts will do. It still approves nothing under either policy.
 
 #### No auto-escalation, ever
 
