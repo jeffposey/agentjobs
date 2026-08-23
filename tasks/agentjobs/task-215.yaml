@@ -2,68 +2,45 @@ schema: 2
 id: task-215
 title: "Playbooks 2: instantiation \u2014 `playbook run` on CLI, REST and GUI"
 created: '2026-08-21T04:55:56.410481Z'
-updated: '2026-08-23T09:22:10.735483Z'
+updated: '2026-08-23T10:21:05.531849Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'The approval ran the scripted finish and it stopped at `rebase`. **Nothing
-  was merged.**
-
-
-  Rebasing feat/task-215-playbook-run onto main did not apply cleanly, and a conflict
-  is never resolved here. The branch is exactly where it was (5da808b9). Nothing was
-  merged.
-
-
-  ```
-
-  Auto-merging frontend/openapi.json
-
-  Auto-merging frontend/src/App.tsx
-
-  Auto-merging frontend/src/api/generated/@tanstack/react-query.gen.ts
-
-  CONFLICT (content): Merge conflict in frontend/src/api/generated/@tanstack/react-query.gen.ts
-
-  Auto-merging frontend/src/api/generated/index.ts
-
-  CONFLICT (content): Merge conflict in frontend/src/api/generated/index.ts
-
-  Auto-merging frontend/src/api/generated/sdk.gen.ts
-
-  CONFLICT (content): Merge conflict in frontend/src/api/generated/sdk.gen.ts
-
-  Auto-merging frontend/src/api/generated/types.gen.ts
-
-  Rebasing (1/6)
-
-  Rebasing (2/6)
-
-  Rebasing (3/6)
-
-  Rebasing (4/6)
-
-  error: could not apply 94e54b5... feat(frontend): a Playbooks page with a Run button
-
-  hint: Resolve all conflicts manually, mark them as resolved with
-
-  hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
-
-  hint: You can instead skip this commit: run "git rebase --skip".
-
-  hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
-
-  hint: Disable this message with "git config set advice.mergeConflict false"
-
-  Could not apply 94e54b5... # feat(frontend): a Playbooks page with a Run button
-
-  ```
-
-
-  Take it from here by hand. Check the tree against what is written above before acting
-  on anything you remember: if your worktree, your branch or your account of this
-  task no longer matches what is on disk, say so on the record and hand the ball back
-  rather than improvising a recovery.'
+ball: human
+ball_reason: review
+ball_prompt: "**The rebase is done and the gate is green. Nothing merged, nothing\
+  \ pushed \u2014 ready for the finish to be re-run.**\n\n`feat/task-215-playbook-run`\
+  \ is now six commits on top of `main` at `d26600b`. New tip **`2d1f43a6`** (was\
+  \ `5da808b9`). Worktree clean.\n\n**The substance of this work is unchanged and\
+  \ you already approved it** (entry 10). No source was edited to make the rebase\
+  \ go through \u2014 the only files that differ from what you reviewed are regenerated\
+  \ build output, and they differ because task-219 landed first.\n\n**What it took.**\
+  \ The conflict was three files in `frontend/src/api/generated/`, caused by task-219's\
+  \ merge `75c3387`: both branches added REST routes, so both regenerated the same\
+  \ client from a different base document. I did not hand-merge them. They are build\
+  \ output, so I ran `npm run generate:api` and let the application produce them \u2014\
+  \ a hand-merged client that happens to compile is one nobody can trust. Confirmed\
+  \ the result carries both sides' symbols (`getPlaybooks`/`runPlaybookEndpoint` and\
+  \ `queueMoveTask`/`queueKeepTask`), and that regenerating a second time at the final\
+  \ tip produces **zero drift**.\n\n**The one thing that needed judgement rather than\
+  \ a tool** was `frontend/src/App.tsx`, which auto-merged. Both branches add to the\
+  \ nav, and a dropped side is exactly what a clean auto-merge will not tell you about.\
+  \ I read it rather than trusting it: this branch's Playbooks `<Link>` and `<Route\
+  \ path=\"playbooks\">` are both there, and so are task-219's `queueKeepTask` import,\
+  \ `keep` mutation and `keep:` handler. `tsc --noEmit` passing is the independent\
+  \ check that the regenerated client still typechecks against both sides' call sites.\n\
+  \n**Gate: green.** Full `scripts/check.py`, no arguments, this worktree's own interpreter.\
+  \ Exit 0, \"Ran every stage (10 of 10)\", receipt written for `2d1f43a6`. 155.7s.\
+  \ 3031 pytest, 248 vitest, 25 Playwright \u2014 all passed, including task-219's\
+  \ own `queue-order.spec.ts`. That matters here: this branch touches `cli.py`, `manager.py`,\
+  \ the status routes and `App.tsx`, and so did task-219, so the re-run is real re-verification\
+  \ rather than a formality.\n\n**Nothing else about the review changed.** The sc-4\
+  \ reading you accepted, the `--actor` decision you told me to keep, and the two\
+  \ stated limitations (a resumed session's wake prompt not carrying the pointer line;\
+  \ `run_task.category` unvalidated) are all as they were. `python scripts/playbook_sandbox.py`\
+  \ still stands the page up on 8895 if you want another look; I did not run it this\
+  \ time and left no server running.\n\n**What I need from you:** re-record the approval\
+  \ so the scripted finish can take it from `2d1f43a6`. Per this run's instructions\
+  \ I did not merge, did not push and did not close \u2014 the finish should now get\
+  \ a clean rebase, since the conflict it stopped on is resolved and committed."
 archived: false
 priority: high
 queue_position: 93
@@ -634,3 +611,104 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 14
+  ts: '2026-08-23T10:20:46.388207Z'
+  actor: claude
+  type: progress
+  body: "Rebased onto main by hand after the scripted finish escalated at `rebase`.\
+    \ No code changed; the substance of this task is exactly what was approved.\n\n\
+    **State verified before touching anything.** The escalation's account was accurate:\
+    \ worktree `C:/projects/worktrees/aj-215` clean, branch `feat/task-215-playbook-run`\
+    \ at `5da808b9`, no rebase in progress, six commits ahead of the merge base `b9795adb`.\n\
+    \n**What conflicted.** `git rebase main` reproduced the escalation exactly \u2014\
+    \ it failed applying commit 4 of 6 (`94e54b5`, the Playbooks page) with content\
+    \ conflicts in three generated files:\n\n- `frontend/src/api/generated/@tanstack/react-query.gen.ts`\n\
+    - `frontend/src/api/generated/index.ts`\n- `frontend/src/api/generated/sdk.gen.ts`\n\
+    \n`frontend/openapi.json`, `types.gen.ts` and `frontend/src/App.tsx` auto-merged.\
+    \ The cause is task-219 (merge `75c3387`): both branches added REST routes, so\
+    \ both regenerated the same client from a different starting document.\n\n**How\
+    \ it was resolved: regenerated, not hand-merged.** These files are build output,\
+    \ so the only resolution that makes them correct is to produce them from the application.\
+    \ Ran `npm run generate:api` (OpenAPI export + `openapi-ts`) over the conflicted\
+    \ tree and staged the result. Verified no conflict markers survived, and that\
+    \ the regenerated client carries *both* sides' symbols \u2014 `getPlaybooks`/`runPlaybookEndpoint`\
+    \ from this branch and `queueMoveTask`/`queueKeepTask` from task-219.\n\nChecked\
+    \ the interpreter before running it, because `generate:api-schema` shells out\
+    \ to `poetry run`: `VIRTUAL_ENV` was empty and poetry resolved to this worktree's\
+    \ own venv importing `C:/projects/worktrees/aj-215/src/agentjobs`. Had it resolved\
+    \ to the main clone, the export would have been main's document with no playbook\
+    \ routes.\n\nThe last two commits touch `api/routes/playbooks.py` and `status.py`\
+    \ after the point the client was regenerated, so after the rebase finished I regenerated\
+    \ again at the tip and confirmed **zero drift** \u2014 the committed client matches\
+    \ the app as it stands.\n\n**`App.tsx` auto-merge inspected rather than trusted.**\
+    \ This was the flagged risk: both branches add to the nav, and a dropped side\
+    \ is not something a clean rebase reports. Both survived \u2014 the Playbooks\
+    \ `<Link>` (line 609) and `<Route path=\"playbooks\">` (line 621) are present,\
+    \ and so are task-219's `queueKeepTask` import, its `keep` mutation and the `keep:`\
+    \ handler. The production build (`tsc --noEmit`) passing is the independent confirmation\
+    \ that the regenerated client typechecks against both sides' call sites.\n\n**Gate:\
+    \ green.** Full `scripts/check.py`, no arguments, run with this worktree's own\
+    \ interpreter (`agentjobs-5-NrC702-py3.13`), not `poetry run`. Exit 0, \"Ran every\
+    \ stage (10 of 10)\", receipt written for `2d1f43a6`.\n\n    black 1.4s \xB7 ruff\
+    \ 0.1s \xB7 mypy 3.9s \xB7 api 4.7s \xB7 icons 2.7s \xB7 oxlint 0.6s\n    pytest\
+    \ 101.4s \xB7 vitest 6.6s \xB7 build 4.1s \xB7 e2e 30.3s \xB7 total 155.7s\n\n\
+    3031 pytest, 248 vitest, 25 Playwright, all passed. This was a real re-verification\
+    \ rather than a formality: the rebase puts this branch's `cli.py`, `manager.py`,\
+    \ status-route and `App.tsx` changes on top of task-219's changes to the same\
+    \ files, and task-219's own `queue-order.spec.ts` e2e specs pass against it. Two\
+    \ strings in the gate log match /failed/i and neither is a failure \u2014 an expected\
+    \ webhook-delivery log line from a test, and `ConnectionResetError` noise from\
+    \ the Playwright web server shutting down.\n\nNew branch tip: **`2d1f43a6`** (was\
+    \ `5da808b9`). Nothing merged, nothing pushed, task left open, per the run's instructions."
+  data:
+    operation:
+      id: 24ef2abf-e1fb-4500-8507-467b81bef742
+      kind: log_append
+      fingerprint: 0a1a2a404e60f955205d61f669825d85
+- id: 15
+  ts: '2026-08-23T10:21:05.531650Z'
+  actor: claude
+  type: handoff
+  body: "**The rebase is done and the gate is green. Nothing merged, nothing pushed\
+    \ \u2014 ready for the finish to be re-run.**\n\n`feat/task-215-playbook-run`\
+    \ is now six commits on top of `main` at `d26600b`. New tip **`2d1f43a6`** (was\
+    \ `5da808b9`). Worktree clean.\n\n**The substance of this work is unchanged and\
+    \ you already approved it** (entry 10). No source was edited to make the rebase\
+    \ go through \u2014 the only files that differ from what you reviewed are regenerated\
+    \ build output, and they differ because task-219 landed first.\n\n**What it took.**\
+    \ The conflict was three files in `frontend/src/api/generated/`, caused by task-219's\
+    \ merge `75c3387`: both branches added REST routes, so both regenerated the same\
+    \ client from a different base document. I did not hand-merge them. They are build\
+    \ output, so I ran `npm run generate:api` and let the application produce them\
+    \ \u2014 a hand-merged client that happens to compile is one nobody can trust.\
+    \ Confirmed the result carries both sides' symbols (`getPlaybooks`/`runPlaybookEndpoint`\
+    \ and `queueMoveTask`/`queueKeepTask`), and that regenerating a second time at\
+    \ the final tip produces **zero drift**.\n\n**The one thing that needed judgement\
+    \ rather than a tool** was `frontend/src/App.tsx`, which auto-merged. Both branches\
+    \ add to the nav, and a dropped side is exactly what a clean auto-merge will not\
+    \ tell you about. I read it rather than trusting it: this branch's Playbooks `<Link>`\
+    \ and `<Route path=\"playbooks\">` are both there, and so are task-219's `queueKeepTask`\
+    \ import, `keep` mutation and `keep:` handler. `tsc --noEmit` passing is the independent\
+    \ check that the regenerated client still typechecks against both sides' call\
+    \ sites.\n\n**Gate: green.** Full `scripts/check.py`, no arguments, this worktree's\
+    \ own interpreter. Exit 0, \"Ran every stage (10 of 10)\", receipt written for\
+    \ `2d1f43a6`. 155.7s. 3031 pytest, 248 vitest, 25 Playwright \u2014 all passed,\
+    \ including task-219's own `queue-order.spec.ts`. That matters here: this branch\
+    \ touches `cli.py`, `manager.py`, the status routes and `App.tsx`, and so did\
+    \ task-219, so the re-run is real re-verification rather than a formality.\n\n\
+    **Nothing else about the review changed.** The sc-4 reading you accepted, the\
+    \ `--actor` decision you told me to keep, and the two stated limitations (a resumed\
+    \ session's wake prompt not carrying the pointer line; `run_task.category` unvalidated)\
+    \ are all as they were. `python scripts/playbook_sandbox.py` still stands the\
+    \ page up on 8895 if you want another look; I did not run it this time and left\
+    \ no server running.\n\n**What I need from you:** re-record the approval so the\
+    \ scripted finish can take it from `2d1f43a6`. Per this run's instructions I did\
+    \ not merge, did not push and did not close \u2014 the finish should now get a\
+    \ clean rebase, since the conflict it stopped on is resolved and committed."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 8e7cd9db-9ce0-4e09-98b6-00608cc03d0a
+      kind: handoff
+      fingerprint: f99021bc00da2b0fe81f419427589167
