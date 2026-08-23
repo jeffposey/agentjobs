@@ -2,73 +2,16 @@ schema: 2
 id: task-218
 title: 'Playbooks 5: flesh-out, authored and proven'
 created: '2026-08-21T04:56:57.789106Z'
-updated: '2026-08-23T18:45:21.757533Z'
+updated: '2026-08-23T19:11:55.908478Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "**The brief is written and the gate is green. The live run could not\
-  \ happen, and the reason is not a blocker to clear \u2014 it is that this backlog\
-  \ has no thin task in it.**\n\nBranch `feat/task-218-flesh-out-playbook`, three\
-  \ commits, nothing merged, nothing pushed. **Full gate green, 10 of 10, no arguments,\
-  \ clean tree at `6099eee3`** \u2014 receipt written.\n\n## What to review\n\n**`playbooks/flesh-out.md`**\
-  \ (and the shipped reference, kept byte-identical to it). Design \xA75.3 and decision\
-  \ P7 in the form a run reads. The parts worth your eye, all flagged by me rather\
-  \ than found in review:\n\n- **\"You are specifying, not deciding.\"** The failure\
-  \ this brief most needs to prevent is a spec that quietly settles an open question\
-  \ \u2014 the task then gets dispatched and a session implements a call nobody took,\
-  \ with the record showing a specification rather than a decision.\n- **Two prohibitions\
-  \ the design's prose does not name**, argued in place: never change the **title**\
-  \ (on a thin task it is usually the only thing you wrote, and it is the reviewer's\
-  \ only evidence of what was meant), and never change **tags or category** (they\
-  \ feed bands and filters, so they are queue decisions like a priority).\n- **`review`,\
-  \ not the `approval` groom moved to** in `ce2d1fa`. Groom asks you to authorise\
-  \ writes that have not happened; this asks you to read something already written.\
-  \ Different questions.\n- **A corpus measurement inside the brief** (\xA71), so\
-  \ a run pointed at a task that does not need one reports that instead of padding\
-  \ it.\n\n## sc-1 met. sc-2 not met, and no agent can meet it\n\nThree independent\
-  \ blockers, any one sufficient. Full evidence in the decision entry; the short form:\n\
-  \n1. **There is no thin task here.** 113 open, 174 closed, 287 records. The thinnest\
-  \ open one has a **429-character description and five acceptance criteria**; the\
-  \ median is 2,387. **Zero records in the corpus have an empty `spec.description`.**\
-  \ I read the four thinnest in full \u2014 every one is a working spec. Running flesh-out\
-  \ at any of them is the exact failure the brief's \xA71 forbids.\n2. **The brief\
-  \ is on this branch and `playbook run` reads the shared clone.** Demonstrated, not\
-  \ predicted: `Refused (unknown_playbook): No playbook named 'flesh-out' in C:\\\
-  projects\\agentjobs\\playbooks.` Same wall task-216 hit.\n3. **Nothing I can do\
-  \ authorises the dispatch.** A `target: task` run creates no run task, so `--actor`\
-  \ is unused and the human-clocked rule reads *the target's own newest log entry*.\
-  \ Measured with the real guard across all 113 open tasks: **4 are dispatchable,\
-  \ 109 refused** \u2014 and all 4 are 2,000-plus-character specs of yours that must\
-  \ not be fleshed out. I did not write your name as the authoriser of a spend you\
-  \ did not clock.\n\n**What unblocks it is one command from you, after this merges,**\
-  \ and it needs a target that does not exist yet: file a thin task the way you actually\
-  \ would from a phone, write any note on it as yourself, then `agentjobs playbook\
-  \ run flesh-out --task <id>` \u2014 no `--actor`, because your note is the authorising\
-  \ entry.\n\n## Three questions, and one of them is a design question\n\n- **Is flesh-out\
-  \ worth its weight in *this* project?** Its stated reason for existing is that \"\
-  thin tasks are filed constantly\". They are not, here: 199 of 287 tasks were filed\
-  \ by `claude`, and even the thinnest of the 13 you filed yourself has a 575-character\
-  \ description. It may be the right playbook for other repositories and near-unused\
-  \ in this one \u2014 which would also mean **sc-2 is waiting on a condition that\
-  \ may never arise**. Your call, not mine.\n- **The Playbooks page refuses exactly\
-  \ the tasks flesh-out is for.** Clicking Run passes `authorized_by`, which triggers\
-  \ `record_can_brief` \u2014 refused when `spec.description` is empty, which is the\
-  \ definition of the target. Any typed note clears it, which is arguably worse: a\
-  \ box that fires on every legitimate use and is dismissed by typing anything. Should\
-  \ a playbook pointer count as the brief?\n- **A pre-existing test flake will probably\
-  \ fail this task's own finish.** `test_the_timeout_kills_the_grandchild_too` failed\
-  \ 4 of 9 full-suite runs tonight **including on unmodified `main`**. If the approval-triggered\
-  \ finish escalates with \"the gate went red\", that is it \u2014 re-run `agentjobs\
-  \ finish task-218` and it will pass on a retry. Diagnosis and a one-line fix are\
-  \ in the question entry.\n\n## Merge posture\n\nApprove and the scripted finish\
-  \ rebases, re-runs the gate, merges `--no-ff`, restarts and closes. **This task\
-  \ can close on it: sc-1 is met and sc-2 is not going to become meetable by anything\
-  \ I do.** If you would rather keep it open until a real thin task has been through\
-  \ it, say so and it stays open on sc-2 \u2014 but then it is waiting on you filing\
-  \ one, and the question above is whether that ever happens.\n\nOne thing the kickoff\
-  \ asked for was **not** built and it was deliberate: a \"last-`queue_move`-actor\
-  \ exposure\" and \"anchor rules\". Those are task-217's and appear nowhere in this\
-  \ task's spec or acceptance. Decision entry says why.\n"
+ball: agent
+ball_reason: revise
+ball_prompt: Test the flesh out playbook on new task draft "Keep top bar visible while
+  scrolling". Make sure flesh out playbook looks for duplicates first, and then adds
+  additional details to existing task instead, and removes draft. If no duplicate,
+  flesh out that draft and make it ready. Send ball back to human for approval of
+  this fleshed out task I created for this test, and then on approval of that, finish
+  and merge this task 218
 archived: false
 priority: medium
 queue_position: 6800
@@ -126,7 +69,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-218-flesh-out-playbook
-  status: active
+  status: merged
+  merged_at: '2026-08-23T19:07:00Z'
 log:
 - id: 1
   ts: '2026-08-21T04:56:57.789152Z'
@@ -571,3 +515,122 @@ log:
       id: 9794ead7-4eef-4315-b0d2-416894166374
       kind: handoff
       fingerprint: dd7184243f34ef100b59778662821fb9
+- id: 13
+  ts: '2026-08-23T19:08:58.339608Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by Jeff Posey:
+
+
+    Test the flesh out playbook on new task draft "Keep top bar visible while scrolling".
+    Make sure flesh out playbook looks for duplicates first, and then adds additional
+    details to existing task instead, and removes draft. If no duplicate, flesh out
+    that draft and make it ready. Send ball back to human for approval of this fleshed
+    out task I created for this test, and then on approval of that, finish and merge
+    this task 218'
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 14
+  ts: '2026-08-23T19:09:07.685727Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 15
+  ts: '2026-08-23T19:09:10.719469Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_1c20a87b
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    trigger: manual
+    caused_by: 14
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - 'You are the agent `claude` working task `task-218` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-218-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_1c20a87b.'
+    cwd: C:\projects\agentjobs
+    git_head: 23e1415
+    session_id: 07c81ae4
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 16
+  ts: '2026-08-23T19:11:55.846694Z'
+  actor: claude
+  type: note
+  body: '**Read this before acting: the branch `feat/task-218-flesh-out-playbook`
+    is ALREADY MERGED into `main`, as `23e1415`, at 19:07 -- minutes before the change
+    request above was written.**
+
+
+    The supervisor merged it. That was a mistake: Jeff had said this task was waiting
+    on him, and the supervisor merged the branch anyway on its own reasoning that
+    landing the brief unblocked the live run. It did unblock it, and it was still
+    not the supervisor''s call. Recorded here because the state on disk will otherwise
+    not make sense to you.
+
+
+    **What that means for you, concretely:**
+
+
+    - `playbooks/flesh-out.md` and `src/agentjobs/playbooks/references/flesh-out.md`
+    are on `main` now. That is why `agentjobs playbook run flesh-out` can find the
+    playbook at all -- it resolves the playbooks directory under the shared clone,
+    and until this merge there was nothing there. Blocker 2 from log entry 12 is gone.
+
+    - **Do not try to merge that branch again, and do not reuse it.** It is merged
+    and its worktree at `C:/projects/worktrees/aj-218` is stale. Take a **new** worktree
+    and a **new** branch for the changes Jeff asked for -- something like `fix/task-218-flesh-out-dedupe`
+    -- and record it in `branches[]` alongside the merged one.
+
+    - The gate was green on the merged content (10 of 10, receipt for `03b3b545`),
+    so `main` is not broken; the brief on it is simply the version before Jeff''s
+    requested change.
+
+
+    **What Jeff actually asked for**, restated so it is not lost behind the mechanics:
+    the flesh-out brief must **look for duplicates first**. If the draft duplicates
+    an existing task, add the detail to the existing task and remove the draft. Only
+    if there is no duplicate does it flesh out the draft and make it `ready`. That
+    is a change to the brief''s normative content, not just a run -- the merged version
+    has no dedupe step.
+
+
+    Then run it for real against his new draft **"Keep top bar visible while scrolling"**,
+    hand the ball back to `human`/`approval` so he can approve the fleshed-out task
+    itself, and only after that approval does task-218 finish and merge.
+
+
+    Note the ordering he set: **two approvals, not one.** First he approves the fleshed-out
+    task the run produced; then this task finishes. Do not collapse them.'
+  data:
+    operation:
+      id: af9d8475-92dc-40b6-9f35-284bfe85b61c
+      kind: log_append
+      fingerprint: 5856086dfb4e1a502d1f2268c04eac8e
