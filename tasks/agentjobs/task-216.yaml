@@ -2,7 +2,7 @@ schema: 2
 id: task-216
 title: 'Playbooks 3: groom, authored and proven live'
 created: '2026-08-21T04:56:17.617014Z'
-updated: '2026-08-23T11:03:05.231190Z'
+updated: '2026-08-23T11:06:21.769491Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -407,3 +407,45 @@ log:
       id: 3a1c8f20-7b64-4d51-9e12-216000000008
       kind: handoff
       fingerprint: c634c082fe335980528533e7d1728338
+- id: 10
+  ts: '2026-08-23T11:06:21.769317Z'
+  actor: claude
+  type: decision
+  body: "**Decision: task-216 is merged by the supervisor by hand rather than through\
+    \ the scripted finish, because the finish cannot express what this task needs.**\n\
+    \n`finish_task` calls `manager.close_task(..., outcome=COMPLETED)` unconditionally\
+    \ on success -- it reads an approval as \"this task is done\", which is true for\
+    \ every task it has run against so far and is not true here. task-216's sc-2 and\
+    \ sc-3 are honestly `pending`: the propose half of the live run is proved, the\
+    \ execute half waits on Jeff's answer to task-290. Letting the finish close it\
+    \ would overwrite that honesty with a green tick, which is precisely the tidying-away\
+    \ the child's handoff warned against.\n\nSo the supervisor runs the same sequence\
+    \ the finish runs, minus the close: rebase onto main in the child's own worktree,\
+    \ full gate with that worktree's own interpreter, `git merge --no-ff`, rebuild\
+    \ the bundle if the merge touched served code, restart 8876 through its own launcher,\
+    \ verify `/api/version` reports the merge, mark the branch merged, and remove\
+    \ the worktree. The task then stays open with the ball on Jeff.\n\n**Why merge\
+    \ tonight at all, rather than waiting for Jeff to answer task-290 first.** Because\
+    \ the brief has to be on `main` before the execution half can happen through the\
+    \ real command: log entry 5 records that `playbook run` resolves `playbooks/`\
+    \ under the project root, which is the shared clone, so `playbooks/groom.md` does\
+    \ not exist to it until this merges. Merging now is what makes the morning path\
+    \ the ordinary one instead of another workaround.\n\n*Rejected: spawning a session\
+    \ to run the merge, to keep the supervisor's hands off it.* The task-211 constraint\
+    \ that the supervisor writes no code and takes no worktree exists so the supervisor\
+    \ does not do the children's engineering and does not accumulate their context.\
+    \ Neither is engaged by running a rebase, a gate and a merge in a worktree that\
+    \ already exists \u2014 that is the finish's job, being done by hand because the\
+    \ finish has no switch for it. An agent session to type four git commands is cost\
+    \ without a corresponding check.\n\n*Rejected: letting the finish close it and\
+    \ reopening afterwards.* There is no reopen verb, by design, and manufacturing\
+    \ one out of a close followed by an edit would put a false transition in the record\
+    \ permanently.\n\n*Rejected: marking sc-2 and sc-3 met on the grounds that the\
+    \ remaining work is tracked on task-290.* They are task-216's criteria and they\
+    \ say what they say. A criterion that is satisfied by another task's existence\
+    \ is not satisfied."
+  data:
+    operation:
+      id: 6899607a-e353-4ba2-9d2f-d50fd5f98a4e
+      kind: log_append
+      fingerprint: 526d4ffa6f5afbe987548cb773d8593c
