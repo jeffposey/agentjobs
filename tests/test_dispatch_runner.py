@@ -786,6 +786,8 @@ class TestCodexBatchRunner:
 
             def supervise(self, *, turn_id, on_message=None, timeout=None):
                 events.append("supervise")
+                assert on_message is not None
+                on_message({"method": "item/started", "params": {"turnId": turn_id}})
                 return {"turn": {"id": turn_id, "status": "completed"}}
 
             def inspect_persisted_thread(self, thread_id):
@@ -806,6 +808,8 @@ class TestCodexBatchRunner:
         assert handle.directory.read_meta()["mcp_preflight_server"] == "agentjobs"
         assert handle.directory.read_meta()["persistence_status"] == "persisted"
         assert handle.directory.read_meta()["desktop_visibility"] == "not_observed"
+        transcript = handle.directory.path / "transcript.log"
+        assert '"method": "item/started"' in transcript.read_text(encoding="utf-8")
 
     def test_app_server_preflight_failure_prevents_the_task_turn(
         self, workspace: Path, manager: TaskManager, task, monkeypatch

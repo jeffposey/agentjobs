@@ -1373,7 +1373,7 @@ class DispatchRunner:
                     stream.write(json.dumps(message, ensure_ascii=False) + "\n")
                     stream.flush()
 
-            completed = app_server.supervise(turn_id=turn_id, on_message=write_message)
+                completed = app_server.supervise(turn_id=turn_id, on_message=write_message)
             turn = completed.get("turn") if isinstance(completed, dict) else None
             status = turn.get("status") if isinstance(turn, dict) else None
             codex_status = "completed" if status == "completed" else "failed"

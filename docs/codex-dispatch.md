@@ -59,10 +59,11 @@ Windows, avoiding the non-spawnable Microsoft Store `codex` alias.
 
 ```yaml
   codex-terra:
-    argv: ["codex", "exec", "--json", "--model", "gpt-5.6-terra",
-           "-c", 'model_reasoning_effort="high"', "{prompt}"]
+    argv: ["codex", "app-server", "--model", "gpt-5.6-terra",
+           "-c", 'model_reasoning_effort="high"',
+           "-c", 'service_tier="default"', "{prompt}"]
     driver: codex
-    mode: batch
+    mode: session
     actor: codex
 
   codex-sol:
@@ -112,15 +113,31 @@ runner_groups:
 
 1. Start AgentJobs and verify a fresh Codex desktop or CLI session can call
    `projects_list` through MCP.
-2. Enable only `codex-luna-session` and run one human-triggered, ordinary task through
-   an explicitly named test group. Confirm the dispatch record, the diagnostic JSONL,
-   and the same named conversation in Codex Desktop.
-3. Switch `default` to `codex-luna-session` as its only enabled candidate. Do not leave a
-   Claude fallback: a group must fail rather than quietly spend on a different model.
-4. Enable `codex-sol-session` only in `big-dawg`, then run its own human-triggered smoke task.
-   After it passes, disable the Claude member there too.
-5. Keep Claude defined outside production groups only for a fresh-session MCP
-   compatibility canary.
+2. Enable only `codex-terra` in a named, isolated `codex-smoke` group and run one
+   human-authorized task with `agentjobs dispatch run <task> --group codex-smoke`.
+   Confirm the dispatch record, the diagnostic JSONL, and persisted-thread evidence.
+3. Re-dispatch the same still-open task through the same named group. Confirm the run
+   records `resumed: true` and preserves the original App Server thread ID.
+4. Perform the separate Desktop observation procedure below. Do not treat a successful
+   observation, or lack of one, as evidence about dispatch or resume.
+5. Keep this acceptance group isolated. It does not select or change the machine default
+   runner group; normal routing remains an independent operator decision.
+
+## Controlled Terra acceptance
+
+For the controlled acceptance run, use GPT-5.6 Terra at High reasoning and Standard
+speed through the explicitly named `codex-smoke` group. Before launch, record the human
+authorization on the task; the command intentionally refuses to invent a human actor.
+
+1. Dispatch the open task once and retain its run ID, persisted thread ID, MCP preflight
+   result, and turn-completion result.
+2. Leave the task open, then issue a second authorized dispatch. It must resume the
+   persisted thread rather than create a replacement thread.
+3. Read each run's metadata. Record dispatch success, resumability, persistence evidence,
+   and `desktop_visibility` separately.
+4. For Desktop visibility, refresh Codex Desktop and open the exact recorded thread by
+   its AgentJobs title or ID. A person records `desktop_visible`; otherwise preserve
+   `not_observed` or `unavailable` without changing the other outcomes.
 
 ## Posture mapping
 
@@ -131,7 +148,6 @@ runner_groups:
 | `autonomous` | `--sandbox danger-full-access` | Explicit, high-trust automation |
 | `supervised` | `approvalPolicy: on-request` | Desktop can answer an interactive approval |
 
-For the current $20 plan, the configured policy is Luna with `high` reasoning for the
-default workhorse and Sol with `high` reasoning for Big Dawg. Terra remains available
-as a disabled candidate; Sol is reserved for work where its extra weekly capacity is
-worth the cost.
+The controlled acceptance configuration uses Terra with `high` reasoning and Standard
+speed in an explicitly named group. It is not a claim that the default runner group has
+been changed, and it does not use Sol/Big Dawg.

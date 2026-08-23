@@ -242,6 +242,12 @@ class CodexAppServerProcess:
                 value = raw.get(key)
                 if isinstance(value, str):
                     return value
+        # Current Codex App Server versions omit a startup-status field once a
+        # server has completed discovery.  A populated server description and tools
+        # map are then the positive readiness evidence; accepting mere presence would
+        # weaken the required-MCP gate for an entry that is still starting.
+        if isinstance(entry.get("serverInfo"), dict) and isinstance(entry.get("tools"), dict):
+            return "ready"
         return None
 
     def preflight_required_mcp(self, *, server_name: str = "agentjobs") -> CodexMcpPreflight:
