@@ -54,6 +54,7 @@ from agentjobs.dispatch.auth import AuthStall, read_auth_stall
 from agentjobs.dispatch.codex_app_server import (
     CodexAppServerError,
     CodexAppServerProcess,
+    CodexResumeFailure,
     parse_session_settings,
 )
 from agentjobs.dispatch.config import (
@@ -1190,6 +1191,8 @@ class DispatchRunner:
 
         app_server = new_app_server()
         resumed = wake is not None
+        resume_replacement = False
+        resume_replacement_reason = ""
         launch_phase = "preflight"
         try:
             preflight = new_app_server().preflight_required_mcp()
@@ -1204,19 +1207,68 @@ class DispatchRunner:
                     prompt, resume_thread_id=wake.session_uuid if wake else None
                 )
             except CodexAppServerError as exc:
-                # A persisted thread may still be open in Codex Desktop (or in a
-                # crashed App Server child).  App Server refuses a second writer in
-                # that case.  Keep the resumable path when it works, but start a fresh
-                # app-visible thread when the old writer is stale/busy rather than
-                # making the task depend on a manual cleanup step.
-                if wake is None or "active writer" not in str(exc).lower():
+                failure = exc.resume_failure
+                if wake is None or failure is None:
+                    raise
+                if failure is CodexResumeFailure.BUSY:
+                    # A durable thread with another active writer is still this task's
+                    # continuation.  Return a parked live run so the guard adopts and
+                    # retains its per-task lock; a second click cannot launch a rival
+                    # conversation while the original writer remains authoritative.
+                    app_server.terminate()
+                    entry_id = self._record_dispatch(
+                        task,
+                        run_id,
+                        argv,
+                        actor=actor,
+                        caused_by=caused_by,
+                        trigger=trigger,
+                        mode=DispatchMode.SESSION,
+                        session_id=wake.session_uuid,
+                        body=(
+                            f"Could not resume Codex App Server thread from run "
+                            f"`{wake.previous_run_id}` because it still has an active writer. "
+                            "The run is parked as resume_busy; its task lock remains held and "
+                            "no fresh thread was started."
+                        ),
+                    )
+                    directory.update_meta(
+                        status="parked",
+                        codex_status="resume_busy",
+                        codex_lifecycle="resume_busy",
+                        resume_failure=failure.value,
+                        resume_error=str(exc),
+                        dispatch_entry_id=entry_id,
+                        session_id=wake.session_uuid,
+                        thread_id=wake.session_uuid,
+                        pid=None,
+                    )
+                    return RunHandle(
+                        run_id=run_id,
+                        task_id=task.id,
+                        mode=DispatchMode.SESSION,
+                        directory=directory,
+                        session_id=wake.session_uuid,
+                        dispatch_entry_id=entry_id,
+                        runner=self.runner.name,
+                        group=self._group_name(),
+                        api_base=self.api_base,
+                    )
+                if failure not in {
+                    CodexResumeFailure.MISSING,
+                    CodexResumeFailure.UNRECOVERABLE,
+                }:
                     raise
                 app_server = new_app_server()
                 started = app_server.start(self.build_argv_and_prompt(task.id, run_id)[1])
                 resumed = False
+                resume_replacement = True
+                resume_replacement_reason = failure.value
                 directory.update_meta(
-                    resume_fallback=True,
-                    resume_fallback_reason="persisted thread already had an active writer",
+                    resume_replacement=True,
+                    resume_failure=failure.value,
+                    replaced_thread_id=wake.session_uuid,
+                    fresh_thread_id=started.thread_id,
                 )
             entry_id = self._record_dispatch(
                 task,
@@ -1233,9 +1285,10 @@ class DispatchRunner:
                         "and injected the latest AgentJobs wake prompt."
                         if resumed and wake is not None
                         else (
-                            f"Started a fresh Codex App Server thread because persisted run "
-                            f"`{wake.previous_run_id}` still had an active writer."
-                            if wake is not None
+                            f"Started fresh Codex App Server thread `{started.thread_id}` after "
+                            f"persisted thread `{wake.session_uuid}` from run "
+                            f"`{wake.previous_run_id}` was classified {resume_replacement_reason}."
+                            if resume_replacement and wake is not None
                             else "Started a Codex App Server thread. Its conversation is persisted in "
                             "the Codex session store and can be opened by Codex Desktop."
                         )
@@ -1865,6 +1918,11 @@ class DispatchRunner:
                 body=str(meta.get("error") or "The Codex App Server supervisor failed."),
             )
             return SessionPhase.GONE
+        if codex_status == "resume_busy":
+            # The lock stays held by the live parked run.  Only a later explicit
+            # recovery may retry this same persisted thread; polling must not turn it
+            # into a fresh dispatch behind the caller's back.
+            return SessionPhase.PARKED
         pid = meta.get("pid")
         if isinstance(pid, int) and pid > 0:
             try:
