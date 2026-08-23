@@ -352,7 +352,10 @@ async def run_playbook_endpoint(
             ),
         ) from exc
     except DispatchError as exc:
-        raise dispatch_refusal_error(exc, payload.task or name) from exc
+        # `payload.task` and not the playbook name: `task_id` on the error body means a
+        # task, and a project-target run that never got as far as creating one has no
+        # task to name. Putting "groom" there reads, to any client, as a task id.
+        raise dispatch_refusal_error(exc, payload.task) from exc
 
     handle = result.handle
     meta = handle.directory.read_meta()

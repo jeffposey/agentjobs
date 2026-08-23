@@ -731,7 +731,7 @@ def _as_int(value: object) -> int:
     return value if isinstance(value, int) and not isinstance(value, bool) else 0
 
 
-def dispatch_refusal_error(exc: DispatchError, task_id: str) -> MutationError:
+def dispatch_refusal_error(exc: DispatchError, task_id: Optional[str]) -> MutationError:
     """Render a dispatch refusal under its own code, never as a generic 400.
 
     Public because the playbook run route renders the same refusals: a playbook run is
