@@ -3,14 +3,14 @@ id: task-305
 title: Move rationale, incident narrative and measurement history out of the always-loaded
   bundle, and put what remains under a budget a test asserts
 created: '2026-08-23T21:53:30.307386Z'
-updated: '2026-08-23T21:53:30.804865Z'
+updated: '2026-08-23T21:56:40.163007Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
 queue_position: 8400
-category: docs
+category: documentation
 tags:
 - big-dawg-audit
 - context
@@ -146,3 +146,15 @@ log:
       id: b5c07e83-9a14-4d26-b7f8-1c3e5a8d20f9
       kind: create
       fingerprint: 42b334044b09f11a93420fe8abfaa06d
+- id: 2
+  ts: '2026-08-23T21:56:40.162890Z'
+  actor: claude
+  type: note
+  body: Updated category.
+  data:
+    fields:
+    - category
+    operation:
+      id: 8c3f21ae-5b07-4d69-b284-1f9e6d0a7c58
+      kind: update_content
+      fingerprint: b8b02021b632c648d4c31d6f9a48118e
