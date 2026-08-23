@@ -1,9 +1,9 @@
 schema: 2
 id: task-293
-title: 'Merged branches are never deleted: the scripted finish drops the rule, and
-  the lifecycle checklist omits it'
+title: 'Merged branches are never deleted, and branches live too long: fix the finish,
+  the checklist, and the guidance'
 created: '2026-08-23T19:18:39.567925Z'
-updated: '2026-08-23T21:03:08.858842Z'
+updated: '2026-08-23T21:32:01.773831Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -20,11 +20,12 @@ tags:
 assignment:
   eligible: []
 spec:
-  summary: ENGINEERING.md and AGENTS.md both say to delete a local branch once it
-    is merged. `finish.py` never does it, and ALLAGENTS.md's numbered task lifecycle
+  summary: 'ENGINEERING.md and AGENTS.md both say to delete a local branch once it
+    is merged. `finish.py` never does it, and ALLAGENTS.md''s numbered task lifecycle
     -- the checklist agents actually execute -- omits it. Six merged branches accumulated
-    in one night before anyone noticed. Fix the code, fix the checklist, and decide
-    whether the gate or a check should catch the next one.
+    in one night. Folded in on Jeff''s instruction: guidance on branch *lifetime*
+    too, since every rebase conflict that night came from branches living across other
+    merges, and on doing more per task rather than less.'
   intent: A merged branch left behind is not harmful on its own, which is exactly
     why this went unnoticed while it happened six times in a night. The cost is that
     `git branch --list` stops being a readable statement of what is in flight, so
@@ -152,7 +153,94 @@ spec:
 
     Decide, argue it, and if the answer is "nothing enforces it, the two fixes above
     are enough", record that as a decision with the reasoning rather than leaving
-    it unaddressed.'
+    it unaddressed.
+
+
+    ---
+
+
+    # Second half, added 2026-08-23 on Jeff''s instruction: branch *lifetime*, not
+    just branch cleanup
+
+
+    Deleting merged branches is hygiene. The costlier problem the same night exposed
+    is **how long a branch stays open before it merges at all**, and Jeff asked for
+    it folded in here rather than filed separately.
+
+
+    **Every rebase conflict in the task-211 epic came from branch lifetime, not from
+    parallelism.** task-219 conflicted because its branch lived across task-214''s
+    merge; task-215 across task-219''s; task-217 across task-218''s. Five sessions
+    ran against one clone for eleven hours and produced exactly three conflicts, all
+    of that shape, and all in files two branches had both appended to. Nothing about
+    running work in parallel caused them. Branches being open for hours while `main`
+    moved underneath did.
+
+
+    ## The thing that makes this non-obvious, and it is the substance of this half
+
+
+    **Branch lifetime is not the same as task size, and tonight proves it.** task-217''s
+    branch was open roughly nine hours and contained about one hour of work. The other
+    eight were *waiting*: parked at `human`/`review` for an approval, then waiting
+    behind a `base_moved` retry, then waiting behind a second one. Shrinking that
+    task would not have shortened its branch by a minute.
+
+
+    This matters because **Jeff''s stated preference is the opposite of shrinking
+    tasks: he wants more done per task, to a degree, for speed.** He is right about
+    the cost that motivates it -- every task boundary pays for a worktree, a bootstrap,
+    a full gate, a review round, a merge and a cleanup, and that overhead is a large
+    fraction of a small task''s total. Four children tonight each paid it.
+
+
+    So the two goals only conflict if you assume lifetime is driven by size. It is
+    not; it is driven by **wait**. Guidance that says "keep tasks small" would trade
+    away the thing Jeff actually wants in exchange for something that would not have
+    prevented a single conflict tonight.
+
+
+    ## What to write, and where
+
+
+    Guidance, in `ENGINEERING.md` beside the branch lifecycle and referenced from
+    `ALLAGENTS.md`''s task lifecycle. Argue it rather than asserting it, and keep
+    it short. The content should cover:
+
+
+    - **What actually keeps a branch short: merging promptly once it is ready.** The
+    long poles are review latency and merge retries, so the levers are handing off
+    with a complete review request the first time, and not leaving an approved branch
+    sitting.
+
+    - **Rebase onto `main` before handing off for review**, not only when the merge
+    gate refuses. A branch that has been open for hours is very likely behind, and
+    rebasing at handoff moves the conflict from the merge -- where it stops a scripted
+    finish and costs a whole cycle -- to a moment when a session is already in context.
+    Cheap then, expensive later.
+
+    - **Bigger tasks are fine and often better**, and this is the explicit counterweight
+    so nobody reads the above as "split everything up". A task should be as large
+    as one session can carry with its acceptance criteria still checkable. Note what
+    the ceiling actually is: the point where a session''s context can no longer hold
+    the work, or where the acceptance criteria stop being independently verifiable
+    -- not an arbitrary size.
+
+    - **Where the real ceiling on task size sits: the parent-task rule.** `ALLAGENTS.md`
+    already says anything taking a worktree gets its own session. That is a session
+    boundary, not a size limit, and the two are routinely confused. Say so.
+
+
+    ## Relationship to the other findings from that night
+
+
+    Task-297 (the finish loses its `base_moved` race under concurrency) attacks the
+    same pain from the other end: it makes a merge more likely to succeed once attempted,
+    where this makes fewer merges need attempting. They are complementary and neither
+    substitutes for the other. Task-296 (a parked session is invisible) is the largest
+    single contributor to wait time measured that night -- roughly four hours on one
+    task -- so it is arguably the biggest branch-lifetime fix of the three, which
+    is worth saying out loud here so this guidance is not mistaken for the whole answer.'
   constraints: '- Use `git branch -d`, never `-D`. A refusal is information: it means
     the branch is not merged and the assumption behind deleting it is wrong.
 
@@ -168,7 +256,10 @@ spec:
   out_of_scope: 'Remote branches and anything involving `git push` -- nothing in this
     repository''s workflow pushes, and pruning a remote is a different decision. Deleting
     the branches that already accumulated: they were deleted by hand on 2026-08-23
-    and the clone is clean.'
+    and the clone is clean. Splitting tasks smaller as a way to shorten branches --
+    explicitly rejected; Jeff wants more per task, and lifetime is driven by wait
+    rather than size. The finish''s base_moved behaviour (task-297) and stalled-session
+    detection (task-296), which attack the same wait from other directions.'
   context:
   - path: src/agentjobs/dispatch/finish.py
     why: Implements the merge gate's steps 3-6 and drops the branch-deletion half
@@ -208,6 +299,23 @@ acceptance:
   text: After one full approve-to-merge cycle run through the finish, `git branch
     --merged main` lists no branch for the closed task.
   verify: demonstrated live on a real task, not asserted
+  status: pending
+- id: sc-6
+  text: 'ENGINEERING.md carries short, argued guidance on branch lifetime: rebase
+    onto main before handing off for review, and merge promptly once approved. ALLAGENTS.md''s
+    lifecycle references it at the step where it applies.'
+  verify: ENGINEERING.md and ALLAGENTS.md
+  status: pending
+- id: sc-7
+  text: The guidance explicitly says bigger tasks are fine and names the real ceiling
+    -- one session's context, and independently checkable acceptance -- rather than
+    implying work should be split to keep branches short.
+  verify: the guidance text
+  status: pending
+- id: sc-8
+  text: The distinction between branch lifetime and task size is stated with the evidence
+    for it, so a later reader does not resolve the two goals by shrinking tasks.
+  verify: the guidance text
   status: pending
 deliverables: []
 dependencies: []
@@ -262,3 +370,70 @@ log:
       id: 9c3e1a70-2170-4b22-a001-000000000103
       kind: queue_move
       fingerprint: 803776b5a48dd5d11886857a1afa5308
+- id: 3
+  ts: '2026-08-23T21:31:26.986463Z'
+  actor: system
+  type: note
+  body: Updated acceptance, spec, title.
+  data:
+    fields:
+    - acceptance
+    - spec
+    - title
+    operation:
+      id: 9c06f35c-93e5-42fa-aa70-7e3c4608852d
+      kind: update_content
+      fingerprint: 3a029fe52070600231389cd6b7d660a0
+- id: 4
+  ts: '2026-08-23T21:32:01.773580Z'
+  actor: claude
+  type: decision
+  body: '**Folded in on Jeff''s instruction, 2026-08-23: branch lifetime guidance,
+    and his preference for more work per task.** He asked for both here rather than
+    as separate tasks.
+
+
+    The two pull in opposite directions only if you get the causation wrong, and getting
+    it wrong is the likely failure of whoever picks this up -- so it is stated in
+    the description rather than left to be rediscovered.
+
+
+    **The evidence.** Every rebase conflict in the task-211 epic came from a branch
+    living across another branch''s merge: task-219 across task-214, task-215 across
+    task-219, task-217 across task-218. Five sessions on one clone for eleven hours
+    produced exactly three, all that shape.
+
+
+    **The trap.** The obvious reading is "keep branches short, so keep tasks small".
+    That is wrong on the measurements. task-217''s branch was open about nine hours
+    and held roughly one hour of work; the rest was waiting -- parked at `human`/`review`,
+    then behind two `base_moved` retries. Shrinking the task would not have shortened
+    the branch at all. Lifetime is driven by **wait**, not by size, so the guidance
+    has to attack wait: rebase at handoff rather than at the merge, and do not leave
+    an approved branch sitting.
+
+
+    **Jeff''s preference is explicitly the other way and it is right.** Every task
+    boundary pays a worktree, a bootstrap, a full gate, a review round, a merge and
+    a cleanup, and on a small task that overhead is most of the cost -- four children
+    paid it tonight. So the guidance must say bigger tasks are fine and name the actual
+    ceiling: one session''s context, and acceptance criteria that stay independently
+    checkable. Not an arbitrary size, and not the parent-task session boundary, which
+    is a different rule that gets confused with a size limit.
+
+
+    *Rejected: filing this as its own task.* Jeff asked for it folded in, and it is
+    the same rule''s other half -- one is what happens to a branch after it merges,
+    the other is how long it takes to get there. Splitting them would put two halves
+    of "branch discipline" in two places, which is the exact failure gap 2 of this
+    task already describes.
+
+
+    Three acceptance criteria added, sc-6 through sc-8, with sc-8 specifically requiring
+    the lifetime-versus-size distinction be written down so a later reader cannot
+    resolve the tension by shrinking tasks.'
+  data:
+    operation:
+      id: 371f141a-3d56-443e-86a2-33a50da87c22
+      kind: log_append
+      fingerprint: c2d8ba95d3e0ceb80f8bf378a443b82c
