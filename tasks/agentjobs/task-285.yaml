@@ -2,17 +2,24 @@ schema: 2
 id: task-285
 title: 'Codex dispatch: Terra reliability acceptance smoke and runbook'
 created: '2026-08-22T23:10:49.425223Z'
-updated: '2026-08-23T03:50:12.688099Z'
+updated: '2026-08-23T03:50:27.011466Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review final task-285 acceptance on `feat/task-285-terra-acceptance`:
-  commits `10e20c7` and `e78621f`. `run_4063f1c0` completed and `run_8ba3e2df` resumed
-  its exact thread/session id with MCP preflight ready. The persistence probe now
-  uses thread/read plus unfiltered thread/list scoped by cwd and id; persisted Windows
-  source labels no longer produce a false negative. Full gate passed (2,853 pytest,
-  228 Vitest, 22 Playwright). Desktop visibility remains explicitly not_observed and
-  is not claimed as acceptance evidence. Approve under the standing task-280 authorization.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.
+
+
+  Note from Jeff Posey:
+
+
+  Approved under standing autonomous authorization for task-280; merge the final acceptance
+  branch and close task-285.
+
+
+  That note is context to carry into the merge, not another review round: you are
+  still cleared to merge.'
 archived: false
 priority: high
 queue_position: 15
@@ -431,3 +438,15 @@ log:
       id: 1a8d30f4-22ec-4a3a-8dcf-e9914904a97f
       kind: handoff
       fingerprint: 497097ea3822ec999ede94698c72c653
+- id: 20
+  ts: '2026-08-23T03:50:27.011285Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    Approved under standing autonomous authorization for task-280; merge the final
+    acceptance branch and close task-285.'
+  data:
+    ball: agent
+    ball_reason: work
