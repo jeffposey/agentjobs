@@ -2,13 +2,17 @@ schema: 2
 id: task-285
 title: 'Codex dispatch: Terra reliability acceptance smoke and runbook'
 created: '2026-08-22T23:10:49.425223Z'
-updated: '2026-08-23T03:38:05.816075Z'
+updated: '2026-08-23T03:45:26.487859Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Resume task-285 on the recorded App Server thread, verify same-thread
-  wake evidence, and investigate the persisted-thread list discrepancy without claiming
-  Desktop visibility.
+ball: human
+ball_reason: review
+ball_prompt: "Review task-285\u2019s controlled Terra acceptance evidence and commits\
+  \ `27a1dfb` and `be191aa` on `fix/task-285-resume`. `run_4063f1c0` completed; `run_8ba3e2df`\
+  \ resumed its exact thread/session id with MCP preflight ready. The persistence\
+  \ source-kind mismatch is documented: read plus unfiltered list prove the stored\
+  \ thread, while the `appServer` filter excludes its `vscode` label. Desktop visibility\
+  \ is explicitly still `not_observed`. Approve the branch/acceptance or request changes\
+  \ after the resumed turn\u2019s dispatch result appears."
 archived: false
 priority: high
 queue_position: 15
@@ -327,3 +331,90 @@ log:
     outcome: completed
     duration_seconds: 858.492148
     log_path: C:\Users\jpose\.agentjobs\runs\run_4063f1c0
+- id: 15
+  ts: '2026-08-23T03:38:17.006005Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed Codex App Server thread from run `run_4063f1c0` and injected the latest
+    AgentJobs wake prompt.
+  data:
+    run_id: run_8ba3e2df
+    agent: codex
+    runner: codex-terra
+    mode: session
+    posture: autonomous
+    trigger: manual
+    caused_by: 7
+    argv:
+    - C:\Users\jpose\AppData\Local\OpenAI\Codex\bin\110b3d66a02d864e\codex.exe
+    - app-server
+    - --model
+    - gpt-5.6-terra
+    - -c
+    - model_reasoning_effort="high"
+    - -c
+    - service_tier="default"
+    - --sandbox
+    - danger-full-access
+    - -c
+    - mcp_servers.agentjobs.required=true
+    - 'You are the agent `codex` working task `task-285` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-285-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_8ba3e2df.'
+    cwd: C:\projects\agentjobs
+    git_head: 52d7d51
+    session_id: 01a02ca5-6a47-7c40-984c-b5c4868f3be4
+    selection:
+      group: codex-smoke
+      source: dispatch
+      candidates:
+      - runner: codex-terra
+        eligible: true
+- id: 16
+  ts: '2026-08-23T03:40:20.224590Z'
+  actor: codex
+  type: decision
+  body: 'Verified the resumed wake: `run_8ba3e2df` records `resumed: true`, `resumed_from:
+    run_4063f1c0`, and the same thread/session id `01a02ca5-6a47-7c40-984c-b5c4868f3be4`;
+    its MCP preflight is ready. The first run''s persistence probe was a false negative:
+    `thread/read` returns that durable thread and unfiltered `thread/list` (31 entries)
+    includes it at the project cwd, but the thread is labelled `source: vscode`, so
+    AgentJobs'' `sourceKinds: [appServer]` filter returns zero entries. This is source-classification/filter
+    behavior, not evidence of a lost thread or Desktop visibility. Rejected alternative:
+    treating `thread/read` or resume success as proof that Codex Desktop displayed
+    the thread; Desktop remains `not_observed`.'
+  data:
+    operation:
+      id: 3401293a-e436-4beb-a9da-d53d3431cb0e
+      kind: log_append
+      fingerprint: 76a5b3eaa5150c314621ba5e203c87a4
+- id: 17
+  ts: '2026-08-23T03:43:47.427242Z'
+  actor: codex
+  type: handoff
+  body: 'Completed the same-thread wake verification and documented the persisted-thread
+    source-kind recovery path. The resumed turn remains active only until this response
+    completes; no Desktop visibility claim was made. Full `poetry run python scripts/check.py`
+    gate passed: 2,852 pytest, 228 Vitest, and 22 Playwright tests.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 8dc0aec6-a09f-4854-a25f-a3d6836f5524
+      kind: handoff
+      fingerprint: c0e9d4ff688ddde715814744f692ce6b
+- id: 18
+  ts: '2026-08-23T03:45:26.487674Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 15
+  data:
+    run_id: run_8ba3e2df
+    outcome: completed
+    duration_seconds: 433.772066
+    log_path: C:\Users\jpose\.agentjobs\runs\run_8ba3e2df
