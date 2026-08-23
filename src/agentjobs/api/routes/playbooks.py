@@ -42,8 +42,8 @@ from agentjobs.playbooks.model import PlaybookTarget
 from agentjobs.playbooks.run import PlaybookDispatchRefused, PlaybookRunError, run_playbook
 from agentjobs.projects import Project
 
-from ..dependencies import get_task_manager, project_config
-from ..models import DispatchStarted, ErrorBody
+from ..dependencies import current_identity, get_task_manager, project_config
+from ..models import DispatchStarted, ErrorBody, ReviewIdentity
 from .status import (
     MutationError,
     dispatch_refusal_error,
@@ -121,6 +121,15 @@ class PlaybookCollection(BaseModel):
     )
     playbooks: List[PlaybookRead] = Field(default_factory=list)
     problems: List[PlaybookProblemRead] = Field(default_factory=list)
+    identity: ReviewIdentity = Field(
+        ...,
+        description=(
+            "Who a run started from this listing would be attributed to, or why "
+            "nobody can be. Carried on the listing because the Run button has to be "
+            "disabled with a reason rather than pressable into a refusal, and this is "
+            "the only response the playbooks page reads."
+        ),
+    )
 
 
 @router.get("/playbooks", response_model=PlaybookCollection, response_model_exclude_none=True)
@@ -129,9 +138,16 @@ async def get_playbooks(
 ) -> PlaybookCollection:
     """Every playbook this project holds, with the files that would not load."""
     listing = list_playbooks(project.playbooks_dir())
+    identity = current_identity(project)
     return PlaybookCollection(
         directory=str(listing.directory),
         exists=listing.exists,
+        identity=ReviewIdentity(
+            ok=identity.ok,
+            user=identity.user,
+            problem=identity.problem,
+            detail=identity.detail,
+        ),
         playbooks=[
             PlaybookRead(**playbook.contract.model_dump(), filename=playbook.path.name)
             for playbook in listing.playbooks

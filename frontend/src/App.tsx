@@ -9,6 +9,7 @@ import {
   enableDispatchApiProjectsProjectIdDispatchEnablePostMutation,
   getDashboardApiProjectsProjectIdDashboardGetOptions,
   getDispatchStateApiProjectsProjectIdDispatchGetOptions,
+  getPlaybooksApiProjectsProjectIdPlaybooksGetOptions,
   getProjectsApiProjectsGetOptions,
   getQueueApiProjectsProjectIdQueueGetOptions,
   getTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetOptions,
@@ -28,6 +29,7 @@ import {
   redirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostMutation,
   requestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostMutation,
   resumeTaskApiProjectsProjectIdTasksTaskIdResumePostMutation,
+  runPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostMutation,
 } from "./api/generated/@tanstack/react-query.gen";
 import type { DispatchRunView, MutationResultOutput, Priority } from "./api/types";
 import { readRefusal } from "./api/mutation-error";
@@ -49,6 +51,7 @@ import { TaskCreate } from "./components/TaskCreate";
 import { IssueReporter } from "./components/IssueReporter";
 import { NextExplanation } from "./components/NextExplanation";
 import { invalidateProjectTaskQueries, LiveUpdateStatus } from "./components/LiveUpdates";
+import { Playbooks, type PlaybookRunRequest } from "./components/Playbooks";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
 
 function ProjectRedirect() {
@@ -524,6 +527,69 @@ function TaskCreatePage({ projectId }: { projectId: string }) {
   );
 }
 
+function PlaybooksPage({ projectId }: { projectId: string }) {
+  const queryClient = useQueryClient();
+  const [runningName, setRunningName] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<{ name: string; refusal: DispatchRefusal } | null>(null);
+  const [started, setStarted] = useState<{ name: string; taskId: string; created: boolean } | null>(null);
+
+  const playbooksQuery = useQuery(
+    getPlaybooksApiProjectsProjectIdPlaybooksGetOptions({ path: { project_id: projectId } }),
+  );
+  // The same endpoint the task page and the settings page read. One source for "may
+  // this machine dispatch", so three surfaces cannot disagree about whether it can.
+  const stateQuery = useQuery(
+    getDispatchStateApiProjectsProjectIdDispatchGetOptions({ path: { project_id: projectId } }),
+  );
+  const run = useMutation(runPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostMutation());
+
+  const user = playbooksQuery.data?.identity.ok ? playbooksQuery.data.identity.user : null;
+
+  return (
+    <Playbooks
+      collection={playbooksQuery.data ?? null}
+      dispatchState={stateQuery.data ?? null}
+      runningName={runningName}
+      refusal={refusal}
+      started={started}
+      onRun={async ({ name, task }: PlaybookRunRequest): Promise<boolean> => {
+        setRefusal(null);
+        setStarted(null);
+        setRunningName(name);
+        try {
+          // `user` is the human asking. For a project-target playbook the server
+          // creates the run task attributed to them and that creation entry is the
+          // authorisation; for a task-target one it is task-188's authorising entry on
+          // the task named. Null is not sent, and the page disables the button first.
+          const result = await run.mutateAsync({
+            path: { project_id: projectId, name },
+            body: { ...(user ? { user } : {}), ...(task ? { task } : {}) },
+          });
+          setStarted({ name, taskId: result.task_id, created: result.created_run_task });
+          // A run task is a new task and a run changes the one it is aimed at, so the
+          // lists this page links into are stale the moment this returns.
+          await queryClient.invalidateQueries();
+          return true;
+        } catch (error) {
+          const read = readRefusal(error);
+          setRefusal({
+            name,
+            refusal: read
+              ? { reason: read.code, message: read.message, suggestedAction: read.suggestedAction }
+              : {
+                  reason: "run_failed",
+                  message: "The run could not be started. Reload the page and try again.",
+                },
+          });
+          return false;
+        } finally {
+          setRunningName(null);
+        }
+      }}
+    />
+  );
+}
+
 function ProjectApp() {
   const { projectId = "" } = useParams<{ projectId: string }>();
   return (
@@ -538,6 +604,9 @@ function ProjectApp() {
           {/* Its own nav entry, not buried in a menu: this is where the switch that
               stops every future run lives, and a kill switch you cannot reach is not one. */}
           <Link to={projectPath(projectId, "/dispatch")} className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">Dispatch</Link>
+          {/* Beside Dispatch rather than under it: a playbook run *is* a dispatch, and
+              the two gates a reader needs are the same ones. */}
+          <Link to={projectPath(projectId, "/playbooks")} className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">Playbooks</Link>
           <a href="/docs" className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">API Docs</a>
         </nav>
       </header>
@@ -549,6 +618,7 @@ function ProjectApp() {
           <Route path="tasks/new" element={<TaskCreatePage projectId={projectId} />} />
           <Route path="tasks/:taskId" element={<TaskDetailPage projectId={projectId} />} />
           <Route path="dispatch" element={<DispatchSettingsPage projectId={projectId} />} />
+          <Route path="playbooks" element={<PlaybooksPage projectId={projectId} />} />
           <Route path="*" element={<Navigate to="/not-found" replace />} />
         </Routes>
       </main>
