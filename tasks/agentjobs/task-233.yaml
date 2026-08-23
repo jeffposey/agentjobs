@@ -3,7 +3,7 @@ id: task-233
 title: 'Cycle time: 21 hours of dispatched runs over 23 tasks, and nothing measures
   where it goes'
 created: '2026-08-21T20:42:00.402460Z'
-updated: '2026-08-23T18:42:41.106416Z'
+updated: '2026-08-23T18:43:03.238878Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -978,3 +978,13 @@ log:
       id: d8c05f31-6a24-4b93-81ef-3f7a29c1e604
       kind: handoff
       fingerprint: 66baa6d921ba5040292182e987a82bca
+- id: 24
+  ts: '2026-08-23T18:43:03.238535Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 19
+  data:
+    run_id: run_96375760
+    outcome: completed
+    duration_seconds: 1303.222714
+    log_path: C:\Users\jpose\.agentjobs\runs\run_96375760
