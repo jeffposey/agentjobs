@@ -2,54 +2,23 @@ schema: 2
 id: task-218
 title: 'Playbooks 5: flesh-out, authored and proven'
 created: '2026-08-21T04:56:57.789106Z'
-updated: '2026-08-23T19:28:14.628108Z'
+updated: '2026-08-23T21:28:55.357459Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "**Two things are waiting on you, in the order you set. task-292 first;\
-  \ this one only after that.**\n\n**1. Go and read task-292.** It is parked at `human`/`review`\
-  \ with the fleshed-out spec on it. That is the deliverable you asked for and it\
-  \ is the honest test of whether the brief works \u2014 if the spec is wrong, the\
-  \ brief is wrong, and I would rather fix it before this merges than after.\n\nThe\
-  \ run found **no duplicate**, and the reason is worth thirty seconds: task-237 (`Shell\
-  \ 2`) puts *\"Any change to the header nav, or a global navigation rail\"* in its\
-  \ own `out_of_scope`, and says *\"the header nav is untouched\"* in its constraints.\
-  \ So your task is the work the Shell epic deliberately left out. task-239's *\"\
-  header that stays\"* turned out to be the detail panel's header \u2014 the same\
-  \ sentence about a different element.\n\n**What I would most like you to push back\
-  \ on**, and it is the same thing I told task-292: you filed a one-line CSS fix and\
-  \ I wrote a task that asks somebody to take a design decision first. The header\
-  \ wraps to two or three rows on a phone, so pinning it as it stands spends a third\
-  \ of your phone screen on navigation permanently. I named four alternatives and\
-  \ picked none. If you would rather it were just pinned and done, say so and ac-3\
-  \ comes out.\n\n**2. Then this task, branch `feat/task-218-flesh-out-duplicates`,\
-  \ two commits.** Full gate green, 10 of 10, no arguments, clean tree \u2014 receipt\
-  \ for `b0e3f54a`, 198.2s. Nothing merged, nothing pushed.\n\n- `playbooks/flesh-out.md`\
-  \ (and the shipped reference, byte-identical): the duplicate search is now \xA7\
-  1 and runs before any write, with four search passes and a stated test \u2014 *if\
-  \ the counterpart were done, would this have nothing left to do?* \xA72 is the fold:\
-  \ the detail goes onto the counterpart, the target closes `duplicate`, and the **counterpart**\
-  \ is what gets parked at review, because it is older and carries the history.\n\
-  - **The one place I would expect an argument from you:** that close is not gated,\
-  \ which departs from groom. I argued it rather than just doing it \u2014 groom's\
-  \ closes are gated because a wrong one is *silent*, and this one cannot be, because\
-  \ the survivor is parked in front of you in the same run with the close named first\
-  \ in its prompt. If you would rather it stopped and asked, that is a one-line frontmatter\
-  \ change.\n- `docs/playbooks-design.md` \xA75.3 revised and attributed to your review,\
-  \ the way \xA75.4 marks the one you gave on 2026-08-21.\n\n**One correction in that\
-  \ doc that is not your revision and you should know about.** \xA75.3 claimed the\
-  \ parked ball *\"keeps it unclaimable and undispatchable until a human releases\
-  \ it\"*. It does not. `_skip_reason` decides claimability on lifecycle and never\
-  \ reads the ball; dispatch refuses only `agent/hold`. Measured against the real\
-  \ manager, not inferred. **The safety was coming from the `draft` lifecycle, and\
-  \ promoting removes it** \u2014 so task-292 is dispatchable right now while it sits\
-  \ at your review. I have written that down in three places rather than quietly leaving\
-  \ it, and raised the fix as a question: leave it, make the queue skip a human-held\
-  \ ball, or refuse it at dispatch only. Queue-program work, not this branch's.\n\n\
-  **Also different from what the note above me predicted:** I parked task-292 at `human`/`review`,\
-  \ not `human`/`approval`. `approval` authorises writes that have not happened; the\
-  \ spec is written and sitting under the prompt. One word if you disagree.\n\nsc-1,\
-  \ sc-2 and sc-3 all met. Approve and the scripted finish takes it from there."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.
+
+
+  Note from Jeff Posey:
+
+
+  Correction, I see 292 as completed, not waiting for human review. Proceed.
+
+
+  That note is context to carry into the merge, not another review round: you are
+  still cleared to merge.'
 archived: false
 priority: medium
 queue_position: 6800
@@ -888,3 +857,28 @@ log:
     outcome: completed
     duration_seconds: 1144.783853
     log_path: C:\Users\jpose\.agentjobs\runs\run_1c20a87b
+- id: 22
+  ts: '2026-08-23T21:28:53.451146Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    Correction, I see 292 as completed, not waiting for human review. Proceed.'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 23
+  ts: '2026-08-23T21:28:55.357234Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-218-flesh-out-duplicates` (b0e3f54a).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\aj-218.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_c87691cb\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-218-flesh-out-duplicates
+    finish_id: fin_c87691cb
