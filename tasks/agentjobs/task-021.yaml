@@ -3,41 +3,131 @@ id: task-021
 title: Posture should decide whether a run merges and pushes, not only what it may
   execute
 created: '2026-08-19T22:28:28.717331Z'
-updated: '2026-08-23T22:48:21.755695Z'
+updated: '2026-08-23T22:57:21.128900Z'
 lifecycle: active
 ball: human
-ball_reason: review
-ball_prompt: "Review `feat/task-021-posture-merge-policy` (two commits on top of `0f338d3`).\
-  \ Full gate green, exit 0, all ten stages, 214.6s. All six acceptance criteria met.\n\
-  \n**Read this before approving.** This machine already has `posture: autonomous`\
-  \ for agentjobs. The moment this merges, every dispatched run in this repository\
-  \ stops handing off for your review and merges itself on a green gate. That is exactly\
-  \ what you asked for on 2026-08-19 \u2014 I am flagging it because it takes effect\
-  \ immediately and silently, and this task's own run would have been one of them.\n\
-  \nI did **not** self-merge this one, deliberately: the change that removes the review\
-  \ gate should not be the first thing to use it, and my prompt predates the policy\
-  \ so I was never told the gate was released for me. Merging it unreviewed would\
-  \ have been me granting myself the permission I was writing.\n\nIf you want to phase\
-  \ it in, set `projects.agentjobs.posture: auto` in `~/.agentjobs/dispatch.yaml`\
-  \ before or after merging \u2014 one line, no code change, and every run goes back\
-  \ to stopping for you.\n\n**What to look at, in order of what would hurt most if\
-  \ wrong:**\n1. `ENGINEERING.md` \u2192 *The Merge Gate* \u2192 *Posture decides\
-  \ this, not you*. The qualification of \"work does not merge itself\" and the posture\
-  \ table.\n2. `src/agentjobs/dispatch/finish.py` \u2192 `finish_task`'s `authority`\
-  \ gate. `--posture-release` declines unless the project's machine-local posture\
-  \ is `autonomous`. Tested against a real config for all four postures.\n3. The prompt\
-  \ clause in a real argv \u2014 `posture autonomous / merge automatic / push False`,\
-  \ the clause naming `agentjobs finish task-021 --project agentjobs --posture-release`,\
-  \ and `Never push: this project is configured push: false`.\n\n**Three scope calls\
-  \ I made and recorded rather than took silently** (log entry 10): `push: true` is\
-  \ told to the agent but no code pushes, and the reopen trigger is named; the GUI's\
-  \ dispatch panel is not told about merge policy or push, which is a real visibility\
-  \ gap and wants its own task; per-task posture from your 2026-08-21 note is not\
-  \ built, and needs its own task because the narrow-only rule is a privilege-escalation\
-  \ design in its own right.\n\nYour note of 22:15 asks for task-022 to be dispatched\
-  \ once this finishes. It is not dispatched \u2014 this is at review, not finished.\
-  \ Say the word after approval and I will start it.\n\nWant me to file the two follow-up\
-  \ tasks (GUI visibility, per-task posture) before or after you approve?"
+ball_reason: input
+ball_prompt: "Dispatched session `c415e796` is parked on a permission prompt and will\
+  \ wait indefinitely. Answer it wherever the session is open. Or attach locally with\
+  \ `claude attach c415e796`.\n\nThe end of its terminal, verbatim:\n\n```\n\u25CF\
+  \ A process claiming the address uds:\\\\.\\pipe\\cc-msg-2f62dc4ba2c425f80a2490e946826952\
+  \ (no verifiable pid) asked to be told when this session is next idle \u2014 it\
+  \ will get one automated status\n  notice; a one-line status detail is included\
+  \ only if that address is registered to the same process in the session registry\
+  \ (a same-user process can register itself).\n\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Held message\
+  \ from another session\n  Another Claude session sent a message: from uds:\\\\.\\\
+  pipe\\cc-msg-2f62dc4ba2c425f80a2490e946826952 (peer claims name: agentjobs-fb)\n\
+  \  The sending session's permission mode class doesn't match this session's, so\
+  \ it wasn't delivered automatically.\n  Message body (this is what will be delivered):\n\
+  \  \xABtask-021 is approved. You are cleared to merge. This is from the session\
+  \ supervising the task, relaying Jeffs decision  re-read the task record before\
+  \ acting, do not act on this message alone.\n                                  \
+  \                                                                              \
+  \                                                                              \
+  \            Jeff approved in chat at 22:52. Log entry 12 on task-021 is his approval\
+  \ handoff; the ball is now `agent` / `work` and the ball_prompt carries the merge\
+  \ clearance.\n  **One thing changed before he approved, at his instruction, and\
+  \ you should know it.** He asked for the posture to be lowered first, so `~/.agentjobs/dispatch.yaml`\
+  \ now reads `posture: auto` for\n  agentjobs, not `autonomous`. Verified: `agentj\n\
+  \  What is left is steps 6 and 7 of the lifecycle:\n                           \
+  \                                                                              \
+  \                                                                              \
+  \                   \u2026[21 lines, 2812 chars total \u2014 full body will be delivered\
+  \ on approve]\xBB\n                                                            \
+  \                                                                              \
+  \                                                                \u276F Deny \u2014\
+  \ drop it and tell the sender it was declined\n    Deliver this message to Claude\n\
+  \  I deliberately did not self-merge this one. The change that removes the review\
+  \ gate shouldn't be the first thing to use it, and my prompt predates the policy\
+  \ so I was never told the gate was\n  released for me.\n  What's in it:\n  - MergePolicy\
+  \ is a property of Posture, not a switch beside it \u2014 auto/supervised \u2192\
+  \ review, autonomous \u2192 automatic, read_only \u2192 none. Two independent switches\
+  \ would have combinations nobody wants.     - push is per-project, defaults false,\
+  \ deliberately off the posture.                                                \
+  \                                                                              \
+  \      - Both reach the agent through the generated prompt \u2014 the only channel\
+  \ that can carry them, since the policy comes from a machine-local file the agent\
+  \ can't read while the repo's committed prose        says the opposite by default.\
+  \                                                                              \
+  \                                                                              \
+  \             - An autonomous merge runs agentjobs finish --posture-release, not\
+  \ git merge. That's what puts the objective floor under it: scripts/check.py runs\
+  \ there, unqualified, on the rebased branch.\n    finish_task re-checks the posture,\
+  \ so the sanctioned path fails closed on a stale or wrong prompt.\n  - ENGINEERING.md,\
+  \ ALLAGENTS.md, the workflow guide and the design record all amended in the same\
+  \ change \u2014 no document still states the rule unconditionally.\n           \
+  \                                                                              \
+  \                                                                              \
+  \                                   Three scope calls, all recorded as decisions\
+  \ rather than taken silently: no code pushes (reopen trigger named); the GUI dispatch\
+  \ panel isn't told about merge policy or push \u2014 a real visibility gap    wanting\
+  \ its own task; per-task posture from your 2026-08-21 note isn't built, and needs\
+  \ its own task because the narrow-only rule is a privilege-escalation design in\
+  \ itself.\n  Your 22:15 note asks for task-022 to be dispatched once this finishes\
+  \ \u2014 it isn't, since this is at review. Say the word after approval and I'll\
+  \ start it. Want me to file the two follow-ups now or     after?\n\u273B Cogitated\
+  \ for 37m 27s\n\u25CF Held peer message \u2014 from uds:\\\\.\\pipe\\cc-msg-2f62dc4ba2c425f80a2490e946826952\
+  \ (peer claims name: agentjobs-fb); preview: \xABtask-021 is approved. You are cleared\
+  \ to merge. This is from the\n  session supervising the task, relaying Jeffs decision\
+  \   \u2026[21 lines, 2812 chars total \u2014 expand to review before approving]\xBB\
+  \ \u2014 not delivered to Claude (1 held). The sending session's\n  permission mode\
+  \ class doesn't match this session's. Review it below, or set \"crossSessionInbound\"\
+  \ to \"accept\".\n\u25CF A process claiming the address uds:\\\\.\\pipe\\cc-msg-2f62dc4ba2c425f80a2490e946826952\
+  \ (no verifiable pid) asked to be told when this session is next idle \u2014 it\
+  \ will get one automated status\n  notice; a one-line status detail is included\
+  \ only if that address is registered to the same process in the session registry\
+  \ (a same-user process can register itself).\n\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Held message\
+  \ from another session\n  Another Claude session sent a message: from uds:\\\\.\\\
+  pipe\\cc-msg-2f62dc4ba2c425f80a2490e946826952 (peer claims name: agentjobs-fb)\n\
+  \  The sending session's permission mode class doesn't match this session's, so\
+  \ it wasn't delivered automatically.\n  Message body (this is what will be delivered):\n\
+  \  \xABtask-021 is approved. You are cleared to merge. This is from the session\
+  \ supervising the task, relaying Jeffs decision  re-read the task record before\
+  \ acting, do not act on this message alone.\n                                  \
+  \                                                                              \
+  \                                                                              \
+  \            Jeff approved in chat at 22:52. Log entry 12 on task-021 is his approval\
+  \ handoff; the ball is now `agent` / `work` and the ball_prompt carries the merge\
+  \ clearance.\n  **One thing changed before he approved, at his instruction, and\
+  \ you should know it.** He asked for the posture to be lowered first, so `~/.agentjobs/dispatch.yaml`\
+  \ now reads `posture: auto` for\n  agentjobs, not `autonomous`. Verified: `agentj\n\
+  \  What is left is steps 6 and 7 of the lifecycle:\n                           \
+  \                                                                              \
+  \                                                                              \
+  \                   \u2026[21 lines, 2812 chars total \u2014 full body will be delivered\
+  \ on approve]\xBB\n                                                            \
+  \                                                                              \
+  \                                                                \u276F Deny \u2014\
+  \ drop it and tell the sender it was declined\n    Deliver this message to Claude\n\
+  ```"
 archived: false
 priority: high
 queue_position: 187
@@ -457,3 +547,155 @@ log:
       id: 9e30b6d4-42a8-4f71-b0c5-1a5d3e77c208
       kind: handoff
       fingerprint: 6fe1ad2df61f0f55dff5962b24b0ed3c
+- id: 12
+  ts: '2026-08-23T22:52:35.092689Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    Approved by Jeff in chat, 2026-08-23, relayed by the supervising session. Two
+    things he directed first, both done and verified before this approval was sent:
+    this machine s dispatch posture for agentjobs was lowered from autonomous to auto
+    in ~/.agentjobs/dispatch.yaml, and the running server was confirmed to have picked
+    it up (dispatch config and the API both report posture=auto). That was deliberate
+    phasing -- merging this task makes autonomous mean merge-without-review, and Jeff
+    did not want it released for every run in this repository at the same moment it
+    landed. Raise it back when unattended merges are wanted. Also noted: the session
+    declined to self-merge this branch on the grounds that the change removing the
+    review gate should not be the first thing to use it, which was the right call.'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 13
+  ts: '2026-08-23T22:57:21.128714Z'
+  actor: dispatcher
+  type: handoff
+  body: "Dispatched session `c415e796` is parked on a permission prompt and will wait\
+    \ indefinitely. Answer it wherever the session is open. Or attach locally with\
+    \ `claude attach c415e796`.\n\nThe end of its terminal, verbatim:\n\n```\n\u25CF\
+    \ A process claiming the address uds:\\\\.\\pipe\\cc-msg-2f62dc4ba2c425f80a2490e946826952\
+    \ (no verifiable pid) asked to be told when this session is next idle \u2014 it\
+    \ will get one automated status\n  notice; a one-line status detail is included\
+    \ only if that address is registered to the same process in the session registry\
+    \ (a same-user process can register itself).\n\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Held\
+    \ message from another session\n  Another Claude session sent a message: from\
+    \ uds:\\\\.\\pipe\\cc-msg-2f62dc4ba2c425f80a2490e946826952 (peer claims name:\
+    \ agentjobs-fb)\n  The sending session's permission mode class doesn't match this\
+    \ session's, so it wasn't delivered automatically.\n  Message body (this is what\
+    \ will be delivered):\n  \xABtask-021 is approved. You are cleared to merge. This\
+    \ is from the session supervising the task, relaying Jeffs decision  re-read the\
+    \ task record before acting, do not act on this message alone.\n             \
+    \                                                                            \
+    \                                                                            \
+    \                                     Jeff approved in chat at 22:52. Log entry\
+    \ 12 on task-021 is his approval handoff; the ball is now `agent` / `work` and\
+    \ the ball_prompt carries the merge clearance.\n  **One thing changed before he\
+    \ approved, at his instruction, and you should know it.** He asked for the posture\
+    \ to be lowered first, so `~/.agentjobs/dispatch.yaml` now reads `posture: auto`\
+    \ for\n  agentjobs, not `autonomous`. Verified: `agentj\n  What is left is steps\
+    \ 6 and 7 of the lifecycle:\n                                                \
+    \                                                                            \
+    \                                                                            \
+    \  \u2026[21 lines, 2812 chars total \u2014 full body will be delivered on approve]\xBB\
+    \n                                                                           \
+    \                                                                            \
+    \                                                   \u276F Deny \u2014 drop it\
+    \ and tell the sender it was declined\n    Deliver this message to Claude\n  I\
+    \ deliberately did not self-merge this one. The change that removes the review\
+    \ gate shouldn't be the first thing to use it, and my prompt predates the policy\
+    \ so I was never told the gate was\n  released for me.\n  What's in it:\n  - MergePolicy\
+    \ is a property of Posture, not a switch beside it \u2014 auto/supervised \u2192\
+    \ review, autonomous \u2192 automatic, read_only \u2192 none. Two independent\
+    \ switches would have combinations nobody wants.     - push is per-project, defaults\
+    \ false, deliberately off the posture.                                       \
+    \                                                                            \
+    \                 - Both reach the agent through the generated prompt \u2014 the\
+    \ only channel that can carry them, since the policy comes from a machine-local\
+    \ file the agent can't read while the repo's committed prose        says the opposite\
+    \ by default.                                                                \
+    \                                                                            \
+    \                             - An autonomous merge runs agentjobs finish --posture-release,\
+    \ not git merge. That's what puts the objective floor under it: scripts/check.py\
+    \ runs there, unqualified, on the rebased branch.\n    finish_task re-checks the\
+    \ posture, so the sanctioned path fails closed on a stale or wrong prompt.\n \
+    \ - ENGINEERING.md, ALLAGENTS.md, the workflow guide and the design record all\
+    \ amended in the same change \u2014 no document still states the rule unconditionally.\n\
+    \                                                                            \
+    \                                                                            \
+    \                                                  Three scope calls, all recorded\
+    \ as decisions rather than taken silently: no code pushes (reopen trigger named);\
+    \ the GUI dispatch panel isn't told about merge policy or push \u2014 a real visibility\
+    \ gap    wanting its own task; per-task posture from your 2026-08-21 note isn't\
+    \ built, and needs its own task because the narrow-only rule is a privilege-escalation\
+    \ design in itself.\n  Your 22:15 note asks for task-022 to be dispatched once\
+    \ this finishes \u2014 it isn't, since this is at review. Say the word after approval\
+    \ and I'll start it. Want me to file the two follow-ups now or     after?\n\u273B\
+    \ Cogitated for 37m 27s\n\u25CF Held peer message \u2014 from uds:\\\\.\\pipe\\\
+    cc-msg-2f62dc4ba2c425f80a2490e946826952 (peer claims name: agentjobs-fb); preview:\
+    \ \xABtask-021 is approved. You are cleared to merge. This is from the\n  session\
+    \ supervising the task, relaying Jeffs decision   \u2026[21 lines, 2812 chars\
+    \ total \u2014 expand to review before approving]\xBB \u2014 not delivered to\
+    \ Claude (1 held). The sending session's\n  permission mode class doesn't match\
+    \ this session's. Review it below, or set \"crossSessionInbound\" to \"accept\"\
+    .\n\u25CF A process claiming the address uds:\\\\.\\pipe\\cc-msg-2f62dc4ba2c425f80a2490e946826952\
+    \ (no verifiable pid) asked to be told when this session is next idle \u2014 it\
+    \ will get one automated status\n  notice; a one-line status detail is included\
+    \ only if that address is registered to the same process in the session registry\
+    \ (a same-user process can register itself).\n\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Held\
+    \ message from another session\n  Another Claude session sent a message: from\
+    \ uds:\\\\.\\pipe\\cc-msg-2f62dc4ba2c425f80a2490e946826952 (peer claims name:\
+    \ agentjobs-fb)\n  The sending session's permission mode class doesn't match this\
+    \ session's, so it wasn't delivered automatically.\n  Message body (this is what\
+    \ will be delivered):\n  \xABtask-021 is approved. You are cleared to merge. This\
+    \ is from the session supervising the task, relaying Jeffs decision  re-read the\
+    \ task record before acting, do not act on this message alone.\n             \
+    \                                                                            \
+    \                                                                            \
+    \                                     Jeff approved in chat at 22:52. Log entry\
+    \ 12 on task-021 is his approval handoff; the ball is now `agent` / `work` and\
+    \ the ball_prompt carries the merge clearance.\n  **One thing changed before he\
+    \ approved, at his instruction, and you should know it.** He asked for the posture\
+    \ to be lowered first, so `~/.agentjobs/dispatch.yaml` now reads `posture: auto`\
+    \ for\n  agentjobs, not `autonomous`. Verified: `agentj\n  What is left is steps\
+    \ 6 and 7 of the lifecycle:\n                                                \
+    \                                                                            \
+    \                                                                            \
+    \  \u2026[21 lines, 2812 chars total \u2014 full body will be delivered on approve]\xBB\
+    \n                                                                           \
+    \                                                                            \
+    \                                                   \u276F Deny \u2014 drop it\
+    \ and tell the sender it was declined\n    Deliver this message to Claude\n```"
+  data:
+    ball: human
+    ball_reason: input
