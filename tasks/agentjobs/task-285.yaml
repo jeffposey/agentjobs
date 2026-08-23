@@ -2,27 +2,11 @@ schema: 2
 id: task-285
 title: 'Codex dispatch: Terra reliability acceptance smoke and runbook'
 created: '2026-08-22T23:10:49.425223Z'
-updated: '2026-08-23T03:50:27.011466Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.
-
-
-  Note from Jeff Posey:
-
-
-  Approved under standing autonomous authorization for task-280; merge the final acceptance
-  branch and close task-285.
-
-
-  That note is context to carry into the merge, not another review round: you are
-  still cleared to merge.'
+updated: '2026-08-23T03:54:01.378911Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 15
 category: acceptance
 tags:
 - codex
@@ -32,7 +16,6 @@ tags:
 - runbook
 effort: medium
 assignment:
-  owner: codex
   eligible: []
 parent: task-280
 spec:
@@ -56,19 +39,19 @@ acceptance:
     thread, recording AgentJobs task activity without intervention except the declared
     review gate.
   verify: Human-authorized smoke evidence in task/run records.
-  status: pending
+  status: met
 - id: ac-2
   text: The runbook distinguishes dispatch success, resumability, persisted-thread
     evidence, and Desktop observation.
   verify: Reviewed docs/codex-dispatch.md.
-  status: pending
+  status: met
 deliverables:
 - path: docs/codex-dispatch.md
   note: Operational acceptance and recovery runbook.
-  status: pending
+  status: done
 - path: tasks/agentjobs/task-285-*.yaml
   note: Durable smoke evidence and handoff.
-  status: pending
+  status: done
 dependencies:
 - task: task-281
   type: needs
@@ -85,7 +68,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-285-terra-acceptance
-  status: active
+  status: merged
+  merged_at: '2026-08-23T03:55:00Z'
 log:
 - id: 1
   ts: '2026-08-22T23:10:49.806026Z'
@@ -450,3 +434,32 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 21
+  ts: '2026-08-23T03:53:56.411423Z'
+  actor: codex
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 98eff0b0-d4b5-43c9-88e1-9f2d3be9c11e
+      kind: update_content
+      fingerprint: ff2bbd1c0a1cdc54b9f7008b31714fb0
+- id: 22
+  ts: '2026-08-23T03:54:01.378619Z'
+  actor: codex
+  type: transition
+  body: Completed and merged as 2da0248. Controlled Terra runs proved MCP-ready dispatch
+    and exact same-thread resume; the source-kind persistence false negative is fixed
+    and documented. Desktop visibility remains explicitly not_observed rather than
+    inferred.
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 7c3b2046-7da5-40a8-9637-baf7a8576f7a
+      kind: close
+      fingerprint: 7be792fb2828b162f5008db133ceba10
