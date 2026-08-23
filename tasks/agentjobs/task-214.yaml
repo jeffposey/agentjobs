@@ -2,57 +2,45 @@ schema: 2
 id: task-214
 title: 'Playbooks 1: storage, frontmatter format, and read surfaces'
 created: '2026-08-21T04:55:30.551589Z'
-updated: '2026-08-23T08:14:18.975030Z'
+updated: '2026-08-23T08:19:14.447516Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Review and approve the merge of feat/task-214-playbook-storage (7e94ffe..b9d2bac,\
-  \ off main at fb79be4). Nothing is merged or pushed.\n\nWHAT IT DOES\n\nPlaybooks\
-  \ now exist as storage and a contract. A playbook is a markdown file with YAML frontmatter\
-  \ under a project's `playbooks/` directory (`playbooks_directory` in config, default\
-  \ `playbooks`), versioned in git. AgentJobs ships groom, reorder and flesh-out inside\
-  \ the package and `agentjobs playbook init` copies them in, never overwriting a\
-  \ file already there. You can list and show them on the CLI, read them over REST\
-  \ at `GET /api/projects/{id}/playbooks` and `.../playbooks/{name}`, and discover\
-  \ them over MCP with `playbooks_list`. Nothing runs anything \u2014 instantiation\
-  \ is task-215.\n\nTHE COMMITS\n\n7e94ffe the playbooks package, the contract model\
-  \ and validation, and the three shipped briefs\n7a56bc5 playbooks_directory through\
-  \ project config and the projects API\n9eb1545 the two read routes\na957b59 the\
-  \ `agentjobs playbook` sub-app\n83ecabc MCP playbooks_list\nd2fc4a4 regenerated\
-  \ openapi.json and the typed client, plus the LiveUpdates classification the drift\
-  \ test requires\nb9d2bac docs\n\nVERIFIED\n\n`scripts/check.py` with no arguments,\
-  \ this worktree's own interpreter: green on all ten stages, twice \u2014 the second\
-  \ run was on the committed tree and wrote a gate receipt for b9d2bacc. 44 new tests\
-  \ in four files.\n\nBy hand against a scratch project, not through the tests: init\
-  \ wrote three files and a second init after a local edit kept all three and said\
-  \ so, with the edit intact; list on a bare project points at init; show prints contract-then-brief\
-  \ and `--contract` stops early; a traversal name is refused; a deliberately broken\
-  \ file reports both its findings at once above the valid playbooks. Over REST on\
-  \ a throwaway server (stopped): the collection carries contracts and no bodies,\
-  \ the detail route carries the 3125-char brief, unknown is 404, broken-by-name is\
-  \ 422, traversal reads nothing outside the directory.\n\nWORTH LOOKING AT CLOSELY\
-  \ \u2014 one deliberate departure from the spec\n\n**`kind: batch|reactive` is not\
-  \ implemented.** This task's spec names it; the design withdrew the reactive category\
-  \ outright in \xA75.4 and decision P8 on 2026-08-21, after this spec was written,\
-  \ and \xA73.2's frontmatter example and field table have no `kind`. Shipping it\
-  \ would have meant a single-member enum, or the word `reactive` in the codebase\
-  \ naming a category the approved design says has no members. Log entry 5 has the\
-  \ full reasoning and both rejected alternatives. **If you want `kind` anyway, say\
-  \ so and it is a small addition** \u2014 but the design as merged is what I built\
-  \ to.\n\nThree other calls, all in log entry 6: a second REST route for one playbook\
-  \ (the spec named only the collection; without it no remote surface can read a brief\
-  \ at all, and it is where 404-vs-422 becomes expressible); `init` skipping per file\
-  \ rather than refusing outright; and strict frontmatter keys plus a spelling check\
-  \ on `verbs:`, neither of which is per-run enforcement, so P5 stands.\n\nAlso worth\
-  \ a glance: the three reference briefs in `src/agentjobs/playbooks/references/`.\
-  \ They are written from design \xA75.1\u20135.3 and are deliberately first-pass\
-  \ \u2014 children 3, 4 and 5 author the final versions against live runs. If any\
-  \ of them says something you disagree with, that is the cheapest moment to say it.\n\
-  \nP10 is asserted, not claimed: one test reads FastAPI's own route table for any\
-  \ non-GET on a playbook path, another greps the package for subprocess/dispatch/eval/exec,\
-  \ and a third asserts `playbooks_list` is the only tool whose name mentions playbooks.\n\
-  \nON APPROVAL: the task-211 supervisor merges. I have not merged, pushed, or closed\
-  \ anything."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.
+
+
+  Note from Jeff Posey:
+
+
+  Standing approval, granted by Jeff in chat on 2026-08-23 before the work started,
+  for every child of the task-211 epic (task-214 through task-219) run overnight and
+  autonomously. It is not a per-task click and this note is here so the record does
+  not read as one. Relayed by the task-211 supervisor session after reviewing the
+  branch and this record.
+
+
+  What the supervisor checked: seven commits, 2997 insertions, no uncommitted work
+  in the worktree and the shared clone on main and clean; the four acceptance criteria
+  marked met with the evidence stated on the record rather than asserted; the read
+  routes are GET-only in FastAPI''s own route table; the name pattern refuses a leading
+  dot and every separator, so a traversal name cannot reach the filesystem; and the
+  one deliberate departure from the spec -- `kind: batch|reactive` not implemented
+  -- is correct, because section 3.2 of the merged design has no `kind` field and
+  decision P8 withdrew the reactive category on 2026-08-21, after this task''s spec
+  was written. Building the spec''s line would have put a single-member enum in the
+  codebase naming a category the approved design says has no members. The child chose
+  the design over the stale spec line and said so; that is the right call and the
+  right way to make it.
+
+
+  The child''s session was stopped before this approval so that its working directory
+  does not pin the worktree the finish is about to remove.
+
+
+  That note is context to carry into the merge, not another review round: you are
+  still cleared to merge.'
 archived: false
 priority: high
 queue_position: 62
@@ -335,3 +323,50 @@ log:
       id: 7c1e0a52-0214-4a11-9f01-000000000008
       kind: handoff
       fingerprint: d7922329b0b408c328a95c1a396e9a5d
+- id: 10
+  ts: '2026-08-23T08:19:11.594508Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    Standing approval, granted by Jeff in chat on 2026-08-23 before the work started,
+    for every child of the task-211 epic (task-214 through task-219) run overnight
+    and autonomously. It is not a per-task click and this note is here so the record
+    does not read as one. Relayed by the task-211 supervisor session after reviewing
+    the branch and this record.
+
+
+    What the supervisor checked: seven commits, 2997 insertions, no uncommitted work
+    in the worktree and the shared clone on main and clean; the four acceptance criteria
+    marked met with the evidence stated on the record rather than asserted; the read
+    routes are GET-only in FastAPI''s own route table; the name pattern refuses a
+    leading dot and every separator, so a traversal name cannot reach the filesystem;
+    and the one deliberate departure from the spec -- `kind: batch|reactive` not implemented
+    -- is correct, because section 3.2 of the merged design has no `kind` field and
+    decision P8 withdrew the reactive category on 2026-08-21, after this task''s spec
+    was written. Building the spec''s line would have put a single-member enum in
+    the codebase naming a category the approved design says has no members. The child
+    chose the design over the stale spec line and said so; that is the right call
+    and the right way to make it.
+
+
+    The child''s session was stopped before this approval so that its working directory
+    does not pin the worktree the finish is about to remove.'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 11
+  ts: '2026-08-23T08:19:14.447327Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-214-playbook-storage` (b9d2bacc).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\aj-214.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_d2481ca3\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-214-playbook-storage
+    finish_id: fin_d2481ca3
