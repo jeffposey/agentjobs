@@ -4,7 +4,7 @@ title: 'Docs drift sweep: api-reference misses 20 operations and makes a false a
   claim; index.md indexes 12 of 19; queue design still "proposed"; sentences in task-schema,
   webhooks and mobile-access overturned by system auditors'
 created: '2026-08-22T18:59:41.077322Z'
-updated: '2026-08-23T01:08:58.670263Z'
+updated: '2026-08-23T01:31:29.946269Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -328,3 +328,76 @@ log:
       id: 9e3c17a4-8d52-4b60-a139-42f7b8e0c635
       kind: log_append
       fingerprint: 9055690df8fe6f85e0aca7a25ee3157f
+- id: 7
+  ts: '2026-08-23T01:21:58.545702Z'
+  actor: Jeff Posey
+  type: instruction
+  body: "Jeff, in chat: \"looks good, readme and docs at review link are approved,\
+    \ and yes, do the same pass on index.md and agent-workflow.md\"\n\nAPPROVAL covers\
+    \ commits 6308db8, 8a5a834, 8ac8c29, c8674f8, 18d4f87 and f2cbec3 \u2014 the CLI\
+    \ work, the install recipes, the dispatch design record, the drift sweep, the\
+    \ static-context corrections, and the README re-audit.\n\nNOT MERGED YET, deliberately.\
+    \ He asked for the first-principles pass to continue on docs/index.md and docs/agent-workflow.md,\
+    \ which lands further commits on the same branch. Those new commits are not covered\
+    \ by the approval above and need their own before anything merges. Recorded so\
+    \ a later session cannot read \"approved\" and merge work Jeff has not seen."
+  data:
+    operation:
+      id: 1a6d29f8-4c73-4e51-b096-8d3f21a7c604
+      kind: log_append
+      fingerprint: 1ff53953a3b02a7caf1473c8bbea5612
+- id: 8
+  ts: '2026-08-23T01:31:29.946121Z'
+  actor: claude
+  type: progress
+  body: "Second first-principles pass, on index.md and agent-workflow.md at Jeff's\
+    \ request. Commit 4c7bb30, gate green, receipt 4c7bb30e.\n\nagent-workflow.md\
+    \ was rated \"accurate\" by the audit, with the reasoning \"every client signature,\
+    \ enum value, CLI flag and anchor checked resolves\". Every signature does resolve.\
+    \ That is the wrong test: it checks that a name exists, not that the sentence\
+    \ about it is true.\n\nFINDING 1 \u2014 the guide named an exception a client\
+    \ author cannot catch. It said a broken queue makes get_next_task() raise QueueCorruptionError.\
+    \ Two problems: QueueCorruptionError is not exported from the agentjobs package\
+    \ (only agentjobs.queue has it), and TaskClient raises TaskClientError over HTTP\
+    \ regardless. So `except QueueCorruptionError` around a client call catches nothing.\n\
+    \nPROVEN, not reasoned. Throwaway project on port 18795, two ready tasks, one\
+    \ forced onto the other's queue_position to corrupt the queue, then the documented\
+    \ call:\n  caught TaskClientError, status_code = 409\nThe page now carries a four-row\
+    \ table \u2014 TaskClient raises TaskClientError/409, in-process TaskManager raises\
+    \ queue.QueueCorruptionError, REST answers 409, MCP returns queue_broken \u2014\
+    \ plus a snippet that catches the thing actually thrown.\n\nFINDING 2 \u2014 approval\
+    \ was described unconditionally as handing back to agent/work for the agent to\
+    \ merge. With finish.enabled the same click runs the whole close-out with no agent\
+    \ in it. Same conditional already corrected in api-reference.md; the guide now\
+    \ states both and points a woken agent at the record rather than its memory.\n\
+    \nFINDING 3 \u2014 worktree naming. This guide says ../worktrees/<repo>-<nnn>,\
+    \ ALLAGENTS.md says aj-<nnn>, runner.py:127's prompt stub says <repo>-<nnn>, and\
+    \ ledger.py:831's comment says aj-<nnn> \"per ALLAGENTS.md\". Both spellings are\
+    \ live on this machine right now: worktrees/agentjobs-248 sits beside worktrees/aj-281.\
+    \ I did not pick a winner \u2014 a project may declare its own short name, and\
+    \ the guide now says so and names AgentJobs'. Picking one would have invalidated\
+    \ existing worktrees for no gain.\n\nVERIFIED AND CORRECT, so nobody re-checks:\
+    \ every TaskClient method the guide calls, with signatures (get_next_task, explain_next_task,\
+    \ claim_task, add_progress_update, handoff_task, get_task, list_tasks, search_tasks,\
+    \ create_task, add_log_entry, release_task, close_task); TaskOperations.queue_move's\
+    \ full signature; the four review controls and the reason each writes (revise/answer/redirect/hold,\
+    \ read off the routes); `dispatch auth-check` exists and takes a session id. The\
+    \ create_task example was RUN against a live server rather than signature-checked\
+    \ \u2014 it returned lifecycle=ready, ball=agent, eligible=['my-agent'], summary\
+    \ set, exactly as documented.\n\nindex.md NEEDED NOTHING. Checked programmatically:\
+    \ all 24 documents under docs/ (excluding the generated v1/v2 trees) are linked\
+    \ from it, and no link fails to resolve. Every status word I asserted in the previous\
+    \ commit verifies \u2014 playbooks children task-214 through task-219 are all\
+    \ `ready`, there is no playbook code and no agent-loops code anywhere in src/frontend/scripts,\
+    \ the corpus audit is dated 2026-08-13 and the MCP release evidence 2026-08-17,\
+    \ and the integration stub really is 11 lines. Auditing my own work from that\
+    \ commit was the point of including it.\n\nPATTERN WORTH KEEPING: both passes\
+    \ found the same class of defect, and it is not the class a structural check looks\
+    \ for. README's `pip install` resolved as a command; agent-workflow's QueueCorruptionError\
+    \ resolved as a name. What was false in each case was the sentence around it.\
+    \ A links-resolve / signatures-resolve check will never find either."
+  data:
+    operation:
+      id: 5b90e4c2-71a8-4d36-9f57-c3e6802a1b74
+      kind: log_append
+      fingerprint: 86f1ee468dd41349422d2d5c3726a377
