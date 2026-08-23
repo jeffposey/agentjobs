@@ -1,9 +1,11 @@
 # AgentJobs
 
-**A git-backed handoff protocol for work that outlives an agent session.**
+**Structure and tracking for building with coding agents — on your machine, across as
+many sessions as you can run.**
 
-AgentJobs is for developers coordinating coding agents across short-lived sessions,
-especially when a human must review, decide, or approve between passes.
+Prototyping with an agent is fast until the third session, when nothing remembers what's
+done, what's half-done, or what's waiting on you. AgentJobs is the record that outlives
+the session: git-backed YAML naming who has the ball and what they're being asked to do.
 
 ## The ball is always somewhere
 
