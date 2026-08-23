@@ -2,42 +2,17 @@ schema: 2
 id: task-219
 title: 'The queue-move check: deterministic warnings when a human reorders'
 created: '2026-08-21T04:57:23.007031Z'
-updated: '2026-08-23T09:18:58.564803Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.
-
-
-  Note from Jeff Posey:
-
-
-  Retry after a flaky gate. Same standing approval from Jeff; nothing about the branch
-  changed since the previous one, and the previous finish merged nothing.
-
-
-  The gate stopped at a fixture error -- `git add -A` returning exit 1 with no output
-  in a throwaway temp repository -- which the progress entry immediately above investigates
-  and shows is not this branch''s: the affected test class passes 5/5 in isolation
-  on this exact tree and its whole file passes 17/17 three times running. Retrying
-  the approval is the right response to that, and re-running the full gate is what
-  the finish does anyway, so the retry re-verifies rather than assumes.
-
-
-  That note is context to carry into the merge, not another review round: you are
-  still cleared to merge.'
+updated: '2026-08-23T09:19:17.572245Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
-queue_position: 6900
 category: feature
 tags:
 - queue-order
 - frontend
 - agent-dx
 assignment:
-  owner: claude
   eligible: []
 parent: task-211
 spec:
@@ -202,7 +177,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-219-queue-move-check
-  status: active
+  status: merged
+  merged_at: '2026-08-23T09:19:17.485454Z'
 log:
 - id: 1
   ts: '2026-08-21T04:57:23.007070Z'
@@ -960,3 +936,23 @@ log:
     merge_commit: 75c3387a6e92dca92285d4242f62ade1d396f274
     branch: feat/task-219-queue-move-check
     base: main
+- id: 28
+  ts: '2026-08-23T09:19:17.572046Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-219-queue-move-check` into `main` as `75c3387a` and verified\
+    \ live. Approved by Jeff Posey; finished by the scripted path with no agent session\
+    \ (task-241).\n\nEverything up to and including verification:\n\n```\n  preflight\
+    \  ok         1.5s  feat/task-219-queue-move-check at 8aead1f8 in C:\\projects\\\
+    worktrees\\aj-219\n  rebase     ok         1.1s  feat/task-219-queue-move-check\
+    \ onto main: 8aead1f8 -> 4f80e52b\n  gate       ok       156.9s  scripts/check.py\
+    \ green\n  merge      ok         0.5s  --no-ff into main as 75c3387a6e92dca92285d4242f62ade1d396f274\n\
+    \  rebuild    ok         4.0s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         0.5s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     ok         0.0s  http://127.0.0.1:8876 is serving 04cc7e8f, which contains\
+    \ the merge 75c3387a, from C:\\projects\\agentjobs (started 2026-08-23T09:19:07.621227+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
