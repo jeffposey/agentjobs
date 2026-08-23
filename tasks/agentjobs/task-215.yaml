@@ -2,58 +2,11 @@ schema: 2
 id: task-215
 title: "Playbooks 2: instantiation \u2014 `playbook run` on CLI, REST and GUI"
 created: '2026-08-21T04:55:56.410481Z'
-updated: '2026-08-23T10:26:33.493852Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.
-
-
-  Note from Jeff Posey:
-
-
-  Re-recording the standing approval after the rebase onto task-219. Same grant; the
-  substance approved at entry 10 is unchanged and no source was edited to make the
-  rebase apply.
-
-
-  Verified rather than accepted. `git range-diff 4fc46e9..5da808b d26600b..2d1f43a6`
-  reports five of the six commits as identical patches and the sixth as differing
-  in four paths: the three generated client files, and `frontend/src/App.tsx`.
-
-
-  **`App.tsx` is the one that mattered, because it auto-merged.** Both this branch
-  and task-219 add to the nav, and a side silently dropped by a clean auto-merge is
-  exactly what neither git nor a green gate will mention. The supervisor read the
-  merged file rather than trusting the handoff''s account of it: this branch''s `Playbooks`
-  import, its `PlaybooksPage`, its playbooks query and its run mutation are all present,
-  and task-219''s `queueKeepTask` import, its `keep` mutation and its `keep:` handler
-  are all present. Both sides survived.
-
-
-  The generated client was regenerated from the application rather than hand-merged,
-  and regenerating a second time at the final tip produced zero drift -- which is
-  the check that distinguishes a client that matches the app from one that merely
-  compiles.
-
-
-  Gate green, all ten stages, 155.7s, receipt at 2d1f43a6. Real re-verification rather
-  than a formality: this branch touches cli.py, manager.py, the status routes and
-  App.tsx, and so did task-219. The e2e stage passed task-219''s own queue-order specs
-  alongside this branch''s.
-
-
-  The rebase session was stopped before this approval so its working directory does
-  not pin the worktree the finish removes.
-
-
-  That note is context to carry into the merge, not another review round: you are
-  still cleared to merge.'
+updated: '2026-08-23T10:26:52.509948Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 93
 category: architecture
 tags:
 - playbooks
@@ -62,7 +15,6 @@ tags:
 - api
 - frontend
 assignment:
-  owner: claude
   eligible: []
 parent: task-211
 spec:
@@ -156,7 +108,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-215-playbook-run
-  status: active
+  status: merged
+  merged_at: '2026-08-23T10:26:52.437131Z'
 log:
 - id: 1
   ts: '2026-08-21T04:55:56.410522Z'
@@ -795,3 +748,23 @@ log:
     merge_commit: fab8c9ac90a84612a2f5d6ed41901c3264920aee
     branch: feat/task-215-playbook-run
     base: main
+- id: 19
+  ts: '2026-08-23T10:26:52.509792Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-215-playbook-run` into `main` as `fab8c9ac` and verified\
+    \ live. Approved by Jeff Posey; finished by the scripted path with no agent session\
+    \ (task-241).\n\nEverything up to and including verification:\n\n```\n  preflight\
+    \  ok         1.3s  feat/task-215-playbook-run at 2d1f43a6 in C:\\projects\\worktrees\\\
+    aj-215\n  rebase     ok         0.7s  feat/task-215-playbook-run onto main: 2d1f43a6\
+    \ -> 710d21f3\n  gate       ok       158.0s  scripts/check.py green\n  merge \
+    \     ok         0.5s  --no-ff into main as fab8c9ac90a84612a2f5d6ed41901c3264920aee\n\
+    \  rebuild    ok         3.8s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         0.5s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     ok         0.0s  http://127.0.0.1:8876 is serving 8a3d89bb, which contains\
+    \ the merge fab8c9ac, from C:\\projects\\agentjobs (started 2026-08-23T10:26:42.501926+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
