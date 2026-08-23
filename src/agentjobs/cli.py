@@ -676,8 +676,7 @@ def open(
             err=True,
         )
         typer.echo(
-            f"The API is up at {server_url}; only /app/ is unavailable. "
-            "No browser was opened.",
+            f"The API is up at {server_url}; only /app/ is unavailable. " "No browser was opened.",
             err=True,
         )
         raise typer.Exit(1)

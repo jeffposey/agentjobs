@@ -210,7 +210,8 @@ the result's `replayed` field says which happened. The marker is stored in the t
 file, so replay detection survives the MCP process, the service, and the machine all
 restarting — which is exactly when a client retries.
 
-`task_handoff`, `task_close` and `task_update_content` also take `expected_revision`:
+**Five** tools require `expected_revision` — `task_promote`, `task_handoff`,
+`task_close`, `task_update_content` and `task_queue_move`:
 the `updated` value from your most recent read. If the task moved since, the call is
 refused and the current task comes back so you can decide again. `task_log_append`
 deliberately has no revision, because two agents writing independent progress entries

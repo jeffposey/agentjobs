@@ -6,12 +6,24 @@ task record or make the React application depend on an external service.
 
 ## Supported events
 
-| Event | Trigger |
-| --- | --- |
-| `task.handoff` | The ball moves to an agent, human, or external dependency |
-| `task.question` | A typed `question` entry is appended to the task log |
-| `task.closed` | A task closes with an outcome |
-| `webhook.test` | The test endpoint probes one subscription |
+| Event | Trigger | Extra payload keys |
+| --- | --- | --- |
+| `task.handoff` | The **`handoff` verb** is called | `ball`, `ball_reason`, `ball_prompt` |
+| `task.question` | A typed `question` entry is appended to the task log | `body` |
+| `task.closed` | A task closes with an outcome | `outcome` |
+| `webhook.test` | The test endpoint probes one subscription | — |
+
+**Four events, and only four things fire them.** `task.handoff` is emitted by the
+handoff verb specifically, not by every movement of the ball: `claim`, `release` and
+`promote` all move it and fire nothing. That is deliberate — those three are an agent
+managing its own queue position, and a subscriber that wanted to be woken for them would
+be woken constantly — but the distinction is worth knowing before you build a
+notification service on this and wonder why a claim was silent.
+
+*(The trigger column previously said "the ball moves to an agent, human, or external
+dependency", which describes three of the verbs that do not fire it.)*
+
+Every task event carries `triggered_by` alongside the keys in the last column.
 
 The older v1 events such as `task.status_changed`, `task.comment_created`, and
 `task.completed` are retired. Schema v2 represents those concepts through handoffs,

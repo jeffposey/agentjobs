@@ -111,7 +111,7 @@ either kind still prints everything else.
 | Flag | Effect |
 | --- | --- |
 | `--iterations N` | Timed iterations per surface (default 10). |
-| `--port N` | Port for the benchmark's own server (default 18950). |
+| `--port N` | Port for the benchmark's own server. The default is **derived from this checkout's filesystem path**, not a fixed number, so two worktrees benchmarking at once do not collide (task-187). `--help` prints the value for the checkout you are in. |
 | `--source PATH` | Where the real corpus is copied from. |
 
 The benchmark is deliberately **not** part of `scripts/check.py`. It starts servers and

@@ -1,8 +1,9 @@
 # Playbooks — design proposal
 
-**Task:** task-211. **Status:** design pass, second review. Nothing here is
-implemented; implementation tasks are derived in §12 and held as drafts until this
-design is approved.
+**Task:** task-211. **Status: APPROVED and merged (`25427f1`). No implementation
+yet** — nothing under `src/`, `frontend/` or `scripts/` references a playbook. The
+implementation tasks derived in §12 were promoted out of draft on approval; task-214
+through task-219 are `ready` and unclaimed.
 
 **Revision 2, 2026-08-21**, answering Jeff's review (task-211 log entry 22). Two
 changes, both in the decisions list: **P8** — the reactive-playbook category is

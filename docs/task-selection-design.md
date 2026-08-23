@@ -1,6 +1,13 @@
-# Queue position — design proposal
+# Queue position — design record
 
-**Task:** task-081. **Status:** accepted 2026-08-20 (Jeff), including the review-pass
+**Status: accepted 2026-08-20, IMPLEMENTED 2026-08-21.** Shipped by task-081 and
+task-204 through task-209, all closed. `queue.py`, the placement and repair paths in
+`manager.py`, the `/queue` routes, the `agentjobs queue` command group, and the React
+task list all read the stored order this document designs. **Sections 1 and 14 describe
+the behaviour this replaced** and are kept as the before-state; they are not a
+description of anything running.
+
+**Task:** task-081. **Original acceptance:** 2026-08-20 (Jeff), including the review-pass
 fixes: the renumber skip-if-closed rule (§6), same-band group moves (§5.2), the
 selection-time integrity-check scope (§8), and reopen in the lock table (§7).
 **Supersedes the framing in the task's original title** ("ranking signals and
@@ -15,6 +22,10 @@ answer to "what is next" is produced, stored, displayed and obeyed everywhere.
 ---
 
 ## 1. The gap
+
+> **Before-state.** This section describes how selection worked *before* this design
+> shipped. `get_next_task()` now reads the stored order through `queue.py`'s `order_key`.
+> Kept because the problem is what justifies the solution.
 
 `get_next_task()` filters for claimability and then sorts:
 
@@ -206,6 +217,11 @@ task nobody has placed does not get to preempt an order somebody thought about.
 where the person creating it already knows; `--before`/`--after` must name a task in the
 band the new task is joining, the same rule as `move`.
 
+*(Partly shipped.* `TaskManager.create_task` accepts a `placement` argument and honours
+it. **Nothing exposes it** — there is no such flag on `agentjobs create`, no field on the
+create request model, and no input on `task_create_ready`/`task_create_draft`. Create
+then move is the two-step form available today.*)*
+
 This is the guarantee behind "creation defaults must always produce a valid position":
 there is no path that creates an open task without one, including import, migration, and
 `load_test_data`.
@@ -299,7 +315,8 @@ Two operations rewrite a whole band:
 
 - **Rebalance** — automatic, triggered when an insertion has no gap to land in. Restores
   usable spacing. Not a decision; no ordering changes.
-- **Compaction** — explicit (`agentjobs queue compact`), for readability after a band has
+- **Compaction** — explicit (`agentjobs queue compact <band>` — as shipped it **requires a
+  band**; there is no form that compacts everything), for readability after a band has
   drifted into large numbers. Never automatic, because a background process quietly
   rewriting 47 task files is exactly the kind of thing that should require typing.
 
@@ -334,7 +351,15 @@ the normal state of a sparse band; the direction argument is unaffected because 
 a write never reorders anything.
 
 A crash mid-renumber leaves a correctly ordered band with odd numbers in it — not a
-scrambled queue. `agentjobs queue check` reports it; `agentjobs queue repair` finishes the
+scrambled queue.
+
+*(As shipped, nothing reports that state.* `find_queue_problems` looks for missing,
+non-positive and duplicate positions, and a half-renumbered band has none of those — it
+is odd-looking and perfectly valid. So `queue check` stays quiet and `queue repair` finds
+nothing to do; running `queue compact <band>` again is what tidies it. This is a
+cosmetic gap, not a correctness one, which is why it was left.*)*
+
+`agentjobs queue check` reports it; `agentjobs queue repair` finishes the
 job. The repair is deterministic from the band's current order, so re-running it is safe.
 
 Neither operation writes a `queue_move` entry to the tasks it renumbers. Nobody decided
@@ -605,6 +630,8 @@ separately and their bands mean different things.
 ---
 
 ## 14. Relationship to other work
+
+> **Before-state.** "Today" in this section means 2026-08-15, when it was written.
 
 - **task-074 auto-dispatch** and **task-161 project-level dispatch** consume
   `get_next_task()` with no human reading the answer. They are the reason the queue must be

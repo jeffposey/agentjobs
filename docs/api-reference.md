@@ -1,5 +1,13 @@
 # AgentJobs REST API reference
 
+> **This API has no authentication of any kind.** Every route below is open to anything
+> that can reach the port — there is no token, no session, and no per-project
+> permission. That includes the routes that start agent processes on the machine
+> (`POST /api/tasks/{task_id}/dispatch`, and the dispatch enable toggles). Bind it to
+> loopback — `agentjobs serve` refuses a wildcard bind for this reason — and reach it
+> from elsewhere only through a private network with its own access control. See
+> [mobile access](mobile-access.md) for the tailnet setup this project uses.
+
 AgentJobs exposes the schema-v2 task workflow as JSON. The generated OpenAPI document
 is the endpoint and payload source of truth:
 
@@ -7,9 +15,12 @@ is the endpoint and payload source of truth:
 - Repository contract: [`frontend/openapi.json`](https://github.com/jeffposey/agentjobs/blob/main/frontend/openapi.json)
 - Generated TypeScript client: `frontend/src/api/generated/`
 
-Run `agentjobs open` or `agentjobs serve` before using the local URLs. AgentJobs has no
-authentication; keep it on loopback unless a private HTTPS proxy and access policy are
-in place.
+Run `agentjobs open` or `agentjobs serve` before using the local URLs.
+
+Every operation in the OpenAPI document appears somewhere on this page, and
+`tests/test_api_reference_coverage.py` fails the build if one stops doing so. A route
+added without a line here is a test failure, not a documentation debt someone notices
+later.
 
 ## Project scoping
 
@@ -45,7 +56,7 @@ strings.
 | --- | --- | --- |
 | `POST` | `/api/tasks` | Create a draft or ready task |
 | `PATCH` | `/api/tasks/{task_id}` | Update editable metadata and specification fields |
-| `DELETE` | `/api/tasks/{task_id}` | Archive the task through the storage policy |
+| `DELETE` | `/api/tasks/{task_id}` | Archive the task. **An open task is closed as `cancelled` first** — this is not a soft hide |
 | `PATCH` | `/api/tasks/{task_id}/deliverables/{path}` | Mark a deliverable done |
 
 State axes do not move through the generic patch route. Use the verbs below so
@@ -62,8 +73,41 @@ preconditions are enforced and transition history is appended.
 | `POST` | `/api/tasks/{task_id}/log` | Append a typed note, progress, decision, question, answer, or instruction |
 | `POST` | `/api/tasks/{task_id}/progress` | Append a structured progress entry |
 
-The React review actions use `/approve`, `/request-changes`, and `/reject`. Approval
-records the human handoff back to `agent/work`; it does not run git or merge a branch.
+### Human review actions
+
+The React UI drives these; they are ordinary routes and a script may call them.
+Each one records a handoff, so each writes its own `ball_reason`:
+
+| Method | Path | Ball it writes | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/api/tasks/{task_id}/approve` | `agent` / `work` | Approve work that was handed back for review |
+| `POST` | `/api/tasks/{task_id}/request-changes` | `agent` / `revise` | Send it back with specific revisions |
+| `POST` | `/api/tasks/{task_id}/reject` | — closes the task | Reject the work outright |
+| `POST` | `/api/tasks/{task_id}/answer` | `agent` / `answer` | Answer a question the agent raised |
+| `POST` | `/api/tasks/{task_id}/redirect` | `agent` / `redirect` | Change direction without rejecting |
+| `POST` | `/api/tasks/{task_id}/hold` | `agent` / `hold` | Park the task without releasing it |
+| `POST` | `/api/tasks/{task_id}/resume` | `agent` / `work` | Take it off hold |
+| `POST` | `/api/tasks/{task_id}/promote` | `agent` / `available` | Draft becomes ready and claimable |
+
+**Whether approval merges anything depends on the machine.** By default it records the
+handoff back to `agent/work` and runs no git at all. On a machine with `finish.enabled`
+for the project, approving instead triggers the scripted finish (task-241): rebase, the
+full gate, `--no-ff` merge, rebuild, restart, verify, close. A person still approves per
+task either way — what varies is whether an agent or a script performs the merge
+afterwards. See [the dispatch design, §5a](agent-dispatch-design.md).
+
+### Who has to say who they are
+
+`actor` is **required** on `handoff`, `release`, `promote`, `close` and `log`; `claim`
+requires `agent` instead, which is the same thing under an older name. There is no
+anonymous state change: the log entry each verb appends names somebody.
+
+`operation_id` is optional on those verbs and **required** on the four queue mutations
+below. Sending the same `operation_id` twice replays the first result rather than
+writing twice, so a retry after a timeout is safe.
+
+*(Corrected 2026-08-22. This section previously said `actor` and `operation_id` were
+both optional on the state verbs. Only the second half was ever true.)*
 
 ## The queue
 
@@ -80,10 +124,15 @@ re-sorts, and none accepts a position.
 | `POST` | `/api/projects/{id}/queue/repair` | Give every open task a place again, naming everything it guessed |
 | `POST` | `/api/projects/{id}/queue/compact` | Renumber one band to 100, 200, 300..., changing nobody's place |
 
-All four mutations **require** `actor` and `operation_id`. That is stricter than the
-state verbs above, where both are optional so callers written before they existed keep
-working: nothing was ever written against these routes, and a reorder a timeout can
-silently apply twice puts a task somewhere nobody asked for.
+Each of those four also exists in the default-project form — `GET /api/queue`,
+`POST /api/queue/repair`, `POST /api/queue/compact` — as described under
+[Project scoping](#project-scoping). `queue/compact` **requires a band**; there is no
+bare form that compacts everything.
+
+All four mutations **require** `actor` and `operation_id`. The `operation_id` half is
+stricter than the state verbs above, where it is optional so callers written before it
+existed keep working: nothing was ever written against these routes, and a reorder that
+a timeout silently applies twice puts a task somewhere nobody asked for.
 
 There is no way to set `queue_position` — not through `PATCH /api/tasks/{task_id}`,
 not through the Python client, not through MCP. A caller that could write a number
@@ -132,7 +181,55 @@ with TaskClient(base_url="http://localhost:8765") as client:
         )
 ```
 
+## Dispatch
+
+**These routes start processes on the machine.** Read the auth warning at the top of
+this page before exposing them. Dispatch is off unless a machine-local
+`~/.agentjobs/dispatch.yaml` enables it *and* the project is enabled; the API can flip
+the second switch and can never define what runs. See
+[the dispatch design](agent-dispatch-design.md).
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/dispatch` | Whether dispatch is configured and enabled, and the runners this machine defines |
+| `POST` | `/api/dispatch/enable` | Enable dispatch for the project |
+| `POST` | `/api/dispatch/disable` | Disable it. Always available, deliberately without ceremony |
+| `POST` | `/api/tasks/{task_id}/dispatch` | Start an agent on this task |
+| `GET` | `/api/dispatch/runs` | Runs, live and historical, from the ledger |
+| `POST` | `/api/dispatch/runs/{run_id}/cancel` | Cancel one live run |
+| `GET` | `/api/dispatch/runs/{run_id}/output` | The run's captured transcript |
+| `GET` | `/api/dispatch/runs/{run_id}/tail` | The tail of it, for a live view |
+
+`transcript.log` is a raw TTY capture, so a line appears in it once per terminal
+repaint. Link to it and read it; never compute a count from it.
+
+## Projects and system
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/projects` | Registered projects, with actor vocabularies and default user |
+| `POST` | `/api/projects` | Register an existing AgentJobs project |
+| `POST` | `/api/projects/init` | Initialize a directory as a project and register it |
+| `POST` | `/api/projects/inspect` | Report what a directory looks like before committing to it |
+| `GET` | `/api/all/tasks` | Every task across every registered project |
+| `GET` | `/api/tasks/{task_id}/attachments/{filename}` | Fetch a file attached to a task |
+| `GET` | `/api/health` | Liveness. Returns `{"status": "ok"}` |
+| `GET` | `/api/version` | Package version, schema version, YAML loader, source root and commit, start time, and whether the frontend bundle is present |
+
+`GET /api/version` is the route to ask when something looks stale. `source_root` and
+`source_commit` are fixed at process start, so they describe the code **in memory**
+rather than the files on disk — which is what makes them evidence that a merge is live
+rather than merely committed. `frontend_bundle` says whether `/app/` can be served at
+all.
+
 ## Webhooks
 
-Webhook management is available under `/api/webhooks` and the equivalent scoped path.
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/webhooks` | List configured webhooks |
+| `POST` | `/api/webhooks` | Register one |
+| `GET` | `/api/webhooks/{webhook_id}` | Read one |
+| `DELETE` | `/api/webhooks/{webhook_id}` | Remove one |
+| `POST` | `/api/webhooks/{webhook_id}/test` | Send a test delivery |
+
 See the [webhook guide](webhooks.md) for events, signatures, and payloads.

@@ -1,4 +1,4 @@
-site_name: AgentJobs Schema
+site_name: AgentJobs
 site_description: AgentJobs task schema v2, with the retired v1 schema preserved for migration history.
 repo_url: https://github.com/jeffposey/agentjobs
 docs_dir: docs
@@ -66,9 +66,11 @@ nav:
       - Connecting a client: mcp-clients.md
       - Agent dispatch design: agent-dispatch-design.md
       - Agent loops design: agent-loops-design.md
+      - Playbooks design: playbooks-design.md
+      - Codex dispatch rollout: codex-dispatch.md
       - MCP integration design: mcp-integration-design.md
       - Queue position design: task-selection-design.md
-      - Task schema reference (v1 + v2): task-schema.md
+      - Task schema reference: task-schema.md
       - API reference: api-reference.md
       - Measuring performance: performance.md
       - Webhooks: webhooks.md
