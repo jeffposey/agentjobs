@@ -2,47 +2,11 @@ schema: 2
 id: task-289
 title: 'Ad-hoc reorder run, 2026-08-23: the argument behind eight queue moves'
 created: '2026-08-23T05:18:28.671872Z'
-updated: '2026-08-23T05:19:27.373398Z'
-lifecycle: ready
-ball: human
-ball_reason: decision
-ball_prompt: '**The reorder is done and needs no approval - section 5.2 requires no
-  gate, and the reasons are on the moves. This is here for the four things it could
-  not touch.**
-
-
-  Read log entry 3. In order of how much they cost you:
-
-
-  1. **The whole CRITICAL band is unclaimable** - four drafts at human/spec, two active.
-  `agentjobs next` walks past all six. Three of the four drafts are the unauthenticated-tailnet-API
-  chain. Promoting them is a lifecycle change and reorder does not do lifecycle.
-
-  2. **task-275** is a stored XSS banded HIGH while four security drafts sit in CRITICAL.
-  Should it be CRITICAL?
-
-  3. **The playbooks epic is split across two bands** - task-218 and task-219 are
-  MEDIUM while their four siblings are HIGH, so task-211 cannot close until MEDIUM
-  comes up. task-219 in particular has no dependency on any playbook machinery and
-  could be worked today.
-
-  4. **task-010** reads as HIGH to me and sits at the head of MEDIUM.
-
-
-  Log entry 2 has the anchor finding, which is the most interesting thing this run
-  produced and is a design defect rather than a backlog one: **the design derives
-  anchors from the actor of the latest queue_move, and on this corpus that finds three,
-  while twenty-two of your own decisions were applied by an agent and so do not count.**
-  Raised on task-217 as a question, with three candidate fixes. This run treated the
-  task-209 positions as effective anchors and left the head of HIGH alone rather than
-  re-deriving an order you approved two days ago.
-
-
-  Close this record once you have read it, or leave it open if any of the four questions
-  turns into work.'
+updated: '2026-08-23T18:18:57.737619Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 14300
 category: meta
 tags:
 - playbooks
@@ -265,3 +229,136 @@ log:
       id: a1b2c3d4-0017-4000-8000-000000000017
       kind: handoff
       fingerprint: 9ca59983dee597e81ba261f320cb9069
+- id: 5
+  ts: '2026-08-23T18:16:44.940542Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    I am not able to close records. Your ball move only gave me "Answer Questions"
+    or "New Instructions". I don''t think "Reject & Archive" is what you mean by close.
+    So please close it for me.'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 6
+  ts: '2026-08-23T18:16:48.829583Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 7
+  ts: '2026-08-23T18:16:49.611711Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 8
+  ts: '2026-08-23T18:16:52.801252Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_9b4d906c
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    trigger: manual
+    caused_by: 6
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - 'You are the agent `claude` working task `task-289` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-289-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_9b4d906c.'
+    cwd: C:\projects\agentjobs
+    git_head: eb51447
+    session_id: 2c77d4b1
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 9
+  ts: '2026-08-23T18:18:50.099070Z'
+  actor: claude
+  type: answer
+  body: "**Closing this on Jeff's instruction. Before doing so: where the four questions\
+    \ stand thirteen hours later, and why none of them dies with the record.**\n\n\
+    The questions were raised at 05:19Z. Checked against the corpus at 18:20Z on 2026-08-23.\
+    \ Two have been overtaken by events and two are still live \u2014 but both live\
+    \ ones already have a durable carrier that is not this record, which is what makes\
+    \ closing safe rather than merely instructed.\n\n| | Question | Status now |\n\
+    |---|---|---|\n| Q1 | CRITICAL band unclaimable | **Still live, and carried.**\
+    \ task-248 closed; task-233 still `active`/`agent`/`hold`. The four drafts \u2014\
+    \ task-244, 245, 247, 249 \u2014 are all still `draft` at `human`/`spec`, i.e.\
+    \ already sitting in your own ball queue. They are not hidden by this closing;\
+    \ they are what the UI shows you as awaiting a spec decision. |\n| Q2 | Should\
+    \ task-275 (stored XSS) be CRITICAL? | **Still live, and carried.** task-275 is\
+    \ still `draft`/`high`. The band question is written into its own `queue_move`\
+    \ entry, on that task, where whoever triages it will read it. |\n| Q3 | Playbooks\
+    \ epic split across two bands | **Moot.** task-214, 215, 216 and 219 all closed\
+    \ today. The two remaining children \u2014 task-217 and task-218 \u2014 are both\
+    \ `active` and being worked, so 218's MEDIUM band no longer gates task-211 behind\
+    \ 73 HIGH tasks. The condition that made it a question dissolved. |\n| Q4 | task-010\
+    \ in the wrong band | **Moot.** Closed as `superseded`. |\n\nThe anchor-derivation\
+    \ finding from entry 2 \u2014 the one that matters most, since it says section\
+    \ 5.2's rule would protect three positions out of twenty-five \u2014 is recorded\
+    \ on **task-217**, which is active. It is not this record's to carry.\n\n**One\
+    \ thing I am not doing, and saying so rather than doing it quietly:** I am not\
+    \ filing a task for \"promote or reject the nine security drafts\" (task-244,\
+    \ 245, 247, 249, 256, 257, 261, 263, 275, all `draft` at `human`/`spec`). That\
+    \ is a real standing decision and nothing tracks it as a unit. But it is yours,\
+    \ it is already visible as nine items in your queue, and filing a tenth task to\
+    \ point at nine tasks is bookkeeping rather than work. If you would rather have\
+    \ the single item, say so and it takes a minute.\n\n**On the UI limitation you\
+    \ hit** \u2014 the ball-move dialog offering only \"Answer Questions\" or \"New\
+    \ Instructions\", with no way to close a record you are finished with. That is\
+    \ a genuine gap: a human holding the ball on a record whose only remaining action\
+    \ is to end it has no verb for that, and \"Reject & Archive\" is correctly not\
+    \ it. Not filed here for the same reason as above; worth a task if you want one."
+  re: 3
+  data:
+    operation:
+      id: 7f3a1c2e-8b64-4d19-9e05-2a6c4d81f301
+      kind: log_append
+      fingerprint: b8daa13436ab8a8340e0718e8f3abf98
+- id: 10
+  ts: '2026-08-23T18:18:57.737424Z'
+  actor: claude
+  type: transition
+  body: "Closed on Jeff's instruction (entry 5). The run itself was complete at entry\
+    \ 4 \u2014 eight moves, all three acceptance criteria met \u2014 and this record\
+    \ existed only to be read and disagreed with. Entry 9 records where the four questions\
+    \ stand: Q3 and Q4 are moot, Q1 and Q2 are still live and carried on the tasks\
+    \ themselves rather than on this record, and the anchor-derivation finding lives\
+    \ on task-217. Nothing was closed, promoted or reprioritised by this closing beyond\
+    \ the record itself."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: c4d2e918-3f70-4a86-b1cd-5e9028f4a7b2
+      kind: close
+      fingerprint: 9110011651ef029e73c5c9e9f3f15b5c
