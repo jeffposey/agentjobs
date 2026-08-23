@@ -2,13 +2,13 @@ schema: 2
 id: task-308
 title: Posture settable on the task record, and whether a task may raise its own
 created: '2026-08-23T22:48:30.766265Z'
-updated: '2026-08-23T22:49:07.499211Z'
+updated: '2026-08-23T23:04:49.102418Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 14400
+queue_position: 245
 category: architecture
 tags:
 - dispatch
@@ -198,3 +198,55 @@ log:
       id: 3ba91d07-6e42-4c85-9f30-71d8a4c2e6b9
       kind: log_append
       fingerprint: 1c52c9016df8a9e023d3cff04bcf0cdb
+- id: 3
+  ts: '2026-08-23T23:04:49.102263Z'
+  actor: claude
+  type: queue_move
+  body: 'Filed at the bottom of the band today; moved ahead of task-307 because it
+    owns the thing 307 consumes. 308 defines the project''s default and maximum posture
+    and the precedence order among the three sources; 307''s pulldown must offer only
+    postures at or below that ceiling. Worked the other way round, 307 has to invent
+    a second answer to where the ceiling comes from, and two implementations of a
+    permission ceiling is the failure worth avoiding. Sequenced by the queue rather
+    than by a needs dependency: 307 is buildable without 308, it would just be built
+    wrong.'
+  data:
+    band: high
+    from: 14400
+    to: 245
+    placement:
+      kind: before
+      target: task-307
+    warnings:
+    - kind: demoted_blocker
+      message: This pushed task-141-embed-launcher-and-project-link (4 open tasks
+        need it), task-138-embed-distribution-decision (3 open tasks need it), task-140-embed-server-surface
+        (3 open tasks need it), and 16 more down the 'high' band. Other open work
+        is waiting on them.
+      tasks:
+      - task-141-embed-launcher-and-project-link
+      - task-138-embed-distribution-decision
+      - task-140-embed-server-surface
+      - task-168-menu-shell
+      - task-139-reporter-host-agnostic-core
+      - task-144-embed-security-posture
+      - task-149-check-trigger
+      - task-161-project-level-dispatch
+      - task-171-voice-input-decision
+      - task-237
+      - task-126-mcp-in-process-manager
+      - task-143-report-and-dispatch-from-host
+      - task-147-acceptance-check-schema
+      - task-148-check-evaluator
+      - task-172-dictation-control
+      - task-174-model-access-decision
+      - task-236
+      - task-238
+      - task-239
+    undo:
+      kind: after
+      target: task-300
+    operation:
+      id: d7a6b219-4f30-4c8e-95b1-0e2f8a3c7d61
+      kind: queue_move
+      fingerprint: 8466ed11e729ed8214b79e78def0b3e8

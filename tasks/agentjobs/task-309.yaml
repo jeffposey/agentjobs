@@ -1,0 +1,185 @@
+schema: 2
+id: task-309
+title: The Dispatch panel names a posture but never says what it will do to your branch
+created: '2026-08-23T23:04:32.044841Z'
+updated: '2026-08-23T23:04:52.954641Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 269
+category: ux
+tags:
+- dispatch
+- posture
+- ux
+- frontend
+- merge-gate
+effort: small
+assignment:
+  eligible: []
+parent: task-160-dispatch-phase-two
+spec:
+  summary: "Since task-021, a posture carries a merge policy and a project carries\
+    \ a push switch \u2014 so choosing `autonomous` means the run merges its own work\
+    \ with no review. The browser still renders posture as a bare word next to the\
+    \ runner name and says nothing about merging or pushing. The one surface where\
+    \ a human decides to start a run is the one that cannot tell them what the run\
+    \ is allowed to do with their repository."
+  intent: 'Raised by the session that implemented task-021, recorded there as a scope
+    call rather than taken silently: "the GUI''s dispatch panel is not told about
+    merge policy or push, which is a real visibility gap and wants its own task".
+    Filed on Jeff''s instruction, 2026-08-23.'
+  description: "## What changed underneath the page\n\ntask-021 merged as `53307a2b`\
+    \ on 2026-08-23. After it:\n\n- **`MergePolicy` is a property of `Posture`, not\
+    \ a switch beside it.** `auto` and\n  `supervised` hand off for review; `autonomous`\
+    \ merges automatically once\n  `scripts/check.py` is green; `read_only` merges\
+    \ nothing.\n- **Push is per project and defaults to false**, deliberately not\
+    \ a posture property.\n\nBoth are real consequences of pressing Dispatch, and\
+    \ both are invisible in the browser.\n`DispatchPanel.tsx` renders posture as a\
+    \ bare enum value in a sentence of the form\n\"Runner X, posture Y, authorised\
+    \ by Z\". A person reading that page cannot tell whether\nthe run they are about\
+    \ to start will stop for them or merge itself.\n\nThis matters more than a normal\
+    \ missing-label bug because the information is\n**asymmetrically available**.\
+    \ The policy lives in `~/.agentjobs/dispatch.yaml`, a\nmachine-local file. The\
+    \ repository's own committed prose \u2014 ENGINEERING.md, ALLAGENTS.md\n\u2014\
+    \ still reads \"work does not merge itself\" by default, qualified only for the\
+    \ posture\nthat releases it. So the page is the only place a human could learn\
+    \ what this machine\nwill actually do, and it is silent.\n\n## What to show\n\n\
+    1. **What this posture will do to the branch**, in words rather than an enum:\
+    \ that it\n   will hand off for review, or that it will merge itself on a green\
+    \ gate.\n2. **Whether this project pushes.** `push: false` is the safe default\
+    \ and worth stating\n   positively \u2014 \"never pushes\" is information, not\
+    \ the absence of it.\n3. **The objective floor, where it applies.** An automatic\
+    \ merge is gated on\n   `scripts/check.py` exit 0. A reader deciding whether to\
+    \ trust `autonomous` should be\n   able to see that it is not merely the agent's\
+    \ own judgement.\n\n## Where this sits among its siblings\n\nThree tasks now touch\
+    \ the same panel and want to land in this order:\n\n- **task-184** \u2014 the\
+    \ runner-group pulldown and the \"no runner chosen\" caption. Frontend\n  only.\
+    \ First.\n- **task-307** \u2014 the posture pulldown, bounded by the project ceiling\
+    \ from task-308.\n- **this task** \u2014 saying what the chosen posture *means*.\n\
+    \nThere is a case for folding this into task-307, and it is deliberately not folded:\n\
+    307 is a control that sends a new field through the API, this is display of state\
+    \ the\nAPI already returns, and the second is worth having even if the first slips.\
+    \ If whoever\nworks 307 finds the copy inseparable from the control, merging them\
+    \ is a reasonable\ncall \u2014 record it as a decision rather than doing it silently."
+  constraints: "- Display only. This task adds no field to any request and changes\
+    \ no policy; if it finds the API does not return enough to describe the policy,\
+    \ that is a finding to record, not a licence to redesign the endpoint.\n- Assert\
+    \ on rendered values, not the presence of markup. A test that checks a posture\
+    \ element exists while it renders `Posture.AUTONOMOUS` is the failure mode this\
+    \ repository has already been bitten by.\n- Do not restate the policy as a hardcoded\
+    \ frontend table. If the copy is derived from a constant the client keeps in sync\
+    \ by hand, it will drift the first time a posture is added \u2014 derive it from\
+    \ what the API reports.\n- `poetry run python scripts/check.py` passes."
+  out_of_scope: "Choosing the posture (task-307) or the runner group (task-184). Authoring\
+    \ runners, groups or postures from the browser (task-178). Changing any merge\
+    \ or push behaviour \u2014 task-021 settled that and it is merged."
+  context:
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: Renders 'Runner X, posture Y, authorised by Z' around line 373 and says nothing
+      further.
+  - path: src/agentjobs/api/routes/dispatch.py
+    why: DispatchStateView is what the page has to work with; establish whether it
+      already carries enough to describe the policy.
+  - path: src/agentjobs/dispatch/config.py
+    why: Where posture, its merge policy and the per-project push switch resolve after
+      task-021.
+acceptance:
+- id: sc-1
+  text: The dispatch surface states, in words rather than an enum value, whether the
+    run will hand off for review or merge itself
+  status: pending
+- id: sc-2
+  text: Whether the project pushes is stated positively, including when it does not
+  status: pending
+- id: sc-3
+  text: The copy is derived from what the API reports about the resolved configuration,
+    not from a table hardcoded in the frontend
+  status: pending
+- id: sc-4
+  text: A project on each posture renders correctly, asserted on the text a user would
+    read
+  status: pending
+- id: sc-5
+  text: poetry run python scripts/check.py passes
+  status: pending
+deliverables: []
+dependencies:
+- task: task-021
+  type: related
+  note: Merged as 53307a2b; it created the merge policy and push switch this page
+    fails to show.
+- task: task-307
+  type: related
+  note: Adds the posture control to the same panel. This task describes what a chosen
+    posture does; they may reasonably merge.
+- task: task-184-groups-in-the-dispatch-ui
+  type: related
+  note: First of the three in this panel, and establishes its shape.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T23:04:32.594066Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 9e4c17a2-83b5-4d61-a07f-2b6f5c930e18
+      kind: create
+      fingerprint: 24375b0491345369e0ec67558fed38ba
+- id: 2
+  ts: '2026-08-23T23:04:52.954495Z'
+  actor: claude
+  type: queue_move
+  body: 'Last of the four that touch the dispatch panel, and last on purpose: it describes
+    what a chosen posture does to your branch, so it reads best once the ceiling (308)
+    and the control (307) exist. Filed on Jeff''s instruction after the task-021 session
+    raised it as a scope call rather than taking it silently. Small and display-only,
+    so it is a reasonable one to pull forward if the two ahead of it stall -- the
+    visibility gap is real on its own, independent of whether anyone can yet choose
+    a posture from the browser.'
+  data:
+    band: high
+    from: 14500
+    to: 269
+    placement:
+      kind: after
+      target: task-307
+    warnings:
+    - kind: demoted_blocker
+      message: This pushed task-141-embed-launcher-and-project-link (4 open tasks
+        need it), task-138-embed-distribution-decision (3 open tasks need it), task-140-embed-server-surface
+        (3 open tasks need it), and 16 more down the 'high' band. Other open work
+        is waiting on them.
+      tasks:
+      - task-141-embed-launcher-and-project-link
+      - task-138-embed-distribution-decision
+      - task-140-embed-server-surface
+      - task-168-menu-shell
+      - task-139-reporter-host-agnostic-core
+      - task-144-embed-security-posture
+      - task-149-check-trigger
+      - task-161-project-level-dispatch
+      - task-171-voice-input-decision
+      - task-237
+      - task-126-mcp-in-process-manager
+      - task-143-report-and-dispatch-from-host
+      - task-147-acceptance-check-schema
+      - task-148-check-evaluator
+      - task-172-dictation-control
+      - task-174-model-access-decision
+      - task-236
+      - task-238
+      - task-239
+    undo:
+      kind: after
+      target: task-300
+    operation:
+      id: c04e8b73-9a25-4f16-b8d0-2a67e1954f3c
+      kind: queue_move
+      fingerprint: 964eeee7233671b95a1a778a13e491db
