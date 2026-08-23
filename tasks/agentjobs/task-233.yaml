@@ -3,14 +3,36 @@ id: task-233
 title: 'Cycle time: 21 hours of dispatched runs over 23 tasks, and nothing measures
   where it goes'
 created: '2026-08-21T20:42:00.402460Z'
-updated: '2026-08-23T18:28:40.173086Z'
+updated: '2026-08-23T18:42:41.106416Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Hold released by Jeff Posey -- resume this task.
-
-
-  There should have been enough tasks dispatched by now.'
+ball: human
+ball_reason: review
+ball_prompt: "**The answer you asked for: a representative task went from 45.6 dispatched\
+  \ minutes to 9.5.** That is the median task, claude-driver both sides, split at\
+  \ the merge commit `a8686df`. Full numbers and caveats are in the two log entries\
+  \ above.\n\nThree things to know before approving:\n\n1. **The window had to be\
+  \ split by driver.** Half the runs after the merge are Codex bring-up, almost all\
+  \ of them startup failures under two minutes. Left in, they drag the median run\
+  \ to 2.5m and push runs-per-task *up* to 2.82, and neither number means anything\
+  \ about cycle time. Both cuts are in the record.\n\n2. **The saving is not all this\
+  \ task's.** The gate's own contribution is a full passing gate going from 365s to\
+  \ about 155s in the wild. The follow-on run getting shorter is task-234's resumption\
+  \ (27.4m cold, 10.8m resumed), and three tasks closed with zero dispatched minutes\
+  \ is task-241's scripted finish. The ledger separates them and the entry says which\
+  \ is whose.\n\n3. **The instrumentation is under-collecting, and this run proved\
+  \ it on itself.** 67 of 69 `claude --bg` runs have no phase file, this one included,\
+  \ because `--bg` hands the session to a daemon that does not carry the launcher's\
+  \ environment. Nothing is misattributed -- it is silence, not corruption -- and\
+  \ it is already filed as task-249. It is the highest-value follow-up here.\n\n**To\
+  \ review:** commit `25a13ba` on `perf/task-233-cycle-time-measured` -- `--split`\
+  \ and `--driver` on `scripts/run_report.py`, median-beside-mean, an overlapping-gates\
+  \ flag, `driver` recorded on every dispatch path, 8 new tests, and two ENGINEERING.md\
+  \ paragraphs. One of those fills in the contended figure the file previously said\
+  \ was unknown: **three concurrent parallel gates cost 342s, 361s and 384s**, measured\
+  \ off `run_4063f1c0`, which started three at once.\n\nReproduce the headline yourself\
+  \ with:\n\n    poetry run python scripts/run_report.py --driver claude --split 2026-08-21T23:24:52+00:00\n\
+  \nAll six acceptance criteria are now met. On approval this merges and the task\
+  \ closes."
 archived: false
 priority: critical
 queue_position: 600
@@ -183,13 +205,15 @@ acceptance:
   text: 'The end-to-end claim is stated as a before/after: what a representative task
     cost in dispatched minutes before this work and after it, using the same measurement
     method as the baseline.'
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
 branches:
 - name: perf/task-233-cycle-time
   status: merged
+- name: perf/task-233-cycle-time-measured
+  status: active
 log:
 - id: 1
   ts: '2026-08-21T20:42:00.989172Z'
@@ -877,3 +901,80 @@ log:
       id: 7c1d5a20-4b6e-4a11-9c3f-2d8e51f4a601
       kind: log_append
       fingerprint: 81fd4e3040f75e22ac5f6cc3a4ef8e50
+- id: 21
+  ts: '2026-08-23T18:42:14.735656Z'
+  actor: claude
+  type: decision
+  body: "## The before/after is now a command, not a script in a scratch directory\n\
+    \nBranch `perf/task-233-cycle-time-measured`, commit `25a13ba`, gate green across\
+    \ all\nten stages (279.7s, contended).\n\n**The decision:** produce t6's claim\
+    \ through `scripts/run_report.py` rather than\nalongside it. The rejected alternative\
+    \ was to state the numbers from a throwaway\nscript and close \u2014 which is\
+    \ exactly the hand-assembly finding 4 of this task exists to\nend, and would have\
+    \ left the claim unreproducible the moment the scratch file was\ndeleted. The\
+    \ first pass at this measurement *was* such a script; it is what showed the\n\
+    tool was missing two things.\n\n    poetry run python scripts/run_report.py --driver\
+    \ claude --split 2026-08-21T23:24:52+00:00\n\n- **`--split WHEN`** prints the\
+    \ table either side of a moment, so the moment can be\n  the merge commit whose\
+    \ effect is being claimed. Runs with no start time are declared\n  rather than\
+    \ quietly dropped.\n- **`--driver NAME`** narrows to one runner, for the reason\
+    \ in the entry above. An\n  absent `driver` key reads as `claude`, which was true\
+    \ of every run that predated the\n  Codex path \u2014 and dispatch now writes\
+    \ `driver` on every path, so that fallback stops\n  being load-bearing for anything\
+    \ dispatched from here on.\n- **The median task prints beside the mean.** Both\
+    \ were needed to read this window\n  honestly and only one was there.\n- **Overlapping\
+    \ gates are named** rather than left as a percentage over a hundred.\n\n## A limitation\
+    \ on t4 that this run demonstrated on itself\n\n`t4` is marked met and the instrumentation\
+    \ does work \u2014 every figure in the entry above\ncame out of `phases.jsonl`.\
+    \ But **it is collecting from a small minority of runs, and\nthis run is one of\
+    \ the ones it missed.** `AGENTJOBS_RUN_ID` and `AGENTJOBS_RUN_DIR`\nare not in\
+    \ this session's environment, so the green gate above wrote no phase record\n\
+    anywhere.\n\nCorrelated across the whole ledger: **67 of 69 `claude --bg` runs\
+    \ have no phase file\nat all**, against 3 of 3 for the Codex path, which spawns\
+    \ in-process. The two `--bg`\nexceptions both do carry a correct `run_id` inside\
+    \ their records, so nothing is\n*mis*attributed \u2014 the failure is silence,\
+    \ not corruption.\n\n**This is already filed as task-249**, in draft, whose title\
+    \ names the mechanism\nexactly: `--bg` hands the session to a persistent daemon\
+    \ that spawns the worker with\nthe daemon's environment, not the launcher's. It\
+    \ is not re-filed here. Two\nconsequences worth carrying into it:\n\n1. The gate\
+    \ lines in any report over this period describe **the runs that gated and\n  \
+    \ were instrumented**, not all runs. That is why the after-window shows 3 gate\
+    \ runs\n   across 2 instrumented runs when far more gates than that were actually\
+    \ run.\n2. Fixing task-249 will make the next measurement of this kind much sharper,\
+    \ and it\n   is the single highest-value follow-up to this task's part 3.\n\n\
+    ## Remaining scope\n\nNone. Every acceptance criterion is now met and the ranked\
+    \ list in entry 7 stands\nwith two additions the ledger has since supplied: the\
+    \ resumption saving is confirmed\n(follow-on runs 27.4m cold \u2192 10.8m resumed),\
+    \ and the scripted finish is confirmed\n(three tasks merged and closed with zero\
+    \ dispatched minutes).\n"
+  data:
+    operation:
+      id: 2f9a6c34-8d51-4e77-b0a2-6c1e93b4d502
+      kind: log_append
+      fingerprint: a93b7e8a303d5fb2c67188c0cd1bcf42
+- id: 22
+  ts: '2026-08-23T18:42:24.297140Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: b41e7d92-3c6a-4f18-95d7-8a2c17e6b903
+      kind: update_content
+      fingerprint: e73f5346d6d70131b8ac6874d2433ff3
+- id: 23
+  ts: '2026-08-23T18:42:41.106034Z'
+  actor: claude
+  type: handoff
+  body: t6 measured and met; a small tool change makes the claim reproducible. Branch
+    perf/task-233-cycle-time-measured, gate green 10/10.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: d8c05f31-6a24-4b93-81ef-3f7a29c1e604
+      kind: handoff
+      fingerprint: 66baa6d921ba5040292182e987a82bca
