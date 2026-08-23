@@ -3,7 +3,7 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-23T18:25:17.147658Z'
+updated: '2026-08-23T18:26:01.862237Z'
 lifecycle: active
 ball: human
 ball_reason: decision
@@ -2068,3 +2068,13 @@ log:
       id: f0c4a3e7-2b19-4d58-8a06-93e7b1d25c4f
       kind: handoff
       fingerprint: 0dfcdace7adad9a067eb96adc1ec2d25
+- id: 55
+  ts: '2026-08-23T18:26:01.861902Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 52
+  data:
+    run_id: run_1a4bc491
+    outcome: completed
+    duration_seconds: 356.581126
+    log_path: C:\Users\jpose\.agentjobs\runs\run_1a4bc491
