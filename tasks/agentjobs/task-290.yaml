@@ -1,0 +1,68 @@
+schema: 2
+id: task-290
+title: Groom the agentjobs backlog
+created: '2026-08-23T10:42:27.100467Z'
+updated: '2026-08-23T10:43:35.009662Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
+archived: false
+priority: medium
+queue_position: 8000
+category: meta
+tags:
+- grooming
+- playbook
+assignment:
+  owner: claude
+  eligible: []
+spec:
+  summary: 'Run of the `groom` playbook: Find duplicate, superseded and stale tasks;
+    propose closures; close only what a human approved.'
+  description: 'Run of playbook `groom`. The playbook file is the specification for
+    this run: read playbooks/groom.md (sha256 289bb18eca65 at the moment this run
+    was created). It is deliberately not copied here -- a copy would fork the brief
+    the first time somebody improves it.'
+  context:
+  - path: playbooks/groom.md
+    why: The brief this run executes. It is the specification; this task record is
+      the run's memory.
+acceptance:
+- id: ac-1
+  text: The closure proposal was recorded on this task before anything closed, one
+    item per task with its id, its proposed outcome, its reason and its evidence.
+  status: pending
+- id: ac-2
+  text: Every executed close appears in the approved list, with the approved outcome
+    (duplicate or superseded), and nothing else was closed.
+  status: pending
+- id: ac-3
+  text: No task file was deleted, no spec was rewritten, no priority was changed and
+    no queue position was moved.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T10:42:27.515218Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+- id: 2
+  ts: '2026-08-23T10:43:35.009549Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 3a1c8f20-7b64-4d51-9e12-290000000001
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
