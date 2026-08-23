@@ -702,6 +702,12 @@ export const getQueueApiProjectsProjectIdQueueGetQueryKey = (options: Options<Ge
  * two deliberate exceptions in design section 8: you have to be able to see a broken
  * queue in order to fix it, so the offending bands still render and ``problems``
  * names what is wrong beside ``repair_command``.
+ *
+ * Each entry also carries ``last_move`` -- the move that set its place, with the
+ * actor, that actor's kind from this project's vocabulary, the reason recorded with
+ * it, and whether a human kept the place over a warning. That is the anchor evidence
+ * ``reorder`` reads, and it is here so a run costs one request instead of one record
+ * fetch per open task.
  */
 export const getQueueApiProjectsProjectIdQueueGetOptions = (options: Options<GetQueueApiProjectsProjectIdQueueGetData>) => queryOptions<GetQueueApiProjectsProjectIdQueueGetResponse, GetQueueApiProjectsProjectIdQueueGetError, GetQueueApiProjectsProjectIdQueueGetResponse, ReturnType<typeof getQueueApiProjectsProjectIdQueueGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -1598,6 +1604,12 @@ export const getQueueApiQueueGetQueryKey = (options?: Options<GetQueueApiQueueGe
  * two deliberate exceptions in design section 8: you have to be able to see a broken
  * queue in order to fix it, so the offending bands still render and ``problems``
  * names what is wrong beside ``repair_command``.
+ *
+ * Each entry also carries ``last_move`` -- the move that set its place, with the
+ * actor, that actor's kind from this project's vocabulary, the reason recorded with
+ * it, and whether a human kept the place over a warning. That is the anchor evidence
+ * ``reorder`` reads, and it is here so a run costs one request instead of one record
+ * fetch per open task.
  */
 export const getQueueApiQueueGetOptions = (options?: Options<GetQueueApiQueueGetData>) => queryOptions<GetQueueApiQueueGetResponse, GetQueueApiQueueGetError, GetQueueApiQueueGetResponse, ReturnType<typeof getQueueApiQueueGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

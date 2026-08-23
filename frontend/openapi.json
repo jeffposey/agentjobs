@@ -2579,7 +2579,28 @@
         "title": "QueueAssignmentRead",
         "type": "object"
       },
-      "QueueBandRead": {
+      "QueueBandRead-Input": {
+        "description": "One priority band, in queue order. Listed even when empty.",
+        "properties": {
+          "band": {
+            "title": "Band",
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/QueueEntryRead"
+            },
+            "title": "Entries",
+            "type": "array"
+          }
+        },
+        "required": [
+          "band"
+        ],
+        "title": "QueueBandRead",
+        "type": "object"
+      },
+      "QueueBandRead-Output": {
         "description": "One priority band, in queue order. Listed even when empty.",
         "properties": {
           "band": {
@@ -2688,6 +2709,17 @@
           "claimable": {
             "title": "Claimable",
             "type": "boolean"
+          },
+          "last_move": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueueMoveProvenanceRead"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The move that set this place. Null if it never moved."
           },
           "lifecycle": {
             "title": "Lifecycle",
@@ -2832,6 +2864,59 @@
           "kind"
         ],
         "title": "QueueMovePlacement",
+        "type": "object"
+      },
+      "QueueMoveProvenanceRead": {
+        "description": "Where a task's place came from: the last ``queue_move`` that set it.\n\nThe anchor evidence a ``reorder`` run reads (``playbooks/reorder.md``), so it does\nnot have to fetch and scan every task's log to learn who put each task where.\n\nEvery field is present on every record. ``kind`` and ``anchor`` are nullable rather\nthan absent, so a reader always finds the key and only ever has to judge its value\n-- an absent ``kind`` and a ``kind`` of ``null`` would mean the same thing here and\nonly one of them can be checked in a single expression.",
+        "properties": {
+          "actor": {
+            "description": "Actor id that wrote the move. Who executed it.",
+            "title": "Actor",
+            "type": "string"
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "'strong' when a human kept this place after reading the move's warnings. Null otherwise. A strong anchor is never moved by a reorder run.",
+            "title": "Anchor"
+          },
+          "at": {
+            "description": "When the move was written, ISO-8601.",
+            "title": "At",
+            "type": "string"
+          },
+          "body": {
+            "description": "The reason recorded with the move. Where an agent-executed human decision says whose decision it was, which the actor alone cannot tell you.",
+            "title": "Body",
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "'human' or 'agent' per the project's actors vocabulary. Null when config does not define the id -- unknown, and not to be read as either kind.",
+            "title": "Kind"
+          }
+        },
+        "required": [
+          "actor",
+          "kind",
+          "at",
+          "body",
+          "anchor"
+        ],
+        "title": "QueueMoveProvenanceRead",
         "type": "object"
       },
       "QueueMoveRequest": {
@@ -3042,7 +3127,7 @@
         "properties": {
           "bands": {
             "items": {
-              "$ref": "#/components/schemas/QueueBandRead"
+              "$ref": "#/components/schemas/QueueBandRead-Output"
             },
             "title": "Bands",
             "type": "array"
@@ -6073,7 +6158,7 @@
     },
     "/api/projects/{project_id}/queue": {
       "get": {
-        "description": "The whole ordered backlog, band by band. This is the list a human reviews.\n\nEvery band appears, including the empty ones: \"critical is empty\" is a fact a\nreader of an ordered backlog wants stated rather than inferred from a heading that\nis not there. Every open task carries its claimability and, when it is not\nclaimable, the rule that excluded it -- the same sentence ``/tasks/next/explain``\ngives, from the same place, so the two can never disagree.\n\n**This does not 409 on a broken queue**, unlike ``/tasks/next``. It is one of the\ntwo deliberate exceptions in design section 8: you have to be able to see a broken\nqueue in order to fix it, so the offending bands still render and ``problems``\nnames what is wrong beside ``repair_command``.",
+        "description": "The whole ordered backlog, band by band. This is the list a human reviews.\n\nEvery band appears, including the empty ones: \"critical is empty\" is a fact a\nreader of an ordered backlog wants stated rather than inferred from a heading that\nis not there. Every open task carries its claimability and, when it is not\nclaimable, the rule that excluded it -- the same sentence ``/tasks/next/explain``\ngives, from the same place, so the two can never disagree.\n\n**This does not 409 on a broken queue**, unlike ``/tasks/next``. It is one of the\ntwo deliberate exceptions in design section 8: you have to be able to see a broken\nqueue in order to fix it, so the offending bands still render and ``problems``\nnames what is wrong beside ``repair_command``.\n\nEach entry also carries ``last_move`` -- the move that set its place, with the\nactor, that actor's kind from this project's vocabulary, the reason recorded with\nit, and whether a human kept the place over a warning. That is the anchor evidence\n``reorder`` reads, and it is here so a run costs one request instead of one record\nfetch per open task.",
         "operationId": "get_queue_api_projects__project_id__queue_get",
         "parameters": [
           {
@@ -8628,7 +8713,7 @@
     },
     "/api/queue": {
       "get": {
-        "description": "The whole ordered backlog, band by band. This is the list a human reviews.\n\nEvery band appears, including the empty ones: \"critical is empty\" is a fact a\nreader of an ordered backlog wants stated rather than inferred from a heading that\nis not there. Every open task carries its claimability and, when it is not\nclaimable, the rule that excluded it -- the same sentence ``/tasks/next/explain``\ngives, from the same place, so the two can never disagree.\n\n**This does not 409 on a broken queue**, unlike ``/tasks/next``. It is one of the\ntwo deliberate exceptions in design section 8: you have to be able to see a broken\nqueue in order to fix it, so the offending bands still render and ``problems``\nnames what is wrong beside ``repair_command``.",
+        "description": "The whole ordered backlog, band by band. This is the list a human reviews.\n\nEvery band appears, including the empty ones: \"critical is empty\" is a fact a\nreader of an ordered backlog wants stated rather than inferred from a heading that\nis not there. Every open task carries its claimability and, when it is not\nclaimable, the rule that excluded it -- the same sentence ``/tasks/next/explain``\ngives, from the same place, so the two can never disagree.\n\n**This does not 409 on a broken queue**, unlike ``/tasks/next``. It is one of the\ntwo deliberate exceptions in design section 8: you have to be able to see a broken\nqueue in order to fix it, so the offending bands still render and ``problems``\nnames what is wrong beside ``repair_command``.\n\nEach entry also carries ``last_move`` -- the move that set its place, with the\nactor, that actor's kind from this project's vocabulary, the reason recorded with\nit, and whether a human kept the place over a warning. That is the anchor evidence\n``reorder`` reads, and it is here so a run costs one request instead of one record\nfetch per open task.",
         "operationId": "get_queue_api_queue_get",
         "parameters": [
           {

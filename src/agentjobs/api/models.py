@@ -551,6 +551,43 @@ class QueueCompactRequest(QueueMaintenanceRequest):
     band: Priority = Field(..., description="The band to compact. One band per request.")
 
 
+class QueueMoveProvenanceRead(BaseModel):
+    """Where a task's place came from: the last ``queue_move`` that set it.
+
+    The anchor evidence a ``reorder`` run reads (``playbooks/reorder.md``), so it does
+    not have to fetch and scan every task's log to learn who put each task where.
+
+    Every field is present on every record. ``kind`` and ``anchor`` are nullable rather
+    than absent, so a reader always finds the key and only ever has to judge its value
+    -- an absent ``kind`` and a ``kind`` of ``null`` would mean the same thing here and
+    only one of them can be checked in a single expression.
+    """
+
+    actor: str = Field(..., description="Actor id that wrote the move. Who executed it.")
+    kind: Optional[str] = Field(
+        ...,
+        description=(
+            "'human' or 'agent' per the project's actors vocabulary. Null when config "
+            "does not define the id -- unknown, and not to be read as either kind."
+        ),
+    )
+    at: str = Field(..., description="When the move was written, ISO-8601.")
+    body: str = Field(
+        ...,
+        description=(
+            "The reason recorded with the move. Where an agent-executed human decision "
+            "says whose decision it was, which the actor alone cannot tell you."
+        ),
+    )
+    anchor: Optional[str] = Field(
+        ...,
+        description=(
+            "'strong' when a human kept this place after reading the move's warnings. "
+            "Null otherwise. A strong anchor is never moved by a reorder run."
+        ),
+    )
+
+
 class QueueEntryRead(BaseModel):
     """One task's place in line, and whether it can be taken."""
 
@@ -562,6 +599,9 @@ class QueueEntryRead(BaseModel):
     claimable: bool
     reason: Optional[str] = Field(
         default=None, description="Why it is not claimable. Null when it is."
+    )
+    last_move: Optional[QueueMoveProvenanceRead] = Field(
+        default=None, description="The move that set this place. Null if it never moved."
     )
 
 

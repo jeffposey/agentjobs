@@ -174,11 +174,60 @@ class NextExplanation:
 
 
 @dataclass(frozen=True)
+class QueueMoveProvenance:
+    """Where a task's current place came from: the last ``queue_move`` that set it.
+
+    The anchor evidence of ``docs/playbooks-design.md`` §5.2, lifted out of the log so
+    that a ``reorder`` run can ask "who put this here" over the whole backlog in one
+    read instead of fetching and scanning 125 task records to find out.
+
+    **Five facts rather than one, and the shape is the finding of task-289.** The design
+    said the anchor derives from the *actor*, and on this repository's own corpus that
+    turned out to answer a different question from the one it was asked: of the 31 open
+    tasks that had ever moved, 28 named ``claude`` -- twenty of them applying an
+    ordering a human had proposed to, reviewed and approved. ``actor`` is who executed
+    the write, which in a product built so agents execute human decisions is not
+    reliably who decided it. So the listing carries what the decision can actually be
+    read from:
+
+    - :attr:`actor` and :attr:`kind` -- the write's attribution, and whether config
+      calls that id a person. ``kind`` is ``None`` when the project's vocabulary does
+      not define the id, which a reader must treat as *unknown*, never as either kind.
+    - :attr:`at` -- when, so an anchor can be aged against a dependency that has since
+      resolved.
+    - :attr:`body` -- the reason recorded with the move. This is where an
+      agent-executed human decision says so, and carrying it is what keeps the claim
+      checkable: a reader weighs the sentence instead of trusting a flag.
+    - :attr:`anchor` -- ``"strong"`` when a human read the queue-move check's warnings
+      and kept this place anyway (task-219). Deterministic, unforgeable by an agent,
+      and the one anchor ``reorder`` may not move at all.
+    """
+
+    actor: str
+    kind: Optional[str]
+    at: str
+    body: str
+    anchor: Optional[str]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "actor": self.actor,
+            "kind": self.kind,
+            "at": self.at,
+            "body": self.body,
+            "anchor": self.anchor,
+        }
+
+
+@dataclass(frozen=True)
 class QueueEntry:
     """One task's place in line, with whether it can be taken and why not.
 
     ``reason`` is exactly the sentence :meth:`TaskManager._skip_reason` produces, so a
     listing and an explanation never disagree about why a task was passed over.
+    ``last_move`` is where the place came from, and is ``None`` for a task that has
+    never been moved -- which is most of them, and is not the same as one moved by
+    nobody in particular.
     """
 
     task: str
@@ -188,6 +237,7 @@ class QueueEntry:
     ball: Optional[str]
     claimable: bool
     reason: Optional[str]
+    last_move: Optional[QueueMoveProvenance] = None
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -198,6 +248,7 @@ class QueueEntry:
             "ball": self.ball,
             "claimable": self.claimable,
             "reason": self.reason,
+            "last_move": self.last_move.as_dict() if self.last_move else None,
         }
 
 
@@ -695,6 +746,7 @@ class TaskManager:
         self,
         *,
         agent: Optional[str] = None,
+        actors: Optional[Mapping[str, str]] = None,
     ) -> "QueueListing":
         """The whole open backlog in queue order, band by band. This is the review copy.
 
@@ -709,6 +761,12 @@ class TaskManager:
         band instead of being guessed into a place, and ``problems`` says what is wrong
         with the corpus. A listing that refused to render a broken queue would be a
         listing you could not use to fix one.
+
+        ``actors`` is the project's id-to-kind vocabulary from
+        :func:`agentjobs.actors.actor_kinds`, passed in because the manager has no
+        config of its own. Omit it and every :class:`QueueMoveProvenance` still names
+        its actor and carries its reason; only ``kind`` goes ``None``, which a reader
+        must read as *unknown* rather than as *agent*.
         """
         tasks = self.storage.list_tasks()
         states = self._dependency_states()
@@ -739,6 +797,7 @@ class TaskManager:
                         ball=task.ball.value if task.ball else None,
                         claimable=reason is None,
                         reason=reason,
+                        last_move=self._move_provenance(task, actors),
                     )
                 )
             bands.append(QueueBand(band=band.value, entries=tuple(entries)))
@@ -1911,6 +1970,35 @@ class TaskManager:
             if entry.type is LogEntryType.QUEUE_MOVE:
                 return entry
         return None
+
+    @classmethod
+    def _move_provenance(
+        cls, task: Task, actors: Optional[Mapping[str, str]]
+    ) -> Optional[QueueMoveProvenance]:
+        """Where this task's current place came from, or ``None`` if it never moved.
+
+        Reads the record and nothing else. The strong anchor is the ``decision`` entry
+        :meth:`keep_queue_move` writes threaded to the move it answers -- so it is
+        reported only for the *latest* move, which is the rule the design wants: keeping
+        a place over a warning defends that place, and a later move has replaced it.
+        """
+        moved = cls._latest_queue_move(task)
+        if moved is None:
+            return None
+        anchor = None
+        for entry in reversed(task.log):
+            if entry.re == moved.id and entry.data.get(ANCHOR_KEY) == STRONG_ANCHOR:
+                anchor = str(entry.data[ANCHOR_KEY])
+                break
+        return QueueMoveProvenance(
+            actor=moved.actor,
+            kind=(actors or {}).get(moved.actor),
+            at=moved.ts.isoformat(),
+            # A managed move always writes a sentence -- the verb supplies one when the
+            # caller omits it -- so the empty string here means somebody passed one.
+            body=moved.body or "",
+            anchor=anchor,
+        )
 
     def keep_queue_move(
         self,

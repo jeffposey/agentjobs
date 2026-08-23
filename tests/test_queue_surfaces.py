@@ -1148,3 +1148,215 @@ class TestNextCommand:
         assert result.exit_code == 0
         assert "Nothing is claimable right now." in result.output
         assert "task-a" in result.output
+
+
+# ---------------------------------------------------------------------------
+# task-217 sc-2 -- where each place came from, so a reorder run can find anchors
+# ---------------------------------------------------------------------------
+
+
+def entries_of(listing: Any) -> Dict[str, Any]:
+    """Every listed task by id, across all bands."""
+    return {entry.task: entry for band in listing.bands for entry in band.entries}
+
+
+def listed(manager: TaskManager, task_id: str) -> Any:
+    """One task's listing entry, built with this fixture project's actor vocabulary."""
+    listing = manager.queue_listing(actors={"Ada": "human", "bot": "agent"})
+    return entries_of(listing)[task_id]
+
+
+def warned_move(manager: TaskManager, actor: str) -> str:
+    """A move that produces warnings, so ``keep`` has something to be kept over."""
+    make(manager, "task-gate")
+    make(manager, "task-blocked", dependencies=[{"task": "task-gate", "type": "needs"}])
+    manager.move_with_warnings("task-blocked", top=True, actor=actor)
+    return "task-blocked"
+
+
+class TestMoveProvenanceInTheListing:
+    """``last_move``: who put this task here, on what grounds, and did they defend it.
+
+    The listing carries five facts rather than the actor alone, and task-289 is why. Of
+    the 31 open tasks in this repository's own backlog that had ever moved, 28 were
+    written by ``claude`` -- twenty of them applying an ordering Jeff had approved. The
+    actor is who ran the verb; in a product built so agents execute human decisions
+    that is regularly not who made the decision, so the reason and the kept-over-warning
+    record have to travel beside it for the anchor rules to mean anything.
+    """
+
+    def test_a_task_nobody_moved_has_no_provenance(self, project) -> None:
+        _, manager = project
+        make(manager, "task-a")
+
+        assert listed(manager, "task-a").last_move is None
+
+    def test_a_human_move_names_the_human_and_the_kind(self, project) -> None:
+        _, manager = project
+        make(manager, "task-a")
+        make(manager, "task-b")
+        manager.move_with_warnings("task-b", top=True, actor="Ada", body="Ada wants this first.")
+
+        move = listed(manager, "task-b").last_move
+
+        assert move is not None
+        assert move.actor == "Ada"
+        assert move.kind == "human"
+        assert move.body == "Ada wants this first."
+        assert move.anchor is None
+
+    def test_an_agent_move_carries_the_reason_the_actor_cannot_tell_you(self, project) -> None:
+        """The task-289 case: an agent's hand on the verb, a human's decision in the body."""
+        _, manager = project
+        make(manager, "task-a")
+        make(manager, "task-b")
+        manager.move_with_warnings(
+            "task-b", top=True, actor="bot", body="Ada asked for this on 2026-08-21."
+        )
+
+        move = listed(manager, "task-b").last_move
+
+        assert move is not None
+        assert move.actor == "bot"
+        assert move.kind == "agent"
+        assert "Ada asked for this" in move.body
+
+    def test_an_id_the_project_does_not_define_has_no_kind(self, project) -> None:
+        # Absent, never guessed: an unknown id is unknown, and a reader that saw
+        # "agent" here would quietly demote a person nobody had configured yet.
+        _, manager = project
+        make(manager, "task-a")
+        make(manager, "task-b")
+        manager.move_with_warnings("task-b", top=True, actor="stranger")
+
+        move = listed(manager, "task-b").last_move
+
+        assert move is not None
+        assert move.actor == "stranger"
+        assert move.kind is None
+
+    def test_the_time_is_the_move_s_own(self, project) -> None:
+        _, manager = project
+        make(manager, "task-a")
+        make(manager, "task-b")
+        manager.move_with_warnings("task-b", top=True, actor="Ada")
+
+        move = listed(manager, "task-b").last_move
+        written = queue_moves(manager, "task-b")[-1]
+
+        assert move is not None
+        assert move.at == written.ts.isoformat()
+
+    def test_a_kept_place_reports_the_strong_anchor(self, project) -> None:
+        _, manager = project
+        kept = warned_move(manager, "Ada")
+        manager.keep_queue_move(kept, actor="Ada")
+
+        move = listed(manager, kept).last_move
+
+        assert move is not None
+        assert move.anchor == "strong"
+
+    def test_a_later_move_replaces_the_anchor_it_defended(self, project) -> None:
+        """Keeping defends *that* place. Moving again is a new decision about a new one."""
+        _, manager = project
+        kept = warned_move(manager, "Ada")
+        manager.keep_queue_move(kept, actor="Ada")
+        manager.move_with_warnings(kept, bottom=True, actor="bot")
+
+        move = listed(manager, kept).last_move
+
+        assert move is not None
+        assert move.actor == "bot"
+        assert move.anchor is None
+
+    def test_without_a_vocabulary_the_facts_survive_and_only_the_kind_goes(self, project) -> None:
+        _, manager = project
+        make(manager, "task-a")
+        make(manager, "task-b")
+        manager.move_with_warnings("task-b", top=True, actor="Ada", body="Because.")
+
+        move = entries_of(manager.queue_listing())["task-b"].last_move
+
+        assert move is not None
+        assert (move.actor, move.body, move.kind) == ("Ada", "Because.", None)
+
+
+class TestMoveProvenanceOverHttp:
+    """The one request a reorder run makes instead of fetching every record."""
+
+    def test_each_moved_entry_carries_its_provenance_with_the_kind_resolved(self, api) -> None:
+        client, manager, _ = api
+        make(manager, "task-a")
+        make(manager, "task-b")
+        manager.move_with_warnings("task-b", top=True, actor="Ada", body="Ada put it here.")
+
+        entries = {
+            entry["task"]: entry
+            for band in client.get("/api/queue").json()["bands"]
+            for entry in band["entries"]
+        }
+
+        assert entries["task-a"]["last_move"] is None
+        assert entries["task-b"]["last_move"]["actor"] == "Ada"
+        assert entries["task-b"]["last_move"]["kind"] == "human"
+        assert entries["task-b"]["last_move"]["body"] == "Ada put it here."
+        assert entries["task-b"]["last_move"]["anchor"] is None
+
+    def test_a_strong_anchor_is_visible_without_reading_a_single_log(self, api) -> None:
+        client, manager, _ = api
+        kept = warned_move(manager, "Ada")
+        manager.keep_queue_move(kept, actor="Ada")
+
+        entries = {
+            entry["task"]: entry
+            for band in client.get("/api/queue").json()["bands"]
+            for entry in band["entries"]
+        }
+
+        assert entries[kept]["last_move"]["anchor"] == "strong"
+
+    def test_the_scoped_and_unscoped_mounts_agree_about_provenance(self, api) -> None:
+        client, manager, _ = api
+        make(manager, "task-a")
+        manager.move_with_warnings("task-a", top=True, actor="Ada")
+
+        assert client.get("/api/queue").json() == client.get("/api/projects/fixture/queue").json()
+
+
+class TestMoveProvenanceOnTheCommandLine:
+    def test_list_says_who_placed_a_task_and_why(self, project, monkeypatch) -> None:
+        root, manager = project
+        make(manager, "task-a")
+        make(manager, "task-b")
+        manager.move_with_warnings(
+            "task-b", top=True, actor="bot", body="Ada asked for this on 2026-08-21."
+        )
+        monkeypatch.chdir(root)
+
+        result = runner.invoke(cli_app, ["queue", "list"])
+
+        assert result.exit_code == 0
+        assert "placed by bot (agent)" in result.output
+        assert "Ada asked for this" in result.output
+
+    def test_a_kept_place_says_so_on_the_same_line(self, project, monkeypatch) -> None:
+        root, manager = project
+        kept = warned_move(manager, "Ada")
+        manager.keep_queue_move(kept, actor="Ada")
+        monkeypatch.chdir(root)
+
+        result = runner.invoke(cli_app, ["queue", "list"])
+
+        assert "placed by Ada (human, anchor: strong)" in result.output
+
+    def test_a_task_nobody_moved_says_nothing(self, project, monkeypatch) -> None:
+        # The default is silence. A "placed by nobody" line under every untouched task
+        # would double the listing to state what its absence already says.
+        root, manager = project
+        make(manager, "task-a")
+        monkeypatch.chdir(root)
+
+        result = runner.invoke(cli_app, ["queue", "list"])
+
+        assert "placed by" not in result.output

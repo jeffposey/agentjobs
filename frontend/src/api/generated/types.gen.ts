@@ -1818,7 +1818,23 @@ export type QueueAssignmentRead = {
  *
  * One priority band, in queue order. Listed even when empty.
  */
-export type QueueBandRead = {
+export type QueueBandReadInput = {
+    /**
+     * Band
+     */
+    band: string;
+    /**
+     * Entries
+     */
+    entries?: Array<QueueEntryRead>;
+};
+
+/**
+ * QueueBandRead
+ *
+ * One priority band, in queue order. Listed even when empty.
+ */
+export type QueueBandReadOutput = {
     /**
      * Band
      */
@@ -1903,6 +1919,10 @@ export type QueueEntryRead = {
      * Claimable
      */
     claimable: boolean;
+    /**
+     * The move that set this place. Null if it never moved.
+     */
+    last_move?: QueueMoveProvenanceRead | null;
     /**
      * Lifecycle
      */
@@ -2014,6 +2034,52 @@ export type QueueMovePlacement = {
      * The neighbour, for before and after.
      */
     target?: string | null;
+};
+
+/**
+ * QueueMoveProvenanceRead
+ *
+ * Where a task's place came from: the last ``queue_move`` that set it.
+ *
+ * The anchor evidence a ``reorder`` run reads (``playbooks/reorder.md``), so it does
+ * not have to fetch and scan every task's log to learn who put each task where.
+ *
+ * Every field is present on every record. ``kind`` and ``anchor`` are nullable rather
+ * than absent, so a reader always finds the key and only ever has to judge its value
+ * -- an absent ``kind`` and a ``kind`` of ``null`` would mean the same thing here and
+ * only one of them can be checked in a single expression.
+ */
+export type QueueMoveProvenanceRead = {
+    /**
+     * Actor
+     *
+     * Actor id that wrote the move. Who executed it.
+     */
+    actor: string;
+    /**
+     * Anchor
+     *
+     * 'strong' when a human kept this place after reading the move's warnings. Null otherwise. A strong anchor is never moved by a reorder run.
+     */
+    anchor: string | null;
+    /**
+     * At
+     *
+     * When the move was written, ISO-8601.
+     */
+    at: string;
+    /**
+     * Body
+     *
+     * The reason recorded with the move. Where an agent-executed human decision says whose decision it was, which the actor alone cannot tell you.
+     */
+    body: string;
+    /**
+     * Kind
+     *
+     * 'human' or 'agent' per the project's actors vocabulary. Null when config does not define the id -- unknown, and not to be read as either kind.
+     */
+    kind: string | null;
 };
 
 /**
@@ -2186,7 +2252,7 @@ export type QueueResponse = {
     /**
      * Bands
      */
-    bands?: Array<QueueBandRead>;
+    bands?: Array<QueueBandReadOutput>;
     /**
      * Problems
      */
