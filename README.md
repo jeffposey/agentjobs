@@ -12,18 +12,14 @@ carry the work, and it has to say who is on the hook right now.
 
 ```mermaid
 flowchart LR
-    A(["🤖 agent<br/>working"]):::agent
-    H(["👤 human<br/>review · decide · approve"]):::human
-    X(["⏳ external<br/>waiting on a dependency"]):::ext
+    A(["🤖 agent<br/>working"])
+    H(["👤 human<br/>review · decide · approve"])
+    X(["⏳ external<br/>waiting on a dependency"])
 
-    A -- "hands off, with the ask" --> H
-    H -- "approve · revise · answer" --> A
+    A -- "the ask" --> H
+    H -- "approve · revise" --> A
     A -- "blocked" --> X
     X -- "unblocked" --> A
-
-    classDef agent fill:#E7EEF6,stroke:#3E6FA8,stroke-width:1.5px,color:#16202C
-    classDef human fill:#F7EDE0,stroke:#B4762C,stroke-width:1.5px,color:#2A1E10
-    classDef ext fill:#EDEFF1,stroke:#7A838F,stroke-width:1.5px,color:#232830,stroke-dasharray:4 3
 ```
 
 Three places the ball can be, and **there is no fourth**. No "unassigned", no backlog
@@ -38,17 +34,12 @@ Position is a stored decision, inside a priority band, and asking is determinist
 
 ```mermaid
 flowchart TD
-    S(["$ agentjobs next"]):::cmd --> B["take the highest band<br/>that has an open task"]:::step
-    B --> P["take the lowest position<br/>in that band"]:::step
-    P --> C{"claimable?"}:::gate
-    C -- yes --> W(["✓ this is the answer"]):::answer
-    C -- "no: claimed, blocked,<br/>or holding open children" --> N["name the rule that excluded it,<br/>move to the next position"]:::step
+    S(["$ agentjobs next"]) --> B["take the highest band<br/>that has an open task"]
+    B --> P["take the lowest position<br/>in that band"]
+    P --> C{"claimable?"}
+    C -- yes --> W(["✓ this is the answer"])
+    C -- no --> N["name the rule that skipped it,<br/>take the next position"]
     N --> C
-
-    classDef cmd fill:#1F2733,stroke:#1F2733,color:#F2F5F8
-    classDef step fill:#F4F6F8,stroke:#9AA5B2,color:#1B222B
-    classDef gate fill:#F7EDE0,stroke:#B4762C,color:#2A1E10
-    classDef answer fill:#E4F0E9,stroke:#2F6B4F,stroke-width:1.5px,color:#132A20
 ```
 
 `--why` prints that reasoning instead of hiding it — the winner, and every task it walked
@@ -63,15 +54,10 @@ that approval into a running agent, in the right directory, with the right conte
 
 ```mermaid
 flowchart LR
-    R(["👤 human approves<br/>in the UI"]):::human --> D{"dispatch enabled<br/>on this machine?"}:::gate
-    D -- "no · the default" --> B(["ball returns to the agent<br/>a person starts it"]):::agent
-    D -- yes --> S(["🤖 an agent process starts<br/>on this task"]):::agent
-    S --> L(["run ledger<br/>output · cancel · outcome"]):::ledger
-
-    classDef human fill:#F7EDE0,stroke:#B4762C,stroke-width:1.5px,color:#2A1E10
-    classDef agent fill:#E7EEF6,stroke:#3E6FA8,stroke-width:1.5px,color:#16202C
-    classDef gate fill:#F4F6F8,stroke:#9AA5B2,color:#1B222B
-    classDef ledger fill:#EDEFF1,stroke:#7A838F,color:#232830
+    R(["👤 human approves<br/>in the UI"]) --> D{"dispatch enabled<br/>on this machine?"}
+    D -- "no · default" --> B(["ball returns to the agent<br/>a person starts it"])
+    D -- yes --> S(["🤖 an agent process starts<br/>on this task"])
+    S --> L(["run ledger<br/>output · cancel · outcome"])
 ```
 
 Dispatch is off unless a machine-local file turns it on, and the command it runs must be
