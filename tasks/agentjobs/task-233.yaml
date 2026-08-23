@@ -3,7 +3,7 @@ id: task-233
 title: 'Cycle time: 21 hours of dispatched runs over 23 tasks, and nothing measures
   where it goes'
 created: '2026-08-21T20:42:00.402460Z'
-updated: '2026-08-23T18:51:46.721533Z'
+updated: '2026-08-23T18:58:33.312760Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1107,3 +1107,17 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 29
+  ts: '2026-08-23T18:58:33.312521Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `perf/task-233-cycle-time-measured` (b164f7cc).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\aj-233.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_b641f74a\gate.log.'
+  data:
+    finish_step: started
+    branch: perf/task-233-cycle-time-measured
+    finish_id: fin_b641f74a
