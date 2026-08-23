@@ -4,7 +4,7 @@ title: 'Docs drift sweep: api-reference misses 20 operations and makes a false a
   claim; index.md indexes 12 of 19; queue design still "proposed"; sentences in task-schema,
   webhooks and mobile-access overturned by system auditors'
 created: '2026-08-22T18:59:41.077322Z'
-updated: '2026-08-23T00:50:33.126896Z'
+updated: '2026-08-23T01:08:58.670263Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -277,3 +277,54 @@ log:
       id: e4a71cd6-2b98-4053-91f7-6ac35db2e819
       kind: handoff
       fingerprint: cb10d073a21fc7aa9772e1aecb064bab
+- id: 6
+  ts: '2026-08-23T01:08:58.670106Z'
+  actor: claude
+  type: decision
+  body: "DECISION: audit the README from scratch instead of working the audit's list\
+    \ for it. Commit f2cbec3, gate green, receipt f2cbec3b.\n\nWHY. Jeff looked at\
+    \ the README diff and said the changes seemed minimal \u2014 three small items,\
+    \ one of them the one-line \"Claude Code and Codex each get a bundled plugin\"\
+    \ fix \u2014 and asked whether major problems at the top level were going unnoticed.\
+    \ He was right. I had taken the audit's per-file verdict as the work list. The\
+    \ audit's README section had three items, all cosmetic. A first-principles pass\
+    \ over the same 255 lines found four more in about fifteen minutes, one of them\
+    \ severe.\n\nWHAT THE AUDIT MISSED\n1. SEVERE. The first command on the front\
+    \ page was `pip install agentjobs && agentjobs serve`. Line 112 of the same file\
+    \ says AgentJobs is not published to PyPI, and installation.md says the pip example\
+    \ \"applies once a release is published\". So the opening move of the project's\
+    \ own README has been ending in \"No matching distribution found\" for every visitor\
+    \ since it was written. Replaced with the clone recipe the rest of the file already\
+    \ documents.\n2. \"Thirteen tools\" over MCP. It is fifteen. VERIFIED BY RUNNING\
+    \ IT rather than by counting source: started a server on 18783 and read the MCP\
+    \ server's own startup line \u2014 \"Serving 15 tool(s): projects_list, tasks_list,\
+    \ task_get, tasks_search, task_next, task_create_draft, task_create_ready, task_promote,\
+    \ task_claim, task_release, task_handoff, task_close, task_log_append, task_update_content,\
+    \ task_queue_move.\" The audit caught this same error as \"fourteen\" in plugins/agentjobs/README.md\
+    \ and never looked at the front page.\n3. The README's own quick start carried\
+    \ the identical draft cliff I had just fixed in docs/quickstart.md under task-251\
+    \ \u2014 create, then list --lifecycle ready, which prints nothing. I fixed the\
+    \ doc and missed the README's copy of the same sequence, which is its own lesson\
+    \ about fixing by file rather than by claim.\n4. \"What works today\" predated\
+    \ the two largest subsystems in the repository: it listed neither the explicit\
+    \ queue nor agent dispatch, and described the CLI in terms older than next, queue,\
+    \ dispatch, promote, finish, project, validate and mcp. Corrected, and it now\
+    \ states plainly that the CLI has no dedicated claim/handoff/release/close command\
+    \ \u2014 previously implied only by omission.\n5. Minor: the gate description\
+    \ omitted the icons stage and called the Playwright stage \"one real-server path\"\
+    .\n\nWHAT I VERIFIED AND FOUND CORRECT, so nobody re-checks: all 16 relative links\
+    \ resolve; both linked task files exist; both heading anchors exist; `agentjobs\
+    \ project add` and `show` exist; the Vite proxy target really is 8765; and the\
+    \ \"dedicated CLI mirrors remain backlog work\" claim is true \u2014 there is\
+    \ genuinely no claim/handoff/release/close command.\n\nTHE GENERALISABLE POINT,\
+    \ which matters more than the five fixes: an audit's per-file verdict is a sample,\
+    \ not a proof. Auditor 2 classified files as accurate/drifted and other auditors\
+    \ overturned three of its \"accurate\" verdicts at the sentence level \u2014 that\
+    \ was already in the audit's own record, and I still treated its README list as\
+    \ complete. Any future doc pass should re-derive the claims for at least the entry-point\
+    \ files rather than inheriting a verdict."
+  data:
+    operation:
+      id: 9e3c17a4-8d52-4b60-a139-42f7b8e0c635
+      kind: log_append
+      fingerprint: 9055690df8fe6f85e0aca7a25ee3157f
