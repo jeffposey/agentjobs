@@ -3,10 +3,11 @@ id: task-184-groups-in-the-dispatch-ui
 title: The Dispatch page does not know groups exist, and says "no runner chosen" when
   one is in use
 created: '2026-08-19T21:10:06.422156Z'
-updated: '2026-08-23T22:34:24.744220Z'
-lifecycle: ready
+updated: '2026-08-23T22:39:20.178566Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 queue_position: 234
@@ -18,6 +19,7 @@ tags:
 - runner-groups
 effort: small
 assignment:
+  owner: claude
   eligible: []
 parent: task-160-dispatch-phase-two
 spec:
@@ -96,7 +98,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-184-groups-in-dispatch-ui
+  status: active
 log:
 - id: 1
   ts: '2026-08-19T21:10:06.422202Z'
@@ -157,3 +161,28 @@ log:
       id: b41e7c02-58d9-4a6f-9c73-1e5d80a2f334
       kind: queue_move
       fingerprint: c76579f2923957151f25eb5aca1b0ba8
+- id: 3
+  ts: '2026-08-23T22:39:15.936158Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 2b8f7e10-4a11-4c33-9f21-8d0e5a6c1101
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 4
+  ts: '2026-08-23T22:39:20.178297Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 2b8f7e10-4a11-4c33-9f21-8d0e5a6c1102
+      kind: update_content
+      fingerprint: 3a8893b508accb0d96c75081f4c647b5
