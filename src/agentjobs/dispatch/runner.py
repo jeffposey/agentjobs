@@ -1162,6 +1162,7 @@ class DispatchRunner:
                 "posture": self.resolution.settings.posture.value,
                 "status": "starting",
                 "codex_status": "starting",
+                "codex_lifecycle": "preflight",
                 "started_at": self.clock().isoformat(),
                 "caused_by": caused_by,
                 "argv": argv,
@@ -1195,6 +1196,7 @@ class DispatchRunner:
             directory.update_meta(
                 mcp_preflight_server=preflight.server_name,
                 mcp_preflight_status=preflight.status,
+                codex_lifecycle="starting",
             )
             launch_phase = "start"
             try:
@@ -1246,6 +1248,7 @@ class DispatchRunner:
                 "status": "failed",
                 "codex_status": "failed",
                 "codex_phase": launch_phase,
+                "codex_lifecycle": "terminal_failure",
                 "error": str(exc),
             }
             if launch_phase == "preflight":
@@ -1270,6 +1273,7 @@ class DispatchRunner:
         directory.update_meta(
             status="running",
             codex_status="running",
+            codex_lifecycle="running_turn",
             pid=started.pid,
             session_id=started.session_id,
             thread_id=started.thread_id,
@@ -1323,11 +1327,19 @@ class DispatchRunner:
             handle.directory.update_meta(
                 status="running" if codex_status == "completed" else "failed",
                 codex_status=codex_status,
+                codex_lifecycle="turn_completed"
+                if codex_status == "completed"
+                else "terminal_failure",
                 codex_turn_status=status or "unknown",
                 **({"error": str(error)} if error else {}),
             )
         except BaseException as exc:  # noqa: BLE001 - total supervisor, like batch mode
-            handle.directory.update_meta(status="failed", codex_status="failed", error=str(exc))
+            handle.directory.update_meta(
+                status="failed",
+                codex_status="failed",
+                codex_lifecycle="terminal_failure",
+                error=str(exc),
+            )
         finally:
             app_server.terminate()
 
@@ -1882,13 +1894,70 @@ class DispatchRunner:
                     return SessionPhase.RUNNING
                 if now - missing_since < timedelta(seconds=CODEX_PID_MISSING_GRACE_SECONDS):
                     return SessionPhase.RUNNING
+                if self._reconcile_codex_app_server(handle, meta):
+                    return SessionPhase.RUNNING
                 self._finish_session(
                     handle,
                     DispatchOutcome.INTERRUPTED,
-                    body="The Codex App Server process exited before reporting turn completion.",
+                    body=(
+                        "The Codex App Server process exited before reporting turn completion, "
+                        "and its persisted Codex thread could not be reconciled."
+                    ),
                 )
                 return SessionPhase.GONE
         return SessionPhase.RUNNING
+
+    def _reconcile_codex_app_server(self, handle: RunHandle, meta: Dict[str, object]) -> bool:
+        """Confirm a lost App Server child against Codex before settling its run.
+
+        A PID can disappear when AgentJobs restarts, after a Windows probe race, or
+        because the child exited after persisting its thread.  It is therefore only a
+        trigger to reconcile, never proof that another task turn may be launched.
+        """
+        thread_id = meta.get("thread_id") or handle.session_id
+        argv = meta.get("argv")
+        if not isinstance(thread_id, str) or not thread_id or not isinstance(argv, list):
+            handle.directory.update_meta(
+                codex_lifecycle="reconciliation_failed",
+                reconciliation_error="Run metadata has no persisted Codex thread or argv.",
+            )
+            return False
+        rendered_argv = [item for item in argv if isinstance(item, str)]
+        if len(rendered_argv) != len(argv) or not rendered_argv:
+            handle.directory.update_meta(
+                codex_lifecycle="reconciliation_failed",
+                reconciliation_error="Run metadata has an invalid Codex argv.",
+            )
+            return False
+        try:
+            settings = parse_session_settings(
+                rendered_argv,
+                posture=str(meta.get("posture") or self.resolution.settings.posture.value),
+                project_root=self.project_root,
+            )
+            app_server = CodexAppServerProcess(
+                executable=resolve_executable(rendered_argv[0], driver=RunnerDriver.CODEX),
+                cwd=self.project_root,
+                env=self._environment(handle.directory, handle.run_id),
+                settings=settings,
+                service_name="agentjobs",
+                thread_name=f"AgentJobs {self.resolution.project_id}/{handle.task_id}",
+            )
+            app_server.read_persisted_thread(thread_id)
+        except CodexAppServerError as exc:
+            handle.directory.update_meta(
+                codex_lifecycle="reconciliation_failed",
+                reconciliation_error=str(exc),
+            )
+            return False
+        handle.directory.update_meta(
+            codex_status="reconciling",
+            codex_lifecycle="reconciled",
+            reconciled_thread_id=thread_id,
+            reconciled_at=self.clock().isoformat(),
+            pid=None,
+        )
+        return True
 
     def auth_stall(self, handle: RunHandle) -> Optional[AuthStall]:
         """Whether this run's session is sitting dead on an expired login.
