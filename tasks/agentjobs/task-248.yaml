@@ -3,15 +3,13 @@ id: task-248
 title: "Tolerant reader rejects an unknown ball_reason \u2014 the enum widened two\
   \ days after tolerance shipped"
 created: '2026-08-22T18:51:25.400936Z'
-updated: '2026-08-22T22:31:40.794978Z'
+updated: '2026-08-23T06:37:19.879586Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Review commit f409d16 on branch codex/task-248-class-probe. It fixes
-  tolerant unknown ball_reason validation, adds a safe fallback for unknown priority_rank(),
-  and parametrizes schema skew over all five top-level axis enums. Focused tests pass
-  134/134. The full gate is otherwise blocked by pre-existing mypy error src/agentjobs/dispatch/codex_app_server.py:155
-  and unrelated task-275 corpus failure; full pytest was 2820 passed, 1 failed.
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: critical
 queue_position: 500
@@ -68,7 +66,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: codex/task-248-class-probe
+  status: active
 log:
 - id: 1
   ts: '2026-08-22T18:51:25.994739Z'
@@ -969,3 +969,23 @@ log:
     outcome: completed
     duration_seconds: 288.098762
     log_path: C:\Users\jpose\.agentjobs\runs\run_7f272549
+- id: 46
+  ts: '2026-08-23T06:32:07.544298Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 47
+  ts: '2026-08-23T06:37:19.879129Z'
+  actor: codex
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 41b1fae1-a340-4bd1-8315-9611c49146b1
+      kind: update_content
+      fingerprint: 9e0194580a3a6090b7629af4b3f2526e
