@@ -2,11 +2,13 @@ schema: 2
 id: task-285
 title: 'Codex dispatch: Terra reliability acceptance smoke and runbook'
 created: '2026-08-22T23:10:49.425223Z'
-updated: '2026-08-23T03:17:37.144257Z'
+updated: '2026-08-23T03:38:05.816075Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball_prompt: Resume task-285 on the recorded App Server thread, verify same-thread
+  wake evidence, and investigate the persisted-thread list discrepancy without claiming
+  Desktop visibility.
 archived: false
 priority: high
 queue_position: 15
@@ -179,3 +181,149 @@ log:
     run_id: run_7a879bdc
     outcome: crashed
     log_path: C:\Users\jpose\.agentjobs\runs\run_7a879bdc
+- id: 9
+  ts: '2026-08-23T03:21:07.095384Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Started a Codex App Server thread. Its conversation is persisted in the Codex
+    session store and can be opened by Codex Desktop.
+  data:
+    run_id: run_ffc29e26
+    agent: codex
+    runner: codex-terra
+    mode: session
+    posture: autonomous
+    trigger: manual
+    caused_by: 7
+    argv:
+    - C:\Users\jpose\AppData\Local\OpenAI\Codex\bin\110b3d66a02d864e\codex.exe
+    - app-server
+    - --model
+    - gpt-5.6-terra
+    - -c
+    - model_reasoning_effort="high"
+    - -c
+    - service_tier="default"
+    - --sandbox
+    - danger-full-access
+    - -c
+    - mcp_servers.agentjobs.required=true
+    - 'You are the agent `codex` working task `task-285` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-285-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_ffc29e26.'
+    cwd: C:\projects\agentjobs
+    git_head: 1a240de
+    session_id: 01a02ca2-bc07-7bf1-ad26-105e5dfe72e2
+    selection:
+      group: codex-smoke
+      source: dispatch
+      candidates:
+      - runner: codex-terra
+        eligible: true
+- id: 10
+  ts: '2026-08-23T03:24:02.642505Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Started a Codex App Server thread. Its conversation is persisted in the Codex
+    session store and can be opened by Codex Desktop.
+  data:
+    run_id: run_4063f1c0
+    agent: codex
+    runner: codex-terra
+    mode: session
+    posture: autonomous
+    trigger: manual
+    caused_by: 7
+    argv:
+    - C:\Users\jpose\AppData\Local\OpenAI\Codex\bin\110b3d66a02d864e\codex.exe
+    - app-server
+    - --model
+    - gpt-5.6-terra
+    - -c
+    - model_reasoning_effort="high"
+    - -c
+    - service_tier="default"
+    - --sandbox
+    - danger-full-access
+    - -c
+    - mcp_servers.agentjobs.required=true
+    - 'You are the agent `codex` working task `task-285` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-285-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_4063f1c0.'
+    cwd: C:\projects\agentjobs
+    git_head: 1a240de
+    session_id: 01a02ca5-6a47-7c40-984c-b5c4868f3be4
+    selection:
+      group: codex-smoke
+      source: dispatch
+      candidates:
+      - runner: codex-terra
+        eligible: true
+- id: 11
+  ts: '2026-08-23T03:27:04.026447Z'
+  actor: codex
+  type: progress
+  body: 'First controlled Terra App Server turn is active as run `run_4063f1c0` on
+    persisted thread `01a02ca5-6a47-7c40-984c-b5c4868f3be4`. Its audit records `mode:
+    session`, `mcp_preflight_status: ready`, `gpt-5.6-terra`, high reasoning, standard
+    service tier, and autonomous posture. The first-turn runbook procedure now distinguishes
+    dispatch/MCP, persistence, same-thread wake, and Desktop observation. Desktop
+    was available but its UI must not be automated; the observation remains `not_observed`
+    pending a human opening the recorded thread.'
+  data:
+    operation:
+      id: 10dde6de-9014-4c6c-a2e2-2f22f4908b9c
+      kind: log_append
+      fingerprint: 4ad722750e6a49359a5fb2151763c673
+- id: 12
+  ts: '2026-08-23T03:36:10.399114Z'
+  actor: codex
+  type: progress
+  body: 'Committed the operational acceptance/recovery runbook as `27a1dfb` on `fix/task-285-resume`;
+    the full `poetry run python scripts/check.py` gate passed (all 10 stages; 2,852
+    pytest, 228 Vitest, and 22 Playwright tests). A bounded local watcher will dispatch
+    the human-authorized follow-up only after `run_4063f1c0` records `codex_status:
+    completed`, using `caused_by: 7` and `codex-smoke`; the follow-up must confirm
+    `resumed: true`, `resumed_from: run_4063f1c0`, and the identical thread id before
+    preparing the human-review handoff.'
+  data:
+    operation:
+      id: a056a28c-8802-48d7-b8c3-74c55b7df947
+      kind: log_append
+      fingerprint: c54310bc84d71f9a14c0acdd155207fd
+- id: 13
+  ts: '2026-08-23T03:37:59.375709Z'
+  actor: codex
+  type: handoff
+  body: The first authorized Terra turn completed and recorded MCP-ready dispatch
+    evidence plus the runbook commit. Its persistence probe is unavailable because
+    thread/list did not include the thread. Continue the same controlled acceptance
+    by dispatching the exact recorded App Server thread for the required resume leg;
+    do not start a fresh session. Desktop observation remains a separate human check.
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 7d0ccccc-66e6-4b6e-9fd9-9b2e96708c23
+      kind: handoff
+      fingerprint: 35553ccdfd0cdd1b59da09d29da8dd71
+- id: 14
+  ts: '2026-08-23T03:38:05.815852Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 10
+  data:
+    run_id: run_4063f1c0
+    outcome: completed
+    duration_seconds: 858.492148
+    log_path: C:\Users\jpose\.agentjobs\runs\run_4063f1c0
