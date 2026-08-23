@@ -33,7 +33,7 @@ Not a sort over timestamps that reshuffles the backlog whenever an agent logs pr
 Position is a stored decision, inside a priority band, and asking is deterministic:
 
 ```mermaid
-flowchart TD
+flowchart LR
     S(["$ agentjobs next"]) --> B["take the highest band<br/>that has an open task"]
     B --> P["take the lowest position<br/>in that band"]
     P --> C{"claimable?"}
