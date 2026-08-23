@@ -2,7 +2,7 @@ schema: 2
 id: task-217
 title: 'Playbooks 4: reorder, authored, with anchor mechanics'
 created: '2026-08-21T04:56:41.043549Z'
-updated: '2026-08-23T18:00:57.414046Z'
+updated: '2026-08-23T18:41:32.339654Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -247,3 +247,105 @@ log:
       id: ccc954ad-53e8-46c1-ba6e-480e3c569800
       kind: log_append
       fingerprint: 0262491baec9bbea72f6bac3fc641278
+- id: 7
+  ts: '2026-08-23T18:40:46.427932Z'
+  actor: claude
+  type: answer
+  body: "**Answered, and decided. Binding on `playbooks/reorder.md` as shipped.**\n\
+    \nThe question is right and the fix is neither of the two schema changes it floated.\
+    \ **The anchor derivation reads the whole `queue_move`, not one field of it \u2014\
+    \ and the queue listing is what carries the whole thing.**\n\n## What sc-2 actually\
+    \ ships\n\n`last_move` on every open task in `agentjobs queue list` and `GET /api/projects/{project}/queue`,\
+    \ five facts rather than one:\n\n| Field | What it answers |\n|---|---|\n| `actor`\
+    \ | Who ran the verb. |\n| `kind` | `human` / `agent` from the project's `actors:`\
+    \ vocabulary, or `null` for an id config does not define. |\n| `at` | When, which\
+    \ is what lets an anchor be aged against a dependency that has since resolved.\
+    \ |\n| `body` | The reason recorded with the move. |\n| `anchor` | `strong` when\
+    \ a human kept this place over the queue-move check's warnings; `null` otherwise.\
+    \ |\n\n## The rule the brief states\n\n- `anchor: strong` \u2192 never moved.\
+    \ Raise a question instead.\n- `kind: human` \u2192 an anchor.\n- `kind: agent`,\
+    \ and the body attributes the placement to a person who asked, approved or decided\
+    \ \u2192 **an anchor, on the same terms as a human one.**\n- `kind: agent` with\
+    \ the agent's own argument in the body \u2192 not an anchor. Read it before overruling\
+    \ it; say what you know that it did not.\n- `kind: null` \u2192 treated as an\
+    \ ordinary anchor, and said so. The cheap mistake is leaving one position alone\
+    \ for one run; the expensive one is silently reversing a person.\n\n## Why this\
+    \ and not the three candidates\n\n**Candidate 1, `decided_by` as a schema field\
+    \ \u2014 rejected.** It is truest to the fact and it does nothing for the twenty-eight\
+    \ moves already on the corpus, which is the population the question was measuring.\
+    \ Worse, it relocates an unverifiable claim from a sentence into a field: nothing\
+    \ stops an agent writing `decided_by: Jeff` either, and once it is a field a reader\
+    \ stops weighing it. The claim should stay somewhere a reader can check it against\
+    \ the reason beside it. It also costs a schema addition to express something the\
+    \ record already contains.\n\n**Candidate 2, a flag on the verb \u2014 rejected\
+    \ for the same reason, more cheaply made.** Its own statement of the weakness\
+    \ (\"nothing stops an agent asserting it\") is the whole objection; a flag is\
+    \ a body sentence with the checking removed.\n\n**Candidate 3, accept and say\
+    \ so \u2014 rejected.** On today's corpus it makes the anchor mechanic fire on\
+    \ 3 of 125 open tasks and leaves twenty-two of Jeff's approved positions freely\
+    \ re-derivable. That is bound 3 failing silently, which is the exact failure the\
+    \ bound was written to prevent.\n\n**What is kept from the design, unchanged:**\
+    \ no new schema field (\xA75.2's rejection of `queue_pinned` stands, and this\
+    \ adds nothing to a task record), and provenance still comes from the write history\
+    \ rather than from a flag anyone can set. What changes is only the reading: the\
+    \ design said *actor*, and the corpus says the actor is the hand while the body\
+    \ is the decision. Reading both is not a relitigation of the anchor mechanism\
+    \ \u2014 it is the anchor mechanism applied to how this product actually records\
+    \ work.\n\n**The strong anchor is untouched and is the load-bearing half.** It\
+    \ comes only from task-219's `keep` record, written against the human who clicked,\
+    \ and the brief forbids a run from ever writing one \u2014 see the next paragraph.\
+    \ So the one anchor strength that cannot be argued with is also the one no agent\
+    \ can manufacture, and no body sentence is ever read as producing one.\n\n## One\
+    \ hole found while writing this, raised separately\n\n`TaskManager.keep_queue_move`\
+    \ accepts any actor. An agent can therefore write a strong anchor against its\
+    \ own move and immunise it from the next run. The brief forbids it in \xA75 in\
+    \ the strongest terms available to prose, which is what decision P5 says the verb\
+    \ contract is \u2014 declared and audited, not mechanically gated. Whether the\
+    \ verb should refuse a non-human actor outright is a change to task-219's shipped\
+    \ surface and is raised as its own question on this task rather than made here.\n"
+  re: 3
+  data:
+    operation:
+      id: 7a1f0c2e-2170-4a11-9b01-000000000003
+      kind: log_append
+      fingerprint: f836d83772a1b2753b2b72499252df80
+- id: 8
+  ts: '2026-08-23T18:41:32.339426Z'
+  actor: claude
+  type: question
+  body: "**Should `queue keep` refuse a non-human actor? Found while writing the brief;\
+    \ not changed here.**\n\n`TaskManager.keep_queue_move` (task-219) validates that\
+    \ the last move produced warnings, and validates nothing about who is keeping\
+    \ it. Any actor can call it, including an agent keeping its own move.\n\nThat\
+    \ matters because the strong anchor is the one position `reorder` may not move\
+    \ at all, and its entire justification is stated in the design as a fact about\
+    \ a *person*: \"the human who read the warning and kept the move was the informed\
+    \ party\". An agent that keeps its own move writes a record asserting that, and\
+    \ thereby immunises its own placement against every later run's judgment \u2014\
+    \ the one thing in the anchor mechanism that cannot be argued with, manufactured\
+    \ by the party with the most interest in manufacturing it.\n\n**What was done\
+    \ here instead:** `playbooks/reorder.md` \xA75 forbids a run from ever calling\
+    \ `queue keep`, states why, and states plainly that nothing in the code stops\
+    \ it. That is exactly what decision P5 says the verb contract is \u2014 declared\
+    \ and audited from the record, not mechanically gated per run \u2014 so the brief\
+    \ is the correct place for it under the design as it stands.\n\n**Why it was not\
+    \ fixed here:** it is a behaviour change to a verb task-219 shipped three commits\
+    \ ago, on a surface this task was told not to build (the reactive queue-check\
+    \ is explicitly out of scope for task-217, which \"only consumes its strong-anchor\
+    \ record if it exists\"). Making it would also settle, without anyone asking,\
+    \ whether the reserved `dispatcher` and `finisher` ids may keep a move.\n\n**The\
+    \ change, if it is wanted:** `keep_queue_move` takes the project config, resolves\
+    \ the actor through `dispatch.guards.actor_kind`, and refuses anything that is\
+    \ not `kind: human` with a message saying an anchor is a claim about a person.\
+    \ Cheap \u2014 the API route already has the config to hand, and `assert_authorizer_is_human`\
+    \ is the existing shape of that refusal. The CLI has no `queue keep` command today,\
+    \ so the only caller to update is the REST route.\n\n**Reopen trigger if it is\
+    \ not wanted now:** the first strong anchor in this corpus written by an actor\
+    \ whose `kind` is not `human`. That is now visible without reading a log \u2014\
+    \ `last_move.anchor` and `last_move.kind` are both in the queue listing, so it\
+    \ is one request to check.\n"
+  data:
+    operation:
+      id: 7a1f0c2e-2170-4a11-9b01-000000000004
+      kind: log_append
+      fingerprint: df639124081ddf4c675bcd537e9a961b
