@@ -1879,11 +1879,13 @@ class TaskManager:
             undo: Optional[Placement] = None
             if warnings:
                 data["warnings"] = warning_dicts(warnings)
-                # Only for a single move. Undoing a group by moving the root alone
-                # would scatter the children it just carried, and the inverse of a
-                # group move is a group move that this record cannot express -- so the
-                # notice offers no button rather than one that does the wrong thing.
-                if not moved_with:
+                # Only for a single move, and only where something actually moved.
+                # Undoing a group by moving the root alone would scatter the children
+                # it just carried, and the inverse of a group move is a group move this
+                # record cannot express; offering to undo a move that changed no order
+                # is offering to repeat it. Either way the notice shows no button rather
+                # than one that does the wrong thing.
+                if not moved_with and after_order != before_order:
                     undo = undo_placement(before_order, task_id)
                     if undo is not None:
                         data["undo"] = undo.as_data()

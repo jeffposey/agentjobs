@@ -379,6 +379,15 @@ class TestNoOp:
         outcome = manager.move_with_warnings("task-002-blocked", bottom=True, actor="Ada")
         assert kinds(outcome) == [NO_OP]
 
+    def test_a_no_op_offers_no_undo(self, project) -> None:
+        """Undoing a move that changed no order is offering to repeat it."""
+        _, manager = project
+        ids = seed(manager, 3)
+        outcome = manager.move_with_warnings(ids[0], top=True, actor="Ada")
+        assert outcome.undo is None
+        entry = [item for item in outcome.task.log if item.type is LogEntryType.QUEUE_MOVE][-1]
+        assert "undo" not in entry.data
+
     def test_a_real_move_is_not_a_no_op(self, project) -> None:
         _, manager = project
         ids = seed(manager, 3)

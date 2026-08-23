@@ -256,11 +256,59 @@ paths that change a task's band or reopen it.
     placement: {kind: top}     # top | bottom | before | after (+ target)
     moved_with: [task-121]     # group moves only: who actually moved
     from_band: medium          # reprioritize only: the band it left
+    warnings:                  # only when the queue-move check found something
+      - kind: promoted_unclaimable
+        message: task-121 cannot be claimed where you have just put it: ...
+        tasks: [task-121]
+    undo: {kind: after, target: task-063}   # only alongside a warning, single moves only
 ```
+
+**`warnings` and `undo` are the queue-move check** (task-219, design section 5.4). The
+move lands first and is never blocked by them: they are computed synchronously, from
+the claimability and dependency facts the move handler had already read, and recorded
+here so that what the mover was told survives the moment it was told. `kind` is one of
+`promoted_unclaimable`, `above_prerequisite`, `demoted_blocker`, `no_op` and
+`queue_broken`; **most moves earn none of them and carry neither key.**
+
+`undo` is a placement, not a number, because a rebalance can rewrite every number in a
+band while "behind task-063" keeps meaning what it meant. It is omitted for a group
+move: the inverse of a group move is a group move, which this shape cannot express, and
+half an undo would scatter the children the move had just carried.
 
 **Rebalances and compactions write none of these.** Nobody decided anything, and forty
 entries saying "300 became 1400" would bury the ones that record a real choice. Both are
 visible in git and in the receipt ledger, which is where mechanical rewrites belong.
+
+### The strong anchor: a `decision` that answers a `queue_move`
+
+A human who read a warning and kept the position anyway records that here, through
+`agentjobs.manager.keep_queue_move` — `POST /api/tasks/{id}/queue-keep`, or the *Keep it
+here* button on the React notice. `reorder` (task-217) reads it and may not move a
+position anchored this way; ignoring the notice instead leaves an ordinary anchor, which
+is what every un-warned human move leaves, so there is deliberately no `ordinary` value
+to write.
+
+```yaml
+- id: 10
+  actor: Jeff Posey
+  type: decision
+  re: 9                        # the queue_move entry above
+  body: Kept this place in the 'high' band after reading 1 warning(s) about the move.
+  data:
+    queue_anchor: strong
+    band: high
+    queue_position: 50
+    kept_over:                 # the warnings verbatim, as they were shown
+      - kind: promoted_unclaimable
+        message: task-121 cannot be claimed where you have just put it: ...
+        tasks: [task-121]
+```
+
+`kept_over` is a copy rather than a pointer or a recomputation. The anchor's whole claim
+is about what was on the screen at that moment, and the queue it was computed from has
+moved on by the time anybody reads it back. Keeping a move that produced no warning is
+refused: an anchor written where nothing was ever said would bind `reorder` to a
+decision nobody took.
 
 ### `dispatch` and `dispatch_result`
 
@@ -443,6 +491,13 @@ would have to read are not a valid queue it raises `QueueCorruptionError` naming
 tasks and the repair command, rather than answering from some other field.
 `explain_next()` returns the same answer with the work it stands in front of and the
 claimability rule that excluded each.
+
+A move also comes back with **what the move is worth saying** — see `warnings` above.
+`agentjobs queue move` prints them, `POST .../queue-move?envelope=true` returns them as
+`queue_warnings` and `queue_undo`, `task_queue_move` carries them in its result and its
+summary, and the React list shows them beside the row. One implementation
+(`agentjobs.queue_check`), so no two surfaces can describe the same fact differently.
+None of it can refuse a move.
 
 A round-trip check:
 

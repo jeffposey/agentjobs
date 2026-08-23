@@ -1584,8 +1584,9 @@ def _report_move_warnings(outcome: MoveOutcome) -> None:
     """
     if not outcome.warnings:
         return
+    count = len(outcome.warnings)
     typer.secho(
-        f"⚠️  {len(outcome.warnings)} thing(s) worth knowing about that move:",
+        f"⚠️  {count} thing{'' if count == 1 else 's'} worth knowing about that move:",
         fg=typer.colors.YELLOW,
         err=True,
     )

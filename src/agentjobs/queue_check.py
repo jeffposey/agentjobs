@@ -348,7 +348,7 @@ def check_move(check: MoveCheck) -> List[QueueWarning]:
                 kind=DEMOTED_BLOCKER,
                 message=(
                     f"This pushed {phrase} down the '{check.band}' band. Other open "
-                    "work is waiting on them."
+                    f"work is waiting on {'it' if len(demoted) == 1 else 'them'}."
                 ),
                 tasks=tuple(demoted),
             )
