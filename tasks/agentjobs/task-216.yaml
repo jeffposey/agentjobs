@@ -2,7 +2,7 @@ schema: 2
 id: task-216
 title: 'Playbooks 3: groom, authored and proven live'
 created: '2026-08-21T04:56:17.617014Z'
-updated: '2026-08-23T18:00:13.291532Z'
+updated: '2026-08-23T18:00:47.142263Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -611,3 +611,13 @@ log:
       id: c41f8a20-9d55-4e33-8b71-216000000102
       kind: close
       fingerprint: d4940b20dd93b4fb5601f11a672e55c7
+- id: 17
+  ts: '2026-08-23T18:00:47.141959Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 14
+  data:
+    run_id: run_6fb4f84d
+    outcome: completed
+    duration_seconds: 174.058642
+    log_path: C:\Users\jpose\.agentjobs\runs\run_6fb4f84d
