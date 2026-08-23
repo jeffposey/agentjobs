@@ -1,0 +1,227 @@
+schema: 2
+id: task-293
+title: 'Merged branches are never deleted: the scripted finish drops the rule, and
+  the lifecycle checklist omits it'
+created: '2026-08-23T19:18:39.567925Z'
+updated: '2026-08-23T19:18:40.078524Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 193
+category: infrastructure
+tags:
+- dispatch
+- finish
+- git-hygiene
+- docs
+- agent-dx
+assignment:
+  eligible: []
+spec:
+  summary: ENGINEERING.md and AGENTS.md both say to delete a local branch once it
+    is merged. `finish.py` never does it, and ALLAGENTS.md's numbered task lifecycle
+    -- the checklist agents actually execute -- omits it. Six merged branches accumulated
+    in one night before anyone noticed. Fix the code, fix the checklist, and decide
+    whether the gate or a check should catch the next one.
+  intent: A merged branch left behind is not harmful on its own, which is exactly
+    why this went unnoticed while it happened six times in a night. The cost is that
+    `git branch --list` stops being a readable statement of what is in flight, so
+    the signal that tells a new session which branches are live gets buried in dead
+    ones -- and the rule that would have prevented it is written down twice and executed
+    nowhere.
+  description: '**Found 2026-08-23 by Jeff, during the task-211 playbooks epic.**
+    He noticed merged branches piling up and asked whether something had removed the
+    cleanup instruction from the contract files. Nothing had -- `git log -S` over
+    `AGENTS.md`, `ENGINEERING.md` and `ALLAGENTS.md` finds exactly two commits touching
+    those strings, `80fd866` and `54db802`, and both are the commits that **added**
+    them. The rule has never been removed or weakened. It is simply not implemented
+    and not on the checklist.
+
+
+    ## Gap 1 -- the scripted finish never deletes the branch (the one that caused
+    the damage)
+
+
+    `src/agentjobs/dispatch/finish.py` implements ENGINEERING.md''s merge-gate steps
+    3 to 6, and step 5 is *"Delete the local branch once merged, and remove the worktree."*
+    It does the second half only. Its retire step is:
+
+
+    ```python
+
+    result = git(plan.root, ["worktree", "remove", str(plan.worktree)])
+
+    ```
+
+
+    There is no `git branch -d` anywhere in the module. So **every task the scripted
+    finish merges leaves its branch behind, by construction** -- and since task-241
+    made the finish the normal path for every approval, that is now the default outcome
+    for all merged work rather than an occasional oversight.
+
+
+    Tonight it produced these, all confirmed merged, all deleted by hand afterwards:
+
+
+    ```
+
+    docs/task-224-client-refresh-correction   feat/task-215-playbook-run
+
+    feat/task-214-playbook-storage            feat/task-218-flesh-out-playbook
+
+    feat/task-219-queue-move-check            perf/task-233-cycle-time-measured
+
+    ```
+
+
+    Four came from the finish; two came from merges a supervisor session ran by hand,
+    which is gap 2.
+
+
+    **What to build.** A `branch` step after `worktree`, deleting the merged branch
+    with `-d` and never `-D`. `-d` refuses a branch that is not merged, which is the
+    property that makes this safe to do unattended: if the delete is refused, something
+    is wrong with the assumption that the merge succeeded, and that is worth surfacing
+    rather than forcing past. Think about whether a refusal should escalate the finish
+    or merely be reported -- the merge has already landed and been verified by that
+    point, so failing the whole finish over an undeleted branch is probably the wrong
+    trade. Say which you chose and why.
+
+
+    Note the ordering constraint: the worktree must be removed before the branch can
+    be deleted, because a branch checked out in a worktree cannot be deleted. The
+    existing step order already happens to be right; make it explicit rather than
+    incidental.
+
+
+    ## Gap 2 -- the lifecycle checklist omits the rule
+
+
+    The rule is stated in the two documents that read as policy:
+
+
+    - `AGENTS.md:25` -- *"After explicit approval and a successful merge, delete the
+    merged local branch and remove its worktree. A worktree for a closed task is litter."*
+
+    - `ENGINEERING.md:367` -- *"Delete the local branch once merged, and remove the
+    worktree."*
+
+
+    It is missing from the one that reads as a checklist and is what a working session
+    actually follows step by step. `ALLAGENTS.md:177`, step 6 of Task Lifecycle, says:
+
+
+    > `close` the task with `outcome: completed`, and `git worktree remove` your worktree.
+
+
+    No branch deletion. `ALLAGENTS.md:275`, in "Why you get your own worktree", has
+    the same omission: *"`git worktree remove` it once the branch is merged."*
+
+
+    A supervisor session with `ENGINEERING.md` loaded in context still left two branches
+    behind tonight, having followed the checklist. That is the evidence that the checklist
+    is what gets executed and the policy files are what get skimmed.
+
+
+    **What to change.** Add branch deletion to `ALLAGENTS.md` step 6 and to the worktree
+    section, in the same breath as the worktree removal, with the `-d`-not-`-D` reasoning
+    stated once. Do not merely cross-reference `ENGINEERING.md` -- the whole finding
+    here is that a rule which lives only in another file does not get executed.
+
+
+    ## The third question, which is the durable one
+
+
+    Both gaps above are a rule that nothing enforces. Consider whether something should:
+
+
+    - `scripts/check.py` is the wrong place -- it runs before a commit, and branch
+    cleanup happens after a merge.
+
+    - A `agentjobs branches` or `agentjobs doctor`-style read-only report that names
+    local branches merged into `main`, with their tasks, would make the state visible
+    without deleting anything on anyone''s behalf. That is probably the right shape:
+    this repository''s habit is to report and let a human act.
+
+    - Anything that deletes branches automatically outside the finish needs a very
+    careful look at the shared-clone hazard -- several agents work this clone and
+    a branch that looks abandoned may be someone''s live work.
+
+
+    Decide, argue it, and if the answer is "nothing enforces it, the two fixes above
+    are enough", record that as a decision with the reasoning rather than leaving
+    it unaddressed.'
+  constraints: '- Use `git branch -d`, never `-D`. A refusal is information: it means
+    the branch is not merged and the assumption behind deleting it is wrong.
+
+    - The worktree must be removed before its branch can be deleted. Make that ordering
+    explicit, not incidental.
+
+    - Do not delete branches belonging to other worktrees or other sessions. Several
+    agents share this clone; an unfamiliar branch is not an abandoned one.
+
+    - Do not weaken or restate the existing rule in `AGENTS.md` or `ENGINEERING.md`
+    -- it is correct as written and has never been removed. This task adds an implementation
+    and a checklist line.'
+  out_of_scope: 'Remote branches and anything involving `git push` -- nothing in this
+    repository''s workflow pushes, and pruning a remote is a different decision. Deleting
+    the branches that already accumulated: they were deleted by hand on 2026-08-23
+    and the clone is clean.'
+  context:
+  - path: src/agentjobs/dispatch/finish.py
+    why: Implements the merge gate's steps 3-6 and drops the branch-deletion half
+      of step 5. Its retire step near line 904 removes the worktree and stops.
+  - path: ENGINEERING.md
+    why: Step 5 of The Merge Gate, line 367, is the rule the finish does not implement.
+  - path: ALLAGENTS.md
+    why: Task Lifecycle step 6 at line 177, and the worktree section at line 275,
+      are the two places the checklist omits branch deletion.
+  - path: AGENTS.md
+    why: Line 25 states the same rule in the automatically loaded context, and is
+      the reason nobody thought it was missing.
+acceptance:
+- id: sc-1
+  text: The scripted finish deletes the merged branch with `-d` after removing its
+    worktree, and a test proves both that it happens on a successful finish and that
+    an unmerged branch is refused rather than forced.
+  verify: src/agentjobs/dispatch/finish.py and its tests
+  status: pending
+- id: sc-2
+  text: What happens when the delete is refused is decided deliberately -- escalate
+    or report -- and the reasoning is recorded as a decision on this task, not just
+    implemented.
+  verify: this task's log
+  status: pending
+- id: sc-3
+  text: ALLAGENTS.md step 6 and its worktree section both name branch deletion alongside
+    worktree removal, with the -d-not--D reasoning stated.
+  verify: ALLAGENTS.md
+  status: pending
+- id: sc-4
+  text: Whether anything should enforce the rule beyond those two fixes is answered,
+    either by building a read-only report or by a recorded decision that nothing should.
+  verify: this task's log, and any new surface
+  status: pending
+- id: sc-5
+  text: After one full approve-to-merge cycle run through the finish, `git branch
+    --merged main` lists no branch for the closed task.
+  verify: demonstrated live on a real task, not asserted
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T19:18:40.077495Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c1d2e3f4-0001-4a00-9e00-2b3c4d5e0292
+      kind: create
+      fingerprint: 19ea5c84fd39eba58ae99a563c47ff8b
