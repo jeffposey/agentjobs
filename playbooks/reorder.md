@@ -131,8 +131,12 @@ telling you something about the order *you just wrote*:
   raise it. Do not repair it yourself: a repair guesses, and what it guesses is exactly
   what a person should look at.
 - **`demoted_blocker`** — what you pushed down gates other open work, and it names
-  which. Often the honest response is to undo the move. If you keep it, the reason must
-  say you saw this and why the promotion still wins.
+  which. Often the honest response is to undo the move, and the reply hands you the
+  placement that does it: re-move using the `undo` placement it returns. **If you keep
+  the move, say so on the run task** — name the warning, name what it demoted, and say
+  why the promotion still wins. It goes there rather than in the move body because the
+  warning comes back *after* the write, so the body cannot contain it, and re-moving a
+  task only to amend its wording is churn (§7).
 - **`promoted_unclaimable`** — the task you promoted cannot be claimed right now. This
   is frequently *fine*: ordering is about what should be next, not only about what can
   be started this minute. But say so in the reason, so a reader knows you saw it.

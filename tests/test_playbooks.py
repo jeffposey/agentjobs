@@ -355,6 +355,7 @@ class TestThisRepositorysOwnPlaybooks:
             assert (
                 read_playbook(self.directory, name).body == load_reference(name).body
             ), f"playbooks/{name}.md and the shipped reference have diverged"
+
     def test_reorder_writes_without_a_gate_and_declares_only_ordering_verbs(self) -> None:
         """task-217 / design §5.2 and decision P7, pinned against the project's own copy.
 
