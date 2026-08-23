@@ -2,7 +2,7 @@ schema: 2
 id: task-217
 title: 'Playbooks 4: reorder, authored, with anchor mechanics'
 created: '2026-08-21T04:56:41.043549Z'
-updated: '2026-08-23T17:57:17.106022Z'
+updated: '2026-08-23T18:00:57.414046Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -195,3 +195,55 @@ log:
       id: 7a1f0c2e-2170-4a11-9b01-000000000002
       kind: update_content
       fingerprint: f4ce2cdacecbea75aa3a7525932bb5ca
+- id: 6
+  ts: '2026-08-23T18:00:57.413832Z'
+  actor: claude
+  type: instruction
+  body: '**Jeff authorised the live reorder run, in chat, 2026-08-23. sc-3 is back
+    in scope for this task.**
+
+
+    The kickoff prompt for this session said the live run was out of scope and told
+    it not to move anything in the queue. **That instruction is superseded by this
+    entry.** The supervisor withheld it because reorder, unlike groom, has no propose-then-approve
+    step -- it writes moves directly, by design -- so there was no partial form of
+    the run that left Jeff''s live queue untouched, and reordering his backlog is
+    his call. He has now made it.
+
+
+    **The precondition sc-3 names is satisfied:** task-209, the manual ordering pass,
+    is closed `completed`. That matters beyond box-ticking -- the positions it wrote
+    are human-actored `queue_move` entries, which is precisely what this task''s own
+    anchor rule defines as an anchor. So the live run has real anchors to respect
+    rather than a queue of defaults, which is the only way sc-3 can actually be demonstrated.
+
+
+    **What the run must show, from sc-3, unchanged:**
+
+
+    - every move is a `queue_move` carrying a substantive reason for the placement;
+
+    - every human anchor was respected, or explicitly overridden with the grounds
+    stated and the anchor named;
+
+    - a strong anchor -- the kept-over-objection record task-219 shipped -- is never
+    moved; raise a question instead;
+
+    - nothing was closed, reprioritised, or rewritten. Ordering is not grooming.
+
+
+    Graded effort by depth still binds (task-211 log entries 2 and 3): the head of
+    each band ordered exactly, the next five to ten in rough buckets, the tail left
+    alone apart from a triage scan for anything that belongs near the head.
+
+
+    **Do the brief and the mechanics first and get them right.** The live run is the
+    demonstration that the brief works, so a run made before the brief is finished
+    demonstrates nothing. If the run surfaces a defect in the brief, fix the brief
+    and say so on the record -- that is the run doing its job, and task-216''s run
+    found two such fixes.'
+  data:
+    operation:
+      id: ccc954ad-53e8-46c1-ba6e-480e3c569800
+      kind: log_append
+      fingerprint: 0262491baec9bbea72f6bac3fc641278
