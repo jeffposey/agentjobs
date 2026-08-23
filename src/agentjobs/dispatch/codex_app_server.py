@@ -321,6 +321,58 @@ class CodexAppServerProcess:
         finally:
             self.terminate()
 
+    def inspect_persisted_thread(self, thread_id: str) -> Dict[str, Any]:
+        """Return durable App Server evidence for one stored thread.
+
+        This deliberately proves session-store persistence only.  Codex Desktop has no
+        documented sidebar/index acknowledgement, so callers must report that separate
+        human observation rather than treating this response as a Desktop guarantee.
+        """
+        try:
+            self._launch_and_initialize()
+            read = self._request("thread/read", {"threadId": thread_id})
+            thread = read.get("thread")
+            if not isinstance(thread, dict) or thread.get("id") != thread_id:
+                raise CodexAppServerError(
+                    "Codex App Server thread/read returned no matching thread."
+                )
+            listed = self._request(
+                "thread/list",
+                {"sourceKinds": ["appServer"], "cwd": str(self.cwd), "limit": 100},
+            )
+            entries = listed.get("data", listed.get("threads", []))
+            if not isinstance(entries, list):
+                raise CodexAppServerError("Codex App Server thread/list returned no thread list.")
+            matching = next(
+                (
+                    entry
+                    for entry in entries
+                    if isinstance(entry, dict)
+                    and (
+                        entry.get("id") == thread_id
+                        or isinstance(entry.get("thread"), dict)
+                        and entry["thread"].get("id") == thread_id
+                    )
+                ),
+                None,
+            )
+            if matching is None:
+                raise CodexAppServerError(
+                    "Codex App Server thread/list did not contain the persisted thread."
+                )
+            listed_thread = matching.get("thread", matching)
+            assert isinstance(listed_thread, dict)
+            return {
+                "thread_id": thread_id,
+                "title": thread.get("name", thread.get("title")),
+                "cwd": thread.get("cwd", listed_thread.get("cwd")),
+                "source": listed_thread.get("sourceKind", listed_thread.get("source", "appServer")),
+            }
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise CodexAppServerError(f"Could not inspect persisted Codex thread: {exc}") from exc
+        finally:
+            self.terminate()
+
     def start(self, prompt: str, *, resume_thread_id: Optional[str] = None) -> CodexSessionStarted:
         """Launch, initialize, and start a turn for a dispatched task.
 

@@ -373,6 +373,86 @@ def test_app_server_reads_a_persisted_thread_without_starting_a_turn(monkeypatch
     assert messages[-1]["params"] == {"threadId": "thread-1"}
 
 
+def test_app_server_inspects_persisted_app_server_thread(monkeypatch) -> None:
+    output = (
+        "\n".join(
+            [
+                json.dumps({"id": 1, "result": {}}),
+                json.dumps(
+                    {
+                        "id": 2,
+                        "result": {
+                            "thread": {"id": "thread-1", "name": "AgentJobs sandbox/task-1"}
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "id": 3,
+                        "result": {
+                            "data": [
+                                {
+                                    "id": "thread-1",
+                                    "cwd": "C:/project",
+                                    "sourceKind": "appServer",
+                                }
+                            ]
+                        },
+                    }
+                ),
+            ]
+        )
+        + "\n"
+    )
+
+    class FakeProcess:
+        pid = 1242
+
+        def __init__(self) -> None:
+            self.stdin = io.StringIO()
+            self.stdout = io.StringIO(output)
+            self.stderr = io.StringIO()
+
+        def poll(self):
+            return None
+
+        def terminate(self) -> None:
+            pass
+
+        def wait(self, timeout=None) -> None:
+            pass
+
+    fake = FakeProcess()
+    monkeypatch.setattr(
+        "agentjobs.dispatch.codex_app_server.subprocess.Popen", lambda *a, **k: fake
+    )
+    process = CodexAppServerProcess(
+        executable="codex",
+        cwd=Path("C:/project"),
+        env={},
+        settings=CodexSessionSettings("gpt-5.6-terra", "high", "never", "workspace-write"),
+    )
+
+    assert process.inspect_persisted_thread("thread-1") == {
+        "thread_id": "thread-1",
+        "title": "AgentJobs sandbox/task-1",
+        "cwd": "C:/project",
+        "source": "appServer",
+    }
+    messages = [json.loads(line) for line in fake.stdin.getvalue().splitlines()]
+    assert [message["method"] for message in messages] == [
+        "initialize",
+        "initialized",
+        "thread/read",
+        "thread/list",
+    ]
+    assert messages[-1]["params"] == {
+        "sourceKinds": ["appServer"],
+        "cwd": str(Path("C:/project")),
+        "limit": 100,
+    }
+
+
 def test_app_server_resumes_a_persisted_thread_before_injecting_follow_up(monkeypatch) -> None:
     output = (
         "\n".join(

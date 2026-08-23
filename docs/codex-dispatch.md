@@ -30,6 +30,21 @@ Only a positively classified missing, deleted, or unrecoverable thread may start
 app-visible session; that run records both the replaced and new thread IDs. A generic
 resume failure remains a hard failure rather than silently falling back to batch mode.
 
+## Desktop observation is separate evidence
+
+After a completed App Server turn, AgentJobs records `persistence_status: persisted`
+only when a fresh App Server probe can both read the recorded thread and find it in
+`thread/list` with the `appServer` source and project cwd. That proves the durable Codex
+store retained the conversation after the launch child ended; it does not prove a
+Desktop sidebar has indexed or displayed it.
+
+For a controlled Desktop observation, wait for that persisted result, open Codex
+Desktop, refresh its conversation list, and search for the recorded `AgentJobs
+<project>/<task>` thread name or thread ID. Record `desktop_visible` only when a person
+can open that exact conversation. If the check is not performed, or Desktop is not
+available, retain `not_observed` or `unavailable`; neither result changes dispatch,
+turn-completion, or resumability evidence.
+
 The current Windows CLI's `app-server daemon` and `remote-control` lifecycle commands
 are Unix-only. That is separate from ChatGPT Remote: the supported Windows path is to
 enable **Settings → Connections → Control this Mac or PC** in ChatGPT Desktop, approve
