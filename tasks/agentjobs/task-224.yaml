@@ -3,56 +3,13 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-23T18:37:13.686615Z'
+updated: '2026-08-23T18:38:11.933383Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'B is done and ready for review. A and C are untouched, as you asked
-  - nothing posted anywhere, no fault injection armed.
-
-
-  Branch: docs/task-224-client-refresh-correction, commit 3c90ca1, worktree ../worktrees/aj-224.
-
-  Diff: one file, 19 insertions, 6 deletions, docstring only. No behaviour change.
-
-
-  What it corrects, in src/agentjobs/dispatch/auth.py:
-
-
-  The module opened with "Claude Code does not refresh its own credential per session.
-  A shared background daemon owns the OAuth refresh for every --bg worker." The first
-  sentence is false and it is the sentence the module is justified by. It now says
-  there are two refreshes - a client one under 300 seconds of remaining life, and
-  the daemon''s scheduled one at 240 seconds before expiry - with the 2026-08-23 measurement
-  that establishes both, and it states that what kills a session is a refresh that
-  fails rather than a token that expires. That last point is the one a future reader
-  needs: it is why the failure looks like a valid credential being refused and why
-  the daemon appears to notice second.
-
-
-  Also date-stamped the "three occurrences, all genuine" line. It was true on 2026-08-21
-  and is five now; a bare count in prose goes stale, a dated one does not.
-
-
-  Verification: full scripts/check.py, unqualified, green - 10 of 10 stages, 299.2s,
-  run with the worktree''s own interpreter. Slower than the 95.8s in ENGINEERING.md
-  because other gates were running; every stage passed.
-
-
-  On your "are we the only ones who figured this out" - I have not re-checked the
-  issue tracker since entry 8, when #79685 was open with no maintainer response and
-  nothing describing this mechanism. Worth me re-searching before you decide, since
-  three days have passed and that is cheap. Say the word.
-
-
-  On proving it reproducibly: agreed, and note the honest limit. The 300s threshold
-  IS now reproducible - it reproduced on demand and is bracketed to under a second.
-  What is not reproducible without fault injection is the failure, because a healthy
-  refresh succeeds and closes the window. So we can demonstrate the mechanism but
-  not the incident, unless you later want C.
-
-
-  Approve and I will rebase, merge --no-ff, close, and remove the worktree.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 queue_position: 11400
@@ -2203,3 +2160,25 @@ log:
     outcome: completed
     duration_seconds: 513.845832
     log_path: C:\Users\jpose\.agentjobs\runs\run_d85fa49f
+- id: 62
+  ts: '2026-08-23T18:38:09.288999Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 63
+  ts: '2026-08-23T18:38:11.932878Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `docs/task-224-client-refresh-correction` (3c90ca12).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\aj-224.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_689a7558\gate.log.'
+  data:
+    finish_step: started
+    branch: docs/task-224-client-refresh-correction
+    finish_id: fin_689a7558
