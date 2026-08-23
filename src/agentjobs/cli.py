@@ -1196,6 +1196,214 @@ def dispatch_run(
         handle.supervisor.join()
 
 
+@dispatch_app.command("child")
+def dispatch_child(
+    task_id: str = typer.Argument(..., help="Child task to start, on its epic's authority."),
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Registered project id. Defaults to the one you are in."
+    ),
+) -> None:
+    """Start one child of an active epic, on the authorisation a human gave the epic.
+
+    The rule that every dispatch traces to a human act is unchanged and is still what
+    runs here (design section 2). What changes is which task the human clicked: they
+    clicked the epic, and its children were named on its record at the moment they did.
+    This command finds that person's entry on the parent, writes an authorising entry on
+    the child naming them, the parent and the entry, and dispatches on the stored row
+    like anything else.
+
+    It refuses a child whose parent is not active, whose parent nobody human ever
+    authorised, or which has already spent its attempts under that authorisation -- two,
+    the first run and one retry. Re-authorising the epic starts a fresh budget, and
+    leaves a record that somebody chose to.
+
+    ``dispatch walk`` is this in a loop and is what an unattended epic should use. Reach
+    for this one when you want a single child started and to watch it yourself.
+    """
+    from agentjobs.dispatch.epic import EpicError
+    from agentjobs.models_v2 import DispatchTrigger
+
+    registry = ProjectRegistry()
+    try:
+        project = registry.get(project_id) if project_id else registry.resolve_default()
+    except ProjectError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    manager = TaskManager(TaskStorage(project.tasks_dir()))
+    try:
+        handle = dispatch_task(
+            manager=manager,
+            project=project,
+            project_config=project.load_config(),
+            request=DispatchRequest(
+                task_id=task_id,
+                trigger=DispatchTrigger.CHILD,
+                on_behalf_of_parent=True,
+            ),
+        )
+    except EpicError as exc:
+        typer.secho(f"Refused ({exc.reason}): {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    except (DispatchError, DispatchRunError) as exc:
+        reason = getattr(exc, "reason", "dispatch_failed")
+        typer.secho(f"Refused ({reason}): {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(f"✅ Dispatched {task_id} as run {handle.run_id} ({handle.mode.value}).")
+    typer.echo(f"   Agent told AgentJobs is at {handle.api_base}.")
+    typer.echo(f"   Run directory: {handle.directory.path}")
+
+
+@dispatch_app.command("walk")
+def dispatch_walk(
+    parent_id: str = typer.Argument(..., help="Active epic whose children should be worked."),
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Registered project id. Defaults to the one you are in."
+    ),
+    poll_seconds: float = typer.Option(
+        None, "--poll", help="Seconds between reads of the running child's task record."
+    ),
+    child_hours: float = typer.Option(
+        None, "--child-hours", help="Backstop: give up on one child after this long."
+    ),
+    max_children: Optional[int] = typer.Option(
+        None, "--max-children", help="Stop after starting this many, however many remain."
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Say what would be walked and in what order; start nothing."
+    ),
+) -> None:
+    """Work an epic's children one at a time, stopping the moment one is not clean.
+
+    One child is started, watched to a finish through its own task record, and judged: a
+    child that closed ``completed`` ran its own objective gate and its own merge, so the
+    walk moves to the next one. Anything else stops the walk where it stands -- a child
+    is never skipped, because a sibling that depended on it would then be building on a
+    gap with nobody awake to notice.
+
+    **It never closes the parent.** No open child remaining is not the same as the
+    parent's acceptance criteria being met, and that judgement is the one step of this
+    loop that is not mechanical. The walk writes what every child did onto the parent and
+    hands back; you decide.
+
+    Exit 0 means every open child is done. Exit 1 means it stopped for cause, the parent
+    holds the reason, and the parent's ball is with a human. Exit 2 means it could not
+    start at all.
+    """
+    from agentjobs.dispatch.epic import (
+        WalkSettings,
+        EpicError,
+        describe_settings,
+        next_eligible_child,
+        open_children,
+        walk_epic,
+        walk_handoff_prompt,
+        walk_report,
+    )
+    from agentjobs.models_v2 import Ball, BallReason, LogEntryType
+
+    registry = ProjectRegistry()
+    try:
+        project = registry.get(project_id) if project_id else registry.resolve_default()
+    except ProjectError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    manager = TaskManager(TaskStorage(project.tasks_dir()))
+    parent = manager.get_task(parent_id)
+    if parent is None:
+        typer.secho(f"No task {parent_id!r} in project {project.id!r}.", fg=typer.colors.RED)
+        raise typer.Exit(code=2)
+
+    # The walk's own writes are an agent's, not a human's, so they are attributed to the
+    # identity this project's runner claims tasks as -- the same one the children will
+    # write under. `default_user` would be wrong in the way that matters: it would put a
+    # person's name on an entry no person wrote.
+    try:
+        actor = assert_dispatch_permitted(project.id).runner.actor_id
+    except DispatchError as exc:
+        typer.secho(
+            f"Refused ({getattr(exc, 'reason', 'dispatch_refused')}): {exc}", fg=typer.colors.RED
+        )
+        raise typer.Exit(code=2) from exc
+
+    settings = WalkSettings()
+    if poll_seconds is not None:
+        settings.poll_seconds = poll_seconds
+    if child_hours is not None:
+        settings.child_timeout_seconds = child_hours * 3600.0
+    settings.max_children = max_children
+
+    remaining = open_children(manager, parent.id)
+    typer.echo(f"Walking {parent.id}: {parent.title}")
+    typer.echo(f"  open children: {', '.join(c.id for c in remaining) or 'none'}")
+    for line in describe_settings(settings):
+        typer.echo(f"  {line}")
+
+    if dry_run:
+        # Deliberately only the *first* child. Which one comes second depends on what the
+        # first one does to the dependency graph, and printing a whole running order the
+        # walk has not committed to would be a prediction dressed as a plan.
+        upcoming = next_eligible_child(manager, parent.id)
+        typer.echo(f"  next: {upcoming.id if upcoming else 'nothing claimable'}")
+        typer.secho("Dry run: nothing was started.", fg=typer.colors.YELLOW)
+        return
+
+    try:
+        result = walk_epic(
+            manager=manager,
+            project=project,
+            project_config=project.load_config(),
+            parent_id=parent.id,
+            on_event=lambda message: typer.echo(f"  {message}"),
+        )
+    except EpicError as exc:
+        typer.secho(f"Refused ({exc.reason}): {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=2) from exc
+    except DispatchError as exc:
+        typer.secho(
+            f"Refused ({getattr(exc, 'reason', 'dispatch_failed')}): {exc}", fg=typer.colors.RED
+        )
+        raise typer.Exit(code=2) from exc
+
+    # Written whichever way it ended, and written before anything is printed: if this
+    # process dies in the next second the record still says what the walk did.
+    manager.add_log_entry(
+        parent.id,
+        actor=actor,
+        type=LogEntryType.PROGRESS,
+        body=walk_report(result),
+    )
+    typer.echo("")
+    typer.echo(result.summary())
+
+    if result.stop.is_success:
+        typer.secho(
+            "✅ Every open child is done. The parent is still open on purpose: evaluate "
+            "its acceptance criteria against the children's evidence and close it "
+            "yourself.",
+            fg=typer.colors.GREEN,
+        )
+        return
+
+    refreshed = manager.get_task(parent.id)
+    if refreshed is not None and refreshed.is_open and refreshed.ball is not Ball.HUMAN:
+        manager.handoff(
+            parent.id,
+            actor=actor,
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.DECISION,
+            ball_prompt=walk_handoff_prompt(result),
+        )
+    typer.secho(
+        f"Stopped: {result.stop.value}. The parent holds the reason and its ball is with "
+        "a human.",
+        fg=typer.colors.RED,
+    )
+    raise typer.Exit(code=1)
+
+
 @dispatch_app.command("example")
 def dispatch_example(
     write: bool = typer.Option(
@@ -1839,6 +2047,9 @@ def queue_compact(
 def next_task(
     priority: Optional[Priority] = typer.Option(None, "--priority", help="Restrict to one band."),
     agent: Optional[str] = typer.Option(None, "--agent", help="Judge eligibility for this agent."),
+    parent: Optional[str] = typer.Option(
+        None, "--parent", help="Restrict to the children of one epic (task-022)."
+    ),
     why: bool = typer.Option(
         False, "--why", help="Also print every open task ahead of it, and why each was skipped."
     ),
@@ -1853,8 +2064,10 @@ def next_task(
     """
     manager = _build_manager(Path.cwd())
     try:
-        task = manager.get_next_task(priority=priority, agent=agent)
-        explanation = manager.explain_next(priority=priority, agent=agent) if why else None
+        task = manager.get_next_task(priority=priority, agent=agent, parent=parent)
+        explanation = (
+            manager.explain_next(priority=priority, agent=agent, parent=parent) if why else None
+        )
     except QueueCorruptionError as error:
         typer.secho(str(error), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)

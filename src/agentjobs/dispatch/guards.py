@@ -624,6 +624,30 @@ class DispatchRequest:
     and unset, which is what the gate tests assert.
     """
 
+    on_behalf_of_parent: bool = False
+    """Take this run's authorisation from the epic this task is a child of (task-022).
+
+    The rule at the top of this module is unchanged and is still what runs: a dispatch is
+    caused by a stored log entry whose actor this project configures as a human. What
+    this flag changes is which task the human clicked. They clicked the *epic*, and its
+    children were named on its record at the moment they did.
+
+    Mechanically it is the third caller of ``_write_authorizing_entry`` and it is the
+    strictest of the three. The browser's path takes an identity claim from a request and
+    validates it; this one takes no claim at all -- it *reads* the human's entry off the
+    parent's stored record, copies that human's identity onto the child, and then submits
+    the copy to ``assert_human_clocked`` like everything else. There is no input here a
+    caller could get wrong or forge, which is why it is the one authorisation path an
+    agent is allowed to invoke.
+
+    It is also the one bounded by an attempt budget. ``dispatch.epic`` counts how many
+    runs this exact parent authorisation has already bought on this child and refuses the
+    third, because an unattended loop that retries forever is the runaway design section
+    7 exists to prevent. Mutually exclusive with both ``caused_by`` and ``authorized_by``:
+    naming an entry, creating one, and inheriting one are three different acts and a
+    request that asks for two of them has not decided which.
+    """
+
 
 def dispatch_task(
     *,
@@ -669,6 +693,12 @@ def dispatch_task(
             f"to write a new authorising entry as {authorizer_id!r}. Send one or the "
             "other: citing an entry and creating one are different acts."
         )
+    if request.on_behalf_of_parent and (authorizer_id is not None or request.caused_by is not None):
+        raise ConflictingAuthorizationError(
+            f"This dispatch asked to inherit {task.id}'s parent's authorisation *and* "
+            "named an entry or an authoriser of its own. Send one: naming an entry, "
+            "creating one, and inheriting one are three different acts."
+        )
 
     if task.lifecycle is Lifecycle.CLOSED:
         raise TaskClosedError(
@@ -701,9 +731,32 @@ def dispatch_task(
     # Only what can be judged *before* writing happens here; the write is deferred so a
     # dispatch refused for a live run or a busy machine leaves no authorisation behind
     # for a run that never started.
+    #   * A caller inheriting the epic's authorisation (task-022) reads the human's entry
+    #     off the *parent's* stored record and copies that human onto the child, then
+    #     lands in the same deferred write as the browser path. It is the only one of the
+    #     three that also has to buy its run out of a budget.
     causing: Optional[LogEntry] = None
     authorizer: Optional[Actor] = None
-    if authorizer_id is None:
+    epic_note: Optional[str] = None
+    epic_data: Optional[Dict[str, object]] = None
+    if request.on_behalf_of_parent:
+        from agentjobs.dispatch.epic import assert_attempts_remain, resolve_epic_authorization
+
+        inherited = resolve_epic_authorization(manager, project_config, task)
+        assert_attempts_remain(inherited, task)
+        if not record_can_brief(task):
+            # Stricter than the browser path, which lets a human type the brief in the
+            # dispatch box. Nobody is at the box here, and a child of an epic is exactly
+            # the task most likely to have been filed as a title and a hope.
+            raise RecordCannotBriefError(
+                f"{task.id} has no spec.description, so an unattended run started on its "
+                "parent's authorisation would have nothing to work from and nobody to "
+                "ask. Write the child's spec before walking the epic."
+            )
+        authorizer = inherited.actor
+        epic_note = inherited.describe()
+        epic_data = inherited.data()
+    elif authorizer_id is None:
         causing = resolve_causing_entry(task, request.caused_by)
         assert_human_clocked(project_config, causing)
     else:
@@ -774,8 +827,9 @@ def dispatch_task(
                 manager,
                 task,
                 authorizer=authorizer,
-                note=note,
+                note=epic_note or note,
                 surface=request.surface,
+                data=epic_data,
             )
         if causing is None:  # pragma: no cover - one branch or the other always sets it
             raise DispatchRefused(f"{task.id} produced no causing entry to dispatch on.")
@@ -826,6 +880,7 @@ def _write_authorizing_entry(
     authorizer: Actor,
     note: Optional[str],
     surface: Optional[str],
+    data: Optional[Dict[str, object]] = None,
 ) -> tuple[Task, LogEntry]:
     """Record the human's authorisation, then read it back out of storage.
 
@@ -851,9 +906,17 @@ def _write_authorizing_entry(
         # Descriptive only. Nothing reads this back to decide anything -- if it did, a
         # caller could set it on a hand-written note and the flag would become the
         # forgeable evidence this whole design avoids.
-        data={"authorizes_dispatch": True, "surface": surface}
-        if surface
-        else {"authorizes_dispatch": True},
+        #
+        # The epic walk's `data` is the one exception and it is a narrow one: its
+        # `epic` marker is read back, by the attempt counter in `dispatch.epic`, and
+        # the worst a forged marker can do is make a walk stop *sooner*. There is no
+        # value of it that buys an extra run.
+        data=data
+        or (
+            {"authorizes_dispatch": True, "surface": surface}
+            if surface
+            else {"authorizes_dispatch": True}
+        ),
     )
     stored = manager.get_task(task.id)
     if stored is None:  # pragma: no cover - the task was read moments ago

@@ -291,6 +291,16 @@ class DispatchTrigger(ValueEnum):
 
     MANUAL = "manual"
     AUTO = "auto"
+    CHILD = "child"
+    """One step of an epic walk, on the authorisation a human gave the parent (task-022).
+
+    A third value rather than reusing ``manual``, because the two are not the same act
+    and the difference is exactly what a later reader needs. ``manual`` means a person
+    clicked *this* task; ``child`` means a person clicked the *epic* this task belongs
+    to, and the walk spent one of that authorisation's attempts here. The authorising
+    entry written on the child names the parent and the entry it inherited, so the chain
+    is followable in both directions -- but only if the trigger says there is a chain.
+    """
 
 
 class DispatchMode(ValueEnum):

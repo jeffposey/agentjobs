@@ -653,6 +653,7 @@ class TaskManager:
         priority: Optional[Priority] = None,
         *,
         agent: Optional[str] = None,
+        parent: Optional[str] = None,
     ) -> Optional[Task]:
         """The claimable task that stands first in line: ``(band, queue_position)``.
 
@@ -666,8 +667,19 @@ class TaskManager:
         somebody wrote a note. If the queue cannot be trusted the answer is
         :class:`QueueCorruptionError`, not a guess from a different field -- see
         :meth:`assert_queue_integrity`.
+
+        ``parent`` narrows the field to one epic's children (task-022). It is a filter on
+        the candidates and not a second ordering: within an epic the children are still
+        taken in the queue's order, so moving a child in the queue moves it in the walk,
+        and the walk and the dashboard cannot come to disagree about what is next.
+        Ordering an epic's children by their ``needs`` alone was rejected for that
+        reason -- dependencies say what *may* run and the queue says what *does*, and
+        collapsing the two would leave the stored order with no effect on the one
+        consumer that spends money acting on it.
         """
         tasks = self.storage.list_tasks()
+        if parent is not None:
+            tasks = [task for task in tasks if task.parent == parent]
         candidates = self._claimable(
             tasks, priority, agent, self._dependency_states(), self._open_children()
         )
@@ -683,6 +695,7 @@ class TaskManager:
         priority: Optional[Priority] = None,
         *,
         agent: Optional[str] = None,
+        parent: Optional[str] = None,
     ) -> "NextExplanation":
         """The winner, and every open task ahead of it with the rule that excluded it.
 
@@ -698,6 +711,12 @@ class TaskManager:
         tasks = self.storage.list_tasks()
         states = self._dependency_states()
         open_children = self._open_children()
+        if parent is not None:
+            # Narrowed before the explanation is built, not after, so what it lists is
+            # every sibling ahead of the winner rather than every task in the corpus.
+            # An explanation scoped differently from the answer it explains is worse
+            # than none.
+            tasks = [task for task in tasks if task.parent == parent]
         candidates = self._claimable(tasks, priority, agent, states, open_children)
 
         winner: Optional[Task] = None
