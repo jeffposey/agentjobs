@@ -1,0 +1,167 @@
+schema: 2
+id: task-286
+title: 'README sells the opinions early: replace "Why this is not another task tracker"
+  with what AgentJobs actually decides for you'
+created: '2026-08-23T01:59:04.646353Z'
+updated: '2026-08-23T02:08:47.860596Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: "Read the rendered page: http://127.0.0.1:8899/_readme_preview/ \u2014\
+  \ mkdocs from worktree aj-286, own port. Branch docs/task-286-readme-positioning,\
+  \ commit 86b44e8, full gate green, receipt 86b44e8c.\n\nWHAT CHANGED. \"Why this\
+  \ is not another task tracker\" is gone. In its place, above the fold, is \"It is\
+  \ opinionated, and the schema does the arguing\" \u2014 three guarantees stated\
+  \ as things the model refuses to represent rather than as benefits:\n- a task cannot\
+  \ sit unassigned (ball absent iff closed)\n- a handoff cannot be silent (ball_prompt\
+  \ required whenever the ball is set)\n- every open task has a place in line (queue_position\
+  \ present iff open), which is what makes \"what should I work on\" have one answer\n\
+  \nThen `agentjobs next --why` as the payoff, because it is the command that makes\
+  \ the third guarantee visible. Then the softer opinions as bullets, then the loop-closing\
+  \ point about dispatch. Everything below is unchanged in substance and in the same\
+  \ order.\n\nI PROVED ALL THREE rather than asserting them: constructed each violating\
+  \ task and watched Task.model_validate refuse it. The next --why sample output is\
+  \ the real renderer's shape, taken from a live run, not invented \u2014 my first\
+  \ draft had the format wrong and I caught it by running the command.\n\nTWO CLAIMS\
+  \ I DELIBERATELY WEAKENED, and I want you to agree with the call. Queue-position\
+  \ uniqueness is NOT model-enforced \u2014 one file cannot see another \u2014 so\
+  \ the text says placement holds a lock and `queue check` reports collisions, instead\
+  \ of claiming the schema guarantees it. And the no-set_lifecycle claim is scoped\
+  \ to the interfaces, because TaskManager.update_task does apply whatever keys it\
+  \ is handed (task-254 is the open task for that). Both would have read stronger\
+  \ overclaimed, and overclaiming is the exact defect the previous branch spent today\
+  \ removing from these docs.\n\nHOUSEKEEPING: the worktree has two uncommitted review-scaffolding\
+  \ files \u2014 docs/_readme_preview.md and a nav line in mkdocs.yml \u2014 so the\
+  \ page could be rendered. They are NOT in the commit and I will revert them before\
+  \ merging. Say the word and I merge, or tell me what to change."
+archived: false
+priority: high
+queue_position: 14900
+category: documentation
+tags:
+- docs
+- readme
+- positioning
+assignment:
+  owner: claude
+  eligible: []
+spec:
+  summary: "Jeff's verdict on the README section \"Why this is not another task tracker\"\
+    : \"utter shit\". Two weak bullets, one of which is \"git is the database\". The\
+    \ product's real differentiator is that it is opinionated in ways the schema enforces\
+    \ \u2014 a task cannot sit unassigned, every handoff carries its ask, every open\
+    \ task has a place in line \u2014 and none of that is on the front page. Rewrite\
+    \ so the README sells itself early and defers the boring detail."
+  description: "## The complaint\n\nJeff, in chat: the section is \"utter shit. It\
+    \ has opinions, a task cannot be unassigned, all tasks have a queue order in their\
+    \ priority bucket, making 'next task' possible, ETC, ETC, please improve the readme,\
+    \ make it sell itself early in the readme with that kind of stuff, then go into\
+    \ boring details\".\n\nCurrent section is two bullets \u2014 hierarchy roll-up,\
+    \ and \"Git is the database\". Neither is a reason to choose this over Jira-with-an-MCP-server.\
+    \ The genuinely opinionated decisions are invisible until a reader is deep in\
+    \ docs/task-schema.md.\n\n## What is actually differentiating, each verified 2026-08-22\n\
+    \nThese are refused by `Task.model_validate`, not enforced by convention. Proven\
+    \ by constructing each violation and watching it fail:\n\n- **An open task cannot\
+    \ be unassigned.** Rule 1: `ball` is absent-or-null if and only if the task is\
+    \ closed. A task with `lifecycle: active` and no `ball` does not load.\n- **A\
+    \ handoff cannot be silent.** Rule 4: `ball_prompt` is required whenever `ball`\
+    \ is set, with one deliberate exemption for `agent/available` where the spec is\
+    \ itself the ask. `ball: human, ball_reason: review` with no prompt does not load.\n\
+    - **An open task cannot be out of line.** Rule 6: `queue_position` is present\
+    \ if and only if the task is open. So \"what is next\" always has an answer, and\
+    \ it is a stored decision rather than a sort over `updated`.\n\nSupporting, and\
+    \ all verified in this session:\n- `agentjobs next --why` names the winner's band\
+    \ and position AND every task it passed over with the rule that excluded each.\n\
+    - There is no `set_lifecycle`, no `set_queue_position`, and no generic patch that\
+    \ reaches the axes \u2014 confirmed absent from src/. State moves through claim/handoff/release/close/promote,\
+    \ each of which appends its own log entry, so the record shows *why* and not only\
+    \ *what*.\n- Retries are safe (`operation_id` replays) and stale decisions are\
+    \ refused (`expected_revision`).\n- A parent with open children is skipped by\
+    \ `next` but claimable by name, and claiming one hands back a supervision prompt\
+    \ (task-164).\n- Dispatch closes the loop: an authorised human decision can start\
+    \ the agent. That is the thing a tracker with an MCP server cannot do.\n\n## Shape\n\
+    \nSell early, then the boring details. Roughly: keep the stateless-agents framing\
+    \ and the ball YAML block, then a strong \"it has opinions\" section built from\
+    \ the enforced guarantees above, then the existing MCP / React / what-works-today\
+    \ / design / installation sections in their current order.\n\nDo not turn it into\
+    \ marketing. Every claim names the mechanism that enforces it, because that is\
+    \ the actual differentiator \u2014 anyone can claim a workflow, few can say the\
+    \ schema refuses to represent the broken state."
+  context: []
+acceptance:
+- id: ac-1
+  text: The README states the enforced guarantees (unassigned impossible, silent handoff
+    impossible, every open task ordered) above the fold, each naming the mechanism
+    rather than asserting a benefit.
+  status: pending
+- id: ac-2
+  text: Every factual claim in the new section is verified against the code, not inherited
+    from another doc.
+  status: pending
+- id: ac-3
+  text: Installation, quick start and the other reference sections still exist and
+    are unchanged in substance; only the ordering and the positioning section change.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T01:59:05.051443Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: e71b3a95-2c48-4f60-9d31-b8a4c50e7263
+      kind: create
+      fingerprint: e7f7288a2392d4d8a22703adf73a2287
+- id: 2
+  ts: '2026-08-23T01:59:11.802305Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 3
+  ts: '2026-08-23T02:08:47.860475Z'
+  actor: claude
+  type: handoff
+  body: "Read the rendered page: http://127.0.0.1:8899/_readme_preview/ \u2014 mkdocs\
+    \ from worktree aj-286, own port. Branch docs/task-286-readme-positioning, commit\
+    \ 86b44e8, full gate green, receipt 86b44e8c.\n\nWHAT CHANGED. \"Why this is not\
+    \ another task tracker\" is gone. In its place, above the fold, is \"It is opinionated,\
+    \ and the schema does the arguing\" \u2014 three guarantees stated as things the\
+    \ model refuses to represent rather than as benefits:\n- a task cannot sit unassigned\
+    \ (ball absent iff closed)\n- a handoff cannot be silent (ball_prompt required\
+    \ whenever the ball is set)\n- every open task has a place in line (queue_position\
+    \ present iff open), which is what makes \"what should I work on\" have one answer\n\
+    \nThen `agentjobs next --why` as the payoff, because it is the command that makes\
+    \ the third guarantee visible. Then the softer opinions as bullets, then the loop-closing\
+    \ point about dispatch. Everything below is unchanged in substance and in the\
+    \ same order.\n\nI PROVED ALL THREE rather than asserting them: constructed each\
+    \ violating task and watched Task.model_validate refuse it. The next --why sample\
+    \ output is the real renderer's shape, taken from a live run, not invented \u2014\
+    \ my first draft had the format wrong and I caught it by running the command.\n\
+    \nTWO CLAIMS I DELIBERATELY WEAKENED, and I want you to agree with the call. Queue-position\
+    \ uniqueness is NOT model-enforced \u2014 one file cannot see another \u2014 so\
+    \ the text says placement holds a lock and `queue check` reports collisions, instead\
+    \ of claiming the schema guarantees it. And the no-set_lifecycle claim is scoped\
+    \ to the interfaces, because TaskManager.update_task does apply whatever keys\
+    \ it is handed (task-254 is the open task for that). Both would have read stronger\
+    \ overclaimed, and overclaiming is the exact defect the previous branch spent\
+    \ today removing from these docs.\n\nHOUSEKEEPING: the worktree has two uncommitted\
+    \ review-scaffolding files \u2014 docs/_readme_preview.md and a nav line in mkdocs.yml\
+    \ \u2014 so the page could be rendered. They are NOT in the commit and I will\
+    \ revert them before merging. Say the word and I merge, or tell me what to change."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 4a1c86e7-3b59-4f02-9d84-71e5c2b0a936
+      kind: handoff
+      fingerprint: 9fa82997f6b6c80381ac934adce15241
