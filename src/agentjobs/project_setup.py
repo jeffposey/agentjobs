@@ -21,6 +21,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "project_name": "AgentJobs Project",
     "tasks_directory": "tasks",
     "prompts_directory": "prompts",
+    "playbooks_directory": "playbooks",
     "gui": {"host": "localhost", "port": 8765, "theme": "dark"},
     "actors": [
         {"name": "claude", "kind": "agent", "display_name": "Claude (Lead Engineer)"},
@@ -42,6 +43,7 @@ def build_project_config(
     project_name: str,
     tasks_directory: str = "tasks",
     prompts_directory: str = "prompts",
+    playbooks_directory: str = "playbooks",
     port: int = 8765,
     user: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -50,6 +52,7 @@ def build_project_config(
     config["project_name"] = project_name
     config["tasks_directory"] = tasks_directory
     config["prompts_directory"] = prompts_directory
+    config["playbooks_directory"] = playbooks_directory
     config["gui"]["port"] = port
     if user:
         config["actors"] = list(config["actors"]) + [
@@ -100,6 +103,8 @@ def initialize_project(
         tasks_path = _directory_within(resolved_root, tasks_value, field="tasks_directory")
         prompts_value = str(config.get("prompts_directory") or "prompts")
         _directory_within(resolved_root, prompts_value, field="prompts_directory")
+        playbooks_value = str(config.get("playbooks_directory") or "playbooks")
+        _directory_within(resolved_root, playbooks_value, field="playbooks_directory")
     else:
         tasks_path = Path(tasks_value)
         if not tasks_path.is_absolute():
