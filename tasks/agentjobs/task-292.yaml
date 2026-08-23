@@ -1,0 +1,346 @@
+schema: 2
+id: task-292
+title: Keep top bar visible while scrolling
+created: '2026-08-23T19:05:31.429792Z'
+updated: '2026-08-23T19:22:56.706049Z'
+lifecycle: ready
+ball: human
+ball_reason: review
+ball_prompt: "Read the spec I just wrote onto this task, then release the ball if\
+  \ it is right.\n\n**Nothing was closed.** The duplicate search found no duplicate\
+  \ \u2014 three near misses, all written up in the progress entry. The closest, task-237,\
+  \ settles it in its own words: its out_of_scope reads \"Any change to the header\
+  \ nav, or a global navigation rail\" and its constraints read \"the header nav is\
+  \ untouched\". So this is the work the Shell epic deliberately left out, not a second\
+  \ copy of it.\n\n**What I wrote**, in one update: a summary and an intent (the header\
+  \ is the app's only navigation and the longest pages are the ones you most need\
+  \ to leave); a description in four parts \u2014 the two lines of CSS, the z-index\
+  \ chosen against IssueReporter's existing z-40 and z-50, the design decision underneath,\
+  \ and how it relates to task-237/239; seven constraints each citing where it came\
+  \ from; six things out of scope; five context files with reasons; and five acceptance\
+  \ criteria.\n\n**What I was least sure of, and would delete first if I were wrong:\
+  \ the whole \"this is a real decision\" section, and ac-3 with it.** You filed a\
+  \ one-line CSS fix and I have written a task that asks somebody to take a design\
+  \ decision before they touch it. My reason is that the header wraps to two or three\
+  \ rows on a phone \u2014 seven items, each a 44px touch target \u2014 so pinning\
+  \ it as-is permanently spends a third of a phone screen on navigation, which is\
+  \ plausibly worse than what you filed this about. But that is my judgement about\
+  \ your app on your phone, and if you would rather it just be pinned everywhere and\
+  \ be done, say so and ac-3 comes out. I deliberately did **not** pick one of the\
+  \ four alternatives myself.\n\n**What I left empty:** no tags, no category change,\
+  \ no parent, no dependency on task-237. The overlap with task-237 is a paragraph\
+  \ in the description rather than a needs edge, because an edge would make this unclaimable\
+  \ until task-237 closes and that is not true of the work.\n\n**One question below\
+  \ the fold:** a pinned bar in the installed PWA may sit under the iOS status bar\
+  \ (no `viewport-fit=cover`, nothing reads `env(safe-area-inset-top)`). I put it\
+  \ out of scope and asked whether it should be its own task. It is read off the markup,\
+  \ not observed.\n\n**Ball was human/spec before this** \u2014 your own \"finish\
+  \ specifying this task\" \u2014 so I have not interrupted anything; I have answered\
+  \ it.\n\nOne mechanical note you should know when you look at this. I promoted it\
+  \ out of `draft` before parking it, which is what you asked for. `_skip_reason`\
+  \ decides claimability on lifecycle alone and never reads the ball, so this task\
+  \ is now returned by `agentjobs next` and is dispatchable even though it is parked\
+  \ at your review. Measured against the real manager, not inferred. If that is not\
+  \ what you want, the fix is in the queue rather than here \u2014 I raised it on\
+  \ task-218."
+archived: false
+priority: medium
+queue_position: 8100
+category: general
+tags: []
+assignment:
+  eligible: []
+spec:
+  summary: "The React app's global header \u2014 AgentJobs, the project switcher and\
+    \ the six nav links \u2014 is a plain block element in a scrolling document, so\
+    \ it leaves the screen the moment you scroll. Pin it, so the app's only navigation\
+    \ is reachable from anywhere on a long page."
+  intent: "That header is the whole navigation system: there is no rail, no back button\
+    \ that means anything, and the burger menu (task-168) is not built. The pages\
+    \ you most need to leave are the longest ones in the product \u2014 a task log\
+    \ runs to dozens of entries, and the task list to a hundred rows \u2014 so today\
+    \ the cost of moving between surfaces is a scroll to the top first. It is worst\
+    \ on a phone, which is where this app is read over Tailscale, and where the scroll\
+    \ is longest."
+  description: "## What is wrong\n\n`frontend/src/App.tsx:596-612`. `ProjectApp` renders\n\
+    \n```\n<div className=\"flex min-h-screen flex-col bg-dark-bg text-dark-text\"\
+    >\n  <header className=\"border-b border-dark-border bg-dark-surface\">\n    <nav\
+    \ className=\"... flex min-h-16 max-w-7xl flex-wrap items-center gap-2 ...\">\n\
+    ```\n\nThe header is in the normal flow of a document that scrolls, so it scrolls.\
+    \ Nothing else about it is wrong: it is already opaque (`bg-dark-surface`) and\
+    \ already has a bottom border, which are the two things a pinned bar usually needs\
+    \ adding.\n\n## The mechanical part\n\n`sticky top-0` plus a z-index on the `<header>`.\
+    \ That is genuinely it, and if the change were only mechanical it would not be\
+    \ worth a task.\n\n**Pick the z-index against the two stacking neighbours that\
+    \ already exist**, rather than reaching for `z-50`:\n\n- `IssueReporter.tsx:38`\
+    \ \u2014 the Report Issue floating button, `fixed bottom-4 right-4 z-40`.\n- `IssueReporter.tsx:128`\
+    \ \u2014 its modal, `fixed inset-0 z-50`, a full-screen overlay.\n\nThe header\
+    \ must sit **below** both: above the modal overlay it would punch a hole in a\
+    \ dialog. Below `z-40` it stays under the floating button, which never overlaps\
+    \ it positionally anyway. `z-30` satisfies both; whatever is chosen, say against\
+    \ what.\n\n## The part that is a real decision, and is not the run's to take\n\
+    \n**The header wraps.** `flex-wrap` with `min-h-16` and seven items \u2014 the\
+    \ title, the project switcher, and Dashboard / Tasks / Create / Dispatch / Playbooks\
+    \ / API Docs, each a 44px `touch-target`. At a phone width it is two or three\
+    \ rows tall. Pinning it as it stands spends a large share of a small screen permanently\
+    \ on navigation, which trades one annoyance for a worse one.\n\nSo there is a\
+    \ design question underneath a one-line CSS change: **does the bar condense below\
+    \ some width, and into what?** Named alternatives, none of them chosen here:\n\
+    \n- Pin it exactly as it is, at every width, and accept the height.\n- Pin it\
+    \ only at or above a breakpoint; below that it scrolls as today.\n- Condense the\
+    \ row on narrow widths \u2014 drop the `AgentJobs` wordmark, or the links that\
+    \ are not Dashboard/Tasks \u2014 and pin the condensed form.\n- Wait for task-168's\
+    \ burger menu to collapse the links, and pin whatever survives that.\n\n**Take\
+    \ the decision explicitly and record it** as a `decision` entry on this task with\
+    \ the alternative you rejected, before the implementation lands. Do not settle\
+    \ it silently inside a CSS class: the reason this task looks trivial and is not\
+    \ is exactly that the trivial change makes the phone case worse, and a `decision`\
+    \ entry is the only place a later reader will find out that somebody noticed.\n\
+    \n## Its relationship to the shell epic \u2014 read this, it is not a duplicate\n\
+    \ntask-237 (`Shell 2`) gives the **Tasks surface** two independently scrolling\
+    \ regions and states that at landscape widths *the page itself does not scroll*.\
+    \ Where that lands, the header stays put on that one surface as a side effect.\
+    \ It does not make this task unnecessary, and task-237 says so itself in two places:\n\
+    \n- its `out_of_scope`: *\"Any change to the header nav, or a global navigation\
+    \ rail.\"*\n- its constraints: *\"the header nav is untouched\"*, and *\"Below\
+    \ the breakpoint the rendered output is what it is today. A jsdom test at a phone\
+    \ viewport should not be able to tell this change happened.\"*\n\nSo after task-237\
+    \ the header still scrolls away on Dashboard, Create, Dispatch and Playbooks,\
+    \ and still scrolls away everywhere on a phone \u2014 which is the case this task\
+    \ exists for. task-239's *\"header that stays\"* is a different header again:\
+    \ the task id, title and ball at the top of the **detail panel**, inside that\
+    \ panel's own scroll container.\n\nThe two must not fight. Neither ordering is\
+    \ blocked, and no dependency edge is recorded on purpose \u2014 this is an overlap\
+    \ to be aware of, not a prerequisite. If task-237 has already landed when you\
+    \ start, check the pinned header against the two-region layout at both viewports\
+    \ rather than assuming they compose.\n\n## Verifying it\n\nAssert the **rendered\
+    \ geometry**, not that a class is present: `header.getBoundingClientRect().top\
+    \ === 0` after scrolling the document to its end, at a desktop and at a phone\
+    \ viewport, on a page long enough to scroll. A test that asserts `class=\"sticky\"\
+    ` passes against a header inside an ancestor with `overflow: hidden`, where `sticky`\
+    \ does nothing \u2014 which is the failure mode this rule exists for (`ENGINEERING.md`,\
+    \ Verification).\n\nA jsdom/vitest test cannot see this: jsdom does not lay out,\
+    \ so every `getBoundingClientRect()` is zero and `position: sticky` has no meaning.\
+    \ The evidence has to be Playwright. Existing specs live in `frontend/e2e/`."
+  constraints: "- Frontend only. No API, schema or CLI change; the legacy Jinja pages\
+    \ are not touched.\n- No new npm dependency. Tailwind's `sticky`/`top-0`/`z-*`\
+    \ utilities are sufficient \u2014 the same constraint task-235's epic works under.\n\
+    - Do not change what is *in* the header. Adding, removing or reorganising its\
+    \ controls is task-167/task-168's scope; if condensing the row on narrow widths\
+    \ is the decision taken, say on the record how it stays compatible with the burger\
+    \ menu those tasks put there.\n- The chosen z-index is argued against `IssueReporter`'s\
+    \ `z-40` button and `z-50` modal, and the modal still covers the header.\n- Acceptance\
+    \ is asserted on rendered geometry in Playwright, never on the presence of a class\
+    \ \u2014 ENGINEERING.md, Verification.\n- Take a worktree and bootstrap it (`python\
+    \ scripts/bootstrap.py`) before anything else \u2014 ALLAGENTS.md, Task Lifecycle.\n\
+    - `scripts/check.py` green with no arguments before every commit, run with the\
+    \ interpreter path the bootstrap prints rather than a bare `poetry run` \u2014\
+    \ ENGINEERING.md."
+  out_of_scope: "- Changing the header's contents or adding a menu to it \u2014 task-167\
+    \ and task-168.\n- The Tasks surface's two-region layout and its independent scroll\
+    \ containers \u2014 task-237.\n- The detail panel's own sticky header (task id,\
+    \ title, ball) \u2014 task-239, a different element.\n- Any visual restyling:\
+    \ colours, spacing, typography, the wordmark's treatment.\n- The legacy Jinja/Alpine\
+    \ pages \u2014 task-275 wants them deleted, not fixed.\n- iOS safe-area handling.\
+    \ `frontend/index.html` has no `viewport-fit=cover` and nothing in the app reads\
+    \ `env(safe-area-inset-top)`, so a pinned bar in a standalone PWA may sit under\
+    \ the status bar. Real, and a separate task: fixing it here means touching the\
+    \ viewport meta for every surface at once."
+  context:
+  - path: frontend/src/App.tsx
+    why: "Lines 596-612 are the header and the `flex min-h-screen flex-col` wrapper\
+      \ it sits in \u2014 the whole of the change, and the wrap behaviour the narrow-width\
+      \ decision turns on."
+  - path: frontend/src/components/IssueReporter.tsx
+    why: The only two z-indexes in the app (`z-40` button, `z-50` modal). The header's
+      must be chosen against them.
+  - path: frontend/src/styles.css
+    why: '`touch-target` is `min-height: 44px`, which is why seven header items are
+      tall enough to wrap into three rows on a phone.'
+  - path: tasks/agentjobs/task-237.yaml
+    why: 'The neighbour that looks like a duplicate and is not: its out_of_scope and
+      constraints both put the header nav outside its change, and its phone-width
+      behaviour is explicitly unchanged.'
+  - path: ENGINEERING.md
+    why: The Verification section's rule about asserting rendered values rather than
+      markup, which decides what the acceptance test may look like.
+acceptance:
+- id: ac-1
+  text: On a task detail page whose log is long enough to scroll, at 1280x800 and
+    at 390x844, scrolling the document to its end leaves the header's `getBoundingClientRect().top`
+    at 0 and its Tasks link clickable. Asserted in Playwright on the measured rectangle,
+    not on a class name.
+  status: pending
+- id: ac-2
+  text: "The same holds on every surface that renders the header \u2014 Dashboard,\
+    \ Tasks, Create, Dispatch, Playbooks \u2014 or, where the decision in ac-3 deliberately\
+    \ excludes a width or a surface, that exclusion is what the test asserts instead."
+  status: pending
+- id: ac-3
+  text: A `decision` entry on this task states what the bar does below the wrap width,
+    names the alternative rejected, and says how it stays compatible with the burger
+    menu task-168 will put in the same row.
+  status: pending
+- id: ac-4
+  text: "Opening the Report Issue modal still covers the header completely at both\
+    \ viewports, and the floating Report Issue button is still clickable \u2014 the\
+    \ two existing z-indexes, checked rather than assumed."
+  status: pending
+- id: ac-5
+  text: '`scripts/check.py` green with no arguments on a clean tree, and the new Playwright
+    assertions fail when `top-0`/`sticky` is removed from the header.'
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T19:05:31.887291Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created draft by Jeff Posey.
+  data:
+    lifecycle: draft
+- id: 2
+  ts: '2026-08-23T19:22:01.552238Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, spec.
+  data:
+    fields:
+    - acceptance
+    - spec
+    operation:
+      id: 6a1f0d3e-2c74-4b18-9f52-0c1e7a92b292
+      kind: update_content
+      fingerprint: 043c28e786dcf21d3e11144a036c4725
+- id: 3
+  ts: '2026-08-23T19:22:21.446368Z'
+  actor: claude
+  type: progress
+  body: "**Specified by a run of the `flesh-out` playbook, 2026-08-23. The duplicate\
+    \ search came first; here is where it looked and what it found.**\n\nFour passes\
+    \ over all 290 records, open and closed:\n\n1. **Title nouns and synonyms** \u2014\
+    \ `top bar`, `topbar`, `sticky`, `header nav`, `position: fixed`. 13 records matched,\
+    \ 11 of them false positives on other senses of \"position\" and \"header\".\n\
+    2. **The artefact** \u2014 every record naming `frontend/src/App.tsx`. 22 records.\
+    \ This is the pass that would have found a counterpart phrased differently, and\
+    \ it did not find one.\n3. **Closed records as well as open ones**, so that a\
+    \ shipped fix would show up as done rather than as missing. Nothing closed touches\
+    \ the global header's scroll behaviour.\n4. **The epic that owns the area** \u2014\
+    \ task-235's Shell children, task-236 through task-240, plus task-167/task-168\
+    \ which add a control to this same row.\n\n**Three near misses, and why none of\
+    \ them is this task.** The test applied was: *if the counterpart were done, would\
+    \ this task have nothing left to do?*\n\n- **task-237 (`Shell 2`)** is the closest,\
+    \ and it settles the question in writing rather than by argument. Its `out_of_scope`\
+    \ reads *\"Any change to the header nav, or a global navigation rail\"*, and its\
+    \ constraints read *\"the header nav is untouched\"* and *\"Below the breakpoint\
+    \ the rendered output is what it is today.\"* It stops the **Tasks** page scrolling\
+    \ at landscape widths, which pins the header there as a side effect \u2014 and\
+    \ leaves Dashboard, Create, Dispatch and Playbooks scrolling, and leaves every\
+    \ surface scrolling on a phone. Plenty left to do, so: overlap, not duplicate.\
+    \ It is written into the spec as an overlap and deliberately **not** as a dependency\
+    \ edge.\n- **task-239 (`Shell 4`)** has an acceptance criterion reading *\"The\
+    \ task id, title and ball remain visible while scrolling a long task log\"* \u2014\
+    \ which is the same sentence about a different element. That header is inside\
+    \ the detail panel's own scroll container. Same words, different DOM node, different\
+    \ work.\n- **task-167 / task-168** put a burger menu into this row. They change\
+    \ what is *in* the header; this changes where the header is. They interact \u2014\
+    \ a condensed narrow-width bar and a burger menu are two answers to one problem\
+    \ \u2014 and that interaction is named in the constraints so neither is built\
+    \ in ignorance of the other.\n\nNothing was folded and nothing was closed: there\
+    \ was no duplicate to fold into.\n"
+  data:
+    operation:
+      id: 7b2c8f41-3d05-4e29-8a63-1f4d0c73e292
+      kind: log_append
+      fingerprint: 8ba56d84e8a18b48778114d358255445
+- id: 4
+  ts: '2026-08-23T19:22:32.042381Z'
+  actor: claude
+  type: question
+  body: "**Question: a pinned bar in the installed PWA may end up under the iOS status\
+    \ bar. I put it out of scope. Should it be its own task?**\n\n`frontend/index.html:5`\
+    \ is `<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"\
+    \ />` \u2014 no `viewport-fit=cover` \u2014 and nothing in `frontend/src/styles.css`\
+    \ or the components reads `env(safe-area-inset-top)`. In a browser tab that is\
+    \ fine, because the browser chrome occupies the inset. In a standalone home-screen\
+    \ PWA there is no chrome, so a `top-0` element sits at the physical top of the\
+    \ display, under the clock and the notch.\n\nI left it out of scope rather than\
+    \ folding it in, for one reason: fixing it means changing the viewport meta, which\
+    \ changes the layout of **every** surface at once, and that is a bigger blast\
+    \ radius than the task it would be riding along with. It is also not certain to\
+    \ bite \u2014 it depends on whether the app is opened from the home screen, and\
+    \ I have not observed it, only read the markup.\n\nSo it is a prediction, not\
+    \ a reproduction, and it is written down here rather than asserted in the spec.\
+    \ Worth a task on its own, or worth folding into this one and accepting the wider\
+    \ change?\n"
+  data:
+    operation:
+      id: 9c4e1a77-58b2-4c30-b1e9-2d6f8b41e292
+      kind: log_append
+      fingerprint: 1cd8c29ef673b31f8aa74f1d1a590171
+- id: 5
+  ts: '2026-08-23T19:22:37.974734Z'
+  actor: claude
+  type: transition
+  body: "Promoted by a flesh-out run: the spec that made this a draft is now written,\
+    \ so the record is no longer one. The ball moves to human/review in the same run\
+    \ \u2014 the review is the gate, and it has not been passed yet."
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: 4d8b2e60-91af-4c7d-8a15-3e0c5b7fe292
+      kind: promote
+      fingerprint: 0e9d07ee30f910e2b263a8aaa52f8ea7
+- id: 6
+  ts: '2026-08-23T19:22:56.705860Z'
+  actor: claude
+  type: handoff
+  body: "Read the spec I just wrote onto this task, then release the ball if it is\
+    \ right.\n\n**Nothing was closed.** The duplicate search found no duplicate \u2014\
+    \ three near misses, all written up in the progress entry. The closest, task-237,\
+    \ settles it in its own words: its out_of_scope reads \"Any change to the header\
+    \ nav, or a global navigation rail\" and its constraints read \"the header nav\
+    \ is untouched\". So this is the work the Shell epic deliberately left out, not\
+    \ a second copy of it.\n\n**What I wrote**, in one update: a summary and an intent\
+    \ (the header is the app's only navigation and the longest pages are the ones\
+    \ you most need to leave); a description in four parts \u2014 the two lines of\
+    \ CSS, the z-index chosen against IssueReporter's existing z-40 and z-50, the\
+    \ design decision underneath, and how it relates to task-237/239; seven constraints\
+    \ each citing where it came from; six things out of scope; five context files\
+    \ with reasons; and five acceptance criteria.\n\n**What I was least sure of, and\
+    \ would delete first if I were wrong: the whole \"this is a real decision\" section,\
+    \ and ac-3 with it.** You filed a one-line CSS fix and I have written a task that\
+    \ asks somebody to take a design decision before they touch it. My reason is that\
+    \ the header wraps to two or three rows on a phone \u2014 seven items, each a\
+    \ 44px touch target \u2014 so pinning it as-is permanently spends a third of a\
+    \ phone screen on navigation, which is plausibly worse than what you filed this\
+    \ about. But that is my judgement about your app on your phone, and if you would\
+    \ rather it just be pinned everywhere and be done, say so and ac-3 comes out.\
+    \ I deliberately did **not** pick one of the four alternatives myself.\n\n**What\
+    \ I left empty:** no tags, no category change, no parent, no dependency on task-237.\
+    \ The overlap with task-237 is a paragraph in the description rather than a needs\
+    \ edge, because an edge would make this unclaimable until task-237 closes and\
+    \ that is not true of the work.\n\n**One question below the fold:** a pinned bar\
+    \ in the installed PWA may sit under the iOS status bar (no `viewport-fit=cover`,\
+    \ nothing reads `env(safe-area-inset-top)`). I put it out of scope and asked whether\
+    \ it should be its own task. It is read off the markup, not observed.\n\n**Ball\
+    \ was human/spec before this** \u2014 your own \"finish specifying this task\"\
+    \ \u2014 so I have not interrupted anything; I have answered it.\n\nOne mechanical\
+    \ note you should know when you look at this. I promoted it out of `draft` before\
+    \ parking it, which is what you asked for. `_skip_reason` decides claimability\
+    \ on lifecycle alone and never reads the ball, so this task is now returned by\
+    \ `agentjobs next` and is dispatchable even though it is parked at your review.\
+    \ Measured against the real manager, not inferred. If that is not what you want,\
+    \ the fix is in the queue rather than here \u2014 I raised it on task-218."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 2f7a9c05-64d8-4b13-9e77-8c31a5b0e292
+      kind: handoff
+      fingerprint: 97c4a6e8f505b8d140bfe31b0bc7b692
