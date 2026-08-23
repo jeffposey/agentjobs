@@ -3,47 +3,11 @@ id: task-233
 title: 'Cycle time: 21 hours of dispatched runs over 23 tasks, and nothing measures
   where it goes'
 created: '2026-08-21T20:42:00.402460Z'
-updated: '2026-08-23T19:01:27.972260Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
-  \ was merged.**\n\n`scripts/check.py` failed on perf/task-233-cycle-time-measured\
-  \ after the rebase (132s, exit 1). A red gate never merges. The branch is rebased\
-  \ onto main and is otherwise untouched; nothing was merged. Full output: C:\\Users\\\
-  jpose\\.agentjobs\\finishes\\fin_a790b54d\\gate.log\n\n```\ntests/test_mcp_protocol.py::TestAgentEvaluations::test_the_refusal_scenarios_actually_recorded_refusals\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-Otjwv2Tt-py3.13\\\
-  Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response = await\
-  \ handler(conn, exc)\ntests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-Otjwv2Tt-py3.13\\\
-  Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
-  \ dependant.call(**values)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
-  \  C:\\projects\\worktrees\\aj-233\\src\\agentjobs\\api\\routes\\web.py:368: DeprecationWarning:\
-  \ datetime.datetime.utcnow() is deprecated and scheduled for removal in a future\
-  \ version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n\
-  \    \"current_year\": datetime.utcnow().year,\ntests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
-  \  C:\\projects\\worktrees\\aj-233\\src\\agentjobs\\api\\routes\\web.py:350: DeprecationWarning:\
-  \ datetime.datetime.utcnow() is deprecated and scheduled for removal in a future\
-  \ version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n\
-  \    \"current_year\": datetime.utcnow().year,\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\
-  =========================== short test summary info ===========================\n\
-  FAILED tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too\n\
-  =========== 1 failed, 3043 passed, 219 warnings in 80.08s (0:01:20) ===========\n\
-  \  black      0.7s\n  ruff       0.1s\n  mypy      21.2s\n  api        5.5s\n  icons\
-  \      2.8s\n  oxlint     0.5s\n  pytest   100.4s\n  total    131.3s\nAll done!\
-  \ \\u2728 \\U0001f370 \\u2728\n199 files would be left unchanged.\nFailed to deliver\
-  \ webhook wh_246b7caf06: All connection attempts failed\nFailed at stage 'pytest'.\n\
-  Fix it, then resume with `--from pytest` instead of paying for the stages above\
-  \ a second time.\n```\n\nTake it from here by hand. Check the tree against what\
-  \ is written above before acting on anything you remember: if your worktree, your\
-  \ branch or your account of this task no longer matches what is on disk, say so\
-  \ on the record and hand the ball back rather than improvising a recovery."
+updated: '2026-08-23T19:01:47.921689Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 600
 category: developer_experience
 tags:
 - cycle-time
@@ -54,7 +18,6 @@ tags:
 effort: the first win is a config change measured in minutes; instrumentation and
   the gate-necessity rule are the substance
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "A task in this repository costs about an hour of dispatched agent time,\
@@ -221,7 +184,8 @@ branches:
 - name: perf/task-233-cycle-time
   status: merged
 - name: perf/task-233-cycle-time-measured
-  status: active
+  status: merged
+  merged_at: '2026-08-23T19:01:47.789651Z'
 log:
 - id: 1
   ts: '2026-08-21T20:42:00.989172Z'
@@ -1137,3 +1101,23 @@ log:
     merge_commit: a993b36f9538596d5e7363cb1ef94fc68a380e5b
     branch: perf/task-233-cycle-time-measured
     base: main
+- id: 31
+  ts: '2026-08-23T19:01:47.921474Z'
+  actor: finisher
+  type: transition
+  body: "Merged `perf/task-233-cycle-time-measured` into `main` as `a993b36f` and\
+    \ verified live. Approved by Jeff Posey; finished by the scripted path with no\
+    \ agent session (task-241).\n\nEverything up to and including verification:\n\n\
+    ```\n  preflight  ok         1.8s  perf/task-233-cycle-time-measured at b164f7cc\
+    \ in C:\\projects\\worktrees\\aj-233\n  rebase     ok         0.2s  perf/task-233-cycle-time-measured\
+    \ onto main: b164f7cc -> 67a244d4\n  gate       ok       173.8s  scripts/check.py\
+    \ green\n  merge      ok         0.4s  --no-ff into main as a993b36f9538596d5e7363cb1ef94fc68a380e5b\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         0.8s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving 996ecb85, which contains the merge\
+    \ a993b36f, from C:\\projects\\agentjobs (started 2026-08-23T19:01:33.972573+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
