@@ -1,0 +1,83 @@
+schema: 2
+id: task-285
+title: 'Codex dispatch: Luna reliability acceptance smoke and runbook'
+created: '2026-08-22T23:10:49.425223Z'
+updated: '2026-08-22T23:10:49.806909Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 14800
+category: acceptance
+tags:
+- codex
+- luna
+- acceptance
+- smoke
+- runbook
+effort: medium
+assignment:
+  eligible: []
+parent: task-280
+spec:
+  summary: Verify the completed dispatch stack with a controlled Luna run that proves
+    task activity, same-thread resume, and separately recorded Desktop observation.
+  description: Run the human-authorized acceptance smoke only after the lifecycle,
+    MCP, resume, and visibility children close. Capture dispatch audit evidence, diagnostic
+    phases, a resumed wake turn on the same persisted thread, task activity through
+    AgentJobs MCP, and the distinct Desktop observation result. Update the operational
+    runbook with expected outcomes and recovery steps.
+  constraints: Use only the configured Codex Luna/default runner. Preserve worktree
+    isolation, required MCP behavior, permissions, AgentJobs audit trail, and the
+    human review gate. Do not use Sol/Big Dawg, change runner selection, or perform
+    Fast-mode tuning.
+  out_of_scope: Changing architecture, retrial policy, task protocol, Desktop product
+    behavior, or model comparisons.
+  context: []
+acceptance:
+- id: ac-1
+  text: A controlled Luna task completes a dispatch and later resumes the same persisted
+    thread, recording AgentJobs task activity without intervention except the declared
+    review gate.
+  verify: Human-authorized smoke evidence in task/run records.
+  status: pending
+- id: ac-2
+  text: The runbook distinguishes dispatch success, resumability, persisted-thread
+    evidence, and Desktop observation.
+  verify: Reviewed docs/codex-dispatch.md.
+  status: pending
+deliverables:
+- path: docs/codex-dispatch.md
+  note: Operational acceptance and recovery runbook.
+  status: pending
+- path: tasks/agentjobs/task-285-*.yaml
+  note: Durable smoke evidence and handoff.
+  status: pending
+dependencies:
+- task: task-281
+  type: needs
+  note: Preflight must be implemented first.
+- task: task-282
+  type: needs
+  note: Coordinator/recovery must be implemented first.
+- task: task-283
+  type: needs
+  note: Resume/fresh-session policy must be implemented first.
+- task: task-284
+  type: needs
+  note: Visibility reporting and procedure must be implemented first.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T23:10:49.806026Z'
+  actor: codex
+  type: transition
+  body: Created ready by codex.
+  data:
+    lifecycle: ready
+    operation:
+      id: f5730fd1-d1ac-4715-b01b-07e08c2712b4
+      kind: create
+      fingerprint: 57301d5b17a6a72a9cb7dc80caea57e9

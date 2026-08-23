@@ -1,0 +1,295 @@
+schema: 2
+id: task-280
+title: 'Codex dispatch: durable App Server lifecycle, MCP preflight, and Desktop session
+  visibility'
+created: '2026-08-22T22:50:25.584388Z'
+updated: '2026-08-23T00:08:53.715738Z'
+lifecycle: active
+ball: agent
+ball_reason: redirect
+ball_prompt: absorb mypy repair and start on sub-tasks
+archived: false
+priority: high
+queue_position: 14300
+category: architecture
+tags:
+- codex
+- dispatch
+- app-server
+- mcp
+- desktop
+- reliability
+effort: large
+assignment:
+  owner: codex
+  eligible: []
+spec:
+  summary: Make Codex dispatch reliable as a product surface by addressing App Server
+    lifecycle, MCP startup, resumability, and Desktop visibility as separate tested
+    contracts.
+  intent: Turn Codex dispatch from a successful smoke path into a reliable, diagnosable,
+    resumable production workflow.
+  description: 'This is a structural follow-up to the first Codex session-dispatch
+    rollout. The current implementation can complete a real Luna task, but it crosses
+    three independently fragile boundaries: AgentJobs MCP startup, Codex App Server
+    thread/turn lifecycle, and Codex Desktop''s session/index reconciliation.
+
+
+    The epic must establish a durable architecture and explicit acceptance tests rather
+    than adding another sequence of narrow retry patches. It should preserve the existing
+    AgentJobs task lifecycle, audit trail, worktree isolation, and fail-closed MCP
+    behavior.
+
+
+    The implementation work is intended for the ordinary Codex/Luna runner. Do not
+    route this epic or its children through the Big Dawg/Sol runner. Speed policy
+    is deliberately separate from the architecture work: Terra and Sol should later
+    be compared in non-Fast/Standard mode, while Fast-mode cost/performance tuning
+    remains a separate experiment.'
+  constraints: '- Do not weaken AgentJobs'' task-write audit trail, required MCP contract,
+    worktree isolation, or human review gates.
+
+    - Do not treat Desktop sidebar visibility as equivalent to dispatch success; define
+    dispatch completion, thread resumability, and Desktop visibility as separate contracts.
+
+    - Implementation children should be worked by Codex using the Luna/default runner.
+
+    - Do not use Sol/Big Dawg for the epic''s implementation or acceptance runs.
+
+    - Terra/Sol Standard-speed comparison and Fast-mode tuning are explicitly deferred
+    to later, separate tasks.'
+  out_of_scope: Changing the active runner-group policy; optimizing Fast mode; benchmarking
+    Terra or Sol; replacing the AgentJobs MCP task protocol; broad Codex Desktop product
+    fixes outside the integration boundary.
+  context:
+  - path: docs/codex-dispatch.md
+    why: Current Codex dispatch protocol, runner setup, posture mapping, and rollout
+      contract.
+  - path: docs/agent-dispatch-design.md
+    why: Foundational dispatch safety, lifecycle, and runner-group decisions that
+      this epic must preserve.
+  - path: src/agentjobs/dispatch/codex_app_server.py
+    why: Current App Server client and the boundary where lifecycle and service settings
+      are sent.
+  - path: tests/test_codex_app_server.py
+    why: Existing protocol-level coverage to extend into the structural acceptance
+      tests.
+acceptance:
+- id: sc-1
+  text: A design decision records whether AgentJobs owns a long-lived App Server manager
+    or intentionally retains per-task children, including recovery and concurrency
+    implications.
+  verify: Architecture design document and decision log
+  status: pending
+- id: sc-2
+  text: A standalone MCP preflight detects startup, handshake, and required-server
+    failures before a Codex task is started and reports an actionable diagnostic.
+  verify: Automated preflight tests and failure fixtures
+  status: pending
+- id: sc-3
+  text: Dispatch, thread resumability, and Desktop visibility each have explicit automated
+    acceptance checks and independently reported outcomes.
+  verify: End-to-end or protocol-backed acceptance suite
+  status: pending
+- id: sc-4
+  text: A live Luna dispatch can complete, resume, and record task activity without
+    human intervention except for the declared review gate.
+  verify: Controlled smoke run using the default runner group
+  status: pending
+- id: sc-5
+  text: The epic's implementation children are derived with dependencies, and no child
+    silently routes to Sol or Big Dawg.
+  verify: Child task records and dispatch selection evidence
+  status: pending
+deliverables:
+- path: docs/codex-dispatch-architecture.md
+  note: Architecture and lifecycle decision record.
+  status: pending
+- path: src/agentjobs/dispatch/codex_app_server.py
+  note: App Server lifecycle and preflight implementation boundary.
+  status: pending
+- path: tests/test_codex_app_server.py
+  note: Protocol and acceptance coverage.
+  status: pending
+- path: docs/codex-dispatch.md
+  note: Updated operational runbook.
+  status: pending
+dependencies: []
+links: []
+branches:
+- name: feat/task-280-codex-dispatch-lifecycle
+  status: active
+log:
+- id: 1
+  ts: '2026-08-22T22:50:26.041099Z'
+  actor: codex
+  type: transition
+  body: Created draft by codex.
+  data:
+    lifecycle: draft
+    operation:
+      id: f9c7ad8e-b4de-4a72-a4cc-6413b7a6b8ec
+      kind: create
+      fingerprint: 46f7dddc516ef2e26f2777fe0d76ba37
+- id: 2
+  ts: '2026-08-22T22:51:01.283956Z'
+  actor: codex
+  type: note
+  body: Updated acceptance, spec.
+  data:
+    fields:
+    - acceptance
+    - spec
+    operation:
+      id: fdbb7c6e-a2b7-4a1a-af16-01f10832ce6e
+      kind: update_content
+      fingerprint: cc2bfdde0d4b778a7d6f4e4a96493d8a
+- id: 3
+  ts: '2026-08-22T22:58:58.017871Z'
+  actor: codex
+  type: progress
+  body: Exploratory Terra design pass completed without changing lifecycle, routing,
+    or code. Read the complete draft/spec, acceptance, constraints, dependencies,
+    and log. Current implementation owns one short-lived App Server child per dispatch
+    and proves JSONL start/turn completion plus persisted thread IDs, but has no independent
+    MCP readiness preflight, durable coordinator/reconciliation model, or Desktop-index
+    acknowledgement. Official App Server documentation confirms required MCP failures
+    stop thread/start and thread/resume, and exposes mcpServerStatus/list/startup
+    notifications plus persisted thread/list/read/resume. It does not expose a Codex
+    Desktop sidebar/index acknowledgement; Desktop visibility must be an independent
+    contract. Recommendation and child-task breakdown will be delivered to the human
+    for specification approval; task remains draft/human/spec and is not promoted.
+  data:
+    operation:
+      id: 63c9b225-323a-4fd3-82c7-bf93d2925600
+      kind: log_append
+      fingerprint: c83e3225cf8333a11b17e5646a538dee
+- id: 4
+  ts: '2026-08-22T23:06:41.661177Z'
+  actor: Jeff Posey
+  type: transition
+  body: Promoted by Jeff Posey; the spec is finished and it is claimable.
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+- id: 5
+  ts: '2026-08-22T23:07:59.034569Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 9f5f0144-9942-4d2d-8b34-618a3cfdd0e5
+      kind: claim
+      fingerprint: 3534a688d8c2dcc09596c1c42c585933
+- id: 6
+  ts: '2026-08-22T23:08:03.459926Z'
+  actor: codex
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: ab16f6c4-1b3e-4ae8-8109-6211a7edc7e2
+      kind: update_content
+      fingerprint: c8be73b2ff262fc38716274322c7358e
+- id: 7
+  ts: '2026-08-22T23:12:20.687426Z'
+  actor: codex
+  type: progress
+  body: 'Architecture record drafted on branch feat/task-280-codex-dispatch-lifecycle
+    at docs/codex-dispatch-architecture.md, and child tasks task-281 through task-285
+    were created with the required Luna-only routing constraints and dependencies.
+    No child was dispatched. The full gate in the task worktree failed at MyPy on
+    unchanged baseline source: src/agentjobs/dispatch/codex_app_server.py:156, Popen
+    receives dict[str, object]. A focused MyPy run on main reproduces the same failure,
+    so it is not caused by the documentation change. Per the repository gate rule
+    and task scope, the documentation is not committed and no unrelated retry/type
+    patch was made.'
+  data:
+    operation:
+      id: 704ff328-7b16-4706-91eb-c1b2c5aad4db
+      kind: log_append
+      fingerprint: f011fa6ab43909e8463e1de87f867e6b
+- id: 8
+  ts: '2026-08-22T23:12:27.945113Z'
+  actor: codex
+  type: handoff
+  body: Handed off after completing the architecture record and deriving task-281
+    through task-285. No child dispatch was performed, per instruction. The only blocker
+    to committing the parent documentation is the baseline MyPy failure recorded in
+    progress entry 7.
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: d5a5bf3c-c85d-4128-9222-fb3c63b510de
+      kind: handoff
+      fingerprint: ee097738fa0c51f63bcb173c71199566
+- id: 9
+  ts: '2026-08-22T23:17:44.524687Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'New instructions from Jeff Posey:
+
+
+    absorb mypy repair and start on sub-tasks'
+  data:
+    ball: agent
+    ball_reason: redirect
+- id: 10
+  ts: '2026-08-22T23:20:10.091245Z'
+  actor: codex
+  type: decision
+  body: 'Jeff explicitly directed that the current task-280 pass proceed as a Terra,
+    high-reasoning, Slow/Standard evaluation and that no other agent be dispatched.
+    This is a one-run execution exception, not a runner-group policy change: the normal
+    Luna/default policy remains recorded for later implementation children. Rejected
+    alternative: dispatch task-281 through the configured Luna runner, because it
+    would not evaluate the requested Terra run and would violate the no-other-agent
+    instruction.'
+  data:
+    operation:
+      id: 8a6eac40-00a2-4fa4-b1a3-f531c0f92169
+      kind: log_append
+      fingerprint: 249a78b4607f7262ada3d4da59c820ea
+- id: 11
+  ts: '2026-08-22T23:36:13.433289Z'
+  actor: codex
+  type: decision
+  body: 'Jeff confirmed Terra High/Slow is acceptable as the current ChatGPT-subscription
+    workhorse evaluation and directed that the Big Dawg GPT-5.6 Sol runner use Slow/Standard
+    mode. Updated only the machine-local `codex-sol` runner from `service_tier="priority"`
+    (Fast) to explicit `service_tier="default"` while preserving `model_reasoning_effort="high"`;
+    `agentjobs dispatch config --project agentjobs` validated the resolved configuration.
+    This does not change the default Luna runner, Terra''s one-run evaluation exception,
+    or any task routing. Rejected alternative: leave Sol at priority, which would
+    continue to opt Big Dawg into Fast mode.'
+  data:
+    runner: codex-sol
+    model: gpt-5.6-sol
+    reasoning_effort: high
+    service_tier: default
+    validation: agentjobs dispatch config --project agentjobs
+    operation:
+      id: 492026e8-420d-4265-bc5f-6be3df4a4ff2
+      kind: log_append
+      fingerprint: baaad171cbdff9e2a81468a1cda0b55c
+- id: 12
+  ts: '2026-08-23T00:08:53.715529Z'
+  actor: codex
+  type: progress
+  body: "Task-282 is completed and merged as 7e15f9b. Durable lifecycle state and\
+    \ read-only persisted-thread reconciliation are live; the server was restarted\
+    \ and health-checked. Proceeding autonomously to the newly unblocked resume-policy\
+    \ child task-283 under Jeff\u2019s recorded approval."
+  data:
+    operation:
+      id: c22bea5a-0b16-421c-af94-17c66e373286
+      kind: log_append
+      fingerprint: 1a1dcbc2f4bbac27b64f5f3ac7332442

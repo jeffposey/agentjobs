@@ -1,0 +1,78 @@
+schema: 2
+id: task-284
+title: 'Codex dispatch: persisted-thread and Desktop visibility reporting'
+created: '2026-08-22T23:10:37.549928Z'
+updated: '2026-08-22T23:10:37.982948Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 14700
+category: dispatch
+tags:
+- codex
+- desktop
+- visibility
+- observability
+effort: medium
+assignment:
+  eligible: []
+parent: task-280
+spec:
+  summary: Report durable App Server persistence and Codex Desktop observability as
+    separate outcomes from dispatch and resumability.
+  description: Add an automated persisted-thread probe using thread/read and thread/list
+    with the appServer source, cwd, ID, and title. Expose independent status/evidence
+    for persisted, desktop_visible, not_observed, and unavailable. Define a controlled
+    human Desktop observation procedure without claiming an undocumented sidebar/index
+    acknowledgement API.
+  constraints: Use the configured Codex Luna/default runner only. Preserve task audit
+    records, permissions, worktree isolation, and human review gates. Do not change
+    Codex Desktop itself, runner selection, or use Sol/Big Dawg.
+  out_of_scope: Broad Desktop product changes, retry policy, MCP transport changes,
+    and Fast mode.
+  context: []
+acceptance:
+- id: ac-1
+  text: Automated evidence can find the expected non-ephemeral appServer thread after
+    the launching process exits.
+  verify: Protocol-backed persistence tests.
+  status: pending
+- id: ac-2
+  text: Dispatch, resumability, persistence, and Desktop observation are independently
+    surfaced and cannot overwrite one another.
+  verify: API/UI or run-report tests plus documented human procedure.
+  status: pending
+deliverables:
+- path: src/agentjobs/dispatch/codex_app_server.py
+  note: Persisted thread probe.
+  status: pending
+- path: src/agentjobs/dispatch/runner.py
+  note: Run outcome/reporting integration.
+  status: pending
+- path: docs/codex-dispatch.md
+  note: Desktop observation runbook.
+  status: pending
+dependencies:
+- task: task-282
+  type: needs
+  note: Visibility reports consume coordinator-persisted identifiers and lifecycle
+    facts.
+- task: task-283
+  type: needs
+  note: Visibility must distinguish the original and explicit fresh-session threads.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T23:10:37.982050Z'
+  actor: codex
+  type: transition
+  body: Created ready by codex.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7ba4e522-718a-4ce7-b0b8-9d4d3617a4c8
+      kind: create
+      fingerprint: 6f9712826ef1c71a1d441ac5b4991a3d

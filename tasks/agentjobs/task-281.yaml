@@ -1,0 +1,284 @@
+schema: 2
+id: task-281
+title: 'Codex dispatch: MCP preflight and diagnostics'
+created: '2026-08-22T23:10:03.689173Z'
+updated: '2026-08-22T23:51:36.979820Z'
+lifecycle: closed
+outcome: completed
+archived: false
+priority: high
+category: dispatch
+tags:
+- codex
+- mcp
+- preflight
+- diagnostics
+effort: medium
+assignment:
+  eligible: []
+parent: task-280
+spec:
+  summary: Fail Codex dispatch before task work when the required AgentJobs MCP server
+    cannot start, handshake, or become ready.
+  description: 'Implement a standalone App Server preflight using the same executable,
+    cwd, environment, permission posture, service tier, and required-MCP override
+    as the real run. It must complete the JSON-RPC handshake, observe MCP startup
+    status, and inspect mcpServerStatus/list for the required agentjobs server before
+    any task turn begins. Persist a classified diagnostic and phase timing without
+    calling task-mutating MCP tools.
+
+
+    Also repair the existing MyPy failure at src/agentjobs/dispatch/codex_app_server.py:156
+    by giving the App Server Popen keyword collection a type compatible with subprocess.Popen.
+    This is baseline debt at the same boundary, not a separate retry patch.'
+  constraints: Use the configured Codex Luna/default runner only for this future implementation
+    child. Preserve required MCP fail-closed behavior, the append-only task audit
+    trail, per-task locks, worktree isolation, and review gate. Do not alter runner
+    groups or use Sol/Big Dawg.
+  out_of_scope: Changing task protocol, runner selection, Fast mode, or Codex Desktop
+    behavior.
+  context: []
+acceptance:
+- id: ac-1
+  text: Preflight distinguishes executable spawn, JSONL handshake, timeout, malformed
+    response, and required AgentJobs MCP readiness failures before turn/start.
+  verify: Scripted App Server tests for each failure fixture.
+  status: pending
+- id: ac-2
+  text: A failed preflight writes actionable classified run/audit evidence and starts
+    no task turn.
+  verify: Dispatch-runner tests inspect run metadata and task log.
+  status: pending
+- id: ac-3
+  text: The baseline App Server Popen typing error is repaired while preserving the
+    Windows/POSIX process-isolation behavior.
+  verify: Mypy and focused App Server tests.
+  status: pending
+deliverables:
+- path: src/agentjobs/dispatch/codex_app_server.py
+  note: Preflight protocol client and the adjacent Popen typing repair.
+  status: pending
+- path: tests/test_codex_app_server.py
+  note: Preflight fixtures and diagnostics.
+  status: pending
+dependencies: []
+links: []
+branches:
+- name: feat/task-281-mcp-preflight
+  status: merged
+  merged_at: '2026-08-22T23:51:27.096558Z'
+log:
+- id: 1
+  ts: '2026-08-22T23:10:04.181021Z'
+  actor: codex
+  type: transition
+  body: Created ready by codex.
+  data:
+    lifecycle: ready
+    operation:
+      id: 9773998b-648f-4525-af17-63db58fc4188
+      kind: create
+      fingerprint: 6bb964ff5b9a2a7b305bb26dac0b7af1
+- id: 2
+  ts: '2026-08-22T23:19:48.830225Z'
+  actor: codex
+  type: note
+  body: Updated acceptance, deliverables, spec.
+  data:
+    fields:
+    - acceptance
+    - deliverables
+    - spec
+    operation:
+      id: 3d26717d-e877-4325-af1e-bf677f2e3b9b
+      kind: update_content
+      fingerprint: 1f862d742c9e8711f3689dd9a293f44d
+- id: 3
+  ts: '2026-08-22T23:20:10.944307Z'
+  actor: codex
+  type: decision
+  body: 'Jeff authorized the current task-281 implementation pass to be worked directly
+    by the active Terra high-reasoning Slow/Standard session, without dispatching
+    another agent. This exception evaluates Terra only; it does not edit the machine
+    runner-group policy or authorize Sol. The normal Luna/default routing remains
+    the policy for subsequent separately dispatched implementation work. Rejected
+    alternative: launch this child through Luna, which would not satisfy the explicit
+    evaluation request.'
+  data:
+    operation:
+      id: ed89a491-1d31-4294-a1f5-994f31540d0a
+      kind: log_append
+      fingerprint: 09e0df4d40ad771bbd8fbb8467c20f3c
+- id: 4
+  ts: '2026-08-22T23:20:21.552630Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 71187cf2-93a4-40dd-b508-a813522d9972
+      kind: claim
+      fingerprint: 3534a688d8c2dcc09596c1c42c585933
+- id: 5
+  ts: '2026-08-22T23:20:25.490909Z'
+  actor: codex
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: e00c748b-6c48-4f26-9237-48d354ba8ab6
+      kind: update_content
+      fingerprint: 8f9b514693d1b8a1a5299ffca9ec7bba
+- id: 6
+  ts: '2026-08-22T23:30:06.908031Z'
+  actor: codex
+  type: progress
+  body: 'Implemented the Terra-authorized direct preflight pass on `feat/task-281-mcp-preflight`:
+    a disposable App Server handshake plus `mcpServerStatus/list` check for required
+    `agentjobs` readiness before the real task turn; classified preflight diagnostics
+    in run metadata; and the adjacent `subprocess.Popen` MyPy typing repair. Focused
+    checks pass: 132 App Server/dispatch-runner tests, Black check, and MyPy for both
+    changed source modules. The repository-wide pytest stage was then run and fails
+    only on unrelated open task-275 referencing `src/agentjobs/api/templates`; the
+    identical test fails on unchanged main, so this is confirmed baseline corpus debt.
+    No unrelated task record or policy was changed.'
+  data:
+    branch: feat/task-281-mcp-preflight
+    focused_tests: 132 passed
+    baseline_failure: tests/test_task_corpus.py::test_open_ui_tasks_do_not_target_legacy_templates
+      (task-275; reproduced on main)
+    operation:
+      id: 42858a84-955c-4c64-9760-2b9919c013a1
+      kind: log_append
+      fingerprint: bead2fea31dc62acbeab7cd2b90438de
+- id: 7
+  ts: '2026-08-22T23:34:20.154646Z'
+  actor: codex
+  type: progress
+  body: 'Closed the final acceptance gap with explicit malformed-JSON and timeout
+    fixtures. Final focused result: 134 App Server/dispatch-runner tests passed. Final
+    mandatory `scripts/check.py` passed Black, Ruff, MyPy (181 files), API, icons,
+    and frontend lint, then ran 2,823 pytest items and failed exactly one unchanged-baseline
+    assertion: `tests/test_task_corpus.py::test_open_ui_tasks_do_not_target_legacy_templates`,
+    because open task-275 references the legacy template tree. The same assertion
+    was reproduced on main. Per the required review gate, no commit was created; the
+    implementation remains isolated and uncommitted on `feat/task-281-mcp-preflight`
+    pending a decision on the unrelated gate repair.'
+  data:
+    focused_tests: 134 passed
+    full_gate: all pre-pytest stages passed; pytest 2822 passed / 1 known baseline
+      failure
+    gate_blocker: task-275 legacy template context
+    operation:
+      id: e1a491b5-fad3-4e55-8283-bce806ff58e9
+      kind: log_append
+      fingerprint: bf39764ff451e5682f2260b33f2b497d
+- id: 8
+  ts: '2026-08-22T23:34:29.840675Z'
+  actor: codex
+  type: handoff
+  body: The implementation is ready for review in `C:\projects\worktrees\aj-281` on
+    `feat/task-281-mcp-preflight`, but the mandatory gate cannot pass because unrelated
+    task-275's open spec targets the legacy template tree. The failure reproduces
+    on main. Please decide whether to authorize a narrowly scoped task-275 record
+    repair (then I will rerun the gate and commit task-281) or to accept an explicit
+    gate exception for this baseline failure. No merge, promotion, or routing-policy
+    change was made.
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: efc4d7c0-3f19-4f49-aa31-07d341a76e21
+      kind: handoff
+      fingerprint: cdc429c3729b752fe5ad4013b084c5e4
+- id: 9
+  ts: '2026-08-22T23:38:09.285891Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    authorized'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 10
+  ts: '2026-08-22T23:45:23.013747Z'
+  actor: codex
+  type: progress
+  body: 'Jeff authorized the narrow task-275 context repair. It was applied through
+    AgentJobs, verified by the formerly failing corpus test, and committed on main
+    as `ed3bede`. After fast-forwarding that metadata-only commit into this isolated
+    worktree, the full clean-tree `scripts/check.py` passed for implementation commit
+    `854ee36e` and wrote its gate receipt: Black, Ruff, MyPy, API, icons, frontend
+    lint, 2,823 pytest tests, 228 Vitest tests, build, and 22 Playwright tests all
+    passed. The branch is ready for human review; no merge occurred.'
+  data:
+    implementation_commit: 854ee36e
+    task_record_commit: ed3bede
+    gate: passed with receipt
+    python_tests: 2823
+    frontend_tests: 228
+    e2e_tests: 22
+    operation:
+      id: 5fc6b490-a48d-429e-a4d8-4e16c6f64374
+      kind: log_append
+      fingerprint: c8cf3d5d92e2c60d8f433609274809f6
+- id: 11
+  ts: '2026-08-22T23:45:30.683837Z'
+  actor: codex
+  type: handoff
+  body: 'Review implementation commit `854ee36e` on `feat/task-281-mcp-preflight`
+    in `C:\projects\worktrees\aj-281`. It adds disposable required-AgentJobs-MCP readiness
+    preflight, clear failures before a task turn, run metadata diagnostics, and the
+    Popen MyPy repair. The full clean-tree gate passed and wrote a receipt: 2,823
+    pytest, 228 Vitest, build, and 22 Playwright tests. The unrelated task-275 corpus
+    issue was corrected through AgentJobs and committed separately on main as `ed3bede`.
+    No merge has occurred.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 74192786-48e4-48dd-85fa-9a871768bb3b
+      kind: handoff
+      fingerprint: afdf948389d7a0aab574b5da0cd682c5
+- id: 12
+  ts: '2026-08-22T23:49:08.146038Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 13
+  ts: '2026-08-22T23:51:31.410623Z'
+  actor: codex
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: ca6ac475-cd13-48c8-ad9f-f760d5a48c2e
+      kind: update_content
+      fingerprint: 9dd6cabc41bb8f149241e3df57e64691
+- id: 14
+  ts: '2026-08-22T23:51:36.979664Z'
+  actor: codex
+  type: transition
+  body: Approved task-281 was rebased (already current), merged into main with no
+    fast-forward as `fefacd5`, and its branch record is marked merged. The clean-tree
+    gate receipt for implementation commit `854ee36e` passed all stages. Closing completed
+    under Jeff's autonomous approval-and-merge instruction.
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 69edb64f-68b6-4b4c-87d6-4d20e2d4d9bb
+      kind: close
+      fingerprint: d8f652cbc3e8cb97a63b232dcef1b026

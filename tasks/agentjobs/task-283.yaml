@@ -1,0 +1,74 @@
+schema: 2
+id: task-283
+title: 'Codex dispatch: explicit resume and fresh-session policy'
+created: '2026-08-22T23:10:26.211714Z'
+updated: '2026-08-22T23:10:26.775469Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 14600
+category: dispatch
+tags:
+- codex
+- resume
+- recovery
+- audit
+effort: medium
+assignment:
+  eligible: []
+parent: task-280
+spec:
+  summary: Make same-thread resume, busy-thread handling, and audited cold starts
+    explicit state transitions rather than retry heuristics.
+  description: 'Replace message-substring handling of App Server resume errors with
+    typed classifications. A persisted thread that is busy remains the task continuation:
+    retain its lock and record resume_busy; do not automatically create a new thread.
+    Permit a new session only for a positively classified missing/deleted/unrecoverable
+    thread, and audit both old and new identifiers.'
+  constraints: Use the configured Codex Luna/default runner only. Preserve task audit
+    records, locks, worktree isolation, permissions, and review gates. Do not use
+    Sol/Big Dawg or change runner groups.
+  out_of_scope: MCP readiness implementation, shared-process architecture, Desktop
+    sidebar fixes, or Fast mode.
+  context: []
+acceptance:
+- id: ac-1
+  text: A completed persisted thread resumes on the same thread ID and receives the
+    current wake prompt.
+  verify: App Server protocol fixture and dispatch-runner tests.
+  status: pending
+- id: ac-2
+  text: Busy, missing, and generic resume failures have distinct outcomes; only missing/unrecoverable
+    can create an audited fresh thread.
+  verify: Failure matrix tests assert no duplicate launch.
+  status: pending
+deliverables:
+- path: src/agentjobs/dispatch/runner.py
+  note: Resume state machine.
+  status: pending
+- path: tests/test_dispatch_runner.py
+  note: Resume/fresh-session acceptance fixtures.
+  status: pending
+- path: docs/codex-dispatch.md
+  note: Operational recovery guidance.
+  status: pending
+dependencies:
+- task: task-282
+  type: needs
+  note: Resume policy is a coordinator state transition and needs durable reconciliation.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T23:10:26.774263Z'
+  actor: codex
+  type: transition
+  body: Created ready by codex.
+  data:
+    lifecycle: ready
+    operation:
+      id: e29d9bbe-90e2-479e-8b6e-b650d410b8fb
+      kind: create
+      fingerprint: 055e3feac3dbac3afd3657ae53e56c09
