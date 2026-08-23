@@ -68,6 +68,7 @@ from agentjobs.dispatch.config import (
     substitute_argv,
 )
 from agentjobs.dispatch.record_commit import CommitOutcome, commit_task_record
+from agentjobs.playbooks.pointer import PlaybookPointer
 from agentjobs.dispatch.wake import (
     WakeError,
     WakeTarget,
@@ -990,6 +991,7 @@ class DispatchRunner:
         grace_seconds: float = GRACE_SECONDS,
         clock: Callable[[], datetime] = utcnow,
         claude_home: Optional[Path] = None,
+        playbook: Optional[PlaybookPointer] = None,
     ) -> None:
         self.manager = manager
         self.resolution = resolution
@@ -1013,6 +1015,13 @@ class DispatchRunner:
         outside a test wants -- see ``dispatch.auth.claude_home``. It is a parameter at
         all so a test can point the check at a directory it wrote itself, rather than at
         the machine's real session history.
+        """
+        self.playbook = playbook
+        """The playbook this run was given as its brief, or ``None`` for every other run.
+
+        It reaches exactly two places -- one appended line on the prompt stub, and two
+        fields on the ``dispatch`` entry -- and it is a pointer in both. Nothing here
+        reads the brief, and the brief is never copied into either (design section 4.2).
         """
 
     # ----- shared ------------------------------------------------------------
@@ -1060,7 +1069,7 @@ class DispatchRunner:
         if children is None:
             children = self.open_child_ids(task_id)
         stub = SUPERVISOR_STUB if children else PROMPT_STUB
-        return stub.format(
+        rendered = stub.format(
             agent=self.runner.actor_id,
             task_id=task_id,
             project_id=self.resolution.project_id,
@@ -1069,6 +1078,11 @@ class DispatchRunner:
             run_id=run_id,
             children=describe_children(children),
         )
+        # A playbook run appends one line and changes nothing else about the stub. It is
+        # a pointer at the brief, never the brief: see ``PlaybookPointer.prompt_line``.
+        if self.playbook is not None:
+            rendered = f"{rendered} {self.playbook.prompt_line()}"
+        return rendered
 
     def build_argv(self, task_id: str, run_id: str) -> List[str]:
         """The full argv for a run, posture flags included."""
@@ -1555,6 +1569,8 @@ class DispatchRunner:
             git_head=self._git_head(),
             session_id=session_id,
             selection=selection_data(self.resolution.selection),
+            playbook=self.playbook.name if self.playbook else None,
+            playbook_hash=self.playbook.digest if self.playbook else None,
             body=body,
         )
         return updated.log[-1].id

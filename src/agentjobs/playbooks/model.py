@@ -132,6 +132,15 @@ class Playbook:
     contract: PlaybookContract
     body: str
     path: Path
+    source: str = ""
+    """The whole file, frontmatter included, exactly as it was parsed.
+
+    Carried so a run can hash **what it read** rather than re-opening the file to hash
+    it afterwards (see :mod:`agentjobs.playbooks.pointer`). Re-reading opens a window in
+    which the file changes between the parse and the hash, and the record would then
+    pin a brief no run used. Defaulted so a caller building one by hand -- a test, a
+    future editor preview -- is unaffected.
+    """
 
     @property
     def name(self) -> str:
@@ -279,7 +288,7 @@ def parse_playbook(path: Path, text: str) -> Playbook:
     if findings or contract is None:
         raise PlaybookError(findings)
 
-    return Playbook(contract=contract, body=body, path=path)
+    return Playbook(contract=contract, body=body, path=path, source=text)
 
 
 def load_playbook(path: Path) -> Playbook:

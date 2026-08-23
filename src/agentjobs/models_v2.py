@@ -573,6 +573,22 @@ class DispatchData(StrictModel):
             "participated, which is every dispatch on a flat configuration."
         ),
     )
+    playbook: Optional[str] = Field(
+        default=None,
+        description=(
+            "Name of the playbook whose brief this run was given, when one was "
+            "(playbooks design section 4.3). Absent on an ordinary dispatch."
+        ),
+    )
+    playbook_hash: Optional[str] = Field(
+        default=None,
+        description=(
+            "Algorithm-prefixed content hash of that playbook file at instantiation, "
+            "e.g. `sha256:3f9c...`. `git_head` above says which commit the tree was "
+            "on; this says which brief actually ran, which is a different question "
+            "whenever the tree was dirty or the file changed between two runs."
+        ),
+    )
 
 
 class DispatchResultData(StrictModel):

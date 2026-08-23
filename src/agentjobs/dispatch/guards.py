@@ -78,6 +78,7 @@ from agentjobs.dispatch.runner import (
     uncommitted_paths,
 )
 from agentjobs.manager import TaskManager
+from agentjobs.playbooks.pointer import PlaybookPointer
 from agentjobs.models_v2 import (
     Ball,
     BallReason,
@@ -611,6 +612,18 @@ class DispatchRequest:
     """Where the click happened, for the composed sentence. Prose for a reader, never
     read back by any check."""
 
+    playbook: Optional[PlaybookPointer] = None
+    """The playbook supplying this run's brief, when one does (playbooks design section 4).
+
+    A pointer -- name, repo-relative path, content hash -- and never the brief itself.
+    It reaches the prompt as one appended line and the ``dispatch`` entry as two fields,
+    and it is inert everywhere else: **no gate in this module reads it, and none may.**
+    A playbook is repository content, and repository content deciding what may execute
+    on a machine is exactly what dispatch gate 2 forbids (playbooks design section 6.3).
+    Setting this widens nothing; every refusal below is reached identically with it set
+    and unset, which is what the gate tests assert.
+    """
+
 
 def dispatch_task(
     *,
@@ -782,6 +795,7 @@ def dispatch_task(
             project_root=project.root,
             home=machine_home,
             api_base=api_base,
+            playbook=request.playbook,
         )
         handle = runner.start(
             task,
