@@ -2,11 +2,82 @@ schema: 2
 id: task-219
 title: 'The queue-move check: deterministic warnings when a human reorders'
 created: '2026-08-21T04:57:23.007031Z'
-updated: '2026-08-23T07:45:07.121860Z'
+updated: '2026-08-23T08:27:39.306121Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: 'Review `feat/task-219-queue-move-check` (worktree `C:/projects/worktrees/aj-219`,
+  four commits on top of fb79be4). Section 5.4 of the playbooks design, built deterministic
+  per P8 (revised) -- no model, no dispatch, no debounce anywhere in the path.
+
+
+  **What it does.** A queue move lands exactly as before and is never blocked. The
+  response now carries what the move is worth saying, computed synchronously from
+  the corpus the move handler had already read under the lock. Five findings, each
+  needing its own construction: the promoted task will be skipped and why; it now
+  stands ahead of something it needs; what it displaced is gating other work; the
+  band came out as it went in; the band is corrupt. **Most moves earn none of them**
+  -- that is a requirement here, not an aspiration, and `TestSilenceIsNormal` is the
+  test that guards it.
+
+
+  The `queue_move` entry records the findings and the placement that undoes them.
+  A new verb, `keep_queue_move` / `POST .../queue-keep`, records the strong anchor
+  -- a `decision` threaded to the move it answers, carrying the warnings verbatim
+  -- which task-217''s `reorder` must not overturn. It is refused when the move produced
+  no warnings. Undo needs no new route: it is a move back.
+
+
+  CLI, REST (`?envelope=true`), MCP and the React list all read one implementation,
+  `src/agentjobs/queue_check.py`.
+
+
+  **See it running.** A review server is up on **http://127.0.0.1:8899/app/p/sandbox-warned/tasks**
+  -- throwaway data, its own port, nothing to do with 8876. Its `high` band is built
+  so that promoting anything earns a notice; its `medium` band is the control, where
+  every drag must leave the screen silent. Both halves are seeded because the silent
+  half is the one that decides whether this is a check or wallpaper. The other four
+  sandbox projects are unchanged. Stop it by killing the `review_queue_sandbox.py`
+  process, or ask and I will; its temp directory is deleted with it.
+
+
+  **Worth looking at closely:**
+
+
+  1. **The `no_op` wording is a departure from section 5.4, argued on the record.**
+  The design says "the head of the band above the drop is unclaimable, so `next` returns
+  exactly what it returned before". Read literally that fires on almost every move
+  ever made, which is the wallpaper the same section forbids. It is implemented as
+  "the band''s order is identical before and after" -- rare, always worth knowing,
+  and it entails the design''s claim. The decision entry has the alternatives and
+  why each was rejected. This is the one place I did not follow the text as written.
+
+  2. **`queue_warnings` is on the mutation envelope, so a plain REST POST without
+  `?envelope=true` is not shown them.** The cost is stated in the decision entry.
+  Making the route always answer with the envelope would break every existing caller;
+  the findings are still in the `queue_move` entry of the task that comes back, and
+  the Python client and MCP always ask for the envelope.
+
+  3. **ff1f734 fixes a race the tests could not have found.** Two Alt+Up presses is
+  one gesture, each fires its own request and refetch, and they do not finish in order
+  -- the first move''s single finding landed last and replaced the second move''s
+  three, so the notice described a queue state that no longer existed. I saw it in
+  Chrome, not in jsdom. Both new tests fail without the guard; I checked.
+
+  4. **`above_prerequisite` is same-band only.** Cross-band would mean a permanent
+  warning on every move of a `high` task with a `medium` prerequisite. The case is
+  not lost -- such a task is unclaimable, so `promoted_unclaimable` names the same
+  dependency.
+
+
+  **Verified:** full gate green, all ten stages, on ff1f734 (157.9s, receipt written).
+  52 new Python tests, 40 jsdom tests on the notice, 3 Playwright tests that drive
+  both buttons against a live server and read the anchor back out of the API. Exercised
+  by hand on the CLI and in Chrome -- the plural bug, the undo-a-no-op nonsense, and
+  the race above all came from doing that rather than from the suite.
+
+
+  Not merged, not pushed, task still open, per the task-211 posture.'
 archived: false
 priority: medium
 queue_position: 6900
@@ -115,35 +186,57 @@ spec:
     call. Recurrence, debouncing, or spend ceilings, none of which this needs. Reordering
     the queue automatically.
   context:
+  - path: docs/playbooks-design.md
+    why: Section 5.4 is the specification and section 10's P8 (revised) is the binding
+      decision. Merged in 25427f1.
+  - path: src/agentjobs/queue_check.py
+    why: 'The check itself: the five warning kinds, the strong-anchor record shape,
+      and the pure placement arithmetic.'
   - path: src/agentjobs/manager.py
-    why: '`explain_next()` and `_skip_reason` are the existing deterministic ''why''
-      this reuses.'
+    why: '`move_with_warnings` runs the check under the queue lock; `keep_queue_move`
+      writes the anchor. `_skip_reason` is the existing deterministic ''why'' it reuses.'
   - path: src/agentjobs/queue.py
     why: '`find_queue_problems`, `place_of` and the band model the warnings are computed
       against.'
+  - path: docs/task-schema.md
+    why: The record both halves write, which is the contract task-217 reads.
+  - path: scripts/review_queue_sandbox.py
+    why: '`sandbox-warned` seeds both sides of the check for a review in a real browser.'
 acceptance:
 - id: sc-1
   text: Each warning class -- unclaimable promoted task, ordered above a prerequisite,
     demoted task that gates others, no-op move, corrupt band -- fires on a move that
     constructs it and on no other.
-  status: pending
+  verify: tests/test_queue_move_check.py -- TestPromotedUnclaimable, TestAbovePrerequisite,
+    TestDemotedBlocker, TestNoOp, TestQueueBroken; each class has at least one negative
+    case.
+  status: met
 - id: sc-2
   text: A legal move produces no warning at all, proven over a set of ordinary moves;
     silence is the normal outcome.
-  status: pending
+  verify: 'TestSilenceIsNormal: five ordinary moves over a plain band, plus a clean
+    move leaving no `warnings` key on the entry at all.'
+  status: met
 - id: sc-3
   text: The warnings are returned by the CLI, the REST move endpoint and the React
     list alike, from one implementation.
-  status: pending
+  verify: One implementation in src/agentjobs/queue_check.py. TestTheCommandLine,
+    TestTheRestSurface, and frontend/src/components/TaskList.test.tsx cover the three.
+  status: met
 - id: sc-4
   text: The React notice is non-blocking and offers one-click undo and keep; undo
     is a logged human queue_move, and keep records the kept-over-warning entry that
     task-217's brief reads as a strong anchor.
-  status: pending
+  verify: role=status, not a dialog. frontend/e2e/queue-move-check.spec.ts drives
+    both buttons against a live server and reads the anchor back out of the API. The
+    shape is documented in docs/task-schema.md.
+  status: met
 - id: sc-5
   text: No model call, dispatch call, or debounce exists anywhere in the path, and
     the check adds no additional full parse of the corpus.
-  status: pending
+  verify: 'TestTheCheckIsFree: the check itself parses zero files, and a move that
+    earns three warnings costs exactly as many parses as one that earns none.'
+  status: met
 deliverables: []
 dependencies:
 - task: task-207
@@ -242,3 +335,204 @@ log:
       id: 7c1e2a90-1d44-4f2a-9b31-2190a0001002
       kind: update_content
       fingerprint: bf55fb2933f46e094a8d81776dd3df59
+- id: 7
+  ts: '2026-08-23T08:25:25.065571Z'
+  actor: claude
+  type: progress
+  body: "Built on `feat/task-219-queue-move-check` (worktree `C:/projects/worktrees/aj-219`).\
+    \ Four commits: 39e26ff backend, c86a271 React notice, 147e5c4 docs + e2e, ff1f734\
+    \ a race fix found in a browser.\n\n**What exists now.**\n\n`src/agentjobs/queue_check.py`\
+    \ is the whole check and does no I/O: it takes a `MoveCheck` (the band's order\
+    \ before and after, the moved task's `_skip_reason`, the same-band `needs` edges,\
+    \ `unblocks_count`, and the integrity findings) and returns `QueueWarning`s. Five\
+    \ kinds, in a closed vocabulary: `queue_broken`, `promoted_unclaimable`, `above_prerequisite`,\
+    \ `demoted_blocker`, `no_op`.\n\n`TaskManager.move_with_warnings` is the verb;\
+    \ `move` stays as a wrapper returning the task alone, so every existing caller\
+    \ and test is untouched. The check runs inside the queue lock against the corpus\
+    \ the move had already read, and the findings plus an `undo` placement go into\
+    \ the `queue_move` entry's `data`.\n\n`TaskManager.keep_queue_move` writes the\
+    \ strong anchor: a `decision` entry threaded (`re`) to the `queue_move` it answers,\
+    \ carrying `queue_anchor: strong`, the band, the position, and `kept_over` \u2014\
+    \ the warnings verbatim. Refused when the last move produced no warnings; a second\
+    \ keep of the same move writes nothing.\n\nSurfaces, all from that one implementation:\
+    \ `agentjobs queue move` prints the findings and the undo command on stderr after\
+    \ the success line; `POST .../queue-move?envelope=true` returns `queue_warnings`\
+    \ and `queue_undo` (the bare-task default is unchanged); `task_queue_move` carries\
+    \ both in its payload and folds the messages into its summary; the React list\
+    \ shows a `role=\"status\"` notice with **Undo the move** / **Keep it here** /\
+    \ **Dismiss**. New route `POST .../queue-keep`.\n\n**Verification.** Full gate\
+    \ green, all ten stages, on ff1f734 (157.9s). `tests/test_queue_move_check.py`\
+    \ is 52 tests: each kind on its own construction and silent otherwise, a set of\
+    \ ordinary moves that must produce nothing, the record shape, replay, keep, and\
+    \ the REST and CLI surfaces. `frontend/e2e/queue-move-check.spec.ts` is three\
+    \ Playwright tests against a live server that end by reading the anchor out of\
+    \ the API. 40 jsdom tests on the notice.\n\n**Exercised by hand**, not only by\
+    \ tests: the CLI against a scratch project (that is where the \"1 thing(s)\" plural\
+    \ and the nonsense undo-a-no-op came from), and the React list in Chrome against\
+    \ `scripts/review_queue_sandbox.py`'s new `sandbox-warned` project. The browser\
+    \ is where the race fixed in ff1f734 showed up, and it is the only place it could\
+    \ have."
+  data:
+    operation:
+      id: 7c1e2a90-1d44-4f2a-9b31-2190a0002001
+      kind: log_append
+      fingerprint: 1a5d0c8862d4a55cb11a74a2ac2ceb27
+- id: 8
+  ts: '2026-08-23T08:25:45.698190Z'
+  actor: claude
+  type: decision
+  body: '**`no_op` means the band''s order did not change, not that `next` returns
+    the same task.**
+
+
+    Section 5.4 words this one as "the head of the band above the drop is unclaimable,
+    so `next` returns exactly what it returned before". Read literally as "`next`
+    is unchanged", it fires on almost every move ever made: reordering positions 30
+    and 20 of a forty-task band never changes what comes next, and neither does any
+    move at all in a band below one with claimable work. That is precisely the wallpaper
+    the same section forbids two paragraphs earlier, and a warning that fires on ordinary
+    grooming is the failure mode this whole design is written against.
+
+
+    **Implemented instead as: the sequence of open task ids in the band is identical
+    before and after.** That is rare, always worth knowing (`--top` on the band head,
+    `--after Y` on the task already behind Y), and it entails the design''s claim
+    rather than contradicting it -- an unchanged order does mean `next` returns what
+    it returned before, which is what the message says. A no-op also short-circuits
+    the three consequence warnings, because a move that caused nothing has no consequences
+    worth a sentence; corruption is still reported, since a no-op move is a perfectly
+    ordinary way to discover a band that was already broken.
+
+
+    **Rejected:** the literal `next`-unchanged reading, for the reason above; and
+    a middle version scoped to moves that land at the head of a band, which still
+    fires on every `--top` in `low` on a machine that always has claimable `medium`
+    work. The insight the design attaches to this warning -- "it usually means the
+    real blocker is somewhere else" -- is served by `promoted_unclaimable`, which
+    names the blocker.'
+  data:
+    operation:
+      id: 7c1e2a90-1d44-4f2a-9b31-2190a0003001
+      kind: log_append
+      fingerprint: 7e8e70785cf0357d536bd3b25211370e
+- id: 9
+  ts: '2026-08-23T08:26:09.318515Z'
+  actor: claude
+  type: decision
+  body: '**The findings ride on the existing mutation envelope, and `move` keeps its
+    signature.**
+
+
+    `TaskManager.move_with_warnings` is the verb that answers with a `MoveOutcome`;
+    `move` delegates to it and returns `.task`. Over HTTP the findings are `queue_warnings`
+    and `queue_undo` on `MutationResult`, which the route already returns for `?envelope=true`,
+    and the bare-task default is byte-for-byte what it was.
+
+
+    **Rejected: changing `move()` to return the outcome.** It is called from the route,
+    the CLI and nineteen places in the existing suite, and every one of them would
+    have had to learn about a wrapper to get at a task -- a lot of churn to spare
+    one method name.
+
+
+    **Rejected: making `queue-move` always answer with the envelope.** That is a breaking
+    change to every caller of that route for the sake of a field most of them will
+    never read, and it contradicts the compatibility story the envelope was introduced
+    with. The cost of not doing it is real and worth stating: a script that POSTs
+    to `queue-move` without `?envelope=true` is not shown the findings. It is not
+    left blind, though -- they are in the `queue_move` entry of the task it gets back,
+    and the Python client and MCP always request the envelope, so every first-class
+    caller sees them.
+
+
+    **A related call: the findings are recorded in the `queue_move` entry rather than
+    recomputed on demand.** They are a fact about an event. Recomputing them when
+    somebody reads the task back would answer about a queue that has since moved,
+    and it is exactly that -- "what was on the screen when the person chose" -- that
+    the design says makes the strong anchor legitimate.'
+  data:
+    operation:
+      id: 7c1e2a90-1d44-4f2a-9b31-2190a0003002
+      kind: log_append
+      fingerprint: b791892028f8bfb19153bf5f8a9c3438
+- id: 10
+  ts: '2026-08-23T08:26:09.417889Z'
+  actor: claude
+  type: decision
+  body: '**Three scoping calls inside the check, each made to keep silence normal.**
+
+
+    **`above_prerequisite` is same-band only.** Positions are never compared across
+    bands, so a `high` task stands ahead of a `medium` prerequisite whatever anybody
+    drags; firing on that would mean a warning on every move of such a task forever.
+    *Rejected:* comparing across bands, which would have been the literal reading
+    of "ordered above something it needs" and pure wallpaper. The cross-band case
+    is not lost -- the task is unclaimable, so `promoted_unclaimable` names the same
+    dependency.
+
+
+    It fires on the state **after** the move rather than only on an inversion this
+    move newly created. The person just wrote that order and it still cannot execute.
+    *Rejected:* only-when-newly-constructed, which would go quiet on the second and
+    third drag of an already-inverted pair -- the moves most likely to be somebody
+    trying and failing to fix it.
+
+
+    **`demoted_blocker` counts anything whose rank worsened, the moved task included.**
+    Moving a gate to the bottom is the same mistake as promoting something over it,
+    seen from the other end. The message names at most three and states how many it
+    left out; every id is in `tasks`.
+
+
+    **`queue_broken` is scoped to the moved task''s band and the bands above it**
+    -- `bands_at_or_above`, the same scope `assert_queue_integrity` uses for the same
+    reason. A duplicate in `low` falsifies nothing about a `high` move, and reporting
+    it would punish the wrong caller.
+
+
+    **Ordering: `queue_broken` first.** It qualifies everything under it -- an order
+    with two tasks on one number is not an order, so the three consequence findings
+    are computed against positions nobody should be trusting.'
+  data:
+    operation:
+      id: 7c1e2a90-1d44-4f2a-9b31-2190a0003003
+      kind: log_append
+      fingerprint: a62b210df91755675656751b35444b12
+- id: 11
+  ts: '2026-08-23T08:26:41.436960Z'
+  actor: system
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 7c1e2a90-1d44-4f2a-9b31-2190a0004001
+      kind: update_content
+      fingerprint: 6657a8c182eabfe135ddabe92d023fd1
+- id: 12
+  ts: '2026-08-23T08:27:11.980157Z'
+  actor: system
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 7c1e2a90-1d44-4f2a-9b31-2190a0004003
+      kind: update_content
+      fingerprint: e1471c621fa78af39866afe4e942e8dc
+- id: 13
+  ts: '2026-08-23T08:27:39.305935Z'
+  actor: claude
+  type: handoff
+  body: Implemented and verified; handing off for review. Branch feat/task-219-queue-move-check,
+    four commits, full gate green on ff1f734. A review server with both halves of
+    the check seeded is on port 8899.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 7c1e2a90-1d44-4f2a-9b31-2190a0005001
+      kind: handoff
+      fingerprint: 5886dadb95e37c5c49f39b5e17cda606
