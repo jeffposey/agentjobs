@@ -3,23 +3,16 @@ id: task-248
 title: "Tolerant reader rejects an unknown ball_reason \u2014 the enum widened two\
   \ days after tolerance shipped"
 created: '2026-08-22T18:51:25.400936Z'
-updated: '2026-08-23T06:45:00.933948Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Complete the approved merge manually because finish.enabled is off:
-  rebase branch codex/task-248-class-probe onto main, merge it with --no-ff, mark
-  the branch merged, verify the focused regression tests, close task completed, and
-  remove the clean worktree and local branch.'
+updated: '2026-08-23T06:53:20.149387Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 500
 category: infrastructure
 tags:
 - big-dawg-audit
 - schema
 assignment:
-  owner: codex
   eligible: []
 spec:
   summary: "Big Dawg Audit P1 (auditor 3 F1/F12). schema_tolerance promises an older\
@@ -60,16 +53,21 @@ acceptance:
 - id: ac-1
   text: Under tolerant_enum_values a task with an unknown ball_reason under a known
     ball validates and round-trips unchanged.
-  status: pending
+  verify: 'Focused regression suite: tests/test_schema_skew.py and tests/test_models_v2.py,
+    134 passed after rebase.'
+  status: met
 - id: ac-2
   text: test_schema_skew is parametrised over every top-level axis enum and passes.
-  status: pending
+  verify: 'Focused regression suite: tests/test_schema_skew.py and tests/test_models_v2.py,
+    134 passed after rebase.'
+  status: met
 deliverables: []
 dependencies: []
 links: []
 branches:
 - name: codex/task-248-class-probe
-  status: active
+  status: merged
+  merged_at: '2026-08-23T06:48:00Z'
 log:
 - id: 1
   ts: '2026-08-22T18:51:25.994739Z'
@@ -1021,3 +1019,31 @@ log:
       id: 77fb1aed-802a-452a-a559-c3d5d8170664
       kind: handoff
       fingerprint: 4ae4fa53733805c3d9968c583c2e3621
+- id: 50
+  ts: '2026-08-23T06:47:42.515786Z'
+  actor: codex
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: fcd9af1d-acdf-41f1-bf57-94180c6b5e0a
+      kind: update_content
+      fingerprint: 7ad12ffddeb841214b9421a09df4b2f1
+- id: 51
+  ts: '2026-08-23T06:53:20.148802Z'
+  actor: codex
+  type: transition
+  body: 'Merged approved branch codex/task-248-class-probe into main as fe02df2 after
+    a clean rebase. Focused regression suite passed: 134 tests in tests/test_schema_skew.py
+    and tests/test_models_v2.py. The AgentJobs service was restarted through its owning
+    launcher and is healthy on port 8876 from C:/projects/agentjobs.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: f818f83c-c5a7-4f26-bb53-48ddcddfb964
+      kind: close
+      fingerprint: 7034fe8b2f31de4024154081dc6b3f11
