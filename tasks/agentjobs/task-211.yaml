@@ -3,7 +3,7 @@ id: task-211
 title: 'Playbooks: named, reusable briefs for AI-judgment work like groom, reorder
   and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-23T07:35:06.423332Z'
+updated: '2026-08-23T07:52:03.584066Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1411,3 +1411,46 @@ log:
       id: fdce8e62-b8a3-4c82-b147-1a29098b66dd
       kind: log_append
       fingerprint: 3a2745244fbe629d585c652afb7e2031
+- id: 46
+  ts: '2026-08-23T07:52:03.583704Z'
+  actor: claude
+  type: question
+  body: '**Question for Jeff, raised by him and blocked on him: the scripted finish
+    is switched off and probably should not be.**
+
+
+    Why it is off: task-241 shipped it complete and demonstrated live, then deliberately
+    left the switch alone -- "turning it on is a separate decision he has the corrected
+    config block for" (task-241 log entry 17, 2026-08-22). The corrected block was
+    posted on that record the same day, verified against the launcher''s source rather
+    than its description. Nobody ever pasted it in. So the feature has been finished
+    and unused for a day; it is not disabled for a reason, it is disabled by omission.
+
+
+    The supervisor tried to apply it and **cannot**: every route to this machine''s
+    dispatch config -- a shell edit, an editor-tool edit, and the CLI -- is refused
+    by the session''s auto-mode permission classifier, which is correct behaviour
+    for a machine-local file that grants automated merge authority. There is also
+    no CLI flag for it by design; the design note says the switch lives where no browser
+    can write. So this one is genuinely Jeff''s to make, and the overnight run continues
+    without it in the meantime.
+
+
+    What it changes tonight: the supervisor''s approve call would run the whole post-approval
+    sequence itself -- rebase, full gate in the child''s own worktree, merge --no-ff,
+    rebuild, restart, verify the running process is serving the merge, close, remove
+    the worktree -- with no agent in the loop. Measured on task-241 at 3.1 minutes
+    against 11.0 minutes for a woken session, and the 3.1 includes a full gate run
+    the eleven-minute sessions never did. Over five remaining children that is most
+    of an hour, and it removes five cold-start agent runs.
+
+
+    What it changes afterwards, which is the part worth his deciding: clicking Approve
+    in the dashboard merges to main without a second click, for every future task
+    on this project. A person still approves each task; nothing else about the merge
+    gate moves.'
+  data:
+    operation:
+      id: d19dc106-4a95-461d-9efa-d9480da7ad5b
+      kind: log_append
+      fingerprint: a6730517698f5916f735efa0533119e9
