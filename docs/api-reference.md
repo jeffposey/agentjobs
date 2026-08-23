@@ -203,6 +203,50 @@ the second switch and can never define what runs. See
 `transcript.log` is a raw TTY capture, so a line appears in it once per terminal
 repaint. Link to it and read it; never compute a count from it.
 
+## Playbooks
+
+A playbook is a reusable brief for recurring work, stored per project in git as
+markdown with a YAML frontmatter contract. See
+[the playbooks design](playbooks-design.md).
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/projects/{id}/playbooks` | Every playbook the project holds, with the files that would not load |
+| `GET` | `/api/projects/{id}/playbooks/{name}` | One playbook, including its brief |
+
+Both also exist in the default-project form — `GET /api/playbooks` and
+`GET /api/playbooks/{name}` — as described under
+[Project scoping](#project-scoping).
+
+**This surface is read-only, and its incompleteness is the design.** Running a playbook
+is a dispatch, and only a human starts a dispatch, so there is no `POST` here and the
+MCP server exposes `playbooks_list` with no counterpart that runs one. The collection
+omits each playbook's body — it is a discovery listing, not a way to pull every brief
+at once — and the single-playbook route is what carries it.
+
+`exists: false` on the collection means the project has no playbooks directory. That is
+the state every project starts in and is not an error; `agentjobs playbook init` copies
+the shipped references in, and never overwrites a file already there. A file that is
+present and does not validate is reported in `problems` beside the valid ones rather
+than omitted, and asking for it by name is `422`, not `404`: it is there, and it is
+repairable.
+
+### On the command line
+
+```bash
+agentjobs playbook list              # names, descriptions, and each one's contract
+agentjobs playbook show groom        # the frontmatter, then the brief
+agentjobs playbook show groom --contract   # the frontmatter alone
+agentjobs playbook init              # copy the shipped references in
+```
+
+`init` writes one file per shipped playbook and **skips any name already present**,
+saying which it kept. That is per file rather than all-or-nothing on purpose: a project
+that has tuned its own `groom.md` should be able to take a newly shipped `reorder.md`
+without the tuned one being touched, and the tuned one is exactly what "never
+overwrite" protects. From the moment a copy exists it is authoritative — a brief behind
+a name must never depend on which version of AgentJobs is installed.
+
 ## Projects and system
 
 | Method | Path | Purpose |

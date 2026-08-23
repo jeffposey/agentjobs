@@ -21,6 +21,8 @@ from typing import Dict, List, Optional
 
 import yaml
 
+from .playbooks.library import resolve_playbooks_dir
+
 HOME_ENV = "AGENTJOBS_HOME"
 """Overrides the registry location. Primarily so tests never touch a real home dir."""
 
@@ -69,6 +71,14 @@ class Project:
         if not tasks_dir.is_absolute():
             tasks_dir = self.root / tasks_dir
         return tasks_dir.resolve()
+
+    def playbooks_dir(self) -> Path:
+        """Resolve this project's playbooks directory from its own config.
+
+        Resolved, never created: a project with no playbooks has no directory, and
+        ``playbook init`` is the only thing that makes one.
+        """
+        return resolve_playbooks_dir(self.root, self.load_config())
 
     def webhooks_path(self) -> Path:
         """Resolve this project's webhook store."""

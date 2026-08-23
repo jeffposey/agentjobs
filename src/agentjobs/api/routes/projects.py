@@ -49,6 +49,7 @@ class ProjectInitializationRequest(BaseModel):
     project_name: Optional[str] = Field(default=None, min_length=1)
     tasks_directory: str = Field(default="tasks", min_length=1)
     prompts_directory: str = Field(default="prompts", min_length=1)
+    playbooks_directory: str = Field(default="playbooks", min_length=1)
     port: int = Field(default=8765, ge=1, le=65535)
     user: Optional[str] = Field(default=None, min_length=1)
 
@@ -237,6 +238,7 @@ async def initialize_and_register_project(
         project_name=project_name,
         tasks_directory=payload.tasks_directory,
         prompts_directory=payload.prompts_directory,
+        playbooks_directory=payload.playbooks_directory,
         port=payload.port,
         user=payload.user,
     )

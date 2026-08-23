@@ -76,6 +76,17 @@ export const NON_TASK_PROJECT_QUERY_IDS = new Map([
     "A run's captured transcript, opened in its own tab as text rather than fetched "
       + "through the query client. It grows with the process, not with task writes.",
   ],
+  [
+    "getPlaybooksApiProjectsProjectIdPlaybooksGet",
+    "Playbooks are repository files under the project's playbooks/ directory, edited "
+      + "and committed like any other source. No task write can change one, so the "
+      + "revision is the wrong signal for them.",
+  ],
+  [
+    "getPlaybookApiProjectsProjectIdPlaybooksNameGet",
+    "Same as the playbook list: one repository file, changed by a commit rather than "
+      + "by a task write.",
+  ],
 ]);
 
 type GeneratedQueryKey = {

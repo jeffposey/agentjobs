@@ -94,7 +94,7 @@ def _limit(arguments: Mapping[str, Any]) -> int:
     return int(raw)
 
 
-def _service_error(
+def service_error(
     exc: TaskClientError, *, project_id: str, task_id: Optional[str] = None
 ) -> ToolError:
     """Translate a transport-level client failure into a structured tool error.
@@ -181,7 +181,7 @@ def build_projects_list(client: TaskClient) -> ToolDefinition:
         try:
             projects = client.projects()
         except TaskClientError as exc:
-            raise _service_error(exc, project_id="") from exc
+            raise service_error(exc, project_id="") from exc
         payload = {"projects": [project_payload(project) for project in projects]}
         names = ", ".join(project.id for project in projects) or "none"
         return success(payload, f"{len(projects)} project(s): {names}.")
@@ -229,7 +229,7 @@ def build_tasks_list(client: TaskClient) -> ToolDefinition:
             )
             broken = scoped.read_broken_tasks()
         except TaskClientError as exc:
-            raise _service_error(exc, project_id=project_id) from exc
+            raise service_error(exc, project_id=project_id) from exc
 
         rows = [task_summary(record, project_id=project_id) for record in records]
         rows, truncated = limited(rows, limit)
@@ -286,7 +286,7 @@ def build_task_get(client: TaskClient) -> ToolDefinition:
         try:
             detail = client.for_project(project_id).read_task_detail(task_id)
         except TaskClientError as exc:
-            raise _service_error(exc, project_id=project_id, task_id=task_id) from exc
+            raise service_error(exc, project_id=project_id, task_id=task_id) from exc
 
         record = detail.get("task") or {}
         children: List[Dict[str, Any]] = [
@@ -359,7 +359,7 @@ def build_tasks_search(client: TaskClient) -> ToolDefinition:
             records = scoped.read_search(query)
             broken = scoped.read_broken_tasks()
         except TaskClientError as exc:
-            raise _service_error(exc, project_id=project_id) from exc
+            raise service_error(exc, project_id=project_id) from exc
 
         rows = [task_summary(record, project_id=project_id) for record in records]
         rows, truncated = limited(rows, limit)
@@ -493,7 +493,7 @@ def build_task_next(client: TaskClient) -> ToolDefinition:
                 return success(payload, explanation)
             explanation = _explain_no_work(scoped, actor=actor, priority=priority)
         except TaskClientError as exc:
-            raise _service_error(exc, project_id=project_id) from exc
+            raise service_error(exc, project_id=project_id) from exc
 
         return success({"task": None, "explanation": explanation, "queue": queue}, explanation)
 

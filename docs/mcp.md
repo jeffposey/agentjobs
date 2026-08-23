@@ -147,13 +147,13 @@ than a third guard — unbuilt work rather than a platform limit. See
 agentjobs mcp --base-url http://127.0.0.1:8765
 ```
 
-It should sit there speaking nothing on stdout and log `Serving 15 tool(s)` to stderr.
+It should sit there speaking nothing on stdout and log `Serving 16 tool(s)` to stderr.
 From a client, `projects_list` should return your projects with their configured
 actors.
 
 ## The tools
 
-Five read, ten mutation. Their schemas are published in `tools/list` and that is the
+Five task reads, one playbook read, ten mutations. Their schemas are published in `tools/list` and that is the
 authoritative reference — the fields, types and constraints live there, and a copy in
 this page would go stale.
 
@@ -164,6 +164,7 @@ this page would go stale.
 | `task_get` | The complete record: spec, current ask, log, dependency facts, children. |
 | `tasks_search` | Substring search within one project. |
 | `task_next` | Suggests claimable work: first in the queue, with the band, the position, and everything passed over to reach it. Explains an empty answer. Never claims. |
+| `playbooks_list` | The playbooks a project holds -- reusable briefs for recurring work -- with what each declares it may do and where it stops for a human. Read-only; see below. |
 | `task_create_draft` | New task, born `draft/human/spec`. |
 | `task_create_ready` | New task, born `ready/agent/available`. Not claimed. |
 | `task_promote` | The spec is finished: `draft` becomes `ready/agent/available`. The only exit from `draft`. |
@@ -174,6 +175,11 @@ this page would go stale.
 | `task_log_append` | Append progress, a decision, a question, an answer. |
 | `task_update_content` | Edit authoring content only. |
 | `task_queue_move` | Change where a task stands in its band. The only way the order changes. |
+
+**There is no tool that runs a playbook, and there is not going to be one.** Starting
+a run is a dispatch, and a dispatch is a human act -- an agent that could start one
+would be an agent causing another agent to run. An agent that believes a groom pass is
+due says so in a question or a handoff, which is how agents raise everything else.
 
 There is no `set_lifecycle`, no `set_ball`, no `set_queue_position`, no generic patch,
 no `save_yaml`, no batch, and no `create_and_claim`. State moves through the verbs or

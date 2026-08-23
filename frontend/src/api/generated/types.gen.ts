@@ -1241,6 +1241,182 @@ export type NoteActionRequest = {
 export type Outcome = 'completed' | 'cancelled' | 'superseded' | 'duplicate';
 
 /**
+ * PlaybookAcceptance
+ *
+ * One acceptance criterion the run task is created with.
+ */
+export type PlaybookAcceptance = {
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Verify
+     *
+     * Optional machine-checkable hint, mirroring the task field.
+     */
+    verify?: string | null;
+};
+
+/**
+ * PlaybookCollection
+ *
+ * What a project's playbooks directory holds.
+ *
+ * Invalid files are reported beside valid ones for the reason ``/tasks/broken``
+ * exists: a file that fails validation and then vanishes from the listing reads as a
+ * playbook nobody ever wrote.
+ */
+export type PlaybookCollection = {
+    /**
+     * Directory
+     */
+    directory: string;
+    /**
+     * Exists
+     *
+     * False when the directory has not been created. Not an error: it is the state every project starts in, and `agentjobs playbook init` leaves it.
+     */
+    exists: boolean;
+    /**
+     * Playbooks
+     */
+    playbooks?: Array<PlaybookRead>;
+    /**
+     * Problems
+     */
+    problems?: Array<PlaybookProblemRead>;
+};
+
+/**
+ * PlaybookDifficulty
+ *
+ * The capability the work needs, in the task-156 vocabulary (§7.2).
+ */
+export type PlaybookDifficulty = 'routine' | 'standard' | 'hard';
+
+/**
+ * PlaybookGate
+ *
+ * Where a run must stop for a human, stated declaratively (§3.2).
+ */
+export type PlaybookGate = {
+    /**
+     * Before
+     *
+     * The verb this gate stands in front of.
+     */
+    before: string;
+    /**
+     * What
+     *
+     * What must be true before it is passed.
+     */
+    what: string;
+};
+
+/**
+ * PlaybookProblemRead
+ *
+ * One reason a file in the playbooks directory is not a valid playbook.
+ */
+export type PlaybookProblemRead = {
+    /**
+     * Field
+     */
+    field?: string | null;
+    /**
+     * Filename
+     */
+    filename: string;
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
+ * PlaybookRead
+ *
+ * A playbook's contract, plus where it was read from and (optionally) its brief.
+ *
+ * Subclasses the contract rather than restating it, so a field added to the
+ * frontmatter model reaches the API without a second edit that can be forgotten.
+ */
+export type PlaybookRead = {
+    /**
+     * Body
+     *
+     * The brief: opaque markdown prose an agent reads. Present on the single-playbook route and omitted from the collection, which is a discovery listing rather than a way to fetch every brief at once.
+     */
+    body?: string | null;
+    /**
+     * Description
+     */
+    description: string;
+    difficulty: PlaybookDifficulty;
+    /**
+     * Filename
+     *
+     * The file this was read from, e.g. groom.md.
+     */
+    filename: string;
+    /**
+     * Gates
+     */
+    gates?: Array<PlaybookGate>;
+    /**
+     * Name
+     *
+     * Must equal the filename stem.
+     */
+    name: string;
+    run_task?: PlaybookRunTask | null;
+    target: PlaybookTarget;
+    /**
+     * Verbs
+     */
+    verbs?: Array<string>;
+};
+
+/**
+ * PlaybookRunTask
+ *
+ * Defaults for the run task a ``target: project`` run creates (§3.2).
+ *
+ * Nothing in this module creates that task -- instantiation is task-215. These are
+ * the values it will read.
+ */
+export type PlaybookRunTask = {
+    /**
+     * Acceptance
+     */
+    acceptance?: Array<PlaybookAcceptance>;
+    /**
+     * Category
+     *
+     * Project taxonomy for the run task. Not validated against the project's configured categories here: a playbook is read without reference to any one project's config, and the manager validates the category at creation.
+     */
+    category?: string | null;
+    priority?: Priority | null;
+    /**
+     * Tags
+     */
+    tags?: Array<string>;
+    /**
+     * Title
+     */
+    title: string;
+};
+
+/**
+ * PlaybookTarget
+ *
+ * What a run is aimed at (§3.2).
+ */
+export type PlaybookTarget = 'project' | 'task';
+
+/**
  * Priority
  *
  * Relative urgency.
@@ -1307,6 +1483,10 @@ export type ProjectInitializationRequest = {
      * Path
      */
     path: string;
+    /**
+     * Playbooks Directory
+     */
+    playbooks_directory?: string;
     /**
      * Port
      */
@@ -3485,6 +3665,52 @@ export type ApiHealthCheckApiHealthGetResponses = {
 
 export type ApiHealthCheckApiHealthGetResponse = ApiHealthCheckApiHealthGetResponses[keyof ApiHealthCheckApiHealthGetResponses];
 
+export type GetPlaybooksApiPlaybooksGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/playbooks';
+};
+
+export type GetPlaybooksApiPlaybooksGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PlaybookCollection;
+};
+
+export type GetPlaybooksApiPlaybooksGetResponse = GetPlaybooksApiPlaybooksGetResponses[keyof GetPlaybooksApiPlaybooksGetResponses];
+
+export type GetPlaybookApiPlaybooksNameGetData = {
+    body?: never;
+    path: {
+        /**
+         * Name
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/api/playbooks/{name}';
+};
+
+export type GetPlaybookApiPlaybooksNameGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetPlaybookApiPlaybooksNameGetError = GetPlaybookApiPlaybooksNameGetErrors[keyof GetPlaybookApiPlaybooksNameGetErrors];
+
+export type GetPlaybookApiPlaybooksNameGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PlaybookRead;
+};
+
+export type GetPlaybookApiPlaybooksNameGetResponse = GetPlaybookApiPlaybooksNameGetResponses[keyof GetPlaybookApiPlaybooksNameGetResponses];
+
 export type GetProjectsApiProjectsGetData = {
     body?: never;
     path?: never;
@@ -3847,6 +4073,70 @@ export type ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetRespo
 };
 
 export type ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetResponse = ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetResponses[keyof ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetResponses];
+
+export type GetPlaybooksApiProjectsProjectIdPlaybooksGetData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/playbooks';
+};
+
+export type GetPlaybooksApiProjectsProjectIdPlaybooksGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetPlaybooksApiProjectsProjectIdPlaybooksGetError = GetPlaybooksApiProjectsProjectIdPlaybooksGetErrors[keyof GetPlaybooksApiProjectsProjectIdPlaybooksGetErrors];
+
+export type GetPlaybooksApiProjectsProjectIdPlaybooksGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PlaybookCollection;
+};
+
+export type GetPlaybooksApiProjectsProjectIdPlaybooksGetResponse = GetPlaybooksApiProjectsProjectIdPlaybooksGetResponses[keyof GetPlaybooksApiProjectsProjectIdPlaybooksGetResponses];
+
+export type GetPlaybookApiProjectsProjectIdPlaybooksNameGetData = {
+    body?: never;
+    path: {
+        /**
+         * Name
+         */
+        name: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/playbooks/{name}';
+};
+
+export type GetPlaybookApiProjectsProjectIdPlaybooksNameGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetPlaybookApiProjectsProjectIdPlaybooksNameGetError = GetPlaybookApiProjectsProjectIdPlaybooksNameGetErrors[keyof GetPlaybookApiProjectsProjectIdPlaybooksNameGetErrors];
+
+export type GetPlaybookApiProjectsProjectIdPlaybooksNameGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PlaybookRead;
+};
+
+export type GetPlaybookApiProjectsProjectIdPlaybooksNameGetResponse = GetPlaybookApiProjectsProjectIdPlaybooksNameGetResponses[keyof GetPlaybookApiProjectsProjectIdPlaybooksNameGetResponses];
 
 export type GetQueueApiProjectsProjectIdQueueGetData = {
     body?: never;

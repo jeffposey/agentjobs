@@ -1721,6 +1721,267 @@
         "title": "Outcome",
         "type": "string"
       },
+      "PlaybookAcceptance": {
+        "additionalProperties": false,
+        "description": "One acceptance criterion the run task is created with.",
+        "properties": {
+          "text": {
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          },
+          "verify": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional machine-checkable hint, mirroring the task field.",
+            "title": "Verify"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "PlaybookAcceptance",
+        "type": "object"
+      },
+      "PlaybookCollection": {
+        "description": "What a project's playbooks directory holds.\n\nInvalid files are reported beside valid ones for the reason ``/tasks/broken``\nexists: a file that fails validation and then vanishes from the listing reads as a\nplaybook nobody ever wrote.",
+        "properties": {
+          "directory": {
+            "title": "Directory",
+            "type": "string"
+          },
+          "exists": {
+            "description": "False when the directory has not been created. Not an error: it is the state every project starts in, and `agentjobs playbook init` leaves it.",
+            "title": "Exists",
+            "type": "boolean"
+          },
+          "playbooks": {
+            "items": {
+              "$ref": "#/components/schemas/PlaybookRead"
+            },
+            "title": "Playbooks",
+            "type": "array"
+          },
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/PlaybookProblemRead"
+            },
+            "title": "Problems",
+            "type": "array"
+          }
+        },
+        "required": [
+          "directory",
+          "exists"
+        ],
+        "title": "PlaybookCollection",
+        "type": "object"
+      },
+      "PlaybookDifficulty": {
+        "description": "The capability the work needs, in the task-156 vocabulary (§7.2).",
+        "enum": [
+          "routine",
+          "standard",
+          "hard"
+        ],
+        "title": "PlaybookDifficulty",
+        "type": "string"
+      },
+      "PlaybookGate": {
+        "additionalProperties": false,
+        "description": "Where a run must stop for a human, stated declaratively (§3.2).",
+        "properties": {
+          "before": {
+            "description": "The verb this gate stands in front of.",
+            "minLength": 1,
+            "title": "Before",
+            "type": "string"
+          },
+          "what": {
+            "description": "What must be true before it is passed.",
+            "minLength": 1,
+            "title": "What",
+            "type": "string"
+          }
+        },
+        "required": [
+          "before",
+          "what"
+        ],
+        "title": "PlaybookGate",
+        "type": "object"
+      },
+      "PlaybookProblemRead": {
+        "description": "One reason a file in the playbooks directory is not a valid playbook.",
+        "properties": {
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename",
+          "message"
+        ],
+        "title": "PlaybookProblemRead",
+        "type": "object"
+      },
+      "PlaybookRead": {
+        "additionalProperties": false,
+        "description": "A playbook's contract, plus where it was read from and (optionally) its brief.\n\nSubclasses the contract rather than restating it, so a field added to the\nfrontmatter model reaches the API without a second edit that can be forgotten.",
+        "properties": {
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The brief: opaque markdown prose an agent reads. Present on the single-playbook route and omitted from the collection, which is a discovery listing rather than a way to fetch every brief at once.",
+            "title": "Body"
+          },
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "difficulty": {
+            "$ref": "#/components/schemas/PlaybookDifficulty"
+          },
+          "filename": {
+            "description": "The file this was read from, e.g. groom.md.",
+            "title": "Filename",
+            "type": "string"
+          },
+          "gates": {
+            "items": {
+              "$ref": "#/components/schemas/PlaybookGate"
+            },
+            "title": "Gates",
+            "type": "array"
+          },
+          "name": {
+            "description": "Must equal the filename stem.",
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "run_task": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlaybookRunTask"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target": {
+            "$ref": "#/components/schemas/PlaybookTarget"
+          },
+          "verbs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Verbs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "target",
+          "difficulty",
+          "filename"
+        ],
+        "title": "PlaybookRead",
+        "type": "object"
+      },
+      "PlaybookRunTask": {
+        "additionalProperties": false,
+        "description": "Defaults for the run task a ``target: project`` run creates (§3.2).\n\nNothing in this module creates that task -- instantiation is task-215. These are\nthe values it will read.",
+        "properties": {
+          "acceptance": {
+            "items": {
+              "$ref": "#/components/schemas/PlaybookAcceptance"
+            },
+            "title": "Acceptance",
+            "type": "array"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Project taxonomy for the run task. Not validated against the project's configured categories here: a playbook is read without reference to any one project's config, and the manager validates the category at creation.",
+            "title": "Category"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Priority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "PlaybookRunTask",
+        "type": "object"
+      },
+      "PlaybookTarget": {
+        "description": "What a run is aimed at (§3.2).",
+        "enum": [
+          "project",
+          "task"
+        ],
+        "title": "PlaybookTarget",
+        "type": "string"
+      },
       "Priority": {
         "description": "Relative urgency.",
         "enum": [
@@ -1817,6 +2078,12 @@
           "path": {
             "minLength": 1,
             "title": "Path",
+            "type": "string"
+          },
+          "playbooks_directory": {
+            "default": "playbooks",
+            "minLength": 1,
+            "title": "Playbooks Directory",
             "type": "string"
           },
           "port": {
@@ -4647,6 +4914,71 @@
         ]
       }
     },
+    "/api/playbooks": {
+      "get": {
+        "description": "Every playbook this project holds, with the files that would not load.",
+        "operationId": "get_playbooks_api_playbooks_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybookCollection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Playbooks",
+        "tags": [
+          "playbooks"
+        ]
+      }
+    },
+    "/api/playbooks/{name}": {
+      "get": {
+        "description": "One playbook by name, including its brief.\n\n422 rather than 404 for a file that exists and does not validate, matching how a\nstored task that will not parse is reported: the thing is there and repairable,\nand \"not found\" would send its author looking for something already on disk.",
+        "operationId": "get_playbook_api_playbooks__name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybookRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Playbook",
+        "tags": [
+          "playbooks"
+        ]
+      }
+    },
     "/api/projects": {
       "get": {
         "description": "List every project this server can serve, with task counts.\n\nA project whose directory has gone missing is reported with a null task_count\nrather than failing the whole listing -- the registry is machine-local and a\ncheckout can legitimately disappear.",
@@ -5221,6 +5553,101 @@
         "summary": "Read Dispatch Run Tail",
         "tags": [
           "dispatch"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/playbooks": {
+      "get": {
+        "description": "Every playbook this project holds, with the files that would not load.",
+        "operationId": "get_playbooks_api_projects__project_id__playbooks_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybookCollection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Playbooks",
+        "tags": [
+          "playbooks"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/playbooks/{name}": {
+      "get": {
+        "description": "One playbook by name, including its brief.\n\n422 rather than 404 for a file that exists and does not validate, matching how a\nstored task that will not parse is reported: the thing is there and repairable,\nand \"not found\" would send its author looking for something already on disk.",
+        "operationId": "get_playbook_api_projects__project_id__playbooks__name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybookRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Playbook",
+        "tags": [
+          "playbooks"
         ]
       }
     },
