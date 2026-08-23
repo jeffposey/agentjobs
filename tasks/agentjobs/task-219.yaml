@@ -2,7 +2,7 @@ schema: 2
 id: task-219
 title: 'The queue-move check: deterministic warnings when a human reorders'
 created: '2026-08-21T04:57:23.007031Z'
-updated: '2026-08-23T09:16:19.524802Z'
+updated: '2026-08-23T09:18:58.564803Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -944,3 +944,19 @@ log:
     finish_step: started
     branch: feat/task-219-queue-move-check
     finish_id: fin_4c205d56
+- id: 27
+  ts: '2026-08-23T09:18:58.564611Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-219-queue-move-check` into `main` as `75c3387a`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\aj-219
+    before the merge. Approved by Jeff Posey; no agent was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 75c3387a6e92dca92285d4242f62ade1d396f274
+    branch: feat/task-219-queue-move-check
+    base: main
