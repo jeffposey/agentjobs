@@ -3,11 +3,41 @@ id: task-021
 title: Posture should decide whether a run merges and pushes, not only what it may
   execute
 created: '2026-08-19T22:28:28.717331Z'
-updated: '2026-08-23T22:47:02.303801Z'
+updated: '2026-08-23T22:48:21.755695Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Review `feat/task-021-posture-merge-policy` (two commits on top of `0f338d3`).\
+  \ Full gate green, exit 0, all ten stages, 214.6s. All six acceptance criteria met.\n\
+  \n**Read this before approving.** This machine already has `posture: autonomous`\
+  \ for agentjobs. The moment this merges, every dispatched run in this repository\
+  \ stops handing off for your review and merges itself on a green gate. That is exactly\
+  \ what you asked for on 2026-08-19 \u2014 I am flagging it because it takes effect\
+  \ immediately and silently, and this task's own run would have been one of them.\n\
+  \nI did **not** self-merge this one, deliberately: the change that removes the review\
+  \ gate should not be the first thing to use it, and my prompt predates the policy\
+  \ so I was never told the gate was released for me. Merging it unreviewed would\
+  \ have been me granting myself the permission I was writing.\n\nIf you want to phase\
+  \ it in, set `projects.agentjobs.posture: auto` in `~/.agentjobs/dispatch.yaml`\
+  \ before or after merging \u2014 one line, no code change, and every run goes back\
+  \ to stopping for you.\n\n**What to look at, in order of what would hurt most if\
+  \ wrong:**\n1. `ENGINEERING.md` \u2192 *The Merge Gate* \u2192 *Posture decides\
+  \ this, not you*. The qualification of \"work does not merge itself\" and the posture\
+  \ table.\n2. `src/agentjobs/dispatch/finish.py` \u2192 `finish_task`'s `authority`\
+  \ gate. `--posture-release` declines unless the project's machine-local posture\
+  \ is `autonomous`. Tested against a real config for all four postures.\n3. The prompt\
+  \ clause in a real argv \u2014 `posture autonomous / merge automatic / push False`,\
+  \ the clause naming `agentjobs finish task-021 --project agentjobs --posture-release`,\
+  \ and `Never push: this project is configured push: false`.\n\n**Three scope calls\
+  \ I made and recorded rather than took silently** (log entry 10): `push: true` is\
+  \ told to the agent but no code pushes, and the reopen trigger is named; the GUI's\
+  \ dispatch panel is not told about merge policy or push, which is a real visibility\
+  \ gap and wants its own task; per-task posture from your 2026-08-21 note is not\
+  \ built, and needs its own task because the narrow-only rule is a privilege-escalation\
+  \ design in its own right.\n\nYour note of 22:15 asks for task-022 to be dispatched\
+  \ once this finishes. It is not dispatched \u2014 this is at review, not finished.\
+  \ Say the word after approval and I will start it.\n\nWant me to file the two follow-up\
+  \ tasks (GUI visibility, per-task posture) before or after you approve?"
 archived: false
 priority: high
 queue_position: 187
@@ -117,25 +147,25 @@ acceptance:
 - id: ac-1
   text: posture carries a documented merge policy, and a per-project push switch exists
     that defaults to false
-  status: pending
+  status: met
 - id: ac-2
   text: ENGINEERING.md's merge gate and ALLAGENTS.md's lifecycle are amended in the
     same change, so no document still states the rule unconditionally
-  status: pending
+  status: met
 - id: ac-3
   text: the policy reaches the dispatched agent through the generated prompt, verified
     by reading a real run's argv
-  status: pending
+  status: met
 - id: ac-4
   text: an automatic merge requires an objective check passing, not only the agent's
     own assessment
-  status: pending
+  status: met
 - id: ac-5
   text: an autonomous run still records its evidence on the task before merging
-  status: pending
+  status: met
 - id: ac-6
   text: agentjobs is configured never to push, and a test asserts the default is false
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-020
@@ -143,7 +173,9 @@ dependencies:
   note: Added the auto posture and made it the default. This task extends what a posture
     means.
 links: []
-branches: []
+branches:
+- name: feat/task-021-posture-merge-policy
+  status: active
 log:
 - id: 1
   ts: '2026-08-19T22:28:28.717386Z'
@@ -319,3 +351,109 @@ log:
       id: 6c1e7a52-1f3d-4d7a-9b4e-2f0a4b71cd10
       kind: log_append
       fingerprint: 6fe705cd06a270c8b2c91f346da72c85
+- id: 9
+  ts: '2026-08-23T22:47:21.246580Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: b41d90aa-3c17-4e2c-8f55-7d6a09b1e332
+      kind: update_content
+      fingerprint: fc05091ea330418a595d71056aa13316
+- id: 10
+  ts: '2026-08-23T22:47:44.624874Z'
+  actor: claude
+  type: decision
+  body: "**`push` is a real switch that no code acts on, and that is deliberate.**\n\
+    \n`ProjectDispatchSettings.push` exists, parses, defaults to `False`, and is rendered\
+    \ into the dispatched agent's prompt as one sentence. **Nothing in AgentJobs runs\
+    \ `git push`.** The switch reaches the agent's decision, which the spec named\
+    \ as the only channel that matters, and stops there.\n\n**Rejected: teaching the\
+    \ scripted finish to push after a successful merge.** It is the natural home and\
+    \ it would have been about fifteen lines. There is no repository on this machine\
+    \ with a remote to prove it against \u2014 agentjobs has none, `vault` must never\
+    \ gain one \u2014 so it would have shipped as an untested publication step inside\
+    \ a script that runs unattended, at the end of a sequence whose entire safety\
+    \ argument is that every step either succeeds on evidence or stops. Publication\
+    \ is the one act in that sequence that cannot be undone by a revert.\n\n**Reopen\
+    \ trigger:** the first project configured `push: true` that also has `finish.enabled`.\
+    \ At that point there is something to test against and the argument above expires.\
+    \ Until then, an agent at `push: true` is told pushing is permitted and pushes\
+    \ by hand, which is exactly the status quo for every other project of Jeff's.\n\
+    \nTwo further scope calls made here, both recorded rather than silently taken:\n\
+    \n- **The GUI is not told about any of this.** `DispatchStateView` gains no `merge_policy`\
+    \ or `push` field, so the dispatch panel still shows only the posture. Adding\
+    \ fields the browser does not render would be decoration, and rendering them properly\
+    \ is a frontend change with its own generated-client churn. The CLI does show\
+    \ both \u2014 `agentjobs dispatch status` now prints `merge=` and `push=` per\
+    \ project. **This is a real gap for a human**, because \"this project will merge\
+    \ my work without asking me\" is exactly the sort of thing that should be visible\
+    \ where the Dispatch button is. It belongs in its own task.\n- **Per-task posture\
+    \ is not built.** The 2026-08-21 queue note asks for it and flags the privilege-escalation\
+    \ tension itself: project settings are machine-local and a browser cannot write\
+    \ them, while task records are git-tracked and agent-writable, so a task that\
+    \ could raise its own posture to `autonomous` would be an agent granting itself\
+    \ an unreviewed merge. That needs the narrow-only rule designed and argued, and\
+    \ it is a separate change from establishing what a posture means at all. It also\
+    \ belongs in its own task, and task-022 should not assume it exists."
+  data:
+    operation:
+      id: d7fa2e18-5c94-4bb1-a3d6-8e2c1f409b77
+      kind: log_append
+      fingerprint: e508028d49edea88fb05afe8e6971427
+- id: 11
+  ts: '2026-08-23T22:48:21.755429Z'
+  actor: claude
+  type: handoff
+  body: "Handing off for review. Branch `feat/task-021-posture-merge-policy`, two\
+    \ commits, gate green.\n\n**What was built.**\n\n`MergePolicy` is a property of\
+    \ `Posture`, not a config key beside it: `read_only` \u2192 `none`, `auto`/`supervised`\
+    \ \u2192 `review`, `autonomous` \u2192 `automatic`. Two independent switches would\
+    \ have four combinations, of which \"autonomous execution but stop for review\"\
+    \ is one nobody has wanted and \"classifier-gated execution, merges unreviewed\"\
+    \ is one nobody should get by typo. `auto` and `supervised` are identical here\
+    \ on purpose \u2014 they differ in how the *process* is gated while it runs, which\
+    \ is a different question from who authorises the merge.\n\n`ProjectDispatchSettings.push`\
+    \ is a per-project bool defaulting to `False`, parsed from `~/.agentjobs/dispatch.yaml`,\
+    \ kept off the posture so the same posture can push in one repository and never\
+    \ in another.\n\n`dispatch.runner.policy_clause` renders both into the generated\
+    \ prompt, for both the worker stub and the supervisor stub. This is the second\
+    \ deliberate exception to the pointer-not-composition rule and the argument is\
+    \ in the function's docstring: everything else the stub gestures at is *in the\
+    \ record*, and this is not \u2014 it is derived from a machine-local file the\
+    \ agent cannot read, while this repository's committed prose says the opposite\
+    \ by default.\n\n`finish_task` gains `authority`, defaulting to `APPROVAL` \u2014\
+    \ the existing path, unchanged. `POSTURE` re-resolves the project's machine-local\
+    \ posture and declines `posture_requires_review` unless it is genuinely `autonomous`.\
+    \ `agentjobs finish --posture-release` is the CLI surface. Every record the finish\
+    \ writes \u2014 merge commit message, log entry, close body \u2014 now states\
+    \ which authority it ran under, through one function so the three cannot drift.\n\
+    \n**Verification.**\n\n- Full gate, unqualified, in the branch's own worktree\
+    \ with that worktree's interpreter: **exit 0, all ten stages, 214.6s.**\n- **ac-3\
+    \ checked against the real thing**, not a fixture: built the argv this machine\
+    \ would actually use for a dispatch of task-021 from its own `dispatch.yaml`.\
+    \ Reported `posture autonomous / merge automatic / push False`, and the 1060-character\
+    \ prompt carries the autonomous clause, the exact `--posture-release` command,\
+    \ and `Never push`.\n- New coverage: 11 prompt-policy tests (each posture, both\
+    \ stubs, push both ways, and one asserting the clause survives into the composed\
+    \ argv rather than only out of `build_prompt`); 7 config tests (the derived mapping,\
+    \ that `autonomous` is the *only* automatic posture, push defaulting to false\
+    \ through both the parser and the dataclass, push and posture independent, a non-boolean\
+    \ push refused); 8 finish tests against real git repositories (all three review\
+    \ postures decline and touch nothing, autonomous merges, a red gate still stops\
+    \ it, the record says no human reviewed it and the merge commit says so too, and\
+    \ an approval still reads as an approval).\n\n**What I did not do, and why** \u2014\
+    \ see the two `decision` entries. In short: no code pushes, the GUI is not told,\
+    \ and per-task posture is not built. All three are recorded with their reasoning\
+    \ and the follow-ups named."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 9e30b6d4-42a8-4f71-b0c5-1a5d3e77c208
+      kind: handoff
+      fingerprint: 6fe1ad2df61f0f55dff5962b24b0ed3c
