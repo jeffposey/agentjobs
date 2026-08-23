@@ -3,7 +3,7 @@ id: task-021
 title: Posture should decide whether a run merges and pushes, not only what it may
   execute
 created: '2026-08-19T22:28:28.717331Z'
-updated: '2026-08-23T22:15:29.440252Z'
+updated: '2026-08-23T22:47:02.303801Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -253,3 +253,69 @@ log:
   type: note
   body: Automatically start and dispatch task-022 once this one has finished.
   data: {}
+- id: 7
+  ts: '2026-08-23T22:46:57.077627Z'
+  actor: claude
+  type: progress
+  body: "**Supervisor note, not the working session's own report. The record does\
+    \ not name this run's branch, so this entry does.**\n\nWritten by the session\
+    \ supervising this task, from the durable artefacts only \u2014 the branch and\
+    \ its diff. I did not read the working session's transcript and this is not a\
+    \ report of its reasoning.\n\n- **Branch**: `feat/task-021-posture-merge-policy`,\
+    \ in worktree `C:/projects/worktrees/agentjobs-021`, cut from `0f338d3`.\n- **Run**:\
+    \ `run_131023d2`, session `c415e796`, posture `autonomous`, started 2026-08-23T22:11:40Z.\n\
+    - **One commit as of 2026-08-23T22:4xZ**: `0e5340a` *\"feat(dispatch): posture\
+    \ decides the merge, and a per-project push switch\"* \u2014 728 insertions across\
+    \ `src/agentjobs/cli.py`, `dispatch/config.py`, `dispatch/finish.py`, `dispatch/runner.py`,\
+    \ `dispatch/scaffold.py`, and three test modules (`test_dispatch_config.py`, `test_dispatch_finish.py`,\
+    \ `test_dispatch_runner.py`). The commit touches no task records, which is correct.\n\
+    \n**Why this entry exists.** `branches[]` is still `[]`. The lifecycle says the\
+    \ branch is recorded as part of the same update that claims the task, and that\
+    \ did not happen here \u2014 so until now the only pointer from this record to\
+    \ 728 lines of work was nothing at all. Had the session died, a fresh reader following\
+    \ the resumption contract would have found an active task with no branch named\
+    \ and no way to know the work existed.\n\n**This is a stopgap and does not discharge\
+    \ the step.** The working session should still record the branch in `branches[]`\
+    \ properly; a log entry is not the field, and nothing reads prose to decide what\
+    \ to merge. If you are that session: do it now, before your next commit.\n\nNo\
+    \ judgement is offered here on whether the work is correct \u2014 that is for\
+    \ the review handoff, against the acceptance criteria."
+  data:
+    operation:
+      id: a8f24c31-7b60-4e59-91d2-3c5d7e0b6a48
+      kind: log_append
+      fingerprint: 3c59d13f7657abe9ebf3458bac7cfd8f
+- id: 8
+  ts: '2026-08-23T22:47:02.303626Z'
+  actor: claude
+  type: decision
+  body: "**An autonomous merge goes through `agentjobs finish --posture-release`,\
+    \ not through the agent running `git merge`.**\n\nThis is the decision the rest\
+    \ of the design falls out of, and it is what discharges the spec's own \"weak\
+    \ point, stated plainly\". The spec asked for an objective floor the agent cannot\
+    \ talk itself past. The scripted finish (task-241) already *is* that floor: it\
+    \ rebases, runs the full unqualified `scripts/check.py` in the branch's own worktree\
+    \ with that worktree's interpreter, and merges only on a green one \u2014 then\
+    \ rebuilds, restarts, verifies the running server is serving the merge, closes\
+    \ the task and removes the worktree, escalating with a written account at the\
+    \ first step it cannot complete.\n\nRouting the autonomous merge there means it\
+    \ is the **identical sequence a human approval takes**, with exactly one substitution:\
+    \ what authorised it. Nothing about the safety argument is newly built, so nothing\
+    \ about it is newly unproven.\n\n**Rejected: the agent runs the gate itself, then\
+    \ `git merge`.** It is the obvious reading of the spec and it is materially weaker\
+    \ in three ways. The gate result would be the agent's report of the gate rather\
+    \ than the gate; the merge would skip the rebuild/restart/verify sequence that\
+    \ ENGINEERING.md's sharpest warning exists about; and every failure path \u2014\
+    \ a conflicting rebase, a base that moved mid-gate, a branch somebody already\
+    \ merged by hand \u2014 would be improvised per run instead of being the handled\
+    \ cases they already are.\n\n**Consequence, accepted:** an autonomous merge now\
+    \ requires `finish.enabled` for the project. A machine that has not switched the\
+    \ finish on has no sanctioned mechanism for one. That is the honest degradation\
+    \ \u2014 the alternative is a second, weaker merge path existing solely so that\
+    \ a posture means something on a machine that has not opted into the mechanism\
+    \ it depends on."
+  data:
+    operation:
+      id: 6c1e7a52-1f3d-4d7a-9b4e-2f0a4b71cd10
+      kind: log_append
+      fingerprint: 6fe705cd06a270c8b2c91f346da72c85
