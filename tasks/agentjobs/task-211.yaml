@@ -3,7 +3,7 @@ id: task-211
 title: 'Playbooks: named, reusable briefs for AI-judgment work like groom, reorder
   and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-23T08:11:39.568136Z'
+updated: '2026-08-23T10:14:55.952942Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1505,3 +1505,58 @@ log:
       id: 7a0f8397-04ce-41af-aa96-b7aa64d3b435
       kind: log_append
       fingerprint: a4d9c064e0fb16ba375ac48f4a83e3d1
+- id: 48
+  ts: '2026-08-23T10:14:55.952260Z'
+  actor: claude
+  type: decision
+  body: '**Decision: the remaining three children (task-216, task-217, task-218) run
+    strictly sequentially, one at a time, each branched from a main that already contains
+    its predecessor.**
+
+
+    The evidence for it was bought twice tonight. task-214 and task-219 were started
+    in parallel off the same commit; both added REST routes, so both regenerated `frontend/src/api/generated/*`,
+    and the second to reach the merge gate hit a rebase conflict there. task-215 was
+    started off post-214 main while task-219 was still running, and hit the identical
+    conflict against task-219 for the identical reason. Each occurrence cost a rebase
+    session, a full gate re-run, and roughly forty minutes of supervised wall clock,
+    and neither produced a single line of reviewable work.
+
+
+    **The generated API client is a shared mutable file that every child in this epic
+    touches.** task-216, task-217 and task-218 all author playbooks and all are likely
+    to add surface, so three parallel branches would queue up the same conflict three
+    deep, against a main that moves under each of them. Sequential removes the category
+    rather than managing it.
+
+
+    *Rejected: keep running them in parallel and absorb the rebases.* On paper it
+    is faster -- the children take about forty minutes each and the rebases overlap.
+    In practice a rebase cycle costs a fresh agent session, a full gate, and supervisor
+    attention at each step, so the arithmetic is close to break-even; and it is close
+    to break-even only when every rebase resolves cleanly, which is exactly the assumption
+    that is unsafe to make unattended overnight. Predictability is worth more than
+    the margin here.
+
+
+    *Rejected: have each child rebase onto current main immediately before handing
+    off.* It narrows the window without closing it -- main can still move between
+    that rebase and the approval -- and it puts a git operation whose failure mode
+    is a conflict at the very end of a session''s context, which is the worst moment
+    for it.
+
+
+    **A supervisor error worth recording, because it wasted more time than either
+    conflict.** The watcher polling for a finish''s outcome seeded its "already seen"
+    set by reading the record at startup. A finish can escalate within a second of
+    the approval, so that read raced it, filed the escalation as history, and sat
+    for its full 45-minute timeout while the task had been waiting the whole time.
+    The fix is that the caller passes the highest entry id that existed *before* the
+    approval, rather than the watcher inferring it from a read that is not ordered
+    against the thing it is watching. Fixed; the earlier fix for a different bug in
+    the same watcher is what introduced it.'
+  data:
+    operation:
+      id: c7fa0641-491d-494f-8bc4-469bf89cb762
+      kind: log_append
+      fingerprint: ee5cdd28d8f8e77eb2d47dadca2bdf14
