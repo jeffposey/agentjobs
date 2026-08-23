@@ -1365,6 +1365,7 @@ class DispatchRunner:
     ) -> None:
         """Persist App Server events and leave task settlement to the poller."""
         transcript = handle.directory.path / TRANSCRIPT_FILENAME
+        turn_completed = False
         try:
             with transcript.open("w", encoding="utf-8") as stream:
 
@@ -1372,10 +1373,11 @@ class DispatchRunner:
                     stream.write(json.dumps(message, ensure_ascii=False) + "\n")
                     stream.flush()
 
-                completed = app_server.supervise(turn_id=turn_id, on_message=write_message)
+            completed = app_server.supervise(turn_id=turn_id, on_message=write_message)
             turn = completed.get("turn") if isinstance(completed, dict) else None
             status = turn.get("status") if isinstance(turn, dict) else None
             codex_status = "completed" if status == "completed" else "failed"
+            turn_completed = codex_status == "completed"
             error = turn.get("error") if isinstance(turn, dict) else None
             handle.directory.update_meta(
                 status="running" if codex_status == "completed" else "failed",
@@ -1395,6 +1397,57 @@ class DispatchRunner:
             )
         finally:
             app_server.terminate()
+        if turn_completed:
+            self._observe_codex_persistence(handle)
+
+    def _observe_codex_persistence(self, handle: RunHandle) -> None:
+        """Persist session-store evidence without claiming Desktop sidebar visibility."""
+        meta = handle.directory.read_meta()
+        thread_id = meta.get("thread_id") or handle.session_id
+        argv = meta.get("argv")
+        if not isinstance(thread_id, str) or not thread_id or not isinstance(argv, list):
+            handle.directory.update_meta(
+                persistence_status="unavailable",
+                persistence_error="Run metadata has no persisted Codex thread or argv.",
+                desktop_visibility="not_observed",
+            )
+            return
+        rendered_argv = [item for item in argv if isinstance(item, str)]
+        if len(rendered_argv) != len(argv) or not rendered_argv:
+            handle.directory.update_meta(
+                persistence_status="unavailable",
+                persistence_error="Run metadata has an invalid Codex argv.",
+                desktop_visibility="not_observed",
+            )
+            return
+        try:
+            settings = parse_session_settings(
+                rendered_argv,
+                posture=str(meta.get("posture") or self.resolution.settings.posture.value),
+                project_root=self.project_root,
+            )
+            observer = CodexAppServerProcess(
+                executable=resolve_executable(rendered_argv[0], driver=RunnerDriver.CODEX),
+                cwd=self.project_root,
+                env=self._environment(handle.directory, handle.run_id),
+                settings=settings,
+                service_name="agentjobs",
+                thread_name=f"AgentJobs {self.resolution.project_id}/{handle.task_id}",
+            )
+            evidence = observer.inspect_persisted_thread(thread_id)
+        except CodexAppServerError as exc:
+            handle.directory.update_meta(
+                persistence_status="unavailable",
+                persistence_error=str(exc),
+                desktop_visibility="not_observed",
+            )
+            return
+        handle.directory.update_meta(
+            persistence_status="persisted",
+            persistence_thread_id=thread_id,
+            persistence_evidence=evidence,
+            desktop_visibility="not_observed",
+        )
 
     def _environment(self, run: Optional[RunDirectory] = None, run_id: str = "") -> Dict[str, str]:
         """The child's environment: ours, plus the runner's additions.
