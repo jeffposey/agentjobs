@@ -69,7 +69,11 @@ from agentjobs.dispatch.runner import (
     uncommitted_paths,
     working_tree_clean,
 )
-from agentjobs.dispatch.codex_app_server import CodexAppServerError, CodexSessionStarted
+from agentjobs.dispatch.codex_app_server import (
+    CodexAppServerError,
+    CodexResumeFailure,
+    CodexSessionStarted,
+)
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
     Ball,
@@ -835,6 +839,186 @@ class TestCodexBatchRunner:
         assert meta["codex_phase"] == "preflight"
         assert meta["mcp_preflight_error"] == "AgentJobs MCP is not ready: connection refused"
         assert events == ["preflight", "terminate"]
+
+    def test_busy_codex_resume_parks_the_persisted_thread_without_fresh_start(
+        self, workspace: Path, manager: TaskManager, task, monkeypatch
+    ) -> None:
+        resolution = make_resolution(
+            ["codex", "app-server", "--model", "gpt-5.6-luna", "{prompt}"],
+            mode=RunnerMode.SESSION,
+            driver=RunnerDriver.CODEX,
+            posture=Posture.AUTO,
+        )
+        runner = build(workspace, manager, resolution)
+        RunDirectory.create(
+            workspace / "home",
+            "run_previous",
+            {
+                "run_id": "run_previous",
+                "task_id": task.id,
+                "mode": "session",
+                "driver": "codex",
+                "status": "finished",
+                "codex_status": "completed",
+                "session_id": "thread-previous",
+                "started_at": "2026-08-22T20:00:00+00:00",
+            },
+        )
+        starts: list[str | None] = []
+
+        class FakeAppServer:
+            def __init__(self, **_kwargs) -> None:
+                pass
+
+            def preflight_required_mcp(self):
+                return type("Preflight", (), {"server_name": "agentjobs", "status": "ready"})()
+
+            def start(self, _prompt, *, resume_thread_id=None):
+                starts.append(resume_thread_id)
+                raise CodexAppServerError(
+                    "thread has active writer", resume_failure=CodexResumeFailure.BUSY
+                )
+
+            def terminate(self) -> None:
+                pass
+
+        monkeypatch.setattr("agentjobs.dispatch.runner.CodexAppServerProcess", FakeAppServer)
+
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+
+        assert starts == ["thread-previous"]
+        assert handle.session_id == "thread-previous"
+        assert handle.supervisor is None
+        assert runner.poll_session(handle) is SessionPhase.PARKED
+        meta = handle.directory.read_meta()
+        assert meta["status"] == "parked"
+        assert meta["codex_status"] == "resume_busy"
+        assert meta["resume_failure"] == "busy"
+        assert meta["thread_id"] == "thread-previous"
+        assert not terminal_entries(manager, task.id)
+
+    def test_missing_codex_resume_starts_an_audited_fresh_thread(
+        self, workspace: Path, manager: TaskManager, task, monkeypatch
+    ) -> None:
+        resolution = make_resolution(
+            ["codex", "app-server", "--model", "gpt-5.6-luna", "{prompt}"],
+            mode=RunnerMode.SESSION,
+            driver=RunnerDriver.CODEX,
+            posture=Posture.AUTO,
+        )
+        runner = build(workspace, manager, resolution)
+        RunDirectory.create(
+            workspace / "home",
+            "run_previous",
+            {
+                "run_id": "run_previous",
+                "task_id": task.id,
+                "mode": "session",
+                "driver": "codex",
+                "status": "finished",
+                "codex_status": "completed",
+                "session_id": "thread-previous",
+                "started_at": "2026-08-22T20:00:00+00:00",
+            },
+        )
+        starts: list[str | None] = []
+
+        class FakeAppServer:
+            pid = 1239
+
+            def __init__(self, **_kwargs) -> None:
+                pass
+
+            def preflight_required_mcp(self):
+                return type("Preflight", (), {"server_name": "agentjobs", "status": "ready"})()
+
+            def start(self, _prompt, *, resume_thread_id=None):
+                starts.append(resume_thread_id)
+                if resume_thread_id:
+                    raise CodexAppServerError(
+                        "thread is missing", resume_failure=CodexResumeFailure.MISSING
+                    )
+                return CodexSessionStarted("thread-fresh", "session-fresh", "turn-fresh", self.pid)
+
+            def supervise(self, *, turn_id, on_message=None, timeout=None):
+                return {"turn": {"id": turn_id, "status": "completed"}}
+
+            def terminate(self) -> None:
+                pass
+
+        monkeypatch.setattr("agentjobs.dispatch.runner.CodexAppServerProcess", FakeAppServer)
+
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        assert handle.supervisor is not None
+        handle.supervisor.join(timeout=5)
+
+        assert starts == ["thread-previous", None]
+        meta = handle.directory.read_meta()
+        assert meta["resume_replacement"] is True
+        assert meta["resume_failure"] == "missing"
+        assert meta["replaced_thread_id"] == "thread-previous"
+        assert meta["fresh_thread_id"] == "thread-fresh"
+        stored = manager.get_task(task.id)
+        assert stored is not None
+        dispatch = next(entry for entry in stored.log if entry.type is LogEntryType.DISPATCH)
+        body = dispatch.body or ""
+        assert "thread-previous" in body
+        assert "thread-fresh" in body
+
+    def test_generic_codex_resume_error_never_starts_a_fresh_thread(
+        self, workspace: Path, manager: TaskManager, task, monkeypatch
+    ) -> None:
+        resolution = make_resolution(
+            ["codex", "app-server", "--model", "gpt-5.6-luna", "{prompt}"],
+            mode=RunnerMode.SESSION,
+            driver=RunnerDriver.CODEX,
+            posture=Posture.AUTO,
+        )
+        runner = build(workspace, manager, resolution)
+        RunDirectory.create(
+            workspace / "home",
+            "run_previous",
+            {
+                "run_id": "run_previous",
+                "task_id": task.id,
+                "mode": "session",
+                "driver": "codex",
+                "status": "finished",
+                "codex_status": "completed",
+                "session_id": "thread-previous",
+                "started_at": "2026-08-22T20:00:00+00:00",
+            },
+        )
+        starts: list[str | None] = []
+
+        class FakeAppServer:
+            def __init__(self, **_kwargs) -> None:
+                pass
+
+            def preflight_required_mcp(self):
+                return type("Preflight", (), {"server_name": "agentjobs", "status": "ready"})()
+
+            def start(self, _prompt, *, resume_thread_id=None):
+                starts.append(resume_thread_id)
+                raise CodexAppServerError(
+                    "unexpected resume failure", resume_failure=CodexResumeFailure.GENERIC
+                )
+
+            def terminate(self) -> None:
+                pass
+
+        monkeypatch.setattr("agentjobs.dispatch.runner.CodexAppServerProcess", FakeAppServer)
+
+        with pytest.raises(DispatchRunError, match="Could not start a Codex App Server session"):
+            runner.start(task, actor="Jeff Posey", caused_by=1)
+
+        assert starts == ["thread-previous"]
+        failed = next(
+            path for path in (workspace / "home" / "runs").iterdir() if path.name != "run_previous"
+        )
+        meta = yaml.safe_load((failed / "meta.yaml").read_text(encoding="utf-8"))
+        assert meta["status"] == "failed"
+        assert meta["codex_lifecycle"] == "terminal_failure"
 
 
 class TestPromptStub:

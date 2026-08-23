@@ -13,6 +13,7 @@ from agentjobs.dispatch.codex_app_server import (
     CodexAppServerProcess,
     CodexAppServerError,
     CodexMcpPreflight,
+    CodexResumeFailure,
     CodexSessionSettings,
     parse_session_settings,
 )
@@ -433,3 +434,52 @@ def test_app_server_resumes_a_persisted_thread_before_injecting_follow_up(monkey
     ]
     assert messages[2]["params"]["threadId"] == "thread-existing"
     assert messages[3]["params"]["input"][0]["text"] == "AgentJobs wake prompt"
+
+
+def test_app_server_classifies_a_busy_resume_at_the_protocol_boundary(monkeypatch) -> None:
+    output = (
+        "\n".join(
+            [
+                json.dumps({"id": 1, "result": {}}),
+                json.dumps(
+                    {
+                        "id": 2,
+                        "error": {"code": "thread_busy", "message": "active writer"},
+                    }
+                ),
+            ]
+        )
+        + "\n"
+    )
+
+    class FakeProcess:
+        pid = 1236
+
+        def __init__(self) -> None:
+            self.stdin = io.StringIO()
+            self.stdout = io.StringIO(output)
+            self.stderr = io.StringIO()
+
+        def poll(self):
+            return None
+
+        def terminate(self) -> None:
+            pass
+
+        def wait(self, timeout=None) -> None:
+            pass
+
+    monkeypatch.setattr(
+        "agentjobs.dispatch.codex_app_server.subprocess.Popen", lambda *a, **k: FakeProcess()
+    )
+    process = CodexAppServerProcess(
+        executable="codex",
+        cwd=Path("C:/project"),
+        env={},
+        settings=CodexSessionSettings("gpt-5.6-luna", "high", "never", "workspace-write"),
+    )
+
+    with pytest.raises(CodexAppServerError) as raised:
+        process.start("wake", resume_thread_id="thread-existing")
+
+    assert raised.value.resume_failure is CodexResumeFailure.BUSY

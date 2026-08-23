@@ -14,12 +14,28 @@ import os
 import subprocess
 import threading
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Sequence
 
 
+class CodexResumeFailure(str, Enum):
+    """The policy-relevant outcomes of an App Server ``thread/resume`` request."""
+
+    BUSY = "busy"
+    MISSING = "missing"
+    UNRECOVERABLE = "unrecoverable"
+    GENERIC = "generic"
+
+
 class CodexAppServerError(Exception):
     """The App Server could not initialize, start a thread, or start its turn."""
+
+    def __init__(
+        self, message: str, *, resume_failure: Optional[CodexResumeFailure] = None
+    ) -> None:
+        super().__init__(message)
+        self.resume_failure = resume_failure
 
 
 @dataclass(frozen=True)
@@ -52,13 +68,55 @@ class CodexMcpPreflight:
     status: str
 
 
+def _resume_failure(error: object) -> CodexResumeFailure:
+    """Classify a failed persisted-thread resume at the protocol boundary.
+
+    App Server versions have surfaced the reason in either structured ``data`` or the
+    human-readable message.  Keep that compatibility translation here, immediately
+    beside the JSON-RPC response; dispatch policy receives the typed result and never
+    tries to infer safety from an arbitrary exception string.
+    """
+    values: list[str] = []
+    if isinstance(error, dict):
+        for key in ("code", "message"):
+            value = error.get(key)
+            if isinstance(value, str):
+                values.append(value)
+        data = error.get("data")
+        if isinstance(data, dict):
+            for key in ("code", "reason", "status", "message"):
+                value = data.get(key)
+                if isinstance(value, str):
+                    values.append(value)
+    normalized = " ".join(values).casefold()
+    if any(marker in normalized for marker in ("active writer", "thread_busy", "writer_busy")):
+        return CodexResumeFailure.BUSY
+    if any(
+        marker in normalized
+        for marker in (
+            "thread_not_found",
+            "thread_missing",
+            "thread_deleted",
+            "not found",
+            "deleted",
+        )
+    ):
+        return CodexResumeFailure.MISSING
+    if any(marker in normalized for marker in ("thread_unrecoverable", "thread_corrupt")):
+        return CodexResumeFailure.UNRECOVERABLE
+    return CodexResumeFailure.GENERIC
+
+
 def _response_error(message: Dict[str, Any], method: str) -> CodexAppServerError:
     error = message.get("error")
     if isinstance(error, dict):
         detail = error.get("message") or repr(error)
     else:
         detail = repr(message)
-    return CodexAppServerError(f"Codex App Server {method} failed: {detail}")
+    return CodexAppServerError(
+        f"Codex App Server {method} failed: {detail}",
+        resume_failure=_resume_failure(error) if method == "thread/resume" else None,
+    )
 
 
 class CodexAppServerProcess:
