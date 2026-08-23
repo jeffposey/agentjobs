@@ -2,72 +2,17 @@ schema: 2
 id: task-216
 title: 'Playbooks 3: groom, authored and proven live'
 created: '2026-08-21T04:56:17.617014Z'
-updated: '2026-08-23T11:14:05.720000Z'
-lifecycle: active
-ball: human
-ball_reason: approval
-ball_prompt: '**The brief is merged and live; what is left is one decision of yours,
-  on task-290.**
-
-
-  `feat/task-216-groom-playbook` merged as `96580be` and 8876 is serving it -- `/api/version`
-  reports that exact commit and `GET /api/projects/agentjobs/playbooks` now lists
-  `groom`. That last part matters beyond bookkeeping: `playbook run` resolves the
-  playbooks directory under the shared clone, so until this merge there was no way
-  to run groom by its real command. There is now.
-
-
-  This task is deliberately still open. sc-1 is met. sc-2 and sc-3 are honestly `pending`,
-  because the live run stopped at its gate exactly as decision P7 says it must.
-
-
-  **What needs you, in one place: task-290.** Three proposed closures, nothing closed,
-  parked at `human`/`approval`:
-
-
-  - task-010 -- `superseded`; the fix shipped in `eee75fb`, verified live.
-
-  - task-100-dependency-cycle-deadlock -- `superseded`.
-
-  - task-183 -- `duplicate` of task-278.
-
-
-  Plus three questions raised rather than acted on, and eleven candidates the sweep
-  checked and declined with its reasons. Answer it with "all three", or name what
-  to strike. It is written to be decidable from the prompt alone, including on a phone.
-
-
-  **Then this task finishes itself in one step:** with the closures approved, the
-  execution half can run through the real `agentjobs playbook run groom` -- now possible,
-  per above -- or through the managed close verb directly, and sc-2 and sc-3 become
-  met. Whoever does that closes this task.
-
-
-  **Two things in the merged brief worth your eye, both flagged by the author rather
-  than found in review.** A task whose ball is `human` is *in* scope for a sweep;
-  excluding it dropped 34 of 119 tasks, the whole untriaged audit pile, which is where
-  duplicates collect. And groom''s gate hands off at `human`/`approval` rather than
-  the `human`/`review` that section 5.1''s prose names -- a deviation from the design''s
-  literal wording, argued in the brief itself rather than only on this record. If
-  you disagree with either, the brief is a file on main and changing it is a small
-  commit.
-
-
-  Merged by the supervisor rather than the scripted finish, because the finish closes
-  a task unconditionally on success and this one must not be closed yet. The full
-  sequence was run regardless: rebase onto main, full gate green (10 of 10, 183.5s,
-  receipt for `ce2d1fa0`), `--no-ff` merge, restart, and verification that the running
-  process serves the merge.'
+updated: '2026-08-23T18:00:13.291532Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 124
 category: meta
 tags:
 - playbooks
 - grooming
 - backlog
 assignment:
-  owner: claude
   eligible: []
 parent: task-211
 spec:
@@ -113,16 +58,32 @@ acceptance:
   text: playbooks/groom.md exists in this project, passes validation, and encodes
     the propose-then-approve gate, the duplicate|superseded-only executable set, and
     the never-delete/rewrite/reorder rules.
+  verify: 'On main since merge 96580be. The live server at 8876 serves it: GET /api/projects/agentjobs/playbooks
+    lists groom with target=project, difficulty=hard, verbs=[log, handoff, close]
+    and one gate before close requiring the full closure list. Two tests in the suite
+    validate this repository''s own playbooks/ directory.'
   status: met
 - id: sc-2
   text: 'One live run completed the full cycle: proposal recorded on the run task
     before anything closed, Jeff''s approval recorded, executed closes exactly match
     the approved list.'
-  status: pending
+  verify: 'task-290, closed completed. Proposal is its log entry 3 at 2026-08-23T10:56:15Z;
+    the first close is at 17:30:15Z, six and a half hours later. Approval is entry
+    5, Jeff Posey through the web UI at 17:27:39Z: "All three". Executed set equals
+    approved set, verified independently of task-290''s own claim: `git log --since
+    "2026-08-23 10:56" -p -- tasks/agentjobs/` adds `lifecycle: closed` to exactly
+    four files -- the three approved tasks and the run task itself. Nothing else closed.'
+  status: met
 - id: sc-3
   text: Every closure went through the managed close verb with outcome duplicate or
     superseded, referencing the run task; no task file was deleted or spec rewritten.
-  status: pending
+  verify: 'Commit 6ca49db. All three closes carry `kind: close` in their operation
+    data with outcomes superseded, superseded, duplicate, and each body names task-290
+    (task-183''s also names task-278 as the survivor). The diff deletes no file and
+    adds none; the only removed lines across the three records are lifecycle/ball/ball_reason/updated/queue_position,
+    plus task-290''s own ball_prompt, owner and three pending acceptance statuses.
+    No spec, summary, description or priority line changed anywhere.'
+  status: met
 deliverables: []
 dependencies:
 - task: task-215
@@ -131,7 +92,8 @@ dependencies:
 links:
 - url: http://127.0.0.1:8876/app/tasks/task-290
   rel: other
-  title: 'The groom run this task instantiated: proposal recorded, parked at human/approval'
+  title: 'The groom run this task instantiated: proposed 3, approved 3, executed 3,
+    closed completed'
 branches:
 - name: feat/task-216-groom-playbook
   status: merged
@@ -511,3 +473,141 @@ log:
       id: 9abf3778-e217-441b-906d-27ede89daf6d
       kind: handoff
       fingerprint: 18e770a24f92453acf0062f44cc7f06e
+- id: 12
+  ts: '2026-08-23T17:57:48.070773Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    I approved 290 and it has finished.'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 13
+  ts: '2026-08-23T17:57:51.267286Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 14
+  ts: '2026-08-23T17:57:54.312008Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_6fb4f84d
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    trigger: manual
+    caused_by: 13
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - 'You are the agent `claude` working task `task-216` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-216-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_6fb4f84d.'
+    cwd: C:\projects\agentjobs
+    git_head: b346721
+    session_id: bba262ac
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 15
+  ts: '2026-08-23T17:59:46.980062Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, links.
+  data:
+    fields:
+    - acceptance
+    - links
+    operation:
+      id: c41f8a20-9d55-4e33-8b71-216000000101
+      kind: update_content
+      fingerprint: 1e79f47e50e3fce8dd8fc22be5379602
+- id: 16
+  ts: '2026-08-23T18:00:13.291112Z'
+  actor: claude
+  type: transition
+  body: "**All three criteria met. The groom playbook is authored, merged, and proven\
+    \ end to end on this backlog.**\n\n## What the ball_prompt asked for, and what\
+    \ was actually needed\n\nThe approval prompt was the standard cleared-to-merge\
+    \ text, including the line \"No merge has happened yet\". **That line is wrong\
+    \ for this task, and it was checked rather than believed.** The merge happened\
+    \ at 11:12 today, before Jeff's approval, by the deliberate decision in log entry\
+    \ 10: the brief had to be on `main` before `playbook run groom` could resolve\
+    \ it at all, so the supervisor merged and then handed off with the task still\
+    \ open on the execution half. `branches[]` has said `merged` since then.\n\nVerified\
+    \ rather than taken from the record:\n\n- `git log main..feat/task-216-groom-playbook`\
+    \ is empty \u2014 the branch is fully in `main`.\n- `git show main:playbooks/groom.md`\
+    \ returns the brief.\n- `/api/version` on 8876 reports `source_commit: 96580be8ed32180be5bd4745248c09a6f25629e2`,\
+    \ the merge commit itself.\n- `GET /api/projects/agentjobs/playbooks` lists `groom`\
+    \ live, with its close gate.\n\nSo nothing was rebased, merged or pushed in this\
+    \ run. The merged local branch `feat/task-216-groom-playbook` (was `ce2d1fa`)\
+    \ was deleted, which lifecycle step 6 asks for and the earlier session left behind;\
+    \ its worktree was already gone.\n\n## What actually closed the task: the execution\
+    \ half, run under task-290\n\nJeff approved the proposal on task-290 at 17:27:39Z\
+    \ with \"All three\", and run `run_6cefe2ee` executed it. task-290 is `closed`/`completed`\
+    \ with its own three criteria met. This session verified that independently of\
+    \ task-290's own account, because a run task asserting its own compliance is not\
+    \ evidence:\n\n- **The three closures landed with the approved outcomes.** task-010\
+    \ `superseded`, task-100-dependency-cycle-deadlock `superseded`, task-183-cli-batch-run-always-interrupted\
+    \ `duplicate`.\n- **Nothing else closed.** `git log --since \"2026-08-23 10:56\"\
+    \ -p -- tasks/agentjobs/` adds a `lifecycle: closed` line to exactly four files:\
+    \ those three and task-290. The executed set equals the approved set, with no\
+    \ residue on either side.\n- **Every close went through the managed verb.** All\
+    \ three carry `kind: close` in their operation data, and every close body names\
+    \ task-290; task-183's also names task-278 as the survivor.\n- **Nothing was deleted\
+    \ or rewritten.** Commit `6ca49db` adds no file and deletes none. The only lines\
+    \ removed across the three records are `lifecycle`/`ball`/`ball_reason`/`updated`/`queue_position`\
+    \ \u2014 the last being the close verb taking a closed task out of the queue,\
+    \ not a move \u2014 plus task-290's own `ball_prompt`, `owner`, and its three\
+    \ `pending` acceptance statuses. No `spec`, `summary`, `description` or `priority`\
+    \ line changed anywhere.\n- **The ordering the whole gate rests on holds.** Proposal\
+    \ at 10:56:15Z; first close at 17:30:15Z. Six and a half hours, with the approval\
+    \ between them.\n\n## Why this task was worth running rather than just writing\n\
+    \nThe two brief-changing decisions in log entry 8 were found by running it against\
+    \ 119 real tasks, not by reading the design: that a `human`-held task is *in*\
+    \ scope (excluding them dropped 34 of 119, the whole untriaged audit pile where\
+    \ duplicates collect), and that the gate belongs at `human`/`approval` rather\
+    \ than the `human`/`review` the design's prose names. Both are now in the merged\
+    \ brief with their grounds stated in place.\n\n## What is deliberately left open\
+    \ elsewhere\n\nThree questions the sweep raised and did not act on survive as\
+    \ their own threads on task-290 (entries 8\u201310), unanswered: the task-196/task-261\
+    \ overlap, the task-269 finding whose premise changed when `finish.enabled` went\
+    \ on, and how task-137 and task-167 divide the embed problem. Each needs a decision\
+    \ that is Jeff's, and none of them belongs to this task. Two pieces of residue\
+    \ are recorded inside the close bodies rather than filed as tasks \u2014 task-100's\
+    \ missing three-task-cycle test, and task-183's missing test for `serve` termination\
+    \ killing its own batch runs \u2014 because filing is outside groom's executable\
+    \ set and the approval did not ask for it.\n\nNo gate run in this session: no\
+    \ code, docs or config changed. The only writes were this task's own record, which\
+    \ goes straight to `main` by the rule in ENGINEERING.md.\n"
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: c41f8a20-9d55-4e33-8b71-216000000102
+      kind: close
+      fingerprint: d4940b20dd93b4fb5601f11a672e55c7
