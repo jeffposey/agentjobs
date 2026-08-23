@@ -2,7 +2,7 @@ schema: 2
 id: task-290
 title: Groom the agentjobs backlog
 created: '2026-08-23T10:42:27.100467Z'
-updated: '2026-08-23T17:32:07.329557Z'
+updated: '2026-08-23T17:37:19.505128Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -391,3 +391,13 @@ log:
       id: 7f2a4c10-9d31-4e58-b6a2-290000000108
       kind: close
       fingerprint: 0e45843580b93ae0f5e939bbab3bbcf4
+- id: 13
+  ts: '2026-08-23T17:37:19.504997Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 7
+  data:
+    run_id: run_6cefe2ee
+    outcome: completed
+    duration_seconds: 572.70725
+    log_path: C:\Users\jpose\.agentjobs\runs\run_6cefe2ee
