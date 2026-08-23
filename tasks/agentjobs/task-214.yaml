@@ -2,7 +2,7 @@ schema: 2
 id: task-214
 title: 'Playbooks 1: storage, frontmatter format, and read surfaces'
 created: '2026-08-21T04:55:30.551589Z'
-updated: '2026-08-23T08:19:14.447516Z'
+updated: '2026-08-23T08:22:10.446082Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -370,3 +370,19 @@ log:
     finish_step: started
     branch: feat/task-214-playbook-storage
     finish_id: fin_d2481ca3
+- id: 12
+  ts: '2026-08-23T08:22:10.445953Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-214-playbook-storage` into `main` as `b9a8c9e5`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\aj-214
+    before the merge. Approved by Jeff Posey; no agent was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: b9a8c9e5e9934a7fc29ecc1188762e606f36ba7b
+    branch: feat/task-214-playbook-storage
+    base: main
