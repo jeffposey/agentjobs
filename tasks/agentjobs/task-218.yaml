@@ -2,16 +2,54 @@ schema: 2
 id: task-218
 title: 'Playbooks 5: flesh-out, authored and proven'
 created: '2026-08-21T04:56:57.789106Z'
-updated: '2026-08-23T19:11:55.908478Z'
+updated: '2026-08-23T19:27:36.620738Z'
 lifecycle: active
-ball: agent
-ball_reason: revise
-ball_prompt: Test the flesh out playbook on new task draft "Keep top bar visible while
-  scrolling". Make sure flesh out playbook looks for duplicates first, and then adds
-  additional details to existing task instead, and removes draft. If no duplicate,
-  flesh out that draft and make it ready. Send ball back to human for approval of
-  this fleshed out task I created for this test, and then on approval of that, finish
-  and merge this task 218
+ball: human
+ball_reason: review
+ball_prompt: "**Two things are waiting on you, in the order you set. task-292 first;\
+  \ this one only after that.**\n\n**1. Go and read task-292.** It is parked at `human`/`review`\
+  \ with the fleshed-out spec on it. That is the deliverable you asked for and it\
+  \ is the honest test of whether the brief works \u2014 if the spec is wrong, the\
+  \ brief is wrong, and I would rather fix it before this merges than after.\n\nThe\
+  \ run found **no duplicate**, and the reason is worth thirty seconds: task-237 (`Shell\
+  \ 2`) puts *\"Any change to the header nav, or a global navigation rail\"* in its\
+  \ own `out_of_scope`, and says *\"the header nav is untouched\"* in its constraints.\
+  \ So your task is the work the Shell epic deliberately left out. task-239's *\"\
+  header that stays\"* turned out to be the detail panel's header \u2014 the same\
+  \ sentence about a different element.\n\n**What I would most like you to push back\
+  \ on**, and it is the same thing I told task-292: you filed a one-line CSS fix and\
+  \ I wrote a task that asks somebody to take a design decision first. The header\
+  \ wraps to two or three rows on a phone, so pinning it as it stands spends a third\
+  \ of your phone screen on navigation permanently. I named four alternatives and\
+  \ picked none. If you would rather it were just pinned and done, say so and ac-3\
+  \ comes out.\n\n**2. Then this task, branch `feat/task-218-flesh-out-duplicates`,\
+  \ two commits.** Full gate green, 10 of 10, no arguments, clean tree \u2014 receipt\
+  \ for `b0e3f54a`, 198.2s. Nothing merged, nothing pushed.\n\n- `playbooks/flesh-out.md`\
+  \ (and the shipped reference, byte-identical): the duplicate search is now \xA7\
+  1 and runs before any write, with four search passes and a stated test \u2014 *if\
+  \ the counterpart were done, would this have nothing left to do?* \xA72 is the fold:\
+  \ the detail goes onto the counterpart, the target closes `duplicate`, and the **counterpart**\
+  \ is what gets parked at review, because it is older and carries the history.\n\
+  - **The one place I would expect an argument from you:** that close is not gated,\
+  \ which departs from groom. I argued it rather than just doing it \u2014 groom's\
+  \ closes are gated because a wrong one is *silent*, and this one cannot be, because\
+  \ the survivor is parked in front of you in the same run with the close named first\
+  \ in its prompt. If you would rather it stopped and asked, that is a one-line frontmatter\
+  \ change.\n- `docs/playbooks-design.md` \xA75.3 revised and attributed to your review,\
+  \ the way \xA75.4 marks the one you gave on 2026-08-21.\n\n**One correction in that\
+  \ doc that is not your revision and you should know about.** \xA75.3 claimed the\
+  \ parked ball *\"keeps it unclaimable and undispatchable until a human releases\
+  \ it\"*. It does not. `_skip_reason` decides claimability on lifecycle and never\
+  \ reads the ball; dispatch refuses only `agent/hold`. Measured against the real\
+  \ manager, not inferred. **The safety was coming from the `draft` lifecycle, and\
+  \ promoting removes it** \u2014 so task-292 is dispatchable right now while it sits\
+  \ at your review. I have written that down in three places rather than quietly leaving\
+  \ it, and raised the fix as a question: leave it, make the queue skip a human-held\
+  \ ball, or refuse it at dispatch only. Queue-program work, not this branch's.\n\n\
+  **Also different from what the note above me predicted:** I parked task-292 at `human`/`review`,\
+  \ not `human`/`approval`. `approval` authorises writes that have not happened; the\
+  \ spec is written and sitting under the prompt. One word if you disagree.\n\nsc-1,\
+  \ sc-2 and sc-3 all met. Approve and the scripted finish takes it from there."
 archived: false
 priority: medium
 queue_position: 6800
@@ -60,7 +98,12 @@ acceptance:
 - id: sc-2
   text: 'One live run against a thin task: full spec written via update_content, target
     parked at human/review, no other field or state moved.'
-  status: pending
+  status: met
+- id: sc-3
+  text: The brief searches for a duplicate before it writes anything, and where it
+    finds one it folds the draft's detail onto the counterpart and closes the draft
+    `duplicate` rather than specifying it twice.
+  status: met
 deliverables: []
 dependencies:
 - task: task-215
@@ -71,6 +114,8 @@ branches:
 - name: feat/task-218-flesh-out-playbook
   status: merged
   merged_at: '2026-08-23T19:07:00Z'
+- name: feat/task-218-flesh-out-duplicates
+  status: active
 log:
 - id: 1
   ts: '2026-08-21T04:56:57.789152Z'
@@ -634,3 +679,202 @@ log:
       id: af9d8475-92dc-40b6-9f35-284bfe85b61c
       kind: log_append
       fingerprint: 5856086dfb4e1a502d1f2268c04eac8e
+- id: 17
+  ts: '2026-08-23T19:23:47.493706Z'
+  actor: claude
+  type: question
+  body: "**Question: the park is not a lock. A task promoted and parked at `human`/`review`\
+    \ is still handed out by `agentjobs next` and is still dispatchable. Should the\
+    \ queue read the ball?**\n\nYou asked flesh-out to promote the draft it specifies.\
+    \ It now does, and this is the cost, measured rather than reasoned about.\n\n\
+    `_skip_reason` (`src/agentjobs/manager.py:555`) decides claimability on `lifecycle`,\
+    \ open children, unmet needs, eligibility and band. It never reads `ball`. `assert_dispatch_permitted`'s\
+    \ task-level checks refuse a closed task and a task at `agent`/`hold`, and nothing\
+    \ else about the ball. So:\n\n    lifecycle: ready | ball: human / review\n  \
+    \  agentjobs next returns: task-001 | A fleshed-out draft\n\nThat is the real\
+    \ `TaskManager` against a temporary registry \u2014 create a draft, `promote`,\
+    \ `handoff` to `human`/`review`, ask the queue. It hands it straight back.\n\n\
+    **Which means the review gate on a flesh-out is a signal to a person, not a barrier\
+    \ to a machine.** Before your instruction, flesh-out never promoted, so a fleshed-out\
+    \ draft stayed `draft` and was unclaimable by construction \u2014 the gate was\
+    \ mechanical. Now it is social: the only thing standing between an unreviewed\
+    \ spec and a session working it is that you get to it first. task-292 is in that\
+    \ state right now.\n\nThree ways to answer, and none of them is mine to pick:\n\
+    \n1. **Leave it.** A task parked at `human` is visible as such in the app, and\
+    \ in practice nobody runs `agentjobs next` blind. Cheapest, and it accepts that\
+    \ \"parked\" means \"please do not\", not \"cannot\".\n2. **Make `_skip_reason`\
+    \ skip a task whose ball is `human` or `external`.** One line, and arguably what\
+    \ the four-axis schema always meant \u2014 `ball` names who acts next, so a task\
+    \ whose next actor is a person is not the agent's to claim. It would change today's\
+    \ backlog, though: any `ready` task sitting at `human` would leave the queue,\
+    \ and I have not counted those.\n3. **Refuse it at dispatch only**, leaving `next`\
+    \ alone. Narrower: a human clicking Dispatch on a task parked for their own review\
+    \ is the case worth stopping, and `TaskOnHoldError` is the pattern to copy.\n\n\
+    I have not built any of it. It is queue-program work, it is not in this task's\
+    \ spec or acceptance, and (2) in particular changes what every project's queue\
+    \ returns \u2014 that is a decision with a blast radius, taken deliberately, not\
+    \ a fix folded into a playbooks branch. Worth its own task if the answer is anything\
+    \ but (1).\n"
+  data:
+    operation:
+      id: 5e0d7b92-4a16-4f83-9c27-6b8102d4e218
+      kind: log_append
+      fingerprint: c7b843347a4d2264b1fcbd5d44004b66
+- id: 18
+  ts: '2026-08-23T19:24:16.186265Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 8a3f6d21-77c9-4e05-b842-9d10c6ff1218
+      kind: update_content
+      fingerprint: 03a5d7af79a484f738ff4f0c975e23f1
+- id: 19
+  ts: '2026-08-23T19:27:12.028014Z'
+  actor: claude
+  type: progress
+  body: "**Jeff's revision is built and the live run happened. sc-2 is met \u2014\
+    \ the thing three blockers stood in front of last session took one merge and one\
+    \ draft from him.**\n\nBranch `feat/task-218-flesh-out-duplicates`, two commits\
+    \ off `main` at `37d377d`. Nothing merged, nothing pushed. Worktree `C:/projects/worktrees/aj-218`,\
+    \ re-branched off `main` rather than reused \u2014 the old branch is merged and\
+    \ stays that way.\n\n## What changed in the brief\n\n**`playbooks/flesh-out.md`**,\
+    \ and the shipped reference kept byte-identical to it.\n\n- **The duplicate check\
+    \ is now \xA71 and happens before anything is written**, with a four-pass search\
+    \ (title nouns and synonyms \xB7 the artefact the work touches \xB7 closed records\
+    \ as well as open \xB7 the epic that owns the area) and a stated test: *if the\
+    \ counterpart were done, would this task have nothing left to do?* \"Same area\"\
+    \ is not \"same work\", and half a backlog is about the same area.\n- **The decisive\
+    \ field is the candidates' `out_of_scope`, read first.** A neighbour that explicitly\
+    \ excludes your target's work is not a duplicate and has proved it in writing.\
+    \ That rule came out of the live run rather than out of the design \u2014 it is\
+    \ what settled task-292 in about a minute.\n- **\xA72, the fold.** Write what\
+    \ the target added onto the counterpart in one `update_content`, close the target\
+    \ `outcome: duplicate` naming it, park the **counterpart** at review. The survivor\
+    \ is the older record because it carries the history and the inbound references.\
+    \ Two carve-outs where nothing is closed: the counterpart is `active` with an\
+    \ owner (never rewrite ground a session is standing on), or you are not sure (a\
+    \ close you would have to argue for is an overlap, so specify normally and name\
+    \ it in a question).\n- **`promote` and `close` join the declared verbs**, and\
+    \ the test that pins the contract now says which two and why they are not the\
+    \ same kind of move. `queue_move`, `claim` and `release` stay out \u2014 those\
+    \ are the moves that would put an unread spec into somebody else's hands.\n- **The\
+    \ close is deliberately ungated**, which departs from groom, and the brief argues\
+    \ the departure in place rather than leaving it as an inconsistency: groom's closes\
+    \ are gated because a wrong one is *silent*; this one is parked in front of a\
+    \ human in the same run with the close named first in the prompt. Take that requirement\
+    \ away and it becomes groom's kind, so it is written as a requirement.\n\n## The\
+    \ design document, and a factual correction in it\n\n`docs/playbooks-design.md`\
+    \ \xA75.3 now carries the revision, marked and attributed the way \xA75.4 marks\
+    \ yours from 2026-08-21. It also carries a correction that is not yours and is\
+    \ worth reading on its own: the section claimed the parked ball *\"keeps it unclaimable\
+    \ and undispatchable until a human releases it\"*. **It does not, and never did.**\
+    \ Details and the measurement are in the question entry above. The old safety\
+    \ came from the `draft` lifecycle, not from the park; promoting removes it. That\
+    \ is now stated in the design, in the brief's \xA78, and in task-292's own handoff\
+    \ prompt, rather than left for somebody to trip over.\n\n## The live run\n\nTarget:\
+    \ **task-292, \"Keep top bar visible while scrolling\"** \u2014 51-character description\
+    \ reading \"Keep top bar visible while scrolling. Flesh this out.\", filed by\
+    \ Jeff at 19:05. The first genuinely thin record this backlog has had.\n\n**No\
+    \ duplicate.** Three near misses, all written up on task-292's own record. The\
+    \ closest, task-237 (`Shell 2`), settles it in its own words \u2014 `out_of_scope`:\
+    \ *\"Any change to the header nav, or a global navigation rail\"*; constraints:\
+    \ *\"the header nav is untouched\"* and *\"Below the breakpoint the rendered output\
+    \ is what it is today.\"* So task-292 is the work the Shell epic deliberately\
+    \ left out, not a second copy of it. task-239's *\"header that stays\"* is the\
+    \ detail panel's header, a different DOM node wearing the same sentence.\n\nWhat\
+    \ landed on task-292, in this order: one `update_content` carrying summary, intent,\
+    \ a four-part description, seven constraints each citing its source, six out-of-scope\
+    \ items, five context entries, and five acceptance criteria \xB7 one `progress`\
+    \ entry recording the search \xB7 one `question` (iOS safe-area in the installed\
+    \ PWA, left out of scope) \xB7 `promote` \xB7 `handoff` to `human`/`review`. Nothing\
+    \ else moved: no title, no tags, no category, no priority, no queue position,\
+    \ no dependency edge. The overlap with task-237 is a paragraph in the description\
+    \ rather than a `needs` edge, because an edge would make it unclaimable for no\
+    \ true reason.\n\n**The spec names an open decision rather than taking it**, which\
+    \ is the brief's \xA75 working. The header wraps to two or three rows on a phone\
+    \ \u2014 seven items, each a 44px touch target \u2014 so pinning it as it stands\
+    \ spends a third of a small screen permanently on navigation. Four alternatives\
+    \ are named, none chosen, and ac-3 requires whoever implements it to record the\
+    \ call with its rejected alternative.\n\n## Verification\n\n**Full gate green,\
+    \ 10 of 10, no arguments, clean tree: receipt written for `b0e3f54a`, 198.2s.**\
+    \ Run with this worktree's own interpreter. pytest 3047 passed; the `test_the_timeout_kills_the_grandchild_too`\
+    \ flake from last session did not reproduce on this run.\n\nThe doc commit landed\
+    \ while the gate was running. That is not a hole: the working tree held exactly\
+    \ `b0e3f54`'s content through every stage, the receipt is for `b0e3f54a`, and\
+    \ no stage reads a markdown file under `docs/`.\n\n## Criteria\n\n- **sc-1 \u2014\
+    \ met**, unchanged.\n- **sc-2 \u2014 met.** Full spec written through one `update_content`,\
+    \ target parked at `human`/`review`, nothing else moved. One departure from the\
+    \ criterion's letter, which was your instruction: the target was also promoted\
+    \ out of `draft`.\n- **sc-3 \u2014 added and met.** The duplicate-first rule,\
+    \ the fold, and the `duplicate` close.\n\n**One thing done differently from log\
+    \ entry 16's reading of your ask.** That note said to hand task-292 back at `human`/`approval`;\
+    \ I used `human`/`review`. The vocabularies differ on a real axis \u2014 `approval`\
+    \ authorises writes that have not happened, `review` asks somebody to read something\
+    \ already written \u2014 and task-292's spec is written and sitting under the\
+    \ prompt. It is one word if you disagree.\n"
+  data:
+    operation:
+      id: c1b7e409-2d56-4a88-93f4-7e60f2a1c218
+      kind: log_append
+      fingerprint: 90b05bfaa9cdd612caf5b1c0c47e65dc
+- id: 20
+  ts: '2026-08-23T19:27:36.620433Z'
+  actor: claude
+  type: handoff
+  body: "**Two things are waiting on you, in the order you set. task-292 first; this\
+    \ one only after that.**\n\n**1. Go and read task-292.** It is parked at `human`/`review`\
+    \ with the fleshed-out spec on it. That is the deliverable you asked for and it\
+    \ is the honest test of whether the brief works \u2014 if the spec is wrong, the\
+    \ brief is wrong, and I would rather fix it before this merges than after.\n\n\
+    The run found **no duplicate**, and the reason is worth thirty seconds: task-237\
+    \ (`Shell 2`) puts *\"Any change to the header nav, or a global navigation rail\"\
+    * in its own `out_of_scope`, and says *\"the header nav is untouched\"* in its\
+    \ constraints. So your task is the work the Shell epic deliberately left out.\
+    \ task-239's *\"header that stays\"* turned out to be the detail panel's header\
+    \ \u2014 the same sentence about a different element.\n\n**What I would most like\
+    \ you to push back on**, and it is the same thing I told task-292: you filed a\
+    \ one-line CSS fix and I wrote a task that asks somebody to take a design decision\
+    \ first. The header wraps to two or three rows on a phone, so pinning it as it\
+    \ stands spends a third of your phone screen on navigation permanently. I named\
+    \ four alternatives and picked none. If you would rather it were just pinned and\
+    \ done, say so and ac-3 comes out.\n\n**2. Then this task, branch `feat/task-218-flesh-out-duplicates`,\
+    \ two commits.** Full gate green, 10 of 10, no arguments, clean tree \u2014 receipt\
+    \ for `b0e3f54a`, 198.2s. Nothing merged, nothing pushed.\n\n- `playbooks/flesh-out.md`\
+    \ (and the shipped reference, byte-identical): the duplicate search is now \xA7\
+    1 and runs before any write, with four search passes and a stated test \u2014\
+    \ *if the counterpart were done, would this have nothing left to do?* \xA72 is\
+    \ the fold: the detail goes onto the counterpart, the target closes `duplicate`,\
+    \ and the **counterpart** is what gets parked at review, because it is older and\
+    \ carries the history.\n- **The one place I would expect an argument from you:**\
+    \ that close is not gated, which departs from groom. I argued it rather than just\
+    \ doing it \u2014 groom's closes are gated because a wrong one is *silent*, and\
+    \ this one cannot be, because the survivor is parked in front of you in the same\
+    \ run with the close named first in its prompt. If you would rather it stopped\
+    \ and asked, that is a one-line frontmatter change.\n- `docs/playbooks-design.md`\
+    \ \xA75.3 revised and attributed to your review, the way \xA75.4 marks the one\
+    \ you gave on 2026-08-21.\n\n**One correction in that doc that is not your revision\
+    \ and you should know about.** \xA75.3 claimed the parked ball *\"keeps it unclaimable\
+    \ and undispatchable until a human releases it\"*. It does not. `_skip_reason`\
+    \ decides claimability on lifecycle and never reads the ball; dispatch refuses\
+    \ only `agent/hold`. Measured against the real manager, not inferred. **The safety\
+    \ was coming from the `draft` lifecycle, and promoting removes it** \u2014 so\
+    \ task-292 is dispatchable right now while it sits at your review. I have written\
+    \ that down in three places rather than quietly leaving it, and raised the fix\
+    \ as a question: leave it, make the queue skip a human-held ball, or refuse it\
+    \ at dispatch only. Queue-program work, not this branch's.\n\n**Also different\
+    \ from what the note above me predicted:** I parked task-292 at `human`/`review`,\
+    \ not `human`/`approval`. `approval` authorises writes that have not happened;\
+    \ the spec is written and sitting under the prompt. One word if you disagree.\n\
+    \nsc-1, sc-2 and sc-3 all met. Approve and the scripted finish takes it from there."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 3b62f8d7-40e1-4c95-a7d9-51c8790de218
+      kind: handoff
+      fingerprint: cf9ff65a756138c9e6c02b2d1155f415
