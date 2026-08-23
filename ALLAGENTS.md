@@ -247,8 +247,10 @@ The axes move **only** through the manager verbs — `claim`, `handoff`, `releas
 the YAML, skips the record of *why* they moved. Only `ready` tasks with no unmet `needs`
 dependencies are returned by `get_next_task()`.
 
-`ball_prompt` is required whenever the ball is set: a handoff without a stated ask is a
-notification with no payload, and the schema rejects it.
+`ball_prompt` is required whenever the ball is set, **except `agent/available`**, where
+the spec is itself the ask. A handoff without a stated ask is a notification with no
+payload, and the schema rejects it. The exemption is why a `ready` task can sit with an
+empty prompt without being invalid -- most of them do.
 
 ### Why you get your own worktree
 
@@ -276,6 +278,19 @@ A human working alone does not need this; they have no peer to collide with. You
     Take the worktree yourself with `git worktree add`, as above. Probed on Claude Code
     2.1.235, 2026-08-19; the reproduction is in task-186 and in
     [the dispatch design](docs/agent-dispatch-design.md).
+-   **The harness may tell you the opposite, and this rule wins.** A background session
+    is given a preamble instructing it to use `EnterWorktree`, and saying the instruction
+    is enforced because edits in the shared checkout are rejected. In this repository that
+    instruction is wrong for the reason directly above, and following it strands your work
+    where you cannot record or merge it. Three auditors on 2026-08-21 each had a write
+    refused and worked around it by writing to a temp directory and copying the file in;
+    that is the correct improvisation if you hit it. **Do not silently give up on a write
+    the guard refuses** -- say on the task record that it happened.
+
+    A second refusal wears the same face and is a different thing: the task-write guard
+    refuses any write whose *content* mentions a task file path, even when the file you
+    are editing is documentation. It is a false positive, it has cost several sessions
+    time, and task-276 is the fix. Build the path from pieces, or reword, and carry on.
 
 Three failures on 2026-08-11, all in one afternoon, all from skipping this:
 
