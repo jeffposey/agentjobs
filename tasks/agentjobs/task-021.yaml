@@ -3,7 +3,7 @@ id: task-021
 title: Posture should decide whether a run merges and pushes, not only what it may
   execute
 created: '2026-08-19T22:28:28.717331Z'
-updated: '2026-08-23T22:59:02.554809Z'
+updated: '2026-08-23T22:59:12.073178Z'
 lifecycle: active
 ball: human
 ball_reason: input
@@ -710,3 +710,17 @@ log:
     outcome: cancelled
     duration_seconds: 2841.77466
     log_path: C:\Users\jpose\.agentjobs\runs\run_131023d2
+- id: 15
+  ts: '2026-08-23T22:59:12.072973Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-021-posture-merge-policy` (8773249d).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-021.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_9b678e3f\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-021-posture-merge-policy
+    finish_id: fin_9b678e3f
