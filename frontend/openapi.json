@@ -4046,6 +4046,15 @@
       "VersionResponse": {
         "description": "What a client needs to decide whether it can talk to this service.\n\nTwo independent numbers. ``version`` is the installed AgentJobs distribution and\ngoverns the shape of the REST surface; ``schema_version`` is the task-record\nschema and governs the shape of the documents that surface returns. A client can\nmatch one and not the other, so neither is derivable from the other.",
         "properties": {
+          "frontend_bundle": {
+            "description": "Whether this process can serve the React app at /app/. The bundle is gitignored and no install step builds it, so a clone that has never run `npm run build` answers every REST call correctly and 404s the one URL a new user is told to open. Reported here so `agentjobs open` can say so before opening a browser rather than after.",
+            "enum": [
+              "present",
+              "missing"
+            ],
+            "title": "Frontend Bundle",
+            "type": "string"
+          },
           "schema_version": {
             "description": "Task record schema version served.",
             "title": "Schema Version",
@@ -4089,7 +4098,8 @@
           "schema_version",
           "yaml_loader",
           "source_root",
-          "started_at"
+          "started_at",
+          "frontend_bundle"
         ],
         "title": "VersionResponse",
         "type": "object"

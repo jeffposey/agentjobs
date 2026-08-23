@@ -142,7 +142,11 @@ are refused by `serve`, `restart`, and `open` because they would expose the
 unauthenticated API on every interface.
 
 This fallback is HTTP, so treat it as browser access only: do not claim PWA
-installation, service-worker offline behavior, or transport privacy. Anyone allowed by
+installation, service-worker offline behavior, or transport privacy. **Parts of the UI
+also stop working**, not just the installability: `crypto.randomUUID` is only available
+in a secure context, and the React app calls it to mint the `operation_id` on a queue
+move, a reprioritize and an issue report. Over plain HTTP those actions throw. Read the
+task list, do not drive the queue from it. Anyone allowed by
 the network and firewall can act as the configured AgentJobs user until multi-user
 authentication is implemented.
 
@@ -158,7 +162,10 @@ For a physical-device release check:
 
 1. Install build A from the private HTTPS URL and leave it installed.
 2. Build and serve build B with an obvious shell-only text change.
-3. Relaunch or foreground the installed app while the host is reachable.
+3. **Fully close the installed app and launch it again** while the host is reachable.
+   Bringing a backgrounded app to the foreground is not a navigation, so it does not
+   check for a new worker — the phone can sit on build A indefinitely while looking
+   perfectly healthy. Pull-to-refresh inside the app is the other way to force it.
 4. Confirm build B appears without clearing site data.
 5. Stop AgentJobs, relaunch the app, and confirm it shows the unavailable screen with
    no task rows or counts.

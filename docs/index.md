@@ -35,7 +35,7 @@ Schema v2 is implemented in `src/agentjobs/models_v2.py`, declared in
 - [Task schema reference](task-schema.md)
 - [v2 entity diagram](schema/v2-erd.md)
 - [Generated v2 reference](schema/v2/index.md)
-- [Historical design rationale](schema-design.md)
+- [Historical design rationale](schema-design.md) — accurate about *why*, out of date about *what*
 
 Schema v1 is retired. Its [entity diagram](schema/v1-erd.md) and
 [generated reference](schema/v1/index.md) remain only for migration and repository
@@ -46,19 +46,71 @@ history; new records and integrations must use v2.
 - [Repository engineering guidance](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md)
 - [React frontend development](https://github.com/jeffposey/agentjobs/blob/main/frontend/README.md)
 - [Webhook integrations](webhooks.md)
-- [MCP integration design](mcp-integration-design.md) — the accepted design this
-  implementation follows; the reference pages above describe what shipped.
 - [Schema migration](migration-guide.md)
-- [Agent dispatch design](agent-dispatch-design.md) — accepted design record; clearly
-  labelled where implementation is still pending
-- [Codex dispatch rollout](codex-dispatch.md) — batch runners, MCP requirement, and the
-  safe Terra/Sol rollout sequence
-- [Queue position design](task-selection-design.md) — proposed design for the explicit
-  work order that decides what is next
+- [Performance](performance.md) — how to measure the API, the CLI and the browser, and
+  what a claim of "faster" has to state.
+- [Codex dispatch rollout](codex-dispatch.md) — batch runners, the MCP requirement, and
+  the rollout sequence.
 
-Everything under `docs/schema/v1/`, `docs/schema/v2/`, and `schema/generated/` is
-generated. Regenerate it from the repository root with:
+## Every document here, and what kind of thing it is
+
+A design record is not a manual, and a dated report is neither. Reading one as another
+is how this project has lost the most time, so the status word comes first.
+
+**Shipped** — describes behaviour you can rely on today.
+
+| Document | Covers |
+| --- | --- |
+| [Installation](installation.md) | Installing from a clone or a wheel |
+| [Quick start](quickstart.md) | Project init through the first handoff |
+| [Agent workflow](agent-workflow.md) | Resuming from a record; the state verbs; supervising children |
+| [API reference](api-reference.md) | Every REST operation, and the fact that none is authenticated |
+| [The MCP server](mcp.md) | The managed write path and what each layer prevents |
+| [Connecting a client](mcp-clients.md) | Per-client configuration and the protection each receives |
+| [Mobile and installed-app access](mobile-access.md) | HTTPS, the tailnet, and the PWA |
+| [Webhook integrations](webhooks.md) | The four events, signatures, payloads |
+| [Task schema reference](task-schema.md) | Every field, enum and consistency rule |
+| [Understand schema v2](schema/understanding.md) | The schema explained rather than tabulated |
+| [Schema migration](migration-guide.md) | v1 to v2, and the all-or-nothing rule |
+| [Performance](performance.md) | The measurement tools and their contract |
+| [Codex dispatch rollout](codex-dispatch.md) | The Codex runner setup |
+| [Queue position design](task-selection-design.md) | The explicit work order — **accepted 2026-08-20, implemented 2026-08-21** (task-081, 204–209) |
+| [Agent dispatch design](agent-dispatch-design.md) | Turning an approval into a running agent — **shipped**; its header lists what landed under which task, and the four things in it that were never built |
+
+**Design records — accepted, not yet built.** Read for reasoning, never as a manual.
+
+| Document | State |
+| --- | --- |
+| [Agent loops design](agent-loops-design.md) | No implementation. Derived tasks are open and unclaimed. |
+| [Playbooks design](playbooks-design.md) | No implementation. Approved and merged; children task-214–219 are `ready`. |
+| [MCP integration design](mcp-integration-design.md) | Implemented, and the record has drifted behind it by two tools and one error code. The reference pages above are what shipped. |
+
+**Historical.** True when written, kept for the reasoning, not maintained.
+
+| Document | Note |
+| --- | --- |
+| [Schema v2 design rationale](schema-design.md) | Predates `queue_position` and the storage locks; several present-tense claims are no longer true, and its banner says so. |
+| [Schema v1 entity diagram](schema/v1-erd.md) and [generated v1 reference](schema/v1/index.md) | v1 is retired. Migration and history only. |
+| [The agentjobs package integration note](integration/agentjobs-package.md) | An 11-line stub, superseded. |
+
+**Dated reports.** A measurement of one day, not a standing claim.
+
+| Document | Date |
+| --- | --- |
+| [Task corpus audit](task-corpus-audit.md) | 2026-08-13 |
+| [MCP release evidence](integration/mcp-release-evidence.md) | 2026-08-17. Its counts — "fourteen tools", "1089 tests" — were right that day and are not now. |
+
+**Generated.** Never hand-edit; regenerate.
+
+[v2 entity diagram](schema/v2-erd.md) · [generated v2 reference](schema/v2/index.md) ·
+[generated v1 reference](schema/v1/index.md) · everything under `docs/schema/v1/`,
+`docs/schema/v2/` and `schema/generated/`.
 
 ```bash
 bash scripts/regen-schema-docs.sh
 ```
+
+That script also validates the live task corpus against v2 and exits non-zero on
+failure, which makes it a useful check that no stage of `scripts/check.py` runs.
+`tests/test_schema_generated_is_current.py` covers the narrower question of whether the
+committed JSON Schema still matches its source.

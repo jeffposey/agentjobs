@@ -24,7 +24,7 @@ echo "== Entity diagrams (mermaid) =="
 poetry run gen-erdiagram "$V1" > "$OUT/agentjobs-v1.er.mmd"
 poetry run gen-erdiagram "$V2" > "$OUT/agentjobs-v2.er.mmd"
 
-echo "== Pydantic preview (v2 -- the input to task-050, not yet wired in) =="
+echo "== Pydantic preview (v2 -- a rendering of the schema; models_v2.py is the real one) =="
 poetry run gen-pydantic "$V2" > "$OUT/models_v2_preview.py"
 
 echo "== Reference docs =="

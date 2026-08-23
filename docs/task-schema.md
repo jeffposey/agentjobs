@@ -78,7 +78,7 @@ from a second reason value that could disagree with it.
 | `lifecycle`, `ball`, `ball_reason`, `ball_prompt`, `outcome`, `archived` | | The state axes, above. |
 | `priority` | enum | `low` · `medium` · `high` · `critical` |
 | `queue_position` | int | Order **within** the priority band; `>= 1`, and present if and only if the task is open — the same rule shape as `ball`. Unique among open tasks of one band in one project, which the model cannot check and `agentjobs validate` does. Assigned in sparse steps of 100 so an insertion takes a midpoint and rewrites one file rather than a band. It is order and nothing else: `high/900` beats `medium/100` because of the band, not the number. |
-| `category`, `tags` | str, list | Project taxonomy. Validated against config by the manager, not the model. |
+| `category`, `tags` | str, list | Project taxonomy. **Nothing validates these at write time** — not the model and not the manager. `agentjobs validate` reports a category outside the project's configured list, after the fact. |
 | `effort` | str | Free text. An estimate, not a contract. |
 | `assignment` | object | `owner` (live, one actor id) and `eligible` (authoring-time list; empty means anyone). |
 | `parent` | str | Task id of an umbrella task. It must exist; a task may not be its own parent, nor be parented into a cycle. A task with an **open** child is never offered by `/next`, but a caller that names it can claim it: what that hands over is the supervisor's seat, and the `ball_prompt` written on the claim says so — a session per child, not the children's work. See [the parent-task protocol](agent-workflow.md#working-a-parent-task-you-supervise-the-children-you-do-not-work-them). `GET /api/tasks?parent=<id>` lists one umbrella's children. |
@@ -106,6 +106,12 @@ unrepresentable:
    the spec is itself the ask.
 5. `assignment.owner` must be empty while `draft` or `ready`, and present while
    `active`.
+6. `queue_position` is present **if and only if** the task is open, and is `>= 1`. Its
+   uniqueness within a band is not checkable by the model — `agentjobs validate` and
+   `agentjobs queue check` do that — but its presence is.
+
+Six, and `models_v2.py` says "the six rules" where it validates them. The LinkML source
+encodes rules 1 to 4; rules 5 and 6 live only in the Pydantic model.
 
 Null and absent mean the same thing for `ball`, `ball_reason` and `outcome`; omission
 is what the manager writes, and an explicit `null` is accepted on load.
@@ -204,9 +210,15 @@ log:
 `acceptance` and `deliverables` keep separate vocabularies on purpose: a criterion is
 *verified* (`met`), a deliverable is *produced* (`done`).
 
-Only seven fields are required: `id`, `title`, `created`, `updated`, `category`,
-`spec.summary` and `spec.description`. `schema` defaults to `2`; `lifecycle` defaults to
-`draft`, which then requires a `ball` by rule 1.
+**Ten fields are required in practice, not seven.** Seven have no default and must be
+written: `id`, `title`, `created`, `updated`, `category`, `spec.summary` and
+`spec.description`. `schema` then defaults to `2` and `lifecycle` to `draft` — and a
+draft is open, so the rules below immediately require three more: `ball` (rule 1),
+`ball_reason` (rule 2) and `queue_position` (rule 6). A file carrying exactly the seven
+named above does not load.
+
+*(Corrected 2026-08-22. The sentence used to stop at "seven", which is true of the
+schema's `required:` list and false of anything you can put on disk.)*
 
 ## `log[]`
 
@@ -399,8 +411,15 @@ each of which appends its own `transition` or `handoff` log entry:
 | `move(id, actor=…, before=|after=|top=|bottom=, with_children=…)` | changes where it stands in its band |
 | `reprioritize(id, priority, actor=…, before=|after=|top=)` | changes band and place together |
 
-`update_task()` edits content fields (title, spec, acceptance, tags…) and deliberately
-cannot touch the axes.
+`update_task()` is for content fields (title, spec, acceptance, tags…). **The axes are
+kept out of it by the API's request model, not by the manager.**
+`TaskUpdateRequest` names the twelve fields a patch may carry and lifecycle, ball and
+outcome are not among them, so `PATCH /api/tasks/{task_id}` cannot move an axis. The
+manager's own `update_task()` applies whatever keys it is given, and is protected only
+by the consistency rules above rejecting an incoherent result. Calling it in-process
+with `lifecycle=` is therefore not refused the way the route is — task-254 is the open
+task to give the manager the same allowlist. Prefer the verbs regardless: they are what
+append the transition entry saying *why* the axis moved.
 
 **`queue_position` is not a content field either.** There is no `set_queue_position`,
 for the same reason there is no `set_lifecycle`: the number is a consequence of a

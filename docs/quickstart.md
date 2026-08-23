@@ -11,10 +11,16 @@ Until AgentJobs is published, run it from a clone:
 git clone https://github.com/jeffposey/agentjobs.git
 cd agentjobs
 poetry install
+npm --prefix frontend ci && npm --prefix frontend run build
 
 cd /path/to/your-project
 poetry -P /path/to/agentjobs run agentjobs init
 ```
+
+The `npm` line builds the React bundle, which is gitignored and which no `poetry
+install` produces. Skip it and step 2 has nothing to open. See
+[the installation guide](installation.md) for why, and for the release-wheel case that
+needs no Node at all.
 
 Initialization creates `.agentjobs/config.yaml`, the configured task directory, a
 project registration for the local server, and a `.mcp.json` declaring the AgentJobs
@@ -28,7 +34,9 @@ file contains and how to add it to a project registered earlier.
 poetry -P /path/to/agentjobs run agentjobs open
 ```
 
-The primary UI opens at `http://localhost:8765/app/`. The **Project** selector in the
+The primary UI opens at `http://localhost:8765/app/`. If the bundle was never built,
+`open` prints the build command and exits without opening a browser, so this step
+either works or tells you what is missing. The **Project** selector in the
 shared header switches among registered projects. From there you can create a draft or
 ready task, inspect hierarchy and dependencies, and record review approval or requested
 changes. FastAPI's interactive API reference is available separately at
@@ -39,11 +47,17 @@ changes. FastAPI's interactive API reference is available separately at
 Create work in the React UI, or use the CLI:
 
 ```bash
-poetry -P /path/to/agentjobs run agentjobs create \
+poetry -P /path/to/agentjobs run agentjobs create --ready \
   --title "Ship REST layer" --category engineering --priority high
 poetry -P /path/to/agentjobs run agentjobs list --lifecycle ready
 poetry -P /path/to/agentjobs run agentjobs work --agent codex
 ```
+
+`--ready` matters. Without it a task is born `draft`, and a draft is deliberately
+not claimable -- so `list --lifecycle ready` prints nothing and `work` reports "No
+tasks available". Drafting is the right default for a task whose spec is still being
+written; `agentjobs promote <id>` is the same step taken later. `work` reads the
+project's configured `tasks_directory`, so it sees the same records the UI does.
 
 ## 4. Use the schema-v2 Python client
 

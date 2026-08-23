@@ -93,6 +93,16 @@ decides whether to execute a string from a versioned file is not a boundary at a
 
 **Decision L1. `check` is a new field. `verify` keeps its meaning.**
 
+> **The shipped model currently says the opposite, and this is unresolved.**
+> `AcceptanceCriterion.verify` in `src/agentjobs/models_v2.py` is documented as an
+> "optional machine-checkable hint, e.g. a command to run" — which is the *executable*
+> meaning L1 moves to `check`. Nothing has been built for this design, so nothing is
+> broken by the disagreement today; whoever implements L1 has to change that
+> description in the same change, and regenerate the schema docs. Recorded here rather
+> than fixed pre-emptively: redefining a shipped field ahead of the feature that needs
+> the new definition is how a schema acquires two meanings for one name.
+
+
 ```yaml
 acceptance:
   - id: sc-1

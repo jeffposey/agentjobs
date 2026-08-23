@@ -30,6 +30,12 @@ That path is a `worktrees/` directory beside the project rather than a sibling o
 several live worktrees do not bury the projects in a listing of the workspace. `git
 worktree add` creates the directory the first time.
 
+`<repo>` is the project's short name, and **a project may declare its own**: AgentJobs
+uses `aj`, so its worktrees are `../worktrees/aj-045` rather than `agentjobs-045`. Check
+the project's `ALLAGENTS.md` before inventing one. Both spellings are in use on a machine
+that has been running a while, and neither is wrong — what matters is that the directory
+names a task, so `git worktree list` reads as an inventory.
+
 Work there. Remove it once your branch is merged; `git worktree list` is the inventory,
 and one left behind for a closed task is litter.
 
@@ -352,8 +358,32 @@ Three things not to do instead:
 - **Do not rely on a chat instruction to reorder work.** Chat does not survive the
   session; the queue does, and it is what the next agent reads.
 
-A broken queue is reported, never guessed past: `get_next_task()` raises
-`QueueCorruptionError`, REST answers `409`, and MCP returns the `queue_broken` code.
+A broken queue is reported, never guessed past — but **what you catch depends on which
+side of the wire you are on**, and this guide is the client side:
+
+| Caller | What a broken queue does |
+| --- | --- |
+| `TaskClient.get_next_task()` | raises `TaskClientError` with `status_code == 409` |
+| `TaskManager.get_next_task()`, in-process | raises `queue.QueueCorruptionError` |
+| REST | `409 Conflict`, naming the offending ids and the repair command |
+| MCP | the `queue_broken` error code |
+
+`QueueCorruptionError` is **not** exported from the `agentjobs` package and is not what
+the HTTP client raises, so `except QueueCorruptionError` around a `TaskClient` call is
+code that cannot catch anything. Catch `TaskClientError` and read `status_code`:
+
+```python
+from agentjobs import TaskClient, TaskClientError
+
+with TaskClient() as client:
+    try:
+        task = client.get_next_task(agent="my-agent")
+    except TaskClientError as exc:
+        if exc.status_code == 409:
+            raise SystemExit("Queue is broken; run `agentjobs queue repair`") from exc
+        raise
+```
+
 `agentjobs queue check` shows the whole picture and `agentjobs queue repair` fixes it,
 stating everything it guessed.
 
@@ -452,9 +482,18 @@ At any human-decision point:
 5. Stop. Do not merge or make the decision on the human's behalf.
 
 The React UI records what the human actually did, and each control writes the reason
-that matches its label. Approval hands the ball back as `agent/work` with instructions
-to rebase, merge, update branch metadata, and close — and it now takes an **optional
-note**, which rides verbatim in `ball_prompt` and the log *in addition to* the merge
+that matches its label.
+
+**Approval does one of two things, depending on the machine.** By default it hands the
+ball back as `agent/work` with instructions to rebase, merge, update branch metadata and
+close — the agent performs the merge. Where the project has `finish.enabled`, the same
+click instead runs the scripted finish (task-241): rebase, the full gate, `--no-ff`
+merge, rebuild, restart, verify, close, with no agent in the loop. A person approves per
+task either way; what varies is who performs the merge afterwards. If you are woken after
+an approval, **read the record before acting on memory** — it says whether `main` moved.
+See [the dispatch design, §5a](agent-dispatch-design.md).
+
+Approval also takes an **optional note**, which rides verbatim in `ball_prompt` and the log *in addition to* the merge
 clearance, never instead of it. The other three send-back controls differ only in the
 reason they record, and every one of them preserves its note in both `ball_prompt` and
 the handoff log:
@@ -591,11 +630,15 @@ React application:
 
 ```bash
 poetry install
+npm --prefix frontend ci && npm --prefix frontend run build
 poetry run agentjobs open
 ```
 
 `agentjobs serve` is the foreground-server form. Both serve the packaged React app at
-`/app/`; neither needs Node at runtime.
+`/app/`; neither needs Node **at runtime**, which is not the same as not needing it from
+a clone — the bundle is gitignored, so a clone builds it once with the `npm` line above
+and a release wheel ships with it already built. `open` checks for it and refuses with
+that command rather than opening a browser onto a 404.
 
 See the [task schema reference](task-schema.md), [API reference](api-reference.md), and
 [schema-v2 design](schema-design.md) for the complete field and endpoint contracts.

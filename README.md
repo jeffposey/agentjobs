@@ -27,27 +27,31 @@ decision and question log, and the acceptance criteria. That
 ## Agents connect over MCP
 
 ```bash
-pip install agentjobs && agentjobs serve
+git clone https://github.com/jeffposey/agentjobs.git && cd agentjobs
+poetry install && poetry run agentjobs serve
 ```
 
-Then point any MCP client at `agentjobs mcp`. Thirteen tools cover discovery, the whole
-claim/handoff/release/close loop, the append-only log, and zero-context resumption —
-each one validated, locked and logged by the same code the UI writes through.
+Then point any MCP client at `agentjobs mcp`. Fifteen tools cover discovery, the whole
+claim/handoff/release/close loop, the queue, the append-only log, and zero-context
+resumption — each one validated, locked and logged by the same code the UI writes
+through.
 
 Task YAML stays readable and stops being writable: there is no `set_lifecycle`, no
 generic patch, and no way to author a state change without recording it. Retries are
 safe (send the same `operation_id` and it replays rather than writing twice) and stale
 decisions are refused rather than silently overwriting someone.
 
-Codex additionally gets a bundled plugin with a workflow skill and a hook that refuses
-direct writes to task files. Every client gets `agentjobs validate`, the portable
+Claude Code and Codex each get a bundled plugin with a workflow skill and a hook that
+refuses direct writes to task files. Every client gets `agentjobs validate`, the portable
 backstop. [What each layer does and does not prevent](docs/mcp.md#what-protects-what)
 is written down rather than implied.
 
 ## Why this is not another task tracker
 
-- **Hierarchy has workflow meaning.** Parent tasks roll up their children and are not
-  claimable while a child remains open. The UI shows child progress and each child's
+- **Hierarchy has workflow meaning.** Parent tasks roll up their children. A parent
+  with open children is skipped by `agentjobs next` — it is not what to start — but it
+  can still be claimed by name, and claiming one hands back a *supervision* prompt rather
+  than a work prompt. The UI shows child progress and each child's
   derived status.
 - **Git is the database.** One YAML file per task keeps work diffable, reviewable, and
   portable between tools without adding a service to operate.
@@ -79,12 +83,21 @@ a particular desktop operating system.
 - A packaged React web application for desktop browsers, tablets, and phones, with
   a project switcher for multiple registered projects, task creation and detail pages,
   hierarchy roll-ups, and human review actions
-- Basic CLI workflows for creating, listing, showing, claiming/finishing interactively,
-  serving, and migrating tasks
+- **An explicit work queue.** Order is a stored field, not a sort over timestamps:
+  `agentjobs next --why` names what is first and every task it passed over with the rule
+  that excluded each, and `agentjobs queue move` records the decision so the next session
+  inherits it rather than re-deriving it
+- **Agent dispatch.** A human decision can start a supervised agent process, with
+  machine-local runner configuration, per-project enablement, a run ledger with
+  cancellation and startup reconciliation, and four safety gates. Optionally, an approval
+  can run the whole rebase/gate/merge/restart close-out with no agent in the loop
+- A CLI covering create, list, show, next, promote, work, validate, the queue and
+  dispatch command groups, project registration, the MCP server, and server control
 - Markdown-to-YAML and schema-v1-to-v2 migration tools
 
-The Python client and REST API expose the full schema-v2 state verbs. Some dedicated
-CLI mirrors remain backlog work; the React application is the primary human interface.
+The Python client and REST API expose the full schema-v2 state verbs. The CLI has no
+dedicated `claim`/`handoff`/`release`/`close` command — those remain backlog work, and
+agents reach them over MCP; the React application is the primary human interface.
 
 ## The design is part of the product
 
@@ -93,16 +106,17 @@ than leaving the rationale in a chat transcript:
 
 - [Task schema v2](docs/schema-design.md) decides how a task becomes sufficient working
   memory for a zero-context agent, including the ball model and canonical handoff loop.
-- [Agent dispatch](docs/agent-dispatch-design.md) is the accepted, **not yet implemented**
-  design for turning authorized task state into a supervised agent process, with bounded
-  autonomy and explicit safety gates.
+- [Agent dispatch](docs/agent-dispatch-design.md) is the design record for turning
+  authorized task state into a supervised agent process, with bounded autonomy and
+  explicit safety gates. **It shipped** — the document's own header says what landed
+  under which task, and marks the four things in it that were never built.
 - [Codex dispatch rollout](docs/codex-dispatch.md) documents the batch-only Codex
   runner setup and the Terra/Sol rollout sequence.
-
-Agent loops are also **not implemented**. Their design pass is queued in
-[task-078](tasks/agentjobs/task-078-agent-loops.yaml); the proposed contribution is an
-evaluable stopping condition and durable iteration history, not another `while true`
-wrapper. No agent-loops design document exists yet.
+- [Agent loops](docs/agent-loops-design.md) is a design record with **no implementation
+  yet**, and says so at the top. Its contribution is an evaluable stopping condition and
+  durable iteration history, not another `while true` wrapper. The design pass closed as
+  [task-078](tasks/agentjobs/task-078-agent-loops.yaml); the implementation tasks derived
+  from it are open and unclaimed.
 
 ## Installation
 
@@ -114,7 +128,13 @@ or run a release wheel:
 git clone https://github.com/jeffposey/agentjobs.git
 cd agentjobs
 poetry install
+npm --prefix frontend ci && npm --prefix frontend run build
 ```
+
+The `npm` line builds the React bundle. It is gitignored and no `poetry install`
+produces it, so from a clone it is a required step for the web UI — a release wheel
+ships with it already built and needs no Node. Everything else (the CLI, the REST API,
+the MCP server) works without it.
 
 ## Quick start
 
@@ -133,15 +153,20 @@ poetry -P /path/to/agentjobs run agentjobs open
 From the AgentJobs clone, useful commands include:
 
 ```bash
-poetry run agentjobs create --title "Describe the work" --priority high
+poetry run agentjobs create --ready --title "Describe the work" --priority high
 poetry run agentjobs list --lifecycle ready
 poetry run agentjobs show task-001
+poetry run agentjobs next --why          # what to work on, and why not the other one
 poetry run agentjobs work --agent my-agent
 
 poetry run agentjobs status
 poetry run agentjobs restart --reload
 poetry run agentjobs stop
 ```
+
+Without `--ready` a task is born `draft`, which is deliberately not claimable — so
+`list --lifecycle ready` would print nothing and `work` would report "No tasks
+available". `agentjobs promote <id>` is the same step taken later.
 
 Register more than one project with the same local server:
 
@@ -193,11 +218,16 @@ AgentJobs uses itself to manage its own development. The roadmap lives in
 ```bash
 git clone https://github.com/jeffposey/agentjobs.git
 cd agentjobs
-poetry install
-npm --prefix frontend install
+python scripts/bootstrap.py
 poetry run python scripts/check.py
 poetry run agentjobs open
 ```
+
+`scripts/bootstrap.py` is the supported setup for any fresh checkout, clone or git
+worktree: `poetry install`, `npm ci`, the Playwright browser, and a check that the
+environment imports this checkout's source rather than a neighbouring one's. The gate's
+`build` stage leaves a frontend bundle behind, which is why `open` works on the line
+after it.
 
 The React application's source and focused development commands live under
 `frontend/`:
@@ -209,9 +239,9 @@ npm run check
 ```
 
 The repository commit gate is `poetry run python scripts/check.py` from the root. It
-runs ten stages, cheapest first: formatting, lint and types, the generated-contract
-checks, the frontend linter, then the Python suite, the Vitest component suite, the
-production build, and one real-server Playwright path. `scripts/check.py --list` prints
+runs ten stages, cheapest first: formatting, lint, types, the generated API contract,
+the generated PWA icons, the frontend linter, then the Python suite, the Vitest
+component suite, the production build, and the Playwright suite against a live server. `scripts/check.py --list` prints
 them; `--from <stage>` resumes after a late failure without paying for the stages that
 already passed. The unqualified command runs all ten, and that is the one the commit
 rule means. `npm run check` is the focused frontend half of the gate. Run

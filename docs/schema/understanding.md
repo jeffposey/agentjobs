@@ -125,7 +125,11 @@ v1 recorded task-048's history in **three** parallel append-only lists —
 unenforced split between them. v2 has one `log[]` where every entry carries a type:
 
 `note` · `progress` · `transition` · `handoff` · `decision` · `question` · `answer` ·
-`instruction`
+`instruction` · `dispatch` · `dispatch_result` · `queue_move`
+
+Eleven. The last three arrived with the subsystems that write them -- dispatch and the
+explicit queue -- and are written by the manager rather than by an author, the same way
+`transition` and `handoff` are.
 
 Two things become visible only once entries are typed:
 
@@ -185,7 +189,10 @@ instinct was tracking — and the fix is references, not tables.
 4. **[Reference pages](v2/index.md)** — only when you need a specific field.
 
 !!! tip "The fastest single check"
-    Open `schema/examples/task-048.v2.yaml` next to
-    `tasks/agentjobs/task-048-schema-design.yaml`. Same task, both schemas. If the v2
-    version reads more clearly to you than the v1 one, the design works; if some part
-    of it reads worse, that part is worth arguing about before task-050 starts.
+    Open `schema/examples/task-048.v2.yaml` and read it beside this page. It is a
+    complete, valid v2 record, and it is short enough to hold in your head.
+
+    *(This tip used to say to compare it against that task's record in the corpus, as
+    "the same task in v1". That record migrated to v2 long ago, so the two files are now
+    the same schema and the comparison shows nothing. Repository history has the v1
+    version if you want it.)*

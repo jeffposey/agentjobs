@@ -4,6 +4,14 @@
 implemented as schema v2. Sections describing future work capture the decision-time
 plan; use [task-schema.md](task-schema.md) for the current contract.**
 
+Three specific things in the body are now false, flagged here because each one reads as
+a present-tense statement of fact: **the complete example below predates
+`queue_position`** and would not load today; **storage is no longer lock-free** (task
+writes take a per-task lock and queue placement takes a queue lock); and **a task that
+fails validation no longer vanishes** — it is reported as a broken task, and
+`GET /api/tasks/broken` lists them. References to what "task-050 will do" describe work
+that is finished.
+
 Produced under task-048. This document is the deliverable of the schema design pass: the
 proposed next iteration of the task schema, the reasoning behind each change, the
 alternatives that were rejected and why, and the interfaces the new schema makes
@@ -368,6 +376,11 @@ by the manager.
 | `decision` | anyone | a choice, its reasoning, **and the rejected alternative** |
 | `question` / `answer` | anyone | explicit unresolved-thread mechanism; an open `question` with no `answer` is surfaceable in UIs |
 | `instruction` | human | a directive to the working agent (replaces followup prompts) |
+
+*Three more were added after this document was written, and are listed here so the table
+is not read as complete:* `dispatch` and `dispatch_result` (the manager, around a
+dispatched run) and `queue_move` (the manager, when a task changes place or band).
+Eleven in total — [task-schema.md](task-schema.md) is the current list.
 
 Provenance (issue 6) is resolved at this layer: every entry names its actor, and every
 state change flows through a logged transition. The actor is a bare id resolved against

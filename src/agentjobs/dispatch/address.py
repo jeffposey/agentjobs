@@ -249,6 +249,14 @@ class ApiBaseProbe:
     detail: str
     """One clause naming what happened, for a message a human reads."""
 
+    payload: Optional[dict] = None
+    """The decoded ``/api/version`` body when one was recognised, else ``None``.
+
+    Kept so a caller that has already paid for the round trip can read the rest of what
+    the service said -- ``frontend_bundle`` is the first such field -- instead of asking
+    the same address a second question.
+    """
+
 
 def probe_api_base(api_base: str, *, timeout: float = PROBE_TIMEOUT_SECONDS) -> ApiBaseProbe:
     """Ask an address whether AgentJobs is there.
@@ -302,4 +310,5 @@ def probe_api_base(api_base: str, *, timeout: float = PROBE_TIMEOUT_SECONDS) -> 
         answered=True,
         is_agentjobs=True,
         detail=f"AgentJobs answered (schema v{payload.get('schema_version')})",
+        payload=payload,
     )

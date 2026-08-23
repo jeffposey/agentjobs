@@ -2724,6 +2724,12 @@ export type ValidationError = {
  */
 export type VersionResponse = {
     /**
+     * Frontend Bundle
+     *
+     * Whether this process can serve the React app at /app/. The bundle is gitignored and no install step builds it, so a clone that has never run `npm run build` answers every REST call correctly and 404s the one URL a new user is told to open. Reported here so `agentjobs open` can say so before opening a browser rather than after.
+     */
+    frontend_bundle: 'present' | 'missing';
+    /**
      * Schema Version
      *
      * Task record schema version served.

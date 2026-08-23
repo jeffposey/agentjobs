@@ -46,10 +46,10 @@ source rather than a neighbouring one's.
     | 4 | `api` | `openapi.json` and the generated client both match the app | 4.2s |
     | 5 | `icons` | the committed PWA icons match `assets/app-icon.svg` | 2.8s |
     | 6 | `oxlint` | frontend lint | 0.6s |
-    | 7 | `pytest` | 2608 Python tests, across every core | 52.1s |
+    | 7 | `pytest` | the Python suite, across every core | 52.1s |
     | 8 | `vitest` | 228 jsdom component tests | 5.2s |
     | 9 | `build` | `tsc --noEmit` and the production bundle | 3.7s |
-    | 10 | `e2e` | 26 Playwright tests against a live server | 25.0s |
+    | 10 | `e2e` | the Playwright suite against a live server | 25.0s |
     | | | | **95.8s** |
 
     MyPy is the one stage whose cost moves: under two seconds against a warm cache, about
@@ -58,14 +58,14 @@ source rather than a neighbouring one's.
 
     **That pytest figure was 326.5s until task-233, and the gate's total was 365s.** Two
     changes account for the difference, both of them arrangements of how pytest is
-    invoked rather than reductions in what it checks -- the same 2608 tests run, and the
+    invoked rather than reductions in what it checks -- the same tests run, and the
     pass/fail counts were compared on the same commit before and after:
 
     | Configuration | Wall clock | Result |
     |---|---|---|
-    | serial, with coverage -- what the gate ran until task-233 | 540.1s | 2538 passed |
-    | serial, no coverage | 342.6s | 2538 passed |
-    | `-n auto` across 32 cores, no coverage | **42.5s / 45.7s / 43.6s** | 2538 passed |
+    | serial, with coverage -- what the gate ran until task-233 | 540.1s | all passed |
+    | serial, no coverage | 342.6s | all passed |
+    | `-n auto` across 32 cores, no coverage | **42.5s / 45.7s / 43.6s** | all passed |
     | `-n auto --dist loadfile` | 54.9s | 2538 passed |
 
     Three consecutive `-n auto` runs are quoted because one green parallel run proves
@@ -85,6 +85,12 @@ source rather than a neighbouring one's.
     poetry run python scripts/check.py --coverage   # the gate, plus coverage and htmlcov/
     poetry run python scripts/check.py --serial     # one process, for readable output
     ```
+
+    **Test counts are deliberately not quoted here.** Three different numbers for the
+    same suite were in this file and `scripts/check.py` at once -- 2608, 2538 and 2723 --
+    and two of the three were wrong on the day they were written, because a suite grows
+    every week and a number in prose does not. The gate prints what it ran; ask it, or
+    ask `pytest --collect-only -q`. Quote the commands and the dates, which stay true.
 
     Use focused pytest or npm commands while iterating, but do not substitute them for
     the gate. A hand-run `pytest` is serial and measures no coverage: `addopts` is now

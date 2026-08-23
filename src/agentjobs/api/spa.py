@@ -15,6 +15,38 @@ def default_frontend_dist() -> Path:
     return Path(__file__).resolve().parents[1] / "frontend_dist"
 
 
+def _missing_sentence(what: str) -> str:
+    """The one sentence every missing-bundle path says, for the `what` that is absent."""
+    return (
+        f"{what} is missing from the package; run `npm run build` in frontend/ "
+        "for local development or build a release wheel."
+    )
+
+
+def bundle_is_present(dist_dir: Optional[Path] = None) -> bool:
+    """Whether ``/app/`` can actually be served from this checkout.
+
+    ``frontend_dist/`` is gitignored and no ``poetry install`` builds it, so a clone
+    that has never run ``npm run build`` serves a working REST API and a 404 at the one
+    URL the README tells a new user to open.
+    """
+    dist = (dist_dir or default_frontend_dist()).resolve()
+    return (dist / "index.html").is_file()
+
+
+def bundle_status(dist_dir: Optional[Path] = None) -> Optional[str]:
+    """Return the warning sentence when the bundle is absent, ``None`` when it is there.
+
+    Deliberately a warning and never a refusal: the REST API, the MCP server and every
+    CLI command work without a bundle, and a headless install that never opens ``/app/``
+    is a legitimate way to run AgentJobs. What is not legitimate is finding out from a
+    JSON 404 in a browser tab that something else already opened.
+    """
+    if bundle_is_present(dist_dir):
+        return None
+    return _missing_sentence("React frontend bundle")
+
+
 def register_spa(app: FastAPI, dist_dir: Optional[Path] = None) -> None:
     """Mount hashed assets and return the SPA shell for every other `/app` path.
 
@@ -39,10 +71,7 @@ def register_spa(app: FastAPI, dist_dir: Optional[Path] = None) -> None:
         if not path.is_file():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=(
-                    "React PWA manifest is missing from the package; run `npm run build` "
-                    "in frontend/ for local development or build a release wheel."
-                ),
+                detail=_missing_sentence("React PWA manifest"),
             )
         return FileResponse(
             path,
@@ -55,10 +84,7 @@ def register_spa(app: FastAPI, dist_dir: Optional[Path] = None) -> None:
         if not path.is_file():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=(
-                    "React service worker is missing from the package; run `npm run build` "
-                    "in frontend/ for local development or build a release wheel."
-                ),
+                detail=_missing_sentence("React service worker"),
             )
         return FileResponse(
             path,
@@ -79,10 +105,7 @@ def register_spa(app: FastAPI, dist_dir: Optional[Path] = None) -> None:
         if not index.is_file():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=(
-                    "React frontend bundle is missing from the package; run `npm run build` "
-                    "in frontend/ for local development or build a release wheel."
-                ),
+                detail=_missing_sentence("React frontend bundle"),
             )
         return FileResponse(index)
 

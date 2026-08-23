@@ -1,7 +1,51 @@
-# Agent Dispatch — Design Proposal
+# Agent Dispatch — Design Record
 
-**Status: ACCEPTED — D1–D3 resolved with Jeff on 2026-08-10 (§11). Nothing here is
-implemented; implementation tasks are derived in §13.**
+**Status: ACCEPTED 2026-08-10 (D1–D3, §11) and SHIPPED. This is a design record kept for
+its reasoning, not a statement of what exists.** As of 2026-08-22 `src/agentjobs/dispatch/`
+is 15 modules and 9,729 lines (`wc -l src/agentjobs/dispatch/*.py`), with a `dispatch`
+CLI sub-app, REST routes under `/api/dispatch`, and a React surface.
+
+Until 2026-08-22 this line read *"Nothing here is implemented"*, over all of that. It was
+written before any of it existed and never revisited. A zero-context reader — the reader
+this document is written for — was told the inverse of the truth in both directions, and
+the correction below is deliberately specific so the next reader can check it rather than
+trust it.
+
+**Shipped — every §13 item.**
+
+| §13 | What | Task |
+|---|---|---|
+| 1 | Machine-local `~/.agentjobs/dispatch.yaml`, runner resolution, master switch, sentinel | task-068 |
+| 2 | `dispatch` / `dispatch_result` log entries, reserved `dispatcher` actor | task-069 |
+| 3 | The runner and its supervisor, in both modes | task-070 |
+| 4 | `POST /api/tasks/{id}/dispatch` and the guard layer | task-071 |
+| 5 | Run ledger, cancellation, startup reconciliation | task-072 |
+| 6 | The web UI's dispatch surface and per-project toggle | task-073 |
+| 7a | Permission posture — three postures, default `supervised` | task-076 |
+| 7b | Session mode as the primary path, batch retained | task-077 |
+| 7c | Runner groups | task-177 |
+| 7 | Auto-dispatch on approval, opt-in per project | task-074 |
+
+**Also shipped, and described nowhere below** — the design predates all of it:
+task-075 and task-186 (worktree isolation, and its removal: dispatch no longer passes
+`-w`), task-241 (`agentjobs finish`, `~/.agentjobs/finishes/`, and the scripted
+post-approval merge — see §5a), the `WAKE_STUB` resumed-session contract
+(`dispatch/wake.py`, and §8), run phases (`phases.jsonl`, `AGENTJOBS_RUN_ID`,
+`AGENTJOBS_RUN_DIR`, `scripts/run_report.py`), and the `dispatch auth-check`,
+`dispatch reconcile` and `dispatch status --live` commands.
+
+**Not shipped.** Four things this document describes in the present tense do not exist.
+Each is marked *(unbuilt)* where it appears, using the convention `dispatch/config.py`
+already uses:
+
+- the `difficulty` field on a task, and the difficulty → profile table (§4). Runner
+  *groups* are built; `difficulty` is not, and there is no such field in `models_v2.py`.
+- optional descriptive `model` and `effort` labels on a runner (§4). `DispatchRunner`
+  carries `name`, `argv`, `env`, `mode`, `actor` and `driver`.
+- the per-profile `strict` setting (§4), which the document's own open-question box
+  already admits was never built.
+- chain-aware cap semantics in the 2026-08-18 amendment to §2a. `dispatch/auto.py`
+  counts dispatches; it has no concept of a chain.
 
 **Amended 2026-08-11** after a read-only headless run against task-069 tested the
 assumption this whole design rests on — that a zero-context agent can resume from the
@@ -365,8 +409,8 @@ real dispatches each resolved cleanly to (4) and told the agent `:8765`, which n
 there serves. They survived only because the agents read their task YAML off disk.
 
 So a dispatch with **no observed address** — the CLI, and any library caller that passes
-none — is gated on the address answering. `probe_api_base` asks `/api/version` with a two
-second timeout, and `dispatch_task` refuses with `api_base_unreachable` if nothing
+none — is gated on the address answering. `probe_api_base` asks `/api/version` with a five
+second timeout (`PROBE_TIMEOUT_SECONDS`, `dispatch/address.py`), and `dispatch_task` refuses with `api_base_unreachable` if nothing
 replies. It refuses rather than warns because the failure it prevents is silent by
 construction: the run starts, the money is spent, and the only artifact is a task record
 that stops changing.
@@ -655,7 +699,12 @@ it is worth more than the overclaim it replaces.
 One consequence to design around: the Remote Control URL appears **only in the
 `claude logs` ANSI transcript**, not as a field in `claude agents --json`. Surfacing
 "continue on your phone" in the UI means scraping a terminal rendering, or reconstructing
-the URL from a session id. Neither is verified. Task-070 owns it.
+the URL from a session id.
+
+*(built, task-070)* — the first of those. `REMOTE_CONTROL_URL` in `dispatch/runner.py`
+matches the link out of the stripped transcript, and the run surfaces it in the
+`ball_prompt` of a session that parks. The sentence above stands as the reason it is a
+scrape; it no longer stands as a statement that nothing does it.
 
 D1–D4 are unaffected: who may cause a dispatch, and that approval is not dispatch, are
 independent of what a dispatch starts.
@@ -889,8 +938,9 @@ govern a **usage window, not a per-token bill** — worth knowing when choosing 
 Raised because easy work and hard architecture work should not automatically consume the
 same model. Decided by Jeff on `task-080-dispatch-model-profiles` after the two CLI
 surfaces were read rather than assumed, and extended by `task-177-runner-groups`, which
-built the candidate-list half of it. **`difficulty` and runner groups are built; the
-difficulty → profile table is not** — see the reopen triggers at the end of this
+built the candidate-list half of it. **Runner groups are built. `difficulty` is
+*(unbuilt)*, and so is the difficulty → profile table** — see the reopen triggers at the
+end of this
 section.
 
 #### What the CLIs actually offer, since it changed the answer
@@ -911,7 +961,10 @@ profiles richer than the ones this design proposed**, so an AgentJobs profile la
 be a second profile system racing `-p` to set the same keys, with no way to know which
 won.
 
-#### Task difficulty — building now
+#### Task difficulty — *(unbuilt)*
+
+*(unbuilt — no such field exists on `Task`; everything in this subsection is the
+design as accepted, not behaviour you can use.)*
 
 A task may declare `difficulty`: **`routine` | `standard` | `hard`**.
 
@@ -1038,7 +1091,7 @@ merely correct.
 Every level that participated is recorded, including which won. An unmatched difficulty,
 or a hole in a profile table, **falls back to the plain runner and says so** rather than
 refusing: a dispatch that dies because a config table has a gap is the worse failure. A
-per-profile **`strict`** setting inverts that — refuse instead, naming the profile, the
+per-profile **`strict`** setting *(unbuilt)* inverts that — refuse instead, naming the profile, the
 difficulty and the missing rule. Strict is opt-in and off by default, because deliberate
 spend is the whole point of the feature and someone who chose a conservative profile and
 silently got a frontier model was failed quietly.
@@ -1051,7 +1104,10 @@ the file should not have a `default_group`.
 
 ##### Labels, and what they are worth
 
-A runner may additionally declare optional descriptive `model` and `effort` **labels**.
+*(unbuilt)* A runner may additionally declare optional descriptive `model` and
+`effort` **labels**. `DispatchRunner` (`dispatch/config.py`) has `name`, `argv`, `env`,
+`mode`, `actor` and `driver` and no label fields; setting either in
+`~/.agentjobs/dispatch.yaml` is a silent no-op.
 These are authored metadata for display and audit only: **never parsed out of argv, never
 used to construct a command, never validated against a provider vocabulary.** They buy
 back the explanation that runner-only selection gives up — `difficulty hard → group deep
@@ -1233,13 +1289,65 @@ in response to an HTTP request.
 
 ---
 
+## 5a. What *ends* a dispatch: the scripted finish (task-241, shipped)
+
+Not in the original design, because in the original design a human approval woke an agent
+and that agent did the merge. Measuring that (`scripts/run_report.py`) showed the
+post-approval run averaging about eleven minutes, almost none of it the git commands: it
+was a cold agent working out which branch it owned. None of that work needs a model.
+
+**On a machine with `finish.enabled` for a project, clicking Approve runs the whole
+close-out itself, with no agent anywhere in it.** It rebases onto `main`, runs the full
+gate in the task's own worktree with that worktree's interpreter, merges `--no-ff`,
+rebuilds the frontend if the merge touched it, restarts the server the way this machine's
+config says it was started, proves the running process is serving the merge commit, closes
+the task and removes the worktree.
+
+Nothing about the merge gate is relaxed by this. **A person still approves, per task,
+before anything merges**, and the merge is still a `--no-ff` merge commit. What is removed
+is the agent between the approval and the merge, not the approval.
+
+- `agentjobs finish <task> --project <id>` is the same code by hand, and is how a finish
+  that escalated is retried once its cause is fixed. Exit 0 means merged, closed and
+  verified; 1 means it stopped and the task record says where; 2 means the task was never
+  a candidate and nothing happened.
+- It declines rather than guessing whenever the answer is a judgement: no active branch,
+  two of them, a clone with something else checked out, a missing or dirty worktree, or a
+  branch somebody already merged by hand.
+- Each finish writes itself to `~/.agentjobs/finishes/`. A finish is not a run — no agent,
+  no session, no tokens — so `run_report.py` counts it in its own block rather than folding
+  it into run statistics, which is what makes the saving attributable instead of showing up
+  only as runs-per-task quietly falling.
+- When it stops, it writes the dispositive sentence onto the task itself: either "The merge
+  is done: `<sha>`" (the merge landed, the delivery did not — finish that, do not re-merge)
+  or "Nothing was merged", with which of the rebase or the gate failed, and for a conflict
+  whether the branch was restored to the commit it was on, having read the tip back and
+  compared.
+
+---
+
 ## 6. Safety
 
 Dispatch converts an unauthenticated localhost HTTP API into **remote code execution on
 Jeff's machine**. That sentence is the whole reason this section exists, and it should
 be read before every change to this subsystem.
 
-### Four gates, each independently sufficient to stop a run
+**Who the attacker is, and who it is not.** Every gate below answers one threat: *a
+repository choosing what executes on this machine*. That threat is real and the gates
+hold against it. It is not the only one, and this section used to read as though it were.
+
+*(added 2026-08-22)* **A network peer is not covered here.** The REST API has no
+authentication (`docs/api-reference.md` says so first, and means it), so anything that
+can reach the port can reach dispatch. Gates 1 and 2 still hold — a peer cannot define a
+runner, because runners are machine-local and never come from a repository — but gate 3
+is a plain HTTP call away from being flipped, and the per-project toggle is exposed to
+the browser by design (D2). The honest reading is therefore that **the four gates are
+independently sufficient against a repository and not against a network peer**, and what
+actually defends the second case is the deployment: loopback binding, which
+`_validated_bind_host` enforces by refusing wildcards, and tailnet membership in front of
+it. See [mobile access](mobile-access.md) for that half.
+
+### Four gates, each independently sufficient to stop a run — against a repository
 
 1. **The master switch.** `enabled: false` in `~/.agentjobs/dispatch.yaml`, absent file
    means off. A fresh `pip install agentjobs` can never dispatch anything.
@@ -1430,6 +1538,15 @@ already using 7.3 GB):
 | 2 | 388s | +9% | ~25% |
 | 4 | 411s | +16% | ~46% |
 | 6 | 444s | +25% | brief 100% |
+
+**These figures describe the serial gate and are kept only as history.** Task-233 later
+took `pytest` from 326s to about 52s by running it under `-n auto` without coverage, so
+the solo gate is now about 96s rather than 355s and the table's absolute numbers no
+longer describe anything you can reproduce. The *shape* is what it was kept for, and the
+shape is untested at the new speed: `-n auto` asks for every core, so two concurrent
+gates now contend for the same 32 threads rather than each taking a slice, and **nobody
+has measured concurrent parallel gates**. Do not quote a contended figure from this
+table; measure one.
 
 Every run at every level passed. The degradation is sublinear and there is no cliff
 inside the range that was tried.
@@ -1774,6 +1891,31 @@ Off switch: `resume_sessions: false` on a project. It changes speed and nothing 
 
 ---
 
+### Waking a session instead of starting one (`WAKE_STUB`, shipped)
+
+A second dispatch of a task may **resume the session that worked it** rather than start a
+cold one. This is not in the design above and belongs here because it is a concurrency
+property: the resumed session still holds the worktree it took and the branch it is on, so
+it is the same actor, not a second one racing it.
+
+When dispatch resumes, the prompt it sends says so explicitly — it names the run it
+resumed and carries whatever the human just wrote (`dispatch/wake.py`). The contract that
+prompt states has two halves, and both exist because a resumed conversation is confident
+by construction:
+
+- **Check before acting on memory.** If the worktree is gone, the branch is not where it
+  was left, or the session's account of the task no longer matches what is on disk, say so
+  on the record and hand the ball back rather than improvising a recovery.
+- **Do not assume you were resumed.** A cold start is the fallback for every uncertainty
+  and remains the ordinary case for a task's first run. The prompt is what distinguishes
+  them.
+
+Until 2026-08-22 this contract was written down only in `ALLAGENTS.md` and in `wake.py`
+itself, so a reader who came to this document for the dispatch model would not learn that
+resumption exists at all.
+
+---
+
 ## 9. Process lifecycle
 
 **Rewritten 2026-08-18**, after §4 settled that dispatch drives Claude Code's session
@@ -1794,9 +1936,18 @@ is a silence generator. **Do not repeat that shape.**
 - **No supervisor thread.** A poller over `claude agents --json --cwd <project-root>`
   reads state. `--cwd` scopes the listing to one project, so an unrelated session
   elsewhere on the machine is never mistaken for a dispatched run.
-- **No run directories, no stdout capture.** `claude logs <id>` owns the output, and it
-  is an **ANSI pty scrape, not structured events**. AgentJobs should link to it, never
-  parse it. This is a real loss against batch mode's `stream-json`, accepted knowingly.
+- **No structured stdout stream.** `claude logs <id>` owns the output, and it is an
+  **ANSI pty scrape, not structured events**. This is a real loss against batch mode's
+  `stream-json`, accepted knowingly.
+
+  *(amended — this bullet used to begin "No run directories, no stdout capture", and both
+  halves are now false.)* A session run gets a `RunDirectory` like any other, and the
+  transcript is captured to `transcript.log` on every poll and served by
+  `GET /api/dispatch/runs/{id}/output` and `/tail`. What survived from the original
+  reasoning is the warning, not the absence: the file is a **raw TTY capture**, so a line
+  appears in it once per terminal repaint and any count derived from it is an artefact of
+  that. Link to it and read it; do not compute from it. `phases.jsonl` exists because
+  that question should not have to be asked of the transcript at all.
 - **The session id cannot be assigned.** `--bg` ignores `--session-id`. Capture the short
   id from stdout at spawn and store it on the run; correlate through the ledger after.
 - **Sessions do not exit.** A finished session sits at `idle`/`done` holding its pid
@@ -1935,9 +2086,18 @@ new token.
 
 ### Restart, reconciliation, and the rule that reversed
 
-**Batch: a run does not outlive its supervisor.** On graceful shutdown every live run is
-cancelled; on startup any run directory in a non-terminal state is declared `interrupted`
-and hands the ball to a human. Pid adoption was rejected — it is unreliable (pid reuse;
+**Batch: a run does not outlive its supervisor.** On startup any run directory in a
+non-terminal state is declared `interrupted` and hands the ball to a human.
+
+*(corrected 2026-08-22 — this paragraph also claimed "on graceful shutdown every live run
+is cancelled". Nothing does that.)* The server's lifespan
+(`api/main.py`) cancels the **poller** and nothing else, and a batch run's supervisor
+thread is `daemon=True`, so stopping the server orphans the child rather than signalling
+it. `stop_everything` — which does cancel every live run — is reached only from
+`agentjobs dispatch stop`. The startup reconciliation above is therefore what actually
+closes the gap, one restart later, and the honest statement of the invariant is that a
+batch run does not outlive its supervisor *silently*: it is labelled `interrupted` rather
+than left reading `running` for ever. Pid adoption was rejected — it is unreliable (pid reuse;
 matching start times needs `psutil`), and it produces an orphaned autonomous agent
 editing a repository with nothing supervising it and no working kill switch.
 
