@@ -3,13 +3,11 @@ id: task-011
 title: Merging frontend code does not update the running server, and nothing says
   so
 created: '2026-08-17T23:01:49.593543Z'
-updated: '2026-08-21T16:58:01.615762Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-23T06:01:58.705226Z'
+lifecycle: closed
+outcome: superseded
 archived: false
 priority: high
-queue_position: 3000
 category: developer_experience
 tags:
 - workflow
@@ -168,3 +166,40 @@ log:
     to: 3000
     placement:
       kind: top
+- id: 3
+  ts: '2026-08-23T06:01:58.705025Z'
+  actor: claude
+  type: transition
+  body: "Superseded by shipped task-241 and open task-014. Closed under the approved\
+    \ list on the ad-hoc groom run task-288 (proposal item 2, log entry 2; Jeff approved\
+    \ \"approve all\" on 2026-08-23, log entry 5).\n\nThis task named three possible\
+    \ fixes. All three now live elsewhere:\n\n**Fixes 1 and 3 \u2014 \"add a rebuild\
+    \ step to the merge procedure\" and \"build on demand\" \u2014 shipped in task-241.**\
+    \ `src/agentjobs/dispatch/finish.py` runs `npm run build` in the serving clone\
+    \ if and only if the merge touched `frontend/` (`rebuild_frontend`, :686), runs\
+    \ the machine's configured restart command (`restart_server`, :723), and proves\
+    \ the running process is serving the merge before it closes the task. It refuses\
+    \ to guess `agentjobs restart` when nothing is configured, because that binds\
+    \ the default port and leaves the real dashboard stale while appearing to succeed\
+    \ \u2014 which is this task's own failure mode, avoided by name. ENGINEERING.md's\
+    \ merge gate step 6 carries the same sequence for a hand-merge.\n\n**Fix 2 \u2014\
+    \ \"make the server detect it\" \u2014 is task-014**, open: \"detect a bundle\
+    \ talking to a server it was not built against\". That is this task's second option,\
+    \ specified and separately tracked.\n\n**The residual, stated plainly rather than\
+    \ buried.** The scripted finish only runs where `finish.enabled` is set for the\
+    \ project. On a machine without it, a hand-merge still depends on someone following\
+    \ a rule in a document \u2014 which is exactly what this task complained about\
+    \ in 2026-08-17. That residual is real. It is not being carried by this record\
+    \ because a task whose every named fix is shipped or separately filed is a duplicate\
+    \ of its successors rather than a live item; if the residual bites again, file\
+    \ it against the finish configuration with the new evidence rather than reopening\
+    \ this.\n\nThe incident that produced this task stands as written: on 2026-08-17\
+    \ task-008 merged at d7dd9e2 and `curl http://localhost:8876/app/` still returned\
+    \ the two-hour-old bundle. Nothing about that is retracted."
+  data:
+    lifecycle: closed
+    outcome: superseded
+    operation:
+      id: a1b2c3d4-0021-4000-8000-000000000021
+      kind: close
+      fingerprint: 866860a8c394f384a7d1b80baca2a9fe

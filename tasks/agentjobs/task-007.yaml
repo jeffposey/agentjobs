@@ -2,13 +2,11 @@ schema: 2
 id: task-007
 title: Stop the default route delivering the legacy Jinja UI
 created: '2026-08-17T21:49:53.889432Z'
-updated: '2026-08-21T16:58:00.713813Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-23T06:02:14.911263Z'
+lifecycle: closed
+outcome: superseded
 archived: false
 priority: high
-queue_position: 6400
 category: ux
 tags:
 - gui
@@ -163,3 +161,48 @@ log:
     to: 25
     placement:
       kind: top
+- id: 3
+  ts: '2026-08-23T06:02:14.911119Z'
+  actor: claude
+  type: transition
+  body: "Superseded by task-275. Closed under the approved list on the ad-hoc groom\
+    \ run task-288 (proposal item 3, log entry 2; Jeff approved \"approve all\" on\
+    \ 2026-08-23, log entry 5).\n\nThis task's own description scopes it deliberately:\
+    \ redirect `/` and the legacy `/p/...` paths to `/app/`, while \"the Jinja UI\
+    \ stays reachable at an explicit legacy path for now \u2014 retiring it outright\
+    \ is a larger job and deliberately not this task.\"\n\ntask-275 is that larger\
+    \ job, and it arrived with a reason this task did not have: delete `web_router`,\
+    \ `web_legacy_router` and `api/templates/` outright, because `x-markdown` does\
+    \ `el.innerHTML = marked.parse(content)` with no sanitiser over `ball_prompt`,\
+    \ every spec field and every log entry body \u2014 a stored XSS any author of\
+    \ task content can reach \u2014 and the same templates load Alpine and marked\
+    \ from a CDN with no integrity attribute. If 275 lands there is no legacy UI left\
+    \ to redirect away from, and this task's careful provisions for keeping it reachable\
+    \ become work in the opposite direction.\n\n**Two things this record holds that\
+    \ task-275 does not, and which should not be lost.** Whoever works 275 should\
+    \ read this file:\n\n- **The deep link must be preserved.** Someone landing on\
+    \ `/p/agentjobs/tasks/task-042` should arrive at the equivalent `/app/` address,\
+    \ not be dumped at the dashboard. If the legacy routes are deleted rather than\
+    \ redirected, decide deliberately whether they become 404s or permanent redirects\
+    \ \u2014 an old bookmark or a shared link is the case this task was filed about.\n\
+    - **The PWA manifest is a trap.** Task-086 fought a long battle over manifest\
+    \ identity (`id` is `/app/agentjobs`, on a dedicated tagged Tailscale service\
+    \ host) and that `id` is what keeps the AgentJobs and Job Search installs from\
+    \ colliding. Do not change it. An app installed from the bare root may need reinstalling\
+    \ regardless of what the server does; say so rather than assuming a routing change\
+    \ fixes an already-installed app.\n\n**Caveat carried into the close, since it\
+    \ was in the proposal and Jeff approved with it visible:** task-275 is still a\
+    \ `draft` at `human`/`spec`. This closure bets on a direction that has not been\
+    \ ratified. If 275 is later rejected and the Jinja UI stays, the root-route trap\
+    \ this task describes returns and should be re-filed with the evidence below rather\
+    \ than by reopening this record.\n\nThe incident stands: on 2026-08-17 `GET /`\
+    \ returned a 307 into the Jinja UI, Jeff was on it for days, and a phantom \"\
+    live updates are broken\" regression was investigated across five hypotheses and\
+    \ two browsers before anyone noticed which UI he was looking at."
+  data:
+    lifecycle: closed
+    outcome: superseded
+    operation:
+      id: a1b2c3d4-0022-4000-8000-000000000022
+      kind: close
+      fingerprint: 4238995cb1a7afc000629d528204fe22

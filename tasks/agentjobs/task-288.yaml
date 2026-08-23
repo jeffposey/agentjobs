@@ -1,49 +1,12 @@
 schema: 2
 id: task-288
-title: 'Ad-hoc groom run, 2026-08-23: closure proposal awaiting approval'
+title: 'Ad-hoc groom run, 2026-08-23: four closures proposed, approved, executed'
 created: '2026-08-23T05:16:46.824512Z'
-updated: '2026-08-23T05:18:01.735674Z'
-lifecycle: ready
-ball: human
-ball_reason: approval
-ball_prompt: '**Approve, strike, or reject the four closures in log entry 2. Nothing
-  has been closed and nothing will be until your answer is recorded here.**
-
-
-  The four, each with the one thing that might make you say no:
-
-
-  1. **task-199, duplicate of task-198.** Same defect, same function, same incident,
-  filed twelve minutes apart. The only real question is which survives - 198 is dispatchable
-  today (has eligible runners, effort, deliverables), 199 has the better write-up.
-  Proposed: keep 198.
-
-  2. **task-011, superseded.** task-241''s scripted finish rebuilds and restarts and
-  verifies; task-014 owns the detection half. Caveat: only on machines with `finish.enabled`
-  - a hand-merge still has the gap.
-
-  3. **task-007, superseded by task-275.** 007 redirects away from the Jinja UI; 275
-  deletes it. Caveat: 275 is still a draft you have not ratified, so this bets on
-  a direction you have not signed.
-
-  4. **task-123, superseded by task-174 + task-175.** A decision task whose decision
-  is specced in three other records.
-
-
-  Partial approval is the normal answer, not a compromise. Reply with the ids you
-  approve - "1, 2, 4" or "all but 3" - and only those execute. Say which of 198/199
-  survives if you disagree with the default.
-
-
-  There are also three questions in log entry 3 that need no decision today: task-018''s
-  example is stale while its defect has seven fresh instances, task-196 and task-261
-  overlap, and task-015 may be mooted by task-238 but is not yet.
-
-
-  The separate reorder run of the same date has already executed - it needed no gate.'
+updated: '2026-08-23T06:02:53.051992Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 14200
 category: meta
 tags:
 - playbooks
@@ -122,12 +85,12 @@ spec:
 acceptance:
 - id: ac-1
   text: Jeff's approved list is recorded on this task before any close is executed.
-  status: pending
+  status: met
 - id: ac-2
   text: The executed closes equal the approved list exactly - no more, no fewer -
     each through the managed close verb with outcome duplicate or superseded, each
     body referencing this run.
-  status: pending
+  status: met
 - id: ac-3
   text: No task file was deleted and no spec was rewritten by this run.
   status: met
@@ -286,3 +249,61 @@ log:
       id: a1b2c3d4-0013-4000-8000-000000000013
       kind: handoff
       fingerprint: ac029b9d308afde9dbb4bc2d691e59dd
+- id: 5
+  ts: '2026-08-23T06:00:52.910004Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    approve all'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 6
+  ts: '2026-08-23T06:02:39.763853Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, title.
+  data:
+    fields:
+    - acceptance
+    - title
+    operation:
+      id: a1b2c3d4-0024-4000-8000-000000000024
+      kind: update_content
+      fingerprint: 04ab92e701649cec0dc9572e3cd10825
+- id: 7
+  ts: '2026-08-23T06:02:53.051804Z'
+  actor: claude
+  type: transition
+  body: "**Executed. Four approved, four closed, nothing else touched.**\n\nJeff approved\
+    \ \"approve all\" through the web UI at 2026-08-23T06:00:52Z (log entry 5), which\
+    \ is the recorded approved list section 5.1 requires. The executed set equals\
+    \ it exactly:\n\n| Task | Outcome | Superseded / duplicated by |\n|---|---|---|\n\
+    | task-199 | duplicate | task-198 |\n| task-011 | superseded | task-241 (shipped)\
+    \ + task-014 (open) |\n| task-007 | superseded | task-275 |\n| task-123 | superseded\
+    \ | task-174 + task-175 |\n\nEach close went through the managed `close` verb,\
+    \ each body names this run, and each records what is lost so it can be recovered\
+    \ deliberately rather than rediscovered \u2014 task-199's fuller options analysis,\
+    \ task-007's deep-link and PWA-manifest warnings, task-011's `finish.enabled`\
+    \ residual.\n\n**125 open \u2192 121.** No file deleted, no spec rewritten, no\
+    \ task reprioritised, no queue position changed by this run.\n\n**One thing to\
+    \ note about the approval path, because it will recur.** The UI's approval prompt\
+    \ is written for a code task: it instructed a rebase, a `--no-ff` merge, and marking\
+    \ a branch merged. This task has no branch \u2014 `branches[]` is empty and always\
+    \ was \u2014 so those instructions had no referent and were not followed. A groom\
+    \ run's approval authorises the closures in the proposal, not a merge. Worth knowing\
+    \ when task-215 builds `playbook run`: a run task is approved like a review but\
+    \ finished like a batch of verb calls, and the generic prompt does not distinguish\
+    \ them.\n\nThe three questions in log entry 3 remain open and are not carried\
+    \ by this record: task-018's stale example against its seven live instances, the\
+    \ task-196/task-261 boundary, and task-015 against task-238. Re-raise them on\
+    \ their own tasks if they turn into work."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: a1b2c3d4-0025-4000-8000-000000000025
+      kind: close
+      fingerprint: 407340a40106900cad6cf0e7002a17f9

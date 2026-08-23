@@ -2,14 +2,11 @@ schema: 2
 id: task-123-expand-a-reported-issue-into-a-spec
 title: Expand a reported issue from a stub into a task worth claiming
 created: '2026-08-18T04:46:50.770957Z'
-updated: '2026-08-21T16:59:32.893976Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Finish specifying this task.
+updated: '2026-08-23T06:02:27.972352Z'
+lifecycle: closed
+outcome: superseded
 archived: false
 priority: medium
-queue_position: 5300
 category: architecture
 tags:
 - issue-reporter
@@ -134,3 +131,40 @@ log:
       id: 7d3a12f9-4c68-4b05-9e37-a2f6510cb8e4
       kind: create
       fingerprint: 46cf03de6ee649f7de5b2999207f8119
+- id: 2
+  ts: '2026-08-23T06:02:27.972225Z'
+  actor: claude
+  type: transition
+  body: "Superseded by task-174 and task-175. Closed under the approved list on the\
+    \ ad-hoc groom run task-288 (proposal item 4, log entry 2; Jeff approved \"approve\
+    \ all\" on 2026-08-23, log entry 5).\n\nThis was a decision task, raised by Jeff\
+    \ on 2026-08-18 on seeing what Report Issue actually stores: \"Does it use intelligence\
+    \ to figure out what you mean from the title and desc and make a task?\" It asked\
+    \ two things \u2014 whether AgentJobs should expand a stub itself, and where the\
+    \ intelligence would live. Both have since been answered by other records:\n\n\
+    - **Where the intelligence lives** \u2014 task-174, \"Decide how AgentJobs is\
+    \ allowed to call a model at all\": through the dispatch runner, or a direct API\
+    \ call with a key, and what that means for a product that has started coding agents\
+    \ but never called a model itself. That is this task's second question, scoped\
+    \ properly and standing on its own.\n- **Whether and how it expands** \u2014 task-175:\
+    \ a checkbox on the create *and report* forms, checked by default, that has a\
+    \ model expand what you typed into summary, intent, description and acceptance\
+    \ criteria, with the draft landing in the form for the human to edit before pressing\
+    \ create. That is this task's first question, answered yes, with the reporter\
+    \ form named explicitly.\n- **The same transformation on the agent side** \u2014\
+    \ task-218, the `flesh-out` playbook: writes a full spec onto an already-filed\
+    \ thin task through `update_content` and parks it at `human`/`review`.\n\nSo the\
+    \ decision this task exists to make has been made in three places, and the shape\
+    \ it worried about \u2014 \"the backlog now fills with stubs that each cost a\
+    \ specification pass before anyone can claim them\" \u2014 is addressed at both\
+    \ ends: before filing (175) and after (218).\n\nNothing is lost. task-174 inherits\
+    \ the model-access question, task-175 inherits the reporter case that prompted\
+    \ this, and this file stays in the repository for anyone who wants the original\
+    \ framing."
+  data:
+    lifecycle: closed
+    outcome: superseded
+    operation:
+      id: a1b2c3d4-0023-4000-8000-000000000023
+      kind: close
+      fingerprint: 6416cb20c19548d313ed73bc67789264

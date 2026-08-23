@@ -2,13 +2,11 @@ schema: 2
 id: task-199
 title: Enabling a project from the browser deletes every comment in dispatch.yaml
 created: '2026-08-20T20:45:14.268669Z'
-updated: '2026-08-21T16:58:00.734391Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-23T06:01:43.500241Z'
+lifecycle: closed
+outcome: duplicate
 archived: false
 priority: high
-queue_position: 6200
 category: bug
 tags:
 - dispatch
@@ -136,3 +134,37 @@ log:
     to: 6
     placement:
       kind: top
+- id: 3
+  ts: '2026-08-23T06:01:43.500085Z'
+  actor: claude
+  type: transition
+  body: "Duplicate of task-198. Closed under the approved list on the ad-hoc groom\
+    \ run task-288 (proposal item 1, log entry 2; Jeff approved \"approve all\" on\
+    \ 2026-08-23, log entry 5).\n\nSame defect: `set_project_enabled` loads ~/.agentjobs/dispatch.yaml,\
+    \ mutates one entry and writes the whole document back with `yaml.safe_dump`,\
+    \ which cannot preserve comments. This record cites src/agentjobs/dispatch/config.py:1102;\
+    \ task-198 cites :1034 and :1101. Same function, same file.\n\nSame incident:\
+    \ `job-hunting` enabled from the browser on 2026-08-20, every comment line destroyed.\
+    \ Filed twelve minutes after task-198 \u2014 20:45:14Z against 20:33:06Z.\n\n\
+    **task-198 is the survivor** because it is dispatchable today: it carries `eligible:\
+    \ [codex, claude]`, an effort estimate, six acceptance criteria and two deliverables,\
+    \ where this record has none of those.\n\n**What is lost by closing this one,\
+    \ stated so it can be recovered deliberately rather than discovered later.** This\
+    \ record has the better analysis in two places, and groom is not permitted to\
+    \ merge it into task-198 \u2014 that would be rewriting a spec:\n\n- Its \"Ways\
+    \ out\" section enumerates the fix options more fully than task-198's \"Fix directions\"\
+    .\n- Its framing of why the loss is unrecoverable is sharper: the file is machine-local\
+    \ by design and in no repository, so there is no `git diff` and no history \u2014\
+    \ the comments are simply gone, silently, on a click. task-191 restored it only\
+    \ because it happened to have copied the file before editing.\n- It records the\
+    \ quietly dropped key: `projects.agentjobs.require_clean_tree: false` vanished\
+    \ in the round trip, reverting to the default with no record that it had ever\
+    \ been overridden.\n\nNothing is deleted. This file remains in the repository\
+    \ and in git history; anyone working task-198 should read it."
+  data:
+    lifecycle: closed
+    outcome: duplicate
+    operation:
+      id: a1b2c3d4-0020-4000-8000-000000000020
+      kind: close
+      fingerprint: 1bd0d93350821c770682fcb6329f4adc
