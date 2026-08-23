@@ -5,6 +5,7 @@ from __future__ import annotations
 from .health import router as health_router
 from .dashboard import router as dashboard_router
 from .dispatch import router as dispatch_router
+from .playbooks import router as playbooks_router
 from .projects import router as projects_router
 from .queue import router as queue_router
 from .revision import router as revision_router
@@ -24,6 +25,7 @@ PROJECT_SCOPED_ROUTERS = (
     search_router,
     webhooks_router,
     revision_router,
+    playbooks_router,
 )
 """Routers mounted twice: unscoped at /api, and again under /api/projects/{project_id}.
 
@@ -38,6 +40,7 @@ __all__ = [
     "dashboard_router",
     "dispatch_router",
     "health_router",
+    "playbooks_router",
     "projects_router",
     "queue_router",
     "revision_router",
