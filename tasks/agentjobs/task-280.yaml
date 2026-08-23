@@ -3,7 +3,7 @@ id: task-280
 title: 'Codex dispatch: durable App Server lifecycle, MCP preflight, and Desktop session
   visibility'
 created: '2026-08-22T22:50:25.584388Z'
-updated: '2026-08-23T00:08:53.715738Z'
+updated: '2026-08-23T03:13:58.814271Z'
 lifecycle: active
 ball: agent
 ball_reason: redirect
@@ -30,7 +30,7 @@ spec:
   intent: Turn Codex dispatch from a successful smoke path into a reliable, diagnosable,
     resumable production workflow.
   description: 'This is a structural follow-up to the first Codex session-dispatch
-    rollout. The current implementation can complete a real Luna task, but it crosses
+    rollout. The current implementation can complete a real Codex task, but it crosses
     three independently fragile boundaries: AgentJobs MCP startup, Codex App Server
     thread/turn lifecycle, and Codex Desktop''s session/index reconciliation.
 
@@ -41,25 +41,22 @@ spec:
     behavior.
 
 
-    The implementation work is intended for the ordinary Codex/Luna runner. Do not
-    route this epic or its children through the Big Dawg/Sol runner. Speed policy
-    is deliberately separate from the architecture work: Terra and Sol should later
-    be compared in non-Fast/Standard mode, while Fast-mode cost/performance tuning
-    remains a separate experiment.'
+    Jeff explicitly directs this epic to GPT-5.6 Terra at High reasoning and Standard/Slow
+    speed. Do not route this epic or its children through Sol/Big Dawg.'
   constraints: '- Do not weaken AgentJobs'' task-write audit trail, required MCP contract,
     worktree isolation, or human review gates.
 
     - Do not treat Desktop sidebar visibility as equivalent to dispatch success; define
     dispatch completion, thread resumability, and Desktop visibility as separate contracts.
 
-    - Implementation children should be worked by Codex using the Luna/default runner.
+    - Implementation children use Codex GPT-5.6 Terra at High reasoning and Standard/Slow
+    speed.
 
     - Do not use Sol/Big Dawg for the epic''s implementation or acceptance runs.
 
-    - Terra/Sol Standard-speed comparison and Fast-mode tuning are explicitly deferred
-    to later, separate tasks.'
+    - Fast-mode tuning remains a separate task.'
   out_of_scope: Changing the active runner-group policy; optimizing Fast mode; benchmarking
-    Terra or Sol; replacing the AgentJobs MCP task protocol; broad Codex Desktop product
+    other models; replacing the AgentJobs MCP task protocol; broad Codex Desktop product
     fixes outside the integration boundary.
   context:
   - path: docs/codex-dispatch.md
@@ -92,9 +89,9 @@ acceptance:
   verify: End-to-end or protocol-backed acceptance suite
   status: pending
 - id: sc-4
-  text: A live Luna dispatch can complete, resume, and record task activity without
+  text: A live Terra dispatch can complete, resume, and record task activity without
     human intervention except for the declared review gate.
-  verify: Controlled smoke run using the default runner group
+  verify: Controlled smoke run using the directed Terra configuration
   status: pending
 - id: sc-5
   text: The epic's implementation children are derived with dependencies, and no child
@@ -293,3 +290,43 @@ log:
       id: c22bea5a-0b16-421c-af94-17c66e373286
       kind: log_append
       fingerprint: 1a1dcbc2f4bbac27b64f5f3ac7332442
+- id: 13
+  ts: '2026-08-23T01:41:35.624999Z'
+  actor: codex
+  type: decision
+  body: Jeff clarified that Terra is explicitly directed for task-280 and its epic
+    work. Execute this epic with GPT-5.6 Terra at High reasoning and Standard/Slow
+    speed; do not describe or route this epic through Luna. This supersedes stale
+    child-task wording that named Luna/default. Sol/Big Dawg remains excluded.
+  data:
+    operation:
+      id: 7f42b1b4-e8de-4303-a63e-b3c9dbb2a497
+      kind: log_append
+      fingerprint: 9a07eaafe2bbc77d6a24b74abc43bdfd
+- id: 14
+  ts: '2026-08-23T01:41:55.327868Z'
+  actor: codex
+  type: note
+  body: Updated acceptance, spec.
+  data:
+    fields:
+    - acceptance
+    - spec
+    operation:
+      id: eed649f9-6177-433e-a2da-1dd99ed05504
+      kind: update_content
+      fingerprint: 361d61fd3b9b558a4f85d137a17ac18d
+- id: 15
+  ts: '2026-08-23T03:13:58.813984Z'
+  actor: codex
+  type: progress
+  body: "Task-284 is completed and merged as 3744f65. It adds a fresh App Server persisted-thread\
+    \ probe and independently records persistence evidence versus Desktop observation;\
+    \ the known local service was restarted and health-checked. Proceeding directly\
+    \ to the remaining acceptance child task-285 under Jeff\u2019s autonomous authorization\
+    \ and the Terra High/Standard instruction."
+  data:
+    operation:
+      id: 84b62883-1f4b-4d0c-b42b-3c1a7e2ed065
+      kind: log_append
+      fingerprint: c7209256980ae55bb4610f2073ff6fa4

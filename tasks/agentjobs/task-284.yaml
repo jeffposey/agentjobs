@@ -2,13 +2,11 @@ schema: 2
 id: task-284
 title: 'Codex dispatch: persisted-thread and Desktop visibility reporting'
 created: '2026-08-22T23:10:37.549928Z'
-updated: '2026-08-22T23:10:37.982948Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-23T03:13:47.620076Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 14700
 category: dispatch
 tags:
 - codex
@@ -27,9 +25,10 @@ spec:
     for persisted, desktop_visible, not_observed, and unavailable. Define a controlled
     human Desktop observation procedure without claiming an undocumented sidebar/index
     acknowledgement API.
-  constraints: Use the configured Codex Luna/default runner only. Preserve task audit
-    records, permissions, worktree isolation, and human review gates. Do not change
-    Codex Desktop itself, runner selection, or use Sol/Big Dawg.
+  constraints: Use the directed Codex GPT-5.6 Terra runner at High reasoning and Standard/Slow
+    speed. Preserve task audit records, permissions, worktree isolation, and human
+    review gates. Do not change Codex Desktop itself, runner selection, or use Sol/Big
+    Dawg.
   out_of_scope: Broad Desktop product changes, retry policy, MCP transport changes,
     and Fast mode.
   context: []
@@ -63,7 +62,10 @@ dependencies:
   type: needs
   note: Visibility must distinguish the original and explicit fresh-session threads.
 links: []
-branches: []
+branches:
+- name: feat/task-284-desktop-visibility
+  status: merged
+  merged_at: '2026-08-23T03:18:00Z'
 log:
 - id: 1
   ts: '2026-08-22T23:10:37.982050Z'
@@ -76,3 +78,134 @@ log:
       id: 7ba4e522-718a-4ce7-b0b8-9d4d3617a4c8
       kind: create
       fingerprint: 6f9712826ef1c71a1d441ac5b4991a3d
+- id: 2
+  ts: '2026-08-23T00:19:57.066306Z'
+  actor: codex
+  type: queue_move
+  body: Jeff authorized autonomous completion of task-280's remaining dependency-ordered
+    children. Task-284 is unblocked by completed tasks-282 and -283 and takes precedence
+    over unrelated backlog work.
+  data:
+    band: high
+    from: 14700
+    to: 15
+    placement:
+      kind: top
+    operation:
+      id: fb7bac50-6279-45a1-8b40-df2c70592395
+      kind: queue_move
+      fingerprint: 4abfb9cb0230d9b62da3c359635bdf6a
+- id: 3
+  ts: '2026-08-23T00:20:00.568526Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 45f708f9-a48d-4e2f-a8b0-3d27797ddff2
+      kind: claim
+      fingerprint: 3534a688d8c2dcc09596c1c42c585933
+- id: 4
+  ts: '2026-08-23T00:20:08.481428Z'
+  actor: codex
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: d245bbb2-2c0a-432c-8a57-5b0b8cf69f12
+      kind: update_content
+      fingerprint: e05cdc8c9e72f2d4771f93e488e9d390
+- id: 5
+  ts: '2026-08-23T01:42:02.555572Z'
+  actor: codex
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 15f4090b-4cda-4f51-b777-025fd5bd39e1
+      kind: update_content
+      fingerprint: f2ade44fa3a8ebab7b02fa5c8eae7bf7
+- id: 6
+  ts: '2026-08-23T03:08:08.903661Z'
+  actor: codex
+  type: progress
+  body: 'Jeff explicitly directed immediate work on task-284. The dashboard''s attempted
+    automatic dispatch did not create a run: default group resolution failed because
+    codex-terra is disabled and codex-luna cannot resolve `codex` on PATH. Work continues
+    directly in feat/task-284-desktop-visibility; this diagnostic must not be represented
+    as an active dispatched session.'
+  data:
+    operation:
+      id: 93d37301-e9c6-4db6-934e-239fd5e1a04d
+      kind: log_append
+      fingerprint: 88fdfef33365fc68ab791551bf7e796c
+- id: 7
+  ts: '2026-08-23T03:10:39.875110Z'
+  actor: codex
+  type: progress
+  body: Implemented persisted-thread evidence and independent Desktop observation
+    reporting. After a completed App Server turn, a fresh probe verifies thread/read
+    plus appServer-filtered thread/list and records persisted evidence; Desktop remains
+    not_observed until a human checks it. Commit 0dd2b18; 141 focused tests and the
+    full 10-stage repository gate passed.
+  data:
+    operation:
+      id: 071645ca-e60c-4bd3-a226-5ac55d8cce5d
+      kind: log_append
+      fingerprint: 842bfde41f8d9255befd65db1e205629
+- id: 8
+  ts: '2026-08-23T03:10:45.508476Z'
+  actor: codex
+  type: handoff
+  body: 'Task-284 is ready: commit 0dd2b18, 141 focused tests, and full repository
+    gate green.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 178cf684-dc99-4d48-9ce4-89d08e7baaa8
+      kind: handoff
+      fingerprint: 2cc40a252d7aa93228e58ea48ac5f045
+- id: 9
+  ts: '2026-08-23T03:10:51.670824Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    Approved under standing autonomous authorization for task 280.'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 10
+  ts: '2026-08-23T03:13:42.931607Z'
+  actor: codex
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 9f79403a-e90a-4b93-a471-a6bd9c9d05ad
+      kind: update_content
+      fingerprint: d04f2a01e86f773d6a504d08cacc2134
+- id: 11
+  ts: '2026-08-23T03:13:47.619861Z'
+  actor: codex
+  type: transition
+  body: Merged as 3744f65 after the full 10-stage repository gate. Restarted the known
+    AgentJobs service at 127.0.0.1:8876; its health check returned ok.
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 46ccd75f-081f-4f86-892b-8c35d8d45b71
+      kind: close
+      fingerprint: c1b79895be8ac8830d2613d984f5b74d
