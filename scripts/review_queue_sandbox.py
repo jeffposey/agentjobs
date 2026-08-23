@@ -15,6 +15,11 @@ constructing any of them by hand. Switch between them with the project picker.
                       list is several screens deep -- the only fixture in which "drag
                       a task from the bottom to the top of its band" is a gesture that
                       has to leave the viewport at all (task-229)
+    sandbox-warned    both sides of the queue-move check (task-219): a `high` band
+                      built so that promoting anything in it earns a warning notice,
+                      and a `medium` band where every drag is legal and the screen
+                      stays silent. The comparison is the fixture -- a check that
+                      speaks on ordinary moves is the failure it exists to avoid
 
 Nothing here touches the live corpus. Everything lives under a temporary directory
 that is deleted when this process stops, including its own AGENTJOBS_HOME registry,
@@ -217,8 +222,61 @@ def add_trace_routes(app: Any) -> None:
         return TRACES
 
 
+def seed_warned(manager) -> None:
+    """Both sides of the queue-move check, in two bands (task-219).
+
+    `high` is built so that a person dragging almost anything is told something true:
+    a gate three tasks are waiting on, the three that wait on it, and an epic with an
+    open child. Promote a blocked task and the notice names all three findings at once
+    -- it will be skipped, it now stands above what it needs, and what it displaced is
+    gating other work.
+
+    `medium` is the control, and it matters as much. Nothing there blocks anything, so
+    every drag in it must leave the screen silent. A reviewer who only ever sees the
+    warning half cannot tell a check from wallpaper.
+    """
+    from agentjobs.models_v2 import Lifecycle, Priority
+
+    def make(task_id, title, priority, **kwargs):
+        manager.create_task(
+            id=task_id,
+            title=title,
+            description="Seeded for a queue-move-check review. Nothing here is real work.",
+            summary=f"{title}.",
+            priority=priority,
+            lifecycle=kwargs.pop("lifecycle", Lifecycle.READY),
+            actor="claude",
+            **kwargs,
+        )
+
+    def waits_on(gate):
+        return {"dependencies": [{"task": gate, "type": "needs", "note": "Needs the gate."}]}
+
+    make("task-301", "Ship the credential rotation", Priority.HIGH)
+    make("task-302", "Unrelated high-band work", Priority.HIGH)
+    make("task-303", "Rotate the staging keys", Priority.HIGH, **waits_on("task-301"))
+    make("task-304", "Rotate the CI keys", Priority.HIGH, **waits_on("task-301"))
+    make("task-305", "Document the rotation runbook", Priority.HIGH, **waits_on("task-301"))
+    make("task-306", "Notifications that survive the session", Priority.HIGH)
+    make("task-307", "Pick a delivery channel", Priority.HIGH, parent="task-306")
+    make("task-308", "Sketch the mobile navigation", Priority.HIGH, lifecycle=Lifecycle.DRAFT)
+
+    make("task-401", "Tidy the CLI help text", Priority.MEDIUM)
+    make("task-402", "Document the dispatch config", Priority.MEDIUM)
+    make("task-403", "Rename the sample project", Priority.MEDIUM)
+    make("task-404", "Drop the unused index", Priority.MEDIUM)
+    make("task-405", "Refresh the screenshots", Priority.MEDIUM)
+
+
 def build(
-    root: Path, *, project_id: str, name: str, corrupt: bool, human_rungs: bool, filler: int
+    root: Path,
+    *,
+    project_id: str,
+    name: str,
+    corrupt: bool,
+    human_rungs: bool,
+    filler: int,
+    warned: bool = False,
 ) -> Path:
     from agentjobs.manager import TaskManager
     from agentjobs.project_setup import build_project_config
@@ -230,12 +288,11 @@ def build(
         yaml.safe_dump(build_project_config(project_name=name, user="Jeff Posey"), sort_keys=False),
         encoding="utf-8",
     )
-    seed(
-        TaskManager(TaskStorage(project_root / "tasks")),
-        corrupt=corrupt,
-        human_rungs=human_rungs,
-        filler=filler,
-    )
+    manager = TaskManager(TaskStorage(project_root / "tasks"))
+    if warned:
+        seed_warned(manager)
+    else:
+        seed(manager, corrupt=corrupt, human_rungs=human_rungs, filler=filler)
     return project_root
 
 
@@ -252,12 +309,20 @@ def main() -> None:
 
     registry = ProjectRegistry(home)
     projects = [
-        ("sandbox-healthy", "Sandbox: healthy queue", False, False, 0),
-        ("sandbox-broken", "Sandbox: broken queue", True, False, 0),
-        ("sandbox-blocked", "Sandbox: broken and blocked", True, True, 0),
-        ("sandbox-tall", "Sandbox: a backlog several screens deep", False, False, 60),
+        ("sandbox-healthy", "Sandbox: healthy queue", False, False, 0, False),
+        ("sandbox-broken", "Sandbox: broken queue", True, False, 0, False),
+        ("sandbox-blocked", "Sandbox: broken and blocked", True, True, 0, False),
+        ("sandbox-tall", "Sandbox: a backlog several screens deep", False, False, 60, False),
+        (
+            "sandbox-warned",
+            "Sandbox: moves that earn a warning, and moves that do not",
+            False,
+            False,
+            0,
+            True,
+        ),
     ]
-    for project_id, name, corrupt, human_rungs, filler in projects:
+    for project_id, name, corrupt, human_rungs, filler, warned in projects:
         registry.add(
             build(
                 root,
@@ -266,6 +331,7 @@ def main() -> None:
                 corrupt=corrupt,
                 human_rungs=human_rungs,
                 filler=filler,
+                warned=warned,
             ),
             project_id=project_id,
             name=name,

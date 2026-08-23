@@ -221,6 +221,15 @@ export function TaskList({
   // a moment later and carries no trace of what the person who moved it was told.
   const [notice, setNotice] = useState<MoveNotice | null>(null);
   const [keeping, setKeeping] = useState(false);
+  // Which move the notice on screen is allowed to be about.
+  //
+  // Two Alt+Up presses is one gesture as far as a person is concerned, and each fires
+  // its own request and its own refetch. Those do not have to finish in the order they
+  // started -- and they did not, in a browser, on the first fixture this was tried
+  // against: the second move's findings appeared and were then overwritten by the
+  // first move's, leaving a notice describing a state the queue was no longer in.
+  // Every verdict therefore carries the move it belongs to, and a late one is dropped.
+  const moveCount = useRef(0);
   const [bandChange, setBandChange] = useState<BandChange | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   // The task whose handle should hold focus after the next render.
@@ -303,6 +312,7 @@ export function TaskList({
     if (!handlers || !move) return;
     setMoveError(null);
     setNotice(null);
+    const sequence = (moveCount.current += 1);
     restoreFocus.current = taskId;
     setPending({ signature, tasks: applyMove(ordered, taskId, move) });
     setAnnouncement(describeMove(ordered, taskId, move));
@@ -312,8 +322,10 @@ export function TaskList({
       // it is true of the queue as it now stands, so suppressing it here would mean
       // the one move whose consequences nobody was shown.
       const verdict = await handlers.move(taskId, move);
+      if (sequence !== moveCount.current) return;
       if (verdict.warnings.length > 0) setNotice({ taskId, ...verdict });
     } catch {
+      if (sequence !== moveCount.current) return;
       // Put back the way the server has it, rather than left showing a place the task
       // is not in. A screen that quietly disagrees with the record is worse than a
       // gesture that failed loudly, because the next decision is made from the screen.

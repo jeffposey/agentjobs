@@ -717,3 +717,60 @@ describe("TaskList queue-move notice", () => {
     await waitFor(() => expect(screen.queryByTestId("queue-move-notice")).not.toBeInTheDocument());
   });
 });
+
+describe("TaskList notice ordering", () => {
+  /**
+   * Two presses is one gesture, and their requests need not finish in order.
+   *
+   * Found in a browser, not here: promoting a blocked task twice in quick succession
+   * showed the *first* move's single finding and dropped the second move's three,
+   * because the earlier response landed last and overwrote the later one. The screen
+   * then described a queue state that no longer existed.
+   */
+  it("drops a verdict that arrives after a later move has already started", async () => {
+    const first = { warnings: [{ kind: "no_op", message: "First move.", tasks: [] }], undo: null };
+    const second = {
+      warnings: [{ kind: "promoted_unclaimable", message: "Second move.", tasks: [] }],
+      undo: null,
+    };
+    let releaseFirst: () => void = () => {};
+    const move = vi
+      .fn()
+      .mockImplementationOnce(
+        () => new Promise((resolve) => { releaseFirst = () => resolve(first); }),
+      )
+      .mockImplementationOnce(() => Promise.resolve(second));
+    const reorder: ReorderHandlers = { move, reprioritize: vi.fn(), keep: vi.fn() };
+    renderQueue([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], { reorder });
+
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+    await waitFor(() => expect(move).toHaveBeenCalledTimes(2));
+    await screen.findByText("Second move.");
+
+    // The first move's answer, arriving late. It must not replace what is on screen.
+    releaseFirst();
+    await waitFor(() => expect(screen.getByText("Second move.")).toBeVisible());
+    expect(screen.queryByText("First move.")).not.toBeInTheDocument();
+  });
+
+  it("drops a late failure too, rather than reporting a move that succeeded", async () => {
+    let rejectFirst: (error: Error) => void = () => {};
+    const move = vi
+      .fn()
+      .mockImplementationOnce(
+        () => new Promise((_resolve, reject) => { rejectFirst = reject; }),
+      )
+      .mockImplementationOnce(() => Promise.resolve({ warnings: [], undo: null }));
+    const reorder: ReorderHandlers = { move, reprioritize: vi.fn(), keep: vi.fn() };
+    renderQueue([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], { reorder });
+
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+    await waitFor(() => expect(move).toHaveBeenCalledTimes(2));
+
+    rejectFirst(new Error("409"));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(renderedOrder()).toEqual(["task-c", "task-a", "task-b"]);
+  });
+});
