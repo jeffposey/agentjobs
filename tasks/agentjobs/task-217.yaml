@@ -2,62 +2,17 @@ schema: 2
 id: task-217
 title: 'Playbooks 4: reorder, authored, with anchor mechanics'
 created: '2026-08-21T04:56:41.043549Z'
-updated: '2026-08-23T21:13:03.260359Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'The approval ran the scripted finish and it stopped at `rebase`. **Nothing
-  was merged.**
-
-
-  Rebasing feat/task-217-reorder-playbook onto main did not apply cleanly, and a conflict
-  is never resolved here. The branch is exactly where it was (d576ba49). Nothing was
-  merged.
-
-
-  ```
-
-  Auto-merging tests/test_playbooks.py
-
-  CONFLICT (content): Merge conflict in tests/test_playbooks.py
-
-  Rebasing (1/3)
-
-  Rebasing (2/3)
-
-  error: could not apply 45fe129... feat(playbooks): the normative reorder brief,
-  project copy and shipped reference
-
-  hint: Resolve all conflicts manually, mark them as resolved with
-
-  hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
-
-  hint: You can instead skip this commit: run "git rebase --skip".
-
-  hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
-
-  hint: Disable this message with "git config set advice.mergeConflict false"
-
-  Could not apply 45fe129... # feat(playbooks): the normative reorder brief, project
-  copy and shipped reference
-
-  ```
-
-
-  Take it from here by hand. Check the tree against what is written above before acting
-  on anything you remember: if your worktree, your branch or your account of this
-  task no longer matches what is on disk, say so on the record and hand the ball back
-  rather than improvising a recovery.'
+updated: '2026-08-23T21:23:17.762055Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 155
 category: meta
 tags:
 - playbooks
 - queue-order
 - backlog
 assignment:
-  owner: claude
   eligible: []
 parent: task-211
 spec:
@@ -134,7 +89,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-217-reorder-playbook
-  status: active
+  status: merged
+  merged_at: '2026-08-23T21:23:17.697802Z'
 log:
 - id: 1
   ts: '2026-08-21T04:56:41.043589Z'
@@ -692,3 +648,39 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 16
+  ts: '2026-08-23T21:23:17.761793Z'
+  actor: claude
+  type: transition
+  body: 'Merged `feat/task-217-reorder-playbook` into `main` as `107ce87` and verified
+    live: `/api/version` reports that exact commit from the shared clone, started
+    21:21:49, after the merge. The frontend bundle was rebuilt before the restart
+    because the merge touched `frontend/` -- `frontend_dist/` is gitignored, so the
+    merge alone would have left the running server handing out the pre-merge bundle.
+
+
+    All three acceptance criteria met, and the live reorder run (task-291) is closed.
+    Approved by Jeff under the standing overnight grant for the task-211 epic.
+
+
+    **Merged by the supervisor rather than the scripted finish, which escalated on
+    a rebase conflict.** The conflict was in `tests/test_playbooks.py`: task-218 merged
+    while this branch was open and appended two test methods to `TestThisRepositorysOwnPlaybooks`,
+    and this branch appends one to the same class at the same anchor. Both sides purely
+    additive, neither touching a line of the other, so the resolution is the union
+    of the two -- verified by reading both hunks rather than assumed from the fact
+    that they applied. Black then refused the result, because removing the conflict
+    markers left the blank-line spacing wrong; that was fixed and the commit amended.
+    The full gate was re-run on the rebased tip and went green, all ten stages, 165.3s,
+    receipt for `b7f6863`.
+
+
+    Branch deleted with `git branch -d` and the worktree removed -- ENGINEERING.md
+    step 5, the half that task-293 exists because nothing implements.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 27dbb9a5-ba15-4856-ae72-f40c7ea3fc14
+      kind: close
+      fingerprint: 51c700ffb35ffdf00674305850ee991e
