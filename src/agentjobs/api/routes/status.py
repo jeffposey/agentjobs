@@ -29,7 +29,7 @@ from agentjobs.dispatch.address import api_base_from_server
 from agentjobs.dispatch.config import DispatchError
 from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
 from agentjobs.dispatch.runner import DispatchRunError
-from agentjobs.manager import TaskManager, TaskNotFoundError
+from agentjobs.manager import MoveOutcome, TaskManager, TaskNotFoundError
 from agentjobs.models_v2 import Task
 from agentjobs.operations import OperationConflictError, RevisionConflictError
 from agentjobs.projects import Project
@@ -48,6 +48,7 @@ from ..models import (
     MutationResult,
     ProgressUpdateRequest,
     PromoteRequest,
+    QueueKeepRequest,
     QueueMoveRequest,
     ReleaseRequest,
     ReprioritizeRequest,
@@ -221,7 +222,7 @@ def _log_length(task_id: str, project: Project) -> int:
 
 
 def _run(
-    verb: Callable[[], Task],
+    verb: Callable[[], Union[Task, MoveOutcome]],
     *,
     task_id: str,
     project: Project,
@@ -234,16 +235,27 @@ def _run(
     nothing, so comparing the log length either side is a more direct check than
     having every verb thread a flag back up. It also cannot be wrong about a verb that
     forgot to set the flag.
+
+    A queue move answers with a :class:`~agentjobs.manager.MoveOutcome` rather than a
+    bare task, because the check's findings are not a property of the task -- they are
+    a property of the move, and a caller reading the task back a second later has no
+    way to recover them. Every other verb still returns the task and lands on the
+    ``else`` branch untouched.
     """
     before = _log_length(task_id, project) if envelope and operation_id else -1
     try:
-        task = verb()
+        result = verb()
     except MutationError:
         raise
     except TaskLockTimeout as exc:
         raise lock_timeout_error(exc, task_id=task_id) from exc
     except ValueError as exc:
         raise _classify(exc, task_id) from exc
+
+    if isinstance(result, MoveOutcome):
+        task, advisory = result.task, result.as_dict()
+    else:
+        task, advisory = result, {"queue_warnings": [], "queue_undo": None}
 
     if not envelope:
         return task
@@ -253,6 +265,7 @@ def _run(
         replayed=operation_id is not None and len(task.log) == before,
         task=_as_read(task),
         warnings=[],
+        **advisory,
     )
 
 
@@ -393,16 +406,58 @@ async def queue_move_task(
     logged. The route computes no position -- it names a placement and the manager
     decides what number that is, because the arithmetic has to happen under the queue
     lock and a route holds no locks.
+
+    The move lands and is never blocked by what the check finds. Ask for
+    ``?envelope=true`` to be told what it found: ``queue_warnings`` carries the
+    findings, ``queue_undo`` the placement that puts the task back where it came from.
+    Without the envelope this answers with the bare task exactly as it always did.
     """
     actor = acting_actor(project, payload.actor)
     return _run(
-        lambda: manager.move(
+        lambda: manager.move_with_warnings(
             task_id,
             before=payload.before,
             after=payload.after,
             top=payload.top,
             bottom=payload.bottom,
             with_children=payload.with_children,
+            actor=actor,
+            body=payload.body,
+            operation_id=payload.operation_id,
+            expected_revision=payload.expected_revision,
+        ),
+        task_id=task_id,
+        project=project,
+        operation_id=payload.operation_id,
+        envelope=envelope,
+    )
+
+
+@router.post(
+    "/{task_id}/queue-keep", response_model=MutationResponse, status_code=status.HTTP_200_OK
+)
+async def queue_keep_task(
+    task_id: str,
+    payload: QueueKeepRequest,
+    envelope: bool = ENVELOPE_QUERY,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_acting_project),
+) -> Any:
+    """Keep a place that was moved over a stated warning, and record why that is binding.
+
+    The other button on the queue-move notice. `undo` needs no route of its own -- it
+    is an ordinary move back through the route above -- but keeping does, because what
+    it writes is not a move: it is the strong anchor, a position a person defended
+    against an objection they had read, which `reorder` may not overturn.
+
+    Refused when the last move produced no warnings. An anchor claims "informed, and
+    kept anyway", and one written where nothing was ever said would bind `reorder` to a
+    decision nobody took.
+    """
+    actor = acting_actor(project, payload.actor)
+    return _run(
+        lambda: manager.keep_queue_move(
+            task_id,
             actor=actor,
             body=payload.body,
             operation_id=payload.operation_id,

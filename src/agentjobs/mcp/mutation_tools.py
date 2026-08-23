@@ -21,6 +21,7 @@ from mcp import types
 
 from ..client import MutationResult, TaskClient, TaskClientError
 from ..models_v2 import MANAGER_WRITTEN_LOG_TYPES, LogEntryType
+from ..queue_check import WARNING_KINDS
 from .errors import ErrorCode, FieldError, ToolError
 from .results import ToolOutput, mutation_annotations, success
 from .routing import (
@@ -74,6 +75,40 @@ MUTATION_RESULT_SCHEMA: Dict[str, Any] = {
             "description": (
                 "Post-commit side effects that failed, such as webhook delivery. A "
                 "warning never means the task write failed."
+            ),
+        },
+        "queue_warnings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["kind", "message", "tasks"],
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": list(WARNING_KINDS),
+                    },
+                    "message": {"type": "string"},
+                    "tasks": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+            "description": (
+                "What the queue-move check found about a reorder that has already "
+                "landed. Present only on task_queue_move, empty on most moves, and "
+                "never a refusal -- the move stands regardless."
+            ),
+        },
+        "queue_undo": {
+            "type": ["object", "null"],
+            "additionalProperties": False,
+            "required": ["kind"],
+            "properties": {
+                "kind": {"type": "string", "enum": ["top", "bottom", "before", "after"]},
+                "target": {"type": ["string", "null"]},
+            },
+            "description": (
+                "The placement that puts the task back where the move took it from. "
+                "Offered only alongside a queue warning, and only for a single move."
             ),
         },
     },
@@ -335,6 +370,8 @@ def _result_payload(result: MutationResult, project_id: str) -> Dict[str, Any]:
             result.task.model_dump(mode="json", by_alias=True, exclude_none=True)
         ),
         "warnings": list(result.warnings),
+        "queue_warnings": [warning.model_dump(mode="json") for warning in result.queue_warnings],
+        "queue_undo": result.queue_undo,
     }
 
 
@@ -680,6 +717,11 @@ def _build_queue_move(client: TaskClient) -> Any:
             if result.replayed
             else f"Moved {task.id} to {task.priority.value}/{task.queue_position}."
         )
+        # The check's findings go in the sentence as well as the payload. A client that
+        # renders only the summary would otherwise be the one surface where a move that
+        # cannot work looks identical to one that can.
+        if result.queue_warnings:
+            summary = " ".join([summary, *(warning.message for warning in result.queue_warnings)])
         return success(_result_payload(result, project_id), summary)
 
     return handler

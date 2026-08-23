@@ -51,6 +51,7 @@ CONFIG: Dict[str, object] = {
 #: that also fails loudly when somebody adds a fifth route and forgets to list it.
 MUTATING_ROUTES: List[Tuple[str, Dict[str, Any]]] = [
     ("/api/tasks/task-a/queue-move", {"top": True}),
+    ("/api/tasks/task-a/queue-keep", {}),
     ("/api/tasks/task-a/reprioritize", {"priority": "low"}),
     ("/api/queue/repair", {}),
     ("/api/queue/compact", {"band": "high"}),

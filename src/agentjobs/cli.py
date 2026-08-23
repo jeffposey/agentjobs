@@ -32,7 +32,7 @@ from .dispatch.guards import DispatchRequest, dispatch_task
 from .dispatch.ledger import DispatchLedger, LedgerError, list_runs, live_runs
 from .dispatch.runner import DispatchRunError
 from .dispatch.scaffold import EXAMPLE_CONFIG, write_example_config
-from .manager import QueueEntry, QueueListing, TaskManager
+from .manager import MoveOutcome, QueueEntry, QueueListing, TaskManager
 from .mcp.config import BASE_URL_ENV as MCP_BASE_URL_ENV
 from .mcp.config import TIMEOUT_ENV as MCP_TIMEOUT_ENV
 from .migration import migrate_tasks
@@ -1574,6 +1574,33 @@ def _report_problems(listing: QueueListing) -> None:
     typer.secho(f"   Repair it with: {REPAIR_COMMAND}", fg=typer.colors.RED, err=True)
 
 
+def _report_move_warnings(outcome: MoveOutcome) -> None:
+    """Print what the queue-move check found, after the move it is about.
+
+    **After, and on stderr.** The move has already landed and is authoritative -- the
+    check reports and never refuses -- so the success line goes out first and stays
+    parseable for a script that pipes it. A move that earns nothing prints nothing,
+    which is the normal case.
+    """
+    if not outcome.warnings:
+        return
+    typer.secho(
+        f"⚠️  {len(outcome.warnings)} thing(s) worth knowing about that move:",
+        fg=typer.colors.YELLOW,
+        err=True,
+    )
+    for warning in outcome.warnings:
+        typer.secho(f"   {warning.message}", fg=typer.colors.YELLOW, err=True)
+    if outcome.undo is not None:
+        typer.secho(
+            "   Undo it with: agentjobs queue move "
+            f"{outcome.task.id} --{outcome.undo.kind}"
+            + (f" {outcome.undo.target}" if outcome.undo.target else ""),
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+
+
 @queue_app.command("list")
 def queue_list(
     band: Optional[Priority] = typer.Option(
@@ -1638,7 +1665,7 @@ def queue_move(
     manager = _build_manager(base_dir)
     resolved_actor = _resolve_actor(config, actor)
     try:
-        task = manager.move(
+        outcome = manager.move_with_warnings(
             task_id,
             before=before,
             after=after,
@@ -1651,7 +1678,9 @@ def queue_move(
     except ValueError as error:
         typer.secho(str(error), fg=typer.colors.RED)
         raise typer.Exit(code=1)
+    task = outcome.task
     typer.echo(f"\u2705 {task.id} is now {task.priority.value}/{task.queue_position}")
+    _report_move_warnings(outcome)
 
 
 @queue_app.command("reprioritize")

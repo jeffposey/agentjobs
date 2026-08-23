@@ -51,6 +51,19 @@ class ProjectSummary(BaseModel):
         return [actor.id for actor in self.actors]
 
 
+class QueueMoveWarning(BaseModel):
+    """One deterministic finding about a queue move that has already landed.
+
+    Carried on the move's result rather than derivable from the task afterwards: the
+    findings are a property of the move, and a reader coming back a second later has
+    no way to recover what the person who moved it was told.
+    """
+
+    kind: str
+    message: str
+    tasks: List[str] = Field(default_factory=list)
+
+
 class MutationResult(BaseModel):
     """What one safe mutation did.
 
@@ -64,6 +77,11 @@ class MutationResult(BaseModel):
     replayed: bool = False
     task: Task
     warnings: List[str] = Field(default_factory=list)
+    #: The queue-move check's findings. Empty for every other verb, and empty for most
+    #: moves -- a finding here never means the move was refused.
+    queue_warnings: List[QueueMoveWarning] = Field(default_factory=list)
+    #: The placement that puts the task back, offered only alongside a warning.
+    queue_undo: Optional[Dict[str, Any]] = None
 
 
 class TaskClientError(RuntimeError):
@@ -652,6 +670,10 @@ class TaskClient:
             replayed=bool(data.get("replayed", False)),
             task=self._parse_task(data["task"]),
             warnings=list(data.get("warnings") or []),
+            queue_warnings=[
+                QueueMoveWarning.model_validate(item) for item in (data.get("queue_warnings") or [])
+            ],
+            queue_undo=data.get("queue_undo"),
         )
 
     def _parse_task(self, data: Dict[str, Any]) -> Task:
@@ -862,6 +884,29 @@ class TaskOperations:
                 "with_children": with_children,
                 "body": body,
             },
+            operation_id=operation_id,
+            expected_revision=expected_revision,
+        )
+
+    def queue_keep(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        operation_id: str,
+        expected_revision: datetime | str,
+        body: Optional[str] = None,
+    ) -> MutationResult:
+        """Keep a place that was moved over a stated warning; record the strong anchor.
+
+        The complement of an undo, which needs nothing new -- an undo is a move back.
+        This exists because what a keep writes is a decision rather than a move: the
+        position becomes one ``reorder`` may not overturn, on the evidence that a
+        person read the objection and kept it anyway.
+        """
+        return self._client._mutation(
+            f"/tasks/{task_id}/queue-keep",
+            {"actor": actor, "body": body},
             operation_id=operation_id,
             expected_revision=expected_revision,
         )
