@@ -591,11 +591,15 @@ React application:
 
 ```bash
 poetry install
+npm --prefix frontend ci && npm --prefix frontend run build
 poetry run agentjobs open
 ```
 
 `agentjobs serve` is the foreground-server form. Both serve the packaged React app at
-`/app/`; neither needs Node at runtime.
+`/app/`; neither needs Node **at runtime**, which is not the same as not needing it from
+a clone — the bundle is gitignored, so a clone builds it once with the `npm` line above
+and a release wheel ships with it already built. `open` checks for it and refuses with
+that command rather than opening a browser onto a 404.
 
 See the [task schema reference](task-schema.md), [API reference](api-reference.md), and
 [schema-v2 design](schema-design.md) for the complete field and endpoint contracts.
