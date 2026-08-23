@@ -226,8 +226,10 @@ than leaving the rationale in a chat transcript:
   authorized task state into a supervised agent process, with bounded autonomy and
   explicit safety gates. **It shipped** — the document's own header says what landed
   under which task, and marks the four things in it that were never built.
-- [Codex dispatch rollout](docs/codex-dispatch.md) documents the batch-only Codex
-  runner setup and the Terra/Sol rollout sequence.
+- [Codex dispatch rollout](docs/codex-dispatch.md) documents the current Codex
+  runner setup and rollout sequence.
+- [Durable Codex dispatch architecture](docs/codex-dispatch-architecture.md)
+  separates dispatch, resumability, and Desktop-visibility contracts.
 - [Agent loops](docs/agent-loops-design.md) is a design record with **no implementation
   yet**, and says so at the top. Its contribution is an evaluable stopping condition and
   durable iteration history, not another `while true` wrapper. The design pass closed as
