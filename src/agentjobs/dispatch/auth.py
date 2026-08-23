@@ -1,10 +1,21 @@
 """Recognising a dispatched session that died on an expired login.
 
-Claude Code does not refresh its own credential per session. A shared background daemon
-owns the OAuth refresh for every ``--bg`` worker, and on 2026-08-21 that refresh failed
-four times over three minutes, after which the daemon discarded a token its own log line
-calls ``(token still valid)``. Every dispatched session on the machine died mid-turn.
-task-224 has the timeline and the evidence.
+There are two refreshes, not one. A Claude Code client refreshes its own credential when
+the access token has under 300 seconds of life left, and a shared background daemon runs
+a second, scheduled refresh 240 seconds before expiry. Both numbers were measured on
+2026-08-23: a probe whose first API call landed around 314 seconds before expiry left the
+credential untouched, the next probe fifteen seconds later rewrote it with 299.137 seconds
+remaining, and the daemon's own attempt a minute after that logged ``token still valid
+(cross-process refresh or not yet due)``.
+
+**What kills a session is a refresh that fails, not a token that expires.** On 2026-08-21
+a session cold-started with 274.5 seconds of life left -- inside its own refresh window --
+tried to refresh, and reported ``Login expired`` 2.5 seconds later without ever running a
+turn. The daemon's scheduled attempt 33 seconds after that found ``no token found`` in two
+milliseconds, having made no network call: the failed client refresh had already left the
+store without a usable token. That is why the failure looks like a valid credential being
+refused, and why the daemon appears to notice second. task-224 has the timeline and the
+evidence.
 
 **The reason this needs a module rather than a phase check is that the failure is
 invisible to everything dispatch already looks at.** A permission park leaves the session
@@ -18,7 +29,9 @@ completed`` after losing six minutes to a dead credential and needing a human to
 So the signal has to come from somewhere else, and there is exactly one place it lives:
 the session's own JSONL transcript under the Claude home, where the failing turn is a
 single line carrying ``"error": "authentication_failed"``. Across every session log on
-this machine that field had three occurrences and all three were genuine.
+this machine on 2026-08-21 that field had three occurrences and all three were genuine.
+The date is part of the claim: a sweep grows every week, and a bare count in prose does
+not. By 2026-08-23 it was five, and all five were still genuine.
 
 Two properties of the failure shape the detector:
 
