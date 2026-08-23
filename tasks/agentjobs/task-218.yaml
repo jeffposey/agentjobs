@@ -2,7 +2,7 @@ schema: 2
 id: task-218
 title: 'Playbooks 5: flesh-out, authored and proven'
 created: '2026-08-21T04:56:57.789106Z'
-updated: '2026-08-23T17:54:28.066448Z'
+updated: '2026-08-23T18:40:06.551115Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -117,3 +117,176 @@ log:
       id: 14ff4032-964f-4b1f-a511-d6791979a293
       kind: update_content
       fingerprint: 5a5794a66a004feb84260a0c96396631
+- id: 5
+  ts: '2026-08-23T18:39:15.872496Z'
+  actor: claude
+  type: decision
+  body: "**Decision: sc-2's live run was attempted and cannot be performed by an agent.\
+    \ Three independent structural blockers, any one of which is sufficient, and the\
+    \ third of them is the system working correctly.**\n\n**1. There is no thin task\
+    \ in this backlog to run it against.** Measured through `TaskManager` against\
+    \ the live registry on 2026-08-23, over all 287 records: 113 open, 174 closed.\
+    \ The thinnest open record \u2014 `task-105-next-task-id-all-slugged-records`\
+    \ \u2014 carries a **429-character description, a summary, an intent, five constraints,\
+    \ an out-of-scope, three context entries with reasons, and five acceptance criteria**.\
+    \ The median open description is 2,387 characters. **Not one task in the corpus,\
+    \ open or closed, has an empty `spec.description`**, which is the machine's own\
+    \ definition of a record that cannot brief an agent (`record_can_brief`, `src/agentjobs/dispatch/guards.py`).\
+    \ The thinnest record ever written here was 262 characters, and it was a playbook\
+    \ run task generated from frontmatter.\n\nI read the four thinnest open tasks\
+    \ in full before concluding this. Each is a working specification. Running flesh-out\
+    \ at one would not be a test of flesh-out; it would be the failure the brief's\
+    \ \xA71 exists to forbid \u2014 padding a record that works, to have something\
+    \ to show.\n\n**2. The brief is on this branch and `playbook run` reads the project\
+    \ root.** Same blocker task-216 hit and recorded in its log entry 5, unchanged.\
+    \ Demonstrated rather than predicted \u2014 the real command, and nothing was\
+    \ started:\n\n    $ agentjobs playbook run flesh-out --project agentjobs --task\
+    \ task-105-next-task-id-all-slugged-records\n    Refused (unknown_playbook): No\
+    \ playbook named 'flesh-out' in C:\\projects\\agentjobs\\playbooks.\n\n`_load`\
+    \ is the first statement in `run_playbook`, so the refusal lands before `assert_dispatch_permitted`\
+    \ and before anything is written.\n\n**3. Nothing an agent can do authorises this\
+    \ dispatch, and that is the point of the rule.** A `target: task` run creates\
+    \ no run task, so `--actor` is unused and the human-clocked rule falls to *the\
+    \ target task's own newest log entry*. The CLI's own help says what to do about\
+    \ that: *\"write the note as yourself first if the newest entry there is an agent's\"\
+    *, and *\"there is no flag here that signs for a dispatch of an existing task\
+    \ on somebody's behalf.\"*\n\nMeasured with the real guard (`resolve_causing_entry`\
+    \ then `assert_human_clocked`) against all 113 open tasks: **4 are human-clocked\
+    \ right now** \u2014 task-021, task-022, task-018 and task-156, all last touched\
+    \ by Jeff, and all with 2,068\u20133,451-character descriptions. The other **109\
+    \ are refused**. So the intersection of *thin* and *dispatchable by me* is empty,\
+    \ and it is empty in the direction that means the guard is working: every task\
+    \ I could dispatch is one that must not be fleshed out, and every task worth fleshing\
+    \ out needs a human to touch it first.\n\n**What was rejected, and why.**\n\n\
+    *Passing `--actor \"Jeff Posey\"`.* Refused outright. Beyond being the substitution\
+    \ task-188 exists to prevent, it would not even have worked \u2014 `--actor` cannot\
+    \ reach a task it did not just create. The kickoff named this and it was never\
+    \ a live option.\n\n*Staging `playbooks/flesh-out.md` into the shared clone's\
+    \ working tree, uncommitted, to get past blocker 2.* It would have worked mechanically\
+    \ \u2014 `read_playbook` reads the filesystem, not git. Rejected because blocker\
+    \ 3 stands behind it regardless, so the only thing it would have bought is an\
+    \ untracked file in a clone several agents share, at the moment when another session's\
+    \ `git add` would commit it to `main` unreviewed.\n\n*Committing the brief straight\
+    \ to `main` to get past blocker 2.* That is the merge gate, and the brief is exactly\
+    \ the deliverable it exists to gate.\n\n*Creating a thin task on purpose to have\
+    \ a target.* This is the one worth stating, because it is the tempting one and\
+    \ it is the same error in a new coat. A task filed deliberately under-specified\
+    \ is not a thin task; it is a prop. It would prove the mechanism against a record\
+    \ built to be proven against, and it would put a manufactured item in a backlog\
+    \ whose whole value is that an id in it means something. If a genuinely thin task\
+    \ is needed to prove this, the honest way to get one is for a person to file one\
+    \ the way people actually file them.\n\n*Performing the flesh-out by hand, as\
+    \ the run, on a chosen target.* Blocked by blocker 1 rather than by authorisation:\
+    \ there is no target. It would also not be the live run sc-2 asks for \u2014 dispatch,\
+    \ the pointer, the `playbook_hash` on the dispatch entry and the prompt line would\
+    \ all go unexercised, which is most of what \"live\" means here.\n\n**What would\
+    \ unblock it, in order, and none of it needs another agent's judgement.** Merge\
+    \ this branch, which puts `playbooks/flesh-out.md` under the shared clone. Then,\
+    \ against a genuinely thin task \u2014 one Jeff files, or one that turns up \u2014\
+    \ he writes any note on it as himself, and `agentjobs playbook run flesh-out --task\
+    \ <id>` runs with no `--actor` at all, because his note is the authorising entry.\
+    \ That is one command and one note, and it is the same path any human-triggered\
+    \ playbook run takes.\n"
+  data:
+    operation:
+      id: 3f60fffc-73d1-4e00-a9f2-659a488f5319
+      kind: log_append
+      fingerprint: 1bd71f08230120415723312539093620
+- id: 6
+  ts: '2026-08-23T18:40:04.157454Z'
+  actor: claude
+  type: decision
+  body: "**Decision: the kickoff prompt asked for two things that are not this task's,\
+    \ and they were not built.**\n\nThe prompt that started this session says, in\
+    \ \"What to do\" step 2, to *\"build the last-`queue_move`-actor exposure with\
+    \ tests\"*, and earlier that task-219's `keep` verb matters because *\"your brief's\
+    \ anchor rules consume that record\"*.\n\nNeither belongs to task-218. Flesh-out\
+    \ has no anchor rules \u2014 anchors are `reorder`'s (design \xA75.2, decision\
+    \ P7), and `reorder` is **task-217**, which is open and unclaimed. The queue-move\
+    \ actor exposure is queue-program work and appears nowhere in task-218's spec,\
+    \ constraints or acceptance criteria. Both sentences read as carried over from\
+    \ a sibling's brief.\n\nTask-218's record is the specification, and it names two\
+    \ criteria: author the brief, and run it live. That is what this session did.\n\
+    \n*Rejected: building the exposure anyway on the grounds that a kickoff prompt\
+    \ asked for it.* It would put queue-program code on a playbooks branch, make the\
+    \ review one thing plus an unrelated thing, and \u2014 worse \u2014 quietly take\
+    \ work out of task-217's or the queue program's scope without any record that\
+    \ it had moved. If it is wanted, it is a task, and filing it is cheaper than discovering\
+    \ later that two branches both touched it.\n"
+  data:
+    operation:
+      id: 11d5df49-6eda-4de5-a0cc-87b7ec5163f8
+      kind: log_append
+      fingerprint: f305ad55531bdf604a60352e82dbfa43
+- id: 7
+  ts: '2026-08-23T18:40:05.390352Z'
+  actor: claude
+  type: question
+  body: "**Question: the browser path refuses to dispatch exactly the tasks flesh-out\
+    \ exists for, unless the human types a note. Should a playbook pointer count as\
+    \ the brief?**\n\n`dispatch_task` (`src/agentjobs/dispatch/guards.py`, the `authorizer_id\
+    \ is not None` branch) raises `RecordCannotBriefError` when the caller names the\
+    \ human clicking **and** `record_can_brief(task)` is false \u2014 that is, when\
+    \ `spec.description` is empty. The message is right for an ordinary dispatch:\
+    \ *\"there is nothing for an agent to work from and nothing this dispatch could\
+    \ be attributed to beyond the click itself.\"*\n\nFor a flesh-out run the premise\
+    \ is false. An empty `spec.description` is not an absent brief, it is *the reason\
+    \ the run exists*, and the brief is the playbook the pointer names. So the surface\
+    \ the design calls primary \u2014 a human clicking Run on the Playbooks page,\
+    \ which passes `authorized_by` \u2014 is the one surface where the intended target\
+    \ is refused.\n\nIt is not a hard block: any `note` satisfies the check, so a\
+    \ human types \"flesh out per the playbook\" and it proceeds. Which is arguably\
+    \ the worse outcome, because it is a box that fires on every legitimate use and\
+    \ is cleared by typing anything \u2014 the exact \"teaches the human to click\
+    \ through it\" failure `record_can_brief`'s own docstring says it was designed\
+    \ to avoid.\n\n**The question is whether `record_can_brief` should return true\
+    \ when the request carries a `PlaybookPointer`.** `DispatchRequest` already holds\
+    \ one, so the information is present at the point of the check.\n\nI have not\
+    \ changed it, for two reasons. It is dispatch's code and not this task's scope,\
+    \ and the answer plausibly differs per playbook: a task-target playbook that *reads*\
+    \ a spec would still want the guard. It also cannot be observed today, because\
+    \ no task in this backlog has an empty `spec.description` \u2014 this is reasoning\
+    \ from the code, not a reproduction. Worth its own task if the answer is that\
+    \ the pointer should count.\n"
+  data:
+    operation:
+      id: 41e4ac9c-531d-430a-895f-cbb5928b5518
+      kind: log_append
+      fingerprint: a12b06343f987a14319c339063508643
+- id: 8
+  ts: '2026-08-23T18:40:06.550840Z'
+  actor: claude
+  type: question
+  body: "**Question: `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`\
+    \ fails under load, on `main`, and will probably fail the approval-triggered finish\
+    \ for this task.**\n\nNine full-suite runs tonight, on this machine, alternating\
+    \ between this worktree and the unmodified shared clone:\n\n| Tree | Runs | Failures\
+    \ |\n|---|---|---|\n| `feat/task-218-flesh-out-playbook` | 6 | 3 |\n| `main`,\
+    \ no changes at all | 3 | 1 |\n\nIt fails two different ways \u2014 `AssertionError:\
+    \ pid NNNNN survived the timeout` and `AssertionError: the grandchild never started,\
+    \ so this proves nothing` \u2014 and passes 3/3 in isolation and 130/130 when\
+    \ only `tests/test_dispatch_runner.py` runs under `-n auto`. **It reproduces on\
+    \ `main` with nothing of mine present**, so it is pre-existing; this branch's\
+    \ diff is two markdown files and one test file.\n\nThe mechanism is visible in\
+    \ the test. The runner is built with `timeout=3`, and the readiness loop that\
+    \ waits for the grandchild's marker spawns a **fresh Python interpreter per 200\
+    \ ms tick** (`subprocess.run([sys.executable, \"-c\", \"import time; time.sleep(0.2)\"\
+    ])`, line 1541). On a box where xdist is already running 32 workers, starting\
+    \ an interpreter costs far more than the 200 ms it is standing in for, so the\
+    \ loop's real elapsed time overruns the 3-second timeout: either the group is\
+    \ killed before the grandchild writes its marker, or the kill and the `tasklist`\
+    \ check race. Two failure messages, one cause.\n\nI have not fixed it \u2014 it\
+    \ is unrelated to this task and a fix to `tests/test_dispatch_runner.py` on a\
+    \ playbooks branch is the mixing ALLAGENTS warns against. **But it matters to\
+    \ this task's merge**: the scripted finish re-runs the full gate, and at roughly\
+    \ a one-in-three failure rate it is likely to escalate with \"the gate went red\"\
+    \ on a stage that has nothing to do with this branch. If that happens, `agentjobs\
+    \ finish task-218` re-run is the retry, and the log above is why.\n\nThe obvious\
+    \ fix, for whoever picks it up: sleep in-process instead of spawning an interpreter,\
+    \ and give the readiness wait a budget derived from the runner's timeout rather\
+    \ than a fixed tick count. Should this be a task?\n"
+  data:
+    operation:
+      id: 4d3e9e4c-d4f1-4a47-ae70-8e2b2fc3ec78
+      kind: log_append
+      fingerprint: 2a0347a867c3e8a8a78ca47a77b64e8c
