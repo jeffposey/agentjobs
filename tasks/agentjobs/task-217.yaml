@@ -2,70 +2,52 @@ schema: 2
 id: task-217
 title: 'Playbooks 4: reorder, authored, with anchor mechanics'
 created: '2026-08-21T04:56:41.043549Z'
-updated: '2026-08-23T21:13:02.584027Z'
+updated: '2026-08-23T21:13:03.260359Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.
+ball_prompt: 'The approval ran the scripted finish and it stopped at `rebase`. **Nothing
+  was merged.**
 
 
-  Note from Jeff Posey:
+  Rebasing feat/task-217-reorder-playbook onto main did not apply cleanly, and a conflict
+  is never resolved here. The branch is exactly where it was (d576ba49). Nothing was
+  merged.
 
 
-  Standing approval from Jeff for the task-211 children, relayed by the supervisor
-  after review. Held until nothing else was live, so the finish gets a quiet main
-  -- the base_moved race filed as task-297 cost task-224 two full cycles tonight.
+  ```
+
+  Auto-merging tests/test_playbooks.py
+
+  CONFLICT (content): Merge conflict in tests/test_playbooks.py
+
+  Rebasing (1/3)
+
+  Rebasing (2/3)
+
+  error: could not apply 45fe129... feat(playbooks): the normative reorder brief,
+  project copy and shipped reference
+
+  hint: Resolve all conflicts manually, mark them as resolved with
+
+  hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+  hint: You can instead skip this commit: run "git rebase --skip".
+
+  hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+
+  hint: Disable this message with "git config set advice.mergeConflict false"
+
+  Could not apply 45fe129... # feat(playbooks): the normative reorder brief, project
+  copy and shipped reference
+
+  ```
 
 
-  **The live reorder run was verified rather than accepted, because it wrote to Jeff''s
-  real queue.** `git diff` across the run''s two commits shows the only fields that
-  changed anywhere are `queue_position` on four tasks, plus task-291 closing itself.
-  No lifecycle, priority, title, outcome or archived flag moved on anything else --
-  so the claim that ordering is not grooming is a fact about the diff, not an assurance.
-  task-198 reads position 525 with a substantive `queue_move` body. `agentjobs queue
-  check` reports the queue sound in every band, and `agentjobs next` now returns task-296,
-  the parked-session defect that cost this task four hours today.
-
-
-  **The departure worth Jeff''s attention, and the supervisor agrees with it.** Design
-  section 5.2 defines an anchor as a move whose *actor* is human. The run measured
-  what that rule actually protects on this backlog: 3 positions out of 125, because
-  Jeff''s decisions are executed by agents on his behalf. Twenty-two placements he
-  had approved were left freely re-derivable. The brief therefore reads the whole
-  move -- a human actor anchors, and so does an agent move whose body names the person
-  who asked or approved. That is a considered departure from the design''s literal
-  wording, argued at log entry 7, and it makes the anchor concept do what it was for
-  instead of what it said. Five anchors were found under the wider rule and all five
-  were respected; none was overridden and no strong anchor exists in this corpus.
-
-
-  One judgement call inside the run is worth a second look but does not block: promoting
-  task-295 returned a `demoted_blocker` warning naming task-142, task-145 and task-150,
-  and the run kept the move because all three are themselves unclaimable behind task-141
-  and task-149 -- so the demotion changes what a reader sees rather than when anything
-  is worked. Reasoning is on task-291 entry 5.
-
-
-  **The run found a defect in its own brief and fixed it**, which is the second time
-  in this epic that a live run has earned its keep that way: section 5 told a run
-  to acknowledge a kept warning in the move body, which is impossible because the
-  warning is returned by the write that the body was composed for. Fixed in d576ba4.
-
-
-  Gate green, all ten stages, 165.7s, receipt for d576ba4, and task-243''s flake did
-  not fire. Two non-blocking questions are left on the record for Jeff: whether `queue
-  keep` should refuse a non-human actor, and that a queue command run from a worktree
-  silently resolves to that worktree''s corpus.
-
-
-  The session was stopped before this approval so its working directory does not pin
-  the worktree the finish removes.
-
-
-  That note is context to carry into the merge, not another review round: you are
-  still cleared to merge.'
+  Take it from here by hand. Check the tree against what is written above before acting
+  on anything you remember: if your worktree, your branch or your account of this
+  task no longer matches what is on disk, say so on the record and hand the ball back
+  rather than improvising a recovery.'
 archived: false
 priority: high
 queue_position: 155
@@ -634,3 +616,79 @@ log:
     finish_step: started
     branch: feat/task-217-reorder-playbook
     finish_id: fin_2144dd6d
+- id: 14
+  ts: '2026-08-23T21:13:03.223724Z'
+  actor: finisher
+  type: progress
+  body: "The scripted finish stopped at `rebase` (rebase_conflict).\n\n**Nothing was\
+    \ merged.**\n\nRebasing feat/task-217-reorder-playbook onto main did not apply\
+    \ cleanly, and a conflict is never resolved here. The branch is exactly where\
+    \ it was (d576ba49). Nothing was merged.\n\n```\nAuto-merging tests/test_playbooks.py\n\
+    CONFLICT (content): Merge conflict in tests/test_playbooks.py\nRebasing (1/3)\n\
+    Rebasing (2/3)\nerror: could not apply 45fe129... feat(playbooks): the normative\
+    \ reorder brief, project copy and shipped reference\nhint: Resolve all conflicts\
+    \ manually, mark them as resolved with\nhint: \"git add/rm <conflicted_files>\"\
+    , then run \"git rebase --continue\".\nhint: You can instead skip this commit:\
+    \ run \"git rebase --skip\".\nhint: To abort and get back to the state before\
+    \ \"git rebase\", run \"git rebase --abort\".\nhint: Disable this message with\
+    \ \"git config set advice.mergeConflict false\"\nCould not apply 45fe129... #\
+    \ feat(playbooks): the normative reorder brief, project copy and shipped reference\n\
+    ```\n\n```\n  preflight  ok         1.2s  feat/task-217-reorder-playbook at d576ba49\
+    \ in C:\\projects\\worktrees\\aj-217\n  rebase     STOPPED    0.0s  Rebasing feat/task-217-reorder-playbook\
+    \ onto main did not apply cleanly, and a conflict is never resolved here. The\
+    \ branch is exactly where it was (d576ba49). Nothing was merged.\n```"
+  data:
+    finish_step: rebase
+    finish_reason: rebase_conflict
+    merge_commit: null
+    merged: false
+- id: 15
+  ts: '2026-08-23T21:13:03.260226Z'
+  actor: finisher
+  type: handoff
+  body: 'The approval ran the scripted finish and it stopped at `rebase`. **Nothing
+    was merged.**
+
+
+    Rebasing feat/task-217-reorder-playbook onto main did not apply cleanly, and a
+    conflict is never resolved here. The branch is exactly where it was (d576ba49).
+    Nothing was merged.
+
+
+    ```
+
+    Auto-merging tests/test_playbooks.py
+
+    CONFLICT (content): Merge conflict in tests/test_playbooks.py
+
+    Rebasing (1/3)
+
+    Rebasing (2/3)
+
+    error: could not apply 45fe129... feat(playbooks): the normative reorder brief,
+    project copy and shipped reference
+
+    hint: Resolve all conflicts manually, mark them as resolved with
+
+    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+    hint: You can instead skip this commit: run "git rebase --skip".
+
+    hint: To abort and get back to the state before "git rebase", run "git rebase
+    --abort".
+
+    hint: Disable this message with "git config set advice.mergeConflict false"
+
+    Could not apply 45fe129... # feat(playbooks): the normative reorder brief, project
+    copy and shipped reference
+
+    ```
+
+
+    Take it from here by hand. Check the tree against what is written above before
+    acting on anything you remember: if your worktree, your branch or your account
+    of this task no longer matches what is on disk, say so on the record and hand
+    the ball back rather than improvising a recovery.'
+  data:
+    ball: agent
+    ball_reason: work
