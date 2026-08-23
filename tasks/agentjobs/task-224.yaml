@@ -3,7 +3,7 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-23T18:55:00.776954Z'
+updated: '2026-08-23T18:57:51.173467Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -2298,3 +2298,19 @@ log:
     finish_step: started
     branch: docs/task-224-client-refresh-correction
     finish_id: fin_2b0d42aa
+- id: 70
+  ts: '2026-08-23T18:57:51.173086Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `docs/task-224-client-refresh-correction` into `main` as `827e8169`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\aj-224
+    before the merge. Approved by Jeff Posey; no agent was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 827e81698232ce9b12416b55529c8e59a2c66025
+    branch: docs/task-224-client-refresh-correction
+    base: main
