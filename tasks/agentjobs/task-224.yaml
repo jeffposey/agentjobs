@@ -3,26 +3,11 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-23T18:57:51.173467Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'The approval ran the scripted finish and it stopped at `merge`. **Nothing
-  was merged.**
-
-
-  main moved from df87156d to 3b9f4636 while the gate was running, so what was verified
-  is no longer what would be merged. The branch is rebased onto the older base and
-  nothing was merged.
-
-
-  Take it from here by hand. Check the tree against what is written above before acting
-  on anything you remember: if your worktree, your branch or your account of this
-  task no longer matches what is on disk, say so on the record and hand the ball back
-  rather than improvising a recovery.'
+updated: '2026-08-23T18:58:10.176142Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 11400
 category: reliability
 tags:
 - dispatch
@@ -31,7 +16,6 @@ tags:
 - research
 effort: research first; the fix is unknown until the trigger is
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: On 2026-08-21 Claude Code reported "Login expired" during autonomous work
@@ -185,7 +169,8 @@ branches:
 - name: feat/task-224-auth-park-detector
   status: merged
 - name: docs/task-224-client-refresh-correction
-  status: active
+  status: merged
+  merged_at: '2026-08-23T18:58:09.994795Z'
 log:
 - id: 1
   ts: '2026-08-21T15:51:07.589440Z'
@@ -2314,3 +2299,23 @@ log:
     merge_commit: 827e81698232ce9b12416b55529c8e59a2c66025
     branch: docs/task-224-client-refresh-correction
     base: main
+- id: 71
+  ts: '2026-08-23T18:58:10.175749Z'
+  actor: finisher
+  type: transition
+  body: "Merged `docs/task-224-client-refresh-correction` into `main` as `827e8169`\
+    \ and verified live. Approved by Jeff Posey; finished by the scripted path with\
+    \ no agent session (task-241).\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.9s  docs/task-224-client-refresh-correction at\
+    \ f0eb75d5 in C:\\projects\\worktrees\\aj-224\n  rebase     ok         0.2s  docs/task-224-client-refresh-correction\
+    \ onto main: f0eb75d5 -> e10cbecd\n  gate       ok       169.5s  scripts/check.py\
+    \ green\n  merge      ok         0.4s  --no-ff into main as 827e81698232ce9b12416b55529c8e59a2c66025\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         0.9s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving 33017f40, which contains the merge\
+    \ 827e8169, from C:\\projects\\agentjobs (started 2026-08-23T18:57:57.663892+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
