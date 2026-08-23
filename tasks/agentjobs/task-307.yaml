@@ -1,0 +1,254 @@
+schema: 2
+id: task-307
+title: Choose the posture at the moment of dispatching, not only in dispatch.yaml
+created: '2026-08-23T22:34:10.639602Z'
+updated: '2026-08-23T22:34:59.493175Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 257
+category: ux
+tags:
+- dispatch
+- posture
+- ux
+- frontend
+- api
+effort: half a day
+assignment:
+  eligible: []
+parent: task-160-dispatch-phase-two
+spec:
+  summary: "Posture is fixed in `dispatch.yaml` per runner, group or project. Jeff\
+    \ wants to pick it from a pulldown next to the Dispatch button, the way he will\
+    \ pick a runner group (task-184). Nothing supports that today: there is no posture\
+    \ field on the dispatch request, no `--posture` flag on the CLI, and no control\
+    \ in the browser. The unresolved question is whether a browser click may *raise*\
+    \ posture above the configured default, since `autonomous` means bypassPermissions\
+    \ and \u2014 once task-021 lands \u2014 merging without a human."
+  intent: "Jeff, 2026-08-23: \"being able to choose the runner group from pulldown,\
+    \ and posture from pulldown, before clicking dispatch\". Posture is a per-dispatch\
+    \ decision in practice \u2014 \"audit this one with the big model, and let it\
+    \ merge\" is judged against the task in front of you, not configured once per\
+    \ project \u2014 but the system only lets it be configured once per project."
+  description: "## What exists, verified 2026-08-23\n\nPosture reaches a run from\
+    \ exactly one place: the resolved `dispatch.yaml`, where it is\na field on a runner,\
+    \ a group, or the project (`Posture` default `AUTO`,\n`src/agentjobs/dispatch/config.py:387`,\
+    \ parsed at `:736`). Three surfaces would each\nneed to learn about it, and none\
+    \ of them has:\n\n- **API** \u2014 `DispatchRequestBody` (`src/agentjobs/api/models.py:816`)\
+    \ carries\n  `caused_by`, `group`, `user` and `note`. No posture. `DispatchStarted`\
+    \ *reports* the\n  posture back, so the response half of the round-trip already\
+    \ exists.\n- **CLI** \u2014 `agentjobs dispatch run` takes `--project`, `--caused-by`,\
+    \ `--group`. No\n  `--posture`.\n- **Browser** \u2014 `DispatchPanel.tsx` renders\
+    \ posture as read-only text\n  (\"Runner X, posture Y, authorised by Z\", around\
+    \ line 373) and has no control for it.\n\nSo this is not a pulldown. It is a request\
+    \ field, a guard rule, a CLI flag and a\ncontrol, in that order.\n\n## The decision\
+    \ this task must not skip\n\n**May a dispatch raise posture above what the config\
+    \ resolved, or only lower it?**\n\nThe case for lower-only: posture is the safety\
+    \ envelope, `dispatch.yaml` is a file on\ndisk that a human edited deliberately,\
+    \ and the browser is a surface reachable from a\nphone over Tailscale. A control\
+    \ that only narrows can never turn a click into\n`bypassPermissions`, so it needs\
+    \ no new trust argument at all.\n\nThe case for allowing escalation: the whole\
+    \ point of the feature is \"let this one run\nunattended\", and a control that\
+    \ cannot express that is not the feature Jeff asked for.\nIf escalation is allowed\
+    \ it should cost something the way `--as` was made to \u2014 the\ntyped note,\
+    \ or naming the raised posture in the authorising entry so the record shows a\n\
+    human chose it.\n\nThere is precedent for refusing the easy version. `agentjobs\
+    \ dispatch run --help` says a\n`--as` flag was considered and deliberately left\
+    \ alone: *\"it is the same trust model the\nHTTP path already has, but it is a\
+    \ new surface for authorising runs and nothing\ncurrently needs it.\"* Whatever\
+    \ is decided here, record it as a `decision` with the\nrejected alternative \u2014\
+    \ a later reader cannot recover this from the diff.\n\nThe stake rises when task-021\
+    \ merges. After it, `autonomous` will mean the run merges\nits own work without\
+    \ a human, so this dropdown stops being \"what may it execute\" and\nbecomes \"\
+    may it merge without me\". Read task-021's recorded decisions before designing\n\
+    the control's copy; the warning text beside `autonomous` is downstream of them.\n\
+    \n## Sequencing\n\ntask-184 adds the runner-group pulldown to the same panel and\
+    \ is frontend-only, because\nthe API already accepts `group`. **Land task-184\
+    \ first.** Both tasks edit\n`DispatchPanel.tsx`; done concurrently they conflict\
+    \ for no benefit, and 184 establishes\nthe shape of a per-dispatch choice control\
+    \ that this one should copy rather than invent.\n\n## Out of the design entirely\n\
+    \nAuto-dispatch on Approve. Jeff deferred it explicitly on 2026-08-23 \u2014 \"\
+    maybe? lets keep\nthat out of scope for now, waiting for me to try auto dispatch\"\
+    \ \u2014 and it is a different\nquestion (who authorises) from this one (what\
+    \ envelope)."
+  constraints: "- The human-clocked rule is untouched. `assert_human_clocked` still\
+    \ decides *whether* a dispatch may start; this task only changes *what envelope*\
+    \ the started run gets. A posture field must never become an alternative route\
+    \ to authorising a run.\n- The posture the run actually got is already reported\
+    \ on `DispatchStarted` and written to the dispatch log entry. Whatever is chosen\
+    \ must show up there, so the record says which posture ran and not merely which\
+    \ one the config would have given.\n- Read-only over `dispatch.yaml`. Choosing\
+    \ a posture for one dispatch never rewrites the file, exactly as choosing a group\
+    \ never creates one.\n- Assert on rendered values, not the presence of markup\
+    \ \u2014 a control that renders `Posture.AUTONOMOUS` while the test checks a `<select>`\
+    \ exists is the failure mode this repository has already been bitten by.\n- `poetry\
+    \ run python scripts/check.py` passes, and the generated client is regenerated\
+    \ before the commit, not after."
+  out_of_scope: "Dispatching automatically when Approve is clicked (deferred by Jeff,\
+    \ 2026-08-23). Authoring or editing runners, groups or postures in `dispatch.yaml`\
+    \ from the browser (task-178). Agent types as a role layer carrying posture (task-227)\
+    \ \u2014 that is a possible successor to this, not this."
+  context:
+  - path: src/agentjobs/api/models.py
+    why: DispatchRequestBody around line 816 is the field set that has no posture;
+      DispatchStarted below it already reports one.
+  - path: src/agentjobs/dispatch/config.py
+    why: Posture is resolved here and nowhere else - the default at line 387 and the
+      parse at line 736.
+  - path: src/agentjobs/dispatch/guards.py
+    why: Where a rule about which postures a request may ask for would live, beside
+      assert_human_clocked.
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: Renders posture as read-only text today. task-184 adds the group pulldown
+      here first.
+  - path: src/agentjobs/cli.py
+    why: dispatch run takes --group and would take the posture flag the same way.
+acceptance:
+- id: sc-1
+  text: Whether a dispatch may raise posture above the configured default, or only
+    lower it, is decided and recorded as a task decision with the rejected alternative
+  status: pending
+- id: sc-2
+  text: The dispatch request accepts a posture, the API refuses one that violates
+    the rule decided in sc-1, and the refusal names the field
+  status: pending
+- id: sc-3
+  text: agentjobs dispatch run takes the same choice as a flag, with the same rule
+    and the same refusal
+  status: pending
+- id: sc-4
+  text: The Dispatch control in the browser offers the choice, defaulting to what
+    the config resolved, and a dispatch started from it runs under the chosen posture
+  status: pending
+- id: sc-5
+  text: The posture the run actually got is visible on the task record's dispatch
+    entry, and a run started with no choice records exactly what it records today
+  status: pending
+- id: sc-6
+  text: poetry run python scripts/check.py passes
+  status: pending
+deliverables: []
+dependencies:
+- task: task-184-groups-in-the-dispatch-ui
+  type: related
+  note: Adds the runner-group pulldown to the same panel and should land first; this
+    task copies the control shape it establishes.
+- task: task-021
+  type: related
+  note: Decides that autonomous merges without a human, which is what the warning
+    copy beside that option has to say.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T22:34:11.116978Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7d2a1f64-9c0e-4b3a-8e15-2f6b0c4d91a7
+      kind: create
+      fingerprint: 907ca62dbadf0dc2322eddd658c213c9
+- id: 2
+  ts: '2026-08-23T22:34:38.748811Z'
+  actor: claude
+  type: queue_move
+  body: 'The posture half of what Jeff asked for on 2026-08-23, filed today at the
+    bottom of the band. It belongs immediately behind task-184: both edit DispatchPanel.tsx,
+    184 is frontend-only and establishes the shape of a per-dispatch choice control,
+    and this one should copy that rather than invent a second one. Deliberately not
+    a `needs` dependency -- this task is buildable without 184, so a false prerequisite
+    would deadlock the graph and lie to its readers. The queue is the right place
+    to express "do that one first".'
+  data:
+    band: high
+    from: 14400
+    to: 257
+    placement:
+      kind: after
+      target: task-184-groups-in-the-dispatch-ui
+    warnings:
+    - kind: demoted_blocker
+      message: This pushed task-141-embed-launcher-and-project-link (4 open tasks
+        need it), task-138-embed-distribution-decision (3 open tasks need it), task-140-embed-server-surface
+        (3 open tasks need it), and 16 more down the 'high' band. Other open work
+        is waiting on them.
+      tasks:
+      - task-141-embed-launcher-and-project-link
+      - task-138-embed-distribution-decision
+      - task-140-embed-server-surface
+      - task-168-menu-shell
+      - task-139-reporter-host-agnostic-core
+      - task-144-embed-security-posture
+      - task-149-check-trigger
+      - task-161-project-level-dispatch
+      - task-171-voice-input-decision
+      - task-237
+      - task-126-mcp-in-process-manager
+      - task-143-report-and-dispatch-from-host
+      - task-147-acceptance-check-schema
+      - task-148-check-evaluator
+      - task-172-dictation-control
+      - task-174-model-access-decision
+      - task-236
+      - task-238
+      - task-239
+    undo:
+      kind: after
+      target: task-300
+    operation:
+      id: c9f350ab-2d17-4e88-b0a6-6f4137d2c581
+      kind: queue_move
+      fingerprint: a38cff9117aace21f33ffe7504518a75
+- id: 3
+  ts: '2026-08-23T22:34:59.492938Z'
+  actor: Jeff Posey
+  type: decision
+  body: '**A dispatch may raise posture above the configured default. This settles
+    sc-1; do not relitigate it.**
+
+
+    Jeff, 2026-08-23, asked directly whether the pulldown should be able to escalate
+    or only narrow: *"yes, those decisions are correct, I understand the risk of picking
+    a pull down option."*
+
+
+    **The rejected alternative was lower-only** -- a control that can only narrow
+    posture below what `dispatch.yaml` resolved, and therefore can never turn a browser
+    click into `bypassPermissions`. It was rejected because it does not deliver the
+    feature: the reason to choose a posture at dispatch time is to say "let this one
+    run unattended", and a control that cannot express that is not the thing that
+    was asked for. The risk it avoids was named explicitly to Jeff before he answered
+    -- that the browser is reachable from a phone over Tailscale, and that once task-021
+    lands, choosing `autonomous` means choosing "merge without me" -- and he accepted
+    it.
+
+
+    **What this does not decide**, and what the implementer still owns:
+
+
+    - Whether escalation costs anything at the point of use. The spec floats requiring
+    the typed note, or naming the raised posture in the authorising entry so the record
+    shows a human chose it rather than inherited it. Jeff accepted the risk of the
+    control existing; he did not rule on its ergonomics. Decide it, and record that
+    decision too.
+
+    - The warning copy beside `autonomous`, which is downstream of task-021''s own
+    recorded decisions. Read them first.
+
+
+    **Still out of scope regardless**: dispatching automatically when Approve is clicked.
+    Jeff deferred that separately on the same day -- *"lets keep that out of scope
+    for now, waiting for me to try auto dispatch"* -- and accepting escalation here
+    does not reach it. It is a different question: this one is what envelope a run
+    gets, that one is who authorises it.'
+  data:
+    operation:
+      id: e15b7d90-3c4a-4f28-9b61-08a7d2e6f513
+      kind: log_append
+      fingerprint: f048416963fc7f09fe14cc1a9657e7a6

@@ -3,13 +3,13 @@ id: task-184-groups-in-the-dispatch-ui
 title: The Dispatch page does not know groups exist, and says "no runner chosen" when
   one is in use
 created: '2026-08-19T21:10:06.422156Z'
-updated: '2026-08-21T16:58:00.337712Z'
+updated: '2026-08-23T22:34:24.744220Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 9800
+queue_position: 234
 category: ux
 tags:
 - dispatch
@@ -109,3 +109,51 @@ log:
       id: 6f708192-a3b4-4fc5-d046-718293a4c3d7
       kind: create
       fingerprint: 621308ca8c33c220af5bfb813ecd1e02
+- id: 2
+  ts: '2026-08-23T22:34:24.744079Z'
+  actor: claude
+  type: queue_move
+  body: 'Jeff asked on 2026-08-23 for the runner-group and posture pulldowns beside
+    the Dispatch button, and this task already holds the runner-group half (sc-2:
+    "A dispatch started from the browser can name a group, and the choice reaches
+    the API"). It sat at 9800 while the sibling dispatch work it belongs with sits
+    near 200. It is frontend-only -- the API has accepted `group` since task-177 --
+    so it is the cheapest of the three and gates task-307, which copies the control
+    shape it establishes. Moved ahead of task-022 rather than to the top of the band,
+    because task-021 is active and nothing here outranks it.'
+  data:
+    band: high
+    from: 9800
+    to: 234
+    placement:
+      kind: before
+      target: task-022
+    warnings:
+    - kind: demoted_blocker
+      message: This pushed task-141-embed-launcher-and-project-link (4 open tasks
+        need it), task-138-embed-distribution-decision (3 open tasks need it), task-140-embed-server-surface
+        (3 open tasks need it), and 12 more down the 'high' band. Other open work
+        is waiting on them.
+      tasks:
+      - task-141-embed-launcher-and-project-link
+      - task-138-embed-distribution-decision
+      - task-140-embed-server-surface
+      - task-168-menu-shell
+      - task-139-reporter-host-agnostic-core
+      - task-144-embed-security-posture
+      - task-149-check-trigger
+      - task-161-project-level-dispatch
+      - task-171-voice-input-decision
+      - task-126-mcp-in-process-manager
+      - task-143-report-and-dispatch-from-host
+      - task-147-acceptance-check-schema
+      - task-148-check-evaluator
+      - task-172-dictation-control
+      - task-174-model-access-decision
+    undo:
+      kind: after
+      target: task-181-dispatch-phase-one-hardening
+    operation:
+      id: b41e7c02-58d9-4a6f-9c73-1e5d80a2f334
+      kind: queue_move
+      fingerprint: c76579f2923957151f25eb5aca1b0ba8
