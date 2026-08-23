@@ -3,11 +3,52 @@ id: task-184-groups-in-the-dispatch-ui
 title: The Dispatch page does not know groups exist, and says "no runner chosen" when
   one is in use
 created: '2026-08-19T21:10:06.422156Z'
-updated: '2026-08-23T22:39:20.178566Z'
+updated: '2026-08-23T23:12:18.422704Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Ready for review. Branch `feat/task-184-groups-in-dispatch-ui`, two\
+  \ commits (34a7262, 7f86905), full gate green 10/10 in 186s. All five acceptance\
+  \ criteria met, each with its evidence in the `verify` field. Nothing is merged\
+  \ and nothing is pushed.\n\n**A review sandbox is running for you right now.** Two\
+  \ servers, because a runner group is defined per machine and this change has to\
+  \ be judged against a machine that has them and one that does not:\n\n- **http://127.0.0.1:8900/app/p/grouped/dispatch**\
+  \ \u2014 pointed at `group: default`. This is the state the task was filed about,\
+  \ and the tile now reads `group: default \u2192 claude-opus-5` instead of \"no runner\
+  \ chosen\".\n- **http://127.0.0.1:8900/app/p/grouped/tasks/task-001** \u2014 the\
+  \ **Group** pulldown beside the Dispatch button. This is the control you asked for\
+  \ on 2026-08-23, and the shape task-307 will copy for posture.\n- **http://127.0.0.1:8900/app/p/runner/dispatch**\
+  \ \u2014 a plain `runner:` on a machine that *does* have groups.\n- **http://127.0.0.1:8901/app/p/flat/dispatch**\
+  \ \u2014 the control: no groups anywhere. Nothing here should differ by a character\
+  \ from before task-177.\n\nEverything is throwaway \u2014 throwaway homes, throwaway\
+  \ projects, and a \"runner\" that prints one line and exits, so press anything including\
+  \ Disable and Dispatch. **To stop it:** `taskkill /F /PID <pid>` for whatever holds\
+  \ 8900 and 8901, or kill the `dispatch_groups_sandbox.py` processes. Re-start it\
+  \ any time with `python scripts/dispatch_groups_sandbox.py` from the worktree \u2014\
+  \ its module docstring is the walkthrough of what to look at.\n\n**What I would\
+  \ like looked at:**\n\n1. **The wording.** \"Project default \u2014 group default\
+  \ \u2192 claude-opus-5\" as the pulldown's first option, and \"Runner claude-opus-5\
+  \ from group default, posture auto, authorised by Jeff Posey\" beside the button.\
+  \ Pick a group and that second sentence deliberately stops naming a member: it becomes\
+  \ \"Runner chosen from group big\", because the browser holds no member list and\
+  \ guessing which member wins would be the one sentence there that is reliably wrong.\
+  \ Is that the right trade, or would you rather it named the likely winner?\n\n2.\
+  \ **The control shape, because task-307 inherits it.** `onDispatch` now takes `{group?,\
+  \ note?}` instead of a bare note, so posture drops in as a third key with no other\
+  \ change. The pulldown resets on page load rather than remembering \u2014 an override\
+  \ is a decision about one task, and a sticky one would silently apply to the next.\n\
+  \n3. **The enable select.** It now lists groups and runners in one list. Disable\
+  \ the grouped project and you will see it come up on `group: default` \u2014 before\
+  \ this it came up on the first *runner* and pressing Enable changed nothing at all,\
+  \ silently.\n\n4. **The sc-3 answer, which is 'no'.** The round-trip cannot drop\
+  \ or change a project's group; I established that against a throwaway home over\
+  \ the real HTTP endpoints before touching anything, and the decision entry has the\
+  \ table. So no config-layer behaviour changed. But see the open **question** entry:\
+  \ a genuinely separate defect fell out of the same experiment \u2014 with a machine-wide\
+  \ `default_group:`, `dispatch enable --runner` is a silent no-op for *every* project,\
+  \ CLI included. It is invisible on this machine because your config has no `default_group:`.\
+  \ I did not fix it (out of scope, and `dispatch/config.py` is task-021's live file)\
+  \ and did not file it. **Say the word and I will file it.**"
 archived: false
 priority: high
 queue_position: 234
@@ -79,22 +120,38 @@ acceptance:
 - id: sc-1
   text: A project configured with a group never renders "no runner chosen"; the page
     names the group and the member that would run
-  status: pending
+  verify: 'Browser, sandbox 8900/grouped/dispatch: THIS PROJECT reads ''Open  group:
+    default -> claude-opus-5''. Covered by DispatchPanel.test.tsx ''the project gate
+    tile, with groups'' (4 cases incl. machine-default and a shut gate) and TestDispatchStateWithGroups.'
+  status: met
 - id: sc-2
   text: A dispatch started from the browser can name a group, and the choice reaches
     the API
-  status: pending
+  verify: 'Browser, sandbox: picked group ''big'', pressed Dispatch; the run''s dispatch
+    entry records selection={"group":"big","source":"dispatch"} and runner=claude-sonnet-5,
+    where the project''s own group would have chosen claude-opus-5. Covered by ''choosing
+    a runner group for one dispatch'' (6 cases).'
+  status: met
 - id: sc-3
   text: Whether a browser enable/disable round-trip can drop or change a project's
     group is established against a throwaway home, and fixed if it can
-  status: pending
+  verify: 'It cannot: set_project_enabled keeps the group and declines a runner sent
+    beside it. Established against a throwaway AGENTJOBS_HOME over the real HTTP endpoints
+    before anything was changed; see the decision entry. The related UI lie -- a Runner
+    select that reported success and changed nothing -- is fixed. Covered by TestBrowserToggleAgainstGroups.'
+  status: met
 - id: sc-4
   text: A project with no groups configured at all renders exactly as it did before
     task-177
-  status: pending
+  verify: 'Browser, sandbox 8901/flat: no Group pulldown, ''runner: claude-sonnet-5'',
+    ''Runners are defined by hand...'', and the unchanged sentence beside the button.
+    frontend/e2e/dispatch.spec.ts passes untouched, including its assertion on the
+    runner select''s bare <option value>.'
+  status: met
 - id: sc-5
   text: poetry run python scripts/check.py passes
-  status: pending
+  verify: Full gate, no arguments, 10 of 10 stages, 186.2s, at 7f86905.
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -186,3 +243,195 @@ log:
       id: 2b8f7e10-4a11-4c33-9f21-8d0e5a6c1102
       kind: update_content
       fingerprint: 3a8893b508accb0d96c75081f4c647b5
+- id: 5
+  ts: '2026-08-23T23:11:14.042505Z'
+  actor: claude
+  type: progress
+  body: "Built on `feat/task-184-groups-in-dispatch-ui`, two commits, gate green (10/10,\
+    \ 186s).\n\n**34a7262 \u2014 the change.**\n\n*API.* `_state()` in `src/agentjobs/api/routes/dispatch.py`\
+    \ already called\n`assert_dispatch_permitted` and threw the resolution away. It\
+    \ now keeps it, and\n`DispatchStateView` carries three new fields: `resolved_runner`\
+    \ (what would actually\nstart), `resolved_group` (the group that chose it, null\
+    \ for a flat config) and\n`resolved_from` (`project` / `machine` / `project_runner`).\
+    \ Sent rather than derived in\nthe browser, because a page that re-implemented\
+    \ the precedence ladder would be the one\nplace able to disagree with the dispatcher\
+    \ about what runs. All three are null when a\ngate refuses \u2014 no answer rather\
+    \ than a stale one. `openapi.json` and the generated\nclient are regenerated.\n\
+    \n*Frontend*, all in `DispatchPanel.tsx` plus three lines of wiring in `App.tsx`:\n\
+    \n- the THIS PROJECT gate tile reads `group: default \u2192 claude-opus-5`, with\n\
+    \  `(machine default)` when nothing in the project chose it. It still reads\n\
+    \  `runner: <name>` and still reads `no runner chosen` when those are the true\
+    \ answers.\n- a **Group** pulldown sits beside the Dispatch button, rendered only\
+    \ when the machine\n  defines groups. Its first option spells out what the project\
+    \ would resolve to and is\n  not sent; picking a group sends it. `onDispatch`\
+    \ now takes a `DispatchOptions` object\n  (`{group?, note?}`) instead of a bare\
+    \ note \u2014 that is the shape task-307's posture\n  drops into with no further\
+    \ change to the call.\n- the sentence beside the button names the resolved member\
+    \ and its group. Once a group\n  is picked for this run it stops naming a member\
+    \ and names the group instead: the\n  browser holds no member list, so guessing\
+    \ which member wins would be the one sentence\n  there that is reliably wrong.\n\
+    - the enable control lists this machine's groups *and* its runners in one select,\
+    \ and\n  preselects what the project already uses.\n\n**7f86905 \u2014 `scripts/dispatch_groups_sandbox.py`**,\
+    \ the review sandbox. Two servers,\nbecause a runner group is defined per machine:\
+    \ 8900 has groups, 8901 has none.\n\n**Verified.**\n\n- 14 new Python tests in\
+    \ `tests/test_dispatch_api.py` (`TestDispatchStateWithGroups`,\n  `TestBrowserToggleAgainstGroups`),\
+    \ 20 new jsdom tests in `DispatchPanel.test.tsx`.\n  Every one asserts a rendered\
+    \ sentence or the value a click acts on, never the presence\n  of markup.\n- **In\
+    \ a real browser, against the sandbox.** Picked group `big` on the seeded task\
+    \ and\n  pressed Dispatch. The run's `dispatch` entry records\n  `selection: {\"\
+    group\": \"big\", \"source\": \"dispatch\"}` and `runner: claude-sonnet-5` \u2014\
+    \n  `big`'s first member, where the project's own `default` group would have chosen\n\
+    \  `claude-opus-5`. That is sc-2 proven through the whole stack rather than at\
+    \ the\n  component boundary.\n- Pressed Disable in the browser: the tile read\
+    \ `Closed \u2014 group: default`, and the\n  enable control came up labelled \"\
+    Runner or group\", preselected on `group: default`.\n- The flat machine on 8901:\
+    \ no Group pulldown, `runner: claude-sonnet-5`,\n  \"Runners are defined by hand\u2026\
+    \", and the same sentence beside the button as before.\n- `frontend/e2e/dispatch.spec.ts`\
+    \ passes **untouched**, including its assertion that the\n  runner select's `<option\
+    \ value>` is the bare name. That is the strongest sc-4 evidence\n  available:\
+    \ a third-party check of the flat case that I did not write and did not edit.\n"
+  data:
+    operation:
+      id: 2b8f7e10-4a11-4c33-9f21-8d0e5a6c1103
+      kind: log_append
+      fingerprint: d739ab55b34c5b696c2680c5c02b1ddc
+- id: 6
+  ts: '2026-08-23T23:11:30.935794Z'
+  actor: claude
+  type: decision
+  body: "**sc-3, established by experiment before anything was changed: the round-trip\
+    \ cannot\ndrop or change a project's group. So the \"fix it if it can\" clause\
+    \ does not fire, and\nno config-layer behaviour was changed.**\n\nThe experiment\
+    \ drove the real HTTP endpoints the browser calls \u2014 `POST\n/dispatch/disable`\
+    \ and `POST /dispatch/enable` \u2014 against a throwaway `AGENTJOBS_HOME`\ncontaining\
+    \ two runners, two groups and a project naming `group: fast`. Nothing touched\n\
+    `~/.agentjobs/dispatch.yaml`. Six cases, and the file was read back after each:\n\
+    \n| after | `projects.sandbox` in the file |\n|---|---|\n| disable | `{enabled:\
+    \ false, group: fast}` |\n| enable `{runner: claude}` (the value the old select\
+    \ preselected) | `{enabled: true, group: fast}` |\n| enable `{runner: codex}`\
+    \ (a deliberate pick) | `{enabled: true, group: fast}` |\n| enable `{group: big}`\
+    \ | `{enabled: true, group: big}` |\n| plain project, no groups defined, enable\
+    \ `{runner: codex}` | `{enabled: true, runner: codex}` |\n\n`set_project_enabled`\
+    \ guards the write with `_already_grouped`, so a `runner:` sent\nwhile a `group:`\
+    \ is present is **not written**. The group survives a round-trip intact\nand the\
+    \ resolved runner never moves. The concern the task was filed with \u2014 that\n\
+    enabling from the browser writes `runner:` over a `group:` \u2014 is the opposite\
+    \ of what\nhappens. The three cases now live as `TestBrowserToggleAgainstGroups`.\n\
+    \n**What is real is the inverse, and it is what got fixed.** The endpoint declines\
+    \ that\nrunner with a **200 and no message**, and the old control had no way to\
+    \ express a group\nat all: it rendered a Runner select preselected on `available_runners[0]`\
+    \ (because\n`state.runner` is null for a grouped project), so a human could pick\
+    \ `codex`, press\nEnable, be told nothing, and have the project go on running\
+    \ `claude` from group `fast`.\nA control that reports success and changes nothing\
+    \ is the half of point 3 worth fixing,\nand offering the groups in the same select\
+    \ is the fix \u2014 entirely in the browser, with\nthe config layer untouched.\n\
+    \n*Rejected:* changing `_already_grouped` so an explicitly requested runner is\
+    \ always\nwritten. It is a three-line change and it would remove a real oddity\
+    \ \u2014 case [6] below \u2014\nbut it alters CLI behaviour as well as browser\
+    \ behaviour, it is not needed for anything\nsc-3 asks, and `src/agentjobs/dispatch/config.py`\
+    \ is the file task-021 is actively\nworking. Out of scope, and recorded as a question\
+    \ instead.\n"
+  data:
+    operation:
+      id: 2b8f7e10-4a11-4c33-9f21-8d0e5a6c1104
+      kind: log_append
+      fingerprint: 070ef6511799a57b456f02816defac5b
+- id: 7
+  ts: '2026-08-23T23:11:43.523357Z'
+  actor: claude
+  type: question
+  body: "**Found while establishing sc-3, out of scope here, and worth its own task:\
+    \ on a machine\nwith a `default_group:`, `dispatch enable --runner` is a silent\
+    \ no-op for every project,\nincluding one that names a plain `runner:` and no\
+    \ group of its own.**\n\nCase [6] of the experiment, against the throwaway home:\n\
+    \n```\ndefault_group: big\nprojects.sandbox: {enabled: true, runner: claude}\n\
+    \nPOST /dispatch/enable {\"runner\": \"codex\"}   ->  200\nprojects.sandbox in\
+    \ the file, after         ->  {enabled: true, runner: claude}\n```\n\n`_already_grouped()`\
+    \ returns true whenever `config.default_group` is set \u2014 for any\nproject\
+    \ \u2014 so the branch that writes `entry[\"runner\"]` is never reached and the\
+    \ requested\nrunner is dropped. Its docstring gives the reasoning, and the reasoning\
+    \ is sound as far\nas it goes: `dispatch enable` should not *demand* a runner\
+    \ for a project that is about\nto resolve through a group. It does not follow\
+    \ that an explicitly requested one should\nbe *discarded*. The CLI has the same\
+    \ behaviour, since both surfaces call the same\nfunction.\n\nNothing is lost \u2014\
+    \ the group still decides, and the resolved runner is correct \u2014 so this\n\
+    is a lie about what happened rather than a wrong outcome. It is invisible on this\n\
+    machine today because `~/.agentjobs/dispatch.yaml` has no `default_group:`; it\
+    \ would\nappear the moment one is added.\n\nThe fix is roughly `elif runner is\
+    \ not None or not _already_grouped(entry, config):`,\nplus a decision about whether\
+    \ a written-but-outranked `runner:` should be reported\nsomewhere. I did not make\
+    \ it: it changes CLI behaviour, sc-3 does not ask for it, and\n`src/agentjobs/dispatch/config.py`\
+    \ is the file task-021 is actively working. **Should I\nfile it?** I have not,\
+    \ to avoid filing against another session's live file without being\nasked.\n"
+  re: 6
+  data:
+    operation:
+      id: 2b8f7e10-4a11-4c33-9f21-8d0e5a6c1105
+      kind: log_append
+      fingerprint: 84c29e0e73954e30c1de715eecd9d3d2
+- id: 8
+  ts: '2026-08-23T23:11:57.007046Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 2b8f7e10-4a11-4c33-9f21-8d0e5a6c1106
+      kind: update_content
+      fingerprint: d9ff484d3b00db71661170da47279394
+- id: 9
+  ts: '2026-08-23T23:12:18.422542Z'
+  actor: claude
+  type: handoff
+  body: "Ready for review. Branch `feat/task-184-groups-in-dispatch-ui`, two commits\
+    \ (34a7262, 7f86905), full gate green 10/10 in 186s. All five acceptance criteria\
+    \ met, each with its evidence in the `verify` field. Nothing is merged and nothing\
+    \ is pushed.\n\n**A review sandbox is running for you right now.** Two servers,\
+    \ because a runner group is defined per machine and this change has to be judged\
+    \ against a machine that has them and one that does not:\n\n- **http://127.0.0.1:8900/app/p/grouped/dispatch**\
+    \ \u2014 pointed at `group: default`. This is the state the task was filed about,\
+    \ and the tile now reads `group: default \u2192 claude-opus-5` instead of \"no\
+    \ runner chosen\".\n- **http://127.0.0.1:8900/app/p/grouped/tasks/task-001** \u2014\
+    \ the **Group** pulldown beside the Dispatch button. This is the control you asked\
+    \ for on 2026-08-23, and the shape task-307 will copy for posture.\n- **http://127.0.0.1:8900/app/p/runner/dispatch**\
+    \ \u2014 a plain `runner:` on a machine that *does* have groups.\n- **http://127.0.0.1:8901/app/p/flat/dispatch**\
+    \ \u2014 the control: no groups anywhere. Nothing here should differ by a character\
+    \ from before task-177.\n\nEverything is throwaway \u2014 throwaway homes, throwaway\
+    \ projects, and a \"runner\" that prints one line and exits, so press anything\
+    \ including Disable and Dispatch. **To stop it:** `taskkill /F /PID <pid>` for\
+    \ whatever holds 8900 and 8901, or kill the `dispatch_groups_sandbox.py` processes.\
+    \ Re-start it any time with `python scripts/dispatch_groups_sandbox.py` from the\
+    \ worktree \u2014 its module docstring is the walkthrough of what to look at.\n\
+    \n**What I would like looked at:**\n\n1. **The wording.** \"Project default \u2014\
+    \ group default \u2192 claude-opus-5\" as the pulldown's first option, and \"\
+    Runner claude-opus-5 from group default, posture auto, authorised by Jeff Posey\"\
+    \ beside the button. Pick a group and that second sentence deliberately stops\
+    \ naming a member: it becomes \"Runner chosen from group big\", because the browser\
+    \ holds no member list and guessing which member wins would be the one sentence\
+    \ there that is reliably wrong. Is that the right trade, or would you rather it\
+    \ named the likely winner?\n\n2. **The control shape, because task-307 inherits\
+    \ it.** `onDispatch` now takes `{group?, note?}` instead of a bare note, so posture\
+    \ drops in as a third key with no other change. The pulldown resets on page load\
+    \ rather than remembering \u2014 an override is a decision about one task, and\
+    \ a sticky one would silently apply to the next.\n\n3. **The enable select.**\
+    \ It now lists groups and runners in one list. Disable the grouped project and\
+    \ you will see it come up on `group: default` \u2014 before this it came up on\
+    \ the first *runner* and pressing Enable changed nothing at all, silently.\n\n\
+    4. **The sc-3 answer, which is 'no'.** The round-trip cannot drop or change a\
+    \ project's group; I established that against a throwaway home over the real HTTP\
+    \ endpoints before touching anything, and the decision entry has the table. So\
+    \ no config-layer behaviour changed. But see the open **question** entry: a genuinely\
+    \ separate defect fell out of the same experiment \u2014 with a machine-wide `default_group:`,\
+    \ `dispatch enable --runner` is a silent no-op for *every* project, CLI included.\
+    \ It is invisible on this machine because your config has no `default_group:`.\
+    \ I did not fix it (out of scope, and `dispatch/config.py` is task-021's live\
+    \ file) and did not file it. **Say the word and I will file it.**"
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 2b8f7e10-4a11-4c33-9f21-8d0e5a6c1107
+      kind: handoff
+      fingerprint: 61d00061756136e22c8c98de20c918a5
