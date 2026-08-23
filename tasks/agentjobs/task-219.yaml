@@ -2,57 +2,44 @@ schema: 2
 id: task-219
 title: 'The queue-move check: deterministic warnings when a human reorders'
 created: '2026-08-21T04:57:23.007031Z'
-updated: '2026-08-23T08:43:58.765222Z'
+updated: '2026-08-23T08:46:24.625722Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.
-
-
-  Note from Jeff Posey:
-
-
-  Re-recording the standing approval after the rebase. Same grant as before -- Jeff''s
-  standing, in-advance approval of every task-211 child, given in chat on 2026-08-23
-  -- and the substance being approved has not changed.
-
-
-  The first approval ran the scripted finish, which stopped at `rebase` and merged
-  nothing: task-214 merged to main while this branch was being built, both sides added
-  REST routes, and the generated API client is the file both sides rewrite. The finish
-  aborted, read the branch tip back and reported it unchanged. The supervisor confirmed
-  that independently before doing anything: clean worktree, branch still at ff1f734a,
-  no rebase state left on disk.
-
-
-  The rebase was handed to a session rather than done by the supervisor, and it resolved
-  the conflict the only way generated files should be resolved -- by regenerating
-  them from the merged source, not by hand-merging build output. Branch is now b5a7728
-  on top of b9795ad.
-
-
-  The supervisor verified the claim that nothing but build output changed, rather
-  than taking it: `git range-diff fb79be4..ff1f734 b9795ad..b5a7728` reports three
-  of the four commits as identical patches and the fourth as differing in exactly
-  three paths, all of them under frontend/src/api/generated. No source file was edited
-  during the rebase pass.
-
-
-  Gate green on the rebased branch, all ten stages, 169.4s -- a real re-verification,
-  since this branch''s cli.py and MCP mutation-tool changes now sit on top of task-214''s
-  changes to cli.py, the MCP inventory and the projects API. The e2e stage covers
-  both this branch''s queue-move-check specs and task-207''s queue-order specs, which
-  is the seam most exposed to the collision.
-
-
-  The rebase session was stopped before this approval so its working directory does
-  not pin the worktree the finish removes.
-
-
-  That note is context to carry into the merge, not another review round: you are
-  still cleared to merge.'
+ball_prompt: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
+  \ was merged.**\n\n`scripts/check.py` failed on feat/task-219-queue-move-check after\
+  \ the rebase (145s, exit 1). A red gate never merges. The branch is rebased onto\
+  \ main and is otherwise untouched; nothing was merged. Full output: C:\\Users\\\
+  jpose\\.agentjobs\\finishes\\fin_b54c95e7\\gate.log\n\n```\ntests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_records_traces_and_final_state\n\
+  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_refusal_scenarios_actually_recorded_refusals\n\
+  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
+  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-R9PIS-Li-py3.13\\\
+  Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response = await\
+  \ handler(conn, exc)\ntests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
+  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-R9PIS-Li-py3.13\\\
+  Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
+  \ dependant.call(**values)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
+  \  C:\\projects\\worktrees\\aj-219\\src\\agentjobs\\api\\routes\\web.py:368: DeprecationWarning:\
+  \ datetime.datetime.utcnow() is deprecated and scheduled for removal in a future\
+  \ version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n\
+  \    \"current_year\": datetime.utcnow().year,\ntests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
+  \  C:\\projects\\worktrees\\aj-219\\src\\agentjobs\\api\\routes\\web.py:350: DeprecationWarning:\
+  \ datetime.datetime.utcnow() is deprecated and scheduled for removal in a future\
+  \ version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n\
+  \    \"current_year\": datetime.utcnow().year,\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\
+  =========================== short test summary info ===========================\n\
+  ERROR tests/test_auto_dispatch.py::TestApprovalTriggersARun::test_requesting_changes_also_starts_a_run\n\
+  =========== 2991 passed, 155 warnings, 1 error in 130.79s (0:02:10) ===========\n\
+  \  black      0.9s\n  ruff       0.1s\n  mypy       2.8s\n  api        5.2s\n  icons\
+  \      3.0s\n  oxlint     0.6s\n  pytest   132.0s\n  total    144.6s\nAll done!\
+  \ \\u2728 \\U0001f370 \\u2728\n195 files would be left unchanged.\nFailed at stage\
+  \ 'pytest'.\nFix it, then resume with `--from pytest` instead of paying for the\
+  \ stages above a second time.\n```\n\nTake it from here by hand. Check the tree\
+  \ against what is written above before acting on anything you remember: if your\
+  \ worktree, your branch or your account of this task no longer matches what is on\
+  \ disk, say so on the record and hand the ball back rather than improvising a recovery."
 archived: false
 priority: medium
 queue_position: 6900
@@ -802,3 +789,91 @@ log:
     finish_step: started
     branch: feat/task-219-queue-move-check
     finish_id: fin_b54c95e7
+- id: 22
+  ts: '2026-08-23T08:46:24.583944Z'
+  actor: finisher
+  type: progress
+  body: "The scripted finish stopped at `gate` (gate_failed).\n\n**Nothing was merged.**\n\
+    \n`scripts/check.py` failed on feat/task-219-queue-move-check after the rebase\
+    \ (145s, exit 1). A red gate never merges. The branch is rebased onto main and\
+    \ is otherwise untouched; nothing was merged. Full output: C:\\Users\\jpose\\\
+    .agentjobs\\finishes\\fin_b54c95e7\\gate.log\n\n```\ntests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_records_traces_and_final_state\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_refusal_scenarios_actually_recorded_refusals\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
+    \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-R9PIS-Li-py3.13\\\
+    Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+    \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response =\
+    \ await handler(conn, exc)\ntests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
+    \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-R9PIS-Li-py3.13\\\
+    Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+    \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
+    \ dependant.call(**values)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
+    \  C:\\projects\\worktrees\\aj-219\\src\\agentjobs\\api\\routes\\web.py:368: DeprecationWarning:\
+    \ datetime.datetime.utcnow() is deprecated and scheduled for removal in a future\
+    \ version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n\
+    \    \"current_year\": datetime.utcnow().year,\ntests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
+    \  C:\\projects\\worktrees\\aj-219\\src\\agentjobs\\api\\routes\\web.py:350: DeprecationWarning:\
+    \ datetime.datetime.utcnow() is deprecated and scheduled for removal in a future\
+    \ version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n\
+    \    \"current_year\": datetime.utcnow().year,\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\
+    =========================== short test summary info ===========================\n\
+    ERROR tests/test_auto_dispatch.py::TestApprovalTriggersARun::test_requesting_changes_also_starts_a_run\n\
+    =========== 2991 passed, 155 warnings, 1 error in 130.79s (0:02:10) ===========\n\
+    \  black      0.9s\n  ruff       0.1s\n  mypy       2.8s\n  api        5.2s\n\
+    \  icons      3.0s\n  oxlint     0.6s\n  pytest   132.0s\n  total    144.6s\n\
+    All done! \\u2728 \\U0001f370 \\u2728\n195 files would be left unchanged.\nFailed\
+    \ at stage 'pytest'.\nFix it, then resume with `--from pytest` instead of paying\
+    \ for the stages above a second time.\n```\n\n```\n  preflight  ok         1.8s\
+    \  feat/task-219-queue-move-check at b5a77286 in C:\\projects\\worktrees\\aj-219\n\
+    \  rebase     ok         0.3s  feat/task-219-queue-move-check onto main: b5a77286\
+    \ -> 8aead1f8\n  gate       STOPPED    0.0s  `scripts/check.py` failed on feat/task-219-queue-move-check\
+    \ after the rebase (145s, exit 1). A red gate never merges. The branch is rebased\
+    \ onto main and is otherwise untouched; nothing was merged. Full output: C:\\\
+    Users\\jpose\\.agentjobs\\finishes\\fin_b54c95e7\\gate.log\n```"
+  data:
+    finish_step: gate
+    finish_reason: gate_failed
+    merge_commit: null
+    merged: false
+- id: 23
+  ts: '2026-08-23T08:46:24.625547Z'
+  actor: finisher
+  type: handoff
+  body: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
+    \ was merged.**\n\n`scripts/check.py` failed on feat/task-219-queue-move-check\
+    \ after the rebase (145s, exit 1). A red gate never merges. The branch is rebased\
+    \ onto main and is otherwise untouched; nothing was merged. Full output: C:\\\
+    Users\\jpose\\.agentjobs\\finishes\\fin_b54c95e7\\gate.log\n\n```\ntests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_records_traces_and_final_state\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_refusal_scenarios_actually_recorded_refusals\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
+    \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-R9PIS-Li-py3.13\\\
+    Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+    \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response =\
+    \ await handler(conn, exc)\ntests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
+    \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-R9PIS-Li-py3.13\\\
+    Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+    \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
+    \ dependant.call(**values)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
+    \  C:\\projects\\worktrees\\aj-219\\src\\agentjobs\\api\\routes\\web.py:368: DeprecationWarning:\
+    \ datetime.datetime.utcnow() is deprecated and scheduled for removal in a future\
+    \ version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n\
+    \    \"current_year\": datetime.utcnow().year,\ntests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
+    \  C:\\projects\\worktrees\\aj-219\\src\\agentjobs\\api\\routes\\web.py:350: DeprecationWarning:\
+    \ datetime.datetime.utcnow() is deprecated and scheduled for removal in a future\
+    \ version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n\
+    \    \"current_year\": datetime.utcnow().year,\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\
+    =========================== short test summary info ===========================\n\
+    ERROR tests/test_auto_dispatch.py::TestApprovalTriggersARun::test_requesting_changes_also_starts_a_run\n\
+    =========== 2991 passed, 155 warnings, 1 error in 130.79s (0:02:10) ===========\n\
+    \  black      0.9s\n  ruff       0.1s\n  mypy       2.8s\n  api        5.2s\n\
+    \  icons      3.0s\n  oxlint     0.6s\n  pytest   132.0s\n  total    144.6s\n\
+    All done! \\u2728 \\U0001f370 \\u2728\n195 files would be left unchanged.\nFailed\
+    \ at stage 'pytest'.\nFix it, then resume with `--from pytest` instead of paying\
+    \ for the stages above a second time.\n```\n\nTake it from here by hand. Check\
+    \ the tree against what is written above before acting on anything you remember:\
+    \ if your worktree, your branch or your account of this task no longer matches\
+    \ what is on disk, say so on the record and hand the ball back rather than improvising\
+    \ a recovery."
+  data:
+    ball: agent
+    ball_reason: work
