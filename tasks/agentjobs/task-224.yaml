@@ -3,7 +3,7 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-23T18:51:01.770988Z'
+updated: '2026-08-23T18:53:51.300990Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -11,7 +11,7 @@ ball_prompt: 'The approval ran the scripted finish and it stopped at `merge`. **
   was merged.**
 
 
-  main moved from 05718011 to 40b9b178 while the gate was running, so what was verified
+  main moved from df87156d to 3b9f4636 while the gate was running, so what was verified
   is no longer what would be merged. The branch is rebased onto the older base and
   nothing was merged.
 
@@ -2245,3 +2245,42 @@ log:
     finish_step: started
     branch: docs/task-224-client-refresh-correction
     finish_id: fin_736e455c
+- id: 67
+  ts: '2026-08-23T18:53:51.208229Z'
+  actor: finisher
+  type: progress
+  body: "The scripted finish stopped at `merge` (base_moved).\n\n**Nothing was merged.**\n\
+    \nmain moved from df87156d to 3b9f4636 while the gate was running, so what was\
+    \ verified is no longer what would be merged. The branch is rebased onto the older\
+    \ base and nothing was merged.\n\n```\n  preflight  ok         2.1s  docs/task-224-client-refresh-correction\
+    \ at 15651e5f in C:\\projects\\worktrees\\aj-224\n  rebase     ok         0.2s\
+    \  docs/task-224-client-refresh-correction onto main: 15651e5f -> f0eb75d5\n \
+    \ gate       ok       168.7s  scripts/check.py green\n  merge      STOPPED   \
+    \ 0.0s  main moved from df87156d to 3b9f4636 while the gate was running, so what\
+    \ was verified is no longer what would be merged. The branch is rebased onto the\
+    \ older base and nothing was merged.\n```"
+  data:
+    finish_step: merge
+    finish_reason: base_moved
+    merge_commit: null
+    merged: false
+- id: 68
+  ts: '2026-08-23T18:53:51.300622Z'
+  actor: finisher
+  type: handoff
+  body: 'The approval ran the scripted finish and it stopped at `merge`. **Nothing
+    was merged.**
+
+
+    main moved from df87156d to 3b9f4636 while the gate was running, so what was verified
+    is no longer what would be merged. The branch is rebased onto the older base and
+    nothing was merged.
+
+
+    Take it from here by hand. Check the tree against what is written above before
+    acting on anything you remember: if your worktree, your branch or your account
+    of this task no longer matches what is on disk, say so on the record and hand
+    the ball back rather than improvising a recovery.'
+  data:
+    ball: agent
+    ball_reason: work
