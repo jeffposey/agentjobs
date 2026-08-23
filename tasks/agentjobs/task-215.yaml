@@ -2,68 +2,68 @@ schema: 2
 id: task-215
 title: "Playbooks 2: instantiation \u2014 `playbook run` on CLI, REST and GUI"
 created: '2026-08-21T04:55:56.410481Z'
-updated: '2026-08-23T09:22:09.653500Z'
+updated: '2026-08-23T09:22:10.735483Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.
+ball_prompt: 'The approval ran the scripted finish and it stopped at `rebase`. **Nothing
+  was merged.**
 
 
-  Note from Jeff Posey:
+  Rebasing feat/task-215-playbook-run onto main did not apply cleanly, and a conflict
+  is never resolved here. The branch is exactly where it was (5da808b9). Nothing was
+  merged.
 
 
-  Standing approval from Jeff for every task-211 child, relayed by the supervisor
-  after review. Held back deliberately until task-219''s merge landed: two scripted
-  finishes merging into main at once is how the generated-client conflict that cost
-  task-219 two cycles gets manufactured a second time. task-219 merged as 75c3387,
-  so this one can go.
+  ```
+
+  Auto-merging frontend/openapi.json
+
+  Auto-merging frontend/src/App.tsx
+
+  Auto-merging frontend/src/api/generated/@tanstack/react-query.gen.ts
+
+  CONFLICT (content): Merge conflict in frontend/src/api/generated/@tanstack/react-query.gen.ts
+
+  Auto-merging frontend/src/api/generated/index.ts
+
+  CONFLICT (content): Merge conflict in frontend/src/api/generated/index.ts
+
+  Auto-merging frontend/src/api/generated/sdk.gen.ts
+
+  CONFLICT (content): Merge conflict in frontend/src/api/generated/sdk.gen.ts
+
+  Auto-merging frontend/src/api/generated/types.gen.ts
+
+  Rebasing (1/6)
+
+  Rebasing (2/6)
+
+  Rebasing (3/6)
+
+  Rebasing (4/6)
+
+  error: could not apply 94e54b5... feat(frontend): a Playbooks page with a Run button
+
+  hint: Resolve all conflicts manually, mark them as resolved with
+
+  hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+  hint: You can instead skip this commit: run "git rebase --skip".
+
+  hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+
+  hint: Disable this message with "git config set advice.mergeConflict false"
+
+  Could not apply 94e54b5... # feat(frontend): a Playbooks page with a Run button
+
+  ```
 
 
-  **On sc-4, which the handoff correctly says cannot be satisfied as written -- the
-  reading is right and is better than the criterion.** The spec asks that reactive
-  playbooks be refused by `playbook run`. There is no `kind` field to test, because
-  decision P8 withdrew the reactive category after the spec was written and task-214
-  declined to build a single-member enum for it. Rather than reintroduce `kind`, this
-  makes the refusal structural: task-214''s frontmatter contract forbids unknown keys,
-  so a file declaring `kind: reactive` fails validation and never loads, and a playbook
-  that never loads cannot be run from any surface -- including surfaces nobody has
-  written yet. An enum check would only have covered the surfaces that remembered
-  to call it. Accepted as met.
-
-
-  **On the judgement call the handoff asked for a second opinion on -- `playbook run
-  --actor` having no `default_user` fallback, unlike every other `--actor` in the
-  CLI -- keep it.** The run task''s own creation entry is read moments later as the
-  authorisation for spending money, and substituting the project''s `default_user`
-  would put a signature on that entry that no person put there. That is precisely
-  the reasoning `dispatch run` already uses when it refuses `not_human_clocked` rather
-  than inventing an author, and where a `--as` flag was considered and deliberately
-  left unbuilt. Costing a flag on every CLI run is the correct price. It is consistent
-  with existing precedent rather than a new rule.
-
-
-  Also checked rather than taken: `TestGatesStillBind` really does read `dispatch/guards.py`
-  as text so no guard can start reading `request.playbook` without failing; there
-  is no `playbook_run` MCP tool and its absence is documented at the top of the module
-  as deliberate; and a test asserts the brief''s text is absent from the dispatch
-  prompt, so the pointer-not-copy rule is enforced rather than described. Six commits,
-  +3412, worktree clean, gate green with a receipt at the tip.
-
-
-  Two limitations the handoff put on the record rather than leaving to be found --
-  a resumed session''s wake prompt not carrying the pointer line, and `run_task.category`
-  not validated against the project''s categories -- are both accepted as stated.
-  The second is not a regression: nothing in AgentJobs validates categories today.
-
-
-  The child''s session was stopped before this approval so its working directory does
-  not pin the worktree the finish removes.
-
-
-  That note is context to carry into the merge, not another review round: you are
-  still cleared to merge.'
+  Take it from here by hand. Check the tree against what is written above before acting
+  on anything you remember: if your worktree, your branch or your account of this
+  task no longer matches what is on disk, say so on the record and hand the ball back
+  rather than improvising a recovery.'
 archived: false
 priority: high
 queue_position: 93
@@ -536,3 +536,101 @@ log:
     finish_step: started
     branch: feat/task-215-playbook-run
     finish_id: fin_dcfa8b05
+- id: 12
+  ts: '2026-08-23T09:22:10.702859Z'
+  actor: finisher
+  type: progress
+  body: "The scripted finish stopped at `rebase` (rebase_conflict).\n\n**Nothing was\
+    \ merged.**\n\nRebasing feat/task-215-playbook-run onto main did not apply cleanly,\
+    \ and a conflict is never resolved here. The branch is exactly where it was (5da808b9).\
+    \ Nothing was merged.\n\n```\nAuto-merging frontend/openapi.json\nAuto-merging\
+    \ frontend/src/App.tsx\nAuto-merging frontend/src/api/generated/@tanstack/react-query.gen.ts\n\
+    CONFLICT (content): Merge conflict in frontend/src/api/generated/@tanstack/react-query.gen.ts\n\
+    Auto-merging frontend/src/api/generated/index.ts\nCONFLICT (content): Merge conflict\
+    \ in frontend/src/api/generated/index.ts\nAuto-merging frontend/src/api/generated/sdk.gen.ts\n\
+    CONFLICT (content): Merge conflict in frontend/src/api/generated/sdk.gen.ts\n\
+    Auto-merging frontend/src/api/generated/types.gen.ts\nRebasing (1/6)\nRebasing\
+    \ (2/6)\nRebasing (3/6)\nRebasing (4/6)\nerror: could not apply 94e54b5... feat(frontend):\
+    \ a Playbooks page with a Run button\nhint: Resolve all conflicts manually, mark\
+    \ them as resolved with\nhint: \"git add/rm <conflicted_files>\", then run \"\
+    git rebase --continue\".\nhint: You can instead skip this commit: run \"git rebase\
+    \ --skip\".\nhint: To abort and get back to the state before \"git rebase\", run\
+    \ \"git rebase --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict\
+    \ false\"\nCould not apply 94e54b5... # feat(frontend): a Playbooks page with\
+    \ a Run button\n```\n\n```\n  preflight  ok         1.3s  feat/task-215-playbook-run\
+    \ at 5da808b9 in C:\\projects\\worktrees\\aj-215\n  rebase     STOPPED    0.0s\
+    \  Rebasing feat/task-215-playbook-run onto main did not apply cleanly, and a\
+    \ conflict is never resolved here. The branch is exactly where it was (5da808b9).\
+    \ Nothing was merged.\n```"
+  data:
+    finish_step: rebase
+    finish_reason: rebase_conflict
+    merge_commit: null
+    merged: false
+- id: 13
+  ts: '2026-08-23T09:22:10.735338Z'
+  actor: finisher
+  type: handoff
+  body: 'The approval ran the scripted finish and it stopped at `rebase`. **Nothing
+    was merged.**
+
+
+    Rebasing feat/task-215-playbook-run onto main did not apply cleanly, and a conflict
+    is never resolved here. The branch is exactly where it was (5da808b9). Nothing
+    was merged.
+
+
+    ```
+
+    Auto-merging frontend/openapi.json
+
+    Auto-merging frontend/src/App.tsx
+
+    Auto-merging frontend/src/api/generated/@tanstack/react-query.gen.ts
+
+    CONFLICT (content): Merge conflict in frontend/src/api/generated/@tanstack/react-query.gen.ts
+
+    Auto-merging frontend/src/api/generated/index.ts
+
+    CONFLICT (content): Merge conflict in frontend/src/api/generated/index.ts
+
+    Auto-merging frontend/src/api/generated/sdk.gen.ts
+
+    CONFLICT (content): Merge conflict in frontend/src/api/generated/sdk.gen.ts
+
+    Auto-merging frontend/src/api/generated/types.gen.ts
+
+    Rebasing (1/6)
+
+    Rebasing (2/6)
+
+    Rebasing (3/6)
+
+    Rebasing (4/6)
+
+    error: could not apply 94e54b5... feat(frontend): a Playbooks page with a Run
+    button
+
+    hint: Resolve all conflicts manually, mark them as resolved with
+
+    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+    hint: You can instead skip this commit: run "git rebase --skip".
+
+    hint: To abort and get back to the state before "git rebase", run "git rebase
+    --abort".
+
+    hint: Disable this message with "git config set advice.mergeConflict false"
+
+    Could not apply 94e54b5... # feat(frontend): a Playbooks page with a Run button
+
+    ```
+
+
+    Take it from here by hand. Check the tree against what is written above before
+    acting on anything you remember: if your worktree, your branch or your account
+    of this task no longer matches what is on disk, say so on the record and hand
+    the ball back rather than improvising a recovery.'
+  data:
+    ball: agent
+    ball_reason: work
