@@ -2,48 +2,11 @@ schema: 2
 id: task-214
 title: 'Playbooks 1: storage, frontmatter format, and read surfaces'
 created: '2026-08-21T04:55:30.551589Z'
-updated: '2026-08-23T08:22:10.446082Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.
-
-
-  Note from Jeff Posey:
-
-
-  Standing approval, granted by Jeff in chat on 2026-08-23 before the work started,
-  for every child of the task-211 epic (task-214 through task-219) run overnight and
-  autonomously. It is not a per-task click and this note is here so the record does
-  not read as one. Relayed by the task-211 supervisor session after reviewing the
-  branch and this record.
-
-
-  What the supervisor checked: seven commits, 2997 insertions, no uncommitted work
-  in the worktree and the shared clone on main and clean; the four acceptance criteria
-  marked met with the evidence stated on the record rather than asserted; the read
-  routes are GET-only in FastAPI''s own route table; the name pattern refuses a leading
-  dot and every separator, so a traversal name cannot reach the filesystem; and the
-  one deliberate departure from the spec -- `kind: batch|reactive` not implemented
-  -- is correct, because section 3.2 of the merged design has no `kind` field and
-  decision P8 withdrew the reactive category on 2026-08-21, after this task''s spec
-  was written. Building the spec''s line would have put a single-member enum in the
-  codebase naming a category the approved design says has no members. The child chose
-  the design over the stale spec line and said so; that is the right call and the
-  right way to make it.
-
-
-  The child''s session was stopped before this approval so that its working directory
-  does not pin the worktree the finish is about to remove.
-
-
-  That note is context to carry into the merge, not another review round: you are
-  still cleared to merge.'
+updated: '2026-08-23T08:22:34.465462Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 62
 category: architecture
 tags:
 - playbooks
@@ -51,7 +14,6 @@ tags:
 - mcp
 - schema
 assignment:
-  owner: claude
   eligible: []
 parent: task-211
 spec:
@@ -125,7 +87,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-214-playbook-storage
-  status: active
+  status: merged
+  merged_at: '2026-08-23T08:22:34.421483Z'
 log:
 - id: 1
   ts: '2026-08-21T04:55:30.551629Z'
@@ -386,3 +349,23 @@ log:
     merge_commit: b9a8c9e5e9934a7fc29ecc1188762e606f36ba7b
     branch: feat/task-214-playbook-storage
     base: main
+- id: 13
+  ts: '2026-08-23T08:22:34.465287Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-214-playbook-storage` into `main` as `b9a8c9e5` and verified\
+    \ live. Approved by Jeff Posey; finished by the scripted path with no agent session\
+    \ (task-241).\n\nEverything up to and including verification:\n\n```\n  preflight\
+    \  ok         2.2s  feat/task-214-playbook-storage at b9d2bacc in C:\\projects\\\
+    worktrees\\aj-214\n  rebase     ok         0.5s  feat/task-214-playbook-storage\
+    \ onto main: b9d2bacc -> 48713f12\n  gate       ok       174.9s  scripts/check.py\
+    \ green\n  merge      ok         0.3s  --no-ff into main as b9a8c9e5e9934a7fc29ecc1188762e606f36ba7b\n\
+    \  rebuild    ok         7.8s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         0.8s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     ok         0.0s  http://127.0.0.1:8876 is serving 7b6f516a, which contains\
+    \ the merge b9a8c9e5, from C:\\projects\\agentjobs (started 2026-08-23T08:22:24.144451+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
