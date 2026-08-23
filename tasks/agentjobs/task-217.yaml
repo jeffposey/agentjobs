@@ -2,7 +2,7 @@ schema: 2
 id: task-217
 title: 'Playbooks 4: reorder, authored, with anchor mechanics'
 created: '2026-08-21T04:56:41.043549Z'
-updated: '2026-08-23T18:41:32.339654Z'
+updated: '2026-08-23T20:59:17.754706Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -349,3 +349,61 @@ log:
       id: 7a1f0c2e-2170-4a11-9b01-000000000004
       kind: log_append
       fingerprint: df639124081ddf4c675bcd537e9a961b
+- id: 9
+  ts: '2026-08-23T20:59:17.754443Z'
+  actor: claude
+  type: progress
+  body: "**Fresh session picking this up. The previous session parked on a tool-classifier\
+    \ outage and was stopped; this is what I found intact, verified against disk rather\
+    \ than taken from its account.**\n\n## State, verified\n\n- Worktree `C:/projects/worktrees/aj-217`\
+    \ \u2014 clean, bootstrapped, on `feat/task-217-reorder-playbook`.\n- Two commits\
+    \ ahead of `main`, both present: `2c5303c` (sc-2, the queue listing's `last_move`)\
+    \ and `45fe129` (sc-1, the brief).\n- `main` has moved under the branch since\
+    \ \u2014 task-292 and task-218 merged. A rebase is due at merge time; nothing\
+    \ on this branch touches what moved.\n\n## The run had already started, which\
+    \ the handoff did not say\n\n**task-291 log entry 3 is the pre-move read, and\
+    \ one move had already landed** when the previous session stopped: task-198, high\
+    \ band, 1875 \u2192 525, ahead of task-230, with a substantive body citing \xA7\
+    6.1. It was sitting **uncommitted** in the shared clone along with `task-291.yaml`\
+    \ itself, which was untracked. Both are committed to `main` now, so the run is\
+    \ recoverable if I am interrupted.\n\nLog entry 3's \"effort spent\" section reads\
+    \ as a report but was written four minutes *before* that move \u2014 it is the\
+    \ plan, not the tally. Two of the three moves it describes (one in MEDIUM, one\
+    \ in LOW) were never made. That is what remains of sc-3.\n\n## sc-1 and sc-2,\
+    \ judged rather than assumed\n\n**sc-1 \u2014 met.** Checked `playbooks/reorder.md`\
+    \ clause by clause against design \xA75.2 and task-211 log entries 2, 3, 5 and\
+    \ 6. All of it is stated normatively and in the form it has to be followed in:\
+    \ graded effort by depth (\xA74), the recorded reason on every move with the \"\
+    never write 'reordered'\" prohibition (\xA75), triggered-not-continuous (\xA7\
+    3), the anchor rules and their expiry on close / band change / dependency resolving\
+    \ (\xA76), the scoring prohibition (\xA72), out-of-scope (\xA78), and changing-nothing-is-a-result\
+    \ (\xA79). The front matter carries `gates: []` and `difficulty: hard`, which\
+    \ is design \xA75.2's \"no gate required\" and entry 3's frontier-runner posture\
+    \ expressed as durable data rather than a per-dispatch choice. `tests/test_playbooks.py`\
+    \ pins the project's copy: no gate, `queue_move` declared, `update` *not* declared.\n\
+    \n**sc-2 \u2014 met, and exercised beyond the tests.** `poetry run pytest tests/test_queue_surfaces.py\
+    \ tests/test_actors.py tests/test_playbooks.py` \u2014 **166 passed**, worktree\
+    \ interpreter. Then I ran `queue list` against this repository's real backlog\
+    \ and read the anchor evidence off it: task-021, task-022 and task-018 render\
+    \ `placed by Jeff Posey (human)`, task-211 and task-017 render `placed by claude\
+    \ (agent)` with the bodies that name Jeff, and the four LOW tasks render nothing\
+    \ because none has ever moved. That is the derivation \xA76.1 asks for, working\
+    \ on the corpus it was written for.\n\n## A trap worth recording, found while\
+    \ verifying sc-2\n\n**Run from the worktree, the CLI resolved the project to the\
+    \ worktree's own `tasks/` rather than to the registry path.** It reported HIGH\
+    \ as 68 open and task-198 at 1875 \u2014 the branch's stale copies \u2014 where\
+    \ the shared clone has 65 and 525. Same binary, same interpreter, different corpus,\
+    \ no warning.\n\nThis is the \"whichever branch is checked out decides what you\
+    \ see\" hazard in ENGINEERING.md, reached by cwd rather than by checkout. It matters\
+    \ for this task specifically: **a mutating queue command run from the worktree\
+    \ would write the move into the branch**, which is precisely the invisible-task-record\
+    \ failure that \"task files live on `main`\" exists to prevent. So for the live\
+    \ run every read and every write is issued with the shared clone as the working\
+    \ directory. Recording it because nothing about the command tells you which corpus\
+    \ answered.\n\n## What remains\n\nThe two unmade moves and the closing tally for\
+    \ sc-3, then the full gate, then handoff. Nothing on sc-1 or sc-2."
+  data:
+    operation:
+      id: 9c3e1a70-2170-4b22-a001-000000000101
+      kind: log_append
+      fingerprint: cdc6609a904e455252ec9bf8a5d3d074
