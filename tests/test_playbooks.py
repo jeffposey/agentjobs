@@ -280,6 +280,46 @@ class TestShippedReferences:
         assert sorted(again.kept) == ["flesh-out", "groom", "reorder"]
 
 
+class TestThisRepositorysOwnPlaybooks:
+    """The playbooks *this* project holds, checked the way ``TestRealCorpus`` checks
+    its task records.
+
+    A playbook is authored by hand, is never loaded by the test suite otherwise, and
+    fails at the one moment it matters -- somebody asks for a run -- with
+    ``invalid_playbook`` and nothing started. That is exactly the exposure the real-corpus
+    check exists for, so the repository's own directory gets the same treatment.
+    """
+
+    @property
+    def directory(self) -> Path:
+        return Path(__file__).resolve().parents[1] / DEFAULT_PLAYBOOKS_DIRECTORY
+
+    def test_every_playbook_in_this_repository_validates(self) -> None:
+        listing = list_playbooks(self.directory)
+        assert listing.exists, f"{self.directory} is missing"
+        # Rendered rather than compared as objects: a bare `== []` reports a dataclass
+        # repr and not the reason the file was rejected, which is the whole message.
+        assert [finding.render() for finding in listing.problems] == []
+        assert listing.playbooks, "the directory holds no playbooks at all"
+
+    def test_groom_carries_the_gate_the_design_makes_mandatory(self) -> None:
+        """task-216 / design §5.1 and decision P7, pinned against the project's own copy.
+
+        The project's copy is authoritative from the moment it exists (§3.1), so the
+        assertion on the shipped reference above says nothing about what a run of this
+        backlog would actually read.
+        """
+        groom = read_playbook(self.directory, "groom")
+        assert groom.contract.target is PlaybookTarget.PROJECT
+        assert [gate.before for gate in groom.contract.gates] == ["close"]
+        run_task = groom.contract.run_task
+        assert run_task is not None
+        assert run_task.acceptance, "a run task with no acceptance has no definition of done"
+        # `close` is the gated verb, so a brief that dropped it from the declared
+        # contract would leave a gate standing in front of nothing.
+        assert "close" in groom.contract.verbs
+
+
 EXECUTION_MODULE = "run.py"
 """The one module in this package allowed to reach the dispatch machinery.
 
