@@ -248,6 +248,21 @@ class CodexAppServerProcess:
         finally:
             self.terminate()
 
+    def read_persisted_thread(self, thread_id: str) -> Dict[str, Any]:
+        """Read a stored thread without starting a task turn.
+
+        A new App Server child can safely inspect Codex's durable thread store after
+        AgentJobs restarts.  This is deliberately not ``thread/resume``: reconciliation
+        must establish what survived before it can ever inject another turn.
+        """
+        try:
+            self._launch_and_initialize()
+            return self._request("thread/read", {"threadId": thread_id})
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise CodexAppServerError(f"Could not read persisted Codex thread: {exc}") from exc
+        finally:
+            self.terminate()
+
     def start(self, prompt: str, *, resume_thread_id: Optional[str] = None) -> CodexSessionStarted:
         """Launch, initialize, and start a turn for a dispatched task.
 

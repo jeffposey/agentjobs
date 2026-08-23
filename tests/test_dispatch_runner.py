@@ -21,7 +21,7 @@ import os
 import subprocess
 import sys
 import textwrap
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -651,6 +651,74 @@ class TestCodexBatchRunner:
             yaml.safe_load((directory.path / "meta.yaml").read_text()).get("pid_missing_since")
             is None
         )
+
+    def test_lost_codex_pid_reconciles_the_persisted_thread_without_a_second_turn(
+        self, workspace: Path, manager: TaskManager, task, monkeypatch
+    ) -> None:
+        resolution = make_resolution(
+            ["codex", "app-server", "--model", "gpt-5.6-terra", "{prompt}"],
+            mode=RunnerMode.SESSION,
+            driver=RunnerDriver.CODEX,
+            posture=Posture.AUTO,
+        )
+        now = datetime(2026, 8, 22, tzinfo=timezone.utc)
+        runner = DispatchRunner(
+            manager=manager,
+            resolution=resolution,
+            project_root=workspace / "project",
+            home=workspace / "home",
+            clock=lambda: now,
+        )
+        directory = RunDirectory.create(
+            workspace / "home",
+            "run_codex_reconcile",
+            {
+                "run_id": "run_codex_reconcile",
+                "task_id": task.id,
+                "project_id": "sandbox",
+                "mode": "session",
+                "driver": "codex",
+                "posture": "auto",
+                "status": "running",
+                "codex_status": "running",
+                "codex_lifecycle": "running_turn",
+                "pid": 4242,
+                "thread_id": "thread-1",
+                "session_id": "thread-1",
+                "argv": ["codex", "app-server", "{prompt}"],
+                "pid_missing_since": (now - timedelta(minutes=10)).isoformat(),
+                "started_at": now.isoformat(),
+            },
+        )
+        handle = RunHandle(
+            run_id="run_codex_reconcile",
+            task_id=task.id,
+            mode=DispatchMode.SESSION,
+            directory=directory,
+            pid=4242,
+            session_id="thread-1",
+        )
+        reads: list[str] = []
+
+        class FakeAppServer:
+            def __init__(self, **_kwargs) -> None:
+                pass
+
+            def read_persisted_thread(self, thread_id: str):
+                reads.append(thread_id)
+                return {"thread": {"id": thread_id}}
+
+        monkeypatch.setattr("agentjobs.dispatch.runner.CodexAppServerProcess", FakeAppServer)
+        monkeypatch.setattr(
+            "agentjobs.dispatch.runner.os.kill", lambda _pid, _sig: (_ for _ in ()).throw(OSError())
+        )
+
+        assert runner.poll_session(handle) is SessionPhase.RUNNING
+        meta = directory.read_meta()
+        assert reads == ["thread-1"]
+        assert meta["codex_status"] == "reconciling"
+        assert meta["codex_lifecycle"] == "reconciled"
+        assert meta["reconciled_thread_id"] == "thread-1"
 
     def test_codex_flags_land_before_the_prompt(self) -> None:
         prompt = "work task-277"

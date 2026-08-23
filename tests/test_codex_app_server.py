@@ -323,6 +323,55 @@ def test_app_server_preflight_times_out_before_a_task_turn(monkeypatch) -> None:
     assert started_read.is_set()
 
 
+def test_app_server_reads_a_persisted_thread_without_starting_a_turn(monkeypatch) -> None:
+    output = (
+        "\n".join(
+            [
+                json.dumps({"id": 1, "result": {}}),
+                json.dumps({"id": 2, "result": {"thread": {"id": "thread-1"}}}),
+            ]
+        )
+        + "\n"
+    )
+
+    class FakeProcess:
+        pid = 1241
+
+        def __init__(self) -> None:
+            self.stdin = io.StringIO()
+            self.stdout = io.StringIO(output)
+            self.stderr = io.StringIO()
+
+        def poll(self):
+            return None
+
+        def terminate(self) -> None:
+            pass
+
+        def wait(self, timeout=None) -> None:
+            pass
+
+    fake = FakeProcess()
+    monkeypatch.setattr(
+        "agentjobs.dispatch.codex_app_server.subprocess.Popen", lambda *a, **k: fake
+    )
+    process = CodexAppServerProcess(
+        executable="codex",
+        cwd=Path("C:/project"),
+        env={},
+        settings=CodexSessionSettings("gpt-5.6-terra", "high", "never", "workspace-write"),
+    )
+
+    assert process.read_persisted_thread("thread-1") == {"thread": {"id": "thread-1"}}
+    messages = [json.loads(line) for line in fake.stdin.getvalue().splitlines()]
+    assert [message["method"] for message in messages] == [
+        "initialize",
+        "initialized",
+        "thread/read",
+    ]
+    assert messages[-1]["params"] == {"threadId": "thread-1"}
+
+
 def test_app_server_resumes_a_persisted_thread_before_injecting_follow_up(monkeypatch) -> None:
     output = (
         "\n".join(
