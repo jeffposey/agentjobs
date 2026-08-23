@@ -2,75 +2,14 @@ schema: 2
 id: task-292
 title: Keep top bar visible while scrolling
 created: '2026-08-23T19:05:31.429792Z'
-updated: '2026-08-23T20:42:13.076360Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Drive it, then approve or send it back.\n\n**Sandbox: http://127.0.0.1:8891/app/**\
-  \ \u2014 my branch, throwaway data, its own port. It is not the 8876 dashboard and\
-  \ it does not touch your real corpus. Start at http://127.0.0.1:8891/app/p/sandbox-tall/tasks,\
-  \ which has sixty tasks so there is something to scroll. Stop it with `poetry run\
-  \ python scripts/run_report.py`-style Ctrl-C, or tell me and I will kill it; the\
-  \ temporary data deletes itself when the process ends.\n\n**Both sides, without\
-  \ me building a second one:** 8876 is still serving `main`, so it *is* the before.\
-  \ Put the two side by side. Narrow the window to about 900px on each and the difference\
-  \ is at its sharpest \u2014 that is the case I did not expect to find.\n\n## I answered\
-  \ your question. Here is the short version; the long one is the decision entry.\n\
-  \n**Landscape: keep the top menu visible. No burger.** I am pushing back on your\
-  \ second option. A burger at 1440px buys back 64px of 800 and charges a click for\
-  \ every navigation forever \u2014 and it hides Dispatch, which `App.tsx` has a comment\
-  \ about: it is the machine-wide kill switch and a kill switch you cannot reach is\
-  \ not one.\n\n**Phone: your burger, but the panel drops from the bar rather than\
-  \ sliding in from the left.** You said \"top bar, or left bar, whatever\". I went\
-  \ with the top for two reasons. It is literally what you described first \u2014\
-  \ the bar's own contents, dropping over the page. And task-238 is going to put a\
-  \ *task list* down the left edge at landscape widths; a nav drawer from the same\
-  \ edge teaches two meanings for one gesture, and they meet exactly where a tablet\
-  \ crosses the breakpoint.\n\n**The number that changed my mind about your whole\
-  \ question: the bar only fits on one line at 955px.** I measured it in your running\
-  \ app before choosing. It is 128px tall on a 900px window and 164px on a phone.\
-  \ So this was never a phone problem \u2014 every landscape tablet below ~960 has\
-  \ been getting a two-row header, and one more nav destination pushes that up to\
-  \ 1024px screens. That is exactly the condition task-235's decision named for reopening\
-  \ the navigation-rail question. **I did not reopen it** \u2014 a panel behind a\
-  \ burger is not a rail and costs no width closed \u2014 but the measurement is now\
-  \ on task-236, which is the task that owns that call, for you to make with the numbers\
-  \ in front of you.\n\n**The breakpoint is 960, not this app's existing 820.** 820\
-  \ is where the tables restack; the header stops fitting 135px above it. Using 820\
-  \ would have left the whole 820\u2013954 band still wrapping.\n\n## What to actually\
-  \ look at\n\n1. Scroll to the bottom of a long task on a phone-width window. The\
-  \ bar is still there, and it is **one row** \u2014 65px, where it used to be 164.\n\
-  2. Tap the burger. Everything is in there, in the same order, nothing renamed. Escape\
-  \ closes it and focus goes back to the button.\n3. A ~900px window. This is the\
-  \ case I would most like your eye on, because it is the one you did not ask about.\n\
-  4. Report issue still opens and its dialog still covers the bar. That was an acceptance\
-  \ criterion, not an afterthought.\n\n## Two things you should know before approving\n\
-  \n**I touched a test file that is not mine.** `queue-order.spec.ts`'s drag helper\
-  \ scrolled a row to y=0 to reach it \u2014 which is now behind the header, so the\
-  \ press landed on the bar and the drag never started. I rewrote the helper to place\
-  \ both ends below the bar deliberately, and gave the two pointer-drag tests a 900px-tall\
-  \ viewport because the rows they use sit 677px apart and a 720px window now leaves\
-  \ 655. Real product interaction, not a test being fussy. Drag still works; the auto-scroll\
-  \ test is untouched.\n\n**I got it wrong twice before I got it right**, and the\
-  \ progress entry says so in detail. Worth two minutes if you want to know how much\
-  \ to trust the rest.\n\n## Filed rather than done\n\n- **task-294** \u2014 the Dashboard\
-  \ fits one screen, no scrolling. Your line about the Dashboard, made into a task.\
-  \ It also carries the design I *wanted* to use here and rejected: stop the document\
-  \ scrolling at all and make `<main>` the scroll container. That is the better shape\
-  \ and it breaks drag-to-reorder's auto-scroll, so it belongs where somebody can\
-  \ pay proper attention to it.\n- **task-295** \u2014 the pinned bar may end up under\
-  \ your iPhone's status bar in the installed PWA. That was the open question I left\
-  \ you last time; pinning the bar makes it real, so it is a task now. Its first criterion\
-  \ is to look at it on your actual phone, because I have only read the markup.\n\n\
-  **Nothing is merged.** Branch `feat/task-292-pinned-header`, commit `e16d579`, gate\
-  \ green with no arguments, all ten stages."
+updated: '2026-08-23T20:50:18.527420Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
-queue_position: 8100
 category: general
 tags: []
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "The React app's global header \u2014 AgentJobs, the project switcher and\
@@ -239,7 +178,8 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-292-pinned-header
-  status: active
+  status: merged
+  merged_at: '2026-08-23T20:48:00Z'
 log:
 - id: 1
   ts: '2026-08-23T19:05:31.887291Z'
@@ -762,3 +702,51 @@ log:
       id: 9e6b0c48-3a71-4d92-b5c6-2f80e7a1e292
       kind: handoff
       fingerprint: 7b9adfcf578861ff29f6160479631900
+- id: 15
+  ts: '2026-08-23T20:47:16.570070Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 16
+  ts: '2026-08-23T20:50:00.372551Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 1c05a9f7-8b3e-4d26-90a4-5f83c1b6e292
+      kind: update_content
+      fingerprint: 1e8fe5ae6775760a0740efd2555a585d
+- id: 17
+  ts: '2026-08-23T20:50:18.527080Z'
+  actor: claude
+  type: transition
+  body: "Merged and delivered.\n\n- Rebased onto `main`, merged `--no-ff` as **`ee14983`**.\
+    \ Branch marked merged.\n- Frontend rebuilt in the serving clone (`frontend_dist`\
+    \ is gitignored, so the merge alone would have left the running server on the\
+    \ old bundle).\n- The 8876 server restarted through `C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -NoOpen -Force` \u2014 its own launcher, not `agentjobs restart`, which binds\
+    \ 8765 and would have left the real dashboard stale while appearing to succeed.\n\
+    - **Verified live rather than assumed**: `/api/version` reports `source_commit:\
+    \ ee14983`, and `/app/` is serving `assets/index-u99hGWPD.js`, which is the hash\
+    \ this rebuild produced.\n\nAll five acceptance criteria met, gate green with\
+    \ no arguments on all ten stages before the merge.\n\nOne thing for whoever cares\
+    \ about dispatch, recorded because it cost Jeff a confusing error rather than\
+    \ because it belongs to this task: approving here did not run the scripted finish,\
+    \ and a second dispatch was refused with *\"task-292 already has run run_354d4298\
+    \ in state 'running'\"* \u2014 this session, still alive after handing the ball\
+    \ back. The resume path did work in the end and delivered the approval into this\
+    \ session, which is how the merge got done. Worth a look at whether a run parked\
+    \ at `human/review` should still count as live for that guard.\n"
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: b3f92a05-7c61-4e88-a device
+      kind: close
+      fingerprint: 3be02ce6d31152ef5989a1b858817f81
