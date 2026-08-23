@@ -1116,6 +1116,16 @@ export type MutationResultInput = {
      */
     project_id: string;
     /**
+     * The placement that puts the task back where the move took it from, offered only alongside a queue warning and only for a single-task move.
+     */
+    queue_undo?: QueueMovePlacement | null;
+    /**
+     * Queue Warnings
+     *
+     * What the queue-move check found about a reorder that has already landed. Empty for every other verb, and empty for most moves -- silence is the normal outcome. A finding here never means the move was refused.
+     */
+    queue_warnings?: Array<QueueMoveWarning>;
+    /**
      * Replayed
      *
      * True when this operation had already been applied, so nothing was written and no log entry was added.
@@ -1156,6 +1166,16 @@ export type MutationResultOutput = {
      * Project the mutation addressed.
      */
     project_id: string;
+    /**
+     * The placement that puts the task back where the move took it from, offered only alongside a queue warning and only for a single-task move.
+     */
+    queue_undo?: QueueMovePlacement | null;
+    /**
+     * Queue Warnings
+     *
+     * What the queue-move check found about a reorder that has already landed. Empty for every other verb, and empty for most moves -- silence is the normal outcome. A finding here never means the move was refused.
+     */
+    queue_warnings?: Array<QueueMoveWarning>;
     /**
      * Replayed
      *
@@ -1786,6 +1806,42 @@ export type QueueEntryRead = {
 };
 
 /**
+ * QueueKeepRequest
+ *
+ * Keep a queue position that was moved over a stated warning.
+ *
+ * The other half of the notice the queue-move check raises: `undo` is an ordinary
+ * move back, and this is what "keep" sends. It records the strong anchor -- a place a
+ * person defended against an objection they had read -- which `reorder` may not move.
+ */
+export type QueueKeepRequest = {
+    /**
+     * Actor
+     *
+     * Actor id keeping the position.
+     */
+    actor: string;
+    /**
+     * Body
+     *
+     * Why it was kept. Omit it and the manager writes its own sentence.
+     */
+    body?: string | null;
+    /**
+     * Expected Revision
+     *
+     * The `updated` value from a prior read. When supplied, the request is refused if the task changed in the meantime, and the current task is returned so the caller can decide again.
+     */
+    expected_revision?: string | null;
+    /**
+     * Operation Id
+     *
+     * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing a second anchor.
+     */
+    operation_id: string;
+};
+
+/**
  * QueueMaintenanceRequest
  *
  * Repair or compaction: attributed, and required to say who asked.
@@ -1812,6 +1868,30 @@ export type QueueMaintenanceRequest = {
      * Caller-generated UUID identifying this attempt.
      */
     operation_id: string;
+};
+
+/**
+ * QueueMovePlacement
+ *
+ * A placement, in the shape the queue-move route accepts one.
+ *
+ * Returned as `queue_undo` so a client can offer one-click undo without deriving the
+ * inverse itself. It names a neighbour rather than a number, because a number can be
+ * rewritten by a rebalance while "behind task-063" cannot.
+ */
+export type QueueMovePlacement = {
+    /**
+     * Kind
+     *
+     * top, bottom, before or after.
+     */
+    kind: string;
+    /**
+     * Target
+     *
+     * The neighbour, for before and after.
+     */
+    target?: string | null;
 };
 
 /**
@@ -1879,6 +1959,38 @@ export type QueueMoveRequest = {
      * Carry the task's open same-band descendants with it, contiguously.
      */
     with_children?: boolean;
+};
+
+/**
+ * QueueMoveWarning
+ *
+ * One deterministic finding about a move that has already landed.
+ *
+ * Computed synchronously by `agentjobs.queue_check` from facts the move handler had
+ * already read -- no model, no dispatch, no delay. `kind` is the closed vocabulary a
+ * client branches on; `message` is the sentence every surface shows, written once in
+ * the check so the CLI, this response and the browser cannot describe one fact three
+ * ways.
+ */
+export type QueueMoveWarning = {
+    /**
+     * Kind
+     *
+     * One of: queue_broken, promoted_unclaimable, above_prerequisite, demoted_blocker, no_op.
+     */
+    kind: string;
+    /**
+     * Message
+     *
+     * The finding, as a sentence meant to be shown as-is.
+     */
+    message: string;
+    /**
+     * Tasks
+     *
+     * Every task this finding is about, even when the message names fewer.
+     */
+    tasks?: Array<string>;
 };
 
 /**
@@ -3096,6 +3208,16 @@ export type MutationResultOutputWritable = {
      * Project the mutation addressed.
      */
     project_id: string;
+    /**
+     * The placement that puts the task back where the move took it from, offered only alongside a queue warning and only for a single-task move.
+     */
+    queue_undo?: QueueMovePlacement | null;
+    /**
+     * Queue Warnings
+     *
+     * What the queue-move check found about a reorder that has already landed. Empty for every other verb, and empty for most moves -- silence is the normal outcome. A finding here never means the move was refused.
+     */
+    queue_warnings?: Array<QueueMoveWarning>;
     /**
      * Replayed
      *
@@ -5106,6 +5228,49 @@ export type PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostResponses = {
 
 export type PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostResponse = PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostResponses[keyof PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostResponses];
 
+export type QueueKeepTaskApiProjectsProjectIdTasksTaskIdQueueKeepPostData = {
+    body: QueueKeepRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
+    url: '/api/projects/{project_id}/tasks/{task_id}/queue-keep';
+};
+
+export type QueueKeepTaskApiProjectsProjectIdTasksTaskIdQueueKeepPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type QueueKeepTaskApiProjectsProjectIdTasksTaskIdQueueKeepPostError = QueueKeepTaskApiProjectsProjectIdTasksTaskIdQueueKeepPostErrors[keyof QueueKeepTaskApiProjectsProjectIdTasksTaskIdQueueKeepPostErrors];
+
+export type QueueKeepTaskApiProjectsProjectIdTasksTaskIdQueueKeepPostResponses = {
+    /**
+     * Response Queue Keep Task Api Projects  Project Id  Tasks  Task Id  Queue Keep Post
+     *
+     * Successful Response
+     */
+    200: MutationResultOutput | Task;
+};
+
+export type QueueKeepTaskApiProjectsProjectIdTasksTaskIdQueueKeepPostResponse = QueueKeepTaskApiProjectsProjectIdTasksTaskIdQueueKeepPostResponses[keyof QueueKeepTaskApiProjectsProjectIdTasksTaskIdQueueKeepPostResponses];
+
 export type QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostData = {
     body: QueueMoveRequest;
     path: {
@@ -6372,6 +6537,45 @@ export type PromoteTaskApiTasksTaskIdPromotePostResponses = {
 };
 
 export type PromoteTaskApiTasksTaskIdPromotePostResponse = PromoteTaskApiTasksTaskIdPromotePostResponses[keyof PromoteTaskApiTasksTaskIdPromotePostResponses];
+
+export type QueueKeepTaskApiTasksTaskIdQueueKeepPostData = {
+    body: QueueKeepRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
+    url: '/api/tasks/{task_id}/queue-keep';
+};
+
+export type QueueKeepTaskApiTasksTaskIdQueueKeepPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type QueueKeepTaskApiTasksTaskIdQueueKeepPostError = QueueKeepTaskApiTasksTaskIdQueueKeepPostErrors[keyof QueueKeepTaskApiTasksTaskIdQueueKeepPostErrors];
+
+export type QueueKeepTaskApiTasksTaskIdQueueKeepPostResponses = {
+    /**
+     * Response Queue Keep Task Api Tasks  Task Id  Queue Keep Post
+     *
+     * Successful Response
+     */
+    200: MutationResultOutput | Task;
+};
+
+export type QueueKeepTaskApiTasksTaskIdQueueKeepPostResponse = QueueKeepTaskApiTasksTaskIdQueueKeepPostResponses[keyof QueueKeepTaskApiTasksTaskIdQueueKeepPostResponses];
 
 export type QueueMoveTaskApiTasksTaskIdQueueMovePostData = {
     body: QueueMoveRequest;

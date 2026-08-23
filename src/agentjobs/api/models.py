@@ -433,6 +433,64 @@ class QueueMoveRequest(QueueMutationRequest):
         return self
 
 
+class QueueKeepRequest(RevisionedRequest):
+    """Keep a queue position that was moved over a stated warning.
+
+    The other half of the notice the queue-move check raises: `undo` is an ordinary
+    move back, and this is what "keep" sends. It records the strong anchor -- a place a
+    person defended against an objection they had read -- which `reorder` may not move.
+    """
+
+    actor: str = Field(..., min_length=1, description="Actor id keeping the position.")
+    operation_id: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Caller-generated UUID. Resending the same request with the same id "
+            "replays the original result instead of writing a second anchor."
+        ),
+    )
+    body: Optional[str] = Field(
+        default=None,
+        description="Why it was kept. Omit it and the manager writes its own sentence.",
+    )
+
+
+class QueueMoveWarning(BaseModel):
+    """One deterministic finding about a move that has already landed.
+
+    Computed synchronously by `agentjobs.queue_check` from facts the move handler had
+    already read -- no model, no dispatch, no delay. `kind` is the closed vocabulary a
+    client branches on; `message` is the sentence every surface shows, written once in
+    the check so the CLI, this response and the browser cannot describe one fact three
+    ways.
+    """
+
+    kind: str = Field(
+        description=(
+            "One of: queue_broken, promoted_unclaimable, above_prerequisite, "
+            "demoted_blocker, no_op."
+        )
+    )
+    message: str = Field(description="The finding, as a sentence meant to be shown as-is.")
+    tasks: List[str] = Field(
+        default_factory=list,
+        description="Every task this finding is about, even when the message names fewer.",
+    )
+
+
+class QueueMovePlacement(BaseModel):
+    """A placement, in the shape the queue-move route accepts one.
+
+    Returned as `queue_undo` so a client can offer one-click undo without deriving the
+    inverse itself. It names a neighbour rather than a number, because a number can be
+    rewritten by a rebalance while "behind task-063" cannot.
+    """
+
+    kind: str = Field(description="top, bottom, before or after.")
+    target: Optional[str] = Field(default=None, description="The neighbour, for before and after.")
+
+
 class ReprioritizeRequest(QueueMutationRequest):
     """Change a task's band, and optionally where it lands inside the new one.
 
@@ -600,6 +658,21 @@ class MutationResult(BaseModel):
         description=(
             "Post-commit side effects that failed, such as webhook delivery. A warning "
             "never means the task write failed; that would be an error."
+        ),
+    )
+    queue_warnings: List[QueueMoveWarning] = Field(
+        default_factory=list,
+        description=(
+            "What the queue-move check found about a reorder that has already landed. "
+            "Empty for every other verb, and empty for most moves -- silence is the "
+            "normal outcome. A finding here never means the move was refused."
+        ),
+    )
+    queue_undo: Optional[QueueMovePlacement] = Field(
+        default=None,
+        description=(
+            "The placement that puts the task back where the move took it from, "
+            "offered only alongside a queue warning and only for a single-task move."
         ),
     )
 

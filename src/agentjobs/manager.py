@@ -26,6 +26,7 @@ from typing import (
 )
 
 from .operations import (
+    OPERATION_KEY,
     Operation,
     OperationConflictError,
     check_revision,
@@ -83,6 +84,17 @@ from .queue import (
     read_queue_record,
     read_queue_records,
 )
+from .queue_check import (
+    ANCHOR_KEY,
+    KEPT_OVER_KEY,
+    STRONG_ANCHOR,
+    MoveCheck,
+    QueueWarning,
+    apply_placement,
+    check_move,
+    undo_placement,
+    warning_dicts,
+)
 from .storage import TaskLoadError, TaskStorage, load_yaml
 
 if TYPE_CHECKING:
@@ -98,6 +110,29 @@ class DependencyFacts:
     needs_cycles: Tuple[Tuple[str, ...], ...]
     unblocks_count: int
     open_children_count: int
+
+
+@dataclass(frozen=True)
+class MoveOutcome:
+    """What a queue move did: the task as written, and what the move is worth saying.
+
+    ``warnings`` is usually empty, and that is the design's requirement rather than an
+    accident -- see :mod:`agentjobs.queue_check`. ``undo`` is the placement that puts
+    the task back where it came from, offered only alongside a warning: it is what the
+    one-click undo in the React notice sends, and it names a neighbour rather than a
+    number so it still means the right thing after a rebalance.
+    """
+
+    task: Task
+    warnings: Tuple[QueueWarning, ...] = ()
+    undo: Optional[Placement] = None
+
+    def as_dict(self) -> Dict[str, Any]:
+        """The move's advisory half as plain data, for an API envelope or a payload."""
+        return {
+            "queue_warnings": warning_dicts(self.warnings),
+            "queue_undo": self.undo.as_data() if self.undo is not None else None,
+        }
 
 
 @dataclass(frozen=True)
@@ -1601,6 +1636,107 @@ class TaskManager:
             entries = band_entries(self.storage.list_tasks_uncached(), band)
             return self._renumber(plan_compaction(entries))
 
+    def _move_facts(
+        self,
+        tasks: Sequence[Task],
+        moved: Task,
+        band: Priority,
+        before_order: Sequence[str],
+        after_order: Sequence[str],
+    ) -> MoveCheck:
+        """Assemble the queue-move check's inputs from a corpus already in memory.
+
+        **This is why the check costs no extra read.** ``_dependency_states``,
+        ``_open_children`` and ``dependency_facts`` each go back to storage, and under
+        the queue lock the move deliberately holds a *fresh* read that no snapshot may
+        answer for -- so calling them here would parse the corpus again to learn what
+        ``tasks`` already says. The three mappings below are the same derivations done
+        against the list in hand.
+        """
+        states = {task.id: task.lifecycle is Lifecycle.CLOSED for task in tasks}
+        open_children: Dict[str, List[str]] = {}
+        unblocks: Dict[str, int] = {}
+        for task in tasks:
+            if not task.is_open:
+                continue
+            if task.parent:
+                open_children.setdefault(task.parent, []).append(task.id)
+            for dependency in task.dependencies:
+                if dependency.type is DependencyType.NEEDS:
+                    unblocks[dependency.task] = unblocks.get(dependency.task, 0) + 1
+
+        # Same-band edges only. Positions are never compared across bands, so a `high`
+        # task standing ahead of a `medium` prerequisite is not an ordering anybody
+        # chose and warning about it on every move would be the wallpaper P8 forbids.
+        members = set(after_order)
+        needs: Dict[str, Tuple[str, ...]] = {}
+        for task in tasks:
+            if task.id not in members:
+                continue
+            waiting = tuple(
+                sorted(
+                    dependency.task
+                    for dependency in task.dependencies
+                    if dependency.type is DependencyType.NEEDS
+                    and dependency.task in members
+                    and not states.get(dependency.task, False)
+                )
+            )
+            if waiting:
+                needs[task.id] = waiting
+
+        problems = find_queue_problems(
+            [place_of(task) for task in tasks if task.is_open],
+            bands=bands_at_or_above(moved.priority_rank()),
+        )
+        return MoveCheck(
+            moved=moved.id,
+            band=band.value,
+            before=tuple(before_order),
+            after=tuple(after_order),
+            moved_reason=self._skip_reason(moved, None, None, states, open_children),
+            needs=needs,
+            unblocks=unblocks,
+            problems=tuple(problems),
+        )
+
+    @staticmethod
+    def _replayed_move(task: Task, operation: Optional[Operation]) -> MoveOutcome:
+        """The advisory half of a move that has already been applied, read back.
+
+        A retry after a timeout must be handed the *original* answer, warnings
+        included: a caller that saw a blank second response would conclude the move it
+        is retrying was clean. The entry that recorded the move carries them, so this
+        reads them rather than recomputing against a corpus that has moved on.
+        """
+        marker_id = operation.id if operation is not None else None
+        for entry in reversed(task.log):
+            if entry.type is not LogEntryType.QUEUE_MOVE:
+                continue
+            marker = entry.data.get(OPERATION_KEY)
+            if marker_id is not None and (
+                not isinstance(marker, Mapping) or marker.get("id") != marker_id
+            ):
+                continue
+            recorded = entry.data.get("warnings")
+            warnings = tuple(
+                QueueWarning(
+                    kind=str(item.get("kind", "")),
+                    message=str(item.get("message", "")),
+                    tasks=tuple(str(name) for name in item.get("tasks", ())),
+                )
+                for item in recorded or ()
+                if isinstance(item, Mapping)
+            )
+            undo = entry.data.get("undo")
+            placement = (
+                Placement(str(undo.get("kind")), undo.get("target"))
+                if isinstance(undo, Mapping) and undo.get("kind")
+                else None
+            )
+            return MoveOutcome(task=task, warnings=warnings, undo=placement)
+        return MoveOutcome(task=task)
+
     def move(
         self,
         task_id: str,
@@ -1615,6 +1751,39 @@ class TaskManager:
         operation_id: Optional[str] = None,
         expected_revision: Optional[Union[datetime, str]] = None,
     ) -> Task:
+        """Change where a task stands in its band, answering with the task alone.
+
+        :meth:`move_with_warnings` is the same verb and also hands back what the move
+        is worth saying about. This wrapper stays because most callers -- and every
+        test written before the check existed -- want the task and nothing else.
+        """
+        return self.move_with_warnings(
+            task_id,
+            before=before,
+            after=after,
+            top=top,
+            bottom=bottom,
+            with_children=with_children,
+            actor=actor,
+            body=body,
+            operation_id=operation_id,
+            expected_revision=expected_revision,
+        ).task
+
+    def move_with_warnings(
+        self,
+        task_id: str,
+        *,
+        before: Optional[str] = None,
+        after: Optional[str] = None,
+        top: bool = False,
+        bottom: bool = False,
+        with_children: bool = False,
+        actor: str,
+        body: Optional[str] = None,
+        operation_id: Optional[str] = None,
+        expected_revision: Optional[Union[datetime, str]] = None,
+    ) -> MoveOutcome:
         """Change where a task stands in its band. The only way the order changes.
 
         Exactly one placement. ``before``/``after`` name a task in the **same band**.
@@ -1632,6 +1801,14 @@ class TaskManager:
         ``high`` epic. Those children keep their places, and ``moved_with`` names
         exactly who moved, so the record also shows who stayed. A group move never
         changes anyone's priority; that is ``reprioritize``'s decision.
+
+        **The move lands first and is never blocked by what the check finds** (design
+        decision P8, revised). The warnings are computed synchronously from the corpus
+        already read under the lock -- deterministic, no model, no dispatch, no
+        debounce -- and are recorded in the ``queue_move`` entry, so "the human was
+        told" is a fact about the record rather than a guess about whether a notice
+        that arrived later was read. That is what makes ``keep_queue_move``'s strong
+        anchor legitimate.
         """
         placement = placement_from(before=before, after=after, top=top, bottom=bottom)
         operation = self._operation(
@@ -1654,7 +1831,7 @@ class TaskManager:
             # Under the queue lock, so a retry that arrives while the first attempt is
             # still writing children waits rather than duplicating their moves.
             if replay_or_conflict(task, operation):
-                return task
+                return self._replayed_move(task, operation)
             check_revision(task, expected_revision)
             if not task.is_open:
                 raise ValueError(f"Task '{task_id}' is closed, so it is not in line.")
@@ -1672,6 +1849,12 @@ class TaskManager:
                     )
                 self._require_band_member(placement.target, band)
 
+            # The band as it stood, and as this placement leaves it. Both are orders of
+            # ids rather than runs of numbers, because `_place` rebalances an exhausted
+            # band underneath the move -- so the numbers on either side are not
+            # comparable, while the order always is.
+            before_order = [entry.task_id for entry in band_entries(tasks, band)]
+
             positions = self._place(band, placement, count=len(movers), excluding=mover_ids)
 
             # Children first, so the entry the root ends up carrying names the tasks
@@ -1683,6 +1866,8 @@ class TaskManager:
                 for child, position in zip(movers[1:], positions[1:])
                 if self.apply_position(child.id, position) is not None
             ]
+            after_order = apply_placement(before_order, [task_id, *moved_with], placement)
+            warnings = check_move(self._move_facts(tasks, task, band, before_order, after_order))
             data: Dict[str, Any] = {
                 "band": band.value,
                 "from": task.queue_position,
@@ -1691,16 +1876,114 @@ class TaskManager:
             }
             if with_children:
                 data["moved_with"] = moved_with
+            undo: Optional[Placement] = None
+            if warnings:
+                data["warnings"] = warning_dicts(warnings)
+                # Only for a single move, and only where something actually moved.
+                # Undoing a group by moving the root alone would scatter the children
+                # it just carried, and the inverse of a group move is a group move this
+                # record cannot express; offering to undo a move that changed no order
+                # is offering to repeat it. Either way the notice shows no button rather
+                # than one that does the wrong thing.
+                if not moved_with and after_order != before_order:
+                    undo = undo_placement(before_order, task_id)
+                    if undo is not None:
+                        data["undo"] = undo.as_data()
             carried = f" with {len(moved_with)} descendant(s)" if moved_with else ""
-            return self._write_place(
-                task_id,
-                positions[0],
-                actor=actor,
-                body=body or f"Moved to {placement.describe()}{carried}.",
-                data=data,
-                operation=operation,
-                expected_revision=expected_revision,
+            return MoveOutcome(
+                task=self._write_place(
+                    task_id,
+                    positions[0],
+                    actor=actor,
+                    body=body or f"Moved to {placement.describe()}{carried}.",
+                    data=data,
+                    operation=operation,
+                    expected_revision=expected_revision,
+                ),
+                warnings=tuple(warnings),
+                undo=undo,
             )
+
+    @staticmethod
+    def _latest_queue_move(task: Task) -> Optional[LogEntry]:
+        """The most recent ``queue_move`` entry on this task, or None if it never moved."""
+        for entry in reversed(task.log):
+            if entry.type is LogEntryType.QUEUE_MOVE:
+                return entry
+        return None
+
+    def keep_queue_move(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        body: Optional[str] = None,
+        operation_id: Optional[str] = None,
+        expected_revision: Optional[Union[datetime, str]] = None,
+    ) -> Task:
+        """Record that a human read this move's warnings and kept the position anyway.
+
+        The strong anchor of the reorder design (``docs/playbooks-design.md`` §5.2 and
+        §5.4): a position a person defended against a stated objection, which ``reorder``
+        may not move. :data:`agentjobs.queue_check.ANCHOR_KEY` documents the exact shape
+        of the entry, and it is one entry -- a ``decision`` threaded to the ``queue_move``
+        it answers -- rather than a field, because an anchor is a decision somebody took
+        and the log is where this schema keeps those.
+
+        **Refused when the move produced no warnings.** An anchor's entire claim is
+        "informed, and kept anyway"; without a warning there was nothing to be informed
+        of, and an anchor written on that basis would tell ``reorder`` not to touch a
+        position for a reason that never existed. Keeping the same move twice writes
+        nothing the second time rather than stacking entries -- the notice is a pair of
+        buttons and a person may click one twice.
+        """
+        operation = self._operation(operation_id, "queue_keep", actor, {"body": body})
+        self._ensure_task_exists(task_id)
+
+        def apply(task: Task) -> Optional[Task]:
+            if replay_or_conflict(task, operation):
+                return None
+            check_revision(task, expected_revision)
+            moved = self._latest_queue_move(task)
+            if moved is None:
+                raise ValueError(
+                    f"Task '{task.id}' has never been moved in the queue, so there is "
+                    "no move to keep."
+                )
+            kept_over = [item for item in (moved.data.get("warnings") or ()) if item]
+            if not kept_over:
+                raise ValueError(
+                    f"The last queue move of '{task.id}' produced no warnings, so "
+                    "there is nothing it could have been kept over. An anchor recorded "
+                    "without one would tell reorder to respect a decision nobody made."
+                )
+            already = any(
+                entry.re == moved.id and entry.data.get(ANCHOR_KEY) == STRONG_ANCHOR
+                for entry in task.log
+            )
+            if already:
+                return None
+            self._append_entry(
+                task,
+                actor=actor,
+                type=LogEntryType.DECISION,
+                re=moved.id,
+                body=body
+                or (
+                    f"Kept this place in the '{moved.data.get('band')}' band after "
+                    f"reading {len(kept_over)} warning(s) about the move."
+                ),
+                data={
+                    ANCHOR_KEY: STRONG_ANCHOR,
+                    "band": moved.data.get("band"),
+                    "queue_position": task.queue_position,
+                    KEPT_OVER_KEY: kept_over,
+                },
+                operation=operation,
+            )
+            return task
+
+        return self._mutate(task_id, apply)
 
     def reprioritize(
         self,

@@ -19,6 +19,7 @@ import {
   listDispatchRunsApiProjectsProjectIdDispatchRunsGetOptions,
   listTasksApiProjectsProjectIdTasksGetOptions,
   promoteTaskApiProjectsProjectIdTasksTaskIdPromotePostMutation,
+  queueKeepTaskApiProjectsProjectIdTasksTaskIdQueueKeepPostMutation,
   queueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostMutation,
   rejectTaskApiProjectsProjectIdTasksTaskIdRejectPostMutation,
   reprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostMutation,
@@ -28,7 +29,7 @@ import {
   requestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostMutation,
   resumeTaskApiProjectsProjectIdTasksTaskIdResumePostMutation,
 } from "./api/generated/@tanstack/react-query.gen";
-import type { DispatchRunView, Priority } from "./api/types";
+import type { DispatchRunView, MutationResultOutput, Priority } from "./api/types";
 import { readRefusal } from "./api/mutation-error";
 import {
   requireSupportedTaskSchemas,
@@ -146,6 +147,7 @@ function TaskListPage({ projectId }: { projectId: string }) {
   const projectsQuery = useQuery(getProjectsApiProjectsGetOptions());
   const actor = projectsQuery.data?.find((entry) => entry.id === projectId)?.default_user ?? null;
   const move = useMutation(queueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostMutation());
+  const keep = useMutation(queueKeepTaskApiProjectsProjectIdTasksTaskIdQueueKeepPostMutation());
   const reprioritize = useMutation(
     reprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostMutation(),
   );
@@ -175,9 +177,30 @@ function TaskListPage({ projectId }: { projectId: string }) {
           // keypress lands before the first move's refetch does -- so the revision on
           // screen is one write behind, the move is refused, and the reorder they just
           // watched happen rolls back. Nothing about that is a conflict worth reporting.
-          await move.mutateAsync({
+          //
+          // `envelope=true` because the queue-move check's findings are a property of
+          // the move, not of the task: a caller that read the task back afterwards
+          // could not recover what the person who moved it was told. The bare-task
+          // response is still the route's default for everybody else.
+          const result = (await move.mutateAsync({
             path: { project_id: projectId, task_id: taskId },
+            query: { envelope: true },
             body: { actor, operation_id: crypto.randomUUID(), ...placement },
+          })) as MutationResultOutput;
+          await invalidateProjectTaskQueries(queryClient, projectId);
+          return {
+            warnings: result.queue_warnings ?? [],
+            undo: result.queue_undo ?? null,
+          };
+        },
+        keep: async (taskId) => {
+          // No expected_revision. The move this answers has already landed and the
+          // refetch it triggered is what put the notice on screen, so the only writer
+          // between the two is this browser -- and a refusal here would leave a person
+          // who clicked Keep with no anchor and no explanation.
+          await keep.mutateAsync({
+            path: { project_id: projectId, task_id: taskId },
+            body: { actor, operation_id: crypto.randomUUID() },
           });
           await invalidateProjectTaskQueries(queryClient, projectId);
         },

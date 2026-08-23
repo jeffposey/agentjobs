@@ -204,14 +204,21 @@ function grip(taskId: string) {
   return screen.getByRole("button", { name: new RegExp(`^Reorder ${taskId},`) });
 }
 
+/** A move handler that succeeds and has nothing to say -- the ordinary case. */
+function silentMove() {
+  return vi.fn().mockResolvedValue({ warnings: [], undo: null });
+}
+
 function accepting(): ReorderHandlers & { moves: Array<[string, QueueMove]> } {
   const moves: Array<[string, QueueMove]> = [];
   return {
     moves,
     move: async (taskId, move) => {
       moves.push([taskId, move]);
+      return { warnings: [], undo: null };
     },
     reprioritize: async () => {},
+    keep: async () => {},
   };
 }
 
@@ -374,6 +381,7 @@ describe("TaskList queue order", () => {
     const reorder: ReorderHandlers = {
       move: vi.fn().mockRejectedValue(new Error("409")),
       reprioritize: vi.fn(),
+      keep: vi.fn(),
     };
     renderQueue([queued("task-a", 100), queued("task-b", 200)], { reorder });
 
@@ -389,7 +397,7 @@ describe("TaskList queue order", () => {
   });
 
   it("asks before a drag changes a priority as well as a place", async () => {
-    const reorder: ReorderHandlers = { move: vi.fn(), reprioritize: vi.fn() };
+    const reorder: ReorderHandlers = { move: silentMove(), reprioritize: vi.fn(), keep: vi.fn() };
     renderQueue([queued("task-a", 100), queued("task-m", 100, "medium")], { reorder });
 
     fireEvent.dragStart(grip("task-a"));
@@ -563,5 +571,206 @@ describe("TaskList queue order", () => {
 
     expect(screen.getByText(/configures no human actor/)).toBeVisible();
     expect(screen.queryByRole("button", { name: /^Reorder task-a,/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("TaskList queue-move notice", () => {
+  const blocked = {
+    kind: "promoted_unclaimable",
+    message: "task-c cannot be claimed where you have just put it: waiting on task-a (still open). The queue will skip past it.",
+    tasks: ["task-c"],
+  };
+
+  function warning(kind: string, message: string) {
+    return { kind, message, tasks: [] };
+  }
+
+  function warned(verdict: { warnings: Array<{ kind: string; message: string; tasks: Array<string> }>; undo: { kind: string; target?: string | null } | null }) {
+    const move = vi.fn().mockResolvedValue(verdict);
+    return { handlers: { move, reprioritize: vi.fn(), keep: vi.fn() } as ReorderHandlers, move };
+  }
+
+  it("says nothing at all when the move was clean", async () => {
+    const handlers = accepting();
+    renderQueue([queued("task-a", 100), queued("task-b", 200)], { reorder: handlers });
+
+    fireEvent.keyDown(grip("task-b"), { key: "ArrowUp", altKey: true });
+
+    await waitFor(() => expect(handlers.moves).toHaveLength(1));
+    expect(screen.queryByTestId("queue-move-notice")).not.toBeInTheDocument();
+  });
+
+  it("shows the check's own sentence, and does not block the list", async () => {
+    const { handlers } = warned({ warnings: [blocked], undo: { kind: "after", target: "task-b" } });
+    renderQueue([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], {
+      reorder: handlers,
+    });
+
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+
+    const notice = await screen.findByTestId("queue-move-notice");
+    // The rendered sentence the server wrote, not the presence of a container.
+    expect(notice).toHaveTextContent(/waiting on task-a \(still open\)/);
+    // Reporting, not asking: no dialog role, and every row is still reorderable.
+    expect(notice).toHaveAttribute("role", "status");
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(grip("task-a")).toBeVisible();
+  });
+
+  it("lists one line per finding", async () => {
+    const { handlers } = warned({
+      warnings: [
+        blocked,
+        warning("above_prerequisite", "task-c now stands ahead of task-a, which it needs."),
+        warning("demoted_blocker", "This pushed task-a (1 open task needs it) down the 'high' band."),
+      ],
+      undo: null,
+    });
+    renderQueue([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], {
+      reorder: handlers,
+    });
+
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+
+    const notice = await screen.findByTestId("queue-move-notice");
+    expect(notice.querySelectorAll("[data-warning]")).toHaveLength(3);
+    expect(notice).toHaveTextContent("3 things worth knowing");
+  });
+
+  it("undo sends the inverse move the server named", async () => {
+    const { handlers, move } = warned({
+      warnings: [blocked],
+      undo: { kind: "after", target: "task-b" },
+    });
+    renderQueue([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], {
+      reorder: handlers,
+    });
+
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+    await screen.findByTestId("queue-move-notice");
+    move.mockResolvedValue({ warnings: [], undo: null });
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo the move" }));
+
+    await waitFor(() => expect(move).toHaveBeenCalledTimes(2));
+    expect(move.mock.calls[1]).toEqual(["task-c", { after: "task-b" }]);
+    await waitFor(() => expect(screen.queryByTestId("queue-move-notice")).not.toBeInTheDocument());
+  });
+
+  it("offers no undo when the server named no placement", async () => {
+    const { handlers } = warned({ warnings: [blocked], undo: null });
+    renderQueue([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], {
+      reorder: handlers,
+    });
+
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+
+    await screen.findByTestId("queue-move-notice");
+    expect(screen.queryByRole("button", { name: "Undo the move" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Keep it here" })).toBeVisible();
+  });
+
+  it("keep records the anchor and says so", async () => {
+    const { handlers } = warned({ warnings: [blocked], undo: { kind: "top" } });
+    renderQueue([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], {
+      reorder: handlers,
+    });
+
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+    await screen.findByTestId("queue-move-notice");
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep it here" }));
+
+    await waitFor(() => expect(handlers.keep).toHaveBeenCalledWith("task-c"));
+    await waitFor(() => expect(screen.queryByTestId("queue-move-notice")).not.toBeInTheDocument());
+    expect(screen.getByText(/anchored against automatic reordering/)).toBeInTheDocument();
+  });
+
+  it("dismissing writes nothing", async () => {
+    const { handlers } = warned({ warnings: [blocked], undo: { kind: "top" } });
+    renderQueue([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], {
+      reorder: handlers,
+    });
+
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+    await screen.findByTestId("queue-move-notice");
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+
+    await waitFor(() => expect(screen.queryByTestId("queue-move-notice")).not.toBeInTheDocument());
+    expect(handlers.keep).not.toHaveBeenCalled();
+  });
+
+  it("a later clean move clears an earlier notice", async () => {
+    const { handlers, move } = warned({ warnings: [blocked], undo: { kind: "top" } });
+    renderQueue([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], {
+      reorder: handlers,
+    });
+
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+    await screen.findByTestId("queue-move-notice");
+    move.mockResolvedValue({ warnings: [], undo: null });
+
+    fireEvent.keyDown(grip("task-b"), { key: "ArrowUp", altKey: true });
+
+    await waitFor(() => expect(move).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByTestId("queue-move-notice")).not.toBeInTheDocument());
+  });
+});
+
+describe("TaskList notice ordering", () => {
+  /**
+   * Two presses is one gesture, and their requests need not finish in order.
+   *
+   * Found in a browser, not here: promoting a blocked task twice in quick succession
+   * showed the *first* move's single finding and dropped the second move's three,
+   * because the earlier response landed last and overwrote the later one. The screen
+   * then described a queue state that no longer existed.
+   */
+  it("drops a verdict that arrives after a later move has already started", async () => {
+    const first = { warnings: [{ kind: "no_op", message: "First move.", tasks: [] }], undo: null };
+    const second = {
+      warnings: [{ kind: "promoted_unclaimable", message: "Second move.", tasks: [] }],
+      undo: null,
+    };
+    let releaseFirst: () => void = () => {};
+    const move = vi
+      .fn()
+      .mockImplementationOnce(
+        () => new Promise((resolve) => { releaseFirst = () => resolve(first); }),
+      )
+      .mockImplementationOnce(() => Promise.resolve(second));
+    const reorder: ReorderHandlers = { move, reprioritize: vi.fn(), keep: vi.fn() };
+    renderQueue([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], { reorder });
+
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+    await waitFor(() => expect(move).toHaveBeenCalledTimes(2));
+    await screen.findByText("Second move.");
+
+    // The first move's answer, arriving late. It must not replace what is on screen.
+    releaseFirst();
+    await waitFor(() => expect(screen.getByText("Second move.")).toBeVisible());
+    expect(screen.queryByText("First move.")).not.toBeInTheDocument();
+  });
+
+  it("drops a late failure too, rather than reporting a move that succeeded", async () => {
+    let rejectFirst: (error: Error) => void = () => {};
+    const move = vi
+      .fn()
+      .mockImplementationOnce(
+        () => new Promise((_resolve, reject) => { rejectFirst = reject; }),
+      )
+      .mockImplementationOnce(() => Promise.resolve({ warnings: [], undo: null }));
+    const reorder: ReorderHandlers = { move, reprioritize: vi.fn(), keep: vi.fn() };
+    renderQueue([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], { reorder });
+
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+    await waitFor(() => expect(move).toHaveBeenCalledTimes(2));
+
+    rejectFirst(new Error("409"));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(renderedOrder()).toEqual(["task-c", "task-a", "task-b"]);
   });
 });

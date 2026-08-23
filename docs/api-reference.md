@@ -120,16 +120,17 @@ re-sorts, and none accepts a position.
 | --- | --- | --- |
 | `GET` | `/api/projects/{id}/queue` | The whole ordered backlog, band by band, with claimability on every entry |
 | `POST` | `/api/tasks/{task_id}/queue-move` | Move a task within its band: `before`, `after`, `top` or `bottom` |
+| `POST` | `/api/tasks/{task_id}/queue-keep` | Keep a place that was moved over a stated warning, recording the strong anchor |
 | `POST` | `/api/tasks/{task_id}/reprioritize` | Change a task's band, and optionally where it lands in it |
 | `POST` | `/api/projects/{id}/queue/repair` | Give every open task a place again, naming everything it guessed |
 | `POST` | `/api/projects/{id}/queue/compact` | Renumber one band to 100, 200, 300..., changing nobody's place |
 
-Each of those four also exists in the default-project form — `GET /api/queue`,
+Each of those also exists in the default-project form — `GET /api/queue`,
 `POST /api/queue/repair`, `POST /api/queue/compact` — as described under
 [Project scoping](#project-scoping). `queue/compact` **requires a band**; there is no
 bare form that compacts everything.
 
-All four mutations **require** `actor` and `operation_id`. The `operation_id` half is
+Every one of these mutations **requires** `actor` and `operation_id`. The `operation_id` half is
 stricter than the state verbs above, where it is optional so callers written before it
 existed keep working: nothing was ever written against these routes, and a reorder that
 a timeout silently applies twice puts a task somewhere nobody asked for.
@@ -139,6 +140,34 @@ not through the Python client, not through MCP. A caller that could write a numb
 would be choosing a place without knowing what else is in the band, which is exactly
 how two tasks come to share one. The caller names a neighbour or an end; the server
 does the arithmetic under the queue lock.
+
+### What a move answers back
+
+A move always lands. Nothing here can refuse one — but the reply says whether the order
+just written can execute, computed synchronously from the claimability and dependency
+facts the move handler had already read. No model, no delay, and **silence on an
+ordinary move**:
+
+| `kind` | What it means |
+| --- | --- |
+| `promoted_unclaimable` | The task you promoted will be skipped, and why |
+| `above_prerequisite` | It now stands ahead of something it `needs`, or behind something that needs it |
+| `demoted_blocker` | The move pushed a task down that other open work is waiting on |
+| `no_op` | The band came out in the order it went in |
+| `queue_broken` | The band is not in a state to be reasoned about |
+
+Ask for `?envelope=true` and the response carries `queue_warnings` and `queue_undo` —
+the placement that puts the task back, offered only alongside a warning and only for a
+single-task move. Without the envelope the route answers with the bare task exactly as
+it always did. `agentjobs queue move` prints the findings on stderr after the success
+line, and `task_queue_move` carries them in its result and its summary. One
+implementation behind all of them.
+
+`queue-keep` is the other half. It records that a person read those findings and kept
+the position anyway — a **strong anchor**, which an automatic reorder may not overturn.
+It is refused when the last move produced no warnings, because an anchor claims
+"informed, and kept anyway". Undo needs no route of its own: it is a move back.
+[task-schema.md](task-schema.md#queue_move) has the exact record both write.
 
 **A broken queue is refused by whatever answers and rendered by whatever repairs.**
 `GET /api/tasks/next` and `/next/explain` return `409 Conflict` naming the offending

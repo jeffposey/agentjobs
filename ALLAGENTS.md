@@ -23,6 +23,13 @@ Over MCP that is `task_queue_move`, with the `actor` and `operation_id` every mu
 carries. Either way the move is attributed and appends a `queue_move` entry, so the next
 session inherits the decision instead of re-deriving it.
 
+**A move answers back.** It always lands — nothing here refuses one — but if the order
+you just wrote cannot execute, the reply says so: the task you promoted is one the queue
+will skip, it now stands ahead of something it needs, what it displaced is gating other
+work, the band came out as it went in, or the band is corrupt. Deterministic, immediate,
+and silent on an ordinary move. Read it rather than assuming a clean exit code means a
+useful reorder.
+
 Three things not to do instead, each of which has a real cost:
 
 - **Do not add a `needs` dependency to make one task come before another.** Dependencies

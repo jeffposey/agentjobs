@@ -1,7 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
-import type { BrokenTaskFile, QueueProblemRead, TaskRead } from "../api/types";
+import type {
+  BrokenTaskFile,
+  QueueMovePlacement,
+  QueueMoveWarning,
+  QueueProblemRead,
+  TaskRead,
+} from "../api/types";
 import { BrokenFiles } from "./BrokenFiles";
 import { DependencyState } from "./DependencyState";
 import { startDragAutoScroll } from "./dragAutoScroll";
@@ -26,11 +32,34 @@ type TaskRow = {
   openChildren: number;
 };
 
-/** The two server verbs a person can reach from this list, and nothing else. */
-export type ReorderHandlers = {
-  move: (taskId: string, move: QueueMove) => Promise<void>;
-  reprioritize: (taskId: string, priority: string, before: string) => Promise<void>;
+/** What the queue-move check said about a move that has already landed. */
+export type MoveVerdict = {
+  warnings: Array<QueueMoveWarning>;
+  undo: QueueMovePlacement | null;
 };
+
+/** The three server verbs a person can reach from this list, and nothing else. */
+export type ReorderHandlers = {
+  move: (taskId: string, move: QueueMove) => Promise<MoveVerdict>;
+  reprioritize: (taskId: string, priority: string, before: string) => Promise<void>;
+  keep: (taskId: string) => Promise<void>;
+};
+
+/**
+ * A placement, as the move handler takes one.
+ *
+ * The server answers `queue_undo` in its own shape -- kind and target -- because that
+ * is what the record stores; this is the one place that translates. Null for a
+ * placement naming a neighbour it did not send, which is not a shape the server
+ * produces and is refused here rather than sent as a move to nowhere.
+ */
+export function undoMove(placement: QueueMovePlacement | null): QueueMove | null {
+  if (!placement) return null;
+  if (placement.kind === "top") return { top: true };
+  if (placement.kind === "bottom") return { bottom: true };
+  if (!placement.target) return null;
+  return placement.kind === "before" ? { before: placement.target } : { after: placement.target };
+}
 
 const STATUS_FILTERS = new Set(["all", "open", "draft", "ready", "active", "human", "external", "closed"]);
 const PRIORITY_FILTERS = new Set(["all", "critical", "high", "medium", "low"]);
@@ -158,6 +187,7 @@ function orderSignature(tasks: Array<TaskRead>) {
 }
 
 type PendingMove = { signature: string; tasks: Array<TaskRead> };
+type MoveNotice = { taskId: string } & MoveVerdict;
 type BandChange = { taskId: string; from: string; to: string; before: string };
 
 export function TaskList({
@@ -186,6 +216,20 @@ export function TaskList({
   const [pending, setPending] = useState<PendingMove | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [moveError, setMoveError] = useState<string | null>(null);
+  // What the queue-move check said about the last move, if it said anything. Held in
+  // state rather than derived, because it is a fact about an event: the task refetches
+  // a moment later and carries no trace of what the person who moved it was told.
+  const [notice, setNotice] = useState<MoveNotice | null>(null);
+  const [keeping, setKeeping] = useState(false);
+  // Which move the notice on screen is allowed to be about.
+  //
+  // Two Alt+Up presses is one gesture as far as a person is concerned, and each fires
+  // its own request and its own refetch. Those do not have to finish in the order they
+  // started -- and they did not, in a browser, on the first fixture this was tried
+  // against: the second move's findings appeared and were then overwritten by the
+  // first move's, leaving a notice describing a state the queue was no longer in.
+  // Every verdict therefore carries the move it belongs to, and a late one is dropped.
+  const moveCount = useRef(0);
   const [bandChange, setBandChange] = useState<BandChange | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   // The task whose handle should hold focus after the next render.
@@ -267,20 +311,49 @@ export function TaskList({
   const runMove = async (taskId: string, move: QueueMove | null) => {
     if (!handlers || !move) return;
     setMoveError(null);
+    setNotice(null);
+    const sequence = (moveCount.current += 1);
     restoreFocus.current = taskId;
     setPending({ signature, tasks: applyMove(ordered, taskId, move) });
     setAnnouncement(describeMove(ordered, taskId, move));
     try {
-      await handlers.move(taskId, move);
+      // The check runs on every move, including an undo. One path rather than a
+      // special case: an undo is an ordinary move and anything the check says about
+      // it is true of the queue as it now stands, so suppressing it here would mean
+      // the one move whose consequences nobody was shown.
+      const verdict = await handlers.move(taskId, move);
+      if (sequence !== moveCount.current) return;
+      if (verdict.warnings.length > 0) setNotice({ taskId, ...verdict });
     } catch {
+      if (sequence !== moveCount.current) return;
       // Put back the way the server has it, rather than left showing a place the task
       // is not in. A screen that quietly disagrees with the record is worse than a
       // gesture that failed loudly, because the next decision is made from the screen.
       setPending(null);
       setAnnouncement("");
+      setNotice(null);
       setMoveError(
         `${taskId} could not be moved, so the list has been put back the way the server has it. Reload and try again.`,
       );
+    }
+  };
+
+  const keepMove = async () => {
+    if (!handlers || !notice || keeping) return;
+    const taskId = notice.taskId;
+    setKeeping(true);
+    try {
+      await handlers.keep(taskId);
+      setNotice(null);
+      setAnnouncement(
+        `${taskId} kept where it is. Its place is now anchored against automatic reordering.`,
+      );
+    } catch {
+      setMoveError(
+        `${taskId} could not be anchored, so nothing was recorded. The move itself still stands.`,
+      );
+    } finally {
+      setKeeping(false);
     }
   };
 
@@ -407,6 +480,61 @@ export function TaskList({
               Cancel
             </button>
           </div>
+        </section>
+      )}
+
+      {notice && (
+        // `role="status"` and not `alertdialog`: the move has already landed and is
+        // authoritative, so this reports rather than asks. A modal here would put back
+        // exactly the friction a post-hoc notice exists to avoid, and there is nothing
+        // to confirm -- both buttons are optional, and ignoring it leaves an ordinary
+        // human anchor, which is what every un-warned move leaves too.
+        <section
+          role="status"
+          aria-label="What that move did"
+          data-testid="queue-move-notice"
+          className="rounded-lg border border-yellow-500/50 bg-yellow-950/20 p-4"
+        >
+          <h2 className="text-sm font-semibold text-yellow-200">
+            {notice.taskId} moved. {notice.warnings.length === 1 ? "One thing" : `${notice.warnings.length} things`} worth knowing:
+          </h2>
+          <ul className="mt-2 space-y-1 text-xs text-dark-muted">
+            {notice.warnings.map((warning) => (
+              <li key={warning.kind} data-warning={warning.kind}>
+                {warning.message}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {undoMove(notice.undo) && (
+              <button
+                type="button"
+                onClick={() => void runMove(notice.taskId, undoMove(notice.undo))}
+                className="touch-target rounded-md border border-dark-border px-4 text-sm text-dark-text hover:bg-dark-border"
+              >
+                Undo the move
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={keeping}
+              onClick={() => void keepMove()}
+              className="touch-target rounded-md bg-yellow-600 px-4 text-sm font-semibold text-white hover:bg-yellow-500 disabled:opacity-60"
+            >
+              Keep it here
+            </button>
+            <button
+              type="button"
+              onClick={() => setNotice(null)}
+              className="touch-target rounded-md px-4 text-sm text-dark-muted hover:text-dark-text"
+            >
+              Dismiss
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-dark-muted">
+            Keeping it records that you read this and decided anyway, which is what stops
+            an automatic reorder from moving it back. Dismissing changes nothing.
+          </p>
         </section>
       )}
 
