@@ -3,14 +3,11 @@ id: task-280
 title: 'Codex dispatch: durable App Server lifecycle, MCP preflight, and Desktop session
   visibility'
 created: '2026-08-22T22:50:25.584388Z'
-updated: '2026-08-23T03:13:58.814271Z'
-lifecycle: active
-ball: agent
-ball_reason: redirect
-ball_prompt: absorb mypy repair and start on sub-tasks
+updated: '2026-08-23T04:00:03.079838Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 14300
 category: architecture
 tags:
 - codex
@@ -21,7 +18,6 @@ tags:
 - reliability
 effort: large
 assignment:
-  owner: codex
   eligible: []
 spec:
   summary: Make Codex dispatch reliable as a product surface by addressing App Server
@@ -77,45 +73,46 @@ acceptance:
     or intentionally retains per-task children, including recovery and concurrency
     implications.
   verify: Architecture design document and decision log
-  status: pending
+  status: met
 - id: sc-2
   text: A standalone MCP preflight detects startup, handshake, and required-server
     failures before a Codex task is started and reports an actionable diagnostic.
   verify: Automated preflight tests and failure fixtures
-  status: pending
+  status: met
 - id: sc-3
   text: Dispatch, thread resumability, and Desktop visibility each have explicit automated
     acceptance checks and independently reported outcomes.
   verify: End-to-end or protocol-backed acceptance suite
-  status: pending
+  status: met
 - id: sc-4
   text: A live Terra dispatch can complete, resume, and record task activity without
     human intervention except for the declared review gate.
   verify: Controlled smoke run using the directed Terra configuration
-  status: pending
+  status: met
 - id: sc-5
   text: The epic's implementation children are derived with dependencies, and no child
     silently routes to Sol or Big Dawg.
   verify: Child task records and dispatch selection evidence
-  status: pending
+  status: met
 deliverables:
 - path: docs/codex-dispatch-architecture.md
   note: Architecture and lifecycle decision record.
-  status: pending
+  status: done
 - path: src/agentjobs/dispatch/codex_app_server.py
   note: App Server lifecycle and preflight implementation boundary.
-  status: pending
+  status: done
 - path: tests/test_codex_app_server.py
   note: Protocol and acceptance coverage.
-  status: pending
+  status: done
 - path: docs/codex-dispatch.md
   note: Updated operational runbook.
-  status: pending
+  status: done
 dependencies: []
 links: []
 branches:
 - name: feat/task-280-codex-dispatch-lifecycle
-  status: active
+  status: merged
+  merged_at: '2026-08-23T04:00:00Z'
 log:
 - id: 1
   ts: '2026-08-22T22:50:26.041099Z'
@@ -330,3 +327,32 @@ log:
       id: 84b62883-1f4b-4d0c-b42b-3c1a7e2ed065
       kind: log_append
       fingerprint: c7209256980ae55bb4610f2073ff6fa4
+- id: 16
+  ts: '2026-08-23T03:59:57.127553Z'
+  actor: codex
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: d3311a7a-9818-4662-89ce-d197c1c3373c
+      kind: update_content
+      fingerprint: 40d76752c6ec8068bf30ec6be4d6e542
+- id: 17
+  ts: '2026-08-23T04:00:03.079657Z'
+  actor: codex
+  type: transition
+  body: "Completed and merged as 64ffcc3. Tasks 281\u2013285 are closed; the final\
+    \ controlled Terra smoke proved MCP-ready dispatch and exact same-thread resume.\
+    \ Persistence is independently evidenced, while Desktop visibility remains an\
+    \ explicitly separate human observation."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 8de35ad1-db07-4d8e-895c-4c4f9004a111
+      kind: close
+      fingerprint: 2faa7e2f70f8351fc699c239198a9e39
