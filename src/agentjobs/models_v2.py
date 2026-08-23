@@ -760,7 +760,14 @@ class Task(StrictModel):
             # for a reader that is not the authority on validity anyway -- and the
             # branch is unreachable on the service, where every ball is a real member.
             allowed = BALL_REASONS.get(self.ball)
-            if allowed is not None and self.ball_reason not in allowed:
+            # A tolerant reader may carry a reason this copy of the enum has never
+            # heard of.  The service already validated the pair, so only enforce the
+            # holder vocabulary when this reader recognises the reason itself.
+            if (
+                allowed is not None
+                and self.ball_reason in BallReason.__members__.values()
+                and self.ball_reason not in allowed
+            ):
                 permitted = ", ".join(sorted(reason.value for reason in allowed))
                 raise ValueError(
                     f"ball_reason '{self.ball_reason.value}' does not belong to "
@@ -956,7 +963,10 @@ class Task(StrictModel):
 
     def priority_rank(self) -> int:
         """Sort key: critical first. The band half of ``(band, place)``."""
-        return PRIORITY_RANK[self.priority]
+        # An older reader can preserve a newer priority as a pseudo-member.  Keep it
+        # sortable behind the known bands rather than making a list or dashboard fail
+        # with KeyError.
+        return PRIORITY_RANK.get(self.priority, len(PRIORITY_RANK))
 
 
 class SchemaVersionError(ValueError):
