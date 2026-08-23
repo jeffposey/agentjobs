@@ -3,36 +3,13 @@ id: task-233
 title: 'Cycle time: 21 hours of dispatched runs over 23 tasks, and nothing measures
   where it goes'
 created: '2026-08-21T20:42:00.402460Z'
-updated: '2026-08-23T18:43:03.238878Z'
+updated: '2026-08-23T18:49:34.271802Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "**The answer you asked for: a representative task went from 45.6 dispatched\
-  \ minutes to 9.5.** That is the median task, claude-driver both sides, split at\
-  \ the merge commit `a8686df`. Full numbers and caveats are in the two log entries\
-  \ above.\n\nThree things to know before approving:\n\n1. **The window had to be\
-  \ split by driver.** Half the runs after the merge are Codex bring-up, almost all\
-  \ of them startup failures under two minutes. Left in, they drag the median run\
-  \ to 2.5m and push runs-per-task *up* to 2.82, and neither number means anything\
-  \ about cycle time. Both cuts are in the record.\n\n2. **The saving is not all this\
-  \ task's.** The gate's own contribution is a full passing gate going from 365s to\
-  \ about 155s in the wild. The follow-on run getting shorter is task-234's resumption\
-  \ (27.4m cold, 10.8m resumed), and three tasks closed with zero dispatched minutes\
-  \ is task-241's scripted finish. The ledger separates them and the entry says which\
-  \ is whose.\n\n3. **The instrumentation is under-collecting, and this run proved\
-  \ it on itself.** 67 of 69 `claude --bg` runs have no phase file, this one included,\
-  \ because `--bg` hands the session to a daemon that does not carry the launcher's\
-  \ environment. Nothing is misattributed -- it is silence, not corruption -- and\
-  \ it is already filed as task-249. It is the highest-value follow-up here.\n\n**To\
-  \ review:** commit `25a13ba` on `perf/task-233-cycle-time-measured` -- `--split`\
-  \ and `--driver` on `scripts/run_report.py`, median-beside-mean, an overlapping-gates\
-  \ flag, `driver` recorded on every dispatch path, 8 new tests, and two ENGINEERING.md\
-  \ paragraphs. One of those fills in the contended figure the file previously said\
-  \ was unknown: **three concurrent parallel gates cost 342s, 361s and 384s**, measured\
-  \ off `run_4063f1c0`, which started three at once.\n\nReproduce the headline yourself\
-  \ with:\n\n    poetry run python scripts/run_report.py --driver claude --split 2026-08-21T23:24:52+00:00\n\
-  \nAll six acceptance criteria are now met. On approval this merges and the task\
-  \ closes."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: critical
 queue_position: 600
@@ -988,3 +965,25 @@ log:
     outcome: completed
     duration_seconds: 1303.222714
     log_path: C:\Users\jpose\.agentjobs\runs\run_96375760
+- id: 25
+  ts: '2026-08-23T18:49:32.429681Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 26
+  ts: '2026-08-23T18:49:34.271544Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `perf/task-233-cycle-time-measured` (25a13bae).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\aj-233.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_a790b54d\gate.log.'
+  data:
+    finish_step: started
+    branch: perf/task-233-cycle-time-measured
+    finish_id: fin_a790b54d
