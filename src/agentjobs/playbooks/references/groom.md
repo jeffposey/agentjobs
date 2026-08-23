@@ -117,8 +117,14 @@ off and long before anything closes. One item per task, carrying exactly four th
 3. the **reason**, in a sentence;
 4. the **evidence** — the counterpart id, the superseding task, or the commit.
 
-Then hand off `ball: human` / `ball_reason: review` with the proposal as the
+Then hand off `ball: human` / `ball_reason: approval` with the proposal as the
 `ball_prompt`, and **stop**.
+
+(The design's §5.1 prose says `review`. `approval` is the reason the schema has for
+exactly this ask, and the same section's own heading calls the gate "mandatory human
+approval"; `review` reads as borrowed from the merge gate, where a human is being asked
+to *read a diff* rather than to authorise a list of writes. Nothing else moves — decision
+P7 pins the gate and its executable set, not the reason code.)
 
 Three rules about that handoff, each of which has a way of being got wrong:
 
