@@ -2,64 +2,38 @@ schema: 2
 id: task-219
 title: 'The queue-move check: deterministic warnings when a human reorders'
 created: '2026-08-21T04:57:23.007031Z'
-updated: '2026-08-23T08:31:53.611540Z'
+updated: '2026-08-23T08:40:26.614414Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'The approval ran the scripted finish and it stopped at `rebase`. **Nothing
-  was merged.**
-
-
-  Rebasing feat/task-219-queue-move-check onto main did not apply cleanly, and a conflict
-  is never resolved here. The branch is exactly where it was (ff1f734a). Nothing was
-  merged.
-
-
-  ```
-
-  Auto-merging frontend/openapi.json
-
-  Auto-merging frontend/src/api/generated/@tanstack/react-query.gen.ts
-
-  CONFLICT (content): Merge conflict in frontend/src/api/generated/@tanstack/react-query.gen.ts
-
-  Auto-merging frontend/src/api/generated/index.ts
-
-  CONFLICT (content): Merge conflict in frontend/src/api/generated/index.ts
-
-  Auto-merging frontend/src/api/generated/sdk.gen.ts
-
-  CONFLICT (content): Merge conflict in frontend/src/api/generated/sdk.gen.ts
-
-  Auto-merging frontend/src/api/generated/types.gen.ts
-
-  Rebasing (1/4)
-
-  Rebasing (2/4)
-
-  error: could not apply c86a271... feat(frontend): the queue-move notice, with one-click
-  undo and keep
-
-  hint: Resolve all conflicts manually, mark them as resolved with
-
-  hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
-
-  hint: You can instead skip this commit: run "git rebase --skip".
-
-  hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
-
-  hint: Disable this message with "git config set advice.mergeConflict false"
-
-  Could not apply c86a271... # feat(frontend): the queue-move notice, with one-click
-  undo and keep
-
-  ```
-
-
-  Take it from here by hand. Check the tree against what is written above before acting
-  on anything you remember: if your worktree, your branch or your account of this
-  task no longer matches what is on disk, say so on the record and hand the ball back
-  rather than improvising a recovery.'
+ball: human
+ball_reason: review
+ball_prompt: "**The rebase is done and the branch is green. Nothing was merged, nothing\
+  \ was pushed, and the task is deliberately still open.**\n\n`feat/task-219-queue-move-check`\
+  \ now sits on top of `main` at **`b5a7728`** (was `ff1f734a`). Re-record the approval\
+  \ and the scripted finish will merge it.\n\n**What the rebase took.** Only the three\
+  \ generated API client files conflicted, exactly as the finish reported \u2014 nothing\
+  \ in source, tests or docs. task-214 added playbook routes to `main` while this\
+  \ branch added `queue-keep`, and the generated client is the one file both sides\
+  \ rewrite. Resolved by **regenerating it from the merged source** rather than hand-merging\
+  \ build output: exported the OpenAPI document from the tree at that point of the\
+  \ rebase (which already held both sides' routes) with this worktree's own interpreter,\
+  \ ran `openapi-ts`, staged the result, continued. The last two commits applied clean.\n\
+  \nChecked afterwards that both sides survived \u2014 the regenerated `sdk.gen.ts`\
+  \ carries the playbook operations and the queue-keep operations \u2014 and that\
+  \ `export_openapi.py --check` agrees the committed document matches the application.\n\
+  \n**Gate: green, all ten stages, 169.4s on `b5a7728`**, run with this worktree's\
+  \ interpreter. That is a real re-verification, not a formality: the rebase put this\
+  \ code on top of task-214, which touched `cli.py`, the MCP inventory and the projects\
+  \ API, and this branch touches `cli.py` and the MCP mutation tools. The e2e stage\
+  \ passed 25 specs including this branch's three `queue-move-check` tests and task-207's\
+  \ six `queue-order` tests, which is the seam most exposed to the collision.\n\n\
+  **The substance is unchanged and was already approved.** No source file was edited\
+  \ during this pass \u2014 only build output regenerated. The four commits are the\
+  \ same four in the same order; only the React-notice commit differs from its pre-rebase\
+  \ self, and only in those three generated files. Entry 7's acceptance evidence and\
+  \ the three decision entries stand as written.\n\nThe review sandbox from the original\
+  \ handoff was on port 8899, from the pre-rebase code.\n\n**What is needed:** re-record\
+  \ the approval so the scripted finish can run. There is nothing new to review beyond\
+  \ the rebase itself, which is described in full in the progress entry above."
 archived: false
 priority: medium
 queue_position: 6900
@@ -679,3 +653,74 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 18
+  ts: '2026-08-23T08:40:11.441921Z'
+  actor: claude
+  type: progress
+  body: "**Rebased onto `main` by hand after the scripted finish stopped at the conflict.\
+    \ Nothing was merged, and nothing is pushed.**\n\n**State before touching anything,\
+    \ verified rather than remembered:** branch tip `ff1f734a`, worktree `C:/projects/worktrees/aj-219`\
+    \ clean, no rebase in progress, merge-base `fb79be4`, four commits on the branch.\
+    \ That matched the escalation exactly, so I proceeded.\n\n**What conflicted.**\
+    \ Only the three generated client files, as the escalation said:\n\n    frontend/src/api/generated/@tanstack/react-query.gen.ts\n\
+    \    frontend/src/api/generated/index.ts\n    frontend/src/api/generated/sdk.gen.ts\n\
+    \nAll three at rebase step 2/4 (`c86a271`, the React notice). `frontend/openapi.json`\
+    \ and `types.gen.ts` auto-merged. **Nothing outside the generated tree conflicted\
+    \ at all** \u2014 no source file, no test, no doc \u2014 which is what you would\
+    \ expect: task-214 added playbook routes and this branch added `queue-keep`, and\
+    \ the only place those two meet is the client generated from both.\n\n**How I\
+    \ resolved it: by regenerating, not by hand-merging.** At step 2 of the rebase\
+    \ the backend commit `39e26ff` was already applied on top of `main`, so the working\
+    \ tree held both task-214's playbook routes and this branch's `queue-keep` route.\
+    \ Exporting the OpenAPI document from that tree and running `openapi-ts` produces\
+    \ the one client that is correct for the merged source \u2014 there is no judgement\
+    \ in it and nothing to get wrong.\n\nI ran the export with **this worktree's own\
+    \ interpreter** rather than `npm run generate:api`, because that script's first\
+    \ half is `poetry run python ../scripts/export_openapi.py` and `poetry run` prefers\
+    \ an activated virtualenv over the one keyed to the worktree. `VIRTUAL_ENV` happened\
+    \ to be empty in this shell, so it would have resolved correctly anyway; naming\
+    \ the interpreter costs nothing and does not depend on that.\n\n    <worktree-venv>/Scripts/python.exe\
+    \ ../scripts/export_openapi.py openapi.json\n    npm run generate:api-client\n\
+    \nThen `git add frontend/src/api/generated frontend/openapi.json` and `git rebase\
+    \ --continue`. Steps 3/4 and 4/4 applied clean.\n\n**Checked before running the\
+    \ gate:** no conflict markers anywhere in the generated tree or `openapi.json`;\
+    \ the regenerated `sdk.gen.ts` contains both the playbook operations (13 references)\
+    \ and the queue-keep operations (5), so neither side was lost; and `export_openapi.py\
+    \ --check` says the committed document matches the application.\n\n**New branch\
+    \ tip `b5a7728`.** The four commits are unchanged in content and order:\n\n  \
+    \  b5a7728 fix(frontend): a late move's verdict must not overwrite a later one\n\
+    \    ff2bcba docs(queue): record the check and the strong anchor, and cover the\
+    \ seam end to end\n    5f56aec feat(frontend): the queue-move notice, with one-click\
+    \ undo and keep\n    41e1791 feat(queue): deterministic warnings on a queue move,\
+    \ and the keep verb\n\nOnly `5f56aec` differs from its pre-rebase self, and only\
+    \ in the three regenerated files.\n\n**Gate: green, all ten stages, 169.4s**,\
+    \ run with this worktree's interpreter on `b5a7728`; receipt written for that\
+    \ commit. Not a formality \u2014 the rebase put this branch on top of task-214,\
+    \ which touched `cli.py`, the MCP inventory and the projects API, and this branch\
+    \ touches `cli.py` and the MCP mutation tools. pytest 111.2s, vitest 6.5s, e2e\
+    \ 25 passed including this branch's three `queue-move-check` specs and task-207's\
+    \ six `queue-order` specs, which is the seam most at risk from the collision.\n\
+    \n    black 1.9s \xB7 ruff 0.1s \xB7 mypy 4.2s \xB7 api 4.7s \xB7 icons 2.7s \xB7\
+    \ oxlint 0.6s\n    pytest 111.2s \xB7 vitest 6.5s \xB7 build 4.1s \xB7 e2e 33.5s\
+    \ \xB7 total 169.4s\n\n**The substance of the work is unchanged** \u2014 no source\
+    \ edited during this pass, only build output regenerated. The acceptance evidence\
+    \ in entry 7 stands as written."
+  data:
+    operation:
+      id: 9d3c1f70-4a21-4e8c-9b55-2190a0004001
+      kind: log_append
+      fingerprint: 33a77fe2da9f78481bbfa9f3fb7116fa
+- id: 19
+  ts: '2026-08-23T08:40:26.614186Z'
+  actor: claude
+  type: handoff
+  body: Rebase onto main is done and the full gate is green on the new tip b5a7728.
+    Nothing merged, nothing pushed. Re-record the approval and the scripted finish
+    can take it.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 9d3c1f70-4a21-4e8c-9b55-2190a0005001
+      kind: handoff
+      fingerprint: e2927baab1430ab6d45d0fa371faa3c0
