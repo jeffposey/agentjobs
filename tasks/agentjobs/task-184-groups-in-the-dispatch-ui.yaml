@@ -3,58 +3,13 @@ id: task-184-groups-in-the-dispatch-ui
 title: The Dispatch page does not know groups exist, and says "no runner chosen" when
   one is in use
 created: '2026-08-19T21:10:06.422156Z'
-updated: '2026-08-24T04:17:11.964353Z'
+updated: '2026-08-24T04:17:35.397481Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Both review points from entry 11 are done. Branch `feat/task-184-groups-in-dispatch-ui`,
-  three commits (34a7262, 7f86905, 291cee6), full gate green 10/10 in 207s. Nothing
-  merged, nothing pushed.
-
-
-  **Look here:** http://127.0.0.1:8900/app/p/grouped/tasks/task-001
-
-
-  The Group pulldown now reads, in full:
-
-
-  ```
-
-  Project default
-
-  big-dawg
-
-  default
-
-  ```
-
-
-  Groups and a way to decline to choose. `claude-opus-5` is gone from it -- the resolution
-  stays in the sentence beside the button, which is where it clarifies the choice
-  instead of crowding it. The sandbox''s second group is `big-dawg`, a name this machine
-  really defines.
-
-
-  The sandbox is restarted on this build and confirmed serving `available_groups:
-  [''big-dawg'',''default'']`, resolving `default -> claude-opus-5`. Other views if
-  you want them: `/app/p/grouped/dispatch`, `/app/p/runner/dispatch`, and the no-groups
-  control on http://127.0.0.1:8901/app/p/flat/dispatch.
-
-
-  **One thing to know rather than check.** The `big-dawg` rename is in the sandbox
-  script only. The jsdom fixture still calls its group `big`, deliberately: it is
-  a unit-test fixture and its group name is arbitrary. I renamed it there too by mistake,
-  vitest caught it, and it was reverted -- so the sandbox and the fixture disagree
-  on purpose, not by oversight.
-
-
-  Nothing else changed. The five acceptance criteria and their evidence are as they
-  were at entry 9; this commit touched two frontend files and the sandbox script.
-
-
-  On approval: rebase, `--no-ff`, close, remove the worktree at `C:/projects/worktrees/agentjobs-184`,
-  and kill the sandbox on 8900/8901 -- `netstat -ano | findstr "8900 8901"` names
-  the pids, since they change on every restart.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 queue_position: 234
@@ -492,3 +447,25 @@ log:
       id: 4f7b2e60-8a13-4c95-9d27-06e51b3a8c72
       kind: handoff
       fingerprint: 3fade501eab21463fc45388f86bc8b13
+- id: 13
+  ts: '2026-08-24T04:17:33.483536Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 14
+  ts: '2026-08-24T04:17:35.397302Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-184-groups-in-dispatch-ui` (291cee67).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-184.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_73653c9e\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-184-groups-in-dispatch-ui
+    finish_id: fin_73653c9e
