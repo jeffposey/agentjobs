@@ -3,13 +3,23 @@ id: task-184-groups-in-the-dispatch-ui
 title: The Dispatch page does not know groups exist, and says "no runner chosen" when
   one is in use
 created: '2026-08-19T21:10:06.422156Z'
-updated: '2026-08-24T04:17:35.397481Z'
+updated: '2026-08-24T04:20:34.165141Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+ball_prompt: 'The approval ran the scripted finish and it stopped at `merge`. **Nothing
+  was merged.**
+
+
+  main moved from f404f0b2 to dc1a877e while the gate was running, so what was verified
+  is no longer what would be merged. The branch is rebased onto the older base and
+  nothing was merged.
+
+
+  Take it from here by hand. Check the tree against what is written above before acting
+  on anything you remember: if your worktree, your branch or your account of this
+  task no longer matches what is on disk, say so on the record and hand the ball back
+  rather than improvising a recovery.'
 archived: false
 priority: high
 queue_position: 234
@@ -469,3 +479,42 @@ log:
     finish_step: started
     branch: feat/task-184-groups-in-dispatch-ui
     finish_id: fin_73653c9e
+- id: 15
+  ts: '2026-08-24T04:20:34.112263Z'
+  actor: finisher
+  type: progress
+  body: "The scripted finish stopped at `merge` (base_moved).\n\n**Nothing was merged.**\n\
+    \nmain moved from f404f0b2 to dc1a877e while the gate was running, so what was\
+    \ verified is no longer what would be merged. The branch is rebased onto the older\
+    \ base and nothing was merged.\n\n```\n  preflight  ok         1.3s  feat/task-184-groups-in-dispatch-ui\
+    \ at 291cee67 in C:\\projects\\worktrees\\agentjobs-184\n  rebase     ok     \
+    \    0.3s  feat/task-184-groups-in-dispatch-ui onto main: 291cee67 -> 09f7b79c\n\
+    \  gate       ok       177.4s  scripts/check.py green\n  merge      STOPPED  \
+    \  0.0s  main moved from f404f0b2 to dc1a877e while the gate was running, so what\
+    \ was verified is no longer what would be merged. The branch is rebased onto the\
+    \ older base and nothing was merged.\n```"
+  data:
+    finish_step: merge
+    finish_reason: base_moved
+    merge_commit: null
+    merged: false
+- id: 16
+  ts: '2026-08-24T04:20:34.164906Z'
+  actor: finisher
+  type: handoff
+  body: 'The approval ran the scripted finish and it stopped at `merge`. **Nothing
+    was merged.**
+
+
+    main moved from f404f0b2 to dc1a877e while the gate was running, so what was verified
+    is no longer what would be merged. The branch is rebased onto the older base and
+    nothing was merged.
+
+
+    Take it from here by hand. Check the tree against what is written above before
+    acting on anything you remember: if your worktree, your branch or your account
+    of this task no longer matches what is on disk, say so on the record and hand
+    the ball back rather than improvising a recovery.'
+  data:
+    ball: agent
+    ball_reason: work
