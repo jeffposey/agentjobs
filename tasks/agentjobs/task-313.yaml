@@ -3,26 +3,11 @@ id: task-313
 title: An auth stall has two causes; the prompt and auth-check now say how to tell
   them apart
 created: '2026-08-24T01:28:33.868812Z'
-updated: '2026-08-24T04:43:55.740777Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'The approval ran the scripted finish and it stopped at `merge`. **Nothing
-  was merged.**
-
-
-  main moved from dc1a877e to 3176df09 while the gate was running, so what was verified
-  is no longer what would be merged. The branch is rebased onto the older base and
-  nothing was merged.
-
-
-  Take it from here by hand. Check the tree against what is written above before acting
-  on anything you remember: if your worktree, your branch or your account of this
-  task no longer matches what is on disk, say so on the record and hand the ball back
-  rather than improvising a recovery.'
+updated: '2026-08-24T04:44:13.262478Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 14600
 category: bug
 tags:
 - dispatch
@@ -30,7 +15,6 @@ tags:
 - ux
 effort: "done \u2014 awaiting review"
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: The `ball_prompt` written when a dispatched run stalls on authentication
@@ -119,7 +103,8 @@ dependencies:
 links: []
 branches:
 - name: fix/task-302-auth-stall-prompt
-  status: active
+  status: merged
+  merged_at: '2026-08-24T04:44:13.222581Z'
 log:
 - id: 1
   ts: '2026-08-24T01:28:34.486624Z'
@@ -262,3 +247,23 @@ log:
     merge_commit: 4262a3f29de6bbc418b399251ce853c0204f4478
     branch: fix/task-302-auth-stall-prompt
     base: main
+- id: 11
+  ts: '2026-08-24T04:44:13.262305Z'
+  actor: finisher
+  type: transition
+  body: "Merged `fix/task-302-auth-stall-prompt` into `main` as `4262a3f2` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). Approved\
+    \ by a human; no model was in this loop.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.8s  fix/task-302-auth-stall-prompt at f7af3abb\
+    \ in C:\\projects\\worktrees\\agentjobs-302\n  rebase     ok         0.2s  fix/task-302-auth-stall-prompt\
+    \ onto main: f7af3abb -> c990ca8e\n  gate       ok       216.0s  scripts/check.py\
+    \ green\n  merge      ok         0.3s  --no-ff into main as 4262a3f29de6bbc418b399251ce853c0204f4478\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         0.6s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving 8bb45e2a, which contains the merge\
+    \ 4262a3f2, from C:\\projects\\agentjobs (started 2026-08-24T04:44:01.331352+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
