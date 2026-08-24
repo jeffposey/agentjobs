@@ -76,8 +76,14 @@ from agentjobs.dispatch.config import (
     MergePolicy,
     assert_dispatch_permitted,
 )
-from agentjobs.dispatch.ledger import RunLockTimeout, acquire_run_lock
-from agentjobs.dispatch.phases import record_phase
+from agentjobs.dispatch.ledger import (
+    RunLock,
+    RunLockTimeout,
+    acquire_run_lock,
+    locks_root,
+    read_lock_holder,
+)
+from agentjobs.dispatch.phases import RUN_ID_ENV, record_phase
 from agentjobs.dispatch.record_commit import commit_task_record
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
@@ -1184,10 +1190,12 @@ def finish_task(
             detail=f"{task_id} is closed or missing; there is nothing to finish.",
         )
 
-    try:
-        lock = acquire_run_lock(resolved_home, task_id)
-    except RunLockTimeout as exc:
-        return FinishResult(task_id=task_id, outcome=DECLINED, reason="locked", detail=str(exc))
+    lock: Optional[RunLock] = None
+    if not _own_run_holds_lock(resolved_home, task_id):
+        try:
+            lock = acquire_run_lock(resolved_home, task_id)
+        except RunLockTimeout as exc:
+            return FinishResult(task_id=task_id, outcome=DECLINED, reason="locked", detail=str(exc))
 
     directory = FinishDirectory.create(resolved_home, task_id, project.id)
     started = time.monotonic()
@@ -1248,7 +1256,13 @@ def finish_task(
         # The lock is released before dispatching: the run this may start takes the same
         # per-task lock, and holding it while asking for it would refuse every
         # escalation on this machine for the reason "an escalation is in progress".
-        lock.release()
+        #
+        # `lock` is None when this finish is a run finishing *itself* (task-022) -- the
+        # lock is that run's and stays its until the run ends. An escalation from there
+        # cannot start a second run for the same task either way, and it does not need
+        # to: the run asking is still alive and holds the ball.
+        if lock is not None:
+            lock.release()
         run_id = dispatch_after_escalation(
             manager=manager,
             project=project,
@@ -1270,7 +1284,38 @@ def finish_task(
             dispatched_run_id=run_id,
         )
     finally:
-        lock.release()
+        if lock is not None:
+            lock.release()
+
+
+def _own_run_holds_lock(home: Path, task_id: str) -> bool:
+    """Whether the lock on this task is held by *the run calling this* (task-022).
+
+    The autonomous merge path is a run being told, in its own prompt, to run
+    ``agentjobs finish <its own task> --posture-release``. That run holds this task's
+    run lock for its whole lifetime -- deliberately, because the lock is what stops a
+    *second* run being started against a task somebody is already working. Asking for it
+    again from inside is not contention; it is the same run, and treating it as
+    contention made the sanctioned autonomous merge unreachable. Found 2026-08-24 on the
+    first end-to-end walk: every child got as far as a green gate and a commit, and every
+    one of them was declined ``locked`` by the command its prompt named.
+
+    Two things establish identity and both have to hold. ``AGENTJOBS_RUN_ID`` is in the
+    environment because dispatch put it there, so only something dispatch started can
+    claim to be a run at all; and the lock file has to *name that run*, which only the
+    dispatch that took it could have written. A process that invents the variable matches
+    no lock and gets the ordinary refusal.
+
+    Nothing is released on this path. The lock belongs to the run, not to the finish, and
+    the run's own supervisor releases it when the run ends. A finish that released it
+    would free the task while its agent was still executing, which is the state the lock
+    exists to make impossible.
+    """
+    own_run = os.environ.get(RUN_ID_ENV, "").strip()
+    if not own_run:
+        return False
+    holder = read_lock_holder(locks_root(home) / f"{task_id}.lock")
+    return holder is not None and holder.run_id == own_run
 
 
 def _merge_commit_of(steps: Sequence[StepResult]) -> Optional[str]:

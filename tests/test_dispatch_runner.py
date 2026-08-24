@@ -1405,8 +1405,14 @@ class TestSupervisorStub:
         assert GUIDE_PATH in prompt
         assert "run_abcd1234" in prompt
         assert epic.spec.description not in prompt
-        # Raised from 900 by task-021; see the leaf ceiling above.
-        assert len(prompt) < 1100
+        # 900 -> 1100 (task-021, the merge policy) -> 1450 (task-022, the walk command).
+        # Both rises are the same kind of thing and neither is drift: the stub stays a
+        # pointer to the record, and what has been added to it twice is an *instruction
+        # the record cannot carry* -- derived from machine-local config the agent may not
+        # read, and naming the exact command, because an instruction a model can satisfy
+        # several ways gets satisfied in the cheapest one. The assertion that matters is
+        # the line above this block, which is that the spec is still not in here.
+        assert len(prompt) < 1450
 
     def test_open_child_ids_survives_a_task_it_cannot_resolve(
         self, workspace: Path, manager: TaskManager

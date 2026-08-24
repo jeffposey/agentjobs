@@ -188,35 +188,91 @@ answer is a handoff back to the child asking it to say so, not archaeology in it
 scrollback. You are checking that the child reported and verified its work — not
 re-verifying the work.
 
-### Starting a child
-
-Start the child the way you were started: your runner's CLI, backgrounded, carrying the
-ordinary worker prompt with the child's id in it — the one at the top of this guide, not
-the supervisor prompt you were given. With Claude Code that is:
+### Run the walk; do not drive the loop by hand
 
 ```bash
-claude --bg --remote-control --permission-mode auto "<the worker prompt for that child>"
+poetry run agentjobs dispatch walk <parent-id> --project <project>
 ```
 
-**The child claims itself**, as the ordinary lifecycle says — worktree, branch, then
-claim. Do not claim it on its behalf: you would take the ownership its own session then
-cannot, and the first thing it did would be to fail a claim on a task it is already
-working.
+That is the whole of your job between reading the parent and judging its criteria. The
+walk picks the next eligible child from the queue, starts it as a real dispatch, watches
+its task record to a terminal state, and either moves on or stops — and it **blocks**
+until it is done, which is deliberate: a supervisor that ends its turn saying it will
+check back periodically is not supervising, and that is not a hypothetical (see below).
 
-**You cannot use AgentJobs dispatch to start it, and that is by design.** A dispatch must
-be caused by a stored log entry a human wrote (design §2, D4) — it is what makes
-agent-starts-agent impossible rather than merely capped — and nothing you write satisfies
-that. The consequence is worth knowing rather than discovering: **the children you start
-are your own subprocesses, not AgentJobs runs.** They have no run directory, no entry in
-the run ledger, no `dispatch_result`, and the poller will not settle or reap them. What
-holds instead is the task record, which is what you should be watching anyway.
+`--dry-run` prints the bounds and which child is next, and starts nothing. `--max-children
+N` stops after N, for a first run against a wide epic you want to watch.
+
+**Exit 0 means every open child is done. It does not mean the parent is done** — the walk
+never closes a parent, because whether its acceptance criteria are met is the one
+judgement in this loop that is not mechanical. Exit 1 means it stopped for cause and
+handed the parent's ball to a human; the parent's record says which child and why. Exit 2
+means it could not start.
+
+**Children are real dispatches now, and inherit the epic's authorisation** (task-022).
+Design §2's rule is unchanged — every run is caused by a stored log entry whose actor is a
+configured human — and what the walk does is find *the human entry that authorised this
+parent*, write an authorising entry on the child naming that person, that parent and that
+entry, and dispatch on the stored row like anything else. The person clicked the epic;
+the epic's children were named on its record when they did.
+
+So each child has a run directory, a row in the run ledger, a `dispatch_result`, and the
+poller settles and reaps it. It also counts against this machine's concurrency ceiling
+alongside your own run, so **an epic walk needs at least two slots** — a machine set to
+one refuses the first child, saying so.
+
+**The child claims itself** through the dispatcher, as any dispatched task does. Do not
+claim it on its behalf.
+
+**Starting a child by hand is still possible and is the exception, not the loop:**
+
+```bash
+poetry run agentjobs dispatch child <child-id> --project <project>
+```
+
+Same authorisation, same budget, one child, and you watch it yourself.
+
+### The bound, and what spends it
+
+**Two runs per child, per human authorisation of the epic** — the first and one retry —
+and it is enforced in the dispatcher rather than asked for in prose. The count comes off
+the child's own log, so it survives the walk dying and being restarted, and a walk
+somebody starts tomorrow inherits it.
+
+**Only a run that *died* ever spends the retry.** A child that closed with a bad outcome,
+or handed its ball to a person, has said something; retrying it would be ignoring it. A
+session that vanished has said nothing, and the guide's own rule already covers that
+case: a child that dies twice is dying for a reason you cannot see from here.
+
+A human who wants a third attempt authorises the epic again. That resets the budget and
+leaves a record that somebody chose to.
+
+**In practice the retry fires less often than you would expect, and that is not a fault.**
+A dispatched run that fails is handed to `human`/`decision` by its own run supervisor,
+which writes what happened onto the child. The walk then reads that as *parked* -- somebody
+has said this needs a person -- and stops without spending a retry. `DIED` is the residual
+case: a run whose supervisor never got to write anything, which is what an expired login
+or a killed process looks like. That asymmetry is the right way round. A child that said
+something and got retried anyway would be a child being ignored.
+
+**A walk that stops for cause also spends the epic's authorisation, deliberately.** It
+hands the parent to a human, and that handoff is now the parent's newest entry -- so the
+next `dispatch child` or `dispatch walk` is refused `parent_not_human_clocked` until a
+person writes on the epic or dispatches it again. One human act buys one walk. A walk that
+could restart itself after stopping for a person would not be stopping for a person.
 
 ### Supervision, in the four states a child can be in
+
+**The walk does this for you.** What follows is the rule it implements, and it is here
+because you have to be able to read what the walk did and say whether it was right — and
+because when the walk hands the parent back, the state it stopped in is one of these.
 
 **Watching is a mechanism, not an intention.** A supervisor that ends its turn saying it
 will "check back periodically" is not supervising, it is asleep; on 2026-08-19 that is
 exactly what happened, and the human found the parked child before the supervisor did.
-Poll in a backgrounded wait that exits on the condition.
+That incident is why the loop is a blocking command rather than a paragraph asking you to
+remember (task-022). If you ever find yourself hand-rolling a poll, you are rebuilding
+something that exists.
 
 **Poll the task record, not the process.** `idle`/`done` on a session is the wrong
 signal: a child parked on review has a live process and is the one state that needs you.
@@ -249,9 +305,14 @@ yours at all:
 
 Either way, **stop starting children**: the next child may depend on the parked one, and
 an unattended run that keeps going past a question is how a wrong answer gets built on.
-If your own turn is ending while the child is parked, hand the parent off first —
-`external/dependency`, naming the child — so the parent record does not read `agent/work`
-while nothing is happening to it.
+The walk does exactly this — it stops on the first child that is not clean and never
+skips one — and it hands the parent to `human`/`decision` with the reason before it
+exits, so the parent record does not read `agent/work` while nothing is happening to it.
+
+**A parked child is also what an epic walk at posture `auto` or `supervised` is supposed
+to produce.** The first child hands off for review, the walk stops, and a person
+approves. That is the merge gate standing, not the walk failing. Only `autonomous` walks
+an epic to the end unattended.
 
 **Child died.** The session is gone, the child's ball is still `agent`, and nothing new
 was written to its record. Before anything else, look at what survived: the child's branch
@@ -259,7 +320,8 @@ may have commits, and its worktree may have uncommitted work. Then, at most once
 child, start one fresh session with a `ball_prompt` naming what is already committed and
 what is left. **One restart, then hand the child to a human** — a child that dies twice is
 dying for a reason you cannot see from here, and a supervisor that keeps retrying spends
-a night proving it.
+a night proving it. This is the rule the attempt budget above enforces, and the walk
+spends its retry here and nowhere else.
 
 Clean up only what is safe to clean: never force-remove a worktree holding uncommitted
 work. Commit it to the child's own branch first so the next session can see it, or leave
@@ -292,6 +354,12 @@ What to do instead, in order:
    resumes in place. Children that AgentJobs dispatched are handed back automatically by
    the poller; the ones you started yourself are yours to nudge.
 
+A walk cannot tell this apart from an ordinary death either, so it will spend the child's
+retry on it and then stop — with both attempts recorded on the child and the reason on the
+parent. That is a bounded waste rather than a night of them, and `dispatch auth-check` on
+the child's session id is the first thing to run when a walk stops on two deaths in a
+row.
+
 **Parent idle.** While a child runs, do nothing that costs context. That is not idleness
 for its own sake — your context is the resource this rule protects, and spending it while
 waiting is the same failure as working the children yourself, arrived at politely.
@@ -307,6 +375,11 @@ When no unfinished child remains, the parent is not automatically done. Evaluate
 parent's own acceptance criteria against the children's durable evidence, do any
 parent-level verification the record calls for, and close it only where that evidence
 supports it. Children finishing is not the same as the parent's criteria being met.
+
+**This is the step the walk deliberately leaves to you**, and the only one. Everything
+before it — which child, start it, watch it, judge it, continue or stop — is mechanical
+and is done by code. This one is a reading of evidence against criteria, so a walk that
+did it would be an agent grading an epic on the strength of its children having stopped.
 
 ## Task YAML is readable generated state
 

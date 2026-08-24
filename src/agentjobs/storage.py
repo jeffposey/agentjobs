@@ -543,6 +543,27 @@ class TaskStorage:
         if cache is not None:
             cache.pop(self._snapshot_key(), None)
 
+    def refresh(self) -> None:
+        """Forget anything cached about this corpus, because another process wrote it.
+
+        The snapshot's premise is stated where it is entered: *one invocation is one
+        logical read*. That is true of every command that answers a question and exits,
+        and false of one that watches -- `agentjobs dispatch walk` is a single invocation
+        that runs for as long as an epic takes, and every fact it acts on is written by a
+        different process. Without this it reads each child exactly once, at the moment it
+        started watching, and never sees it finish.
+
+        It is not hypothetical and it does not look like a cache bug from outside. On the
+        first full sandbox walk (task-022) all three children merged, closed themselves and
+        removed their worktrees, and the walk reported all three as dead sessions and
+        re-ran them -- because the only copy of each record it ever read was the one from
+        before any of that happened.
+
+        Cheap by construction: dropping the snapshot costs nothing, and the reads that
+        follow cost the same stat and parse they would have cost with no snapshot at all.
+        """
+        self._invalidate_snapshot()
+
     def load_all(self) -> "LoadResult":
         """Load every task, keeping the broken ones instead of dropping them.
 

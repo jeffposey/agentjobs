@@ -236,6 +236,27 @@ SUPERVISOR_AUTOMATIC_CLAUSE = (
 )
 """The automatic policy, restated for a run that holds no branch of its own."""
 
+WALK_CLAUSE = (
+    "Do not start the children by hand: run `agentjobs dispatch walk {task_id} --project "
+    "{project_id}` from {project_root} and let it finish. It takes one eligible child at "
+    "a time and stops the whole walk on the first that is not clean. Exit 0 means every "
+    "open child is done -- then judge this parent's own acceptance criteria against what "
+    "the children recorded, and close it. Exit 1 means it stopped and this record says why."
+)
+"""How a supervisor is told to walk its children (task-022).
+
+**It names a command rather than describing a loop**, on exactly the reasoning task-192
+gave for the worktree line and task-021 gave for the finish command: an instruction a
+model can satisfy in several ways gets satisfied in the cheapest one, and here the
+cheapest one is to start a child, say it will check back, and end the turn. The workflow
+guide records that happening -- *"a supervisor that ends its turn saying it will check
+back periodically is not supervising, it is asleep"* -- and this clause is the answer to
+it. The walk blocks, so a supervisor obeying this cannot end its turn early.
+
+The final sentence is the one thing the walk deliberately does not do, so it has to be
+said here: no open child remaining is not the same as the parent's criteria being met,
+and that judgement is the supervisor's."""
+
 NO_PUSH_CLAUSE = "Never push: this project is configured `push: false`."
 PUSH_CLAUSE = "This project is configured `push: true`, so pushing `{base}` is permitted."
 """The push half, which is the project's decision and never the posture's (task-021)."""
@@ -284,7 +305,15 @@ def policy_clause(
         project_root=project_root,
     )
     push_text = PUSH_CLAUSE.format(base=base_branch) if push else NO_PUSH_CLAUSE
-    return f"{merge} {push_text}"
+    clauses = [merge, push_text]
+    if supervisor:
+        # Both merge policies get it. The walk is how children are started at either, and
+        # what differs is only what each child does with its own branch at the end --
+        # which is the child's prompt's business, not the supervisor's.
+        clauses.append(
+            WALK_CLAUSE.format(task_id=task_id, project_id=project_id, project_root=project_root)
+        )
+    return " ".join(clauses)
 
 
 CHILDREN_NAMED = 8
