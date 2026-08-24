@@ -3,7 +3,7 @@ id: task-302
 title: "Three statements in the always-loaded bundle contradict the code \u2014 fix\
   \ them, and collapse the double-numbered merge gate"
 created: '2026-08-23T21:50:44.787308Z'
-updated: '2026-08-23T22:00:52.131082Z'
+updated: '2026-08-24T00:40:18.241602Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -142,3 +142,57 @@ log:
       id: 33c2e7f9-6051-4ba3-9d84-5e9f02c40836
       kind: update_content
       fingerprint: 9a3de991a457a32ef7511b7ac0feaef6
+- id: 5
+  ts: '2026-08-24T00:40:18.241368Z'
+  actor: claude
+  type: note
+  body: "**Another statement that reads as established fact and is actually an assertion\
+    \ \u2014 and this one is generated into task records, so it reaches agents directly.**\n\
+    \nFound 2026-08-23/24 by the session supervising task-022, at the cost of about\
+    \ an hour. Adding it here because it is the same defect class this task exists\
+    \ for: a confident sentence in what an agent reads, which the agent has no way\
+    \ to check and therefore obeys.\n\n**What happened.** task-022's dispatched run\
+    \ stalled at 00:17:35Z. `src/agentjobs/dispatch/auth.py` generated a `ball_prompt`\
+    \ onto the task record saying, flatly, *\"Run `claude auth login` in a terminal\
+    \ on that machine. Answering inside the session cannot work.\"* I relayed that\
+    \ to Jeff as the fix. He pushed back \u2014 his experience is that the credential\
+    \ is usually not really expired and a restart clears it \u2014 and the record\
+    \ backed him partway: the module's own docstring says *\"what kills a session\
+    \ is a refresh that fails, not a token that expires\"*, and task-224 established\
+    \ that `daemon-auth-status.json` is a latch that never clears.\n\n**Both of us\
+    \ then asserted rather than tested.** I inferred from the credential file's mtime\
+    \ and an assumed 8-hour lifetime that the token could not have expired, and told\
+    \ Jeff he was right. He wasn't, this time, and neither was my reasoning \u2014\
+    \ the access token's age was never the question; the OAuth *refresh* was being\
+    \ rejected.\n\n**What settled it was one command, and it should have been the\
+    \ first thing either of us did:**\n\n```\nclaude -p \"Reply with exactly: AUTH_OK\"\
+    \n```\n\nRun as a **fresh process, outside the stalled session**. It distinguishes\
+    \ the two candidate causes cleanly, and nothing else in the observable state does:\n\
+    \n| Fresh process | Meaning | Fix |\n|---|---|---|\n| authenticates | the credential\
+    \ is fine; the session or daemon is stuck | restart/nudge the session \u2014 a\
+    \ login changes nothing |\n| `Failed to authenticate: OAuth session expired and\
+    \ could not be refreshed` | the store genuinely cannot authenticate | `claude\
+    \ auth login` |\n\nHere it failed, so the login was genuinely required and Jeff\
+    \ ran it. But the two states are indistinguishable from inside a stalled session,\
+    \ from the ledger, and from `claude agents --json` \u2014 which is precisely why\
+    \ naming a fix without running this is guesswork wearing a confident sentence.\n\
+    \n**Two changes follow, and the first is the one that matters:**\n\n1. **The generated\
+    \ `ball_prompt` in `dispatch/auth.py` should tell the reader to run the probe\
+    \ and what each outcome means, instead of naming one fix as certain.** It is the\
+    \ text with the widest reach \u2014 every future auth stall puts it in front of\
+    \ whoever is watching. Being fixed alongside this entry.\n2. `docs/agent-workflow.md`'s\
+    \ recovery section has the same shape: *\"naming `claude auth login` as the fix.\
+    \ That is the whole recovery and the human cannot guess it.\"* True in two of\
+    \ three recorded occurrences, not in all, and stated without the qualifier.\n\n\
+    **Why this belongs to this task rather than to a new one.** It is not a new rule\
+    \ to add to the always-loaded bundle \u2014 task-269 is trying to make that bundle\
+    \ smaller, and a fourth paragraph about OAuth would work against it. It is an\
+    \ existing statement that overstates its evidence, which is what this task is\
+    \ already for. The generated-prose surface is worth noting as in scope: the bundle\
+    \ an agent reads is not only the committed markdown, it is also the text the system\
+    \ writes into records."
+  data:
+    operation:
+      id: 4e9a2b76-1c83-4f50-a629-7b3e1d068c95
+      kind: log_append
+      fingerprint: 9c1a10301dbd6a9119354722a5fc3d69

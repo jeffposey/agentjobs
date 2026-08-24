@@ -3,7 +3,7 @@ id: task-310
 title: With a machine-wide default_group, `dispatch enable --runner` is a silent no-op
   for every project
 created: '2026-08-23T23:14:31.389362Z'
-updated: '2026-08-23T23:15:13.590258Z'
+updated: '2026-08-24T00:46:23.160882Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -24,8 +24,8 @@ spec:
     \ home. On a machine whose `dispatch.yaml` sets a top-level `default_group:`,\
     \ enabling a project with `--runner <name>` appears to succeed and changes nothing\
     \ \u2014 the project still resolves through the default group. It affects the\
-    \ CLI as well as the browser, and it is invisible on Jeff's machine only because\
-    \ his config happens to have no `default_group:`."
+    \ CLI as well as the browser. See log entry 2: this is live on Jeff's machine,\
+    \ contrary to what the finding session reported."
   intent: 'A switch that reports success and does nothing is worse than one that refuses:
     the operator believes they pinned a runner, and every subsequent dispatch quietly
     uses a different one. task-184 established this experimentally and correctly left
@@ -43,26 +43,28 @@ spec:
     \nreports success, writes what it was asked to write, and has no effect on which\
     \ runner\nthe project resolves to. The machine-wide `default_group` still wins.\
     \ The same is true\nthrough the browser's enable control and through the API endpoint\
-    \ beneath it, because\nall three converge on the same resolution.\n\n**Jeff's\
-    \ own machine does not show this**, because his `dispatch.yaml` sets\n`default_group:\
-    \ default` \u2014 wait, verify that before relying on it either way; the\ntask-184\
-    \ session's report says the defect is invisible there because his config has no\n\
-    `default_group:`, and the resolved output of `agentjobs dispatch config` is the\
-    \ thing to\ncheck rather than either claim. Establish it first.\n\n## What to\
-    \ decide\n\nThe fix is not obviously \"runner beats default_group\". Both readings\
-    \ are defensible:\n\n- **Explicit beats implicit** \u2014 a runner named on the\
-    \ enable command is a deliberate act\n  and should override a machine-wide default.\
-    \ This is the intuitive reading and probably\n  right.\n- **Refuse instead of\
-    \ guessing** \u2014 if a project cannot express \"this runner, not the\n  default\
-    \ group\", enabling with `--runner` should fail loudly and say so, rather than\n\
-    \  silently picking a winner.\n\nEither is acceptable. **Silently doing nothing\
-    \ is not**, and that is the whole bug.\nRecord the choice with its rejected alternative.\n\
-    \n## Reproduction\n\nAgainst a throwaway `AGENTJOBS_HOME`, never the real one\
-    \ \u2014 a `dispatch.yaml` with a\ntop-level `default_group:` and at least two\
-    \ runners, a project enabled with `--runner`\nnaming the runner the group would\
-    \ *not* pick, then `agentjobs dispatch config` to see\nwhich one actually resolves.\
-    \ `scripts/dispatch_groups_sandbox.py`, added by task-184,\nalready builds most\
-    \ of this scaffolding."
+    \ beneath it, because\nall three converge on the same resolution.\n\n**This is\
+    \ live on Jeff's machine.** The finding session reported the opposite \u2014 that\
+    \ it\nwas invisible here for want of a `default_group:` \u2014 and that was checked\
+    \ and found wrong.\nLog entry 2 has the evidence and supersedes any statement\
+    \ to the contrary.\n\n## What to decide\n\nThe fix is not obviously \"runner beats\
+    \ default_group\". Both readings are defensible:\n\n- **Explicit beats implicit**\
+    \ \u2014 a runner named on the enable command is a deliberate act\n  and should\
+    \ override a machine-wide default. This is the intuitive reading and probably\n\
+    \  right.\n- **Refuse instead of guessing** \u2014 if a project cannot express\
+    \ \"this runner, not the\n  default group\", enabling with `--runner` should fail\
+    \ loudly and say so, rather than\n  silently picking a winner.\n\nEither is acceptable.\
+    \ **Silently doing nothing is not**, and that is the whole bug.\nRecord the choice\
+    \ with its rejected alternative.\n\n## Reproduction\n\nAgainst a throwaway `AGENTJOBS_HOME`,\
+    \ never the real one \u2014 a `dispatch.yaml` with a\ntop-level `default_group:`\
+    \ and at least two runners, a project enabled with `--runner`\nnaming the runner\
+    \ the group would *not* pick, then `agentjobs dispatch config` to see\nwhich one\
+    \ actually resolves.\n\n**Scaffolding worth reusing**: task-184 adds `scripts/dispatch_groups_sandbox.py`,\
+    \ which\nalready builds throwaway homes with groups and projects in both shapes.\
+    \ It is not named\nin `context[]` above because it does not exist on `main` until\
+    \ that branch merges, and a\ncontext pointer at a file that is not there turns\
+    \ this repository's own corpus test red \u2014\nwhich is how this paragraph came\
+    \ to be written rather than a fifth context entry."
   constraints: "- Reproduce against a throwaway `AGENTJOBS_HOME`. Do not experiment\
     \ on `~/.agentjobs/dispatch.yaml`; it is the live config for every project on\
     \ this machine.\n- Whatever the resolution, all three surfaces must agree \u2014\
@@ -77,9 +79,6 @@ spec:
     why: Where default_group, group and runner resolve against each other.
   - path: src/agentjobs/api/routes/dispatch.py
     why: The enable endpoint the browser and the CLI both reach.
-  - path: scripts/dispatch_groups_sandbox.py
-    why: Added by task-184; already builds throwaway homes with groups, which is most
-      of the reproduction.
 acceptance:
 - id: sc-1
   text: The behaviour is reproduced against a throwaway home and the resolved outcome
@@ -155,3 +154,15 @@ log:
       id: 8c3d05e1-7f92-4a46-b0d8-53e19a71c4f2
       kind: log_append
       fingerprint: ebc1e6eeab731437b3f7a5879bc7ca59
+- id: 3
+  ts: '2026-08-24T00:46:23.160751Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 6d1a4e83-27b9-4c05-8f31-9a0e5b73c214
+      kind: update_content
+      fingerprint: dc5565b514479625aca65bd5b5f080da
