@@ -3,26 +3,11 @@ id: task-184-groups-in-the-dispatch-ui
 title: The Dispatch page does not know groups exist, and says "no runner chosen" when
   one is in use
 created: '2026-08-19T21:10:06.422156Z'
-updated: '2026-08-24T04:39:37.087425Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'The approval ran the scripted finish and it stopped at `merge`. **Nothing
-  was merged.**
-
-
-  main moved from f404f0b2 to dc1a877e while the gate was running, so what was verified
-  is no longer what would be merged. The branch is rebased onto the older base and
-  nothing was merged.
-
-
-  Take it from here by hand. Check the tree against what is written above before acting
-  on anything you remember: if your worktree, your branch or your account of this
-  task no longer matches what is on disk, say so on the record and hand the ball back
-  rather than improvising a recovery.'
+updated: '2026-08-24T04:40:04.190405Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 234
 category: ux
 tags:
 - dispatch
@@ -31,7 +16,6 @@ tags:
 - runner-groups
 effort: small
 assignment:
-  owner: claude
   eligible: []
 parent: task-160-dispatch-phase-two
 spec:
@@ -128,7 +112,8 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-184-groups-in-dispatch-ui
-  status: active
+  status: merged
+  merged_at: '2026-08-24T04:40:04.119983Z'
 log:
 - id: 1
   ts: '2026-08-19T21:10:06.422202Z'
@@ -548,3 +533,24 @@ log:
     merge_commit: 1cc7100af52bd4742a94cd7600a77fb0f162c9dd
     branch: feat/task-184-groups-in-dispatch-ui
     base: main
+- id: 19
+  ts: '2026-08-24T04:40:04.190212Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-184-groups-in-dispatch-ui` into `main` as `1cc7100a` and\
+    \ verified live. Finished by the scripted path with no agent session (task-241).\
+    \ Approved by a human; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         2.3s  feat/task-184-groups-in-dispatch-ui\
+    \ at 09f7b79c in C:\\projects\\worktrees\\agentjobs-184\n  rebase     ok     \
+    \    0.5s  feat/task-184-groups-in-dispatch-ui onto main: 09f7b79c -> 880ddc93\n\
+    \  gate       ok       221.1s  scripts/check.py green\n  merge      ok       \
+    \  0.6s  --no-ff into main as 1cc7100af52bd4742a94cd7600a77fb0f162c9dd\n  rebuild\
+    \    ok         7.7s  rebuilt the bundle in C:\\projects\\agentjobs\\frontend\n\
+    \  restart    ok         0.9s  ran powershell -NoProfile -ExecutionPolicy Bypass\
+    \ -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify   \
+    \  ok         0.0s  http://127.0.0.1:8876 is serving 0950d0d1, which contains\
+    \ the merge 1cc7100a, from C:\\projects\\agentjobs (started 2026-08-24T04:39:50.952284+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
