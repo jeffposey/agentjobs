@@ -658,6 +658,19 @@ A fresh human authorisation of the epic resets the budget. That is deliberate an
 the escape hatch: a person who looks at a child that burned both attempts and decides it
 deserves another can dispatch the epic again, and the record shows they did.
 
+Two properties of this were established by running it rather than by reasoning, and both
+are worth stating because they are stronger than the design asked for:
+
+- **The retry is rarely the thing that fires.** A dispatched run that fails is handed to
+  `human`/`decision` by its own run supervisor, so the walk reads it as parked and stops
+  without spending an attempt. `DIED` is what is left: a run whose supervisor wrote
+  nothing at all. The asymmetry is the right way round -- retrying a child that said
+  something is ignoring it.
+- **Stopping spends the epic's authorisation.** The walk's handoff becomes the parent's
+  newest entry, so the next child dispatch is refused `parent_not_human_clocked` until a
+  person acts on the epic. One human act buys one walk, and a walk that could restart
+  itself after stopping for a person would not be stopping for a person.
+
 #### One bad child stops everything
 
 Not skipped — stopped. A sibling that depended on the failed child would be building on a

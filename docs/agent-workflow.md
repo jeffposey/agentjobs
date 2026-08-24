@@ -247,6 +247,20 @@ case: a child that dies twice is dying for a reason you cannot see from here.
 A human who wants a third attempt authorises the epic again. That resets the budget and
 leaves a record that somebody chose to.
 
+**In practice the retry fires less often than you would expect, and that is not a fault.**
+A dispatched run that fails is handed to `human`/`decision` by its own run supervisor,
+which writes what happened onto the child. The walk then reads that as *parked* -- somebody
+has said this needs a person -- and stops without spending a retry. `DIED` is the residual
+case: a run whose supervisor never got to write anything, which is what an expired login
+or a killed process looks like. That asymmetry is the right way round. A child that said
+something and got retried anyway would be a child being ignored.
+
+**A walk that stops for cause also spends the epic's authorisation, deliberately.** It
+hands the parent to a human, and that handoff is now the parent's newest entry -- so the
+next `dispatch child` or `dispatch walk` is refused `parent_not_human_clocked` until a
+person writes on the epic or dispatches it again. One human act buys one walk. A walk that
+could restart itself after stopping for a person would not be stopping for a person.
+
 ### Supervision, in the four states a child can be in
 
 **The walk does this for you.** What follows is the rule it implements, and it is here
