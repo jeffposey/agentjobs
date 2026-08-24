@@ -2,11 +2,13 @@ schema: 2
 id: task-307
 title: Choose the posture at the moment of dispatching, not only in dispatch.yaml
 created: '2026-08-23T22:34:10.639602Z'
-updated: '2026-08-24T04:48:28.493256Z'
+updated: '2026-08-24T05:48:35.297032Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: decision
+ball_prompt: A dispatched session (4d84c4d2) finished without handing off, so nobody
+  was told what it needs. Read what it did, then either attach to it or move this
+  task on yourself.
 archived: false
 priority: high
 queue_position: 257
@@ -358,3 +360,26 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 8
+  ts: '2026-08-24T05:48:35.257904Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: 'The session finished its turn and the ball never moved, so it stopped without
+    saying what it needs. It was **not** killed and is still attachable: `claude attach
+    4d84c4d2`.'
+  re: 7
+  data:
+    run_id: run_5e352db0
+    outcome: finished_without_handoff
+    duration_seconds: 3607.682594
+    log_path: C:\Users\jpose\.agentjobs\runs\run_5e352db0
+- id: 9
+  ts: '2026-08-24T05:48:35.296927Z'
+  actor: dispatcher
+  type: handoff
+  body: A dispatched session (4d84c4d2) finished without handing off, so nobody was
+    told what it needs. Read what it did, then either attach to it or move this task
+    on yourself.
+  data:
+    ball: human
+    ball_reason: decision
