@@ -3,52 +3,58 @@ id: task-184-groups-in-the-dispatch-ui
 title: The Dispatch page does not know groups exist, and says "no runner chosen" when
   one is in use
 created: '2026-08-19T21:10:06.422156Z'
-updated: '2026-08-24T01:47:55.231832Z'
+updated: '2026-08-24T04:17:11.964353Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: "Ready for review. Branch `feat/task-184-groups-in-dispatch-ui`, two\
-  \ commits (34a7262, 7f86905), full gate green 10/10 in 186s. All five acceptance\
-  \ criteria met, each with its evidence in the `verify` field. Nothing is merged\
-  \ and nothing is pushed.\n\n**A review sandbox is running for you right now.** Two\
-  \ servers, because a runner group is defined per machine and this change has to\
-  \ be judged against a machine that has them and one that does not:\n\n- **http://127.0.0.1:8900/app/p/grouped/dispatch**\
-  \ \u2014 pointed at `group: default`. This is the state the task was filed about,\
-  \ and the tile now reads `group: default \u2192 claude-opus-5` instead of \"no runner\
-  \ chosen\".\n- **http://127.0.0.1:8900/app/p/grouped/tasks/task-001** \u2014 the\
-  \ **Group** pulldown beside the Dispatch button. This is the control you asked for\
-  \ on 2026-08-23, and the shape task-307 will copy for posture.\n- **http://127.0.0.1:8900/app/p/runner/dispatch**\
-  \ \u2014 a plain `runner:` on a machine that *does* have groups.\n- **http://127.0.0.1:8901/app/p/flat/dispatch**\
-  \ \u2014 the control: no groups anywhere. Nothing here should differ by a character\
-  \ from before task-177.\n\nEverything is throwaway \u2014 throwaway homes, throwaway\
-  \ projects, and a \"runner\" that prints one line and exits, so press anything including\
-  \ Disable and Dispatch. **To stop it:** `taskkill /F /PID <pid>` for whatever holds\
-  \ 8900 and 8901, or kill the `dispatch_groups_sandbox.py` processes. Re-start it\
-  \ any time with `python scripts/dispatch_groups_sandbox.py` from the worktree \u2014\
-  \ its module docstring is the walkthrough of what to look at.\n\n**What I would\
-  \ like looked at:**\n\n1. **The wording.** \"Project default \u2014 group default\
-  \ \u2192 claude-opus-5\" as the pulldown's first option, and \"Runner claude-opus-5\
-  \ from group default, posture auto, authorised by Jeff Posey\" beside the button.\
-  \ Pick a group and that second sentence deliberately stops naming a member: it becomes\
-  \ \"Runner chosen from group big\", because the browser holds no member list and\
-  \ guessing which member wins would be the one sentence there that is reliably wrong.\
-  \ Is that the right trade, or would you rather it named the likely winner?\n\n2.\
-  \ **The control shape, because task-307 inherits it.** `onDispatch` now takes `{group?,\
-  \ note?}` instead of a bare note, so posture drops in as a third key with no other\
-  \ change. The pulldown resets on page load rather than remembering \u2014 an override\
-  \ is a decision about one task, and a sticky one would silently apply to the next.\n\
-  \n3. **The enable select.** It now lists groups and runners in one list. Disable\
-  \ the grouped project and you will see it come up on `group: default` \u2014 before\
-  \ this it came up on the first *runner* and pressing Enable changed nothing at all,\
-  \ silently.\n\n4. **The sc-3 answer, which is 'no'.** The round-trip cannot drop\
-  \ or change a project's group; I established that against a throwaway home over\
-  \ the real HTTP endpoints before touching anything, and the decision entry has the\
-  \ table. So no config-layer behaviour changed. But see the open **question** entry:\
-  \ a genuinely separate defect fell out of the same experiment \u2014 with a machine-wide\
-  \ `default_group:`, `dispatch enable --runner` is a silent no-op for *every* project,\
-  \ CLI included. It is invisible on this machine because your config has no `default_group:`.\
-  \ I did not fix it (out of scope, and `dispatch/config.py` is task-021's live file)\
-  \ and did not file it. **Say the word and I will file it.**"
+ball_prompt: 'Both review points from entry 11 are done. Branch `feat/task-184-groups-in-dispatch-ui`,
+  three commits (34a7262, 7f86905, 291cee6), full gate green 10/10 in 207s. Nothing
+  merged, nothing pushed.
+
+
+  **Look here:** http://127.0.0.1:8900/app/p/grouped/tasks/task-001
+
+
+  The Group pulldown now reads, in full:
+
+
+  ```
+
+  Project default
+
+  big-dawg
+
+  default
+
+  ```
+
+
+  Groups and a way to decline to choose. `claude-opus-5` is gone from it -- the resolution
+  stays in the sentence beside the button, which is where it clarifies the choice
+  instead of crowding it. The sandbox''s second group is `big-dawg`, a name this machine
+  really defines.
+
+
+  The sandbox is restarted on this build and confirmed serving `available_groups:
+  [''big-dawg'',''default'']`, resolving `default -> claude-opus-5`. Other views if
+  you want them: `/app/p/grouped/dispatch`, `/app/p/runner/dispatch`, and the no-groups
+  control on http://127.0.0.1:8901/app/p/flat/dispatch.
+
+
+  **One thing to know rather than check.** The `big-dawg` rename is in the sandbox
+  script only. The jsdom fixture still calls its group `big`, deliberately: it is
+  a unit-test fixture and its group name is arbitrary. I renamed it there too by mistake,
+  vitest caught it, and it was reverted -- so the sandbox and the fixture disagree
+  on purpose, not by oversight.
+
+
+  Nothing else changed. The five acceptance criteria and their evidence are as they
+  were at entry 9; this commit touched two frontend files and the sandbox script.
+
+
+  On approval: rebase, `--no-ff`, close, remove the worktree at `C:/projects/worktrees/agentjobs-184`,
+  and kill the sandbox on 8900/8901 -- `netstat -ano | findstr "8900 8901"` names
+  the pids, since they change on every restart.'
 archived: false
 priority: high
 queue_position: 234
@@ -461,3 +467,28 @@ log:
       id: 2b8f7e10-4a11-4c33-9f21-8d0e5a6c1108
       kind: log_append
       fingerprint: 47fd7bd06909cc3c2a278d730aa7b5ad
+- id: 11
+  ts: '2026-08-24T01:53:30.440505Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Review feedback received in chat and recorded here; ball moved to revise,
+    which is what the GUI's Request Changes would have done.
+  data:
+    ball: agent
+    ball_reason: revise
+    operation:
+      id: 8e14a7c3-92b5-4d60-af27-513c6e08b9d4
+      kind: handoff
+      fingerprint: 2e01b9c92897a7c19ddd5b12f8c9e35b
+- id: 12
+  ts: '2026-08-24T04:17:11.964107Z'
+  actor: claude
+  type: handoff
+  body: Revisions complete and gate-green; handing back for review.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 4f7b2e60-8a13-4c95-9d27-06e51b3a8c72
+      kind: handoff
+      fingerprint: 3fade501eab21463fc45388f86bc8b13
