@@ -1136,6 +1136,42 @@
             ],
             "description": "Which gate refuses, when can_dispatch is false."
           },
+          "resolved_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which rung of the precedence ladder decided: 'project' for the project's own group, 'machine' for default_group, 'project_runner' for a plain runner. Sent rather than derived, because a browser that re-implements the ladder is the one place in the system that would disagree with the dispatcher about what runs.",
+            "title": "Resolved From"
+          },
+          "resolved_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The group that chose `resolved_runner`, when one participated. Null for a flat config, so a machine with no groups reads exactly as it did before they existed.",
+            "title": "Resolved Group"
+          },
+          "resolved_runner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The runner that would actually start right now. Null when a gate refuses, because there is then no answer rather than a stale one.",
+            "title": "Resolved Runner"
+          },
           "runner": {
             "anyOf": [
               {

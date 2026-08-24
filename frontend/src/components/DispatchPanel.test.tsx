@@ -9,6 +9,8 @@ import {
   formatElapsed,
   runStateLabel,
   runsPollInterval,
+  type DispatchEnableTarget,
+  type DispatchOptions,
 } from "./DispatchPanel";
 
 /**
@@ -66,7 +68,7 @@ function renderPanel(props: Partial<Parameters<typeof DispatchPanel>[0]> = {}) {
   // Resolves `true`: the default is a dispatch that started. A refusal is `false`, and
   // the tests that need one say so, because the difference decides whether the human's
   // typed brief survives.
-  const onDispatch = vi.fn(async (_note?: string) => true);
+  const onDispatch = vi.fn(async (_options?: DispatchOptions) => true);
   const onCancel = vi.fn(async (_runId: string) => undefined);
   render(
     <DispatchPanel
@@ -135,7 +137,7 @@ describe("one click (task-188)", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
 
-    await waitFor(() => expect(onDispatch).toHaveBeenCalledWith());
+    await waitFor(() => expect(onDispatch).toHaveBeenCalledWith({}));
   });
 
   it("names the person the run will be authorised by, before the click", () => {
@@ -153,7 +155,9 @@ describe("one click (task-188)", () => {
     fireEvent.change(box, { target: { value: "Rip out the old poller." } });
     fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
 
-    await waitFor(() => expect(onDispatch).toHaveBeenCalledWith("Rip out the old poller."));
+    await waitFor(() =>
+      expect(onDispatch).toHaveBeenCalledWith({ note: "Rip out the old poller." }),
+    );
   });
 
   it("will not dispatch an empty brief when it has asked for one", () => {
@@ -171,7 +175,7 @@ describe("one click (task-188)", () => {
     // rather than a click, and after task-172 that sentence may have been dictated.
     // The handler resolves on a refusal (it renders the reason itself), so the panel
     // is told by the resolved value rather than by the promise settling.
-    const onDispatch = vi.fn(async (_note?: string) => false);
+    const onDispatch = vi.fn(async (_options?: DispatchOptions) => false);
     render(
       <DispatchPanel
         state={state()}
@@ -188,7 +192,9 @@ describe("one click (task-188)", () => {
     fireEvent.change(box, { target: { value: "Port the widget to v2." } });
     fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
 
-    await waitFor(() => expect(onDispatch).toHaveBeenCalledWith("Port the widget to v2."));
+    await waitFor(() =>
+      expect(onDispatch).toHaveBeenCalledWith({ note: "Port the widget to v2." }),
+    );
     expect(box).toHaveValue("Port the widget to v2.");
   });
 
@@ -196,7 +202,7 @@ describe("one click (task-188)", () => {
     // The other half, and the reason the field is cleared at all: a brief that survived
     // a successful dispatch would be retyped into the next one by anyone who did not
     // notice, and re-submitted as a second authorising entry.
-    const onDispatch = vi.fn(async (_note?: string) => true);
+    const onDispatch = vi.fn(async (_options?: DispatchOptions) => true);
     render(
       <DispatchPanel
         state={state()}
@@ -460,7 +466,7 @@ describe("run state labels", () => {
 });
 
 function renderSettings(value: DispatchStateView | null, busy = false, error: string | null = null) {
-  const onEnable = vi.fn(async (_runner: string | null) => undefined);
+  const onEnable = vi.fn(async (_target: DispatchEnableTarget) => undefined);
   const onDisable = vi.fn(async () => undefined);
   render(
     <DispatchSettings
@@ -496,7 +502,7 @@ describe("the project toggle", () => {
     fireEvent.change(select, { target: { value: "claude-batch" } });
     fireEvent.click(screen.getByRole("button", { name: /enable dispatch/i }));
 
-    await waitFor(() => expect(onEnable).toHaveBeenCalledWith("claude-batch"));
+    await waitFor(() => expect(onEnable).toHaveBeenCalledWith({ runner: "claude-batch" }));
   });
 
   it("offers no way to type a runner command", () => {
@@ -568,5 +574,225 @@ describe("the project toggle", () => {
     renderSettings(null);
 
     expect(screen.getByText(/reading this machine's dispatch configuration/i)).toBeInTheDocument();
+  });
+});
+
+/**
+ * Runner groups, in the browser (task-184).
+ *
+ * A project pointed at a `group:` names no `runner:` of its own, so every one of these
+ * asserts the sentence a human reads rather than the field it came from -- reading only
+ * `state.runner` is exactly how a fully configured project came to render "no runner
+ * chosen" beside an open gate.
+ */
+function grouped(overrides: Partial<DispatchStateView> = {}): DispatchStateView {
+  return state({
+    runner: null,
+    group: "default",
+    available_groups: ["big", "default"],
+    resolved_runner: "claude-opus-5",
+    resolved_group: "default",
+    resolved_from: "project",
+    ...overrides,
+  });
+}
+
+describe("choosing a runner group for one dispatch", () => {
+  it("names the group and the member it resolves to, on a project that names no runner", () => {
+    renderPanel({ state: grouped() });
+
+    const panel = screen.getByRole("region", { name: "Dispatch" });
+    expect(panel).toHaveTextContent(/Runner\s*claude-opus-5\s*from group\s*default/);
+    expect(panel).toHaveTextContent(/authorised by\s*Jeff Posey/i);
+  });
+
+  it("offers this machine's groups, with the project's own answer spelled out", () => {
+    renderPanel({ state: grouped() });
+
+    const select = screen.getByLabelText("Group");
+    expect([...select.querySelectorAll("option")].map((option) => option.textContent)).toEqual([
+      // Groups, and a way to not choose one. Nothing else.
+      //
+      // This read "Project default — group default → claude-opus-5" until Jeff reviewed
+      // it on 2026-08-24: it said "default" twice, ate the row's width, and offered
+      // `claude-opus-5` -- a *runner* -- inside a select labelled Group. "just list the
+      // damn groups in the pulldown for the group pulldown, dont add all that into it,
+      // use the text below for mor info". What the project resolves to is already in
+      // the sentence beside the button, which is where it belongs: after the choice.
+      "Project default",
+      "big",
+      "default",
+    ]);
+    // Nothing pre-picked: a value the human did not choose is never sent as one.
+    expect(select).toHaveValue("");
+  });
+
+  it("sends the group the human picked, and only then", async () => {
+    const { onDispatch } = renderPanel({ state: grouped() });
+
+    fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
+    await waitFor(() => expect(onDispatch).toHaveBeenLastCalledWith({}));
+
+    fireEvent.change(screen.getByLabelText("Group"), { target: { value: "big" } });
+    fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
+
+    await waitFor(() => expect(onDispatch).toHaveBeenLastCalledWith({ group: "big" }));
+  });
+
+  it("carries the group alongside a brief on the task that needed one", async () => {
+    const { onDispatch } = renderPanel({ state: grouped(), recordCanBrief: false });
+
+    fireEvent.change(screen.getByLabelText("Group"), { target: { value: "big" } });
+    fireEvent.change(screen.getByRole("textbox", { name: /say what the agent should do/i }), {
+      target: { value: "Audit the guard chain." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
+
+    await waitFor(() =>
+      expect(onDispatch).toHaveBeenCalledWith({ group: "big", note: "Audit the guard chain." }),
+    );
+  });
+
+  it("stops naming the project's member once a different group is chosen for this run", () => {
+    // The browser holds no member list, so it says which group will choose rather than
+    // guessing which member wins. Leaving 'claude-opus-5' on screen beside group 'big'
+    // would be the one sentence on this panel that is reliably wrong.
+    renderPanel({ state: grouped() });
+
+    fireEvent.change(screen.getByLabelText("Group"), { target: { value: "big" } });
+
+    const panel = screen.getByRole("region", { name: "Dispatch" });
+    expect(panel).toHaveTextContent(/Runner chosen from group\s*big/);
+    // The pulldown still spells out the project's default in its first option, which is
+    // the whole point of that option -- what must not survive is the *claim* that
+    // claude-opus-5 is what this click will run.
+    expect(panel).not.toHaveTextContent(/Runner\s*claude-opus-5/);
+  });
+
+  it("offers no group control at all on a machine that defines none", () => {
+    // sc-4: a project that never had a group reads exactly as it did before they
+    // existed -- no pulldown, and the same sentence beside the button.
+    renderPanel();
+
+    expect(screen.queryByLabelText("Group")).toBeNull();
+    expect(screen.getByRole("region", { name: "Dispatch" })).toHaveTextContent(
+      /Runner\s*claude-session, posture\s*supervised, authorised by\s*Jeff Posey/,
+    );
+  });
+});
+
+describe("the project gate tile, with groups", () => {
+  it("names the group and the member that would run, never 'no runner chosen'", () => {
+    renderSettings(grouped());
+
+    const tile = screen.getByText("This project").closest("div");
+    expect(tile).toHaveTextContent("Open");
+    expect(tile).toHaveTextContent("group: default → claude-opus-5");
+    expect(tile).not.toHaveTextContent("no runner chosen");
+  });
+
+  it("says when the group came from the machine rather than the project", () => {
+    renderSettings(
+      grouped({
+        group: null,
+        default_group: "big",
+        resolved_group: "big",
+        resolved_from: "machine",
+      }),
+    );
+
+    expect(screen.getByText("This project").closest("div")).toHaveTextContent(
+      "group: big (machine default) → claude-opus-5",
+    );
+  });
+
+  it("still names the group when a shut gate means nothing resolved", () => {
+    renderSettings(
+      grouped({
+        project_enabled: false,
+        resolved_runner: null,
+        resolved_group: null,
+        resolved_from: null,
+        can_dispatch: false,
+        refusal: { reason: "project_not_enabled", message: "Not enabled." },
+      }),
+    );
+
+    const tile = screen.getByText("This project").closest("div");
+    expect(tile).toHaveTextContent("Closed");
+    expect(tile).toHaveTextContent("group: default");
+  });
+
+  it("still says 'no runner chosen' when nothing at all is configured", () => {
+    // sc-4's other half: the old sentence is still the right one, and still appears.
+    renderSettings(state({ runner: null, project_enabled: false }));
+
+    expect(screen.getByText("This project").closest("div")).toHaveTextContent("no runner chosen");
+  });
+
+  it("still names a plain runner on a machine with no groups", () => {
+    renderSettings(state());
+
+    expect(screen.getByText("This project").closest("div")).toHaveTextContent(
+      "runner: claude-session",
+    );
+  });
+});
+
+describe("enabling a project against a group", () => {
+  it("offers groups and runners in one list, preselecting what the project already uses", () => {
+    renderSettings(grouped({ project_enabled: false }));
+
+    const select = screen.getByLabelText("Runner or group");
+    expect([...select.querySelectorAll("option")].map((option) => option.textContent)).toEqual([
+      "group: big",
+      "group: default",
+      "runner: claude-session",
+      "runner: claude-batch",
+    ]);
+    // Until task-184 this fell through to the first runner, so pressing Enable on a
+    // grouped project offered to change something the config layer then silently
+    // declined to change -- established against a throwaway home before anything here
+    // was touched.
+    expect(select).toHaveValue("group:default");
+  });
+
+  it("points the project at a group, and never at a group and a runner at once", async () => {
+    const { onEnable } = renderSettings(grouped({ project_enabled: false }));
+
+    fireEvent.change(screen.getByLabelText("Runner or group"), { target: { value: "group:big" } });
+    fireEvent.click(screen.getByRole("button", { name: /enable dispatch/i }));
+
+    await waitFor(() => expect(onEnable).toHaveBeenCalledWith({ group: "big" }));
+  });
+
+  it("still points it at a plain runner when that is what was picked", async () => {
+    const { onEnable } = renderSettings(grouped({ project_enabled: false }));
+
+    fireEvent.change(screen.getByLabelText("Runner or group"), {
+      target: { value: "claude-batch" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /enable dispatch/i }));
+
+    await waitFor(() => expect(onEnable).toHaveBeenCalledWith({ runner: "claude-batch" }));
+  });
+
+  it("keeps the plain 'Runner' control on a machine that defines no groups", () => {
+    // sc-4 again, on the settings page: bare names, the old label, no mention of groups.
+    renderSettings(state({ project_enabled: false, runner: null }));
+
+    expect(screen.queryByLabelText("Runner or group")).toBeNull();
+    expect(screen.getByLabelText("Runner")).toBeInTheDocument();
+    expect(screen.getByText(/never from this page/i).textContent).toMatch(
+      /^Runners are defined by hand/,
+    );
+  });
+
+  it("says groups are hand-written too, on a machine that has them", () => {
+    renderSettings(grouped({ project_enabled: false }));
+
+    expect(screen.getByText(/never from this page/i).textContent).toMatch(
+      /^Runners and runner groups are defined by hand/,
+    );
   });
 });
