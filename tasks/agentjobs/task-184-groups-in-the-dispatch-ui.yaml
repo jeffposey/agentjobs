@@ -3,7 +3,7 @@ id: task-184-groups-in-the-dispatch-ui
 title: The Dispatch page does not know groups exist, and says "no runner chosen" when
   one is in use
 created: '2026-08-19T21:10:06.422156Z'
-updated: '2026-08-23T23:12:18.422704Z'
+updated: '2026-08-24T01:47:55.231832Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -435,3 +435,29 @@ log:
       id: 2b8f7e10-4a11-4c33-9f21-8d0e5a6c1107
       kind: handoff
       fingerprint: 61d00061756136e22c8c98de20c918a5
+- id: 10
+  ts: '2026-08-24T01:47:55.231657Z'
+  actor: claude
+  type: note
+  body: "**The review sandbox died once and has been restarted differently. If the\
+    \ URLs in the\nhandoff are dead when you open them, one command brings it back.**\n\
+    \nThe first one was started as a background job of my own session and was reaped\
+    \ when my\nturn ended \u2014 no error, no traceback, it was serving correctly\
+    \ right up to the moment it\nstopped. It is now started detached from the session's\
+    \ process tree, so it should\noutlive me:\n\n```\nparent  715536\n 8900   733308\
+    \     grouped, runner\n 8901   727192     flat\n```\n\n**To stop it:** `taskkill\
+    \ /F /PID 733308` and `taskkill /F /PID 727192` (or kill the\nparent 715536).\
+    \ The throwaway directories under `%TEMP%\\agentjobs-dispatch-groups-*`\ngo with\
+    \ it.\n\n**To bring it back**, from `C:/projects/worktrees/agentjobs-184`:\n\n\
+    ```\nC:/Users/jpose/AppData/Local/pypoetry/Cache/virtualenvs/agentjobs-WKmnZ8Zc-py3.13/Scripts/python.exe\
+    \ scripts/dispatch_groups_sandbox.py\n```\n\nIt seeds itself from scratch every\
+    \ time, so a restart costs nothing and loses nothing \u2014\nthe state you are\
+    \ reviewing is built by the script, not accumulated. The PIDs above will\nbe different\
+    \ after a restart; `netstat -ano | findstr \"8900 8901\"` names the new ones.\n\
+    \nNote that 8898 and 8899 were already taken on this machine by something else\
+    \ when I\nfirst tried them, which is why the script defaults to 8900/8901.\n"
+  data:
+    operation:
+      id: 2b8f7e10-4a11-4c33-9f21-8d0e5a6c1108
+      kind: log_append
+      fingerprint: 47fd7bd06909cc3c2a278d730aa7b5ad
