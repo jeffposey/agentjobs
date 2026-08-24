@@ -400,8 +400,18 @@ class TestASessionKilledByAnExpiredLogin:
         assert after.ball is Ball.HUMAN
         assert after.ball_reason is BallReason.INPUT
         assert after.ball_prompt is not None
-        assert "claude auth login" in after.ball_prompt, "the one instruction that works"
-        assert "expired login" in after.ball_prompt
+        # Both recoveries, and the probe that says which one applies. The prompt used
+        # to name `claude auth login` alone, as "the one instruction that works" -- and
+        # on 2026-08-23 a supervising session relayed that to Jeff as established fact
+        # for a stall it had not diagnosed. It happened to be right; the reasoning was
+        # not, and the other cause (a live credential behind a stuck session) is
+        # indistinguishable from this side. Assert the prompt offers the test, not a
+        # verdict.
+        assert 'claude -p "Reply with exactly: AUTH_OK"' in after.ball_prompt
+        assert "fresh process" in after.ball_prompt
+        assert "claude auth login" in after.ball_prompt, "still named, for the dead case"
+        assert "Logging in again changes nothing" in after.ball_prompt, "the live case"
+        assert "authentication failure" in after.ball_prompt
 
     def test_the_run_is_parked_rather_than_recorded_as_a_success(
         self, machine, tmp_path: Path, monkeypatch

@@ -299,6 +299,11 @@ class TestAuthCheckCommand:
 
         assert result.exit_code == 1, result.output
         assert "expired login" in result.output
+        # Names the probe and both outcomes rather than prescribing a login outright:
+        # a stall whose credential is actually fine is fixed by waking the session, and
+        # the two are indistinguishable without running this.
+        assert "AUTH_OK" in result.output
+        assert "skip the login" in result.output
         assert "claude auth login" in result.output
 
     def test_a_healthy_session_exits_zero(self, tmp_path: Path, monkeypatch) -> None:

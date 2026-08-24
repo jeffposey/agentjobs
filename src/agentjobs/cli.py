@@ -1523,8 +1523,13 @@ def dispatch_auth_check(
             typer.echo(f"   {stall.log_path}")
     if stalled:
         typer.secho(
-            "Run `claude auth login` in a terminal on this machine, then send each "
-            "stalled session a message to wake it. It resumes in place.",
+            "Check which failure this is before logging in. In a fresh process, not "
+            "inside a stalled session, run:\n"
+            '  claude -p "Reply with exactly: AUTH_OK"\n'
+            "If it answers, the credential is fine and the sessions are merely stuck -- "
+            "wake each with a message and skip the login. If it fails to authenticate, "
+            "run `claude auth login` first, then wake them. Either way they resume in "
+            "place.",
             fg=typer.colors.YELLOW,
         )
         raise typer.Exit(code=1)

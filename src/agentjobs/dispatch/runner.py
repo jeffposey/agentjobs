@@ -2267,15 +2267,29 @@ class DispatchRunner:
             ball=Ball.HUMAN,
             ball_reason=BallReason.INPUT,
             ball_prompt=(
-                f"Dispatched session `{handle.session_id}` stopped on an expired login "
-                f"at {stall.at.isoformat()} and will not resume by itself.{said}\n\n"
-                "**Run `claude auth login` in a terminal on that machine.** Answering "
-                "inside the session cannot work: Claude Code's background auth daemon "
-                "has already discarded the credential, so anything sent to the session "
-                "is retried against a token that no longer exists and fails instantly.\n\n"
-                "Then send the session a message to wake it, or attach with "
-                f"`{self.display_command()} attach {handle.session_id}`. It resumes in "
-                "place -- nothing is lost and this task does not need re-dispatching."
+                f"Dispatched session `{handle.session_id}` stopped on an authentication "
+                f"failure at {stall.at.isoformat()} and will not resume by itself."
+                f"{said}\n\n"
+                "**Find out which failure this is before doing anything — there are two "
+                "and they look identical from here.** Either the credential store "
+                "genuinely cannot authenticate, or it can and this session is stuck on "
+                "a refresh that already failed. Nothing you can see distinguishes them: "
+                "not this task, not the run ledger, and not `agents --json`. One "
+                "command does, run as a **fresh process** rather than inside the "
+                "stalled session:\n\n"
+                '```\nclaude -p "Reply with exactly: AUTH_OK"\n```\n\n'
+                "**If it answers**, the credential is fine and only the session is "
+                "stuck. Send it a message to wake it, or attach with "
+                f"`{self.display_command()} attach {handle.session_id}`. Logging in "
+                "again changes nothing.\n\n"
+                "**If it fails to authenticate**, the store is genuinely dead and no "
+                "restart will clear it. Run `claude auth login` in a terminal on that "
+                "machine, then wake the session the same way. Answering inside the "
+                "session cannot work while this is true: the credential is already "
+                "gone, so anything sent is retried against nothing and fails "
+                "instantly.\n\n"
+                "Either way the session resumes in place -- nothing is lost and this "
+                "task does not need re-dispatching."
             ),
         )
         handle.directory.update_meta(status="parked", auth_stalled_at=stall.at.isoformat())
