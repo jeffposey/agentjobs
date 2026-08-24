@@ -3,7 +3,7 @@ id: task-302
 title: "Three statements in the always-loaded bundle contradict the code \u2014 fix\
   \ them, and collapse the double-numbered merge gate"
 created: '2026-08-23T21:50:44.787308Z'
-updated: '2026-08-24T00:40:18.241602Z'
+updated: '2026-08-24T00:55:37.863536Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -196,3 +196,43 @@ log:
       id: 4e9a2b76-1c83-4f50-a629-7b3e1d068c95
       kind: log_append
       fingerprint: 9c1a10301dbd6a9119354722a5fc3d69
+- id: 6
+  ts: '2026-08-24T00:55:37.863406Z'
+  actor: claude
+  type: progress
+  body: "**The auth-stall item from entry 5 is built and green, on a branch awaiting\
+    \ review. The four original items are untouched \u2014 this task stays open.**\n\
+    \nBranch `fix/task-302-auth-stall-prompt`, worktree `C:/projects/worktrees/agentjobs-302`,\
+    \ one commit: *\"fix(dispatch): an auth stall has two causes; say how to tell\
+    \ them apart\"*. Nothing merged, nothing pushed.\n\n**What changed**, both surfaces\
+    \ that told a reader the fix was certain:\n\n- `src/agentjobs/dispatch/runner.py`\
+    \ \u2014 the `ball_prompt` written onto a task when a run stalls. It now states\
+    \ there are two causes, gives the fresh-process `claude -p` probe, and says what\
+    \ each outcome means: authenticates \u2192 wake the session and *\"Logging in\
+    \ again changes nothing\"*; fails \u2192 `claude auth login`, no restart will\
+    \ clear it.\n- `src/agentjobs/cli.py` \u2014 `dispatch auth-check`'s closing advice,\
+    \ same shape.\n\n**Tests were rewritten rather than unbroken.** `test_dispatch_poller.py`\
+    \ asserted `\"claude auth login\" in ball_prompt` with the comment *\"the one\
+    \ instruction that works\"* \u2014 the assertion encoded the wrong claim, so unbreaking\
+    \ it would have preserved the defect. It now asserts the probe, the phrase `fresh\
+    \ process`, and **both** branches. `test_dispatch_cli.py` likewise.\n\n**Gate:\
+    \ green, 10 of 10, exit 0, 238.1s**, rebased onto `main` at the time of the run.\n\
+    \n**Two things worth knowing that are not about this change:**\n\n- `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`\
+    \ failed on one intermediate run and passed on the run before and after it, with\
+    \ identical code. It spawns a real process tree of `sleep(600)` and asserts a\
+    \ timeout kills the grandchild, while two agent sessions and a gate competed for\
+    \ this machine. Treat it as load-sensitive rather than as a regression; not filed,\
+    \ because one observation is not a flake report.\n- The first gate run failed\
+    \ on `test_agentjobs_context_paths_exist` for a task record that had already been\
+    \ corrected on `main` \u2014 the worktree's copy of `tasks/` was cut before the\
+    \ fix. That is the fourth instance of one root cause, now filed as **task-311**.\n\
+    \n**Still open here**: the four original items \u2014 parent claimability in GLOBAL-AGENTS,\
+    \ the `ball_prompt` `agent/available` exemption, the double-numbered merge gate,\
+    \ and worktree naming. Whoever takes those should read the code at the cited lines\
+    \ rather than trusting the audit's quotation, as this task's own verification\
+    \ section instructs."
+  data:
+    operation:
+      id: af51c0d2-9b64-4e37-8a13-6205e4b98371
+      kind: log_append
+      fingerprint: 9c09fba3d2d809814b542db762b3930d
