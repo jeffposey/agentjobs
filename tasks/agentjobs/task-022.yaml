@@ -3,18 +3,44 @@ id: task-022
 title: Dispatch an epic as autonomous and it finishes the whole thing, child by child,
   unattended
 created: '2026-08-19T22:29:17.039117Z'
-updated: '2026-08-24T00:35:54.861370Z'
+updated: '2026-08-24T01:05:13.998864Z'
 lifecycle: active
 ball: human
-ball_reason: input
-ball_prompt: "Dispatched session `73782c1b` stopped on an expired login at 2026-08-24T00:35:43.975000+00:00\
-  \ and will not resume by itself. It said: \"Login expired \xB7 Please run /login\"\
-  .\n\n**Run `claude auth login` in a terminal on that machine.** Answering inside\
-  \ the session cannot work: Claude Code's background auth daemon has already discarded\
-  \ the credential, so anything sent to the session is retried against a token that\
-  \ no longer exists and fails instantly.\n\nThen send the session a message to wake\
-  \ it, or attach with `claude attach 73782c1b`. It resumes in place -- nothing is\
-  \ lost and this task does not need re-dispatching."
+ball_reason: review
+ball_prompt: "**Ready for review: `feat/task-022-epic-autonomous-walk`, four commits,\
+  \ full gate green (180.8s, all ten stages).** Posture here is `auto`, so I stopped\
+  \ rather than merging. Nothing was pushed.\n\n**The proof you asked for is entry\
+  \ 12.** The short version: dispatch an epic, run one command, and its children merge\
+  \ themselves one at a time. Demonstrated three times on a throwaway project at `C:/ai/scratch/task-022-demo`\
+  \ (its own `AGENTJOBS_HOME`, its own git repo with no remote, posture `autonomous`)\
+  \ \u2014 once succeeding across three children, once stopping dead on a child whose\
+  \ gate went red without touching its sibling, once refusing a third attempt at one\
+  \ child. All re-runnable with `bin/reset.py`.\n\n**What to look at first, if you\
+  \ look at one thing:** the walk found that **no autonomous run could ever have merged\
+  \ its own work.** `finish_task` takes the per-task run lock unconditionally, and\
+  \ a run calling `agentjobs finish --posture-release` already holds it \u2014 so\
+  \ the command task-021's prompt names was declined `locked`, every time. That is\
+  \ fixed in `f38b0f4`, along with three others the same run exposed. A green suite\
+  \ showed none of them.\n\n**The one decision worth disagreeing with if you are going\
+  \ to:** the per-child loop is now code (`agentjobs dispatch walk`), not prose telling\
+  \ a supervising agent to poll. And children are now **real dispatches** \u2014 which\
+  \ reverses a paragraph in the design record that said a supervisor cannot dispatch\
+  \ its children. Design \xA72's rule is intact (a stored entry naming a configured\
+  \ human still authorises every run); what changed is that the human clicked the\
+  \ *epic*. Both arguments, and both rejected alternatives, are in entry 12 and in\
+  \ the new design section.\n\n**Also worth a second's thought:** this makes one click\
+  \ authorise a chain of merges into `main`. What is left holding, in the order it\
+  \ would fail, is the objective gate under each merge, nothing being pushed, and\
+  \ `main` being local. `push: false` matters more here than the merge policy does,\
+  \ and I have said so in ENGINEERING.md and the design record.\n\n**One thing I could\
+  \ not do:** start a real Claude child. `agentjobs dispatch run` from inside an `auto`\
+  \ dispatched session is refused by the permission classifier, so the sandbox's children\
+  \ are a deterministic script. That substitutes the *worker* only \u2014 every gate,\
+  \ the ledger, the budget, the watcher and the finish are the real ones. It does\
+  \ not prove a model can work a child unattended; task-021 is that evidence.\n\n\
+  On approval: rebase, `--no-ff`, close, remove the worktree at `C:/projects/worktrees/agentjobs-022`.\
+  \ The sandbox and its 8912 server are mine to tear down \u2014 say the word and\
+  \ I will, or leave them if you want to run the walk yourself."
 archived: false
 priority: high
 queue_position: 281
@@ -108,31 +134,44 @@ spec:
       leans on; the honest risk note belongs here.
 acceptance:
 - id: ac-1
-  text: dispatching a parent under autonomous works its children one at a time in
-    dependency order, without further human input
-  status: pending
+  text: 'dispatching a parent under autonomous works its children one at a time in
+    dependency order, without further human input -- MET: sandbox epic task-001, three
+    children, one attempt each, runs run_02b56b9e / run_1abf0cbe / run_b7289d7e, no
+    human input after the walk started'
+  status: met
 - id: ac-2
-  text: each clean child is merged --no-ff, its branch marked merged, its task closed,
-    and its worktree removed
-  status: pending
+  text: 'each clean child is merged --no-ff, its branch marked merged, its task closed,
+    and its worktree removed -- MET: merge commits b6ebfcc, 7126c6c, 36cabb8, each
+    with two parents; all three closed completed with branches marked merged; git
+    worktree list shows only the clone'
+  status: met
 - id: ac-3
-  text: a child that fails its objective check or raises a real problem stops the
-    loop and hands off, rather than being skipped
-  status: pending
+  text: 'a child that fails its objective check or raises a real problem stops the
+    loop and hands off, rather than being skipped -- MET: task-003 seeded with work
+    the gate refuses, walk stopped child_needs_a_human at exit 1, task-004 left ready
+    with zero dispatches, parent handed to human/decision'
+  status: met
 - id: ac-4
-  text: retries are bounded and the bound is documented
-  status: pending
+  text: 'retries are bounded and the bound is documented -- MET: two runs per child
+    per human authorisation, refused in dispatch_task; third call refused child_attempts_exhausted
+    live, and a fresh human note on the epic reset the budget'
+  status: met
 - id: ac-5
-  text: the parent closes only when its own acceptance criteria are supported by durable
-    child evidence
-  status: pending
+  text: 'the parent closes only when its own acceptance criteria are supported by
+    durable child evidence -- MET: the walk never closes a parent, by design and by
+    test; task-001 was still active after all three children merged'
+  status: met
 - id: ac-6
-  text: nothing is pushed, verified on a real run
-  status: pending
+  text: 'nothing is pushed, verified on a real run -- MET: the sandbox repository
+    has no remote and never had one, so there was nowhere to push rather than a policy
+    obeyed; AgentJobs runs no git push anywhere'
+  status: met
 - id: ac-7
-  text: demonstrated end to end on a real parent with at least two children, with
-    the run ledger and task records as evidence
-  status: pending
+  text: 'demonstrated end to end on a real parent with at least two children, with
+    the run ledger and task records as evidence -- MET: three children, three walks
+    (success, stop-rule, retry-bound), re-runnable via bin/reset.py; ledger rows,
+    finish records and per-child evidence-before-merge all on disk'
+  status: met
 deliverables: []
 dependencies:
 - task: task-164-epic-orchestration-rule
@@ -447,3 +486,172 @@ log:
   data:
     ball: human
     ball_reason: input
+- id: 12
+  ts: '2026-08-24T01:04:18.704532Z'
+  actor: claude
+  type: progress
+  body: "**The demonstration, with the artefacts to check it against. Everything below\
+    \ can be re-run.**\n\nWhere it lives, per entry 6's instruction to make it findable:\n\
+    \n| | |\n|---|---|\n| repository | `C:/ai/scratch/task-022-demo/repo` \u2014 own\
+    \ git repo, **no remote**, `main` nobody cares about |\n| `AGENTJOBS_HOME` | `C:/ai/scratch/task-022-demo/home`\
+    \ \u2014 own `dispatch.yaml`, **posture `autonomous`** |\n| server | `http://127.0.0.1:8912`\
+    \ (not 8876; 8901 was already taken by the agentjobs-184 worktree) |\n| re-run\
+    \ it | `bin/reset.py`, then claim `task-001`, then `agentjobs dispatch walk task-001\
+    \ --project walk-sandbox` |\n| saved output | `C:/ai/scratch/task-022-demo/evidence/walk-{final,stop,retry}.log`\
+    \ |\n\nJeff's real `~/.agentjobs/dispatch.yaml` was not touched and is still `auto`.\
+    \ The sandbox carries a `bin/agentjobs` shim that pins `AGENTJOBS_HOME`, so nothing\
+    \ invoked through it can reach the real backlog even by accident.\n\n**One substitution,\
+    \ named plainly.** The sandbox's runner is `bin/child_runner.py`, a deterministic\
+    \ script, not an LLM. It substitutes the *worker* and nothing else: the queue\
+    \ picks the child, `dispatch_task` runs every gate and writes the inherited authorising\
+    \ entry, the run gets a directory and a ledger row, the budget is enforced by\
+    \ the dispatcher, the walk watches the record, and each merge goes through `agentjobs\
+    \ finish --posture-release`, which runs the sandbox's own `scripts/check.py` on\
+    \ the rebased branch. Two reasons: it is re-runnable, and `agentjobs dispatch\
+    \ run` from inside this `auto` session is refused by the permission classifier.\
+    \ What it therefore does *not* prove is that a model can do a child's job unattended\
+    \ \u2014 that was task-021's ground.\n\n---\n\n### The successful walk (ac-1,\
+    \ ac-2, ac-5, ac-6, ac-7)\n\nThree children, one attempt each, no human input\
+    \ after the walk started.\n\n```\nStarting task-002 (attempt 1 of 2).\n  task-002\
+    \ attempt 1 (run_02b56b9e): completed -- closed completed; its own gate ran and\
+    \ its own merge happened\nStarting task-003 (attempt 1 of 2).\n  task-003 attempt\
+    \ 1 (run_1abf0cbe): completed -- closed completed; its own gate ran and its own\
+    \ merge happened\nStarting task-004 (attempt 1 of 2).\n  task-004 attempt 1 (run_b7289d7e):\
+    \ completed -- closed completed; its own gate ran and its own merge happened\n\
+    Walk of task-001: all_children_done.   EXIT=0\n```\n\nGit, in the throwaway repo\
+    \ \u2014 three merge commits, each with two parents:\n\n```\n*   36cabb8 Merge\
+    \ branch 'feat/task-004-notes' (task-004)\n|\\   | * 859e09f docs(task-004): ...\n\
+    *   7126c6c Merge branch 'feat/task-003-notes' (task-003)\n|\\   | * c3b2136 docs(task-003):\
+    \ ...\n*   b6ebfcc Merge branch 'feat/task-002-notes' (task-002)\n|\\   | * 3f7638a\
+    \ docs(task-002): ...\n```\n\n`git remote -v` is empty and always was \u2014 **ac-6\
+    \ is not \"we checked the logs\", it is a repository that has nowhere to push\
+    \ to.** `git worktree list` shows only the clone: all three child worktrees were\
+    \ removed by their own finishes.\n\nEach child's record, e.g. task-002 \u2014\
+    \ note entry 5 lands **before** entries 6\u20138:\n\n```\n[2] Jeff Posey  note\
+    \        \"Jeff Posey authorised a dispatch of task-001, and this run is\n   \
+    \                          attempt 1 of 2 ...\"   data.epic = {parent: task-001,\
+    \ entry: 2, attempt: 1, limit: 2}\n[3] claude      transition  Claimed by claude.\n\
+    [4] Jeff Posey  dispatch    run=run_02b56b9e  trigger=child  posture=autonomous\
+    \  caused_by=2\n[5] claude      progress    \"Appended one bullet ... Verified\
+    \ by running scripts/check.py ... exit 0\"\n[6] finisher    progress    Scripted\
+    \ finish started on `feat/task-002-notes`\n[7] finisher    progress    Merged\
+    \ `feat/task-002-notes` into `main` as `b6ebfcc2`\n[8] finisher    transition\
+    \  ... and verified live.\n```\n\n`branches: [(feat/task-002-notes, merged)]`,\
+    \ `lifecycle=closed`, `outcome=completed`. The `dispatch` entry's `caused_by`\
+    \ points at entry 2, which is a stored row naming a configured human \u2014 **the\
+    \ rule in design \xA72 is satisfied, not bypassed.**\n\n**ac-5: the parent is\
+    \ still `active` and was never closed by the walk.** That is deliberate and asserted\
+    \ in the tests. The walk's exit line says so: *\"evaluate its acceptance criteria\
+    \ against the children's evidence and close it yourself.\"*\n\n### The stop rule\
+    \ (ac-3)\n\ntask-003's spec was rewritten to ask for a bullet identical to task-002's;\
+    \ the sandbox gate refuses duplicate bullets, so the work is genuinely unmergeable\
+    \ rather than sabotaged at the harness level.\n\n```\ntask-002 attempt 1 (run_8bd4ad53):\
+    \ completed\ntask-003 attempt 1 (run_b42d0384): parked -- ball is human/decision:\
+    \ The gate is red ...\nWalk of task-001: child_needs_a_human.   EXIT=1\n```\n\n\
+    Afterwards: **one** merge on `main` (task-002's), `task-003` `active/human/decision`,\
+    \ **`task-004` still `ready` with zero dispatches** \u2014 the sibling was never\
+    \ started. The parent is `human/decision` with a prompt naming task-003 and what\
+    \ completed before it. That is the criterion: stopped, not skipped.\n\n### The\
+    \ bound (ac-4)\n\nEnforced in the dispatcher, shown by asking for a third run\
+    \ of one child under one authorisation:\n\n```\ncall 1: Dispatched task-003 as\
+    \ run run_f938c4d2\ncall 2: Dispatched task-003 as run run_31ea62a8\ncall 3: Refused\
+    \ (child_attempts_exhausted): task-003 has already been run 2 time(s) on\n   \
+    \     task-001's authorisation (entry 2), which is the limit of 2. ... A human\
+    \ who wants\n        it tried again can authorise task-001 afresh.\n```\n\nThen\
+    \ a human note on the epic, and the next call is dispatched again \u2014 the escape\
+    \ hatch works and leaves a record that somebody chose it.\n\n---\n\n### Four defects\
+    \ the demonstration found. None was visible to a green suite.\n\nCommitted as\
+    \ `f38b0f4`. Each was hiding the next, which is why running it mattered.\n\n1.\
+    \ **A run could not merge its own work.** `finish_task` takes the per-task run\
+    \ lock unconditionally, and an autonomous run calling `agentjobs finish --posture-release`\
+    \ already holds it. The command task-021's prompt names was declined `locked`\
+    \ \u2014 **every autonomous run there has ever been.** The sanctioned merge path\
+    \ was unreachable as shipped. Fixed by treating a run finishing itself as the\
+    \ same run, established by `AGENTJOBS_RUN_ID` matching the run the lock file names.\n\
+    2. **The walk could not see its children finish.** The CLI holds one corpus snapshot\
+    \ per invocation, on the stated premise that one invocation is one logical read.\
+    \ A walk breaks that premise. All three children merged and closed; the walk reported\
+    \ three dead sessions and re-ran them. Fixed with `TaskStorage.refresh()`.\n3.\
+    \ **The watcher read the record before the liveness signal.** A child writes its\
+    \ last word then exits; the run is marked terminal after that. Reading the record\
+    \ first leaves a window where it looks unfinished and the run looks over \u2014\
+    \ which reads as a death, spends the retry, and re-runs work already on `main`.\
+    \ The reads are swapped.\n4. **`dispatch child` leaked a batch run per invocation**,\
+    \ so the next dispatch of that task was refused `live_run_exists`.\n\nRegression\
+    \ tests for 2 and 3 are in `tests/test_dispatch_epic.py`, each constructed as\
+    \ the failure actually occurred.\n\n### Two things the run established that the\
+    \ design had not\n\n- **The retry fires less often than the design implies, and\
+    \ that is right.** A dispatched run that fails is handed to `human`/`decision`\
+    \ by its own run supervisor, so the walk reads it as parked and stops *without*\
+    \ spending an attempt. `DIED` is the residual case \u2014 a run whose supervisor\
+    \ wrote nothing, which is what an expired login looks like. Retrying a child that\
+    \ said something would be ignoring it.\n- **A walk that stops for cause spends\
+    \ the epic's authorisation.** Its handoff becomes the parent's newest entry, so\
+    \ the next child dispatch is refused `parent_not_human_clocked` until a person\
+    \ acts on the epic. Not designed in; it falls out of resolving authorisation from\
+    \ the parent's newest non-transition entry, and it is exactly right.\n\nBoth are\
+    \ now in `docs/agent-workflow.md` and the design record (`8471942`).\n\n**Gate:**\
+    \ full unqualified `scripts/check.py`, green, 180.8s, all ten stages \u2014 `C:/Users/jpose/.claude/jobs/73782c1b/tmp/gate5.log`."
+  data:
+    operation:
+      id: 8d2e3b51-6a7c-4f10-b2d9-3e5a1c7f9b04
+      kind: log_append
+      fingerprint: ac03b1db7565e8daea35ae747c5f0fdd
+- id: 13
+  ts: '2026-08-24T01:04:54.852018Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 9e4a1d72-5c83-4b06-a1f7-2d8e6b0c4f3a
+      kind: update_content
+      fingerprint: 1dfa61b15af9a9f17a24074f8d4337fa
+- id: 14
+  ts: '2026-08-24T01:05:13.998632Z'
+  actor: claude
+  type: handoff
+  body: "**Ready for review: `feat/task-022-epic-autonomous-walk`, four commits, full\
+    \ gate green (180.8s, all ten stages).** Posture here is `auto`, so I stopped\
+    \ rather than merging. Nothing was pushed.\n\n**The proof you asked for is entry\
+    \ 12.** The short version: dispatch an epic, run one command, and its children\
+    \ merge themselves one at a time. Demonstrated three times on a throwaway project\
+    \ at `C:/ai/scratch/task-022-demo` (its own `AGENTJOBS_HOME`, its own git repo\
+    \ with no remote, posture `autonomous`) \u2014 once succeeding across three children,\
+    \ once stopping dead on a child whose gate went red without touching its sibling,\
+    \ once refusing a third attempt at one child. All re-runnable with `bin/reset.py`.\n\
+    \n**What to look at first, if you look at one thing:** the walk found that **no\
+    \ autonomous run could ever have merged its own work.** `finish_task` takes the\
+    \ per-task run lock unconditionally, and a run calling `agentjobs finish --posture-release`\
+    \ already holds it \u2014 so the command task-021's prompt names was declined\
+    \ `locked`, every time. That is fixed in `f38b0f4`, along with three others the\
+    \ same run exposed. A green suite showed none of them.\n\n**The one decision worth\
+    \ disagreeing with if you are going to:** the per-child loop is now code (`agentjobs\
+    \ dispatch walk`), not prose telling a supervising agent to poll. And children\
+    \ are now **real dispatches** \u2014 which reverses a paragraph in the design\
+    \ record that said a supervisor cannot dispatch its children. Design \xA72's rule\
+    \ is intact (a stored entry naming a configured human still authorises every run);\
+    \ what changed is that the human clicked the *epic*. Both arguments, and both\
+    \ rejected alternatives, are in entry 12 and in the new design section.\n\n**Also\
+    \ worth a second's thought:** this makes one click authorise a chain of merges\
+    \ into `main`. What is left holding, in the order it would fail, is the objective\
+    \ gate under each merge, nothing being pushed, and `main` being local. `push:\
+    \ false` matters more here than the merge policy does, and I have said so in ENGINEERING.md\
+    \ and the design record.\n\n**One thing I could not do:** start a real Claude\
+    \ child. `agentjobs dispatch run` from inside an `auto` dispatched session is\
+    \ refused by the permission classifier, so the sandbox's children are a deterministic\
+    \ script. That substitutes the *worker* only \u2014 every gate, the ledger, the\
+    \ budget, the watcher and the finish are the real ones. It does not prove a model\
+    \ can work a child unattended; task-021 is that evidence.\n\nOn approval: rebase,\
+    \ `--no-ff`, close, remove the worktree at `C:/projects/worktrees/agentjobs-022`.\
+    \ The sandbox and its 8912 server are mine to tear down \u2014 say the word and\
+    \ I will, or leave them if you want to run the walk yourself."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: a1b7c390-2e64-4d85-9f31-7c0a5e2b8d16
+      kind: handoff
+      fingerprint: f417702829f8f5f16fdd5c9ec32dea32
