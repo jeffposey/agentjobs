@@ -3,16 +3,11 @@ id: task-022
 title: Dispatch an epic as autonomous and it finishes the whole thing, child by child,
   unattended
 created: '2026-08-19T22:29:17.039117Z'
-updated: '2026-08-24T01:11:29.119039Z'
-lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: Run run_8cbf13e7 ended `cancelled` and nobody was told what this task
-  needs. Read the dispatch_result entry, then either dispatch again or take it on
-  yourself.
+updated: '2026-08-24T01:11:49.487832Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 281
 category: architecture
 tags:
 - dispatch
@@ -21,7 +16,6 @@ tags:
 - design
 effort: a day
 assignment:
-  owner: claude
   eligible: []
 parent: task-160-dispatch-phase-two
 spec:
@@ -152,7 +146,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-022-epic-autonomous-walk
-  status: active
+  status: merged
+  merged_at: '2026-08-24T01:11:49.423969Z'
 log:
 - id: 1
   ts: '2026-08-19T22:29:17.039164Z'
@@ -682,3 +677,23 @@ log:
     merge_commit: 6e107f5e2e44585cc3ce5f2e68f65c695870215a
     branch: feat/task-022-epic-autonomous-walk
     base: main
+- id: 20
+  ts: '2026-08-24T01:11:49.487659Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-022-epic-autonomous-walk` into `main` as `6e107f5e` and\
+    \ verified live. Finished by the scripted path with no agent session (task-241).\
+    \ Approved by a human; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         1.9s  feat/task-022-epic-autonomous-walk\
+    \ at 8471942e in C:\\projects\\worktrees\\agentjobs-022\n  rebase     ok     \
+    \    0.4s  feat/task-022-epic-autonomous-walk onto main: 8471942e -> 7a23c992\n\
+    \  gate       ok       183.3s  scripts/check.py green\n  merge      ok       \
+    \  0.4s  --no-ff into main as 6e107f5e2e44585cc3ce5f2e68f65c695870215a\n  rebuild\
+    \    skipped    0.0s  the merge touched no frontend/ path\n  restart    ok   \
+    \      1.3s  ran powershell -NoProfile -ExecutionPolicy Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -Force -NoOpen\n  verify     ok         0.0s  http://127.0.0.1:8876 is serving\
+    \ 7dd75305, which contains the merge 6e107f5e, from C:\\projects\\agentjobs (started\
+    \ 2026-08-24T01:11:35.679929+00:00)\n```"
+  data:
+    lifecycle: closed
+    outcome: completed
