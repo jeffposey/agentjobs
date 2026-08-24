@@ -3,43 +3,13 @@ id: task-313
 title: An auth stall has two causes; the prompt and auth-check now say how to tell
   them apart
 created: '2026-08-24T01:28:33.868812Z'
-updated: '2026-08-24T01:29:02.546595Z'
+updated: '2026-08-24T04:19:25.855259Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Ready for review. Branch `fix/task-302-auth-stall-prompt`, one commit,
-  gate green 10/10 in 238s. Nothing merged, nothing pushed. Worktree at `C:/projects/worktrees/agentjobs-302`.
-
-
-  **Two files, both changing a sentence that told the reader one fix was certain when
-  there are two causes.** The stall prompt and `dispatch auth-check` now give the
-  probe -- a fresh-process `claude -p` outside the stalled session -- and branch on
-  its outcome.
-
-
-  **The part worth your eye:** the tests. `test_dispatch_poller.py` asserted `"claude
-  auth login" in ball_prompt` with the comment "the one instruction that works". That
-  assertion encoded the wrong claim, so making it pass again would have preserved
-  the defect. It now asserts the probe and both branches. If you disagree with that
-  reading, this is the change to push back on.
-
-
-  **Why this task exists at all, said plainly:** you asked for this fix and to record
-  it on task-302. I did the work without claiming anything, so 302 kept showing `Ready`,
-  no owner, `branches: []`, four criteria pending -- finished, gate-green work that
-  was invisible in the GUI, with its only trace a log entry buried in the record.
-  You spotted that. This task is the correction: the code change is its own reviewable
-  item with its own branch recorded, and task-302 keeps its four prose items and stays
-  ready.
-
-
-  No sandbox for this one -- there is no UI to look at, and the behaviour only appears
-  when a run dies on auth, which is not worth staging deliberately.
-
-
-  On approval: rebase, `--no-ff`, close, remove the worktree. Note the run-lock issue
-  from task-312 may make the scripted finish decline `locked`; there is no live run
-  on this task, so it should not.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 queue_position: 14600
@@ -191,3 +161,25 @@ log:
       id: c1e58703-9d4a-42f6-b8e0-4a37152cd096
       kind: handoff
       fingerprint: 23f1856018e17087d1b693dede373527
+- id: 5
+  ts: '2026-08-24T04:19:22.294350Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 6
+  ts: '2026-08-24T04:19:25.854984Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-302-auth-stall-prompt` (f994944e).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-302.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_c431e8e0\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-302-auth-stall-prompt
+    finish_id: fin_c431e8e0
