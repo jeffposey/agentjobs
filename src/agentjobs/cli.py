@@ -1253,6 +1253,16 @@ def dispatch_child(
     typer.echo(f"✅ Dispatched {task_id} as run {handle.run_id} ({handle.mode.value}).")
     typer.echo(f"   Agent told AgentJobs is at {handle.api_base}.")
     typer.echo(f"   Run directory: {handle.directory.path}")
+    if handle.mode is DispatchMode.BATCH:
+        # The same join `dispatch run` makes, for the same reason: a batch run is watched
+        # by a thread in *this* process, so returning here would end that thread with the
+        # CLI and leave a finished run reading `running` for ever. `dispatch walk` needs
+        # no equivalent -- it stays in this process until the child is settled anyway --
+        # and this command was leaking one run per invocation until it was noticed by a
+        # second `dispatch child` being refused `live_run_exists` by the first.
+        assert handle.supervisor is not None
+        typer.echo("   Waiting for the batch run to record its outcome.")
+        handle.supervisor.join()
 
 
 @dispatch_app.command("walk")
@@ -1321,12 +1331,18 @@ def dispatch_walk(
     # write under. `default_user` would be wrong in the way that matters: it would put a
     # person's name on an entry no person wrote.
     try:
-        actor = assert_dispatch_permitted(project.id).runner.actor_id
+        resolution = assert_dispatch_permitted(project.id)
     except DispatchError as exc:
         typer.secho(
             f"Refused ({getattr(exc, 'reason', 'dispatch_refused')}): {exc}", fg=typer.colors.RED
         )
         raise typer.Exit(code=2) from exc
+    actor = resolution.runner.actor_id
+    # Named explicitly rather than left to a default. This is the home whose ledger the
+    # walk reads to tell a child that died from one that is thinking, and it has to be
+    # the same home the children's runs are written to.
+    config_path = resolution.config.path
+    home = config_path.parent if config_path is not None else default_home()
 
     settings = WalkSettings()
     if poll_seconds is not None:
@@ -1356,6 +1372,8 @@ def dispatch_walk(
             project=project,
             project_config=project.load_config(),
             parent_id=parent.id,
+            home=home,
+            settings=settings,
             on_event=lambda message: typer.echo(f"  {message}"),
         )
     except EpicError as exc:

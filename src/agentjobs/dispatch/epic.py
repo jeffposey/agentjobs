@@ -74,7 +74,7 @@ from typing import Callable, Dict, List, Optional, Sequence
 
 from agentjobs.actors import Actor
 from agentjobs.manager import TaskManager
-from agentjobs.projects import Project
+from agentjobs.projects import Project, default_home
 from agentjobs.models_v2 import (
     Ball,
     DispatchTrigger,
@@ -216,9 +216,19 @@ def parent_authorizing_entry(parent: Task) -> Optional[LogEntry]:
     person's.
 
     The fallback -- the parent's newest entry -- is for a walk run from a shell against an
-    epic nobody dispatched. It is the identical rule ``resolve_causing_entry`` applies to
-    an ordinary CLI dispatch, and it reaches the identical check afterwards, so it widens
+    epic nobody dispatched. It is the rule ``resolve_causing_entry`` applies to an ordinary
+    CLI dispatch, and it reaches the identical human check afterwards, so it widens
     nothing: a human writes a note on the epic, then walks it.
+
+    **With one difference, and it is a necessary one:** ``transition`` entries are skipped.
+    An epic has to be `active` before it can be walked, and becoming active writes a
+    ``transition`` -- so on the plain reading, claiming an epic in order to supervise it
+    destroys the authorisation that caused the claim, every time, and the fallback could
+    never fire. Skipping them is narrow rather than convenient: a ``transition`` is
+    written *by the manager* as a consequence of a verb, never by anybody as an
+    authorisation, so it is not a thing a human could have meant. An agent's own `note`
+    or `progress` entry still shadows the human's, and still refuses -- correctly, because
+    that means an agent has been working since anyone authorised anything.
     """
     for entry in reversed(parent.log):
         if entry.type is not LogEntryType.DISPATCH:
@@ -230,7 +240,11 @@ def parent_authorizing_entry(parent: Task) -> Optional[LogEntry]:
             if candidate.id == caused_by:
                 return candidate
         return None
-    return parent.log[-1] if parent.log else None
+    for entry in reversed(parent.log):
+        if entry.type is LogEntryType.TRANSITION:
+            continue
+        return entry
+    return None
 
 
 def count_attempts(child: Task, *, parent_id: str, entry_id: int) -> int:
@@ -494,13 +508,18 @@ def walk_epic(
     announce = on_event or (lambda _message: None)
     result = WalkResult(parent_id=parent_id, stop=WalkStop.ALL_CHILDREN_DONE)
 
+    # Defaulted rather than left None. A walk that cannot read run status is not
+    # slightly worse -- it loses the *only* signal that tells a dead child from a
+    # thinking one, and degrades to waiting out the per-child ceiling on every death.
+    # That was observed as a twelve-minute stall on the first real walk, and it looked
+    # exactly like a child working.
+    ledger_home = Path(home) if home is not None else default_home()
+
     def status_of(run_id: str) -> Optional[str]:
         if read_run_status is not None:
             return read_run_status(run_id)
-        if home is None:
-            return None
         try:
-            return find_run(Path(home), run_id).status
+            return find_run(ledger_home, run_id).status
         except Exception:  # noqa: BLE001 - an unreadable run is "cannot tell", not fatal
             return None
 
@@ -523,6 +542,10 @@ def walk_epic(
     started = 0
     retry_of: Optional[str] = None
     while True:
+        # Every fact this loop turns on is written by another process, and the CLI holds
+        # one corpus snapshot for a whole invocation. Dropping it here is what makes the
+        # walk's reads reads.
+        manager.storage.refresh()
         remaining = open_children(manager, parent_id)
         if not remaining:
             result.stop = WalkStop.ALL_CHILDREN_DONE
@@ -644,6 +667,21 @@ def _watch_child(
 
     deadline = now() + settings.child_timeout_seconds
     while True:
+        # **Liveness first, then the record, and the order is the whole correctness
+        # argument.** A child writes its last word -- closed, or handed off -- and then
+        # its process exits; only after that does anything mark the run terminal. So a
+        # record read *after* a terminal status is guaranteed to include that last word,
+        # and a record read before it is not.
+        #
+        # Reading them the other way round is a race with a window of milliseconds and it
+        # fires. On the first full walk of the sandbox epic, all three children merged
+        # cleanly and all three were reported dead and re-run: the walk read each record
+        # a moment before the finish closed it, then read a run status that had gone
+        # terminal in between, and concluded the session had gone without finishing. The
+        # damage is not cosmetic -- it spends the child's retry, and the retry re-does
+        # work that is already on `main`.
+        status = status_of(run_id) if run_id else None
+        manager.storage.refresh()
         child = manager.get_task(child_id)
         if child is None:
             return ChildAttempt(
@@ -689,7 +727,6 @@ def _watch_child(
                 ),
             )
 
-        status = status_of(run_id) if run_id else None
         if status is not None and status in TERMINAL_RUN_STATUSES:
             return ChildAttempt(
                 child_id=child_id,

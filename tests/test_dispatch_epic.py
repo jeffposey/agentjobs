@@ -262,10 +262,11 @@ class TestInheritedAuthorization:
         assert parent is not None
         entry = parent_authorizing_entry(parent)
         assert entry is not None
-        # The claim is the newest entry and it is an agent's, so the fallback finds it
-        # and the *human* check below is what refuses it. The fallback is deliberately
-        # not clever: it applies the same rule an ordinary CLI dispatch does.
-        assert entry.actor == "claude"
+        # The claim wrote a `transition` newer than the human's note, and the fallback
+        # steps over it: an epic must be claimed before it can be walked, so counting the
+        # claim would mean the fallback could never fire at all.
+        assert entry.actor == "Jeff Posey"
+        assert entry.body == "Work this epic."
 
     def test_resolves_to_the_human_who_authorised_the_parent(self, manager: TaskManager) -> None:
         parent_id = make_parent(manager)
@@ -307,11 +308,29 @@ class TestInheritedAuthorization:
         with pytest.raises(ParentNotSupervisedError):
             resolve_epic_authorization(manager, PROJECT_CONFIG, child)
 
-    def test_an_epic_only_an_agent_ever_touched_authorises_nothing(
-        self, manager: TaskManager
-    ) -> None:
+    def test_an_agents_own_note_shadows_the_human_and_refuses(self, manager: TaskManager) -> None:
+        """Only `transition` is stepped over. An agent that has been working is not."""
         parent_id = make_parent(manager, dispatched=False)
+        manager.add_log_entry(
+            parent_id, actor="claude", type=LogEntryType.PROGRESS, body="Been at it a while."
+        )
         child_id = make_child(manager, parent_id, "First")
+        child = manager.get_task(child_id)
+        assert child is not None
+        with pytest.raises(ParentNotHumanClockedError):
+            resolve_epic_authorization(manager, PROJECT_CONFIG, child)
+
+    def test_an_epic_no_human_ever_touched_authorises_nothing(self, manager: TaskManager) -> None:
+        parent = manager.create_task(
+            title="Filed by an agent",
+            category="general",
+            summary="Nobody human has said anything about this.",
+            description="An agent filed it and an agent claimed it.",
+            lifecycle=Lifecycle.READY,
+            actor="claude",
+        )
+        manager.claim_task(parent.id, agent="claude")
+        child_id = make_child(manager, parent.id, "First")
         child = manager.get_task(child_id)
         assert child is not None
         with pytest.raises(ParentNotHumanClockedError):
@@ -752,3 +771,107 @@ class TestRealDispatchInheritsAuthorization:
                 home=home,
                 api_base="http://127.0.0.1:8765",
             )
+
+
+class TestTheWatcherReadsLivenessFirst:
+    """The race that made three clean children look dead on the first real walk.
+
+    A child writes its last word and *then* its process exits; only after that does
+    anything mark the run terminal. Read the record before the status and there is a
+    window in which the record looks unfinished and the status looks terminal at the
+    same time -- and the walk calls that a death, spends the retry, and re-runs work that
+    is already on the base branch.
+
+    The case below reproduces exactly that interleaving by making the run go terminal at
+    the same moment the child closes, and asserts the walk reads it as what it is.
+    """
+
+    def test_a_child_that_closes_as_its_run_ends_is_completed_not_dead(
+        self, manager: TaskManager, project: Project
+    ) -> None:
+        parent_id = make_parent(manager)
+        only = make_child(manager, parent_id, "Only")
+        dispatcher = Dispatcher(manager)
+        statuses: Dict[str, str] = {}
+        clock = {"now": 0.0}
+
+        def read_status(run_id: str) -> Optional[str]:
+            # Terminal from the very first read, while the record still says open. That
+            # is the worst case and the one that fired: whichever is read first decides
+            # the verdict, so the ordering has to be the safe one.
+            statuses.setdefault(run_id, "finished")
+            return statuses[run_id]
+
+        def tick(_seconds: float) -> None:
+            clock["now"] += 1.0
+
+        # The child closes itself the instant the walk starts watching, exactly as a
+        # finish does moments before its process exits.
+        class ClosingDispatcher(Dispatcher):
+            def __call__(self, **kwargs):
+                handle = super().__call__(**kwargs)
+                self.manager.close_task(
+                    kwargs["request"].task_id, actor="claude", outcome=Outcome.COMPLETED
+                )
+                return handle
+
+        closing = ClosingDispatcher(manager)
+        result = walk_epic(
+            manager=manager,
+            project=project,
+            project_config=PROJECT_CONFIG,
+            parent_id=parent_id,
+            settings=WalkSettings(poll_seconds=0.0, child_timeout_seconds=100.0),
+            dispatch=closing,
+            read_run_status=read_status,
+            sleep=tick,
+            now=lambda: clock["now"],
+        )
+        assert result.stop is WalkStop.ALL_CHILDREN_DONE
+        assert [a.verdict for a in result.attempts] == [ChildVerdict.COMPLETED]
+        assert closing.started == [only]
+        assert dispatcher.started == []
+
+
+class TestTheWalkReadsThroughTheSnapshot:
+    """A walk inside a CLI invocation must not be answered from that invocation's cache.
+
+    `agentjobs.storage.corpus_snapshot` exists because one CLI invocation is one logical
+    read. A walk breaks that premise -- it is one invocation that runs for as long as an
+    epic takes, and every fact it turns on is written by a different process. Read
+    through the snapshot and it sees each child exactly as it was when it started
+    watching, forever.
+
+    Constructed the way the failure actually happened: the scope is entered around the
+    whole walk, exactly as the CLI callback does.
+    """
+
+    def test_a_child_that_closes_under_a_held_snapshot_is_still_seen(
+        self, manager: TaskManager, project: Project
+    ) -> None:
+        from agentjobs.storage import corpus_snapshot
+
+        parent_id = make_parent(manager)
+        first = make_child(manager, parent_id, "First")
+        second = make_child(manager, parent_id, "Second")
+        dispatcher = Dispatcher(manager)
+
+        with corpus_snapshot():
+            # Warm the snapshot the way the real CLI does: everything the walk is about
+            # to watch has already been read once, while it was still `ready`.
+            assert manager.get_task(first) is not None
+            assert manager.get_task(second) is not None
+            result = drive(
+                manager,
+                project,
+                parent_id,
+                dispatcher=dispatcher,
+                script={first: ["complete"], second: ["complete"]},
+            )
+
+        assert result.stop is WalkStop.ALL_CHILDREN_DONE
+        assert [a.verdict for a in result.attempts] == [
+            ChildVerdict.COMPLETED,
+            ChildVerdict.COMPLETED,
+        ]
+        assert dispatcher.started == [first, second]
