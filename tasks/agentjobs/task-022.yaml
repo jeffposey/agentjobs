@@ -3,44 +3,13 @@ id: task-022
 title: Dispatch an epic as autonomous and it finishes the whole thing, child by child,
   unattended
 created: '2026-08-19T22:29:17.039117Z'
-updated: '2026-08-24T01:05:13.998864Z'
+updated: '2026-08-24T01:08:12.562788Z'
 lifecycle: active
 ball: human
-ball_reason: review
-ball_prompt: "**Ready for review: `feat/task-022-epic-autonomous-walk`, four commits,\
-  \ full gate green (180.8s, all ten stages).** Posture here is `auto`, so I stopped\
-  \ rather than merging. Nothing was pushed.\n\n**The proof you asked for is entry\
-  \ 12.** The short version: dispatch an epic, run one command, and its children merge\
-  \ themselves one at a time. Demonstrated three times on a throwaway project at `C:/ai/scratch/task-022-demo`\
-  \ (its own `AGENTJOBS_HOME`, its own git repo with no remote, posture `autonomous`)\
-  \ \u2014 once succeeding across three children, once stopping dead on a child whose\
-  \ gate went red without touching its sibling, once refusing a third attempt at one\
-  \ child. All re-runnable with `bin/reset.py`.\n\n**What to look at first, if you\
-  \ look at one thing:** the walk found that **no autonomous run could ever have merged\
-  \ its own work.** `finish_task` takes the per-task run lock unconditionally, and\
-  \ a run calling `agentjobs finish --posture-release` already holds it \u2014 so\
-  \ the command task-021's prompt names was declined `locked`, every time. That is\
-  \ fixed in `f38b0f4`, along with three others the same run exposed. A green suite\
-  \ showed none of them.\n\n**The one decision worth disagreeing with if you are going\
-  \ to:** the per-child loop is now code (`agentjobs dispatch walk`), not prose telling\
-  \ a supervising agent to poll. And children are now **real dispatches** \u2014 which\
-  \ reverses a paragraph in the design record that said a supervisor cannot dispatch\
-  \ its children. Design \xA72's rule is intact (a stored entry naming a configured\
-  \ human still authorises every run); what changed is that the human clicked the\
-  \ *epic*. Both arguments, and both rejected alternatives, are in entry 12 and in\
-  \ the new design section.\n\n**Also worth a second's thought:** this makes one click\
-  \ authorise a chain of merges into `main`. What is left holding, in the order it\
-  \ would fail, is the objective gate under each merge, nothing being pushed, and\
-  \ `main` being local. `push: false` matters more here than the merge policy does,\
-  \ and I have said so in ENGINEERING.md and the design record.\n\n**One thing I could\
-  \ not do:** start a real Claude child. `agentjobs dispatch run` from inside an `auto`\
-  \ dispatched session is refused by the permission classifier, so the sandbox's children\
-  \ are a deterministic script. That substitutes the *worker* only \u2014 every gate,\
-  \ the ledger, the budget, the watcher and the finish are the real ones. It does\
-  \ not prove a model can work a child unattended; task-021 is that evidence.\n\n\
-  On approval: rebase, `--no-ff`, close, remove the worktree at `C:/projects/worktrees/agentjobs-022`.\
-  \ The sandbox and its 8912 server are mine to tear down \u2014 say the word and\
-  \ I will, or leave them if you want to run the walk yourself."
+ball_reason: decision
+ball_prompt: Run run_8cbf13e7 ended `cancelled` and nobody was told what this task
+  needs. Read the dispatch_result entry, then either dispatch again or take it on
+  yourself.
 archived: false
 priority: high
 queue_position: 281
@@ -655,3 +624,31 @@ log:
       id: a1b7c390-2e64-4d85-9f31-7c0a5e2b8d16
       kind: handoff
       fingerprint: f417702829f8f5f16fdd5c9ec32dea32
+- id: 15
+  ts: '2026-08-24T01:07:00.674064Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 16
+  ts: '2026-08-24T01:08:12.518999Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: stopped session 73782c1b
+  re: 5
+  data:
+    run_id: run_8cbf13e7
+    outcome: cancelled
+    duration_seconds: 7463.062272
+    log_path: C:\Users\jpose\.agentjobs\runs\run_8cbf13e7
+- id: 17
+  ts: '2026-08-24T01:08:12.562622Z'
+  actor: dispatcher
+  type: handoff
+  body: Run run_8cbf13e7 ended `cancelled` and nobody was told what this task needs.
+    Read the dispatch_result entry, then either dispatch again or take it on yourself.
+  data:
+    ball: human
+    ball_reason: decision
