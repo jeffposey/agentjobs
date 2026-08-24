@@ -3,7 +3,7 @@ id: task-184-groups-in-the-dispatch-ui
 title: The Dispatch page does not know groups exist, and says "no runner chosen" when
   one is in use
 created: '2026-08-19T21:10:06.422156Z'
-updated: '2026-08-24T04:35:54.459088Z'
+updated: '2026-08-24T04:39:37.087425Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -532,3 +532,19 @@ log:
     finish_step: started
     branch: feat/task-184-groups-in-dispatch-ui
     finish_id: fin_5c25a701
+- id: 18
+  ts: '2026-08-24T04:39:37.087184Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-184-groups-in-dispatch-ui` into `main` as `1cc7100a`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-184
+    before the merge. Approved by a human; no model was in this loop. Delivery --
+    rebuild, restart, verification -- comes next, and this task stays open until it
+    is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 1cc7100af52bd4742a94cd7600a77fb0f162c9dd
+    branch: feat/task-184-groups-in-dispatch-ui
+    base: main
