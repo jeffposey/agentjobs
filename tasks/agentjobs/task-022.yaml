@@ -3,7 +3,7 @@ id: task-022
 title: Dispatch an epic as autonomous and it finishes the whole thing, child by child,
   unattended
 created: '2026-08-19T22:29:17.039117Z'
-updated: '2026-08-24T01:08:12.562788Z'
+updated: '2026-08-24T01:08:24.602440Z'
 lifecycle: active
 ball: human
 ball_reason: decision
@@ -652,3 +652,17 @@ log:
   data:
     ball: human
     ball_reason: decision
+- id: 18
+  ts: '2026-08-24T01:08:24.602180Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-022-epic-autonomous-walk` (8471942e).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-022.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_bc74ab6c\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-022-epic-autonomous-walk
+    finish_id: fin_bc74ab6c
