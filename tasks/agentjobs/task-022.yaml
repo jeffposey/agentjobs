@@ -3,11 +3,18 @@ id: task-022
 title: Dispatch an epic as autonomous and it finishes the whole thing, child by child,
   unattended
 created: '2026-08-19T22:29:17.039117Z'
-updated: '2026-08-23T23:57:20.025254Z'
+updated: '2026-08-24T00:17:40.226842Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: input
+ball_prompt: "Dispatched session `73782c1b` stopped on an expired login at 2026-08-24T00:17:35.898000+00:00\
+  \ and will not resume by itself. It said: \"Login expired \xB7 Please run /login\"\
+  .\n\n**Run `claude auth login` in a terminal on that machine.** Answering inside\
+  \ the session cannot work: Claude Code's background auth daemon has already discarded\
+  \ the credential, so anything sent to the session is retried against a token that\
+  \ no longer exists and fails instantly.\n\nThen send the session a message to wake\
+  \ it, or attach with `claude attach 73782c1b`. It resumes in place -- nothing is\
+  \ lost and this task does not need re-dispatching."
 archived: false
 priority: high
 queue_position: 281
@@ -410,3 +417,18 @@ log:
       id: 7c1f2a90-4b6d-4e21-9c3a-8d5e1f0b2a71
       kind: log_append
       fingerprint: 52c70afafca5c03bac772c925346c47e
+- id: 10
+  ts: '2026-08-24T00:17:40.226624Z'
+  actor: dispatcher
+  type: handoff
+  body: "Dispatched session `73782c1b` stopped on an expired login at 2026-08-24T00:17:35.898000+00:00\
+    \ and will not resume by itself. It said: \"Login expired \xB7 Please run /login\"\
+    .\n\n**Run `claude auth login` in a terminal on that machine.** Answering inside\
+    \ the session cannot work: Claude Code's background auth daemon has already discarded\
+    \ the credential, so anything sent to the session is retried against a token that\
+    \ no longer exists and fails instantly.\n\nThen send the session a message to\
+    \ wake it, or attach with `claude attach 73782c1b`. It resumes in place -- nothing\
+    \ is lost and this task does not need re-dispatching."
+  data:
+    ball: human
+    ball_reason: input
