@@ -3,7 +3,7 @@ id: task-022
 title: Dispatch an epic as autonomous and it finishes the whole thing, child by child,
   unattended
 created: '2026-08-19T22:29:17.039117Z'
-updated: '2026-08-24T01:08:24.602440Z'
+updated: '2026-08-24T01:11:29.119039Z'
 lifecycle: active
 ball: human
 ball_reason: decision
@@ -666,3 +666,19 @@ log:
     finish_step: started
     branch: feat/task-022-epic-autonomous-walk
     finish_id: fin_bc74ab6c
+- id: 19
+  ts: '2026-08-24T01:11:29.118844Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-022-epic-autonomous-walk` into `main` as `6e107f5e`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-022
+    before the merge. Approved by a human; no model was in this loop. Delivery --
+    rebuild, restart, verification -- comes next, and this task stays open until it
+    is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 6e107f5e2e44585cc3ce5f2e68f65c695870215a
+    branch: feat/task-022-epic-autonomous-walk
+    base: main
