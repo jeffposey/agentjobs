@@ -120,15 +120,13 @@ export type DispatchOptions = {
  * out which member wins would be the one place in the system that could disagree with
  * the dispatcher about what actually runs.
  */
-function projectDefaultLabel(state: DispatchStateView | null): string {
-  if (!state) return "Project default";
-  if (state.resolved_group) {
-    return state.resolved_runner
-      ? `Project default — group ${state.resolved_group} → ${state.resolved_runner}`
-      : `Project default — group ${state.resolved_group}`;
-  }
-  const runner = state.resolved_runner ?? state.runner;
-  return runner ? `Project default — runner ${runner}` : "Project default";
+function projectDefaultLabel(_state: DispatchStateView | null): string {
+  // Two words, and deliberately not the resolution. This is the *Group* select, so an
+  // option reading "default → claude-opus-5" offers a runner as though it were a group
+  // -- and spends the row's width saying "default" twice to do it. What the project
+  // actually resolves to is already stated in the sentence beside the button, which is
+  // where a clarification belongs: after the choice, not inside it. Jeff, 2026-08-24.
+  return "Project default";
 }
 
 /** How often to re-read the runs list. Fast while something is running, never otherwise. */

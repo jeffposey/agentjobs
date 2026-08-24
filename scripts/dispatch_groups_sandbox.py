@@ -39,17 +39,17 @@ What to look for, since "it renders" is not the property under review:
     gate was open, which is the defect this task was filed for.
   * On its seeded task, a **Group** pulldown sits beside the Dispatch button. Its first
     option spells out what the project would resolve to; the rest are this machine's
-    groups. Pick ``big`` and the sentence beside it stops naming a member and names the
+    groups. Pick ``big-dawg`` and the sentence beside it stops naming a member and names the
     group instead -- the browser holds no member list, so guessing which member wins
     would be the one sentence there that is reliably wrong.
-  * Press Dispatch with ``big`` picked, then read the task log's dispatch entry: it
+  * Press Dispatch with ``big-dawg`` picked, then read the task log's dispatch entry: it
     records the group the run was chosen from, which is the choice having reached the
     API rather than the page having drawn a control.
   * Press **Disable dispatch**, then look at the enable control. It lists this machine's
     groups *and* its runners, preselected on ``group: default`` -- what the project
     actually uses. Before this it preselected the first runner, and pressing Enable then
     changed nothing at all, silently: the config layer keeps a project's group and
-    declines a runner sent beside it. Re-enable against ``group: big``; the tile follows.
+    declines a runner sent beside it. Re-enable against ``group: big-dawg``; the tile follows.
   * On **runner** (same machine, plain ``runner:``), the tile reads ``runner: <name>``
     and the Group pulldown is still offered -- a group named on one dispatch outranks
     the project's runner, and that is a real thing to be able to ask for.
@@ -166,7 +166,7 @@ def write_dispatch_config(home: Path, root: Path, *, with_groups: bool) -> None:
                 "description": "Cheapest capable model first.",
                 "members": list(RUNNERS),
             },
-            "big": {
+            "big-dawg": {
                 "description": "The big model, for work worth paying for.",
                 "members": list(reversed(RUNNERS)),
             },

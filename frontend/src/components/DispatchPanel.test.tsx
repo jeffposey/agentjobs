@@ -611,7 +611,15 @@ describe("choosing a runner group for one dispatch", () => {
 
     const select = screen.getByLabelText("Group");
     expect([...select.querySelectorAll("option")].map((option) => option.textContent)).toEqual([
-      "Project default — group default → claude-opus-5",
+      // Groups, and a way to not choose one. Nothing else.
+      //
+      // This read "Project default — group default → claude-opus-5" until Jeff reviewed
+      // it on 2026-08-24: it said "default" twice, ate the row's width, and offered
+      // `claude-opus-5` -- a *runner* -- inside a select labelled Group. "just list the
+      // damn groups in the pulldown for the group pulldown, dont add all that into it,
+      // use the text below for mor info". What the project resolves to is already in
+      // the sentence beside the button, which is where it belongs: after the choice.
+      "Project default",
       "big",
       "default",
     ]);
