@@ -3,7 +3,7 @@ id: task-184-groups-in-the-dispatch-ui
 title: The Dispatch page does not know groups exist, and says "no runner chosen" when
   one is in use
 created: '2026-08-19T21:10:06.422156Z'
-updated: '2026-08-24T04:20:34.165141Z'
+updated: '2026-08-24T04:35:54.459088Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -518,3 +518,17 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 17
+  ts: '2026-08-24T04:35:54.458816Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-184-groups-in-dispatch-ui` (09f7b79c).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-184.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_5c25a701\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-184-groups-in-dispatch-ui
+    finish_id: fin_5c25a701
