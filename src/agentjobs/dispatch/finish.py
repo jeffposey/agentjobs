@@ -77,6 +77,7 @@ from agentjobs.dispatch.config import (
     assert_dispatch_permitted,
 )
 from agentjobs.dispatch.ledger import (
+    KIND_FINISH,
     RunLock,
     RunLockTimeout,
     acquire_run_lock,
@@ -1193,11 +1194,17 @@ def finish_task(
     lock: Optional[RunLock] = None
     if not _own_run_holds_lock(resolved_home, task_id):
         try:
-            lock = acquire_run_lock(resolved_home, task_id)
+            lock = acquire_run_lock(resolved_home, task_id, kind=KIND_FINISH)
         except RunLockTimeout as exc:
             return FinishResult(task_id=task_id, outcome=DECLINED, reason="locked", detail=str(exc))
 
     directory = FinishDirectory.create(resolved_home, task_id, project.id)
+    if lock is not None:
+        # The lock is taken before the directory exists -- taking it is what decides
+        # whether this attempt happens at all -- so the finish id is written a moment
+        # later, exactly as a dispatch adopts its run id. Until this line, anyone refused
+        # can be told a finish holds the task but not which one (task-298).
+        lock.adopt_finish(directory.finish_id)
     started = time.monotonic()
     steps: List[StepResult] = []
     try:
