@@ -3,16 +3,11 @@ id: task-315
 title: 'A posture chosen at dispatch never reaches the merge: the finisher reads the
   project default and declines'
 created: '2026-08-25T08:52:25.148182Z'
-updated: '2026-08-25T09:11:18.522779Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-25T09:11:36.533369Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 14600
 category: infrastructure
 tags:
 - dispatch
@@ -20,7 +15,6 @@ tags:
 - posture
 - agent-dx
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: task-307 and task-308 let a human choose a run's posture at the moment
@@ -140,7 +134,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-315-finish-obeys-dispatch-posture
-  status: active
+  status: merged
+  merged_at: '2026-08-25T09:11:36.500483Z'
 log:
 - id: 1
   ts: '2026-08-25T08:52:25.559139Z'
@@ -317,3 +312,23 @@ log:
     merge_commit: ac348aa0db1dbb9b35fd1680021b48ed7bd1cecc
     branch: fix/task-315-finish-obeys-dispatch-posture
     base: main
+- id: 9
+  ts: '2026-08-25T09:11:36.533173Z'
+  actor: finisher
+  type: transition
+  body: "Merged `fix/task-315-finish-obeys-dispatch-posture` into `main` as `ac348aa0`\
+    \ and verified live. Finished by the scripted path with no agent session (task-241).\
+    \ Approved by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         1.2s  fix/task-315-finish-obeys-dispatch-posture\
+    \ at 4e1b971f in C:\\projects\\worktrees\\aj-315\n  rebase     ok         0.2s\
+    \  fix/task-315-finish-obeys-dispatch-posture onto main: 4e1b971f -> ac6aa1f2\n\
+    \  gate       ok       127.6s  scripts/check.py green\n  merge      ok       \
+    \  0.2s  --no-ff into main as ac348aa0db1dbb9b35fd1680021b48ed7bd1cecc\n  rebuild\
+    \    skipped    0.0s  the merge touched no frontend/ path\n  restart    ok   \
+    \      0.5s  ran powershell -NoProfile -ExecutionPolicy Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -Force -NoOpen\n  verify     ok         0.0s  http://127.0.0.1:8876 is serving\
+    \ ab9f331f, which contains the merge ac348aa0, from C:\\projects\\agentjobs (started\
+    \ 2026-08-25T09:11:23.854944+00:00)\n```"
+  data:
+    lifecycle: closed
+    outcome: completed
