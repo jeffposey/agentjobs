@@ -2,65 +2,60 @@ schema: 2
 id: task-307
 title: Choose the posture at the moment of dispatching, not only in dispatch.yaml
 created: '2026-08-23T22:34:10.639602Z'
-updated: '2026-08-25T05:01:39.902778Z'
+updated: '2026-08-25T07:57:30.975163Z'
 lifecycle: active
 ball: human
-ball_reason: decision
-ball_prompt: '**Blocked by task-308, exactly as your decision entry 4 said to handle.
-  I wrote no code -- entry 4 says hand back rather than invent a second ceiling, so
-  I did that instead of building one.**
-
-
-  The block is one specific thing, not a vague dependency. The pulldown must be populated
-  from `[every posture <= max_posture]` (your entry 4: "not from the `Posture` enum").
-  `max_posture` does not exist in the codebase -- I grepped `src/`, `frontend/src/`
-  and `docs/`. It is task-308''s field, and 308 is still `ready`, untouched since
-  2026-08-23.
-
-
-  **I did the design work anyway, so this cost you a day of calendar and no design
-  time.** Entries 13-15 on this record: the code survey, and the two open questions
-  entry 3 delegated to the implementer, both now decided with their rejected alternatives.
-  When 308 lands, this task is pure implementation.
-
-
-  **Two findings worth your eye, both from reading task-021 rather than this spec:**
-
-
-  1. `autonomous` requires `finish.enabled` for the project, or there is no sanctioned
-  merge mechanism. So the pulldown must offer it *disabled with a reason* on projects
-  that lack it, not just omit it. This machine has it on for agentjobs.
-
-  2. task-021 left a gap it named itself: the GUI never says "this project will merge
-  my work without asking me". This control is the place that belongs, and entry 15
-  folds it in rather than filing another task.
-
-
-  **What I need from you -- one answer unblocks both tasks:**
-
-
-  **agentjobs'' two posture values.** task-308''s decision entry 2 asks for them and
-  says "confirm rather than assume; a wrong ceiling here is the one that matters".
-  My recommendation: **`default: auto`, `max: autonomous`** -- `auto` is what the
-  project runs at now, `finish.enabled` is true so `autonomous` is mechanically complete,
-  and you already dispatched task-021 as `autonomous` deliberately.
-
-
-  Then pick a path:
-
-
-  - **(a) Recommended.** Confirm those two values and dispatch **task-308** -- it
-  is already ahead of this one in the queue (245 vs 257) for exactly this reason.
-  Re-dispatch 307 after it merges; it will be a short run.
-
-  - **(b) Override.** Tell me to build the ceiling inside this task after all. It
-  is your call to make and entry 4 is yours to overrule -- but it merges two half-day
-  tasks with separate acceptance criteria onto one branch, and 308''s other half (posture
-  on the task record, agent-writer escalation, precedence tests, schema docs) would
-  still be open afterwards.
-
-
-  I have not claimed 308 or touched anything outside this record.'
+ball_reason: review
+ball_prompt: "**Ready for review. Branch `feat/task-307-posture-pulldown`, two commits,\
+  \ full unqualified gate green with a receipt for `9c37905e`. All six acceptance\
+  \ criteria met. Not merged \u2014 posture `auto` stops here.**\n\n**Look at it before\
+  \ you read the diff.** Sandbox running on **port 8902**, five projects, one for\
+  \ each state the control behaves differently in:\n\n- `http://127.0.0.1:8902/app/p/raised/tasks/task-001`\
+  \ \u2014 the full pulldown, every option live\n- `http://127.0.0.1:8902/app/p/nofinish/tasks/task-001`\
+  \ \u2014 `autonomous` greyed out, saying why\n- `http://127.0.0.1:8902/app/p/unraised/tasks/task-001`\
+  \ \u2014 **look here first**, this is what agentjobs itself looks like\n- `http://127.0.0.1:8902/app/p/readonly/tasks/task-001`\
+  \ \u2014 no pulldown at all\n- `http://127.0.0.1:8902/app/p/pushes/tasks/task-001`\
+  \ \u2014 the push clause\n\nThrowaway data, own port, safe to press anything including\
+  \ Dispatch. Tell me when you are done and I will stop it \u2014 I am not leaving\
+  \ it running.\n\n**On your aside \u2014 I never set 308 as a dependency.** That\
+  \ was deliberate and it is on the record twice (entry 2 here, entry 3 on 308): a\
+  \ `needs` dependency means *prerequisite*, and a false one makes a task unclaimable\
+  \ and lies to its readers, so ALLAGENTS.md says to express ordering through the\
+  \ queue instead. 308 was moved directly ahead of this, at position 245. **The mechanism\
+  \ failed anyway, and that is the honest part**: you dispatch by hand from the task\
+  \ page, which does not consult the queue, so the ordering the queue expressed never\
+  \ reached the moment it mattered. That is a real gap and probably worth its own\
+  \ task \u2014 I have not filed one.\n\n**What actually remained.** 308 delivered\
+  \ more of this task than its own spec expected: the request field, the CLI flag,\
+  \ the refusal, the run-record fields, and `offerable_postures`. sc-2, sc-3 and sc-5\
+  \ were already met before I started. What was missing was the control itself, plus\
+  \ the two design decisions this task owns (entries 14 and 15), both now implemented\
+  \ rather than only written down.\n\n**Three things worth your eye:**\n\n1. **`autonomous`\
+  \ is offered *disabled with a reason*, not hidden**, where a project has no scripted\
+  \ finish. task-021 accepted that an autonomous merge runs through `agentjobs finish\
+  \ --posture-release`; without it, picking `autonomous` starts a run told it may\
+  \ merge with no way to. I judged disabled-plus-reason better than omitting, because\
+  \ the fix is one line of your own config and you can only make it if you know that\
+  \ is the cause. Reasonable to disagree with.\n2. **Escalation now writes itself\
+  \ into your own authorising entry**: *\"They chose posture `autonomous` for this\
+  \ run, above this project's `auto`.\"* Deliberately silent when a task-record posture\
+  \ does the widening \u2014 that writer need not be human, which is exactly why 308\
+  \ bounds it with a ceiling instead of trusting provenance.\n3. **The panel now says\
+  \ whether the project pushes.** task-021 named that gap itself and left it for a\
+  \ later task; this control is the place it was describing, so I closed it here rather\
+  \ than filing another. Say if you would rather it were separate.\n\n**One correction\
+  \ to my own work, caught by standing it up rather than by a test.** My first draft\
+  \ of the design note said the control is absent on \"every project that has not\
+  \ raised its ceiling\". Wrong. An unset `max_posture` means the ceiling is the project's\
+  \ own posture, so agentjobs at `auto` still offers three postures and simply cannot\
+  \ escalate. The control vanishes only at a `read_only` ceiling. Fixed in the doc,\
+  \ the code comment and the fixtures \u2014 and it is why `unraised` exists as a\
+  \ sandbox project.\n\n**One flake, reported rather than buried.** `test_the_timeout_kills_the_grandchild_too`\
+  \ failed once under parallel load, then passed 3/3 isolated and on two further full\
+  \ gates. Process-group timing, untouched by this branch, and 308's own last commit\
+  \ was a flakiness fix to that same test.\n\nOn approval the scripted finish will\
+  \ rebase, gate, merge `--no-ff`, rebuild and restart. Nothing has been pushed and\
+  \ nothing will be."
 archived: false
 priority: high
 queue_position: 257
@@ -166,26 +161,26 @@ acceptance:
 - id: sc-1
   text: Whether a dispatch may raise posture above the configured default, or only
     lower it, is decided and recorded as a task decision with the rejected alternative
-  status: pending
+  status: met
 - id: sc-2
   text: The dispatch request accepts a posture, the API refuses one that violates
     the rule decided in sc-1, and the refusal names the field
-  status: pending
+  status: met
 - id: sc-3
   text: agentjobs dispatch run takes the same choice as a flag, with the same rule
     and the same refusal
-  status: pending
+  status: met
 - id: sc-4
   text: The Dispatch control in the browser offers the choice, defaulting to what
     the config resolved, and a dispatch started from it runs under the chosen posture
-  status: pending
+  status: met
 - id: sc-5
   text: The posture the run actually got is visible on the task record's dispatch
     entry, and a run started with no choice records exactly what it records today
-  status: pending
+  status: met
 - id: sc-6
   text: poetry run python scripts/check.py passes
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-184-groups-in-the-dispatch-ui
@@ -197,7 +192,9 @@ dependencies:
   note: Decides that autonomous merges without a human, which is what the warning
     copy beside that option has to say.
 links: []
-branches: []
+branches:
+- name: feat/task-307-posture-pulldown
+  status: active
 log:
 - id: 1
   ts: '2026-08-23T22:34:11.116978Z'
@@ -723,3 +720,151 @@ log:
     outcome: completed
     duration_seconds: 334.845559
     log_path: C:\Users\jpose\.agentjobs\runs\run_dcf090ff
+- id: 18
+  ts: '2026-08-25T07:02:13.262828Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    308 is finished, you are unblocked now, even though you never set it as a dependency
+    for some reason'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 19
+  ts: '2026-08-25T07:02:24.379567Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 20
+  ts: '2026-08-25T07:02:27.168473Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_dcf090ff` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_26a695a9
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 19
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - --resume
+    - 7143009a-8bf4-4bcc-a134-a4bb6f7ef54b
+    cwd: C:\projects\agentjobs
+    git_head: 220b603
+    session_id: 51b2509c
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 21
+  ts: '2026-08-25T07:55:22.442330Z'
+  actor: claude
+  type: progress
+  body: "**Built on branch `feat/task-307-posture-pulldown`, two commits, full unqualified\
+    \ gate green with a receipt for `9c37905e`.**\n\n**What task-308 had already done,\
+    \ checked before writing anything.** Its merge (`bc02a36`) delivered more of this\
+    \ task than the spec anticipated: `posture` on `DispatchRequestBody`, `--posture`\
+    \ on the CLI, the `posture_above_ceiling` refusal, `posture_source`/`posture_ceiling`/`posture_requested`\
+    \ on the dispatch entry, and `offerable_postures` on the dispatch state view.\
+    \ So **sc-2, sc-3 and sc-5 were already met when this run started**, and what\
+    \ remained was sc-4 -- the control Jeff actually asked for -- plus the two design\
+    \ decisions this task owns.\n\n**The control.** `DispatchPostureChoice` in `DispatchPanel.tsx`,\
+    \ labelled **Envelope**, copying `DispatchGroupChoice` exactly as task-184 intended\
+    \ -- that file already said *\"task-307 adds `posture` here and changes nothing\
+    \ else\"* and *\"this is the shape task-307 copies\"*. `DispatchOptions` gains\
+    \ `posture`; `App.tsx` spreads options, so it needed no change at all.\n\n**Three\
+    \ server fields added, all small, all for reasons rather than symmetry:**\n\n\
+    - `posture_merge_policies` -- what each posture does to the branch, keyed by posture.\
+    \ Sent rather than hardcoded in the client for the same reason `offerable_postures`\
+    \ is, and the stake is higher: this is the difference between \"stops for your\
+    \ review\" and \"merges without you\", so a client carrying its own copy could\
+    \ tell an operator the opposite of what happens.\n- `finish_enabled` -- so `autonomous`\
+    \ can be offered *disabled with the reason* where task-021's scripted finish is\
+    \ off.\n- `push` -- closing the gap task-021's own decision entry 10 named and\
+    \ left for a later task.\n\n**Decision entry 14 is implemented, not just recorded.**\
+    \ The authorising entry the server composes now names a posture raised above the\
+    \ project's default. Verified in the real path, not only in tests -- an escalating\
+    \ dispatch writes: *\"Jeff Posey authorised a dispatch of this task from the task\
+    \ page. **They chose posture `autonomous` for this run, above this project's `auto`.**\
+    \ No extra instruction was given...\"* A narrowing dispatch writes exactly what\
+    \ it wrote before. It stays silent for a task-record posture (that writer need\
+    \ not be human, which is why task-308 bounds it with a ceiling instead of trusting\
+    \ provenance) and never rewrites a typed note.\n\n**Verified through the real\
+    \ path, and it caught a real error in my own work.** `scripts/dispatch_posture_sandbox.py`\
+    \ stands five projects on port 8902 -- every configuration the control behaves\
+    \ differently in. Standing it up showed that my first draft of the design note\
+    \ was **wrong**: I had written that the control is absent on \"every project that\
+    \ has not raised its ceiling\". It is not. An unset `max_posture` means the ceiling\
+    \ is the project's *own posture*, so agentjobs at `auto` still offers `read_only`,\
+    \ `supervised`, `auto` -- it just cannot escalate. The control vanishes only at\
+    \ a `read_only` ceiling, the one posture with nothing beneath it. Fixed in the\
+    \ design doc, the component comment, and the sandbox fixtures, and `unraised`\
+    \ now exists as a fixture precisely because it is what every real project looks\
+    \ like.\n\nEnd-to-end proof, against a live server rather than a test double:\n\
+    \n- `POST /dispatch {\"posture\":\"autonomous\"}` on the raised project \u2192\
+    \ run started, and the generated agent prompt reads *\"Posture `autonomous` releases\
+    \ the merge gate: this run merges its own work with no human review.\"* The choice\
+    \ reaches the run, not just the page.\n- The same on `unraised` with `supervised`\
+    \ \u2192 `posture: supervised`, `posture_source: dispatch`, `posture_ceiling:\
+    \ auto`.\n- All five state endpoints return the intended `offerable_postures`\
+    \ / `finish_enabled` / `push`.\n\n**Tests.** 9 new jsdom component tests and 6\
+    \ new Python tests, all asserting rendered values or recorded values rather than\
+    \ the presence of markup -- the option list is compared as full strings including\
+    \ the consequence text, so a control emitting `Posture.AUTONOMOUS` would fail.\n\
+    \n**One flake seen and run down, not papered over.** `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`\
+    \ failed once under `-n auto` load, then passed 3/3 in isolation and on the next\
+    \ two full gates. It is a process-group timing test that touches nothing this\
+    \ branch changes, and task-308's own last commit (`95a9b0e`) was a flakiness fix\
+    \ to that same test. Reporting it rather than staying quiet: it is pre-existing\
+    \ and load-dependent, and the final gate is green on the committed tree."
+  data:
+    operation:
+      id: f1c47a83-92d6-4e50-b174-3ec8d0951a26
+      kind: log_append
+      fingerprint: 3a6b00097e53fe51caf2ca7c20dbfa49
+- id: 22
+  ts: '2026-08-25T07:57:30.974923Z'
+  actor: claude
+  type: handoff
+  body: Ready for review. Branch feat/task-307-posture-pulldown, two commits, gate
+    green (receipt 9c37905e), all six criteria met. Sandbox on port 8902 with five
+    seeded states.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: a5e83b17-46cf-49d2-8b70-2d1e6f309c84
+      kind: handoff
+      fingerprint: 5908f566dd6b1cbb354dca0bd4d435a6
