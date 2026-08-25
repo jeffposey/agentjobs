@@ -281,3 +281,56 @@ def test_worktree_instructions_name_the_worktrees_directory(path: str) -> None:
     assert commands, f"{path} no longer states the command at all"
     for line in commands:
         assert "git worktree add ../worktrees/" in line, line
+
+
+RETIRE_THE_BRANCH = (
+    "AGENTS.md",
+    "ENGINEERING.md",
+    "ALLAGENTS.md",
+    "docs/agent-workflow.md",
+)
+
+
+@pytest.mark.parametrize("path", RETIRE_THE_BRANCH)
+def test_every_contract_file_says_to_delete_the_merged_branch(path: str) -> None:
+    """task-293. The rule was in the policy files and missing from the checklist.
+
+    That is not a cosmetic difference. A supervisor session with ENGINEERING.md loaded in
+    context still left two branches behind on 2026-08-23, having followed the numbered
+    lifecycle in ALLAGENTS.md -- which is the evidence that the checklist is what gets
+    executed and the policy files are what get skimmed. So the assertion is over both
+    kinds of file, and the file that reads as a checklist is included on purpose.
+    """
+    text = (ROOT / path).read_text(encoding="utf-8")
+    assert "branch -d" in text or "delete the merged local branch" in text, path
+
+
+@pytest.mark.parametrize("path", ("ENGINEERING.md", "ALLAGENTS.md", "docs/agent-workflow.md"))
+def test_the_delete_is_never_written_with_the_forcing_flag(path: str) -> None:
+    """`-D` destroys the one case worth keeping: a branch that is not really merged."""
+    text = (ROOT / path).read_text(encoding="utf-8")
+    for line in text.splitlines():
+        if "git branch -D" in line:
+            assert "never" in line.lower() or "not" in line.lower(), line
+
+
+def test_the_lifetime_guidance_separates_lifetime_from_task_size() -> None:
+    """task-293's sc-8. The tempting resolution is wrong and has to stay refuted.
+
+    "Keep branches short" reads as "keep tasks small", and the measurement says
+    otherwise: task-217's branch was open about nine hours and held about one hour of
+    work. A later editor who trims this section to its conclusions would remove exactly
+    the evidence that stops the wrong reading, so the evidence is what is asserted.
+    """
+    text = (ROOT / "ENGINEERING.md").read_text(encoding="utf-8")
+    assert "### How long a branch should live" in text
+    assert "Branch lifetime is not task size" in text
+    assert "Bigger tasks are fine" in text
+    assert "one session's context" in text
+    assert "independently verifiable" in text
+
+
+def test_the_lifecycle_checklist_points_at_the_lifetime_guidance() -> None:
+    """A rule that lives only in another file does not get executed -- the whole finding."""
+    text = (ROOT / "ALLAGENTS.md").read_text(encoding="utf-8")
+    assert "ENGINEERING.md#how-long-a-branch-should-live" in text

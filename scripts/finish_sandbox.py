@@ -576,24 +576,56 @@ def case_happy(box: Sandbox) -> bool:
     elapsed = time.monotonic() - started
 
     task = box.task(task_id)
-    merged = git(box.clone, "merge-base", "--is-ancestor", branch, "main", check=False)
+    # The merge commit off the record rather than the branch name, because since task-293
+    # a successful finish deletes the branch -- and `merge-base --is-ancestor` exits
+    # non-zero for a name that does not resolve exactly as it does for one main has not
+    # got, so asking about the name would report this working feature as a failure.
+    commit = merge_commit_of(task)
+    merged = (
+        git(box.clone, "merge-base", "--is-ancestor", commit, "main", check=False)
+        if commit
+        else None
+    )
     serving_after = box.version().get("source_commit")
     worktrees_now = git(box.clone, "worktree", "list").stdout
+    branches_now = git(box.clone, "branch", "--list", branch).stdout.strip()
+    merged_list = git(box.clone, "branch", "--merged", "main").stdout
     ok = (
         result.returncode == 0
+        and merged is not None
         and merged.returncode == 0
         and task["lifecycle"] == "closed"
         and task["outcome"] == "completed"
         and str(worktree) not in worktrees_now
+        and branches_now == ""
+        and branch not in merged_list
         and serving_after != serving_before
     )
-    print(f"  merged into main: {merged.returncode == 0}")
+    print(
+        f"  merged into main as {str(commit)[:8]}: {merged is not None and merged.returncode == 0}"
+    )
     print(f"  task: {task['lifecycle']}/{task.get('outcome')}")
     print(f"  branch entry: {task.get('branches')}")
     print(f"  server was running {str(serving_before)[:8]}, now runs {str(serving_after)[:8]}")
     print(f"  worktree removed: {str(worktree) not in worktrees_now}")
+    # task-293's sc-5, asked of the real clone the real finish just merged into.
+    print(f"  branch deleted: {branches_now == ''}")
+    print(f"  `git branch --merged main` names it: {branch in merged_list}")
     print(f"  whole finish, gate included: {elapsed:.1f}s")
     return ok
+
+
+def merge_commit_of(task: Dict[str, object]) -> Optional[str]:
+    """The commit the finish recorded for its merge, read back off the task."""
+    log = task.get("log")
+    if not isinstance(log, list):
+        return None
+    for entry in reversed(log):
+        data = entry.get("data") if isinstance(entry, dict) else None
+        if isinstance(data, dict) and data.get("finish_step") == "merge":
+            commit = data.get("merge_commit")
+            return str(commit) if commit else None
+    return None
 
 
 CASE_FUNCTIONS = {

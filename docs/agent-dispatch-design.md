@@ -1674,7 +1674,7 @@ close-out itself, with no agent anywhere in it.** It rebases onto `main`, runs t
 gate in the task's own worktree with that worktree's interpreter, merges `--no-ff`,
 rebuilds the frontend if the merge touched it, restarts the server the way this machine's
 config says it was started, proves the running process is serving the merge commit, closes
-the task and removes the worktree.
+the task, removes the worktree and deletes the branch.
 
 Nothing about the merge gate is relaxed by this. **A person still approves, per task,
 before anything merges**, and the merge is still a `--no-ff` merge commit. What is removed
