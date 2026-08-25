@@ -3,7 +3,7 @@ id: task-304
 title: 'Context evals: prove which rules in the always-loaded bundle actually change
   agent behaviour, and re-run it whenever a new model ships'
 created: '2026-08-23T21:52:43.476088Z'
-updated: '2026-08-25T11:26:13.754052Z'
+updated: '2026-08-25T11:45:05.966320Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -124,7 +124,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-304-context-evals
+  status: active
 log:
 - id: 1
   ts: '2026-08-23T21:52:43.940714Z'
@@ -245,3 +247,117 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 8
+  ts: '2026-08-25T11:45:00.588943Z'
+  actor: claude
+  type: decision
+  body: "DESIGN DECISION (ac-1): a new in-repo harness, mechanical action-trace scoring,\
+    \ section-level ablation into a guarded scratch sandbox. Everything below was\
+    \ probed on this machine on 2026-08-25 against Claude Code 2.1.238; nothing here\
+    \ is assumed.\n\n## Harness: build one. What did not fit, and why.\n\n**`claude\
+    \ plugin eval` \u2014 rejected, four reasons, any one of them sufficient.**\n\
+    1. It is gated off on this account. `claude plugin eval <anything>` prints \"\
+    `plugin eval` is currently in early access\" and does nothing. It runs only with\
+    \ `CLAUDE_CODE_WALNUT_SPIRE=1` \u2014 an env override I found by grepping the\
+    \ shipped binary for the gate function (`function eBn(){return it(\"tengu_walnut_spire\"\
+    ,!1)||q.CLAUDE_CODE_WALNUT_SPIRE}`). A suite this repository is supposed to re-run\
+    \ on every model release cannot rest on an undocumented flag behind a server-side\
+    \ feature gate.\n2. Wrong ablation axis. Its `--ablation with-without` toggles\
+    \ a *plugin*. The subject here is the `@`-chain memory bundle (CLAUDE.md -> AGENTS.md\
+    \ + ENGINEERING.md + ALLAGENTS.md), which is not a plugin, and it needs one arm\
+    \ *per rule under test*, not one arm total.\n3. Wrong scoring vocabulary. Its\
+    \ graders are `contains` / `regex` / `llm` over the final text, plus `tool_used`\
+    \ indicators. What this question needs is predicates over the end state of a git\
+    \ sandbox \u2014 which ref a commit landed on, whether a worktree exists, what\
+    \ a file contains on which branch \u2014 and no grader type expresses that.\n\
+    4. It publishes an HTML report to claude.ai by default. The inputs here are this\
+    \ repository's own operating manual and the transcripts of sandbox sessions; shipping\
+    \ them off-machine on every run is not a default to adopt silently.\nReused from\
+    \ it anyway, so a later migration is cheap: the case-directory layout (`<suite>/<case>/case.yaml`),\
+    \ a per-case `runs` default, `--case` glob filtering, and the with/without arm\
+    \ vocabulary.\n\n**`skill-creator` \u2014 rejected.** It is a skill, not a harness:\
+    \ an interactive authoring loop whose evaluation stage is \"help the user evaluate\
+    \ the results both qualitatively and quantitatively\" and whose reports are read\
+    \ by a person. No ablation arm, no headless entry point, and not installed on\
+    \ this machine. It measures whether a *skill* helps; it does not measure whether\
+    \ a sentence in an always-loaded file changes an action.\n\n**`scripts/run_report.py`\
+    \ \u2014 read, and it is not a substitute.** The run ledger records what dispatched\
+    \ sessions *cost* (runs per task, gate share, gate failures), not which rule each\
+    \ session followed. Nothing in `~/.agentjobs/runs/` says whether a run staged\
+    \ explicit paths or took a worktree. It is useful for the cost model in this suite's\
+    \ report and for nothing else here.\n\n## Ablation mechanism (probed, not assumed)\n\
+    \nA scratch sandbox under the OS temp directory holds a generated copy of the\
+    \ four bundle files with **exactly one named markdown section removed** (or none,\
+    \ for the `with` arm). Sections are addressed by heading text, which is the same\
+    \ granularity task-305 will move text at, so a \"decorative\" verdict here names\
+    \ a section that child can act on directly.\n\nFour properties were verified by\
+    \ probe rather than reasoned about:\n- **The sandbox's own CLAUDE.md loads.**\
+    \ A temp dir with `CLAUDE.md` saying \"answer PINEAPPLE\" produced PINEAPPLE.\
+    \ (7.3s, $0.027, haiku.)\n- **The sandbox is outside the real chain.** A temp\
+    \ path is not under `C:/projects`, so `C:/projects/CLAUDE.md` -> `C:/projects/AGENTS.md`\
+    \ does not load, and no `CLAUDE.md` exists at `C:/Users/jpose/` or `C:/`.\n- **Per-project\
+    \ auto-memory does not load.** Claude's memory index is keyed on the project directory;\
+    \ a fresh sandbox path has none, and a probe asking for the first bullet of MEMORY.md\
+    \ answered NOMEMORY. This matters: audit 1's F-10 found at least eight memory\
+    \ entries restating bundle rules (worktree, `git add -A`, VIRTUAL_ENV, bootstrap\
+    \ cost), which would have masked every ablation as \"decorative\".\n- **`~/.claude/CLAUDE.md`\
+    \ -> `GLOBAL-AGENTS.md` still loads, from a temp dir, and cannot be suppressed\
+    \ without breaking auth.** A probe returned its exact top heading. `--bare` would\
+    \ drop it but forces ANTHROPIC_API_KEY auth (no OAuth), and re-pointing `CLAUDE_CONFIG_DIR`\
+    \ risks the credential store. So it is a **constant of the experiment, present\
+    \ in both arms, and recorded per run**; the runner greps it for the rule under\
+    \ test so a confound is caught rather than assumed. The stated consequence: this\
+    \ suite can ablate repository rules and cannot ablate Jeff's private global ones.\n\
+    \n**The sandbox is guarded, and the guard is enforced.** The sandbox carries a\
+    \ `.claude/settings.json` PreToolUse hook that denies any tool call whose input\
+    \ names the real workspace (`C:/projects`, `~/.agentjobs`, the dashboard ports).\
+    \ Probed: under `--permission-mode bypassPermissions`, a run told to `ls C:/projects`\
+    \ was refused and the refusal appeared in the result JSON's `permission_denials`.\
+    \ That is what satisfies the constraint mechanically rather than by hoping the\
+    \ prompt keeps the agent home. `AGENTJOBS_HOME` is pointed into the sandbox as\
+    \ well, so the `agentjobs` CLI cannot see the live registry, and `--strict-mcp-config\
+    \ --mcp-config {\"mcpServers\":{}}` strips the account's Gmail/Notion/Slack tools,\
+    \ which a probe showed are otherwise all present in a headless run.\n\n## Scoring:\
+    \ mechanical predicates only. No judge model in the baseline suite.\n\nTwo machine-readable\
+    \ sources per run: the sandbox's end state (git refs, worktrees, per-branch file\
+    \ contents, commit history) and the tool-call trace, captured with `--output-format\
+    \ stream-json --verbose` (probed: `tool_use` blocks with full inputs arrive on\
+    \ the stream; note the tool is `PowerShell` as often as `Bash` on this machine,\
+    \ so predicates match both).\n\nEach scenario declares `violated_when` (the specific\
+    \ incident behaviour) and `compliant_when` (what a rule-following agent does).\
+    \ Outcome per run: **violating** if any `violated_when` check fires, else **compliant**\
+    \ if every `compliant_when` check holds, else **inconclusive**. Checks are a small\
+    \ declared vocabulary in `case.yaml`, so the rubric is versioned in the repository.\
+    \ **Zero scenarios are judge-scored**, which is the strongest form of ac-3 rather\
+    \ than an exemption from it; the rule stands for anything added later.\n\n## Cost\n\
+    \nMeasured per session in the probes above and stated in the committed baseline\
+    \ report. The design for affordability is a `quick` tag naming the subset worth\
+    \ running on a release day, with the full sweep on demand \u2014 the spec's own\
+    \ point that a suite too expensive to run on a release day will not be run on\
+    \ a release day.\n\n## Rejected alternatives\n\n- **Ask the model what it would\
+    \ do, score the prose.** Cheaper by an order of magnitude and rejected: the spec\
+    \ asks for action traces, and a model that can recite a rule it does not follow\
+    \ is exactly the \"there and not working\" case this eval exists to find.\n- **`CLAUDE_CONFIG_DIR`\
+    \ isolation** for a perfectly clean context. Rejected: it risks the credential\
+    \ store and it removes context a real session in this repository genuinely has,\
+    \ which makes the result less ecologically valid, not more.\n- **Rewriting the\
+    \ bundle's paths to point at the sandbox.** Rejected: that edits the treatment.\
+    \ The guard hook achieves the same containment without touching the text under\
+    \ test."
+  data:
+    operation:
+      id: 7a1c2f30-6d11-4a58-9d43-1b0e5c9f2a01
+      kind: log_append
+      fingerprint: 6d3509b807067512f37005b76d242c7f
+- id: 9
+  ts: '2026-08-25T11:45:05.966074Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 7a1c2f30-6d11-4a58-9d43-1b0e5c9f2a02
+      kind: update_content
+      fingerprint: 1b24f24aee3eeb1d9f461ace04958b42
