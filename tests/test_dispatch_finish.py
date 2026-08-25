@@ -313,9 +313,7 @@ class TestTheCommonCase:
         # The other half of ENGINEERING.md step 5, missing until task-293.
         assert git(root, "branch", "--list", world["branch"]).stdout.strip() == ""
 
-    def test_the_branch_is_deleted_and_the_step_table_says_so(
-        self, world: Dict[str, Any]
-    ) -> None:
+    def test_the_branch_is_deleted_and_the_step_table_says_so(self, world: Dict[str, Any]) -> None:
         """task-293: six merged branches accumulated in one night because nothing did this."""
         result = run(world)
 
@@ -400,9 +398,7 @@ class TestRetiringTheBranch:
         git(root, "worktree", "remove", str(spare))
         return branch
 
-    def test_an_unmerged_branch_is_refused_rather_than_forced(
-        self, world: Dict[str, Any]
-    ) -> None:
+    def test_an_unmerged_branch_is_refused_rather_than_forced(self, world: Dict[str, Any]) -> None:
         """`-d`, never `-D`. A refusal means the assumption behind deleting it is wrong."""
         branch = self._unmerged(world)
         before = head(world["root"], branch)
