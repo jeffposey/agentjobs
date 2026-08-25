@@ -197,17 +197,29 @@ are not working it — you are supervising, you take no worktree, and
     that nor `--only` is the gate.** A partial run prints `PARTIAL RUN` and the stages it
     skipped, at the start and again at the end, precisely so its green cannot be reported
     as the gate's — before a commit, run `scripts/check.py` with no arguments.
-5.  **Hand off**: `handoff` to `human`/`review` with a `ball_prompt` saying what was done
-    and what needs review, and **commit that to `main`** — a handoff sitting on your
-    branch is invisible in the React app, so the human you are handing to will never see
-    it. **Stop there** — do not merge.
+5.  **Hand off**: **rebase onto `main` first** — see
+    [How long a branch should live](ENGINEERING.md#how-long-a-branch-should-live); your
+    branch has probably been open for hours and a conflict is far cheaper now, while you
+    are in context, than at the merge where it stops a scripted finish. Then `handoff` to
+    `human`/`review` with a `ball_prompt` saying what was done and what needs review, and
+    **commit that to `main`** — a handoff sitting on your branch is invisible in the React
+    app, so the human you are handing to will never see it. Make the review request
+    complete the first time: a round trip to answer a question you could have answered is
+    the largest thing keeping your branch open. **Stop there** — do not merge.
 
     **Unless your dispatch prompt told you otherwise.** A run at posture `autonomous`
     is told, in its own prompt, that the merge gate is released for it; that sentence
     is the only authority for skipping this step, and if it is not in your prompt you
     do not have it. See [Your prompt says whether you stop here](#your-prompt-says-whether-you-stop-here).
 6.  **On approval**: Rebase onto `main`, merge `--no-ff`, mark the branch `merged`,
-    `close` the task with `outcome: completed`, and `git worktree remove` your worktree.
+    `close` the task with `outcome: completed`, then `git worktree remove` your worktree
+    **and `git branch -d` your branch** — in that order, because a branch checked out in
+    a worktree cannot be deleted. `-d`, never `-D`: `-d` refuses a branch `main` does not
+    contain, and a refusal means your merge did not land the way you think it did, which
+    is worth stopping over rather than forcing past.
+
+    The scripted finish does both for you (task-293). Do it by hand only when you merged
+    by hand. `agentjobs branches` lists what got left behind either way.
 7.  **Then put it in front of them.** Rebuild the frontend if you touched it, restart the
     server, and confirm the change is live. You are not finished when the merge commit
     exists — you are finished when the person who approved the work can see it. Leaving
@@ -259,8 +271,9 @@ what the children you start will do, and you approve nothing yourself either way
 
 **Where this machine has the scripted finish switched on, the approval runs them
 itself** — rebase, gate, merge `--no-ff`, rebuild, restart, verify, close, remove the
-worktree — with no agent in the loop at all (task-241). Most of the time you will simply
-never be dispatched again, and the task will be closed by the time anyone looks.
+worktree, delete the branch — with no agent in the loop at all (task-241). Most of the
+time you will simply never be dispatched again, and the task will be closed by the time
+anyone looks.
 
 You are woken only when it stopped, and then **the record tells you where, and whether
 `main` moved**. Read it before acting on anything you remember:
@@ -348,8 +361,11 @@ A human working alone does not need this; they have no peer to collide with. You
 -   Name it for the task, and put it in the `worktrees/` directory beside the clone --
     not inside the clone, and not loose in the workspace beside the projects:
     `../worktrees/aj-045`. `git worktree add` creates that directory the first time.
--   `git worktree remove` it once the branch is merged. `git worktree list` is the
-    inventory, and a worktree for a closed task is litter.
+-   `git worktree remove` it once the branch is merged, then `git branch -d` the branch —
+    the worktree first, because a branch checked out in one cannot be deleted, and `-d`
+    rather than `-D` so an unmerged branch is refused instead of destroyed. `git worktree
+    list` and `git branch --list` are the inventories; a worktree for a closed task is
+    litter, and so is its branch. `agentjobs branches` reads both and names what is left.
 -   **Never `git checkout` in the shared clone** to start work.
 -   Committing task metadata straight to `main` (the narrow exception in ENGINEERING.md)
     does not need one. Anything that goes on a branch does.

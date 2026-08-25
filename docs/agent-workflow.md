@@ -36,8 +36,11 @@ the project's `ALLAGENTS.md` before inventing one. Both spellings are in use on 
 that has been running a while, and neither is wrong — what matters is that the directory
 names a task, so `git worktree list` reads as an inventory.
 
-Work there. Remove it once your branch is merged; `git worktree list` is the inventory,
-and one left behind for a closed task is litter.
+Work there. Once your branch is merged, remove the worktree and then delete the branch
+with `git branch -d` — in that order, because a branch checked out in a worktree cannot
+be deleted, and with `-d` rather than `-D` so an unmerged branch is refused instead of
+destroyed. `git worktree list` and `git branch --list` are the inventories; anything left
+behind for a closed task is litter, and `agentjobs branches` names it.
 
 **Run that command. Do not use a built-in worktree tool to get one.** Claude Code has an
 `EnterWorktree` tool that looks like the right way to satisfy the paragraph above, and it
@@ -95,7 +98,8 @@ poetry run agentjobs finish <task-id> --project <project> --posture-release
 It rebases onto the base branch, runs the **full unqualified `scripts/check.py`** on the
 rebased branch with that worktree's own interpreter, and merges `--no-ff` only if that is
 green. Then it rebuilds, restarts, verifies the running service is serving the merge,
-closes the task and removes your worktree. Exit 0 means all of that happened. Exit 1
+closes the task, removes your worktree and deletes your branch. Exit 0 means all of that
+happened. Exit 1
 means it stopped, and the task record says at which step and whether anything was merged.
 Exit 2 means it declined and touched nothing — including when the posture does not
 actually release the gate, which is checked there rather than taken on trust.

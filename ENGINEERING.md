@@ -305,6 +305,54 @@ source rather than a neighbouring one's.
 -   Record it in the task's `branches[]` field (`name`, `status: active`) as part of the
     same update that sets `in_progress`.
 -   Branch from an up-to-date `main`.
+-   Once it merges, `git worktree remove` the worktree and **then** `git branch -d` the
+    branch. That order, because a branch checked out in a worktree cannot be deleted; and
+    `-d` rather than `-D`, because `-d` refuses a branch `main` does not contain and a
+    refusal means the merge did not land the way you think it did. The scripted finish
+    does both (task-293) — do it by hand only when you merged by hand.
+-   `agentjobs branches` says what was left behind: branches `main` already contains with
+    no worktree, and the ones still in flight with how long each has really been open. It
+    reports and deletes nothing, because several agents work this clone and a branch that
+    looks abandoned from outside may be somebody's live work.
+
+### How long a branch should live
+
+**Short — and the lever is not the one people reach for.** Every rebase conflict in the
+task-211 epic came from a branch living across another branch's merge: task-219 across
+task-214's, task-215 across task-219's, task-217 across task-218's. Five sessions ran
+against one clone for eleven hours and produced exactly three conflicts, all of that
+shape, all in files two branches had both appended to. Running the work in parallel
+caused none of them.
+
+The obvious conclusion from that is wrong, and it is worth saying why before anybody
+draws it. **Branch lifetime is not task size.** task-217's branch was open about nine
+hours and contained roughly one hour of work; the other eight were *waiting* — parked at
+`human`/`review` for an approval, then behind a `base_moved` retry, then behind a second
+one. Shrinking that task would not have taken a minute off its branch. Lifetime is driven
+by **wait**, so wait is the thing to attack:
+
+-   **Rebase onto `main` before handing off for review**, not only when the merge gate
+    refuses. A branch that has been open for hours is very likely behind, and rebasing at
+    handoff moves the conflict to a moment when a session is already in context, where it
+    costs minutes. Left until the merge, the same conflict stops a scripted finish and
+    costs a whole cycle.
+-   **Do not leave a ready branch sitting.** The two long poles are review latency and
+    merge retries. The half you control is handing off with a complete review request the
+    *first* time — everything a reviewer needs, on the record, so the answer does not
+    need a round trip to ask a question you could have answered.
+
+**Bigger tasks are fine, and often better.** Every task boundary pays for a worktree, a
+bootstrap, a full gate, a review round, a merge and a cleanup, and on a small task that
+overhead is most of the total cost. The ceiling on a task is not a size. It is the point
+where one session's context can no longer hold the work, or where the acceptance criteria
+stop being independently verifiable. Below that, prefer more per task rather than less —
+splitting work to keep branches short trades away real overhead for a problem splitting
+does not solve.
+
+**The parent-task rule is a session boundary, not a size limit**, and the two are
+routinely confused. [ALLAGENTS.md](ALLAGENTS.md#you-do-not-work-the-children) says
+anything taking a worktree gets its own session; that decides whose context carries the
+work, and says nothing about how much work one task should contain.
 
 ### Sharing a clone
 
@@ -419,8 +467,8 @@ poetry run agentjobs finish task-021 --project agentjobs --posture-release
 
 That routes it through exactly the sequence a human approval takes — rebase onto `main`,
 **the full unqualified `scripts/check.py` on the rebased branch**, `--no-ff` merge,
-rebuild, restart, verify, close, remove the worktree — and stops at the first step it
-cannot complete, handing the ball back with what it got done written on the record. The
+rebuild, restart, verify, close, remove the worktree, delete the branch — and stops at
+the first step it cannot complete, handing the ball back with what it got done written on the record. The
 posture is re-checked there, in code: `--posture-release` on a project configured `auto`
 declines and touches nothing.
 
@@ -458,8 +506,8 @@ here: chains of unreviewed merges are recoverable only for as long as nothing is
 3 to 6 itself, with no agent anywhere in it** (task-241). It rebases, runs the full gate
 in your worktree with your worktree's interpreter, merges `--no-ff`, rebuilds the
 frontend if the merge touched it, restarts the server the way this machine's config says
-it was started, proves the running process is serving the merge, closes the task and
-removes your worktree. It takes about as long as the gate does.
+it was started, proves the running process is serving the merge, closes the task,
+removes your worktree and deletes your branch. It takes about as long as the gate does.
 
 Nothing above is relaxed by that: **a person still approves, per task, before anything
 merges**, and the merge is still a `--no-ff` merge commit.
