@@ -3,11 +3,13 @@ id: task-304
 title: 'Context evals: prove which rules in the always-loaded bundle actually change
   agent behaviour, and re-run it whenever a new model ships'
 created: '2026-08-23T21:52:43.476088Z'
-updated: '2026-08-25T11:45:05.966320Z'
+updated: '2026-08-25T12:53:13.514953Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: decision
+ball_prompt: A dispatched session (8da26bd2) finished without handing off, so nobody
+  was told what it needs. Read what it did, then either attach to it or move this
+  task on yourself.
 archived: false
 priority: critical
 queue_position: 1093
@@ -361,3 +363,26 @@ log:
       id: 7a1c2f30-6d11-4a58-9d43-1b0e5c9f2a02
       kind: update_content
       fingerprint: 1b24f24aee3eeb1d9f461ace04958b42
+- id: 10
+  ts: '2026-08-25T12:53:13.479834Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: 'The session finished its turn and the ball never moved, so it stopped without
+    saying what it needs. It was **not** killed and is still attachable: `claude attach
+    8da26bd2`.'
+  re: 7
+  data:
+    run_id: run_dd29fb39
+    outcome: finished_without_handoff
+    duration_seconds: 5220.416937
+    log_path: C:\Users\jpose\.agentjobs\runs\run_dd29fb39
+- id: 11
+  ts: '2026-08-25T12:53:13.514822Z'
+  actor: dispatcher
+  type: handoff
+  body: A dispatched session (8da26bd2) finished without handing off, so nobody was
+    told what it needs. Read what it did, then either attach to it or move this task
+    on yourself.
+  data:
+    ball: human
+    ball_reason: decision
