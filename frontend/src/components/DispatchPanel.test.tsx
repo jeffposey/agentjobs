@@ -681,6 +681,164 @@ describe("choosing a runner group for one dispatch", () => {
   });
 });
 
+/**
+ * A project whose ceiling has been raised, so there is genuinely a choice to make.
+ *
+ * `posture_merge_policies` is present because the server always sends it -- it is the
+ * fixed task-021 mapping, not configuration. A fixture that omitted it would be testing
+ * a state the API cannot produce.
+ */
+function withPostures(overrides: Partial<DispatchStateView> = {}): DispatchStateView {
+  return state({
+    posture: "auto",
+    max_posture: "autonomous",
+    offerable_postures: ["read_only", "supervised", "auto", "autonomous"],
+    posture_merge_policies: {
+      read_only: "none",
+      supervised: "review",
+      auto: "review",
+      autonomous: "automatic",
+    },
+    finish_enabled: true,
+    ...overrides,
+  });
+}
+
+describe("choosing a posture for one dispatch (task-307)", () => {
+  it("offers what the server permits, each saying what it does to the branch", () => {
+    renderPanel({ state: withPostures() });
+
+    const select = screen.getByLabelText("Envelope");
+    expect([...select.querySelectorAll("option")].map((option) => option.textContent)).toEqual([
+      "Project default",
+      "read_only — no shell, nothing to merge",
+      "supervised — stops for your review before merging",
+      "auto — stops for your review before merging",
+      "autonomous — merges its own work when the gate passes, no review",
+    ]);
+    // Nothing pre-picked, so a posture the human did not choose is never sent as one.
+    expect(select).toHaveValue("");
+  });
+
+  it("offers only what is at or below the ceiling, because the API refuses the rest", () => {
+    // The refusal exists server-side either way (`posture_above_ceiling`). Populating
+    // from `offerable_postures` is what makes it unreachable by clicking, which is the
+    // difference between a control that is bounded and one that lies.
+    renderPanel({
+      state: withPostures({
+        max_posture: "auto",
+        offerable_postures: ["read_only", "supervised", "auto"],
+      }),
+    });
+
+    const options = [...screen.getByLabelText("Envelope").querySelectorAll("option")].map(
+      (option) => option.textContent,
+    );
+    expect(options).not.toContain(
+      "autonomous — merges its own work when the gate passes, no review",
+    );
+    expect(options).toHaveLength(4);
+  });
+
+  it("sends the posture the human picked, and only then", async () => {
+    const { onDispatch } = renderPanel({ state: withPostures() });
+
+    fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
+    await waitFor(() => expect(onDispatch).toHaveBeenLastCalledWith({}));
+
+    fireEvent.change(screen.getByLabelText("Envelope"), { target: { value: "autonomous" } });
+    fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
+
+    await waitFor(() => expect(onDispatch).toHaveBeenLastCalledWith({ posture: "autonomous" }));
+  });
+
+  it("carries the posture alongside a group and a brief", async () => {
+    const { onDispatch } = renderPanel({
+      state: withPostures({ available_groups: ["big", "default"] }),
+      recordCanBrief: false,
+    });
+
+    fireEvent.change(screen.getByLabelText("Group"), { target: { value: "big" } });
+    fireEvent.change(screen.getByLabelText("Envelope"), { target: { value: "autonomous" } });
+    fireEvent.change(screen.getByRole("textbox", { name: /say what the agent should do/i }), {
+      target: { value: "Audit the guard chain." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
+
+    await waitFor(() =>
+      expect(onDispatch).toHaveBeenCalledWith({
+        group: "big",
+        posture: "autonomous",
+        note: "Audit the guard chain.",
+      }),
+    );
+  });
+
+  it("says what the chosen posture will do, not what the project's default would have", () => {
+    renderPanel({ state: withPostures() });
+
+    const panel = screen.getByRole("region", { name: "Dispatch" });
+    expect(panel).toHaveTextContent(/posture\s*auto\s*—\s*stops for your review before merging/);
+
+    fireEvent.change(screen.getByLabelText("Envelope"), { target: { value: "autonomous" } });
+
+    expect(panel).toHaveTextContent(
+      /posture\s*autonomous\s*—\s*merges its own work when the gate passes, no review/,
+    );
+  });
+
+  it("offers autonomous disabled, and says why, where the project has no scripted finish", () => {
+    // task-021: an autonomous merge runs through `agentjobs finish --posture-release`,
+    // and a machine without it has no sanctioned mechanism for one. Granting the
+    // envelope anyway produces a run told it may merge with no way to do it.
+    renderPanel({ state: withPostures({ finish_enabled: false }) });
+
+    const autonomous = [...screen.getByLabelText("Envelope").querySelectorAll("option")].find(
+      (option) => (option as HTMLOptionElement).value === "autonomous",
+    );
+    expect(autonomous?.textContent).toBe("autonomous — needs finish.enabled on this project");
+    expect(autonomous).toBeDisabled();
+  });
+
+  it("leaves the other postures alone when the finish is off", () => {
+    renderPanel({ state: withPostures({ finish_enabled: false }) });
+
+    const options = [...screen.getByLabelText("Envelope").querySelectorAll("option")];
+    expect(options.filter((option) => option.hasAttribute("disabled"))).toHaveLength(1);
+  });
+
+  it("offers no posture control at all when the ceiling leaves nothing to choose", () => {
+    // A project capped at its own default. A pulldown whose single option means "the
+    // only thing that can happen" is furniture, and the panel must read exactly as it
+    // did before this control existed.
+    renderPanel({
+      state: withPostures({
+        posture: "read_only",
+        max_posture: "read_only",
+        offerable_postures: ["read_only"],
+      }),
+    });
+
+    expect(screen.queryByLabelText("Envelope")).toBeNull();
+    expect(screen.getByRole("region", { name: "Dispatch" })).toHaveTextContent(
+      /posture\s*read_only\s*—\s*no shell, nothing to merge/,
+    );
+  });
+
+  it("names pushing only where the project permits it", () => {
+    // Per project and never the posture's (task-021), and false everywhere today -- so
+    // a sentence repeating the universal default on every task would be noise.
+    renderPanel({ state: withPostures() });
+    expect(screen.getByRole("region", { name: "Dispatch" })).not.toHaveTextContent(/and pushes/);
+  });
+
+  it("says so where pushing is permitted, because that is the unrecoverable half", () => {
+    renderPanel({ state: withPostures({ push: true }) });
+
+    expect(screen.getByRole("region", { name: "Dispatch" })).toHaveTextContent(/, and pushes,/);
+  });
+});
+
 describe("the project gate tile, with groups", () => {
   it("names the group and the member that would run, never 'no runner chosen'", () => {
     renderSettings(grouped());

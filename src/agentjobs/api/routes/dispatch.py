@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import PlainTextResponse
@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 from agentjobs.dispatch.config import (
     DispatchConfig,
     DispatchError,
+    Posture,
     SelectionSource,
     assert_dispatch_permitted,
     dispatch_config_path,
@@ -120,6 +121,37 @@ class DispatchStateView(BaseModel):
             "than derived, for the same reason `resolved_from` is: a browser that "
             "re-implements the ceiling is the one place in the system that could offer "
             "a choice the dispatch API will refuse."
+        ),
+    )
+    posture_merge_policies: Dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "What each posture does to the *branch*, keyed by posture value (task-021: "
+            "`read_only` -> none, `auto`/`supervised` -> review, `autonomous` -> "
+            "automatic). Sent rather than hardcoded in the client for the same reason "
+            "`offerable_postures` is, and the stake is higher: this is the difference "
+            "between 'stops for your review' and 'merges without you', so a browser "
+            "that carried its own copy could tell an operator the opposite of what the "
+            "posture they picked will actually do."
+        ),
+    )
+    finish_enabled: bool = Field(
+        default=False,
+        description=(
+            "Whether the scripted finish (task-241) is on for this project, which is "
+            "what an autonomous merge runs through. task-021 accepted the consequence "
+            "that without it there is no sanctioned mechanism for one -- so a chooser "
+            "offers `autonomous` disabled here rather than granting an envelope whose "
+            "merge cannot be performed."
+        ),
+    )
+    push: bool = Field(
+        default=False,
+        description=(
+            "Whether this project permits pushing. Per project and never a posture "
+            "property (task-021), and false everywhere today. Surfaced because 'this "
+            "project will merge my work without asking me, and publish it' is the one "
+            "thing worth knowing beside a Dispatch button."
         ),
     )
     auto_dispatch: bool = Field(default=False, description="Auto-dispatch on approval (task-074).")
@@ -415,6 +447,9 @@ def _state(project: Project) -> DispatchStateView:
         offerable_postures=(
             [posture.value for posture in settings.offerable_postures()] if settings else []
         ),
+        posture_merge_policies={posture.value: posture.merge_policy.value for posture in Posture},
+        finish_enabled=bool(settings and settings.finish.enabled),
+        push=bool(settings and settings.push),
         auto_dispatch=bool(settings and settings.auto_dispatch),
         available_runners=sorted(config.runners) if config else [],
         available_groups=sorted(config.runner_groups) if config else [],

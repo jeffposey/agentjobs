@@ -65,6 +65,7 @@ from agentjobs.dispatch.config import (
     DispatchError,
     DispatchResolution,
     Posture,
+    PostureSource,
     assert_dispatch_permitted,
     dispatch_config_path,
     resolve_posture,
@@ -364,7 +365,13 @@ def assert_authorizer_is_human(config: Dict[str, object], actor_id: str) -> Acto
     return actor
 
 
-def compose_authorization_body(actor: Actor, surface: Optional[str] = None) -> str:
+def compose_authorization_body(
+    actor: Actor,
+    surface: Optional[str] = None,
+    *,
+    raised_from: Optional[Posture] = None,
+    raised_to: Optional[Posture] = None,
+) -> str:
     """The sentence written when a human dispatches without typing anything.
 
     Composed here rather than sent by the client, on the same principle that makes
@@ -381,10 +388,32 @@ def compose_authorization_body(actor: Actor, surface: Optional[str] = None) -> s
     no `dispatch` entry would be the one sentence this feature can write into a record
     that is not true. "... authorised a dispatch" is true either way: the human did
     authorise it, and whether a run followed is what the entries after it say.
+
+    **``raised_to`` is what escalation costs** (task-307). When the posture chosen for
+    this one dispatch is wider than the project's own default, this entry names it, so
+    the human's own entry shows they *chose* the envelope rather than inheriting it.
+
+    The run's `dispatch` entry already records `posture_source` and `posture_ceiling`
+    (task-308), and joined with this entry's `caused_by` those do reconstruct the same
+    fact -- but reconstructing it means holding two entries side by side, and "why did
+    this run get bypass, and who decided that" is the question a reader asks six weeks
+    later with neither of them in mind. It is cheaper to say it once, here, where the
+    human's name already is.
+
+    Deliberately *not* said when a posture on the task record does the widening: that
+    writer need not be a human at all, which is the whole reason task-308 bounds it with
+    a ceiling instead of trusting provenance. Attributing it to whoever happened to click
+    Dispatch afterwards would be the one sentence here that is actively misleading.
     """
     where = f" from {surface}" if surface else ""
+    raised = (
+        f" They chose posture `{raised_to.value}` for this run, above this project's "
+        f"`{raised_from.value}`."
+        if raised_to is not None and raised_from is not None
+        else ""
+    )
     return (
-        f"{actor.display_name} authorised a dispatch of this task{where}. No extra "
+        f"{actor.display_name} authorised a dispatch of this task{where}.{raised} No extra "
         "instruction was given: the task record is the brief."
     )
 
@@ -852,6 +881,13 @@ def dispatch_task(
 
     try:
         if authorizer is not None:
+            # Only a posture chosen *for this dispatch* counts as the human's choice.
+            # One inherited from the task record widens the envelope just as much, and
+            # is deliberately not attributed to them -- see `compose_authorization_body`.
+            escalated = (
+                posture.source is PostureSource.DISPATCH
+                and posture.posture.rank > resolution.settings.posture.rank
+            )
             task, causing = _write_authorizing_entry(
                 manager,
                 task,
@@ -859,6 +895,8 @@ def dispatch_task(
                 note=epic_note or note,
                 surface=request.surface,
                 data=epic_data,
+                raised_from=resolution.settings.posture if escalated else None,
+                raised_to=posture.posture if escalated else None,
             )
         if causing is None:  # pragma: no cover - one branch or the other always sets it
             raise DispatchRefused(f"{task.id} produced no causing entry to dispatch on.")
@@ -911,6 +949,8 @@ def _write_authorizing_entry(
     note: Optional[str],
     surface: Optional[str],
     data: Optional[Dict[str, object]] = None,
+    raised_from: Optional[Posture] = None,
+    raised_to: Optional[Posture] = None,
 ) -> tuple[Task, LogEntry]:
     """Record the human's authorisation, then read it back out of storage.
 
@@ -927,7 +967,13 @@ def _write_authorizing_entry(
     record reads the same whichever way the human got there, and nothing downstream has
     to learn a new type to understand an old task.
     """
-    body = note or compose_authorization_body(authorizer, surface)
+    # A typed note is the human's own words and is never rewritten, so an escalation
+    # alongside one is recorded by the `dispatch` entry's `posture_source` rather than
+    # here. That path is rare -- the note box only appears on a task whose record cannot
+    # brief an agent -- and silently editing what somebody wrote would be the worse trade.
+    body = note or compose_authorization_body(
+        authorizer, surface, raised_from=raised_from, raised_to=raised_to
+    )
     manager.add_log_entry(
         task.id,
         actor=authorizer.id,

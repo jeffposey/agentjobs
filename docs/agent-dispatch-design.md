@@ -1246,6 +1246,51 @@ is machine-local, and the task's own `posture` field may have been edited since 
 `posture_source` is absent on every entry written before task-308. Read that as
 `project`, which is what it always was -- never as unknown.
 
+##### The control a person actually uses (task-307)
+
+The pulldown beside the Dispatch button is labelled **Envelope**, and three things about
+it are load-bearing rather than cosmetic.
+
+**Its list comes from the server.** `offerable_postures` on the dispatch state view is
+every posture at or below this project's ceiling, computed by the same
+`ProjectDispatchSettings` the dispatch route will validate against. A browser that
+derived its own list from the `Posture` enum would be the one place in the system able to
+offer a choice the API then refuses -- which teaches the operator that the control lies.
+The refusal still exists and is still tested; populating from the server is what makes it
+unreachable by clicking.
+
+**Each option says what it does to the branch, not what it is called.** "autonomous"
+tells a reader nothing about whether their work merges without them, and since task-021
+that is precisely what it decides. The option text is keyed off `posture_merge_policies`,
+which the server sends for the same reason as the list -- the mapping is fixed in code,
+so a client carrying its own copy could tell an operator the opposite of what happens.
+
+**`autonomous` is offered disabled, with the reason, where the project has no scripted
+finish.** task-021 accepted that an autonomous merge runs through `agentjobs finish
+--posture-release` and that a machine without it has no sanctioned mechanism for one.
+Picking it there would produce a run told in its prompt that it may merge, with no way to
+do it -- which is how an agent talks itself into an improvised `git merge`. Disabled with
+a stated cause is right where omitting it silently is wrong: the fix is one line of the
+reader's own `dispatch.yaml`, and they can only make it if they know that is the cause.
+
+The panel also names whether the project **pushes**, which task-021 identified as a real
+gap and left for a later task: *"this project will merge my work without asking me"* is
+exactly the sort of thing that should be visible where the Dispatch button is. It is said
+only where `push` is true, because false is the answer everywhere today and a sentence
+repeating the universal default on every task is noise.
+
+The control is **absent entirely** when `offerable_postures` holds one entry. A pulldown
+whose single option means "the only thing that can happen" is furniture, and such a
+project reads exactly as it did before the control existed.
+
+That is rarer than it sounds, and worth stating precisely because the obvious guess is
+wrong. An unraised ceiling does **not** remove the control: `max_posture` unset means the
+ceiling is the project's own posture, so a project at `auto` still offers `read_only`,
+`supervised` and `auto` — everything at or below it. What an unraised project cannot do
+is *escalate*, which is the double opt-in the ceiling exists to create. The control
+disappears only where the ceiling is the narrowest posture there is, `read_only`, because
+that is the only ceiling with nothing underneath it.
+
 #### No auto-escalation, ever
 
 A parked run must **not** be promoted to `autonomous` by a timeout, however long. That
