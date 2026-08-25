@@ -3,11 +3,34 @@ id: task-298
 title: The run-lock refusal blames a stuck dispatch when the holder is a scripted
   finish, and never says the merge is already happening
 created: '2026-08-23T20:58:00.297051Z'
-updated: '2026-08-25T08:35:12.255546Z'
+updated: '2026-08-25T08:36:29.864745Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: 'Ready to merge: `fix/task-298-run-lock-refusal-names-finish`, 3 commits
+  on 43c06da, full unqualified gate green 10/10 in 199.8s. Approve on the task page
+  and the scripted finish takes it from there.
+
+
+  The refusal now names the holder. A live scripted finish reads: "task-298 is held
+  by a scripted finish (fin_1ffd1590) started at 03:27:41, 9s ago, which is merging
+  it now. Approving a task on this machine runs the merge itself ... so there is nothing
+  to dispatch." No restart is offered while a finish is alive. Entry 6 has the before/after
+  taken live through the real dispatch guard, entry 7 the one judgement call worth
+  arguing with -- I moved the restart advice to a different branch rather than just
+  suppressing it, because a restart provably cannot clear the lock it used to be attached
+  to.
+
+
+  **Read entry 8 before approving.** `agentjobs finish --posture-release` declined
+  this run with `posture_requires_review`: it re-reads the project''s configured `auto`
+  and never learns that you raised this dispatch to `autonomous`. That looks like
+  a gap task-307 opened when it merged at 43c06da -- the posture reaches the agent''s
+  prompt and stops at the finisher. Nothing to do about it here, and I did not merge
+  by hand; it wants its own task if you agree it is one.
+
+
+  Worktree `C:/projects/worktrees/aj-298` is still in place for the finish to use.'
 archived: false
 priority: critical
 queue_position: 493
@@ -421,3 +444,101 @@ log:
       id: 3f1a9c22-0298-4b10-9e21-7c1d4e5f0003
       kind: log_append
       fingerprint: 0ce6506eaeb3cf999a2e02cd71b4fc08
+- id: 8
+  ts: '2026-08-25T08:36:18.810697Z'
+  actor: claude
+  type: question
+  body: '**The posture release this run was dispatched with cannot be exercised, and
+    I think task-307 opened that gap yesterday.**
+
+
+    This is about the merge, not about the work. The work is done and green; nothing
+    below reflects on it.
+
+
+    This run''s prompt says, verbatim: *"Posture `autonomous` releases the merge gate:
+    this run merges its own work with no human review... then run `agentjobs finish
+    task-298 --project agentjobs --posture-release`."* Entry 4 records `posture: autonomous`,
+    `posture_source: dispatch`, `posture_ceiling: autonomous` -- Jeff raised it at
+    the moment of dispatching, above this project''s configured `auto`.
+
+
+    Running exactly that command exits 2:
+
+
+    > task-298: declined (posture_requires_review)
+
+    > agentjobs runs at posture `auto`, whose merge policy is `review`. Only `autonomous`
+    releases the merge gate. Hand the ball to human/review and stop; nothing was touched.
+
+
+    `finish_task` with `authority=POSTURE` calls `assert_dispatch_permitted(project.id,
+    home)` and reads `released.settings.posture` -- the project''s machine-local posture
+    in `~/.agentjobs/dispatch.yaml`. Nothing in that path is told which run is asking
+    or what posture that run was authorised at. `AGENTJOBS_RUN_ID` is in the environment
+    and is used, a few lines later in `cli.py`, only to compose the approver string.
+
+
+    **So a per-dispatch posture escalation reaches the agent''s prompt but not the
+    finisher.** task-307, "Choose the posture at the moment of dispatching, not only
+    in dispatch.yaml", merged at 43c06da -- the commit this branch is based on --
+    and its own acceptance evidence checks that the raised posture reaches the run.
+    It does. It stops at the finisher. That is a run being told it may merge and then
+    being refused by the thing that does the merging, which is the same class of contradiction
+    as the message this task fixes: two components with different ideas about the
+    same state, and the human left holding the difference.
+
+
+    I have not filed a task for it -- filing is Jeff''s call, and I would rather he
+    saw the reasoning than found a task he did not ask for. If he wants one, the shape
+    is: `finish_task(authority=POSTURE)` should resolve the posture the way dispatch
+    does, from the run record named by `AGENTJOBS_RUN_ID` where there is one, falling
+    back to the project''s configured posture. The check must stay a check -- read
+    off the ledger, never off a flag the caller passes -- or `--posture-release` becomes
+    a self-grant.
+
+
+    **I did not merge by hand.** The prompt forbids it, the finisher is the thing
+    that runs the gate rather than believing me about it, and a merge that routes
+    around a posture check is exactly the act the check exists to prevent. The branch
+    is committed and waiting.'
+  data:
+    operation:
+      id: 3f1a9c22-0298-4b10-9e21-7c1d4e5f0004
+      kind: log_append
+      fingerprint: 7f5c04d9a5b105cf348993f02fc1ef7f
+- id: 9
+  ts: '2026-08-25T08:36:29.864560Z'
+  actor: claude
+  type: handoff
+  body: 'Ready to merge: `fix/task-298-run-lock-refusal-names-finish`, 3 commits on
+    43c06da, full unqualified gate green 10/10 in 199.8s. Approve on the task page
+    and the scripted finish takes it from there.
+
+
+    The refusal now names the holder. A live scripted finish reads: "task-298 is held
+    by a scripted finish (fin_1ffd1590) started at 03:27:41, 9s ago, which is merging
+    it now. Approving a task on this machine runs the merge itself ... so there is
+    nothing to dispatch." No restart is offered while a finish is alive. Entry 6 has
+    the before/after taken live through the real dispatch guard, entry 7 the one judgement
+    call worth arguing with -- I moved the restart advice to a different branch rather
+    than just suppressing it, because a restart provably cannot clear the lock it
+    used to be attached to.
+
+
+    **Read entry 8 before approving.** `agentjobs finish --posture-release` declined
+    this run with `posture_requires_review`: it re-reads the project''s configured
+    `auto` and never learns that you raised this dispatch to `autonomous`. That looks
+    like a gap task-307 opened when it merged at 43c06da -- the posture reaches the
+    agent''s prompt and stops at the finisher. Nothing to do about it here, and I
+    did not merge by hand; it wants its own task if you agree it is one.
+
+
+    Worktree `C:/projects/worktrees/aj-298` is still in place for the finish to use.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 3f1a9c22-0298-4b10-9e21-7c1d4e5f0005
+      kind: handoff
+      fingerprint: fa8edf0e93ff873be2b2f5f7ac3dea7d
