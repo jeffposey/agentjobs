@@ -3,7 +3,7 @@ id: task-318
 title: A child of the epic walk inherits the parent's AGENTJOBS_RUN_ID, so its own
   sanctioned autonomous merge is declined `locked`
 created: '2026-08-25T11:11:28.166849Z'
-updated: '2026-08-25T11:11:58.733045Z'
+updated: '2026-08-25T11:26:47.504473Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -157,3 +157,48 @@ log:
       id: 5445fd22-f6fa-4ae3-9022-1fff23d3694e
       kind: update_content
       fingerprint: 3388531b476c6a856e88c033a7fce9b9
+- id: 3
+  ts: '2026-08-25T11:26:47.504288Z'
+  actor: claude
+  type: progress
+  body: "**Second confirmation, from a different child of the same walk \u2014 and\
+    \ it carries one new fact that narrows ac-1.**\n\n`run_ff8c316d`, working task-303,\
+    \ child of the task-269 walk driven by `run_12b2675c`. Identical to the task-302\
+    \ observation in every respect: `agentjobs finish task-303 --project agentjobs\
+    \ --posture-release`, the exact command its prompt named, was declined `locked`\
+    \ and named `run_ff8c316d` as the holder \u2014 itself. The environment inside\
+    \ the agent's shell said `AGENTJOBS_RUN_ID=run_12b2675c` and `AGENTJOBS_RUN_DIR=...\\\
+    runs\\run_12b2675c`, the supervisor's. So this is not a one-off on task-302; it\
+    \ is what the walk does to every child.\n\n**The new fact is the pid.** task-303's\
+    \ lock file:\n\n```\npid=1003448 run=run_ff8c316d kind=dispatch started=2026-08-25T11:10:37+00:00\n\
+    ```\n\nThat is **the same pid as task-302's lock** (`pid=1003448 run=run_a07731b6`),\
+    \ taken 25 minutes apart, for two different children with two different run ids.\n\
+    \nThat is worth something for ac-1, which asks which of the two candidate causes\
+    \ is real. One process is writing both locks, so the lock is taken by the walk's\
+    \ own process rather than by each child, and the run directory and run id are\
+    \ therefore created correctly by that same process \u2014 as the spec already\
+    \ noted for `run_a07731b6` and as is true for `run_ff8c316d`. What that process\
+    \ then fails to do is put the child's own id into the environment it hands the\
+    \ child. It points at **candidate 1** \u2014 `start_child` building the child's\
+    \ environment from the supervisor's own \u2014 rather than candidate 2, the session-carries-an-older-value\
+    \ story, which would not explain two children of one walk each seeing the supervisor's\
+    \ current id rather than a stale one of their own. **Stated as an inference from\
+    \ two observations, not as a reading of the spawn code**, which is what ac-1 actually\
+    \ asks for; it narrows where to look rather than closing the question.\n\n**Same\
+    \ workaround, same reasoning, same caveat.** task-303 merged by supplying the\
+    \ truthful value:\n\n```\nAGENTJOBS_RUN_ID=run_ff8c316d AGENTJOBS_RUN_DIR=...\\\
+    runs\\run_ff8c316d \\\n  poetry run agentjobs finish task-303 --project agentjobs\
+    \ --posture-release\n```\n\nThe lock file was read first and checked to name `run_ff8c316d`\
+    \ before the variable was set to it, which is the only thing that makes this a\
+    \ correction of a stale value rather than an assertion of an identity. Both of\
+    \ `_holds_own_lock`'s conditions then held genuinely. The finish ran the full\
+    \ sequence \u2014 rebase, green gate (190.1s), `--no-ff` merge as `49e64ab9`,\
+    \ restart, verified live at 127.0.0.1:8876, closed, worktree removed, branch deleted.\n\
+    \nThat is now **two** autonomous children that could only merge by hand-correcting\
+    \ the environment. Until this is fixed the walk cannot run unattended end to end,\
+    \ which is the whole of what task-022 built."
+  data:
+    operation:
+      id: b8f31d29-7a04-4c56-91e3-5d2c0f4a8b76
+      kind: log_append
+      fingerprint: ae9245c4a5679aa904ff5b4488527dc1
