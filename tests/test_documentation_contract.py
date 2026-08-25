@@ -245,7 +245,7 @@ def test_the_dispatch_design_does_not_still_claim_agentjobs_supplies_isolation()
     assert "--add-dir" in text
     # And what stops two dispatched runs sharing a tree now that the flag is gone.
     assert "require_clean_tree" in text
-    assert "git worktree add ../worktrees/aj-<nnn>" in text
+    assert "git worktree add ../worktrees/agentjobs-<nnn>" in text
 
 
 def test_the_dispatch_design_states_what_reaping_means_now() -> None:

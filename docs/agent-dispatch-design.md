@@ -122,7 +122,7 @@ Everything else in this document is subordinate to one rule.
     names the human clicking gets that human's authorising entry **written to the task
     record**, and the rule below is then evaluated against the stored entry exactly as
     it always was. Nothing in the forgeability section is relaxed; see
-    [What is checked, and what is merely claimed](#what-is-checked-and-what-is-merely-claimed).
+    [What is checked, and what is merely claimed](#what-is-checked-and-what-is-merely-claimed-added-2026-08-20-task-188).
 
 The feared failure mode is the circular one: agent finishes → something starts an agent →
 it finishes → ... unbounded tokens, unbounded writes to a repository. The usual defence
@@ -571,7 +571,7 @@ epic. The paragraph ended by calling "whether the ledger should learn about
 agent-started children" an open question §7's caps made safe to defer.
 
 Task-022 answers it, and the answer is that they are ordinary runs. See
-[the epic walk](#the-epic-walk-one-human-act-many-runs-task-022) below for how the rule
+[the epic walk](#the-epic-walk-one-human-act-many-runs-task-022-2026-08-23) below for how the rule
 in §2 is satisfied rather than bent, and for what it costs.
 
 The protocol the supervisor prompt points at — which child, and what to do when one
@@ -1595,7 +1595,7 @@ for text only when `spec.description` is empty, which is true of none of this pr
 The CLI sends no such field, because a shell has nobody to name; it keeps the original
 rule and is refused with `not_human_clocked` if the newest stored entry is an agent's.
 Neither path takes its justification from the request — see
-[What is checked, and what is merely claimed](#what-is-checked-and-what-is-merely-claimed)
+[What is checked, and what is merely claimed](#what-is-checked-and-what-is-merely-claimed-added-2026-08-20-task-188)
 for why writing an entry and trusting a field are not the same act.
 
 **Auto-dispatch is designed here and built later.** A project may eventually set
@@ -1726,7 +1726,7 @@ each still hold -- an epic walk passes through all four for every child it start
 changed is the ratio: a person clicking Dispatch on an epic authorises a run *per child*,
 and at posture `autonomous` a merge into `main` per child, without being asked again. The
 argument for why that is acceptable, and the three things left holding when it is not, is
-in [the epic walk](#the-epic-walk-one-human-act-many-runs-task-022). Read it before
+in [the epic walk](#the-epic-walk-one-human-act-many-runs-task-022-2026-08-23). Read it before
 raising a project's posture.
 
 ### Four gates, each independently sufficient to stop a run — against a repository
@@ -2124,7 +2124,7 @@ finish is not containment; it is a stall with good intentions. Task-186 chose th
 The dispatched agent takes its own worktree, exactly as every other agent in this
 repository is already required to
 ([ALLAGENTS.md, "Why you get your own worktree"](../ALLAGENTS.md)):
-`git worktree add ../worktrees/aj-<nnn> -b <type>/task-<nnn>-<slug>`, before anything is
+`git worktree add ../worktrees/agentjobs-<nnn> -b <type>/task-<nnn>-<slug>`, before anything is
 written.
 
 Verified by running it rather than by reading about it, 2026-08-19: with `-w` omitted,

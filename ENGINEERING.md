@@ -364,9 +364,9 @@ the files under whoever else is in there. **When you are not alone in a clone, t
 worktree instead of checking out:**
 
 ```bash
-git worktree add ../worktrees/aj-045 -b feat/task-045-subtask-support
-cd ../worktrees/aj-045 && python scripts/bootstrap.py   # ~30s; no venv or node_modules yet
-git worktree remove ../worktrees/aj-045      # after the branch merges
+git worktree add ../worktrees/agentjobs-045 -b feat/task-045-subtask-support
+cd ../worktrees/agentjobs-045 && python scripts/bootstrap.py   # ~30s; no venv or node_modules yet
+git worktree remove ../worktrees/agentjobs-045      # after the branch merges
 ```
 
 **They go in a `worktrees/` directory beside the clone, not loose beside it.** A worktree
@@ -405,6 +405,12 @@ Work does not merge itself **unless the run's posture releases it**, and only on
 does. Read [Posture decides this, not you](#posture-decides-this-not-you) below before
 concluding either half applies to you; if you are a person, or a run whose posture was
 not named there, the rule is unqualified and the release does not exist for you.
+
+**This numbered list is the only one.** ALLAGENTS.md's task lifecycle used to restate
+steps 3 to 6 under its own numbers 6 and 7, so "step 6" named two different actions
+depending on which file the reader had open and each file's follow-on section then cited
+its own numbering. Its lifecycle now stops at the approval and points here. Anything that
+cites a step of the merge gate — prose, a docstring, a test — cites this numbering.
 
 When a branch is complete and verified:
 
@@ -496,7 +502,7 @@ child merges through `agentjobs finish --posture-release`, so each merge still h
 green unqualified `scripts/check.py` on the exact commit under it -- and the walk stops
 outright on the first child that is not clean rather than skipping it. Retries are
 bounded at two per child per authorisation. Read
-[the epic walk](docs/agent-dispatch-design.md#the-epic-walk-one-human-act-many-runs-task-022)
+[the epic walk](docs/agent-dispatch-design.md#the-epic-walk-one-human-act-many-runs-task-022-2026-08-23)
 before raising a project's posture, and note that the paragraph above gets *stronger*
 here: chains of unreviewed merges are recoverable only for as long as nothing is pushed.
 

@@ -1,4 +1,4 @@
-"""Finishing an approved task without a model: the fixed half of ALLAGENTS.md steps 6-7.
+"""Finishing an approved task without a model: the fixed half of the merge gate, steps 3-6.
 
 Task-234 measured what an approval costs. A task's second dispatched run exists to do
 five commands -- rebase, merge ``--no-ff``, mark the branch merged, close the task,
@@ -1257,7 +1257,7 @@ def finish_task(
     settings: Optional[FinishSettings] = None,
     authority: str = APPROVAL,
 ) -> FinishResult:
-    """Do the fixed part of ALLAGENTS.md steps 6 and 7, or stop and say where.
+    """Do the fixed part of ENGINEERING.md merge-gate steps 3 to 6, or stop and say where.
 
     Takes the task's run lock for the whole attempt, so a dispatch cannot start a
     session into a tree this is rebasing, and two approvals cannot merge the same branch
