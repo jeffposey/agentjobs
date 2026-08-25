@@ -3,26 +3,11 @@ id: task-298
 title: The run-lock refusal blames a stuck dispatch when the holder is a scripted
   finish, and never says the merge is already happening
 created: '2026-08-23T20:58:00.297051Z'
-updated: '2026-08-25T08:49:14.558179Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.
-
-
-  Note from Jeff Posey:
-
-
-  Also fix 307s dumbness in not making finish obey posture.
-
-
-  That note is context to carry into the merge, not another review round: you are
-  still cleared to merge.'
+updated: '2026-08-25T08:49:35.760217Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 493
 category: ux
 tags:
 - dispatch
@@ -30,7 +15,6 @@ tags:
 - error-messages
 - agent-dx
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: Approving a task now starts a scripted finish, which holds the task's run
@@ -173,7 +157,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-298-run-lock-refusal-names-finish
-  status: active
+  status: merged
+  merged_at: '2026-08-25T08:49:35.703771Z'
 log:
 - id: 1
   ts: '2026-08-23T20:58:00.728329Z'
@@ -644,3 +629,23 @@ log:
     merge_commit: 407256fc55df3bc2a26ec3554275cc8dec9de330
     branch: fix/task-298-run-lock-refusal-names-finish
     base: main
+- id: 17
+  ts: '2026-08-25T08:49:35.760023Z'
+  actor: finisher
+  type: transition
+  body: "Merged `fix/task-298-run-lock-refusal-names-finish` into `main` as `407256fc`\
+    \ and verified live. Finished by the scripted path with no agent session (task-241).\
+    \ Approved by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         1.0s  fix/task-298-run-lock-refusal-names-finish\
+    \ at d5ba9e4f in C:\\projects\\worktrees\\aj-298\n  rebase     ok         0.2s\
+    \  fix/task-298-run-lock-refusal-names-finish onto main: d5ba9e4f -> 5b068732\n\
+    \  gate       ok       171.7s  scripts/check.py green\n  merge      ok       \
+    \  0.2s  --no-ff into main as 407256fc55df3bc2a26ec3554275cc8dec9de330\n  rebuild\
+    \    skipped    0.0s  the merge touched no frontend/ path\n  restart    ok   \
+    \      0.9s  ran powershell -NoProfile -ExecutionPolicy Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -Force -NoOpen\n  verify     ok         0.0s  http://127.0.0.1:8876 is serving\
+    \ 9b1b2528, which contains the merge 407256fc, from C:\\projects\\agentjobs (started\
+    \ 2026-08-25T08:49:19.727210+00:00)\n```"
+  data:
+    lifecycle: closed
+    outcome: completed
