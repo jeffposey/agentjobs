@@ -2,7 +2,7 @@ schema: 2
 id: task-307
 title: Choose the posture at the moment of dispatching, not only in dispatch.yaml
 created: '2026-08-23T22:34:10.639602Z'
-updated: '2026-08-25T07:57:30.975163Z'
+updated: '2026-08-25T07:58:03.200194Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -868,3 +868,13 @@ log:
       id: a5e83b17-46cf-49d2-8b70-2d1e6f309c84
       kind: handoff
       fingerprint: 5908f566dd6b1cbb354dca0bd4d435a6
+- id: 23
+  ts: '2026-08-25T07:58:03.200001Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 20
+  data:
+    run_id: run_26a695a9
+    outcome: completed
+    duration_seconds: 3337.532474
+    log_path: C:\Users\jpose\.agentjobs\runs\run_26a695a9
