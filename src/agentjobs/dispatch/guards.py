@@ -646,12 +646,17 @@ class DispatchRequest:
     posture: Optional[Posture] = None
     """A posture chosen for this one dispatch, when somebody chose one (task-308).
 
-    The narrowest of the three sources and the one that wins, because it is the only one
-    that describes *this run* rather than this task or this project. It is a request, and
-    it is checked against the project's machine-local ceiling: unlike a posture on the
-    task record, which is clamped, one named here is **refused** when it exceeds the
-    ceiling. There is a caller waiting on the answer, so telling them no beats quietly
-    giving them something narrower than they asked for.
+    The narrowest of the four sources and the one that wins, because it is the only one
+    that describes *this run* rather than this epic, this task or this project. It is a
+    request, and it is checked against the project's machine-local ceiling: unlike a
+    posture on the task record, which is clamped, one named here is **refused** when it
+    exceeds the ceiling. There is a caller waiting on the answer, so telling them no
+    beats quietly giving them something narrower than they asked for.
+
+    It also outranks the posture a child would inherit from its epic (task-316), which
+    is what makes ``agentjobs dispatch walk --posture`` mean anything: a walk run from a
+    shell has no parent run to inherit from, and a person naming one there is choosing
+    for the runs they are about to start.
 
     Nothing about *who* is asking is inspected, and nothing needs to be -- the ceiling is
     the control, and it lives in a file no AgentJobs surface writes. The authority to
@@ -693,6 +698,16 @@ class DispatchRequest:
     7 exists to prevent. Mutually exclusive with both ``caused_by`` and ``authorized_by``:
     naming an entry, creating one, and inheriting one are three different acts and a
     request that asks for two of them has not decided which.
+
+    **What it inherits is the envelope as well as the authority** (task-316). A person
+    who dispatched the epic at a posture chose that for the work the epic contains, and
+    a child started on their click that quietly ran at the project default would make
+    the supervisor's own prompt -- *"a child you start merges its own work once its gate
+    is green"* -- a false statement. Like the identity, the posture is *read* off the
+    parent's stored ``dispatch`` entry rather than supplied here, so setting this flag
+    still gives a caller nothing to forge; and like every other source it goes through
+    ``resolve_posture`` and its ceiling. Only a posture the parent's run got from a
+    person crosses -- see ``epic.INHERITABLE_POSTURE_SOURCES``.
     """
 
 
@@ -786,6 +801,7 @@ def dispatch_task(
     authorizer: Optional[Actor] = None
     epic_note: Optional[str] = None
     epic_data: Optional[Dict[str, object]] = None
+    epic_posture: Optional[Posture] = None
     if request.on_behalf_of_parent:
         from agentjobs.dispatch.epic import assert_attempts_remain, resolve_epic_authorization
 
@@ -803,6 +819,12 @@ def dispatch_task(
         authorizer = inherited.actor
         epic_note = inherited.describe()
         epic_data = inherited.data()
+        # Read off the parent's stored record rather than taken from the request, for
+        # the same reason the identity above is: there is no input here a caller could
+        # get wrong or forge. A `DispatchRequest.posture` field would have made the
+        # child's envelope something the walk asserts; this makes it something the
+        # parent's own dispatch entry already says (task-316).
+        epic_posture = inherited.posture
     elif authorizer_id is None:
         causing = resolve_causing_entry(task, request.caused_by)
         assert_human_clocked(project_config, causing)
@@ -848,6 +870,7 @@ def dispatch_task(
         resolution.settings,
         task=Posture(task.posture.value) if task.posture is not None else None,
         requested=request.posture,
+        inherited=epic_posture,
     )
 
     if resolution.settings.require_clean_tree:

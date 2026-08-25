@@ -23,6 +23,7 @@ trust it.
 | 6 | The web UI's dispatch surface and per-project toggle | task-073 |
 | 7a | Permission posture — three postures, default `supervised` | task-076 |
 | 7d | Per-task posture and the project's `max_posture` ceiling | task-308 |
+| 7e | An epic's children inherit its dispatch-time posture | task-316 |
 | 7b | Session mode as the primary path, batch retained | task-077 |
 | 7c | Runner groups | task-177 |
 | 7 | Auto-dispatch on approval, opt-in per project | task-074 |
@@ -672,6 +673,53 @@ are worth stating because they are stronger than the design asked for:
   person acts on the epic. One human act buys one walk, and a walk that could restart
   itself after stopping for a person would not be stopping for a person.
 
+#### The children run at the epic's posture (task-316, 2026-08-25)
+
+The sentence below about `autonomous` describing an arbitrarily long chain of merges was
+written in task-022 and was not true of the code until task-316. `walk_epic.start_child`
+built its `DispatchRequest` with no posture on it, so every child fell through to the
+project default however the parent had been dispatched. On this repository — default
+`auto`, ceiling `autonomous` — an epic a person deliberately dispatched at `autonomous`
+therefore ran its first child at `auto`, that child correctly handed off for review, and
+the walk stopped with `CHILD_NEEDS_A_HUMAN`. Nothing said why: that stop reads as a child
+that genuinely needs a decision, not one handed the wrong authority. Meanwhile the
+supervisor's own generated prompt told it the opposite in as many words. Task-269's epic
+is the incident, and the workaround was to hand-write `posture:` onto every child.
+
+A child now inherits the parent run's posture, and **which of the four sources may cross
+that boundary is the decision, not the passing of the field**:
+
+| Source of the parent run's posture | Crosses to the children | Why |
+|---|---|---|
+| Chosen for the parent's dispatch (`dispatch`) | **Yes** | A person choosing, for this epic, at the moment they authorised it. This is the same act the children already inherit their *authorisation* from. |
+| Inherited by the parent from *its* epic (`epic`) | **Yes** | The same click, one generation further down. Dropping it at the second level would make behaviour depend on how somebody shaped the tree. |
+| The parent's own task record (`task`) | **No** | A git-tracked field any agent that can write the repository can set. Crossing would mean one agent editing one field on its own parent widens *every* child at once — and the ceiling that bounds that source bounds nothing on a project already capped at `autonomous`. |
+| The project default (`project`) | **No** | It already reaches every child on its own, as the bottom of `resolve_posture`'s precedence. "Inheriting" it would only relabel `posture_source` as `epic` and point a reader at the parent for an answer that is in `dispatch.yaml`. |
+
+The rule is the one the walk's authorisation already runs on: **what crosses the
+parent/child boundary is a human's act, and only that.**
+
+Three properties keep this from widening anything:
+
+- **It is read, never passed.** `dispatch_task` takes the posture off the parent's stored
+  `dispatch` entry, exactly as it takes the authorising human's identity — so
+  `on_behalf_of_parent` still gives a caller nothing to forge. Only the manager may
+  append a `dispatch` entry (`MANAGER_WRITTEN_LOG_TYPES`), which is what makes that entry
+  safe to take an execution envelope from at all.
+- **The ceiling is unchanged and still applies.** An inherited posture goes through
+  `resolve_posture` like every other source, and is *refused* above the ceiling rather
+  than clamped — because it is a dispatch-time choice, merely one made about the parent.
+  That is only reachable when somebody lowers `max_posture` mid-walk, and stopping loudly
+  is the honest answer to an authority that no longer fits.
+- **The record says where it came from.** A child run's `posture_source` is `epic`, not
+  `dispatch` (which would claim somebody chose for *this* run) and not `project` (which is
+  what the defect wrote, and pointed a reader at the wrong file entirely).
+
+`agentjobs dispatch walk --posture` covers the case with nothing to inherit — a walk run
+from a shell against an epic nobody dispatched. It outranks the inherited value, is
+refused above the ceiling exactly as `dispatch --posture` is, and the walk prints what
+envelope its children will start at before it starts any of them.
+
 #### One bad child stops everything
 
 Not skipped — stopped. A sibling that depended on the failed child would be building on a
@@ -1185,16 +1233,26 @@ The **push** switch and `assert_human_clocked` are both untouched by this. Choos
 a run may do and being allowed to start one are separate gates; this section is entirely
 about the first.
 
-##### Three sources, most-specific-wins, and two different failure modes
+##### Four sources, most-specific-wins, and two different failure modes
 
 | Rank | Source | Written by | Above the ceiling |
 |---|---|---|---|
 | 1 | Chosen for this dispatch: `--posture`, or the GUI control (task-307) | a person, per run | **Refused** (`posture_above_ceiling`, HTTP 403) |
-| 2 | `posture:` on the task record | anyone who can write the repository, including an agent | **Clamped** to the ceiling |
-| 3 | `posture:` in the project's `dispatch.yaml` | a person, on this machine | Cannot happen -- the config parser refuses it |
+| 2 | Inherited from the epic this task is a child of (task-316) | a person, when they dispatched the parent | **Refused** — it is a dispatch-time choice one generation up |
+| 3 | `posture:` on the task record | anyone who can write the repository, including an agent | **Clamped** to the ceiling |
+| 4 | `posture:` in the project's `dispatch.yaml` | a person, on this machine | Cannot happen -- the config parser refuses it |
 
 Precedence is the reading anyone would guess, and it is stated and tested rather than
 inferred, because a field whose effect cannot be predicted is worse than no field.
+
+**Rank 2 sitting above rank 3 is the one placement that is not obvious**, because a field
+on the child's own record is narrower in scope. It loses anyway, because the question the
+order answers is not "which statement is about the fewest runs" but *which statement did
+a person most recently make about this run*. Let the record win and "I dispatched the epic
+`autonomous`" would silently mean something different per child — which is exactly the
+predictability the paragraph above claims. Which sources may reach rank 2 at all is
+decided in [The children run at the epic's
+posture](#the-children-run-at-the-epics-posture-task-316-2026-08-25).
 
 The asymmetry in the last column is the part worth understanding. A dispatch-time choice
 has a caller waiting on an answer, so refusing beats quietly handing them something

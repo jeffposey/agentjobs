@@ -1303,6 +1303,14 @@ def dispatch_walk(
     max_children: Optional[int] = typer.Option(
         None, "--max-children", help="Stop after starting this many, however many remain."
     ),
+    posture: Optional[str] = typer.Option(
+        None,
+        "--posture",
+        help=(
+            "Posture to start every child of this walk at, overriding what the epic "
+            "would pass down. Refused above the project's max_posture."
+        ),
+    ),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Say what would be walked and in what order; start nothing."
     ),
@@ -1320,6 +1328,13 @@ def dispatch_walk(
     loop that is not mechanical. The walk writes what every child did onto the parent and
     hands back; you decide.
 
+    **Children inherit the epic's posture without being told to** (task-316): if a
+    person dispatched this parent at a posture, that is what its children are started
+    at, and the line printed before the walk says so. ``--posture`` is for the case
+    where there is nothing to inherit -- a walk run from a shell against an epic nobody
+    dispatched -- and it wins over the inherited value when both exist. It is refused
+    above the project's ``max_posture``, exactly as ``dispatch --posture`` is.
+
     Exit 0 means every open child is done. Exit 1 means it stopped for cause, the parent
     holds the reason, and the parent's ball is with a human. Exit 2 means it could not
     start at all.
@@ -1328,6 +1343,7 @@ def dispatch_walk(
         WalkSettings,
         EpicError,
         describe_settings,
+        inherited_posture,
         next_eligible_child,
         open_children,
         walk_epic,
@@ -1348,6 +1364,13 @@ def dispatch_walk(
     if parent is None:
         typer.secho(f"No task {parent_id!r} in project {project.id!r}.", fg=typer.colors.RED)
         raise typer.Exit(code=2)
+
+    try:
+        chosen_posture = Posture(posture) if posture else None
+    except ValueError:
+        names = ", ".join(sorted(item.value for item in Posture))
+        typer.secho(f"--posture must be one of {names}, not {posture!r}.", fg=typer.colors.RED)
+        raise typer.Exit(code=2) from None
 
     # The walk's own writes are an agent's, not a human's, so they are attributed to the
     # identity this project's runner claims tasks as -- the same one the children will
@@ -1377,7 +1400,9 @@ def dispatch_walk(
     remaining = open_children(manager, parent.id)
     typer.echo(f"Walking {parent.id}: {parent.title}")
     typer.echo(f"  open children: {', '.join(c.id for c in remaining) or 'none'}")
-    for line in describe_settings(settings):
+    for line in describe_settings(
+        settings, posture=chosen_posture, inherited=inherited_posture(parent)
+    ):
         typer.echo(f"  {line}")
 
     if dry_run:
@@ -1397,6 +1422,7 @@ def dispatch_walk(
             parent_id=parent.id,
             home=home,
             settings=settings,
+            posture=chosen_posture,
             on_event=lambda message: typer.echo(f"  {message}"),
         )
     except EpicError as exc:

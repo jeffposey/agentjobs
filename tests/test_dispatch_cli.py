@@ -276,6 +276,128 @@ class TestDispatchRun:
         return task.id
 
 
+class TestDispatchWalkPosture:
+    """``agentjobs dispatch walk`` says what envelope its children get (task-316).
+
+    The walk itself is covered in test_dispatch_epic.py. What is here is the half only
+    the command line has: the ``--posture`` option for a walk started from a shell, and
+    the line printed before anything starts -- which is the only warning a person gets
+    that they are about to authorise a chain of unreviewed merges.
+    """
+
+    def test_an_unknown_posture_is_refused_before_anything_starts(self, tmp_path: Path) -> None:
+        root = TestDispatchRun().make_project(tmp_path, "alpha")
+        parent_id = self.seed_epic(root)
+
+        result = runner.invoke(
+            app, ["dispatch", "walk", parent_id, "--project", "alpha", "--posture", "yolo"]
+        )
+
+        assert result.exit_code == 2
+        assert "--posture must be one of" in result.output
+
+    def test_a_dry_run_names_the_posture_inherited_from_the_epic(self, tmp_path: Path) -> None:
+        root = TestDispatchRun().make_project(tmp_path, "alpha")
+        parent_id = self.seed_epic(root, posture_source="dispatch")
+        write_config(
+            runners={
+                "fake": {
+                    "argv": [sys.executable, "-c", "print(1)", "{prompt}"],
+                    "actor": "claude",
+                }
+            },
+            projects={
+                "alpha": {
+                    "enabled": True,
+                    "runner": "fake",
+                    "posture": "auto",
+                    "max_posture": "autonomous",
+                }
+            },
+        )
+
+        result = runner.invoke(
+            app, ["dispatch", "walk", parent_id, "--project", "alpha", "--dry-run"]
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "posture children start at: autonomous (inherited from the epic" in result.output
+        assert "nothing was started" in result.output.lower()
+
+    def test_a_dry_run_says_so_when_nothing_is_inherited(self, tmp_path: Path) -> None:
+        root = TestDispatchRun().make_project(tmp_path, "alpha")
+        parent_id = self.seed_epic(root)
+        write_config(
+            runners={
+                "fake": {
+                    "argv": [sys.executable, "-c", "print(1)", "{prompt}"],
+                    "actor": "claude",
+                }
+            },
+            projects={"alpha": {"enabled": True, "runner": "fake"}},
+        )
+
+        result = runner.invoke(
+            app, ["dispatch", "walk", parent_id, "--project", "alpha", "--dry-run"]
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "posture children start at: the project default" in result.output
+
+    # ----- helpers -----
+
+    def seed_epic(self, root: Path, *, posture_source: str | None = None) -> str:
+        """An active epic with one ready child, dispatched at ``autonomous`` by a human."""
+        from agentjobs.models_v2 import (
+            DispatchMode,
+            DispatchPosture,
+            DispatchTrigger,
+            Lifecycle,
+            LogEntryType,
+        )
+
+        manager = TaskManager(TaskStorage(root / "tasks"))
+        parent = manager.create_task(
+            title="An epic",
+            category="general",
+            summary="Umbrella.",
+            description="Several children.",
+            lifecycle=Lifecycle.READY,
+            actor="Jeff Posey",
+        )
+        manager.add_log_entry(
+            parent.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Work this epic."
+        )
+        stored = manager.get_task(parent.id)
+        assert stored is not None
+        manager.claim_task(parent.id, agent="claude")
+        manager.record_dispatch(
+            parent.id,
+            actor="Jeff Posey",
+            run_id="run_parent",
+            agent="claude",
+            runner="fake",
+            mode=DispatchMode.SESSION,
+            posture=DispatchPosture.AUTONOMOUS,
+            posture_source=posture_source,
+            trigger=DispatchTrigger.MANUAL,
+            caused_by=stored.log[-1].id,
+            argv=["fake"],
+            cwd=".",
+            git_head="0000000",
+        )
+        manager.create_task(
+            title="A child",
+            category="general",
+            summary="Child.",
+            description="Do the thing.",
+            lifecycle=Lifecycle.READY,
+            actor="claude",
+            parent=parent.id,
+        )
+        return parent.id
+
+
 class TestAuthCheckCommand:
     """The supervisor-facing half of task-224.
 
