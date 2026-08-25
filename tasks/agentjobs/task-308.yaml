@@ -2,11 +2,54 @@ schema: 2
 id: task-308
 title: Posture settable on the task record, and whether a task may raise its own
 created: '2026-08-23T22:48:30.766265Z'
-updated: '2026-08-25T05:17:41.645850Z'
+updated: '2026-08-25T05:57:55.439061Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "**Ready for review. Branch `feat/task-308-posture-ceiling` at `eb4e9f6`,\
+  \ six commits. Full unqualified gate green, exit 0, 158.0s, receipt written. All\
+  \ six acceptance criteria met with evidence on each.**\n\nEntry 8 is the decision\
+  \ entry with the four open questions from your entry 2 answered and their rejected\
+  \ alternatives; entry 9 is what was built and how it was verified. Both are written\
+  \ for someone with no memory of this session.\n\n---\n\n**The one thing I did not\
+  \ do, because your entry 2 said not to assume it.**\n\nYou asked to confirm agentjobs'\
+  \ own two values rather than guess: *\"a wrong ceiling here is the one that matters\"\
+  *. So I set nothing in `~/.agentjobs/dispatch.yaml` \u2014 it is yours, it is machine-local,\
+  \ and it is the whole control. **Every project on this machine currently reads `max_posture=auto`**,\
+  \ which is exactly today's behaviour and is what the absent-ceiling default is for.\n\
+  \nThat means the feature is inert until you add one line. To turn it on for agentjobs:\n\
+  \n```yaml\nprojects:\n  agentjobs:\n    posture: auto\n    max_posture: autonomous\
+  \   # <- add this\n```\n\nI recommend that pair, agreeing with task-307's entry\
+  \ 16: `auto` is what the project runs at now, `finish.enabled` is true so `autonomous`\
+  \ is mechanically complete, and you dispatched task-021 as `autonomous` deliberately.\
+  \ But it is one line in your file and it should be your keystroke, not mine \u2014\
+  \ a ceiling this tool set for itself is not a ceiling.\n\n**Understand what that\
+  \ line buys and what it costs.** Once `max_posture: autonomous` is set on agentjobs,\
+  \ an agent that writes `posture: autonomous` onto its own task record will get it\
+  \ on the next dispatch \u2014 because you chose to allow that band. The run's dispatch\
+  \ entry names the source, so it is auditable, but it is not prevented. If you would\
+  \ rather keep the escalation to the pulldown only (a person clicking) and not the\
+  \ task field, say so and I will file a follow-up: it would need a per-source cap\
+  \ rather than one ceiling, which is a real design change and not a tweak.\n\n---\n\
+  \n**Worth your eye in review, in order:**\n\n1. **`Posture.rank` in `dispatch/config.py`**\
+  \ \u2014 the width order, `read_only < supervised < auto < autonomous`. `supervised`\
+  \ below `auto` is the judgement call. Entry 8 part 3 argues it; if you disagree\
+  \ with that reading, this is the line to change and everything else follows from\
+  \ it.\n2. **`resolve_posture`, same file** \u2014 the whole precedence and clamping\
+  \ rule, one function, reads no identity. That it reads no identity is the design,\
+  \ not an omission.\n3. **`tests/test_dispatch_posture_ceiling.py::TestAgentWrittenPostureCannotWiden`**\
+  \ \u2014 the security property, asserted on the recorded argv rather than on the\
+  \ resolver, plus the counterpart proving the ceiling is what was stopping it.\n\n\
+  **Nothing to click.** No React component reads the two new state-view fields yet,\
+  \ so there is no UI change to look at and no sandbox was stood up. task-307 is the\
+  \ task that gets a review server.\n\n---\n\n**After approval:** task-307 is unblocked.\
+  \ It handed back on 2026-08-24 needing exactly one thing \u2014 `max_posture` in\
+  \ the codebase \u2014 and now also has `offerable_postures` on the state view, the\
+  \ `posture` request field, and the 403 its pulldown must never be able to provoke.\
+  \ Its own entries 14 and 15 asked whoever landed first to implement `posture_source`;\
+  \ that is done here, so 307 consumes it rather than adding it again. It said it\
+  \ would be a short run.\n\nI did not merge. Posture `auto`, and I have no authority\
+  \ to."
 archived: false
 priority: high
 queue_position: 245
@@ -108,26 +151,40 @@ acceptance:
 - id: sc-1
   text: Whether a task's posture may widen the project's, or only narrow it, is decided
     and recorded with the rejected alternative
-  status: pending
+  verify: Jeff's decision entry 2 (a ceiling, not narrow-only, not a provenance check);
+    entry 8 part 1 for the refuse-versus-clamp asymmetry underneath it
+  status: met
 - id: sc-2
   text: If widening is permitted, what makes the writer accountable is decided and
     enforced in code, not stated in prose
-  status: pending
+  verify: 'Nothing makes the writer accountable, by design: the ceiling makes identity
+    irrelevant. resolve_posture reads no actor. Enforced in dispatch/config.py, exercised
+    by TestAgentWrittenPostureCannotWiden'
+  status: met
 - id: sc-3
   text: Precedence among project setting, task record and dispatch-time choice is
     documented and covered by tests
-  status: pending
+  verify: 'docs/agent-dispatch-design.md ''Where a posture may come from''; docs/task-schema.md
+    ''posture: a request, not a grant''; TestPrecedence and TestTheCeilingClampsAndRefuses'
+  status: met
 - id: sc-4
   text: The run's dispatch entry names both the resolved posture and which source
     supplied it
-  status: pending
+  verify: posture_source, posture_ceiling and posture_requested on DispatchData and
+    in the run meta; TestTheDispatchEntryNamesItsSource, and the clamped case in TestAgentWrittenPostureCannotWiden
+  status: met
 - id: sc-5
   text: A test asserts that an agent-written posture cannot by itself produce a run
     with a wider envelope than the project configured
-  status: pending
+  verify: TestAgentWrittenPostureCannotWiden, asserting on the recorded argv (no bypassPermissions)
+    rather than on the resolver, plus its counterpart proving the ceiling is what
+    was stopping it
+  status: met
 - id: sc-6
   text: poetry run python scripts/check.py passes
-  status: pending
+  verify: Unqualified gate on eb4e9f6, exit 0, 158.0s, all ten stages, receipt written
+    for eb4e9f6c
+  status: met
 deliverables: []
 dependencies:
 - task: task-021
@@ -336,3 +393,184 @@ log:
       id: 6a1c9d20-4b3e-4f7a-9c81-2d5e7f0a3b41
       kind: update_content
       fingerprint: fd6a5ed3f0cbcbf6b86ce7dbfed7d3ad
+- id: 8
+  ts: '2026-08-25T05:56:48.845578Z'
+  actor: claude
+  type: decision
+  body: "**The four questions your entry 2 left open, decided and enforced. Each with\
+    \ what was rejected.**\n\nYour ceiling settles sc-1 and sc-2 and is implemented\
+    \ as written; none of it is relitigated below. These are the four things entry\
+    \ 2 named as still open, plus one the implementation forced.\n\n---\n\n**1. Precedence:\
+    \ most-specific-wins, and it is refused-versus-clamped that matters.**\n\nDispatch-time\
+    \ choice > task record > project default. That is the obvious reading and it is\
+    \ what shipped, tested in `TestPrecedence`.\n\nThe part that was **not** obvious,\
+    \ and is the real decision: the two sources the ceiling bounds are treated differently\
+    \ when they exceed it.\n\n| Source | Above the ceiling | Why |\n|---|---|---|\n\
+    | Dispatch-time (`--posture`, task-307's control) | **Refused** \u2014 `posture_above_ceiling`,\
+    \ HTTP 403 | A caller is waiting on an answer. Quietly handing them something\
+    \ narrower than they asked for is worse than saying no. |\n| Task record | **Clamped**,\
+    \ and the run records that it was | Nobody is waiting. Refusing would hand every\
+    \ agent a denial of service *on its own task*: write an over-ceiling value once\
+    \ into a file it can already write, and every future dispatch of that task fails.\
+    \ |\n\n**Rejected: clamping both.** It makes an operator's explicit choice silently\
+    \ not happen.\n**Rejected: refusing both.** It is the DoS above, and it also contradicts\
+    \ your entry 2 in as many words \u2014 *\"an agent that edits its own task record\
+    \ to autonomous on a project whose max_posture is auto gets auto\"*. Gets, not\
+    \ is refused.\n\n---\n\n**2. `max_posture` defaults to the project's own `posture`.**\n\
+    \nNot to `auto`, not to `autonomous`, not to a constant. Before this task, the\
+    \ project's posture was the only posture a run could ever get; an absent ceiling\
+    \ equal to it reproduces that exactly, so no existing `dispatch.yaml` widens on\
+    \ upgrade. Verified against your real machine config, not a fixture: all three\
+    \ projects report `max_posture=auto`, unchanged behaviour.\n\nThe cost, stated\
+    \ rather than smoothed over: **the feature is opt-in twice.** A task's `posture:\
+    \ autonomous` and task-307's pulldown both do nothing until the ceiling is raised\
+    \ by hand in a file no AgentJobs surface writes. That is the point of it.\n\n\
+    **Rejected: defaulting to `autonomous`** so the feature works out of the box.\
+    \ It would silently release the merge gate for every project on the machine, which\
+    \ is precisely the escalation this task exists to close.\n\n---\n\n**3. Width\
+    \ order: `read_only` < `supervised` < `auto` < `autonomous`. This one is counter-intuitive\
+    \ and load-bearing.**\n\nA ceiling has to compare postures, and the enum's declaration\
+    \ order is not the answer. **`supervised` is narrower than `auto`.** The question\
+    \ a ceiling asks is what a run may do *unattended*: supervised runs nine allow-listed\
+    \ prefixes and parks on everything else, where `auto` is classifier-gated over\
+    \ a far larger set. Supervised *feels* wider because a human at a terminal can\
+    \ approve what it parks on \u2014 but that is a second authorisation arriving,\
+    \ not something the run was granted, and a `--bg` session gets no such approval\
+    \ (the `Posture` docstring's own 2026-08-19 incident).\n\nSo `max_posture: supervised`\
+    \ means \"nothing here runs unwatched\", and handing it `auto` would defeat exactly\
+    \ that.\n\nThe comparison is `Posture.within(ceiling)`, **not** `<=`. `Posture`\
+    \ inherits `str`, so it already has comparison operators and they compare spelling:\
+    \ alphabetically `read_only` sorts *above* `autonomous`, so a `<=` ceiling would\
+    \ let the narrowest posture in the enum clear every cap. `test_string_comparison_would_have_got_it_backwards`\
+    \ asserts the trap is real, so anyone who later \"simplifies\" `within` into `<=`\
+    \ gets a failing test that explains why not.\n\n**Rejected: overriding `__le__`\
+    \ and `__gt__` on the enum.** I wrote it that way first. Overriding two of the\
+    \ six leaves the other four still comparing spelling, which is worse than overriding\
+    \ none \u2014 a half-defined ordering is a trap that looks like a feature.\n\n\
+    ---\n\n**4. An incoherent `dispatch.yaml` is refused at parse time, not clamped.**\n\
+    \n`posture: autonomous` under `max_posture: auto` raises `DispatchConfigError`\
+    \ naming both. Unlike the two sources the ceiling bounds, both halves of that\
+    \ contradiction were typed by the same person into the same file, so there is\
+    \ nobody to protect from anybody \u2014 running their default at their ceiling\
+    \ would be the tool deciding which of two lines they meant. `resolve_posture`\
+    \ still clamps that combination defensively, for a settings object built in code\
+    \ rather than loaded from a file, so the code path fails closed rather than open.\n\
+    \n---\n\n**5. `assert_human_clocked` is untouched, and here is the check on that\
+    \ claim.**\n\nNothing in `resolve_posture` reads an actor, a log entry, or an\
+    \ identity \u2014 that is the whole point of the ceiling, and it is why the guard\
+    \ needed no change. The dispatch chain is unchanged in order and in effect: posture\
+    \ resolution sits *above* the run lock and above every write, so an over-ceiling\
+    \ request writes nothing at all (`test_a_refused_dispatch_writes_no_dispatch_entry`).\
+    \ Starting a run and choosing what a run may do remain separate gates, and this\
+    \ task touched only the second.\n"
+  re: 2
+  data:
+    operation:
+      id: b3f4a1c7-2e58-4d96-8a03-71fc5b2e9d84
+      kind: log_append
+      fingerprint: 7e24462794df4551223399e0fdf3312d
+- id: 9
+  ts: '2026-08-25T05:57:19.638316Z'
+  actor: claude
+  type: progress
+  body: "**Built and verified. Branch `feat/task-308-posture-ceiling`, six commits,\
+    \ `eb4e9f6`. Full unqualified gate green at 158.0s, exit 0, receipt written for\
+    \ `eb4e9f6c`.**\n\n## What is on the branch\n\n**`ProjectDispatchSettings.max_posture`**\
+    \ (`dispatch/config.py`) \u2014 optional, defaults to the project's own `posture`.\
+    \ Read through `.ceiling`, which is never `None`. `.offerable_postures()` returns\
+    \ everything at or below it, narrowest first, so a chooser and the resolver work\
+    \ from one list.\n\n**`Posture.rank` and `Posture.within(ceiling)`** \u2014 the\
+    \ width order, with the `<=`-compares-spelling trap documented on the method and\
+    \ asserted in a test.\n\n**`resolve_posture(settings, task=, requested=)` \u2192\
+    \ `ResolvedPosture`** \u2014 the whole precedence and clamping rule in one function\
+    \ that reads no identity. Returns the posture, the source (`project` / `task`\
+    \ / `dispatch`), the ceiling, and what was asked for if it was cut down. `.as_data()`\
+    \ is what goes on the record; `.describe()` is the sentence the CLI prints.\n\n\
+    **`Task.posture`** (`models_v2.py`) \u2014 optional `DispatchPosture`. `exclude_none`\
+    \ keeps it out of every task file that never sets it, so introducing it rewrote\
+    \ nothing; a test asserts that. Reachable through `PATCH /tasks/{id}` and MCP\
+    \ `task_update_content`, deliberately \u2014 the ceiling is what makes the writer\
+    \ irrelevant.\n\n**Three provenance fields on the `dispatch` entry** \u2014 `posture_source`,\
+    \ `posture_ceiling`, and `posture_requested` (present only on a clamp). Optional,\
+    \ so entries written before today keep their exact shape; the docs say to read\
+    \ an absent `posture_source` as `project`, never as unknown. The same three go\
+    \ into the run directory's `meta.yaml`.\n\n**`DispatchRequest.posture`**, resolved\
+    \ in `dispatch_task` **above the run lock and above every write**, so a refused\
+    \ request leaves the task exactly as it was.\n\n**The runner holds the resolved\
+    \ posture** rather than reading `settings.posture` at each of its ten use sites\
+    \ \u2014 prompt clause, permission flags, Codex session settings, run meta, dispatch\
+    \ entry. One source, so a run's recorded posture cannot differ from the one it\
+    \ was started under.\n\n**Surfaces**: `POST /tasks/{id}/dispatch` takes `posture`\
+    \ and refuses above the ceiling as 403 `posture_above_ceiling`; the dispatch state\
+    \ view carries `max_posture` and `offerable_postures`; `agentjobs dispatch run\
+    \ --posture` and `dispatch config` show the ceiling.\n\n## Verification\n\n**The\
+    \ gate.** `scripts/check.py`, no arguments, on the branch tip. All ten stages:\
+    \ black 0.9s \xB7 ruff 0.1s \xB7 mypy 1.5s \xB7 api 4.4s \xB7 icons 2.5s \xB7\
+    \ oxlint 0.7s \xB7 pytest 107.6s \xB7 vitest 5.4s \xB7 build 3.8s \xB7 e2e 31.1s.\
+    \ Exit 0.\n\n**40 new tests.** 36 in `tests/test_dispatch_posture_ceiling.py`,\
+    \ 4 in `tests/test_dispatch_api.py`.\n\nThe one that is a security property rather\
+    \ than a rule is `TestAgentWrittenPostureCannotWiden`. It does what the spec's\
+    \ own threat model describes: an agent writes `autonomous` onto its own task record\
+    \ on a project whose config never raised its ceiling. Four assertions, and the\
+    \ choice of what to assert on is the point \u2014\n\n- the run's `meta.yaml` says\
+    \ `posture: auto`;\n- **the recorded argv contains no `bypassPermissions`.** Asserted\
+    \ on argv, not on the resolver's return value, because the resolver agreeing with\
+    \ itself proves nothing about what the operating system was handed;\n- the dispatch\
+    \ entry says `posture_source: task`, `posture_ceiling: auto`, `posture_requested:\
+    \ autonomous` \u2014 a reader learns it was cut down without opening a machine-local\
+    \ file;\n- and its counterpart: **raising `max_posture` to `autonomous` lets the\
+    \ identical value through.** Without that, the first three would pass on a broken\
+    \ build that ignored the task field entirely.\n\n**Against the real machine config,\
+    \ not a fixture.** `~/.agentjobs/dispatch.yaml` parses unchanged under the new\
+    \ parser, and `dispatch config` reports `max_posture=auto` for agentjobs, job-hunting\
+    \ and mastercalls \u2014 the upgrade-safety property, observed rather than argued.\
+    \ Resolving against those real settings: no source \u2192 `auto (from the project)`;\
+    \ task asks `autonomous` \u2192 `auto (asked for autonomous on the task, clamped\
+    \ to the project ceiling auto)`; a dispatch-time request for `autonomous` \u2192\
+    \ refused, `posture_above_ceiling`.\n\n**One pre-existing test needed updating**,\
+    \ and it is the good kind: `test_the_content_patch_exposes_only_authoring_fields`\
+    \ asserts the exact set of fields MCP will patch. It failed because `posture`\
+    \ joined the set, which is the check working \u2014 a field cannot slip into the\
+    \ agent-writable surface without somebody saying so in a diff.\n\n## Nothing visible\
+    \ in a browser yet\n\nNo sandbox stood up, deliberately. The two new state-view\
+    \ fields exist so task-307's control can populate from them, and no React component\
+    \ reads them yet, so there is nothing for a reviewer to look at that they cannot\
+    \ read in the diff. 307 is the task that gets a review server.\n\n## What this\
+    \ unblocks\n\ntask-307 handed back on 2026-08-24 blocked on exactly one thing:\
+    \ *\"`max_posture` does not exist in the codebase\"*. It does now, along with\
+    \ `offerable_postures` on the state view, the `posture` request field, and the\
+    \ 403 its pulldown must not be able to provoke. Its own decision entries 14 and\
+    \ 15 flagged that `posture_source` should be implemented once by whichever task\
+    \ landed first \u2014 it is implemented here, so 307 should consume it rather\
+    \ than add it again.\n"
+  data:
+    operation:
+      id: c4e0b8d3-9a17-42f5-b6ce-3d81f0a25c76
+      kind: log_append
+      fingerprint: 81469394197bf28857ff3f4ca3dcd79e
+- id: 10
+  ts: '2026-08-25T05:57:32.332275Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: d5a2c9e1-6b40-4f83-a7d2-8e1c4b90f637
+      kind: update_content
+      fingerprint: 2e3b0e49fc67220dd7c20047f6b0b617
+- id: 11
+  ts: '2026-08-25T05:57:55.438676Z'
+  actor: claude
+  type: handoff
+  body: 'Work complete and verified. Handing back for review with one question for
+    Jeff: whether to raise agentjobs'' `max_posture` to `autonomous`, which is his
+    keystroke to make and not this tool''s.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: e7b1d4f0-3c92-4a68-b05e-9f27c8a3e514
+      kind: handoff
+      fingerprint: df486e2c372f45187eb8adb2d4337dda
