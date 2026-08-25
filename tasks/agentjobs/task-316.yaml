@@ -3,23 +3,13 @@ id: task-316
 title: The epic walk drops the parent's dispatch-time posture, so an epic dispatched
   `autonomous` stops at its first child
 created: '2026-08-25T10:13:25.100260Z'
-updated: '2026-08-25T20:29:35.415731Z'
+updated: '2026-08-25T20:34:47.600619Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'The approval ran the scripted finish and it stopped at `merge`. **Nothing
-  was merged.**
-
-
-  main moved from 548224bc to ac1018f1 while the gate was running, so what was verified
-  is no longer what would be merged. The branch is rebased onto the older base and
-  nothing was merged.
-
-
-  Take it from here by hand. Check the tree against what is written above before acting
-  on anything you remember: if your worktree, your branch or your account of this
-  task no longer matches what is on disk, say so on the record and hand the ball back
-  rather than improvising a recovery.'
+ball: human
+ball_reason: decision
+ball_prompt: Run run_e03af0d1 ended `cancelled` and nobody was told what this task
+  needs. Read the dispatch_result entry, then either dispatch again or take it on
+  yourself.
 archived: false
 priority: high
 queue_position: 14600
@@ -526,3 +516,23 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 16
+  ts: '2026-08-25T20:34:47.562302Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: stopped session b2f3c800
+  re: 15
+  data:
+    run_id: run_e03af0d1
+    outcome: cancelled
+    duration_seconds: 313.276525
+    log_path: C:\Users\jpose\.agentjobs\runs\run_e03af0d1
+- id: 17
+  ts: '2026-08-25T20:34:47.600457Z'
+  actor: dispatcher
+  type: handoff
+  body: Run run_e03af0d1 ended `cancelled` and nobody was told what this task needs.
+    Read the dispatch_result entry, then either dispatch again or take it on yourself.
+  data:
+    ball: human
+    ball_reason: decision
