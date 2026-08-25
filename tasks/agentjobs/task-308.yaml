@@ -2,48 +2,23 @@ schema: 2
 id: task-308
 title: Posture settable on the task record, and whether a task may raise its own
 created: '2026-08-23T22:48:30.766265Z'
-updated: '2026-08-25T06:42:05.901805Z'
+updated: '2026-08-25T06:46:53.307937Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "**Gate is green. Ready to re-run the finish. Branch `feat/task-308-posture-ceiling`\
-  \ at `b8d5e78`, now seven commits \u2014 rebased onto `main`, full unqualified `scripts/check.py`\
-  \ exit 0, 183.4s, all ten stages, receipt written for `b8d5e786`.**\n\nEntry 19\
-  \ has the full account. The short version:\n\n**The gate failure was not this branch's.**\
-  \ `TestProcessGroup::test_the_timeout_kills_the_grandchild_too` asserted that the\
-  \ grandchild process was *already* dead the instant the supervisor thread joined.\
-  \ `_terminate` signals the process group, so the parent and grandchild die concurrently\
-  \ and independently, and `join` tracks the parent \u2014 nothing orders the grandchild's\
-  \ exit before it. Under load it loses that race. The branch touches neither the\
-  \ kill path nor that test; I checked both diffs against `main` before touching anything.\n\
-  \n**Reproduced it rather than assuming.** A temporary probe ran the same scenario\
-  \ polling instead of asserting, six times, with the full suite loading the machine\
-  \ under `-n auto`. One run came back with the grandchild still listed at the moment\
-  \ `join` returned and gone by the next poll \u2014 the gate's failure, in hand.\
-  \ Probe deleted, not committed.\n\n**Fixed by waiting rather than assuming, and\
-  \ checked that the wait is not a decoration**: `_dies_within(os.getpid(), 3.0)`\
-  \ \u2014 a process that never exits \u2014 returns False. The test still fails if\
-  \ the grandchild genuinely survives.\n\n---\n\n**Two things for you, neither blocking.**\n\
-  \n**1. The seventh commit is scope I added.** `test(dispatch): wait for the grandchild\
-  \ to die rather than assume it already has` fixes a pre-existing flake that task-308\
-  \ did not ask about. I judged it in scope because sc-6 is \"the gate passes\" and\
-  \ this is what was stopping it, and because it is a complete fix rather than a workaround\
-  \ \u2014 so I filed no follow-up task. **If you would rather it not ride along with\
-  \ a posture change, say so and I will move it to its own branch**; it is independent\
-  \ of the other six and cherry-picks cleanly.\n\n**2. The `max_posture` question\
-  \ from my last handoff is still open**, and still not blocking the merge. Every\
-  \ project on this machine reads `max_posture=auto`, so the feature ships inert.\
-  \ To turn it on for agentjobs, one line in `~/.agentjobs/dispatch.yaml`:\n\n```yaml\n\
-  projects:\n  agentjobs:\n    posture: auto\n    max_posture: autonomous   # <- add\
-  \ this\n```\n\nI recommend that pair and deliberately did not write it myself \u2014\
-  \ a ceiling this tool set for itself is not a ceiling. Note what it buys: once set,\
-  \ an agent that writes `posture: autonomous` onto its own task record gets it on\
-  \ the next dispatch. Auditable on the run record, not prevented. If you would rather\
-  \ allow escalation only from the pulldown and not the task field, that is a per-source\
-  \ cap rather than one ceiling \u2014 a real design change, and I will file it.\n\
-  \n---\n\n**Next step is yours: approve again and the scripted finish will re-run.**\
-  \ It knows it merged nothing last time and will start from the rebase. I did not\
-  \ merge \u2014 posture `auto`, and I have no authority to."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.
+
+
+  Note from Jeff Posey:
+
+
+  Approved, go ahead and set the project to max posture autonomous
+
+
+  That note is context to carry into the merge, not another review round: you are
+  still cleared to merge.'
 archived: false
 priority: high
 queue_position: 245
@@ -841,3 +816,28 @@ log:
     outcome: completed
     duration_seconds: 977.410339
     log_path: C:\Users\jpose\.agentjobs\runs\run_a6f3d280
+- id: 22
+  ts: '2026-08-25T06:46:51.641399Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    Approved, go ahead and set the project to max posture autonomous'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 23
+  ts: '2026-08-25T06:46:53.307727Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-308-posture-ceiling` (b8d5e786).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-308.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_f2bca6ff\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-308-posture-ceiling
+    finish_id: fin_f2bca6ff
