@@ -3,7 +3,7 @@ id: task-302
 title: "Three statements in the always-loaded bundle contradict the code \u2014 fix\
   \ them, and collapse the double-numbered merge gate"
 created: '2026-08-23T21:50:44.787308Z'
-updated: '2026-08-25T11:12:59.192934Z'
+updated: '2026-08-25T11:13:38.239052Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -566,3 +566,13 @@ log:
       id: c8e03b16-7f24-4d95-b1a3-0e62975fd84a
       kind: log_append
       fingerprint: fd4399295ba26b045e962ae769935116
+- id: 17
+  ts: '2026-08-25T11:13:38.238907Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 10
+  data:
+    run_id: run_a07731b6
+    outcome: completed
+    duration_seconds: 1668.216381
+    log_path: C:\Users\jpose\.agentjobs\runs\run_a07731b6
