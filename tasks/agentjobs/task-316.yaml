@@ -3,7 +3,7 @@ id: task-316
 title: The epic walk drops the parent's dispatch-time posture, so an epic dispatched
   `autonomous` stops at its first child
 created: '2026-08-25T10:13:25.100260Z'
-updated: '2026-08-25T23:48:31.537807Z'
+updated: '2026-08-25T23:52:31.072971Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1014,3 +1014,21 @@ log:
     finish_step: started
     branch: fix/task-316-epic-posture-inheritance
     finish_id: fin_81f3dc1f
+- id: 40
+  ts: '2026-08-25T23:52:31.072694Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-316-epic-posture-inheritance` into `main` as `7f75fcb4`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-316
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    dispatch) releases the merge gate (task-021), and run run_68ea396e ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 7f75fcb4f0f84b774ccf5b66714d3a4981ac08f9
+    branch: fix/task-316-epic-posture-inheritance
+    base: main
