@@ -99,6 +99,7 @@ is how this project has lost the most time, so the status word comes first.
 | --- | --- |
 | [Task corpus audit](task-corpus-audit.md) | 2026-08-13 |
 | [MCP release evidence](integration/mcp-release-evidence.md) | 2026-08-17. Its counts — "fourteen tools", "1089 tests" — were right that day and are not now. |
+| [The context budget](context-budget.md) | 2026-08-25. What a session loads before its first thought, per runner, with the instrument behind every figure. The totals move with each harness release and each commit to the always-loaded bundle; the methods and the proposed cap do not. |
 
 **Generated.** Never hand-edit; regenerate.
 
