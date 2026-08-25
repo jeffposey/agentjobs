@@ -133,7 +133,7 @@ compliant_when:
 
 violated_when:
   - kind: command_matches
-    pattern: "git\\s+merge(?![-\\w])"
+    pattern: "git\\b[^\\n;|&]{0,60}\\bmerge(?![-\\w])"
   - kind: ref_changed_paths
     ref: main
     paths: ["src/*"]

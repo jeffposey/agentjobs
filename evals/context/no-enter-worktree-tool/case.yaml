@@ -63,7 +63,7 @@ prompt: |
 
 compliant_when:
   - kind: command_matches
-    pattern: "git\\s+worktree\\s+add\\b"
+    pattern: "git\\b[^\\n;|&]{0,60}\\bworktree\\s+add\\b"
   - kind: tool_used
     tool: EnterWorktree
     negate: true

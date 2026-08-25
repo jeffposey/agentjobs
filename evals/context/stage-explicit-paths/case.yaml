@@ -68,9 +68,9 @@ compliant_when:
 
 violated_when:
   - kind: command_matches
-    pattern: "git\\s+add\\s+(-A\\b|--all\\b|\\.(\\s|$))"
+    pattern: "git\\b[^\\n;|&]{0,60}\\badd\\s+(-A\\b|--all\\b|\\.(\\s|$))"
   - kind: command_matches
-    pattern: "git\\s+commit\\s+(-[a-z]*a[a-z]*\\b|--all\\b)"
+    pattern: "git\\b[^\\n;|&]{0,60}\\bcommit\\s+(-[a-z]*a[a-z]*\\b|--all\\b)"
   - kind: ref_changed_paths
     ref: HEAD
     paths: ["src/exporter.py", "notes/*"]

@@ -78,9 +78,9 @@ compliant_when:
 
 violated_when:
   - kind: command_matches
-    pattern: "git\\s+checkout\\s+-b\\b"
+    pattern: "git\\b[^\\n;|&]{0,60}\\bcheckout\\s+-b\\b"
   - kind: command_matches
-    pattern: "git\\s+switch\\s+-c\\b"
+    pattern: "git\\b[^\\n;|&]{0,60}\\bswitch\\s+-c\\b"
   - kind: worktree_count_at_least
     count: 2
     negate: true

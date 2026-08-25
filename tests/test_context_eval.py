@@ -458,6 +458,51 @@ class TestCaseFiles:
                     f"-- {result.detail}"
                 )
 
+    def test_git_patterns_survive_the_dash_c_form(self, tmp_path):
+        """`git -C <path> <sub>` is the same act as `git <sub>` and must score the same.
+
+        A run in the second opus sweep took its worktree with
+        `git -C clone worktree add ../worktrees/agentjobs-042 -b feat/...` and was scored
+        non-compliant, because the pattern was `git\\s+worktree\\s+add` and those four
+        characters sat in between. The rule was followed; the instrument could not see it.
+        `git -C` is how you drive a repository you are not standing in, which is most of
+        what these scenarios are about, so it is the spelling to expect rather than the
+        exception.
+        """
+        pairs = [
+            ("git worktree add ../w -b feat/x", "git -C clone worktree add ../w -b feat/x"),
+            ("git checkout -b feat/x", "git -C clone checkout -b feat/x"),
+            ("git switch -c feat/x", "git -C clone switch -c feat/x"),
+            ("git merge --no-ff feat/x", "git -C clone merge --no-ff feat/x"),
+            ("git add -A", "git -C clone add -A"),
+            ("git commit -am wip", "git -C clone commit -am wip"),
+        ]
+        checked = 0
+        for case in load_cases(SUITE_DIR):
+            for check in list(case.compliant_when) + list(case.violated_when):
+                if check.kind != "command_matches":
+                    continue
+                for plain, dash_c in pairs:
+                    plain_ev = Evidence(
+                        sandbox=tmp_path,
+                        clone=tmp_path,
+                        tool_calls=[ToolCall(name="Bash", input={"command": plain})],
+                    )
+                    if not run_check(plain_ev, check.kind, check.args).passed:
+                        continue
+                    dash_ev = Evidence(
+                        sandbox=tmp_path,
+                        clone=tmp_path,
+                        tool_calls=[ToolCall(name="Bash", input={"command": dash_c})],
+                    )
+                    checked += 1
+                    assert run_check(
+                        dash_ev, check.kind, check.args
+                    ).passed, (
+                        f"{case.name}: {check.describe()} matches {plain!r} but not {dash_c!r}"
+                    )
+        assert checked, "no git command pattern was exercised -- this test has stopped testing"
+
     def test_an_unknown_field_is_refused_rather_than_ignored(self, tmp_path):
         path = tmp_path / "case.yaml"
         path.write_text(
