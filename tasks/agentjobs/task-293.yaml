@@ -3,7 +3,7 @@ id: task-293
 title: 'Merged branches are never deleted, and branches live too long: fix the finish,
   the checklist, and the guidance'
 created: '2026-08-23T19:18:39.567925Z'
-updated: '2026-08-25T09:49:48.457797Z'
+updated: '2026-08-25T09:50:13.874814Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -692,3 +692,17 @@ log:
       id: 6b2f9a10-2931-4c02-b0a1-000000000297
       kind: log_append
       fingerprint: fc85f228884fbe48acf5fa2a07674ef7
+- id: 13
+  ts: '2026-08-25T09:50:13.874645Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-293-delete-merged-branches` (861dbbd7).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-293.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_1e28c7b0\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-293-delete-merged-branches
+    finish_id: fin_1e28c7b0
