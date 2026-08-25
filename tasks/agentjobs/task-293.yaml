@@ -3,7 +3,7 @@ id: task-293
 title: 'Merged branches are never deleted, and branches live too long: fix the finish,
   the checklist, and the guidance'
 created: '2026-08-23T19:18:39.567925Z'
-updated: '2026-08-25T09:48:33.459251Z'
+updated: '2026-08-25T09:49:48.457797Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -625,3 +625,70 @@ log:
       id: 6b2f9a10-2931-4c02-b0a1-000000000296
       kind: update_content
       fingerprint: f18ee66a5f306dff1d98dc92217be321
+- id: 12
+  ts: '2026-08-25T09:49:48.457609Z'
+  actor: claude
+  type: progress
+  body: "**Done, on `fix/task-293-delete-merged-branches`, six commits. Run `run_cb91f700`,\
+    \ posture `autonomous`.**\n\n## What changed\n\n**`src/agentjobs/dispatch/finish.py`\
+    \ \u2014 a `branch` step after `worktree`.** `delete_branch(plan)` runs `git branch\
+    \ -d` in the shared clone, which is on `main` by the time it gets there because\
+    \ preflight refuses otherwise. Three outcomes, all reported and none escalating\
+    \ (entry 9 argues why): deleted; refused, with git's own stderr quoted and `left\
+    \ in place, never forced`; or still checked out somewhere, named, because the\
+    \ step re-reads `git worktree list --porcelain` instead of trusting the removal\
+    \ above it.\n\n**`src/agentjobs/branch_report.py` and `agentjobs branches` \u2014\
+    \ the read-only report** (entry 10). Two groups: what `main` already contains\
+    \ with no worktree, each with its task and that task's state, and what is still\
+    \ in flight with how long it has really been open.\n\n**Docs.** `ALLAGENTS.md`\
+    \ step 6 and its worktree section now both name the deletion with the ordering\
+    \ and the `-d`-not-`-D` reasoning; step 5 now says to rebase before handing off\
+    \ and points at the new guidance. `ENGINEERING.md` gained a `Branch Lifecycle`\
+    \ bullet and a new section, *How long a branch should live*, arguing the lever\
+    \ from the task-211 evidence and refuting the shrink-the-task reading explicitly.\
+    \ `docs/agent-workflow.md` and `docs/agent-dispatch-design.md` had their finish-sequence\
+    \ enumerations corrected. **`AGENTS.md` and `ENGINEERING.md`'s merge-gate step\
+    \ 5 are untouched**, per the constraint.\n\n## Verified\n\n- **`scripts/check.py`,\
+    \ unqualified, green in this worktree: `Ran every stage (10 of 10)`, 236.9s**,\
+    \ 3267 pytest passed, 281 vitest, 33 e2e. This is the local run; the finish will\
+    \ run its own on the rebased branch, which is the one that authorises the merge.\n\
+    - **sc-5, live, not asserted.** `scripts/finish_sandbox.py --case happy` clones\
+    \ this branch, bootstraps it, starts a real server on its own port and runs the\
+    \ real `agentjobs finish` against a real branch in it. Its step table:\n\n```\n\
+    \  gate       ok       224.3s  scripts/check.py green\n  merge      ok       \
+    \  0.2s  --no-ff into main as 13fa942068f5...\n  restart    ok         3.6s  ran\
+    \ .../restart.py\n  verify     ok         0.0s  http://127.0.0.1:43124 is serving\
+    \ 19422efa, which contains the merge 13fa9420\n  close      ok         0.0s  closed\
+    \ completed\n  worktree   ok         0.0s  removed .../worktrees/happy\n  branch\
+    \     ok         0.0s  deleted sandbox/happy\n```\n\n  and afterwards, in that\
+    \ clone: `branch deleted: True`, `git branch --merged main` names it: `False`.\
+    \ A real gate, a real merge, a real restart, a real server proving it was serving\
+    \ the merge \u2014 and the branch gone.\n\n- **New tests.** `tests/test_branch_report.py`\
+    \ (14) drives real git repositories, including one that rebases a nine-day-old\
+    \ branch and checks the reported age survives, because a rebase rewrites committer\
+    \ dates and the wrong field would report it as new. `tests/test_dispatch_finish.py`\
+    \ gained a class for the two states a successful finish cannot be in \u2014 an\
+    \ unmerged branch, and one still checked out \u2014 driven against `delete_branch`\
+    \ directly rather than through a faked merge. `tests/test_documentation_contract.py`\
+    \ gained five: every contract file names the deletion, none of them writes `-D`\
+    \ without a negation, and the lifetime guidance keeps its evidence.\n\n## One\
+    \ thing a reader should know, because it looks like a bug\n\n**A branch that no\
+    \ longer exists cannot be asked whether `main` contains it.** `git merge-base\
+    \ --is-ancestor <name> main` exits non-zero for a name that does not resolve *and*\
+    \ for one `main` has not got, so the obvious post-finish check now reports this\
+    \ working feature as a failure. Three places had to move off the branch name and\
+    \ onto the merge commit: the finish suite's `merged_into` (which now refuses the\
+    \ question rather than answering it wrongly, with `landed` for the successful\
+    \ paths) and the sandbox's happy case. Anything else written later that checks\
+    \ \"did it merge\" after a finish will hit the same edge.\n\n## Left undone, deliberately\n\
+    \nThe two real leftovers the new report found in this clone \u2014 `fix/task-298-run-lock-refusal-names-finish`\
+    \ and `fix/task-315-finish-obeys-dispatch-posture`, both closed `completed`, both\
+    \ contained in `main` \u2014 are **not** deleted. Tidying the clone is out of\
+    \ this task's scope, the report exists so a person decides, and the pair is a\
+    \ useful live example of what it is for.\n\nNext: `agentjobs finish task-293 --project\
+    \ agentjobs --posture-release`."
+  data:
+    operation:
+      id: 6b2f9a10-2931-4c02-b0a1-000000000297
+      kind: log_append
+      fingerprint: fc85f228884fbe48acf5fa2a07674ef7
