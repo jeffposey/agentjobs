@@ -3,7 +3,7 @@ id: task-303
 title: The background-session harness orders EnterWorktree and enforces it; this repository
   forbids it and never says so
 created: '2026-08-23T21:51:57.473218Z'
-updated: '2026-08-25T11:26:07.391582Z'
+updated: '2026-08-25T11:27:18.999022Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -376,3 +376,13 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 13
+  ts: '2026-08-25T11:27:18.998872Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 7
+  data:
+    run_id: run_ff8c316d
+    outcome: completed
+    duration_seconds: 999.594509
+    log_path: C:\Users\jpose\.agentjobs\runs\run_ff8c316d
