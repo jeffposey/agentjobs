@@ -3,7 +3,7 @@ id: task-304
 title: 'Context evals: prove which rules in the always-loaded bundle actually change
   agent behaviour, and re-run it whenever a new model ships'
 created: '2026-08-23T21:52:43.476088Z'
-updated: '2026-08-23T22:01:03.847857Z'
+updated: '2026-08-25T10:12:05.150317Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -20,6 +20,7 @@ effort: a design pass first, then a scenario set and a runner; the value is in t
 assignment:
   eligible: []
 parent: task-269
+posture: autonomous
 spec:
   summary: 'Auditor 1 classified every section as load-bearing or decorative by hand
     and by judgement. An ablation eval answers the same question by measurement: run
@@ -158,3 +159,15 @@ log:
       id: 55e4091b-8273-4dd5-9fa6-70ab24e6205a
       kind: update_content
       fingerprint: 9a3de991a457a32ef7511b7ac0feaef6
+- id: 4
+  ts: '2026-08-25T10:12:05.150204Z'
+  actor: claude
+  type: note
+  body: Updated posture.
+  data:
+    fields:
+    - posture
+    operation:
+      id: 2fb9ef99-205c-43f4-9df7-fda65f1a11f5
+      kind: update_content
+      fingerprint: 8ae847a02f53a9f968f9010cf8390fb6

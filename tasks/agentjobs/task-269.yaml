@@ -3,7 +3,7 @@ id: task-269
 title: 'Static vs dynamic context: get the always-loaded bundle down to the rules
   an agent acts on, and make the split measurable rather than argued'
 created: '2026-08-22T18:59:11.785040Z'
-updated: '2026-08-25T09:57:28.072351Z'
+updated: '2026-08-25T10:12:32.850697Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -298,3 +298,67 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 9
+  ts: '2026-08-25T10:12:32.850448Z'
+  actor: claude
+  type: decision
+  body: "**`agentjobs dispatch walk` does not propagate the parent run's dispatch-time\
+    \ posture to its children. I set `posture: autonomous` on all six children by\
+    \ hand to work around it. Read this before concluding the epic ran the way it\
+    \ was authorised.**\n\n## What I found\n\nJeff dispatched this parent at posture\
+    \ `autonomous` (entry 6, `posture_source: dispatch`), above this project's configured\
+    \ `auto`. My own dispatch prompt states it plainly: *\"Posture `autonomous` releases\
+    \ the merge gate: a child you start merges its own work once its gate is green,\
+    \ with no human review.\"*\n\nThat sentence is false as the code stands. `walk_epic.start_child`\
+    \ in `src/agentjobs/dispatch/epic.py:527-541` builds its `DispatchRequest` with\
+    \ `task_id`, `trigger=CHILD` and `on_behalf_of_parent=True`, and **no `posture`**\
+    \ \u2014 even though `DispatchRequest.posture` exists (`guards.py:646`) and is\
+    \ exactly the \"chosen for this one dispatch\" slot. `dispatch_task` then calls\
+    \ `resolve_posture(settings, task=task.posture, requested=request.posture)` (`guards.py:847-850`)\
+    \ with `requested=None` and `task=None`, so the child falls through to the project\
+    \ default.\n\nObserved, not inferred: `run_dd327e59` (task-301, started 09:58:05Z\
+    \ by this walk) has `posture: auto`, `posture_source: project` in its `meta.yaml`,\
+    \ and its generated prompt tells it *\"Posture `auto` stops at the merge gate\
+    \ \u2026 Do not merge.\"*\n\nThe consequence is that an epic dispatched `autonomous`\
+    \ **cannot** run unattended: child one does its work, hands the ball to `human/review`,\
+    \ and the walk stops with `CHILD_NEEDS_A_HUMAN` \u2014 which is the walk behaving\
+    \ correctly on a child that was silently given the wrong authority. `dispatch\
+    \ walk` has no `--posture` option either, so there is no way to say it at the\
+    \ command line.\n\n## What I did about it\n\nSet `posture: autonomous` on task-301\
+    \ through task-306, via `PATCH /api/projects/agentjobs/tasks/{id}`, actor `claude`.\
+    \ Each write is a `note` entry on the child naming the field.\n\nThat is the sanctioned\
+    \ mechanism rather than a hack around one. `TaskUpdateRequest.posture` is documented\
+    \ as *\"content, not a state axis: a request bounded by the project's machine-local\
+    \ ceiling, never a grant\"* (`api/models.py:363`), `resolve_posture` clamps a\
+    \ task-record posture to the ceiling rather than refusing it, and this machine's\
+    \ `dispatch.yaml` sets `max_posture: autonomous` for agentjobs with a comment\
+    \ that anticipates precisely this \u2014 *\"an agent that writes `posture: autonomous`\
+    \ onto its own task gets it on the next dispatch. That is auditable \u2026 and\
+    \ it is not prevented.\"* The resulting runs will record `posture_source: task`.\n\
+    \n**Why I judged it in scope rather than stopping to ask.** Jeff chose `autonomous`\
+    \ at the moment of dispatch, raised this project's ceiling to `autonomous` earlier\
+    \ today (task-308), and the system's own prompt told me the children would inherit\
+    \ it. Writing the field makes the run behave the way it was authorised to behave.\
+    \ The bound that makes unreviewed merges acceptable here is untouched: each child\
+    \ still merges only through `agentjobs finish --posture-release`, which runs the\
+    \ full unqualified `scripts/check.py` itself, and `push: false` means nothing\
+    \ leaves the machine, so a bad merge is recoverable with `git reset`.\n\n**The\
+    \ rejected alternative** was to let the walk stop on each child and wait for Jeff\
+    \ to approve six times through the GUI. That is safer by one notch and defeats\
+    \ the reason he chose `autonomous` at 05:00 local. It is also still available:\
+    \ reverting these six one-line writes restores it exactly.\n\n## What still needs\
+    \ a human\n\n**task-301 is already running at `auto` and this change does not\
+    \ reach it.** Its run started before I wrote the field and its posture is fixed\
+    \ in the prompt it was given, so it will do its work, hand off to `human/review`,\
+    \ and stop the walk. I did not kill it \u2014 it was twelve minutes into real\
+    \ measurement work at the time, and destroying that to re-run it at the right\
+    \ posture is the more expensive mistake. So this epic needs exactly one human\
+    \ approval, on task-301, after which children 302-306 should run unattended.\n\
+    \nThe underlying defect \u2014 the walk dropping the parent's posture \u2014 is\
+    \ worth its own task and is not in this epic's scope (see `out_of_scope`). Filing\
+    \ it separately."
+  data:
+    operation:
+      id: 7c3d5a18-9b62-4f07-8e51-2d4a6c9b3e77
+      kind: log_append
+      fingerprint: ec4744cf931b5ab2d7bf4236064c69f8

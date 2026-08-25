@@ -3,7 +3,7 @@ id: task-305
 title: Move rationale, incident narrative and measurement history out of the always-loaded
   bundle, and put what remains under a budget a test asserts
 created: '2026-08-23T21:53:30.307386Z'
-updated: '2026-08-23T22:01:05.455140Z'
+updated: '2026-08-25T10:12:05.711376Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -20,6 +20,7 @@ effort: "one branch over two files plus docs/performance.md, one small CLI chang
 assignment:
   eligible: []
 parent: task-269
+posture: autonomous
 spec:
   summary: "Roughly two of every three tokens in ENGINEERING.md and ALLAGENTS.md are\
     \ the reason for a rule, the incident that produced it, or a measurement \u2014\
@@ -182,3 +183,15 @@ log:
       id: 66f51a2c-9384-4ee6-a057-81bc35d3316b
       kind: update_content
       fingerprint: 9a3de991a457a32ef7511b7ac0feaef6
+- id: 5
+  ts: '2026-08-25T10:12:05.711260Z'
+  actor: claude
+  type: note
+  body: Updated posture.
+  data:
+    fields:
+    - posture
+    operation:
+      id: a5118097-f454-4510-8c25-4b1290a5e70b
+      kind: update_content
+      fingerprint: 8ae847a02f53a9f968f9010cf8390fb6

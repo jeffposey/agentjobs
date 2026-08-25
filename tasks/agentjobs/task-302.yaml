@@ -3,7 +3,7 @@ id: task-302
 title: "Three statements in the always-loaded bundle contradict the code \u2014 fix\
   \ them, and collapse the double-numbered merge gate"
 created: '2026-08-23T21:50:44.787308Z'
-updated: '2026-08-24T00:55:37.863536Z'
+updated: '2026-08-25T10:11:25.475052Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -19,6 +19,7 @@ effort: "small \u2014 four prose edits and a verification pass; no code"
 assignment:
   eligible: []
 parent: task-269
+posture: autonomous
 spec:
   summary: GLOBAL-AGENTS says a parent is unclaimable while a child is open; the code
     says it is claimable. ALLAGENTS states the ball_prompt rule without the agent/available
@@ -236,3 +237,15 @@ log:
       id: af51c0d2-9b64-4e37-8a13-6205e4b98371
       kind: log_append
       fingerprint: 9c09fba3d2d809814b542db762b3930d
+- id: 7
+  ts: '2026-08-25T10:11:25.474860Z'
+  actor: claude
+  type: note
+  body: Updated posture.
+  data:
+    fields:
+    - posture
+    operation:
+      id: 1f0e9c22-4a71-4e2b-9d31-6a0e2b1c7a01
+      kind: update_content
+      fingerprint: 8ae847a02f53a9f968f9010cf8390fb6

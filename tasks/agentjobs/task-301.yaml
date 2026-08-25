@@ -3,10 +3,11 @@ id: task-301
 title: "Measure what a session actually loads before its first thought \u2014 harness\
   \ prompt, MCP tool declarations, @-chain, memory \u2014 for Claude and for Codex"
 created: '2026-08-23T21:50:13.685056Z'
-updated: '2026-08-23T22:00:50.136778Z'
-lifecycle: ready
+updated: '2026-08-25T10:12:03.554078Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 queue_position: 793
@@ -17,8 +18,10 @@ tags:
 - measurement
 effort: half a day, mostly instrumentation; no edits to the bundle
 assignment:
+  owner: claude
   eligible: []
 parent: task-269
+posture: autonomous
 spec:
   summary: Auditor 1 measured only the markdown it could `wc`, and listed the harness
     system prompt and MCP tool schemas as "not examined at all, by anyone". Produce
@@ -154,3 +157,93 @@ log:
       id: 22b1d6e8-5f40-4a92-8c73-4d8e91b3f725
       kind: update_content
       fingerprint: 9a3de991a457a32ef7511b7ac0feaef6
+- id: 4
+  ts: '2026-08-25T09:58:03.935402Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of task-269, and this run is attempt 1 of
+    2 at one of its children on that authorisation (entry 6 on task-269). No separate
+    approval of this task was given or is required: the epic is what was authorised.'
+  data:
+    authorizes_dispatch: true
+    surface: the epic walk
+    epic:
+      parent: task-269
+      entry: 6
+      attempt: 1
+      limit: 2
+- id: 5
+  ts: '2026-08-25T09:58:04.362882Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 6
+  ts: '2026-08-25T09:58:06.388578Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_dd327e59
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: child
+    caused_by: 4
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-301` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-301-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_dd327e59. Posture `auto` stops
+      at the merge gate: when the work is done and verified, record the evidence on
+      the task, hand the ball to human/review, and stop. Do not merge. Never push:
+      this project is configured `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: b83da23
+    session_id: e91aa6fd
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 7
+  ts: '2026-08-25T10:12:03.553931Z'
+  actor: claude
+  type: note
+  body: Updated posture.
+  data:
+    fields:
+    - posture
+    operation:
+      id: df6e878c-3968-4758-a54b-e06116b78d13
+      kind: update_content
+      fingerprint: 8ae847a02f53a9f968f9010cf8390fb6

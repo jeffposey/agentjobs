@@ -3,7 +3,7 @@ id: task-306
 title: 'The dynamic half is drifting too: long summaries, default ball prompts surviving
   on active tasks, and almost no questions ever reaching the record'
 created: '2026-08-23T21:53:59.468926Z'
-updated: '2026-08-23T22:01:06.807201Z'
+updated: '2026-08-25T10:12:06.890892Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -20,6 +20,7 @@ effort: "small \u2014 three cheap checks, plus one decision about what a warning
 assignment:
   eligible: []
 parent: task-269
+posture: autonomous
 spec:
   summary: If the plan is that task records carry the context the always-loaded files
     no longer do, the records have to be good. Three measured drifts say they are
@@ -130,3 +131,15 @@ log:
       id: 77a62b3d-0495-4ff7-b168-92c46d4427c1
       kind: update_content
       fingerprint: 9a3de991a457a32ef7511b7ac0feaef6
+- id: 4
+  ts: '2026-08-25T10:12:06.890787Z'
+  actor: claude
+  type: note
+  body: Updated posture.
+  data:
+    fields:
+    - posture
+    operation:
+      id: 9ca21405-5987-4849-ae9a-1e80e5dddbd0
+      kind: update_content
+      fingerprint: 8ae847a02f53a9f968f9010cf8390fb6

@@ -3,7 +3,7 @@ id: task-303
 title: The background-session harness orders EnterWorktree and enforces it; this repository
   forbids it and never says so
 created: '2026-08-23T21:51:57.473218Z'
-updated: '2026-08-23T22:00:53.600240Z'
+updated: '2026-08-25T10:12:04.688815Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -20,6 +20,7 @@ effort: "small in code \u2014 a settings key, one sentence, one stub clause \u20
 assignment:
   eligible: []
 parent: task-269
+posture: autonomous
 spec:
   summary: Every `--bg` session here is handed two instructions that cannot both be
     followed, and the wrong one claims to be enforced and is. Three auditors had a
@@ -139,3 +140,15 @@ log:
       id: 44d3f80a-7162-4cb4-8e95-6f0a13d51947
       kind: update_content
       fingerprint: 9a3de991a457a32ef7511b7ac0feaef6
+- id: 4
+  ts: '2026-08-25T10:12:04.688703Z'
+  actor: claude
+  type: note
+  body: Updated posture.
+  data:
+    fields:
+    - posture
+    operation:
+      id: 3dea7d1a-0d15-4916-8354-3acd44dd23c0
+      kind: update_content
+      fingerprint: 8ae847a02f53a9f968f9010cf8390fb6
