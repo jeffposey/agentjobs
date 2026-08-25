@@ -3,11 +3,25 @@ id: task-315
 title: 'A posture chosen at dispatch never reaches the merge: the finisher reads the
   project default and declines'
 created: '2026-08-25T08:52:25.148182Z'
-updated: '2026-08-25T08:52:33.059839Z'
+updated: '2026-08-25T09:07:09.227574Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Ready to merge: `fix/task-315-finish-obeys-dispatch-posture`, 2 commits\
+  \ on b3f5e22, full unqualified gate green 10/10 in 200.7s. Approve on the task page\
+  \ and the scripted finish takes it from there.\n\nThis is the 307 gap you asked\
+  \ me to fix after task-298. The finisher now decides the merge on the posture *this\
+  \ run* was dispatched at, falling back to what a dispatch of the task would resolve\
+  \ when there is no run. Against your real dispatch.yaml and this session's real\
+  \ run record it now reads `posture autonomous (from the dispatch)` where it used\
+  \ to read `auto` off the project default.\n\nEntry 3 has the live output and the\
+  \ three guards that keep it a check rather than a self-grant \u2014 the ceiling\
+  \ is re-read from config at merge time, a run may only vouch for its own task, and\
+  \ nothing reads a caller-supplied flag.\n\n**It cannot merge itself, and that is\
+  \ the fix working.** This run's record names task-298, so its posture does not carry\
+  \ to task-315 \u2014 guard 2. Your approval is what merges it, and the end-to-end\
+  \ autonomous merge gets exercised by the next `autonomous` dispatch after this lands.\n\
+  \nWorktree `C:/projects/worktrees/aj-315` is in place for the finish."
 archived: false
 priority: high
 queue_position: 14600
@@ -109,34 +123,36 @@ acceptance:
     `agentjobs finish --posture-release`, and the merge's authorisation line names
     the posture and where it came from.
   verify: test, plus the live path on this repository
-  status: pending
+  status: met
 - id: sc-2
   text: A run dispatched at `auto` or `supervised` still declines `posture_requires_review`,
     and the decline names the posture and its source rather than only the project
     default.
   verify: test
-  status: pending
+  status: met
 - id: sc-3
   text: "A posture above the project's `max_posture` ceiling does not release the\
     \ merge, however it was recorded \u2014 including a run record edited by hand\
     \ after dispatch."
   verify: test that writes a raised posture onto a run record and expects the clamp
-  status: pending
+  status: met
 - id: sc-4
   text: "With no `AGENTJOBS_RUN_ID` \u2014 a person running the command from a shell\
     \ \u2014 the posture resolves the way a dispatch of that task would, honouring\
     \ a `posture:` field on the task record, clamped."
   verify: test
-  status: pending
+  status: met
 - id: sc-5
   text: 'No new way for a caller to assert its own posture: nothing in the resolution
     reads an argument or a flag.'
   verify: read the diff; the flag still selects only which authority is claimed
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-315-finish-obeys-dispatch-posture
+  status: active
 log:
 - id: 1
   ts: '2026-08-25T08:52:25.559139Z'
@@ -162,3 +178,116 @@ log:
       id: 5c2b8a41-0311-4d00-8e11-9a0b1c2d3e02
       kind: claim
       fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-25T09:06:51.026803Z'
+  actor: claude
+  type: progress
+  body: "Done on `fix/task-315-finish-obeys-dispatch-posture` (2 commits on b3f5e22,\
+    \ full unqualified gate green 10/10 in 200.7s).\n\n## What changed\n\n**`released_posture`\
+    \ in `finish.py`** decides which posture releases the merge, replacing the single\
+    \ line that read `released.settings.posture`. It takes the posture off the run\
+    \ named by `AGENTJOBS_RUN_ID`, and falls back to `resolve_posture(settings, task=<task\
+    \ record's posture>)` when there is no run \u2014 so a hand-run finish and a dispatched\
+    \ one agree about the same task.\n\nThe run's posture is **read back, not re-derived**.\
+    \ It was resolved once at dispatch, from the human's choice, and written down\
+    \ along with the source that won; re-running the precedence here would be a second\
+    \ implementation free to disagree with the first, and it could not see a `requested`\
+    \ value that only ever existed as an argument to that one call.\n\n**`RunRecord`\
+    \ now parses `posture_source`, `posture_ceiling` and `posture_requested`.** The\
+    \ dispatcher has written all three since task-308 \u2014 `ResolvedPosture.as_data()`\
+    \ is already splatted into the run meta \u2014 and nothing read them back. So\
+    \ this needed no new field anywhere, only a reader.\n\n**Three things keep it\
+    \ a check rather than a self-grant:**\n\n1. **The ceiling is re-applied from the\
+    \ config as it stands now**, not from the `posture_ceiling` the run recorded.\
+    \ That value is history; the question at merge time is what this machine permits\
+    \ today, which is lower if somebody has since lowered it. It is also what makes\
+    \ an edited run record harmless: `~/.agentjobs/runs/<id>/meta.yaml` is no harder\
+    \ for an agent to write than its own task record, and the worst either buys is\
+    \ `max_posture`.\n2. **A run may only vouch for the task it was dispatched against.**\
+    \ The task id is an argument on the command line and the posture is not, so without\
+    \ this a run authorised `autonomous` for its own task could name any other open\
+    \ task and merge that branch.\n3. **Nothing reads an argument the caller chose.**\
+    \ `--posture-release` still says only which authority is being claimed.\n\n**The\
+    \ decline and the merge message both name the source now.** The decline reads\
+    \ `This finish runs at posture auto (from the project)...` and adds what the ceiling\
+    \ clamped when it clamped something. `authorisation_phrase` stopped saying \"\
+    releases the merge gate **for this project**\" \u2014 with a posture chosen per-dispatch\
+    \ that sentence sends a reader to a `dispatch.yaml` that says `auto` and looks\
+    \ like evidence the gate was bypassed.\n\n## Live, against this machine's real\
+    \ config and this session's real run record\n\n```\ndispatch.yaml says: posture=auto\
+    \  ceiling=autonomous\n\nthis session, for the task it was dispatched against\
+    \ -> posture autonomous (from the dispatch)\n                                \
+    \                        merge_policy=automatic\nthis session, for a DIFFERENT\
+    \ task                   -> posture auto (from the project)\n                \
+    \                                        merge_policy=review\nno run at all --\
+    \ a person in a shell                 -> posture auto (from the project)\n   \
+    \                                                     merge_policy=review\n```\n\
+    \nLine 1 is the task-298 failure, fixed: that run would now merge its own work,\
+    \ which is what Jeff authorised when he chose `autonomous` at dispatch. Line 2\
+    \ is guard 2 doing its job.\n\n## What is not demonstrated end-to-end, and why\n\
+    \n**This task cannot merge itself, twice over, and both are correct.** The installed\
+    \ code in the main clone is the pre-fix one, so `--posture-release` there still\
+    \ reads the project default. And even with the fix, guard 2 refuses: this run's\
+    \ record names `task-298`, not `task-315`. So the end-to-end \"a dispatched autonomous\
+    \ run merges through the finisher on this repository\" is exercised by the **next**\
+    \ autonomous dispatch after this lands, not here.\n\nWhat is demonstrated here:\
+    \ the merge path itself, in `test_a_run_dispatched_autonomous_merges_on_a_project_configured_auto`\
+    \ and `test_the_merge_says_the_posture_came_from_the_dispatch`, which run a real\
+    \ `finish_task` against a real git repository, a real worktree and a real run\
+    \ directory, and read the resulting merge commit's message.\n\n## Verification\n\
+    \n- Full gate, unqualified, on the branch: 10/10 green, 200.7s (pytest 122.8s).\n\
+    - `tests/test_dispatch_finish.py`: 55 passed, including the 8 pre-existing `TestThePostureAuthority`\
+    \ tests unchanged \u2014 no run record, so they still resolve to the project default\
+    \ and still assert exactly what they did.\n- Ten new tests in `TestThePostureThatDecides`.\
+    \ The pairing is the point: widening (`autonomous` run on an `auto` project) is\
+    \ the reported bug, and narrowing (`auto` run on an `autonomous` project) is the\
+    \ half a careless fix loses \u2014 a human who picked the narrower posture asked\
+    \ for a review, and reading the project default would overrule them in the direction\
+    \ that merges. The rest are fail-closed edges: raised run record, lowered ceiling,\
+    \ run id naming nothing, unparseable posture, cross-task vouching. Every one resolves\
+    \ as absence, never as permission."
+  data:
+    operation:
+      id: 5c2b8a41-0311-4d00-8e11-9a0b1c2d3e03
+      kind: log_append
+      fingerprint: f12ccc6c55b218d4ddad0f7fe0ab2923
+- id: 4
+  ts: '2026-08-25T09:06:59.922461Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 5c2b8a41-0311-4d00-8e11-9a0b1c2d3e04
+      kind: update_content
+      fingerprint: 567c168b52319d120cfa3dbdc9fdb7a1
+- id: 5
+  ts: '2026-08-25T09:07:09.227449Z'
+  actor: claude
+  type: handoff
+  body: "Ready to merge: `fix/task-315-finish-obeys-dispatch-posture`, 2 commits on\
+    \ b3f5e22, full unqualified gate green 10/10 in 200.7s. Approve on the task page\
+    \ and the scripted finish takes it from there.\n\nThis is the 307 gap you asked\
+    \ me to fix after task-298. The finisher now decides the merge on the posture\
+    \ *this run* was dispatched at, falling back to what a dispatch of the task would\
+    \ resolve when there is no run. Against your real dispatch.yaml and this session's\
+    \ real run record it now reads `posture autonomous (from the dispatch)` where\
+    \ it used to read `auto` off the project default.\n\nEntry 3 has the live output\
+    \ and the three guards that keep it a check rather than a self-grant \u2014 the\
+    \ ceiling is re-read from config at merge time, a run may only vouch for its own\
+    \ task, and nothing reads a caller-supplied flag.\n\n**It cannot merge itself,\
+    \ and that is the fix working.** This run's record names task-298, so its posture\
+    \ does not carry to task-315 \u2014 guard 2. Your approval is what merges it,\
+    \ and the end-to-end autonomous merge gets exercised by the next `autonomous`\
+    \ dispatch after this lands.\n\nWorktree `C:/projects/worktrees/aj-315` is in\
+    \ place for the finish."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 5c2b8a41-0311-4d00-8e11-9a0b1c2d3e05
+      kind: handoff
+      fingerprint: c51677f9db0eb58aa98fbcc535aac144
