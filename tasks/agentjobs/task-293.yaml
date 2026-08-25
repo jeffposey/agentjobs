@@ -3,14 +3,11 @@ id: task-293
 title: 'Merged branches are never deleted, and branches live too long: fix the finish,
   the checklist, and the guidance'
 created: '2026-08-23T19:18:39.567925Z'
-updated: '2026-08-25T09:53:03.830783Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-25T09:53:22.479743Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 593
 category: infrastructure
 tags:
 - dispatch
@@ -19,7 +16,6 @@ tags:
 - docs
 - agent-dx
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'ENGINEERING.md and AGENTS.md both say to delete a local branch once it
@@ -324,7 +320,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-293-delete-merged-branches
-  status: active
+  status: merged
+  merged_at: '2026-08-25T09:53:22.421403Z'
 log:
 - id: 1
   ts: '2026-08-23T19:18:40.077495Z'
@@ -724,3 +721,26 @@ log:
     merge_commit: 39db81ecd1d62c80cbf22c496fdc6694f61e758a
     branch: fix/task-293-delete-merged-branches
     base: main
+- id: 15
+  ts: '2026-08-25T09:53:22.479602Z'
+  actor: finisher
+  type: transition
+  body: "Merged `fix/task-293-delete-merged-branches` into `main` as `39db81ec` and\
+    \ verified live. Finished by the scripted path with no agent session (task-241).\
+    \ No human reviewed this merge: posture `autonomous` (from the dispatch) releases\
+    \ the merge gate (task-021), and run run_cb91f700 ran the finish. What authorised\
+    \ it is the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.7s  fix/task-293-delete-merged-branches at 861dbbd7\
+    \ in C:\\projects\\worktrees\\agentjobs-293\n  rebase     ok         0.3s  fix/task-293-delete-merged-branches\
+    \ onto main: 861dbbd7 -> 70f8e930\n  gate       ok       169.2s  scripts/check.py\
+    \ green\n  merge      ok         0.3s  --no-ff into main as 39db81ecd1d62c80cbf22c496fdc6694f61e758a\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         0.5s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving c1876c96, which contains the merge\
+    \ 39db81ec, from C:\\projects\\agentjobs (started 2026-08-25T09:53:08.941109+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
