@@ -3,14 +3,11 @@ id: task-303
 title: The background-session harness orders EnterWorktree and enforces it; this repository
   forbids it and never says so
 created: '2026-08-23T21:51:57.473218Z'
-updated: '2026-08-25T11:25:48.005938Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-25T11:26:07.391582Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 993
 category: meta
 tags:
 - big-dawg-audit
@@ -19,7 +16,6 @@ tags:
 effort: "small in code \u2014 a settings key, one sentence, one stub clause \u2014\
   \ but the verification needs a real --bg run"
 assignment:
-  owner: claude
   eligible: []
 parent: task-269
 posture: autonomous
@@ -120,7 +116,8 @@ dependencies:
 links: []
 branches:
 - name: fix/task-303-bg-isolation-contradiction
-  status: active
+  status: merged
+  merged_at: '2026-08-25T11:26:07.353627Z'
 log:
 - id: 1
   ts: '2026-08-23T21:51:57.903242Z'
@@ -356,3 +353,26 @@ log:
     merge_commit: 49e64ab9fb9fd0373298009e699f41fec713bdbf
     branch: fix/task-303-bg-isolation-contradiction
     base: main
+- id: 12
+  ts: '2026-08-25T11:26:07.391380Z'
+  actor: finisher
+  type: transition
+  body: "Merged `fix/task-303-bg-isolation-contradiction` into `main` as `49e64ab9`\
+    \ and verified live. Finished by the scripted path with no agent session (task-241).\
+    \ No human reviewed this merge: posture `autonomous` (from the task) releases\
+    \ the merge gate (task-021), and run run_ff8c316d ran the finish. What authorised\
+    \ it is the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         0.9s  fix/task-303-bg-isolation-contradiction at\
+    \ 52949e10 in C:\\projects\\worktrees\\agentjobs-303\n  rebase     ok        \
+    \ 0.1s  fix/task-303-bg-isolation-contradiction onto main: 52949e10 -> d97f20e0\n\
+    \  gate       ok       190.1s  scripts/check.py green\n  merge      ok       \
+    \  0.2s  --no-ff into main as 49e64ab9fb9fd0373298009e699f41fec713bdbf\n  rebuild\
+    \    skipped    0.0s  the merge touched no frontend/ path\n  restart    ok   \
+    \      0.6s  ran powershell -NoProfile -ExecutionPolicy Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -Force -NoOpen\n  verify     ok         0.0s  http://127.0.0.1:8876 is serving\
+    \ cf473596, which contains the merge 49e64ab9, from C:\\projects\\agentjobs (started\
+    \ 2026-08-25T11:25:53.306761+00:00)\n```"
+  data:
+    lifecycle: closed
+    outcome: completed
