@@ -2,10 +2,11 @@ schema: 2
 id: task-308
 title: Posture settable on the task record, and whether a task may raise its own
 created: '2026-08-23T22:48:30.766265Z'
-updated: '2026-08-23T23:04:49.102418Z'
-lifecycle: ready
+updated: '2026-08-25T05:17:41.645850Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 queue_position: 245
@@ -17,6 +18,7 @@ tags:
 - schema
 effort: half a day
 assignment:
+  owner: claude
   eligible: []
 parent: task-160-dispatch-phase-two
 spec:
@@ -137,7 +139,9 @@ dependencies:
   note: The dispatch-time pulldown. Its escalation decision covers a human clicking,
     and deliberately does not cover a field an agent can write.
 links: []
-branches: []
+branches:
+- name: feat/task-308-posture-ceiling
+  status: active
 log:
 - id: 1
   ts: '2026-08-23T22:48:31.468658Z'
@@ -250,3 +254,85 @@ log:
       id: d7a6b219-4f30-4c8e-95b1-0e2f8a3c7d61
       kind: queue_move
       fingerprint: 8466ed11e729ed8214b79e78def0b3e8
+- id: 4
+  ts: '2026-08-25T05:06:40.722378Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 5
+  ts: '2026-08-25T05:06:41.356150Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 6
+  ts: '2026-08-25T05:06:44.421254Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_f5fde507
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 4
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-308` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-308-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_f5fde507. Posture `auto` stops
+      at the merge gate: when the work is done and verified, record the evidence on
+      the task, hand the ball to human/review, and stop. Do not merge. Never push:
+      this project is configured `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 9b7c0fc
+    session_id: f7884cc6
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 7
+  ts: '2026-08-25T05:17:41.645496Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 6a1c9d20-4b3e-4f7a-9c81-2d5e7f0a3b41
+      kind: update_content
+      fingerprint: fd6a5ed3f0cbcbf6b86ce7dbfed7d3ad
