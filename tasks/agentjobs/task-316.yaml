@@ -3,10 +3,40 @@ id: task-316
 title: The epic walk drops the parent's dispatch-time posture, so an epic dispatched
   `autonomous` stops at its first child
 created: '2026-08-25T10:13:25.100260Z'
-updated: '2026-08-25T10:13:25.537707Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-25T19:25:13.346768Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: "Ready for review: `fix/task-316-epic-posture-inheritance`, 2 commits,\
+  \ rebased onto main at 658914f, full gate green on the rebased branch (219.5s, all\
+  \ ten stages, receipt for 54dc6b09). Entry 6 has the full evidence and entry 5 the\
+  \ decision.\n\n**What it does.** A child started by the epic walk now inherits the\
+  \ parent run's posture, so an epic you dispatch `autonomous` runs its children `autonomous`\
+  \ and the supervisor's prompt stops lying to it.\n\n**The one thing worth your judgement**\
+  \ is entry 5's decision: only a posture a *person* chose crosses the parent/child\
+  \ boundary. A posture chosen at the parent's dispatch crosses, and so does one the\
+  \ parent itself inherited (nested epics). A posture written on the parent's *task\
+  \ record* does not \u2014 that field is agent-writable, and crossing would let one\
+  \ agent widen every child in an epic at once, with the ceiling bounding nothing\
+  \ here since ours is already `autonomous`. The project default does not need to;\
+  \ it already reaches them.\n\nThe second call: an inherited posture outranks the\
+  \ child's own `posture:` field. So `dispatch` > `epic` > `task` > `project`. That\
+  \ is the placement to push back on if you disagree \u2014 it means a per-child override\
+  \ can no longer contradict what you chose for the epic.\n\n**Nothing widened.**\
+  \ The ceiling is unchanged and still refuses; the inherited posture is read off\
+  \ the parent's stored `dispatch` entry (a type only the manager may write), never\
+  \ taken from the request, so `on_behalf_of_parent` still gives a caller nothing\
+  \ to forge. `assert_human_clocked` and the attempt budget are untouched.\n\n**New\
+  \ affordance:** `agentjobs dispatch walk --posture` for a walk run from a shell\
+  \ with no parent run to inherit from. The walk also now prints the envelope its\
+  \ children will start at before starting any of them \u2014 that line is the only\
+  \ warning a person gets before authorising a chain of unreviewed merges.\n\n**Verified\
+  \ beyond the suite:** ran a real `dispatch walk` against a throwaway project configured\
+  \ like this one, three times, varying only the parent's `posture_source`. `dispatch`\
+  \ \u2192 children got `autonomous` and prompts saying *releases the merge gate*;\
+  \ `task` and `project` \u2192 children got `auto` and *stops at the merge gate*.\
+  \ Table in entry 6.\n\nNo UI surface changed, so there is nothing to look at in\
+  \ the browser. Approve in the GUI and the scripted finish takes it from there."
 archived: false
 priority: high
 queue_position: 14600
@@ -18,6 +48,7 @@ tags:
 effort: "small \u2014 one field to pass, plus a decision about which sources may cross\
   \ the parent/child boundary, plus tests"
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: "`walk_epic.start_child` builds its `DispatchRequest` without a posture,\
@@ -102,22 +133,24 @@ acceptance:
   text: "An epic dispatched at a posture above the project default starts its children\
     \ at a posture consistent with what the supervisor's own prompt claims \u2014\
     \ or the prompt stops claiming it."
-  status: pending
+  status: met
 - id: ac-2
   text: Which posture sources cross the parent/child boundary is a recorded decision
     with its rejected alternative, not an implementation detail.
-  status: pending
+  status: met
 - id: ac-3
   text: A child run's posture_source names where its posture actually came from.
-  status: pending
+  status: met
 - id: ac-4
   text: A test covers an epic dispatched above the project default and asserts the
     child's resolved posture.
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-316-epic-posture-inheritance
+  status: active
 log:
 - id: 1
   ts: '2026-08-25T10:13:25.536960Z'
@@ -130,3 +163,256 @@ log:
       id: b41c7e09-3d55-4a6e-9c28-0f7a51d2b6e4
       kind: create
       fingerprint: fbfa69953c7e07120f680f295e31e0e2
+- id: 2
+  ts: '2026-08-25T18:49:46.371232Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 3
+  ts: '2026-08-25T18:49:46.988047Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 4
+  ts: '2026-08-25T18:49:49.025707Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_81b81b48
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 2
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-316` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-316-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_81b81b48. Posture `auto` stops at the merge gate: when
+      the work is done and verified, record the evidence on the task, hand the ball
+      to human/review, and stop. Do not merge. Never push: this project is configured
+      `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: e2ff7d8
+    session_id: e7948452
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 5
+  ts: '2026-08-25T19:24:19.713838Z'
+  actor: claude
+  type: decision
+  body: "**Which posture sources cross the parent/child boundary** (ac-2).\n\nTwo\
+    \ of the four do, and the rule is the one the walk's *authorisation* already runs\
+    \ on: **what crosses is a human's act, and only that.**\n\n| Parent run's `posture_source`\
+    \ | Crosses | Why |\n|---|---|---|\n| `dispatch` | **yes** | A person choosing,\
+    \ for this epic, at the moment they authorised it \u2014 the same act the children\
+    \ already inherit their authorisation from. This is the case that fails today.\
+    \ |\n| `epic` (new) | **yes** | The same click one generation down. An epic whose\
+    \ child is itself an epic passes it on rather than dropping it at the second level.\
+    \ |\n| `task` | **no** | See below. |\n| `project` | **no** | It already reaches\
+    \ every child as the bottom of `resolve_posture`'s precedence. \"Inheriting\"\
+    \ it would only relabel `posture_source` as `epic` while changing nothing a run\
+    \ may do \u2014 and point a reader at the parent for an answer that is in `dispatch.yaml`.\
+    \ |\n\n**Rejected alternative: inherit whatever posture the parent run resolved\
+    \ to, whatever its source.** That is the smaller diff and it is wrong on the `task`\
+    \ row. A task-record posture is a git-tracked field any agent that can write the\
+    \ repository can set, including the agent working that task \u2014 so crossing\
+    \ would mean one agent editing one field on its own parent widens *every* child\
+    \ in the epic at once. `resolve_posture` clamps that source to the ceiling, which\
+    \ bounds the damage on a narrow project and bounds nothing at all here, where\
+    \ the ceiling is already `autonomous`. A posture on a task record is a statement\
+    \ about that task's run; treating it as a statement about a dozen other tasks'\
+    \ runs is a widening nobody asked for.\n\n**Second decision: an inherited posture\
+    \ outranks the child's own task record.** Precedence is now `dispatch` > `epic`\
+    \ > `task` > `project`. This is the one placement that is not obvious, because\
+    \ a field on the child's own record is narrower in scope. It loses anyway: the\
+    \ question the order answers is not \"which statement is about the fewest runs\"\
+    \ but *which statement did a person most recently make about this run*. Let the\
+    \ record win and \"I dispatched the epic `autonomous`\" would silently mean something\
+    \ different per child, which is exactly the predictability the ordering exists\
+    \ to provide. The rejected alternative was putting `epic` below `task` to preserve\
+    \ the task-269 workaround's per-child override; rejected because that workaround\
+    \ exists only because of this defect, and keeping room for it would preserve the\
+    \ ambiguity the fix removes.\n\n**Third: an inherited posture is refused above\
+    \ the ceiling, not clamped.** It *is* a dispatch-time choice, merely one made\
+    \ about the parent, so it gets the treatment the dispatch source gets. It is only\
+    \ reachable at all when somebody lowers `max_posture` while a walk is running\
+    \ \u2014 the parent's own dispatch checked the same ceiling \u2014 and a walk\
+    \ that stops loudly at that point is telling the truth about an authority that\
+    \ no longer fits.\n\n**Fourth: `PostureSource.EPIC` is a new value rather than\
+    \ reusing `DISPATCH`** (ac-3). `dispatch` would claim somebody chose this envelope\
+    \ for *this* run, which is false and sends a reader to the child's own record\
+    \ looking for a click nobody made on it. `project` is what the defect wrote, and\
+    \ sends them to `dispatch.yaml` to find `auto`. The act is on the parent's record\
+    \ and `epic` is the word that says so \u2014 it reaches the merge commit too,\
+    \ as \"posture `autonomous` (from the epic) releases the merge gate\"."
+  data:
+    operation:
+      id: 7f1c2b04-8a3e-4d61-9c22-3b5e7a1d0f11
+      kind: log_append
+      fingerprint: 224d6b758f0be4a10f950860a15c7b0b
+- id: 6
+  ts: '2026-08-25T19:24:49.585425Z'
+  actor: claude
+  type: progress
+  body: "**Built and verified.** Branch `fix/task-316-epic-posture-inheritance`, worktree\
+    \ `../worktrees/agentjobs-316`, two commits, rebased onto `main` at `658914f`.\n\
+    \n- `c0aa7a3` fix(dispatch): an epic's children inherit its dispatch-time posture\n\
+    - `54dc6b0` test(finish): an epic-sourced posture still releases the merge\n\n\
+    ## What changed\n\n- **`config.py`** \u2014 `PostureSource.EPIC`; `resolve_posture`\
+    \ gains an `inherited=` source ranked between `requested` and `task`, refused\
+    \ above the ceiling with a message naming the epic.\n- **`epic.py`** \u2014 `parent_dispatch_entry()`\
+    \ and `inherited_posture()`, with `INHERITABLE_POSTURE_SOURCES` carrying the decision\
+    \ above as a docstring. `EpicAuthorization.posture` is populated by `resolve_epic_authorization`\
+    \ and named in `describe()`, so the child's authorising entry says *\"They chose\
+    \ posture `autonomous` for the epic, so this run gets it too.\"* `walk_epic` gains\
+    \ a `posture=` for the CLI. `describe_settings` prints the envelope, always.\n\
+    - **`guards.py`** \u2014 `dispatch_task` passes `inherited.posture` into `resolve_posture`\
+    \ on the `on_behalf_of_parent` path. Crucially it is **read off the parent's stored\
+    \ `dispatch` entry, not taken from the request** \u2014 `DispatchRequest` gains\
+    \ no new field for it, so `on_behalf_of_parent` still offers a caller nothing\
+    \ to forge. Only the manager may append a `dispatch` entry (`MANAGER_WRITTEN_LOG_TYPES`),\
+    \ which is what makes that entry safe to take an execution envelope from.\n- **`cli.py`**\
+    \ \u2014 `agentjobs dispatch walk --posture`, refused above the ceiling (exit\
+    \ 2 on an unknown value).\n- **Docs** \u2014 `docs/agent-dispatch-design.md` gains\
+    \ decision 7e and a section under the epic walk with the four-row crossing table;\
+    \ its \"three sources\" table becomes four with the rank-2 placement argued. `docs/agent-workflow.md`'s\
+    \ parked-child section says the deciding posture is the *parent's*.\n\n## Verification\n\
+    \n**The gate:** full unqualified `scripts/check.py`, all ten stages, green on\
+    \ the rebased branch \u2014 219.5s, receipt written for `54dc6b09`. (Two earlier\
+    \ full green runs at 238s and 302s before the rebase.)\n\n**Tests: 24 new.** 7\
+    \ resolver-level in `test_dispatch_posture_ceiling.py`; 19 in `test_dispatch_epic.py`\
+    \ covering each source's crossing decision, the two-generation case, the pre-task-308\
+    \ absent-source case, the printed envelope line, and the walk-level posture; 6\
+    \ of those go through the whole guard chain with a real runner process on a project\
+    \ configured exactly like this one (`posture: auto`, `max_posture: autonomous`)\
+    \ and assert on the child's `dispatch` entry and **the prompt text the child was\
+    \ actually handed** \u2014 that is ac-1 and ac-4. 3 CLI tests, and 2 in `test_dispatch_finish.py`\
+    \ proving the inherited posture reaches the merge and names itself in the merge\
+    \ commit.\n\n**A real walk, not just the suite** (the standard in ENGINEERING.md\
+    \ \xA7 Verification). Built a throwaway project under its own `AGENTJOBS_HOME`\
+    \ \u2014 epic plus two children, `posture: auto` / `max_posture: autonomous`,\
+    \ a stand-in runner that writes down its prompt and closes its task \u2014 and\
+    \ ran `agentjobs dispatch walk` against it three times, varying only the parent's\
+    \ `posture_source`:\n\n| Parent `posture_source` | Walk's envelope line | Children's\
+    \ prompts | Child's `posture_source` |\n|---|---|---|---|\n| `dispatch` | `autonomous\
+    \ (inherited from the epic's own dispatch)` | both `posture=autonomous`, *releases\
+    \ the merge gate* | `epic` |\n| `task` | `the project default, or each child's\
+    \ own record\u2026` | both `posture=auto`, *stops at the merge gate* | `project`\
+    \ |\n| `project` | `the project default, or each child's own record\u2026` | both\
+    \ `posture=auto`, *stops at the merge gate* | `project` |\n\nThe first row is\
+    \ the defect fixed: the child's prompt now says what the supervisor's prompt claims\
+    \ it says. The second row is the load-bearing refusal \u2014 an `autonomous` on\
+    \ the parent's *record* still buys its children nothing. Sandbox removed afterwards.\n\
+    \n## Acceptance\n\n- **ac-1** \u2014 met. The child's prompt carries `releases\
+    \ the merge gate` where the supervisor's does, asserted both in the suite and\
+    \ in a real walk.\n- **ac-2** \u2014 met, in the `decision` entry above with its\
+    \ rejected alternative.\n- **ac-3** \u2014 met. `posture_source: epic`, distinct\
+    \ from both `dispatch` and `project`, and it survives to the merge commit as *\"\
+    posture `autonomous` (from the epic) releases the merge gate\"*.\n- **ac-4** \u2014\
+    \ met, several times over; the closest to the wording is `TestARealChildRunGetsTheEpicsEnvelope`.\n\
+    \n## Not done, deliberately\n\nThe task-269 children still carry the hand-written\
+    \ `posture: autonomous` workaround on their records. Removing it is not needed\
+    \ \u2014 with this fix the epic's own choice outranks it \u2014 and editing closed\
+    \ children's records to prove a point is churn. Nothing in scope here changes\
+    \ what any posture means, and no project's `max_posture` was touched."
+  data:
+    operation:
+      id: 1d8a5f36-2c47-4be0-9f13-6ea2c8b74d55
+      kind: log_append
+      fingerprint: a410fdfeb5591f322775d1a49999bd8e
+- id: 7
+  ts: '2026-08-25T19:24:56.989743Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 3e5b9c81-7d4a-4f26-b013-9c8ad2f5e447
+      kind: update_content
+      fingerprint: 4eef63aa67ddfa922b9d3e818a22f969
+- id: 8
+  ts: '2026-08-25T19:25:13.346524Z'
+  actor: claude
+  type: handoff
+  body: "Ready for review: `fix/task-316-epic-posture-inheritance`, 2 commits, rebased\
+    \ onto main at 658914f, full gate green on the rebased branch (219.5s, all ten\
+    \ stages, receipt for 54dc6b09). Entry 6 has the full evidence and entry 5 the\
+    \ decision.\n\n**What it does.** A child started by the epic walk now inherits\
+    \ the parent run's posture, so an epic you dispatch `autonomous` runs its children\
+    \ `autonomous` and the supervisor's prompt stops lying to it.\n\n**The one thing\
+    \ worth your judgement** is entry 5's decision: only a posture a *person* chose\
+    \ crosses the parent/child boundary. A posture chosen at the parent's dispatch\
+    \ crosses, and so does one the parent itself inherited (nested epics). A posture\
+    \ written on the parent's *task record* does not \u2014 that field is agent-writable,\
+    \ and crossing would let one agent widen every child in an epic at once, with\
+    \ the ceiling bounding nothing here since ours is already `autonomous`. The project\
+    \ default does not need to; it already reaches them.\n\nThe second call: an inherited\
+    \ posture outranks the child's own `posture:` field. So `dispatch` > `epic` >\
+    \ `task` > `project`. That is the placement to push back on if you disagree \u2014\
+    \ it means a per-child override can no longer contradict what you chose for the\
+    \ epic.\n\n**Nothing widened.** The ceiling is unchanged and still refuses; the\
+    \ inherited posture is read off the parent's stored `dispatch` entry (a type only\
+    \ the manager may write), never taken from the request, so `on_behalf_of_parent`\
+    \ still gives a caller nothing to forge. `assert_human_clocked` and the attempt\
+    \ budget are untouched.\n\n**New affordance:** `agentjobs dispatch walk --posture`\
+    \ for a walk run from a shell with no parent run to inherit from. The walk also\
+    \ now prints the envelope its children will start at before starting any of them\
+    \ \u2014 that line is the only warning a person gets before authorising a chain\
+    \ of unreviewed merges.\n\n**Verified beyond the suite:** ran a real `dispatch\
+    \ walk` against a throwaway project configured like this one, three times, varying\
+    \ only the parent's `posture_source`. `dispatch` \u2192 children got `autonomous`\
+    \ and prompts saying *releases the merge gate*; `task` and `project` \u2192 children\
+    \ got `auto` and *stops at the merge gate*. Table in entry 6.\n\nNo UI surface\
+    \ changed, so there is nothing to look at in the browser. Approve in the GUI and\
+    \ the scripted finish takes it from there."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: a2f47d09-5b81-4c33-8e6a-71d90fb2c1a8
+      kind: handoff
+      fingerprint: 2126124dc16f6a4c2c4bd6f8a8610979
