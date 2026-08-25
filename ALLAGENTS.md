@@ -382,14 +382,32 @@ A human working alone does not need this; they have no peer to collide with. You
     Take the worktree yourself with `git worktree add`, as above. Probed on Claude Code
     2.1.235, 2026-08-19; the reproduction is in task-186 and in
     [the dispatch design](docs/agent-dispatch-design.md).
--   **The harness may tell you the opposite, and this rule wins.** A background session
-    is given a preamble instructing it to use `EnterWorktree`, and saying the instruction
-    is enforced because edits in the shared checkout are rejected. In this repository that
-    instruction is wrong for the reason directly above, and following it strands your work
-    where you cannot record or merge it. Three auditors on 2026-08-21 each had a write
-    refused and worked around it by writing to a temp directory and copying the file in;
-    that is the correct improvisation if you hit it. **Do not silently give up on a write
-    the guard refuses** -- say on the task record that it happened.
+-   **The harness tells background sessions the opposite, and this rule wins.** A `--bg`
+    session is handed a preamble instructing it to use `EnterWorktree`, and saying the
+    instruction is enforced because edits in the shared checkout are rejected. In this
+    repository that instruction is wrong for the reason directly above, and following it
+    strands your work where you cannot record or merge it. Ignore it and take your
+    worktree with `git worktree add`.
+
+    **The enforcement half is switched off here, deliberately** (task-303).
+    `.claude/settings.json` sets `"worktree": {"bgIsolation": "none"}` -- the escape the
+    refusal message itself names -- so a background session's `Write` and `Edit` into the
+    shared clone land instead of being refused. That is what lets you commit a task record
+    to `main` while your code sits on a branch, which is the arrangement this repository
+    requires and the harness's default forbids. Probed on **Claude Code 2.1.238,
+    2026-08-25**: refused before the key, accepted after it, and the key took effect
+    mid-session with no restart. `Bash` writes were never guarded either way, which is why
+    a session that shells out never meets this and one that reaches for `Write` meets it
+    on its first file.
+
+    **If you are refused anyway, put that on the task record before you work around it.**
+    The refusal reads *"This background session hasn't isolated its changes yet. Call
+    EnterWorktree first"*. Seeing it means the key has stopped working -- a newer Claude
+    Code, a settings file that did not load -- and that is a finding about dispatch, not a
+    personal obstacle. Write through `Bash` and carry on; do not call `EnterWorktree`.
+    Three auditors on 2026-08-21 each hit this before the key existed, each improvised the
+    same workaround independently -- staging the file outside the repository and copying it
+    in -- and the cost of none of them writing it down is that all three paid it.
 
     A second refusal wears the same face and is a different thing: the task-write guard
     refuses any write whose *content* mentions a task file path, even when the file you
