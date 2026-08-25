@@ -3,13 +3,16 @@ id: task-269
 title: 'Static vs dynamic context: get the always-loaded bundle down to the rules
   an agent acts on, and make the split measurable rather than argued'
 created: '2026-08-22T18:59:11.785040Z'
-updated: '2026-08-25T10:47:01.445377Z'
+updated: '2026-08-25T12:53:25.904806Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Supervise this epic: start a separate session for one eligible child
-  at a time, watch its record, and do not work a child yourself. Open now: task-301,
-  task-302, task-303, task-304, task-305, task-306.'
+ball: human
+ball_reason: decision
+ball_prompt: 'The epic walk stopped on task-304: ball is human/decision: A dispatched
+  session (8da26bd2) finished without handing off, so nobody was told what it needs.
+  Read what it did, then either attach to it or move this task on yourself. 2 child/children
+  completed before it (task-302, task-303). Read that child''s record, decide what
+  it needs, and restart the walk when it is resolved -- it re-reads the attempt count
+  off each child''s log, so nothing is double-spent.'
 archived: false
 priority: critical
 queue_position: 693
@@ -436,3 +439,45 @@ log:
       id: 2cd69fa5-7b70-41ed-a3b9-66a9e8b6a79b
       kind: log_append
       fingerprint: 3ea9606b829c9ef9f690bc9920e7432c
+- id: 12
+  ts: '2026-08-25T12:53:15.498931Z'
+  actor: claude
+  type: progress
+  body: "**Epic walk** -- stopped: child_needs_a_human.\n\nStarted 2026-08-25T12:53:15.496075+00:00.\n\
+    \nWalk of task-269: child_needs_a_human.\nball is human/decision: A dispatched\
+    \ session (8da26bd2) finished without handing off, so nobody was told what it\
+    \ needs. Read what it did, then either attach to it or move this task on yourself.\n\
+    \nChildren, in the order the walk took them:\n  task-302 attempt 1 (run_a07731b6):\
+    \ completed -- closed completed; its own gate ran and its own merge happened\n\
+    \  task-303 attempt 1 (run_ff8c316d): completed -- closed completed; its own gate\
+    \ ran and its own merge happened\n  task-304 attempt 1 (run_dd29fb39): parked\
+    \ -- ball is human/decision: A dispatched session (8da26bd2) finished without\
+    \ handing off, so nobody was told what it needs. Read what it did, then either\
+    \ attach to it or move this task on yourself.\n\n**The walk stops on the first\
+    \ child that is not clean rather than skipping it.** A sibling that depended on\
+    \ it would be building on a gap, and nobody is awake to notice. Whatever the child's\
+    \ record says it needs is what this epic needs next."
+  data: {}
+- id: 13
+  ts: '2026-08-25T12:53:15.525212Z'
+  actor: claude
+  type: handoff
+  body: 'The epic walk stopped on task-304: ball is human/decision: A dispatched session
+    (8da26bd2) finished without handing off, so nobody was told what it needs. Read
+    what it did, then either attach to it or move this task on yourself. 2 child/children
+    completed before it (task-302, task-303). Read that child''s record, decide what
+    it needs, and restart the walk when it is resolved -- it re-reads the attempt
+    count off each child''s log, so nothing is double-spent.'
+  data:
+    ball: human
+    ball_reason: decision
+- id: 14
+  ts: '2026-08-25T12:53:25.904674Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 8
+  data:
+    run_id: run_12b2675c
+    outcome: completed
+    duration_seconds: 10559.483765
+    log_path: C:\Users\jpose\.agentjobs\runs\run_12b2675c
