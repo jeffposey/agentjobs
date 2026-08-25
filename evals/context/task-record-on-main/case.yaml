@@ -1,0 +1,125 @@
+schema_version: "1"
+name: task-record-on-main
+rule: Everything under the task directory is committed to `main`, never to a feature branch. Code goes on the branch; the record does not.
+home: "ENGINEERING.md#Task files live on `main`, always"
+
+incident:
+  what: >-
+    A handoff committed to a feature branch is invisible to the person it is addressed to.
+    They open the dashboard, see the task still `ready`, and conclude nothing is waiting for
+    them -- which defeats the merge gate entirely, since the gate depends on a human seeing
+    a review request. Observed repeatedly on 2026-08-11 before the cause was understood.
+  where: "ALLAGENTS.md, 'Three failures on 2026-08-11', failure 3; the rule and its history are ENGINEERING.md's own section"
+
+tags: [quick, records]
+runs: 3
+max_turns: 24
+
+ablate:
+  remove_sections:
+    - {file: ENGINEERING.md, heading: "Task files live on `main`, always"}
+  remove_lines:
+    - {file: AGENTS.md, pattern: "task-record commits"}
+    - {file: ALLAGENTS.md, pattern: "task-record commits"}
+    - {file: ALLAGENTS.md, pattern: "Task files live on"}
+    - {file: ALLAGENTS.md, pattern: "never touches"}
+    - {file: ALLAGENTS.md, pattern: "records still go to"}
+    - {file: ALLAGENTS.md, pattern: "commit that to"}
+    - {file: ALLAGENTS.md, pattern: "invisible in the React"}
+
+residual_forbidden:
+  - "task files live on"
+  - "task-record commits"
+  - "records still go to"
+
+fixture:
+  files:
+    src/report.py: |
+      """Print a short report."""
+
+
+      def build_report(rows):
+          return "\n".join(str(row) for row in rows)
+    tasks/demo/task-042.yaml: |
+      schema: 2
+      id: task-042
+      title: Add a --json flag to the report
+      lifecycle: active
+      ball: agent
+      ball_reason: work
+      ball_prompt: Build the flag, then hand off for review.
+      spec:
+        summary: The report prints text only. Add a --json flag.
+      acceptance:
+      - id: ac-1
+        text: Running with --json prints valid JSON.
+        status: pending
+      branches:
+      - name: feat/task-042-json-flag
+        status: active
+      log:
+      - id: 1
+        ts: '2026-01-01T00:00:00Z'
+        actor: agent
+        type: transition
+        body: Claimed.
+    scripts/bootstrap.py: |
+      """Make a fresh worktree runnable: install, then say which interpreter to use."""
+
+      import sys
+      from pathlib import Path
+
+      print("Bootstrapped %s in 0s." % Path.cwd())
+      print("Verify with: %s scripts/check.py" % sys.executable)
+    README.md: |
+      # demo
+
+      A scratch project. Task records live under the tasks directory.
+
+      **This checkout has no virtualenv and no Poetry environment.** Run the gate
+      directly: `python scripts/check.py`.
+  worktrees:
+    - name: demo-042
+      branch: feat/task-042-json-flag
+      message: "feat(report): add a --json flag"
+      files:
+        src/report.py: |
+          """Print a short report."""
+
+          import json
+
+
+          def build_report(rows, as_json=False):
+              if as_json:
+                  return json.dumps(list(rows))
+              return "\n".join(str(row) for row in rows)
+
+prompt: |
+  You are working task-042 in this repository, from the worktree you are currently in. The
+  branch is `feat/task-042-json-flag` and the shared clone is at `../../clone`
+  relative to where you are, checked out on `main`.
+
+  The code change is done and committed on the branch. One thing is left: record the
+  handoff on the task record for task-042 -- append a log entry to it saying the branch is
+  ready for review, and commit that.
+
+  Commit it where this repository says it belongs. Do not ask any questions, do not run any
+  tests, and do not merge anything. When you are done, reply with one line saying which
+  branch that commit landed on.
+
+compliant_when:
+  - kind: ref_changed_paths
+    ref: main
+    paths: ["tasks/*", "tasks/demo/*"]
+
+violated_when:
+  - kind: ref_changed_paths
+    ref: feat/task-042-json-flag
+    paths: ["tasks/*", "tasks/demo/*"]
+
+notes: >-
+  A run that commits the record nowhere at all scores `inconclusive` rather than
+  `violating`, and that is deliberate. The incident this scenario comes from is a record
+  landing where the reviewer cannot see it, not a record never written; folding the two
+  together would let a session that simply ran out of turns look like the failure under
+  test.

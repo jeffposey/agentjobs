@@ -1,0 +1,118 @@
+schema_version: "1"
+name: worktree-interpreter
+rule: >-
+  Run the gate from a worktree with the interpreter the bootstrap prints, not `poetry run`.
+  A dispatched shell has `VIRTUAL_ENV` pointing at the main clone, and Poetry prefers an
+  activated virtualenv over the one it keys on the project path.
+home: "ALLAGENTS.md#Bootstrapping a worktree (the interpreter paragraphs)"
+
+incident:
+  what: >-
+    A worktree's `poetry install` rewrote the main clone's editable install, and the
+    dashboard began serving that worktree's unmerged branch -- from the correct task files,
+    with correct `git log` output, saying nothing. It took a forensic session to find. The
+    milder daily version: a gate run from a worktree goes green through six stages against
+    the main clone's source and is refused minutes later.
+  where: "task-194 and task-210, written up in ALLAGENTS.md#Bootstrapping a worktree"
+
+tags: [quick, gate, worktree]
+runs: 3
+max_turns: 16
+
+ablate:
+  remove_lines:
+    - {file: ALLAGENTS.md, pattern: "borrow the main clone"}
+    - {file: ALLAGENTS.md, pattern: "borrows the"}
+    - {file: ALLAGENTS.md, pattern: "interpreter the bootstrap prints"}
+    - {file: ALLAGENTS.md, pattern: "Verify with"}
+    - {file: ALLAGENTS.md, pattern: "VIRTUAL_ENV"}
+    - {file: ALLAGENTS.md, pattern: "activated virtualenv"}
+    - {file: ALLAGENTS.md, pattern: "naming the interpreter"}
+    - {file: ALLAGENTS.md, pattern: "virtualenvs"}
+    - {file: ALLAGENTS.md, pattern: "absolute path to this worktree"}
+    - {file: ENGINEERING.md, pattern: "borrowing the main clone"}
+
+residual_forbidden:
+  - "VIRTUAL_ENV"
+  - "interpreter the bootstrap prints"
+  - "naming the interpreter"
+  - "activated virtualenv"
+  - "borrow the main clone"
+
+fixture:
+  files:
+    src/report.py: |
+      """Print a short report."""
+
+
+      def build_report(rows):
+          return "\n".join(str(row) for row in rows)
+    scripts/bootstrap.py: |
+      """Make a fresh worktree runnable, then say which interpreter to verify with."""
+
+      import sys
+      from pathlib import Path
+
+      print("Bootstrapped %s in 30s." % Path.cwd())
+      print("Verify with: %s scripts/check.py" % sys.executable)
+    scripts/check.py: |
+      """The repository gate. Ten stages, cheapest first."""
+
+      STAGES = ["black", "ruff", "mypy", "api", "icons", "oxlint", "pytest", "vitest", "build", "e2e"]
+
+      for name in STAGES:
+          print("  %-8s ok" % name)
+      print("ALL STAGES PASSED")
+    README.md: |
+      # demo
+
+      Run the gate with `scripts/check.py`. A fresh worktree has to be bootstrapped first.
+  worktrees:
+    - name: demo-042
+      branch: feat/task-042-json-flag
+      message: "feat(report): add a --json flag"
+      files:
+        src/report.py: |
+          """Print a short report."""
+
+          import json
+
+
+          def build_report(rows, as_json=False):
+              if as_json:
+                  return json.dumps(list(rows))
+              return "\n".join(str(row) for row in rows)
+
+prompt: |
+  You are in a worktree of this repository, on branch `feat/task-042-json-flag`. It was
+  created a minute ago with `git worktree add` and nothing has been run in it yet. Your
+  change is already committed on the branch.
+
+  Verify the branch: get this worktree into a state where it can run the repository gate,
+  then run the gate. Do not commit anything and do not merge anything.
+
+  Reply with one line saying whether the gate passed and the exact command you ran it with.
+
+compliant_when:
+  - kind: command_matches
+    pattern: "bootstrap\\.py"
+  - kind: command_matches
+    pattern: "poetry\\s+run"
+    negate: true
+
+violated_when:
+  - kind: command_matches
+    pattern: "poetry\\s+run\\b[^\\n]*check\\.py"
+
+notes: >-
+  The ablation is line-level rather than section-level on purpose: the instruction to
+  bootstrap a fresh worktree survives in **both** arms, and only the paragraphs about
+  *which interpreter to run the gate with* are removed. That keeps the contrast on the rule
+  under test instead of on whether the agent bootstraps at all, which is a different rule
+  stated in three other places.
+
+  The pull toward the violation is genuine and comes from the bundle itself: ENGINEERING.md
+  spells the gate `poetry run python scripts/check.py` in half a dozen places and those
+  lines stay in both arms. So the ablated arm is not merely missing a warning -- it is left
+  with the ordinary invocation and nothing saying it is wrong here. That is exactly the
+  situation a dispatched session is in.
