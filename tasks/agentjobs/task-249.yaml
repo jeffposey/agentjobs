@@ -3,7 +3,7 @@ id: task-249
 title: 'Dispatch: run identity and the runner''s env: never reach a --bg worker in
   steady state (the daemon owns the environment)'
 created: '2026-08-22T18:51:44.798464Z'
-updated: '2026-08-23T05:15:21.306374Z'
+updated: '2026-08-25T23:53:42.226391Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -112,3 +112,65 @@ log:
       id: a1b2c3d4-0003-4000-8000-000000000003
       kind: queue_move
       fingerprint: a56b04c8bb48ebd57fe5323a0360c89f
+- id: 3
+  ts: '2026-08-25T23:53:42.226197Z'
+  actor: claude
+  type: note
+  body: "**The inverse this task's summary calls \"worse and merely unobserved\" has\
+    \ now been observed, with a cost.** Recorded here rather than as a new task; nothing\
+    \ about the spec above needs changing, but the priority argument is now evidential\
+    \ rather than predictive.\n\n## What happened\n\n`run_68ea396e`, dispatched 2026-08-25T23:41Z\
+    \ against **task-316** at posture `autonomous` (`posture_source: dispatch`, Jeff's\
+    \ explicit choice above the project's `auto`). Its shell environment read:\n\n\
+    ```\nAGENTJOBS_RUN_ID=run_12b2675c\nAGENTJOBS_RUN_DIR=C:\\Users\\jpose\\.agentjobs\\\
+    runs\\run_12b2675c\nVIRTUAL_ENV=...\\virtualenvs\\agentjobs-KSKY4Ymk-py3.13  \
+    \   # the main clone's, not the worktree's\n```\n\n`run_12b2675c` is the **task-269\
+    \ epic supervisor**, dispatched 09:57Z the same day \u2014 about fourteen hours\
+    \ earlier \u2014 and long finished. So a later session inherited an earlier dispatched\
+    \ run's ids, exactly as predicted, across a gap of hours and across a different\
+    \ task.\n\n## The consequence, which is not just missing phase records\n\n`agentjobs\
+    \ finish task-316 --posture-release` **declined**:\n\n```\ntask-316: declined\
+    \ (posture_requires_review)\nThis finish runs at posture auto (from the project),\
+    \ whose merge policy is `review`.\n```\n\nThe path is `released_posture` (`finish.py:1174`,\
+    \ task-315), which resolves the merge posture from `os.environ[RUN_ID_ENV]`. It\
+    \ read `run_12b2675c`, applied its own correct guard at `finish.py:1224` \u2014\
+    \ *\"A run may only vouch for the task it was dispatched against\"* \u2014 found\
+    \ `task_id: task-269 != task-316`, discarded the record, and fell through to the\
+    \ project default.\n\nSo the leak does not merely lose telemetry. **It silently\
+    \ strips a run of the execution authority a human granted it**, and lands the\
+    \ task back on that human as `posture_requires_review` \u2014 which is verbatim\
+    \ the incident task-315 was written to end, arriving through a door task-315 does\
+    \ not cover. The two guards are each individually correct; the input is what is\
+    \ wrong.\n\nWorth stating precisely, because it bounds the severity in the reassuring\
+    \ direction: **the failure is fail-safe, not fail-open.** A stale id can only\
+    \ ever cost a run authority it was granted, never grant it authority it was not\
+    \ \u2014 `record.task_id != task_id` discards, and the ceiling is re-applied from\
+    \ machine-local config regardless. The damage is stalled autonomous work and humans\
+    \ woken for decisions they already made, not unauthorised merges.\n\n## What this\
+    \ adds to the fix above\n\n- **Step 2 as written would not have helped here.**\
+    \ Deriving the run from `live_runs(home)` filtered to the project would have found\
+    \ *two* candidate runs at some points today and, more importantly, that step is\
+    \ scoped to the gate writing phase records. `released_posture` is a second consumer\
+    \ of `RUN_ID_ENV` that reaches a merge decision, and it was written after this\
+    \ task was drafted (task-315, 2026-08-25). Any fix needs to cover both consumers,\
+    \ or the merge-authority path needs to stop depending on an inherited environment\
+    \ variable at all.\n- **Something already knows about this leak.** `src/agentjobs/contexteval/runner.py:236`\
+    \ explicitly strips `AGENTJOBS_RUN_ID`, `AGENTJOBS_RUN_DIR` and `VIRTUAL_ENV`\
+    \ from the environment it builds, calling them leaked. That is a local defence\
+    \ in one subsystem for the general problem this task describes \u2014 worth reading\
+    \ before choosing an approach, and worth generalising rather than duplicating\
+    \ a third time.\n- `DispatchRunner._environment` (`runner.py:1636`) is **not**\
+    \ the leak and should not be changed: it already pops both keys before setting\
+    \ them, with a comment explaining exactly why. The hop happens after it.\n\n##\
+    \ What I did about it, on task-316\n\nRe-ran the finish with `AGENTJOBS_RUN_ID`\
+    \ set to this run's true id, read off the ledger. It merged: gate green at 238.9s,\
+    \ `7f75fcb4`, verified live. Reasoning and rejected alternatives are in task-316\
+    \ entry 38. That is a per-invocation repair by a session that happened to look\
+    \ at its own environment, which is not a fix and is not discoverable \u2014 the\
+    \ next run to hit this will simply be told a human must review its work, and will\
+    \ believe it."
+  data:
+    operation:
+      id: 6b2d81f4-93a7-4c05-a1e9-7d34e05f2b60
+      kind: log_append
+      fingerprint: b52aadf2b475e134f0ca1995a92d1651
