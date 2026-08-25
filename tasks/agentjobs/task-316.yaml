@@ -3,13 +3,15 @@ id: task-316
 title: The epic walk drops the parent's dispatch-time posture, so an epic dispatched
   `autonomous` stops at its first child
 created: '2026-08-25T10:13:25.100260Z'
-updated: '2026-08-25T20:34:47.600619Z'
+updated: '2026-08-25T20:58:23.523036Z'
 lifecycle: active
 ball: human
-ball_reason: decision
-ball_prompt: Run run_e03af0d1 ended `cancelled` and nobody was told what this task
-  needs. Read the dispatch_result entry, then either dispatch again or take it on
-  yourself.
+ball_reason: input
+ball_prompt: Restore or restart the Codex local execution harness, then dispatch/resume
+  an agent to inspect `fix/task-316-epic-posture-inheritance`, rebase it onto current
+  `main`, and run the full gate. The branch was previously implemented and green,
+  but its automated finish stopped before merge because main moved. Do not merge in
+  this auto-posture run; after fresh verification, hand off for review.
 archived: false
 priority: high
 queue_position: 14600
@@ -21,7 +23,7 @@ tags:
 effort: "small \u2014 one field to pass, plus a decision about which sources may cross\
   \ the parent/child boundary, plus tests"
 assignment:
-  owner: claude
+  owner: codex
   eligible: []
 spec:
   summary: "`walk_epic.start_child` builds its `DispatchRequest` without a posture,\
@@ -536,3 +538,168 @@ log:
   data:
     ball: human
     ball_reason: decision
+- id: 18
+  ts: '2026-08-25T20:35:12.476631Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'New instructions from Jeff Posey:
+
+
+    Trying with ChatGPT, Claude is at session limit.'
+  data:
+    ball: agent
+    ball_reason: redirect
+- id: 19
+  ts: '2026-08-25T20:42:48.136208Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 20
+  ts: '2026-08-25T20:43:28.793445Z'
+  actor: codex
+  type: transition
+  body: Released at Jeff Posey's request so the Codex runner can take over after Claude
+    reached its session limit.
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: e2776bd7-0907-485c-806c-153b63449191
+      kind: release
+      fingerprint: 669b25e548171b5ad2ff6384ebe1ba95
+- id: 21
+  ts: '2026-08-25T20:43:46.361877Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 22
+  ts: '2026-08-25T20:43:46.862746Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 23
+  ts: '2026-08-25T20:43:55.436176Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Started a Codex App Server thread. Its conversation is persisted in the Codex
+    session store and can be opened by Codex Desktop.
+  data:
+    run_id: run_b4ddf5f7
+    agent: codex
+    runner: codex-terra
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 21
+    argv:
+    - C:\Users\jpose\AppData\Local\OpenAI\Codex\bin\110b3d66a02d864e\codex.exe
+    - app-server
+    - --model
+    - gpt-5.6-terra
+    - -c
+    - model_reasoning_effort="high"
+    - -c
+    - service_tier="default"
+    - --sandbox
+    - workspace-write
+    - -c
+    - mcp_servers.agentjobs.required=true
+    - 'You are the agent `codex` working task `task-316` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-316-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_b4ddf5f7. Posture `auto` stops at the merge gate: when
+      the work is done and verified, record the evidence on the task, hand the ball
+      to human/review, and stop. Do not merge. Never push: this project is configured
+      `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 116775b
+    session_id: 01a03aaa-4233-79e3-b5c0-8346477430a9
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: false
+        skipped_because: disabled
+        detail: Claude Opus 5 is retained but disabled.
+      - runner: codex-terra
+        eligible: true
+- id: 24
+  ts: '2026-08-25T20:47:57.083045Z'
+  actor: codex
+  type: progress
+  body: 'Resumption check: the record establishes the implemented branch `fix/task-316-epic-posture-inheritance`
+    and that its prior scripted finish stopped before merge because `main` advanced.
+    I began the required current-worktree/rebase/gate recovery, but the Codex Windows
+    shell cannot start a usable process: initial PowerShell launches were rejected
+    by `codex-windows-sandbox-setup.exe` with Windows error 206 (filename/extension
+    too long); subsequent `cmd.exe` git probes remained hung for more than a minute
+    without output and were terminated. No repository files, branch, worktree, or
+    task content were modified by this run. I cannot truthfully rebase or rerun the
+    full gate until the local execution harness is restored.'
+  data:
+    operation:
+      id: 8f5adc44-29d0-4822-85cc-c054604a8905
+      kind: log_append
+      fingerprint: 2e8da6fad35d6633c7c191fbc73a6176
+- id: 25
+  ts: '2026-08-25T20:48:07.923232Z'
+  actor: codex
+  type: handoff
+  body: Handed off because the current Codex process cannot start reliable shell commands
+    (recorded in entry 24), so it cannot satisfy the resumption contract's required
+    inspection/rebase/full-gate evidence. No source or Git changes were made by this
+    run.
+  data:
+    ball: human
+    ball_reason: input
+    operation:
+      id: 70f1e26e-7e1c-4f03-a79d-3f56324d3c2c
+      kind: handoff
+      fingerprint: b07f4eea176523e24f21d040c56adfb8
+- id: 26
+  ts: '2026-08-25T20:57:58.117395Z'
+  actor: Jeff Posey
+  type: instruction
+  body: Jeff authorised restarting the task with Codex after restoring its local execution
+    harness. Inspect the existing branch, rebase it onto current main, and run the
+    full gate. Do not merge in this auto-posture run; hand off for review after fresh
+    verification.
+  data:
+    operation:
+      id: 1250ee0d-bacc-4fd1-9284-8af7d5c6f93e
+      kind: log_append
+      fingerprint: 0f9366c2e07dd96066fbc44397a5ed16
+- id: 27
+  ts: '2026-08-25T20:58:23.522835Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: This session is no longer known to the session manager, so it cannot be followed
+    or resumed. It was recorded as live when AgentJobs last stopped.
+  re: 23
+  data:
+    run_id: run_b4ddf5f7
+    outcome: interrupted
+    duration_seconds: 875.770468
+    log_path: C:\Users\jpose\.agentjobs\runs\run_b4ddf5f7
