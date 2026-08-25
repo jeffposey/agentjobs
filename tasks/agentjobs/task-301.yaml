@@ -3,72 +3,13 @@ id: task-301
 title: "Measure what a session actually loads before its first thought \u2014 harness\
   \ prompt, MCP tool declarations, @-chain, memory \u2014 for Claude and for Codex"
 created: '2026-08-23T21:50:13.685056Z'
-updated: '2026-08-25T10:45:03.592343Z'
+updated: '2026-08-25T18:49:21.250641Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review and approve the merge of `docs/task-301-context-budget` (commit
-  647f2b7, worktree C:/projects/worktrees/aj-301). One new file, `docs/context-budget.md`,
-  plus one row in `docs/index.md`. No code, no prose cut, no MCP registration touched.
-  Full unqualified scripts/check.py green on the rebased branch, all 10 stages, 242.3s.
-
-
-  WHAT IT SAYS, in four lines:
-
-
-  1. A dispatched Claude session opens at 75,619 tokens. This repository controls
-  24,902 of them - 32.9%. The harness system prompt, tool schemas, skills and agent
-  list are 42,876 (56.7%) and are not ours.
-
-  2. The MCP surface is 3,795 tokens, and in Claude Code 2.1.238 it is not even in
-  the first request - it arrives on the first tool call. The audit''s worry that MCP
-  dwarfs the @-chain is wrong: ENGINEERING.md and ALLAGENTS.md together cost 6.4x
-  the entire MCP surface.
-
-  3. CLAUDE.md''s HTML comment IS stripped. Verified against this run''s own delivered
-  context, not inferred.
-
-  4. Codex opens at 19,095 and does not auto-load ENGINEERING.md or ALLAGENTS.md at
-  all; it reads them as tool results, after which they are 47% of its context.
-
-
-  THE ONE THING TO PUSH BACK ON IF YOU WANT TO. The spec explicitly invited the answer
-  ''the repo share is small, do not cut''. I did not take it, because the measurement
-  does not support it - 33% is the largest block anyone here can move. I recommend
-  task-269''s cut and add a 52,000-byte cap enforced by a test, anchored to where
-  the bundle actually stood on 2026-08-21. Entry 10 has the full reasoning and the
-  two alternatives I rejected. If you disagree with recommending the cut, that is
-  the decision to overturn, and doing so does not invalidate any of the measurements.
-
-
-  TWO THINGS TO KNOW BEFORE YOU APPROVE:
-
-
-  - POSTURE MISMATCH. The record now says `posture: autonomous` (entry 7, written
-  14 minutes into the run by something other than me). My dispatch prompt said posture
-  `auto` and told me to stop at the merge gate. ALLAGENTS.md says the prompt is the
-  only authority for releasing that gate, so I stopped. If you meant this to run autonomously,
-  the release did not reach me and that is worth looking at before the next child
-  of task-269 runs.
-
-  - TWO CLASSIFIER BLOCKS, both worked around, neither hidden. Spawning a nested `claude
-  -p --debug` to dump the system prompt was refused, and so was running a python script
-  over ~/.claude/projects. Both would have been convenience; the methods I used instead
-  read real sessions rather than synthetic ones, so I think the result is better for
-  it. Recorded here so nobody re-runs into them.
-
-
-  FILED, NOT FIXED: task-317, the two `agentjobs` MCP declarations pointing at different
-  ports (8876 vs 8765). Auditor 8''s F11 said this cost 30 tool declarations; it does
-  not - the names collide and only one survives. What is real is that one of them
-  names the stale-server port GLOBAL-AGENTS.md warns about. Read task-317 before approving
-  if you want the correction to F11 on the record.
-
-
-  FOR task-305 WHEN IT RUNS: byte caps of 26,000 (ENGINEERING.md) / 23,000 (ALLAGENTS.md)
-  / 52,000 (bundle), conversions 3.0 bytes per token and 2.11 tokens per word. Section
-  8 of the doc has the derivation, and it independently corroborates task-269''s own
-  3,900-word figure to within 4%.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: critical
 queue_position: 793
@@ -558,3 +499,25 @@ log:
     outcome: completed
     duration_seconds: 2817.899155
     log_path: C:\Users\jpose\.agentjobs\runs\run_dd327e59
+- id: 13
+  ts: '2026-08-25T18:49:18.300350Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 14
+  ts: '2026-08-25T18:49:21.250468Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `docs/task-301-context-budget` (647f2b74).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\aj-301.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_cf0640e0\gate.log.'
+  data:
+    finish_step: started
+    branch: docs/task-301-context-budget
+    finish_id: fin_cf0640e0
