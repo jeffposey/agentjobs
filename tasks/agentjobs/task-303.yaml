@@ -3,7 +3,7 @@ id: task-303
 title: The background-session harness orders EnterWorktree and enforces it; this repository
   forbids it and never says so
 created: '2026-08-23T21:51:57.473218Z'
-updated: '2026-08-25T11:21:17.754376Z'
+updated: '2026-08-25T11:22:37.301520Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -324,3 +324,17 @@ log:
       id: c4e91b07-58da-4c33-9b6e-2f0d7a1e5c88
       kind: update_content
       fingerprint: e1ebfd4bc5026a7ea0f48bb264b5165c
+- id: 10
+  ts: '2026-08-25T11:22:37.301325Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-303-bg-isolation-contradiction` (52949e10).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-303.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_637e9018\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-303-bg-isolation-contradiction
+    finish_id: fin_637e9018
