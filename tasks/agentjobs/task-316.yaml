@@ -3,7 +3,7 @@ id: task-316
 title: The epic walk drops the parent's dispatch-time posture, so an epic dispatched
   `autonomous` stops at its first child
 created: '2026-08-25T10:13:25.100260Z'
-updated: '2026-08-25T20:58:33.055860Z'
+updated: '2026-08-25T21:58:53.433809Z'
 lifecycle: active
 ball: human
 ball_reason: input
@@ -713,3 +713,71 @@ log:
     run_id: run_7efbd96c
     outcome: crashed
     log_path: C:\Users\jpose\.agentjobs\runs\run_7efbd96c
+- id: 29
+  ts: '2026-08-25T20:58:56.951772Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Started a Codex App Server thread. Its conversation is persisted in the Codex
+    session store and can be opened by Codex Desktop.
+  data:
+    run_id: run_9a73f772
+    agent: codex
+    runner: codex-terra
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 26
+    argv:
+    - C:\Users\jpose\AppData\Local\OpenAI\Codex\bin\110b3d66a02d864e\codex.exe
+    - app-server
+    - --model
+    - gpt-5.6-terra
+    - -c
+    - model_reasoning_effort="high"
+    - -c
+    - service_tier="default"
+    - --sandbox
+    - workspace-write
+    - -c
+    - mcp_servers.agentjobs.required=true
+    - 'You are the agent `codex` working task `task-316` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-316-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_9a73f772. Posture `auto` stops at the merge gate: when
+      the work is done and verified, record the evidence on the task, hand the ball
+      to human/review, and stop. Do not merge. Never push: this project is configured
+      `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 502d002
+    session_id: 01a03ab8-035c-7210-b426-6ae576c06f15
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: false
+        skipped_because: disabled
+        detail: Claude Opus 5 is retained but disabled.
+      - runner: codex-terra
+        eligible: true
+- id: 30
+  ts: '2026-08-25T21:58:53.433487Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: 'The session finished its turn and the ball never moved, so it stopped without
+    saying what it needs. It was **not** killed and is still attachable: `C:\Users\jpose\AppData\Local\OpenAI\Codex\bin\110b3d66a02d864e\codex.exe
+    attach 01a03ab8-035c-7210-b426-6ae576c06f15`.'
+  re: 29
+  data:
+    run_id: run_9a73f772
+    outcome: finished_without_handoff
+    duration_seconds: 3602.370637
+    log_path: C:\Users\jpose\.agentjobs\runs\run_9a73f772
