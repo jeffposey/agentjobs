@@ -1,0 +1,159 @@
+schema: 2
+id: task-318
+title: A child of the epic walk inherits the parent's AGENTJOBS_RUN_ID, so its own
+  sanctioned autonomous merge is declined `locked`
+created: '2026-08-25T11:11:28.166849Z'
+updated: '2026-08-25T11:11:58.733045Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 14700
+category: infrastructure
+tags:
+- dispatch
+- epic-walk
+- finish
+effort: "small once located \u2014 the walk's child spawn has to set the child's own\
+  \ run id in the environment it passes down; most of the cost is deciding where the\
+  \ parent's value is leaking in"
+assignment:
+  eligible: []
+parent: task-269
+spec:
+  summary: A run started by `dispatch walk` sees the *supervisor's* run id in its
+    environment, not its own. The finisher establishes "am I the run holding this
+    lock?" from that variable, so a child running the exact command its prompt named
+    is refused as if a second run were contending for the task. Observed end to end
+    on task-302, 2026-08-25.
+  intent: A child dispatched by the walk can run the command its own prompt names.
+  description: "## Observed\n\nFound 2026-08-25 by the run working **task-302** (`run_a07731b6`),\
+    \ a child of the task-269 epic walk driven by `run_12b2675c`.\n\nThe prompt that\
+    \ started that run said, in as many words:\n\n> Record the evidence on the task\
+    \ first, then run `agentjobs finish task-302 --project agentjobs --posture-release`\n\
+    \nRunning exactly that, from the project root, produced:\n\n```\ntask-302: declined\
+    \ (locked)\ntask-302 is held by run run_a07731b6, which has not reported that\
+    \ it finished.\nNothing done (locked).\n```\n\n**It was declined for being held\
+    \ by itself.** The lock file said so plainly:\n\n```\npid=1003448 run=run_a07731b6\
+    \ kind=dispatch started=2026-08-25T10:45:48+00:00\n```\n\nwhile the session's\
+    \ environment said:\n\n```\nAGENTJOBS_RUN_ID=run_12b2675c\nAGENTJOBS_RUN_DIR=C:\\\
+    Users\\jpose\\.agentjobs\\runs\\run_12b2675c\n```\n\n`run_12b2675c` is the **supervisor's**\
+    \ run \u2014 the session driving the walk for task-269. So the child inherited\
+    \ its parent's run identity.\n\n## Why that breaks the merge\n\n`_holds_own_lock`\
+    \ in `src/agentjobs/dispatch/finish.py` (around line 1460) is the code task-022\
+    \ added for exactly this path, and its docstring describes this failure as already\
+    \ fixed:\n\n> Found 2026-08-24 on the first end-to-end walk: every child got as\
+    \ far as a green gate and a commit, and every one of them was declined `locked`\
+    \ by the command its prompt named.\n\nThe fix it describes requires two things\
+    \ to hold: `AGENTJOBS_RUN_ID` must be set, **and the lock file must name that\
+    \ run**. Both are correct in intent. The second silently fails here because the\
+    \ variable holds the wrong run \u2014 not an invented one, which the docstring\
+    \ anticipates, but a real and privileged one belonging to the process one level\
+    \ up.\n\n**The blast radius is wider than the lock.** task-315 made the finisher\
+    \ resolve the merge posture from the run that `AGENTJOBS_RUN_ID` names. With the\
+    \ parent's id in the environment, that lookup reads the parent's run record rather\
+    \ than the child's. It happened to give the right answer on this walk because\
+    \ parent and child were both dispatched `autonomous`, so nothing visible went\
+    \ wrong \u2014 but it is the same variable, read for a second decision, and the\
+    \ two runs are not guaranteed to share a posture. Anything else downstream that\
+    \ keys off the run id has the same exposure: `record_phase_from_env` writes the\
+    \ gate's phase records, so a child's gate timings land in the parent's run directory\
+    \ and `scripts/run_report.py` attributes the child's cost to the supervisor.\n\
+    \n## What to establish first\n\n**Where the value is leaking in.** Two candidates,\
+    \ and they want different fixes:\n\n1. `walk_epic.start_child` builds the child's\
+    \ environment from the supervisor's own, and the supervisor's `AGENTJOBS_RUN_ID`\
+    \ rides along because nothing overwrites it.\n2. The child's process environment\
+    \ is right, but the *session* the agent talks through was started earlier or differently\
+    \ and carries the older value \u2014 worth checking, because the observation above\
+    \ is of a shell inside the agent's session, not of the spawned process directly.\n\
+    \nDetermine which before changing anything; the observation does not distinguish\
+    \ them. Note that `run_a07731b6` has its own directory under `~/.agentjobs/runs/`,\
+    \ so the run itself was created correctly \u2014 only the environment handed downward\
+    \ is wrong.\n\nThis is a sibling of **task-316** (the walk drops the parent's\
+    \ dispatch posture) and shares its shape: the walk not giving each child a correctly-scoped\
+    \ environment of its own. Consider whether they are one fix.\n\n## The workaround\
+    \ used, so it is on the record\n\ntask-302 completed by supplying the truthful\
+    \ value:\n\n```\nAGENTJOBS_RUN_ID=run_a07731b6 AGENTJOBS_RUN_DIR=...\\runs\\run_a07731b6\
+    \ \\\n  poetry run agentjobs finish task-302 --project agentjobs --posture-release\n\
+    ```\n\nThat is not a bypass of the safety check and should not be read as one:\
+    \ the run really was `run_a07731b6`, dispatch really did start it, and the lock\
+    \ really did name it, so both conditions `_holds_own_lock` requires genuinely\
+    \ held. The environment was simply stale. The finish then ran the whole sequence\
+    \ normally \u2014 rebase, green gate, `--no-ff` merge as `8d25928e`, restart,\
+    \ verified live.\n\n**It is still a workaround and should not become the answer.**\
+    \ An agent that reaches for it without checking the lock file first would be asserting\
+    \ an identity rather than stating one, and the check would stop meaning anything."
+  constraints: Do not weaken `_holds_own_lock`. Both of its conditions are right;
+    the defect is the value it is given. In particular, do not make it fall back to
+    "any run id that looks plausible" or read the holder without comparing it.
+  out_of_scope: "The posture inheritance the walk drops (task-316), unless investigation\
+    \ shows one fix covers both \u2014 in which case say so on both records rather\
+    \ than silently widening this one."
+  context:
+  - path: src/agentjobs/dispatch/finish.py
+    why: '`_holds_own_lock`, around line 1460, and its docstring describing the task-022
+      fix this defeats'
+  - path: src/agentjobs/dispatch/epic.py
+    why: '`walk_epic` at line 468 and its inner `start_child` at 526 -- where the
+      child''s dispatch is built, and the first place to look for the environment
+      it inherits'
+  - path: src/agentjobs/dispatch/phases.py
+    why: '`record_phase_from_env` keys off the same variable, so a child''s gate timings
+      land in the parent''s run directory'
+  - path: tasks/agentjobs/task-302.yaml
+    why: 'The live observation: the decline, the lock file, the environment, and the
+      command that got past it'
+  - path: tasks/agentjobs/task-316.yaml
+    why: "The sibling defect in the same spawn path \u2014 consider whether one fix\
+      \ covers both"
+acceptance:
+- id: ac-1
+  text: The record states, from a live dispatched child rather than from reading the
+    spawn code, what AGENTJOBS_RUN_ID a walk-started child actually sees, and which
+    of the two candidate causes is the real one.
+  status: pending
+- id: ac-2
+  text: A child started by `dispatch walk` runs `agentjobs finish <its own task> --posture-release`
+    successfully with no environment override.
+  status: pending
+- id: ac-3
+  text: 'A test covers the child-inherits-parent case specifically: a lock naming
+    run B while the environment names run A must not be treated as self-held, and
+    a walk-started child must be given B.'
+  status: pending
+- id: ac-4
+  text: The child's gate phase records land in the child's own run directory, so run_report.py
+    attributes them to the child.
+  status: pending
+- id: ac-5
+  text: The full unqualified scripts/check.py is green on the change.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-25T11:11:28.606052Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 9a4c1e37-5d82-4b60-9f13-6e05d7a82bc4
+      kind: create
+      fingerprint: 41a63f05d6cc6193eb081356b219f74d
+- id: 2
+  ts: '2026-08-25T11:11:58.732792Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 5445fd22-f6fa-4ae3-9022-1fff23d3694e
+      kind: update_content
+      fingerprint: 3388531b476c6a856e88c033a7fce9b9
