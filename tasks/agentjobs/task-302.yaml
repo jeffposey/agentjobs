@@ -3,14 +3,11 @@ id: task-302
 title: "Three statements in the always-loaded bundle contradict the code \u2014 fix\
   \ them, and collapse the double-numbered merge gate"
 created: '2026-08-23T21:50:44.787308Z'
-updated: '2026-08-25T11:10:11.971317Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-25T11:10:32.310248Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 893
 category: documentation
 tags:
 - big-dawg-audit
@@ -18,7 +15,6 @@ tags:
 - docs
 effort: "small \u2014 four prose edits and a verification pass; no code"
 assignment:
-  owner: claude
   eligible: []
 parent: task-269
 posture: autonomous
@@ -98,7 +94,8 @@ dependencies: []
 links: []
 branches:
 - name: docs/task-302-bundle-contradictions
-  status: active
+  status: merged
+  merged_at: '2026-08-25T11:10:32.259342Z'
 log:
 - id: 1
   ts: '2026-08-23T21:50:45.478323Z'
@@ -488,3 +485,26 @@ log:
     merge_commit: 8d25928e13e9be75e3ac4ab5d18fd58b0f9a44bc
     branch: docs/task-302-bundle-contradictions
     base: main
+- id: 15
+  ts: '2026-08-25T11:10:32.310086Z'
+  actor: finisher
+  type: transition
+  body: "Merged `docs/task-302-bundle-contradictions` into `main` as `8d25928e` and\
+    \ verified live. Finished by the scripted path with no agent session (task-241).\
+    \ No human reviewed this merge: posture `autonomous` (from the task) releases\
+    \ the merge gate (task-021), and run run_a07731b6 ran the finish. What authorised\
+    \ it is the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.2s  docs/task-302-bundle-contradictions at f4566676\
+    \ in C:\\projects\\worktrees\\agentjobs-302\n  rebase     ok         0.1s  docs/task-302-bundle-contradictions\
+    \ onto main: f4566676 -> 60fd3999\n  gate       ok       178.5s  scripts/check.py\
+    \ green\n  merge      ok         0.4s  --no-ff into main as 8d25928e13e9be75e3ac4ab5d18fd58b0f9a44bc\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         0.5s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving 9d98c9a5, which contains the merge\
+    \ 8d25928e, from C:\\projects\\agentjobs (started 2026-08-25T11:10:17.086168+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
