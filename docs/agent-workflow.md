@@ -338,6 +338,15 @@ to produce.** The first child hands off for review, the walk stops, and a person
 approves. That is the merge gate standing, not the walk failing. Only `autonomous` walks
 an epic to the end unattended.
 
+**The posture that decides this is the one the *parent* was dispatched at** (task-316).
+A child inherits it, so an epic a person dispatched `autonomous` runs its children
+`autonomous` even where the project's own default is narrower -- which is what makes the
+sentence above about your own prompt true. It was not true until task-316: children fell
+through to the project default, so an epic authorised `autonomous` stopped on its first
+child for a review nobody had asked for. If you see that, check the child's `dispatch`
+entry -- `posture_source: epic` is the fix working. The walk prints the envelope its
+children will get before it starts any of them.
+
 **Child died.** The session is gone, the child's ball is still `agent`, and nothing new
 was written to its record. Before anything else, look at what survived: the child's branch
 may have commits, and its worktree may have uncommitted work. Then, at most once per

@@ -306,7 +306,7 @@ _POSTURE_RANK: Dict["Posture", int] = {
 
 
 class PostureSource(str, Enum):
-    """Which of the three places a run's posture came from (task-308).
+    """Which of the four places a run's posture came from (task-308, task-316).
 
     Recorded on the dispatch entry and on the run directory so that "why did this run
     get that envelope" has exactly one answer a reader can look up, rather than a
@@ -322,6 +322,16 @@ class PostureSource(str, Enum):
 
     DISPATCH = "dispatch"
     """Chosen for this one dispatch: the GUI pulldown (task-307), or ``--posture``."""
+
+    EPIC = "epic"
+    """Inherited from the epic this task is a child of (task-316).
+
+    A distinct value rather than reusing ``DISPATCH``, because the two answer the
+    reader's question differently and the difference is the whole point of recording a
+    source at all. ``dispatch`` means somebody chose an envelope *for this run*;
+    ``epic`` means somebody chose one for the parent and this child was started on that
+    choice. A child that merged unreviewed must be traceable to the act that actually
+    authorised it, and that act is on the parent's record, not this one's."""
 
 
 @dataclass(frozen=True)
@@ -366,14 +376,26 @@ def resolve_posture(
     *,
     task: Optional[Posture] = None,
     requested: Optional[Posture] = None,
+    inherited: Optional[Posture] = None,
 ) -> ResolvedPosture:
-    """Decide what one run may do, from up to three sources and one ceiling (task-308).
+    """Decide what one run may do, from up to four sources and one ceiling (task-308).
 
     **Precedence is most-specific-wins**: a posture chosen for this dispatch beats one
-    written on the task record, which beats the project's default. Each is a narrower
-    statement about *which run* than the one below it, and the reading anyone would
-    guess is the one that should be true. It is stated here and tested rather than
-    inferred, because the whole point of the field is that a reader can predict it.
+    inherited from the epic this task belongs to, which beats one written on the task
+    record, which beats the project's default. Each is a narrower statement about
+    *which run* than the one below it, and the reading anyone would guess is the one
+    that should be true. It is stated here and tested rather than inferred, because the
+    whole point of the field is that a reader can predict it.
+
+    **``inherited`` outranks ``task``, which is the one placement that is not obvious**
+    (task-316). A field on the child's own record is narrower in scope, so the ordering
+    above would seem to put it first. It does not, because the question the ordering
+    answers is not "which statement is about the fewest runs" but "which statement did a
+    person most recently make about *this* run". An inherited posture is a human's
+    choice, made at the moment they authorised the epic this child is being started
+    under; the record's field is a git-tracked value any agent can write at any time. Let
+    the field win and "I dispatched the epic `autonomous`" would silently mean something
+    different per child, which is exactly the predictability the paragraph above claims.
 
     **Then the ceiling, and the two sources it bounds are treated differently.** That
     difference is the load-bearing part of this function:
@@ -383,6 +405,13 @@ def resolve_posture(
       them something narrower than they asked for is worse than telling them no. A
       chooser should not offer it at all; ``ProjectDispatchSettings.offerable_postures``
       is what it populates from, so the refusal is a backstop rather than a UI.
+
+    * ``inherited`` -- the epic's dispatch-time posture, crossing the parent/child
+      boundary -- is **refused** as well, and for the same reason: it *is* a
+      dispatch-time choice, merely one made about the parent. It normally cannot exceed
+      the ceiling, having been checked against it when the parent was dispatched; it can
+      if somebody lowered the ceiling mid-walk, and a walk that stops loudly at that
+      point is telling the truth about an authority that no longer fits.
 
     * ``task`` -- a field in a git-tracked file, writable by any agent that can write the
       repository -- is **clamped**, silently as far as the run is concerned and loudly on
@@ -410,6 +439,19 @@ def resolve_posture(
                 "file."
             )
         return ResolvedPosture(posture=requested, source=PostureSource.DISPATCH, ceiling=ceiling)
+
+    if inherited is not None:
+        if not inherited.within(ceiling):
+            raise PostureAboveCeilingError(
+                f"This run would inherit posture {inherited.value!r} from the epic that "
+                f"authorised it, and {settings.project_id} is capped at "
+                f"{ceiling.value!r}. The parent was dispatched under a wider ceiling "
+                "than the one in force now, so the authority the walk is standing on no "
+                "longer fits. The cap is "
+                f"`projects.{settings.project_id}.max_posture` in this machine's "
+                "dispatch.yaml."
+            )
+        return ResolvedPosture(posture=inherited, source=PostureSource.EPIC, ceiling=ceiling)
 
     if task is not None:
         if task.within(ceiling):

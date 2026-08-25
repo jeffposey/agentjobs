@@ -274,7 +274,7 @@ class TestCeilingParsing:
 
 
 class TestPrecedence:
-    """Most-specific-wins: dispatch-time choice > task record > project default."""
+    """Most-specific-wins: dispatch choice > epic > task record > project default."""
 
     def test_nothing_named_gives_the_project_default(self) -> None:
         resolved = resolve_posture(settings(posture=Posture.AUTO))
@@ -307,6 +307,78 @@ class TestPrecedence:
         resolved = resolve_posture(raised, task=Posture.AUTONOMOUS)
         assert resolved.posture is Posture.AUTONOMOUS
         assert not resolved.clamped
+
+
+class TestAnInheritedPostureSitsBetweenDispatchAndTheTaskRecord:
+    """Where the epic's choice lands in the order, and why it is above the record (task-316).
+
+    The placement is the whole decision. A field on the child's own record is narrower in
+    scope, so the "most specific wins" phrasing would seem to put it first; it does not,
+    because an inherited posture is a *person's* choice made when they authorised the
+    epic, and the record's field is a git-tracked value any agent can write. Letting the
+    field win would mean "I dispatched the epic autonomous" quietly meant something
+    different per child.
+    """
+
+    def test_an_inherited_posture_beats_the_project_default(self) -> None:
+        raised = settings(posture=Posture.AUTO, max_posture=Posture.AUTONOMOUS)
+        resolved = resolve_posture(raised, inherited=Posture.AUTONOMOUS)
+        assert resolved.posture is Posture.AUTONOMOUS
+        assert resolved.source is PostureSource.EPIC
+        assert not resolved.clamped
+
+    def test_an_inherited_posture_beats_the_task_record(self) -> None:
+        raised = settings(posture=Posture.AUTO, max_posture=Posture.AUTONOMOUS)
+        resolved = resolve_posture(raised, task=Posture.SUPERVISED, inherited=Posture.AUTONOMOUS)
+        assert resolved.posture is Posture.AUTONOMOUS
+        assert resolved.source is PostureSource.EPIC
+
+    def test_a_dispatch_time_choice_beats_an_inherited_one(self) -> None:
+        """What makes ``dispatch walk --posture`` mean anything."""
+        raised = settings(posture=Posture.AUTO, max_posture=Posture.AUTONOMOUS)
+        resolved = resolve_posture(
+            raised, inherited=Posture.AUTONOMOUS, requested=Posture.READ_ONLY
+        )
+        assert resolved.posture is Posture.READ_ONLY
+        assert resolved.source is PostureSource.DISPATCH
+
+    def test_an_inherited_posture_may_be_narrower_than_the_task_record(self) -> None:
+        """Inheritance is not "take the wider of the two"; it is "the person decided"."""
+        raised = settings(posture=Posture.AUTO, max_posture=Posture.AUTONOMOUS)
+        resolved = resolve_posture(raised, task=Posture.AUTONOMOUS, inherited=Posture.READ_ONLY)
+        assert resolved.posture is Posture.READ_ONLY
+        assert resolved.source is PostureSource.EPIC
+
+    def test_an_inherited_posture_above_the_ceiling_is_refused_not_clamped(self) -> None:
+        """It is a dispatch-time choice one generation up, so it is treated as one.
+
+        Only reachable when somebody lowers ``max_posture`` while a walk is running: the
+        parent's own dispatch checked this same ceiling. Stopping loudly is the honest
+        answer, because the authority the walk is standing on no longer fits.
+        """
+        with pytest.raises(PostureAboveCeilingError) as caught:
+            resolve_posture(settings(posture=Posture.AUTO), inherited=Posture.AUTONOMOUS)
+        message = str(caught.value)
+        assert "epic" in message, "the refusal must say the posture was inherited"
+        assert "max_posture" in message, "the refusal must name where the cap is set"
+
+    def test_the_source_is_recorded_as_the_epic_rather_than_as_a_dispatch(self) -> None:
+        """ac-3: a child that merged unreviewed is traceable to the act that bought it.
+
+        ``dispatch`` would say somebody chose this envelope for *this* run, which is
+        false and points a reader at the wrong record; ``project`` would say
+        ``dispatch.yaml`` decided, which is what the defect this fixes actually wrote.
+        """
+        raised = settings(posture=Posture.AUTO, max_posture=Posture.AUTONOMOUS)
+        data = resolve_posture(raised, inherited=Posture.AUTONOMOUS).as_data()
+        assert data == {"posture_source": "epic", "posture_ceiling": "autonomous"}
+
+    def test_it_describes_itself_for_a_human_reading_a_log(self) -> None:
+        raised = settings(posture=Posture.AUTO, max_posture=Posture.AUTONOMOUS)
+        assert (
+            resolve_posture(raised, inherited=Posture.AUTONOMOUS).describe()
+            == "posture autonomous (from the epic)"
+        )
 
 
 class TestTheCeilingClampsAndRefuses:

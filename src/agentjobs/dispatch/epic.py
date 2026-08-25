@@ -50,6 +50,23 @@ gate each child runs before its own merge, the fact that nothing is ever pushed,
 ``main`` being local and therefore recoverable with ``git reset``. The design record says
 this in section 6 and it should keep saying it.
 
+## The envelope the children run at (task-316)
+
+The widening above is stated in terms of posture -- *"at posture ``autonomous`` an
+arbitrarily long chain of merges"* -- and for the first three months of this module's
+life that sentence described behaviour the code did not have. ``start_child`` built a
+``DispatchRequest`` with no posture on it, so every child fell through to the project
+default however the parent had been dispatched. An epic authorised ``autonomous`` on a
+project defaulting to ``auto`` therefore ran its first child at ``auto``, that child
+correctly handed off for review, and the walk stopped with ``CHILD_NEEDS_A_HUMAN`` --
+which reads as a child that needs a decision rather than one handed the wrong authority.
+Meanwhile the supervisor's own generated prompt told it the opposite. Task-269's epic is
+the incident.
+
+A child now inherits the parent run's posture, and :data:`INHERITABLE_POSTURE_SOURCES`
+records which of the four sources may cross that boundary and why the others may not.
+The rule is the same one the authorisation runs on: what crosses is a human's act.
+
 ## The bound, which is mechanical rather than promised
 
 An unattended loop that retries forever is precisely the runaway design section 7 exists
@@ -73,6 +90,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence
 
 from agentjobs.actors import Actor
+from agentjobs.dispatch.config import Posture, PostureSource
 from agentjobs.manager import TaskManager
 from agentjobs.projects import Project, default_home
 from agentjobs.models_v2 import (
@@ -173,6 +191,14 @@ class EpicAuthorization:
     entry: LogEntry
     actor: Actor
     attempts_used: int
+    posture: Optional[Posture] = None
+    """The envelope that human chose for the epic, when they chose one (task-316).
+
+    ``None`` whenever the parent's own run took its posture from the project default or
+    from the parent's task record -- see :func:`inherited_posture` for why only one of
+    the sources crosses this boundary. ``None`` is not "unknown": it means nothing about
+    this epic overrides what the child would have got anyway.
+    """
 
     @property
     def attempts_left(self) -> int:
@@ -184,13 +210,24 @@ class EpicAuthorization:
         Names all three things a later reader needs and cannot otherwise reconstruct:
         who, which epic, and which entry on it. The attempt number is there because a
         second entry on the same child is otherwise indistinguishable from a duplicate.
+
+        The posture is named when one is inherited, because it is the only place on the
+        *child's* record where the human's name and the envelope their click bought
+        appear in the same sentence. Everything else about it -- source, ceiling, what
+        was clamped -- is on the child's `dispatch` entry moments later; this is the
+        attribution.
         """
+        envelope = (
+            f" They chose posture `{self.posture.value}` for the epic, so this run gets " "it too."
+            if self.posture is not None
+            else ""
+        )
         return (
             f"{self.actor.display_name} authorised a dispatch of {self.parent.id}, and "
             f"this run is attempt {self.attempts_used + 1} of {CHILD_ATTEMPT_LIMIT} at "
             f"one of its children on that authorisation (entry {self.entry.id} on "
-            f"{self.parent.id}). No separate approval of this task was given or is "
-            "required: the epic is what was authorised."
+            f"{self.parent.id}).{envelope} No separate approval of this task was given "
+            "or is required: the epic is what was authorised."
         )
 
     def data(self) -> Dict[str, object]:
@@ -245,6 +282,77 @@ def parent_authorizing_entry(parent: Task) -> Optional[LogEntry]:
             continue
         return entry
     return None
+
+
+INHERITABLE_POSTURE_SOURCES = frozenset({PostureSource.DISPATCH, PostureSource.EPIC})
+"""Which sources of a parent run's posture cross into its children (task-316).
+
+**Only a posture a person chose at the moment they authorised the epic**, and the
+``EPIC`` entry is that same choice one generation further down -- an epic whose child is
+itself an epic passes the original click on rather than dropping it at the second level.
+
+The two that are deliberately absent are the whole decision:
+
+* ``TASK`` -- the parent record's own ``posture:`` field -- does not propagate. It is a
+  git-tracked value any agent that can write the repository can set, and letting it
+  cross would mean one agent editing one field on its own parent widens *every* child in
+  the epic at once. ``resolve_posture`` clamps that source to the project ceiling, which
+  bounds the damage on a narrow project and bounds nothing at all on a project whose
+  ceiling is already ``autonomous``. A posture on a task record is a statement about
+  that task's run; treating it as a statement about a dozen other tasks' runs is a
+  widening nobody asked for.
+* ``PROJECT`` -- the default in ``dispatch.yaml`` -- does not need to. It already reaches
+  every child on its own, as the bottom of ``resolve_posture``'s precedence, and
+  "inheriting" it would only relabel a run's ``posture_source`` as ``epic`` while
+  changing nothing about what the run may do. That relabelling is worse than useless: it
+  would point a reader at the parent for an answer that is in ``dispatch.yaml``.
+
+The principle is the one the walk's *authorisation* already runs on: what crosses the
+parent/child boundary is a human's act, and only that.
+"""
+
+
+def parent_dispatch_entry(parent: Task) -> Optional[LogEntry]:
+    """The parent's newest ``dispatch`` entry, which is the run supervising this walk.
+
+    Only the manager may append this type (``MANAGER_WRITTEN_LOG_TYPES``), so unlike an
+    ordinary note it is an assertion nothing reachable over the API can forge. That is
+    what makes it safe to read a posture back out of.
+    """
+    for entry in reversed(parent.log):
+        if entry.type is LogEntryType.DISPATCH:
+            return entry
+    return None
+
+
+def inherited_posture(parent: Task) -> Optional[Posture]:
+    """The envelope a child should be started at, or ``None`` to decide it locally.
+
+    Read off the parent's newest ``dispatch`` entry -- the same entry
+    :func:`parent_authorizing_entry` takes the authorisation from, so a child inherits
+    the posture of *the run that is walking it* rather than of some earlier run of the
+    same epic.
+
+    ``None`` for every source outside :data:`INHERITABLE_POSTURE_SOURCES`, and for an
+    entry written before task-308, where ``posture_source`` is absent and the field's
+    own documentation says an absent value reads as ``project`` -- never as unknown. An
+    unparseable posture is also ``None``: this decides what a run may do, so a value
+    nobody can read is a reason to fall back to the project's default rather than to
+    guess at what was meant.
+    """
+    entry = parent_dispatch_entry(parent)
+    if entry is None or not isinstance(entry.data, dict):
+        return None
+    try:
+        source = PostureSource(entry.data.get("posture_source"))
+    except ValueError:
+        return None
+    if source not in INHERITABLE_POSTURE_SOURCES:
+        return None
+    try:
+        return Posture(entry.data.get("posture"))
+    except ValueError:
+        return None
 
 
 def count_attempts(child: Task, *, parent_id: str, entry_id: int) -> int:
@@ -316,7 +424,13 @@ def resolve_epic_authorization(
         ) from exc
 
     used = count_attempts(child, parent_id=parent.id, entry_id=entry.id)
-    return EpicAuthorization(parent=parent, entry=entry, actor=actor, attempts_used=used)
+    return EpicAuthorization(
+        parent=parent,
+        entry=entry,
+        actor=actor,
+        attempts_used=used,
+        posture=inherited_posture(parent),
+    )
 
 
 def assert_attempts_remain(authorization: EpicAuthorization, child: Task) -> None:
@@ -474,6 +588,7 @@ def walk_epic(
     home: Optional[Path] = None,
     api_base: Optional[str] = None,
     settings: Optional[WalkSettings] = None,
+    posture: Optional[Posture] = None,
     dispatch: Optional[Callable[..., object]] = None,
     read_run_status: Optional[Callable[[str], Optional[str]]] = None,
     sleep: Callable[[float], None] = time.sleep,
@@ -495,6 +610,15 @@ def walk_epic(
     feature is that there is nobody awake to notice. The cost is a walk that halts on a
     child a person would have waved through; that is the cheaper of the two mistakes, and
     it is the one that leaves a record.
+
+    ``posture`` is a choice made *for this walk*, and it is the only posture input this
+    function has (task-316). It is what ``agentjobs dispatch walk --posture`` supplies,
+    and it exists because a walk started from a shell has no parent run whose envelope it
+    could inherit -- the epic may never have been dispatched at all. Left ``None``, which
+    is the case for every walk a supervising run starts, each child works its posture out
+    for itself: the parent's dispatch-time choice if a person made one, then the child's
+    own record, then the project default. Passing one refuses above the ceiling exactly
+    as a dispatch-time choice does, because that is what it is.
 
     Injection points exist for the tests and for nothing else: ``dispatch``,
     ``read_run_status``, ``sleep`` and ``now``. A walk is a loop over processes that cost
@@ -528,6 +652,7 @@ def walk_epic(
             task_id=child.id,
             trigger=DispatchTrigger.CHILD,
             on_behalf_of_parent=True,
+            posture=posture,
         )
         starter = dispatch or dispatch_task
         return starter(
@@ -806,11 +931,31 @@ def walk_handoff_prompt(result: WalkResult) -> str:
     )
 
 
-def describe_settings(settings: WalkSettings) -> Sequence[str]:
-    """The bounds, printed before a walk starts so nobody has to guess at them."""
+def describe_settings(
+    settings: WalkSettings,
+    *,
+    posture: Optional[Posture] = None,
+    inherited: Optional[Posture] = None,
+) -> Sequence[str]:
+    """The bounds, printed before a walk starts so nobody has to guess at them.
+
+    The envelope line is not a bound and is printed anyway, for the reason task-308 gave
+    for printing one after every dispatch: "what may these runs do, and who decided
+    that" is the question this feature makes expensive to get wrong, and a line that
+    appears only when something is unusual trains a reader to skim it. It says
+    ``the project default`` when nothing overrides it, which is a claim about what will
+    happen rather than an absence.
+    """
+    if posture is not None:
+        envelope = f"{posture.value} (chosen for this walk)"
+    elif inherited is not None:
+        envelope = f"{inherited.value} (inherited from the epic's own dispatch)"
+    else:
+        envelope = "the project default, or each child's own record where it sets one"
     return (
         f"attempts per child: {CHILD_ATTEMPT_LIMIT} (first run plus one retry)",
         f"poll interval: {settings.poll_seconds:.0f}s",
         f"per-child ceiling: {settings.child_timeout_seconds / 3600:.1f}h",
         f"children this walk may start: {settings.max_children or 'every open one'}",
+        f"posture children start at: {envelope}",
     )
