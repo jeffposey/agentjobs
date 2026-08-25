@@ -3,7 +3,7 @@ id: task-298
 title: The run-lock refusal blames a stuck dispatch when the holder is a scripted
   finish, and never says the merge is already happening
 created: '2026-08-23T20:58:00.297051Z'
-updated: '2026-08-25T08:49:35.760217Z'
+updated: '2026-08-25T09:07:38.520708Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -649,3 +649,13 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 18
+  ts: '2026-08-25T09:07:38.520553Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 14
+  data:
+    run_id: run_2735e083
+    outcome: completed
+    duration_seconds: 1418.372397
+    log_path: C:\Users\jpose\.agentjobs\runs\run_2735e083
