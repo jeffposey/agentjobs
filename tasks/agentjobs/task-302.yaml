@@ -3,10 +3,11 @@ id: task-302
 title: "Three statements in the always-loaded bundle contradict the code \u2014 fix\
   \ them, and collapse the double-numbered merge gate"
 created: '2026-08-23T21:50:44.787308Z'
-updated: '2026-08-25T10:11:25.475052Z'
-lifecycle: ready
+updated: '2026-08-25T11:05:39.074679Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 queue_position: 893
@@ -17,6 +18,7 @@ tags:
 - docs
 effort: "small \u2014 four prose edits and a verification pass; no code"
 assignment:
+  owner: claude
   eligible: []
 parent: task-269
 posture: autonomous
@@ -79,22 +81,24 @@ acceptance:
 - id: ac-1
   text: GLOBAL-AGENTS.md states parent claimability as manager.py implements it, verified
     by reading the code in this pass rather than quoting the audit.
-  status: pending
+  status: met
 - id: ac-2
   text: ALLAGENTS.md states the ball_prompt rule with the agent/available exemption.
-  status: pending
+  status: met
 - id: ac-3
   text: The merge-gate procedure is numbered in exactly one file; the other points
     at it by anchor, and every cross-reference to it resolves.
-  status: pending
+  status: met
 - id: ac-4
   text: One worktree naming convention appears in ENGINEERING, ALLAGENTS, PROMPT_STUB
     and docs/agent-workflow.md.
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: docs/task-302-bundle-contradictions
+  status: active
 log:
 - id: 1
   ts: '2026-08-23T21:50:45.478323Z'
@@ -249,3 +253,206 @@ log:
       id: 1f0e9c22-4a71-4e2b-9d31-6a0e2b1c7a01
       kind: update_content
       fingerprint: 8ae847a02f53a9f968f9010cf8390fb6
+- id: 8
+  ts: '2026-08-25T10:45:48.348436Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of task-269, and this run is attempt 1 of
+    2 at one of its children on that authorisation (entry 6 on task-269). No separate
+    approval of this task was given or is required: the epic is what was authorised.'
+  data:
+    authorizes_dispatch: true
+    surface: the epic walk
+    epic:
+      parent: task-269
+      entry: 6
+      attempt: 1
+      limit: 2
+- id: 9
+  ts: '2026-08-25T10:45:48.779335Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 10
+  ts: '2026-08-25T10:45:51.104529Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_a07731b6
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: task
+    posture_ceiling: autonomous
+    trigger: child
+    caused_by: 8
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - 'You are the agent `claude` working task `task-302` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-302-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_a07731b6. Posture `autonomous`
+      releases the merge gate: this run merges its own work with no human review.
+      Record the evidence on the task first, then run `agentjobs finish task-302 --project
+      agentjobs --posture-release` from C:\projects\agentjobs. That rebases, runs
+      the full gate, and merges only on a green one -- it stops and hands the ball
+      back if anything fails. Do not merge by hand. Never push: this project is configured
+      `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: bfb4742
+    session_id: 578894c9
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 11
+  ts: '2026-08-25T11:04:50.663700Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: e41d7b58-2c93-4a06-b7f5-31e8069d24ca
+      kind: update_content
+      fingerprint: 6c2c707c4707bd4cbc8369c86b9b971a
+- id: 12
+  ts: '2026-08-25T11:05:39.074367Z'
+  actor: claude
+  type: progress
+  body: "**All four original items are done. Two of them needed no edit \u2014 the\
+    \ documents had already been corrected between the audit and now, and I verified\
+    \ that against the code rather than assuming it. Branch `docs/task-302-bundle-contradictions`,\
+    \ one commit, full gate green.**\n\nThe auth-stall item from entries 5 and 6 merged\
+    \ separately under task-313 (`4262a3f`), so its branch was already gone; this\
+    \ run started clean from `main` at `6c34f09`.\n\n## 1. Parent claimability (ac-1)\
+    \ \u2014 no edit needed, and here is why\n\nThe spec pointed at `manager.py:1180-1195`.\
+    \ That range has moved; `claim()` is now at **`src/agentjobs/manager.py:1281`**,\
+    \ and its docstring at **1293** opens: *\"A task with open children can be claimed,\
+    \ and what it hands you is the supervisor's seat (task-164).\"* The body confirms\
+    \ it \u2014 there is no children check among the refusals, and line **1337** writes\
+    \ `supervision_prompt(children) if children else WORK_PROMPT`. The skip lives\
+    \ in `get_next_task`'s claimability filter instead, at **line 569**: `and task.id\
+    \ not in open_children`.\n\n`GLOBAL-AGENTS.md` line 139 currently reads: *\"a\
+    \ parent with an open child is skipped by `agentjobs next`, but it can still be\
+    \ claimed by name \u2014 and claiming one hands you the supervisor's seat, not\
+    \ the children's work.\"* That is exactly what the code does, on both halves.\
+    \ `docs/task-schema.md:84` and `docs/schema-design.md:96-98` agree.\n\n**So the\
+    \ finding is stale.** The sentence auditor 3 flagged has been rewritten since\
+    \ 2026-08-21. I left it alone rather than editing it to say the same thing differently\
+    \ \u2014 and note for the record that **nothing was written to `C:/ai/shared/GLOBAL-AGENTS.md`\
+    \ in this run**, so there is no out-of-repo change to account for.\n\n## 2. The\
+    \ `ball_prompt` exemption (ac-2) \u2014 also no edit needed\n\n`models_v2.py:875`\
+    \ is the check: `if reason is not BallReason.AVAILABLE and not (self.ball_prompt\
+    \ or \"\").strip()`. `ALLAGENTS.md:346` already carries the exemption in the schema\
+    \ doc's own words \u2014 *\"required whenever the ball is set, **except `agent/available`**,\
+    \ where the spec is itself the ask\"* \u2014 plus the sentence explaining why\
+    \ a `ready` task can sit with an empty prompt. Same conclusion: fixed between\
+    \ the audit and now.\n\nBoth of these are worth stating plainly because the task's\
+    \ own verification section predicted the failure mode: a doc \"corrected\" to\
+    \ match a stale reading is the same defect with a new date. The correction here\
+    \ was to confirm and leave, not to edit.\n\n## 3. The double-numbered merge gate\
+    \ (ac-3) \u2014 fixed\n\n**Decision: ENGINEERING.md owns the numbering, as the\
+    \ spec suggested.** It already holds the restart-ownership rule, the posture table\
+    \ and the `--posture-release` command, so a reader following a step there has\
+    \ the context the step depends on. ALLAGENTS' list was the one that had to give.\n\
+    \nWhat was wrong: ALLAGENTS' task lifecycle numbered its own 6 and 7 over the\
+    \ same actions ENGINEERING numbers 3 to 6, so **\"step 6\" named the delivery\
+    \ step in one file and the merge in the other**, and each file's follow-on section\
+    \ then cited its own numbering \u2014 `#### Steps 3 to 6 may already have happened\
+    \ before you read them` against `### Steps 6 and 7 may be done before you wake\
+    \ up`, for one procedure.\n\nWhat changed:\n\n- ALLAGENTS' lifecycle **stops at\
+    \ the approval**. Its step 6 now points at `ENGINEERING.md#the-merge-gate` by\
+    \ anchor and names the range there, keeping only the two things a reader needs\
+    \ *before* arriving \u2014 `-d` never `-D`, and \"you are not finished when the\
+    \ merge commit exists\". Step 7 is gone, absorbed into that pointer.\n- ALLAGENTS'\
+    \ follow-on heading is now `### The post-approval steps may be done before you\
+    \ wake up`, and its first paragraph links ENGINEERING's `Steps 3 to 6` section\
+    \ by anchor. No second numbering survives anywhere.\n- ENGINEERING's merge gate\
+    \ gained a short paragraph saying **this is the only numbered list**, what the\
+    \ old duplication looked like, and that anything citing a step \u2014 prose, docstring\
+    \ or test \u2014 cites this one. That is the part that stops it growing back.\n\
+    - `dispatch/finish.py`'s module docstring and `_finish` docstring cited *\"ALLAGENTS.md\
+    \ steps 6-7\"*, a numbering that no longer exists. Both now cite the merge gate's\
+    \ 3-6. `finish.py:29`'s *\"not at step 4\"* was already ENGINEERING's numbering\
+    \ and is unchanged.\n\n**Cross-references checked, not assumed.** I wrote a throwaway\
+    \ checker that extracts every markdown link with an anchor across ENGINEERING,\
+    \ ALLAGENTS, AGENTS, `docs/agent-workflow.md`, `docs/agent-dispatch-design.md`,\
+    \ `docs/task-schema.md` and `docs/schema-design.md`, slugifies every heading in\
+    \ each target, and reports mismatches. Result on the branch: **31 anchored links,\
+    \ 0 broken.**\n\nIt found **five that were already broken on `main`** \u2014 I\
+    \ ran it there too, before my edits, and got the identical five. Two headings\
+    \ had gained a date suffix after the links to them were written (`### The epic\
+    \ walk: one human act, many runs (task-022, 2026-08-23)` and `### What is checked,\
+    \ and what is merely claimed (added 2026-08-20, task-188)`). Fixed by correcting\
+    \ the four link targets rather than shortening the headings, which is the lower-risk\
+    \ direction. Recorded here because the audit reported all intra-doc anchors as\
+    \ correct and that is no longer true.\n\n## 4. Worktree naming (ac-4) \u2014 fixed\n\
+    \n**Decision: `<repo>-<nnn>` wins, where `<repo>` is the project's directory name\
+    \ \u2014 so `agentjobs-<nnn>` here.** The deciding argument is that `PROMPT_STUB`\
+    \ is a template rendered into every project's prompt and cannot know a project's\
+    \ short name, so `<repo>-<nnn>` is the literal string every dispatched agent is\
+    \ actually told to run. Making the docs match the prompt is one prose edit; making\
+    \ the prompt match the docs is a code change the constraints rule out.\n\n**Rejected:\
+    \ keeping `aj-` and teaching the stub the short name.** It is the nicer abbreviation\
+    \ and it is what half the live worktrees use, but it puts a per-project lookup\
+    \ into the one surface that has to work before the agent has read anything, to\
+    \ save six characters in a directory name.\n\nChanged: `ENGINEERING.md` (three\
+    \ examples), `ALLAGENTS.md` (lifecycle step 2 and the naming bullet, which now\
+    \ states the rule rather than only showing an example), `docs/agent-dispatch-design.md:2127`,\
+    \ and `ledger.py:1037`'s docstring. `docs/agent-workflow.md` kept the generic\
+    \ statement but lost the carve-out that said AgentJobs uses `aj` and then declined\
+    \ to choose between the two spellings \u2014 it now says older `aj-045` worktrees\
+    \ are not wrong, just not what to write next.\n\nTwo documentation-contract tests\
+    \ pinned the old spelling and were updated to follow: `test_documentation_contract.py:248`\
+    \ and `test_worktree_bootstrap.py:93-94`. The separate assertion that every copyable\
+    \ `git worktree add` lands under `worktrees/` is untouched and still passes.\n\
+    \n## A blocker that was not mine, and had to be cleared to finish at all\n\n**The\
+    \ first full gate failed, and `main` was the reason.** `tests/test_task_corpus.py::test_agentjobs_context_paths_exist`\
+    \ reported `task-317 -> docs/context-budget.md`. I ran that test in the main clone\
+    \ before concluding anything: **it failed there too**, so `main` was red and so\
+    \ was every branch cut from it \u2014 including every other child of task-269,\
+    \ which merge through `agentjobs finish` and so cannot merge against a red gate\
+    \ at all.\n\nCause: task-317 was filed by the task-301 session and pointed at\
+    \ task-301's own deliverable, which exists only on `docs/task-301-context-budget`,\
+    \ parked at `human`/`review` and unmerged. Repaired on `main` in `a9a6c71` by\
+    \ dropping that one pointer and moving what it said into the audit entry's `why`,\
+    \ with a note to point back at it once task-301 merges. Full reasoning and the\
+    \ rejected alternatives are on task-317, entry 3.\n\nFlagging it as scope I took\
+    \ on deliberately: it is another task's record, and I edited it because leaving\
+    \ it meant nothing in the repository could merge.\n\n## Verification\n\n- **Full\
+    \ unqualified gate, green: 10 of 10, exit 0, 221.7s**, on the rebased branch.\
+    \ Receipt written for `f456667`. pytest 140.8s, e2e 32.9s, vitest 32.4s.\n- The\
+    \ earlier red run is in the record above for honesty about sequence: it failed\
+    \ at `pytest` only, on the corpus test described above, with 3270 passing.\n-\
+    \ Anchor checker: 31 of 31 resolve on the branch; the same tool showed 5 broken\
+    \ on `main` beforehand.\n- Targeted first: `test_documentation_contract.py`, `test_worktree_bootstrap.py`\
+    \ and `test_dispatch_finish.py`, 114 passed, before the full run.\n\nNothing pushed.\
+    \ Next: `agentjobs finish task-302 --project agentjobs --posture-release`."
+  data:
+    operation:
+      id: 5f2a6cd1-8b47-4e93-a0f6-7d18c4b05e29
+      kind: log_append
+      fingerprint: c445fbf6d5a37a2a7dd5f490c5c51d3b
