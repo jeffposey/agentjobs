@@ -2377,6 +2377,68 @@ def finish(
     typer.secho(f"✅ {result.detail}", fg=typer.colors.GREEN)
 
 
+@app.command()
+def branches(
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Registered project id. Defaults to the one you are in."
+    ),
+    base: str = typer.Option("main", "--base", help="The branch merges land on."),
+) -> None:
+    """List local branches: which the base already contains, and how old the rest are.
+
+    **It deletes nothing, and never will.** Task-293 fixed the cause -- the scripted
+    finish now retires the branch it merged -- but a branch merged by hand, or one whose
+    finish escalated after merging, is still left behind and nothing says it is there.
+    This is the part that says so. Deleting on somebody's behalf is a different act with
+    a different risk: several agents work one clone and none of them can see the others,
+    so a branch that looks abandoned from here may be the one somebody is mid-task on,
+    and git holds nothing that tells the two apart.
+
+    Ages come from the *author* date of the oldest commit the base does not contain, so
+    a branch that has been rebased four times still reports how long it has really been
+    open. Read them against ENGINEERING.md on branch lifetime: a long-lived branch is
+    where rebase conflicts come from, and it is usually waiting rather than working.
+
+    Always exits 0. Leftover branches are untidy, not broken, and a report that fails a
+    script over tidiness would end up suppressed.
+    """
+    from agentjobs.branch_report import survey_branches
+
+    registry = ProjectRegistry()
+    try:
+        project = registry.get(project_id) if project_id else registry.resolve_default()
+    except ProjectError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    manager = TaskManager(TaskStorage(project.tasks_dir()))
+    report = survey_branches(project.root, manager, base=base)
+    if not report.rows:
+        typer.echo(f"No local branches besides {base}.")
+        return
+
+    if report.litter:
+        typer.secho(
+            f"{len(report.litter)} branch(es) {base} already contains, with no worktree:",
+            fg=typer.colors.YELLOW,
+        )
+        for row in report.litter:
+            typer.echo(f"  {row.name:<48} {row.task_id or '-':<10} {row.task_state}")
+        typer.echo("\n  Delete with: git branch -d <name>   (-d, never -D)")
+    else:
+        typer.secho(f"Nothing {base} contains is left behind.", fg=typer.colors.GREEN)
+
+    if report.in_flight:
+        typer.echo(f"\n{len(report.in_flight)} branch(es) {base} does not contain, oldest first:")
+        for row in report.in_flight:
+            age = f"{row.age_days:.1f}d" if row.age_days is not None else "-"
+            where = str(row.worktree) if row.worktree else "no worktree"
+            typer.echo(
+                f"  {row.name:<48} {age:>7}  {row.task_id or '-':<10} "
+                f"{row.task_state:<24} {where}"
+            )
+
+
 playbook_app = typer.Typer(
     name="playbook",
     help="Read the reusable briefs this project keeps for recurring work.",
