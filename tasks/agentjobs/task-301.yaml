@@ -3,7 +3,7 @@ id: task-301
 title: "Measure what a session actually loads before its first thought \u2014 harness\
   \ prompt, MCP tool declarations, @-chain, memory \u2014 for Claude and for Codex"
 created: '2026-08-23T21:50:13.685056Z'
-updated: '2026-08-25T10:43:32.817123Z'
+updated: '2026-08-25T10:45:03.592343Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -548,3 +548,13 @@ log:
       id: e5b90c37-4d21-4ee6-a1c9-08f37d5b2ac4
       kind: handoff
       fingerprint: 33636c0792677ffd5d7cf1006d17c0fc
+- id: 12
+  ts: '2026-08-25T10:45:03.592207Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 6
+  data:
+    run_id: run_dd327e59
+    outcome: completed
+    duration_seconds: 2817.899155
+    log_path: C:\Users\jpose\.agentjobs\runs\run_dd327e59
