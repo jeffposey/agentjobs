@@ -3,7 +3,7 @@ id: task-298
 title: The run-lock refusal blames a stuck dispatch when the holder is a scripted
   finish, and never says the merge is already happening
 created: '2026-08-23T20:58:00.297051Z'
-updated: '2026-08-25T08:46:22.063179Z'
+updated: '2026-08-25T08:49:14.558179Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -628,3 +628,19 @@ log:
     finish_step: started
     branch: fix/task-298-run-lock-refusal-names-finish
     finish_id: fin_112886d3
+- id: 16
+  ts: '2026-08-25T08:49:14.558021Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-298-run-lock-refusal-names-finish` into `main` as `407256fc`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\aj-298
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 407256fc55df3bc2a26ec3554275cc8dec9de330
+    branch: fix/task-298-run-lock-refusal-names-finish
+    base: main
