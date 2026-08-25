@@ -3,34 +3,23 @@ id: task-298
 title: The run-lock refusal blames a stuck dispatch when the holder is a scripted
   finish, and never says the merge is already happening
 created: '2026-08-23T20:58:00.297051Z'
-updated: '2026-08-25T08:38:24.186725Z'
+updated: '2026-08-25T08:42:29.002143Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Ready to merge: `fix/task-298-run-lock-refusal-names-finish`, 3 commits
-  on 43c06da, full unqualified gate green 10/10 in 199.8s. Approve on the task page
-  and the scripted finish takes it from there.
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.
 
 
-  The refusal now names the holder. A live scripted finish reads: "task-298 is held
-  by a scripted finish (fin_1ffd1590) started at 03:27:41, 9s ago, which is merging
-  it now. Approving a task on this machine runs the merge itself ... so there is nothing
-  to dispatch." No restart is offered while a finish is alive. Entry 6 has the before/after
-  taken live through the real dispatch guard, entry 7 the one judgement call worth
-  arguing with -- I moved the restart advice to a different branch rather than just
-  suppressing it, because a restart provably cannot clear the lock it used to be attached
-  to.
+  Note from Jeff Posey:
 
 
-  **Read entry 8 before approving.** `agentjobs finish --posture-release` declined
-  this run with `posture_requires_review`: it re-reads the project''s configured `auto`
-  and never learns that you raised this dispatch to `autonomous`. That looks like
-  a gap task-307 opened when it merged at 43c06da -- the posture reaches the agent''s
-  prompt and stops at the finisher. Nothing to do about it here, and I did not merge
-  by hand; it wants its own task if you agree it is one.
+  Also fix 307s dumbness in not making finish obey posture.
 
 
-  Worktree `C:/projects/worktrees/aj-298` is still in place for the finish to use.'
+  That note is context to carry into the merge, not another review round: you are
+  still cleared to merge.'
 archived: false
 priority: critical
 queue_position: 493
@@ -552,3 +541,28 @@ log:
     outcome: completed
     duration_seconds: 1341.895172
     log_path: C:\Users\jpose\.agentjobs\runs\run_a3fb227d
+- id: 11
+  ts: '2026-08-25T08:42:27.440929Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    Also fix 307s dumbness in not making finish obey posture.'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 12
+  ts: '2026-08-25T08:42:29.001958Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-298-run-lock-refusal-names-finish` (a9f4dd4f).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\aj-298.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_e2862576\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-298-run-lock-refusal-names-finish
+    finish_id: fin_e2862576
