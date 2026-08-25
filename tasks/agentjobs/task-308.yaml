@@ -2,45 +2,48 @@ schema: 2
 id: task-308
 title: Posture settable on the task record, and whether a task may raise its own
 created: '2026-08-23T22:48:30.766265Z'
-updated: '2026-08-25T06:19:23.529628Z'
+updated: '2026-08-25T06:41:33.065173Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
-  \ was merged.**\n\n`scripts/check.py` failed on feat/task-308-posture-ceiling after\
-  \ the rebase (123s, exit 1). A red gate never merges. The branch is rebased onto\
-  \ main and is otherwise untouched; nothing was merged. Full output: C:\\Users\\\
-  jpose\\.agentjobs\\finishes\\fin_1577095c\\gate.log\n\n```\ntests/test_loud_load_errors.py::TestApiSurfacesIt::test_reading_the_broken_task_is_a_422_naming_it\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-yPbXYRWG-py3.13\\\
-  Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response = await\
-  \ handler(conn, exc)\ntests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-yPbXYRWG-py3.13\\\
-  Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
-  \ dependant.call(**values)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
-  \  C:\\projects\\worktrees\\agentjobs-308\\src\\agentjobs\\api\\routes\\web.py:368:\
-  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
-  \ removal in a future version. Use timezone-aware objects to represent datetimes\
-  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
-  tests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
-  \  C:\\projects\\worktrees\\agentjobs-308\\src\\agentjobs\\api\\routes\\web.py:350:\
-  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
-  \ removal in a future version. Use timezone-aware objects to represent datetimes\
-  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
-  -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-  \ short test summary info ===========================\nFAILED tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too\n\
-  =========== 1 failed, 3212 passed, 219 warnings in 77.51s (0:01:17) ===========\n\
-  \  black      0.8s\n  ruff       0.3s\n  mypy      19.3s\n  api        8.3s\n  icons\
-  \      2.7s\n  oxlint     0.7s\n  pytest    90.4s\n  total    122.5s\nAll done!\
-  \ \\u2728 \\U0001f370 \\u2728\n203 files would be left unchanged.\nFailed to deliver\
-  \ webhook wh_5e2cf94a2a: All connection attempts failed\nFailed at stage 'pytest'.\n\
-  Fix it, then resume with `--from pytest` instead of paying for the stages above\
-  \ a second time.\n```\n\nTake it from here by hand. Check the tree against what\
-  \ is written above before acting on anything you remember: if your worktree, your\
-  \ branch or your account of this task no longer matches what is on disk, say so\
-  \ on the record and hand the ball back rather than improvising a recovery."
+ball: human
+ball_reason: review
+ball_prompt: "**Gate is green. Ready to re-run the finish. Branch `feat/task-308-posture-ceiling`\
+  \ at `b8d5e78`, now seven commits \u2014 rebased onto `main`, full unqualified `scripts/check.py`\
+  \ exit 0, 183.4s, all ten stages, receipt written for `b8d5e786`.**\n\nEntry 19\
+  \ has the full account. The short version:\n\n**The gate failure was not this branch's.**\
+  \ `TestProcessGroup::test_the_timeout_kills_the_grandchild_too` asserted that the\
+  \ grandchild process was *already* dead the instant the supervisor thread joined.\
+  \ `_terminate` signals the process group, so the parent and grandchild die concurrently\
+  \ and independently, and `join` tracks the parent \u2014 nothing orders the grandchild's\
+  \ exit before it. Under load it loses that race. The branch touches neither the\
+  \ kill path nor that test; I checked both diffs against `main` before touching anything.\n\
+  \n**Reproduced it rather than assuming.** A temporary probe ran the same scenario\
+  \ polling instead of asserting, six times, with the full suite loading the machine\
+  \ under `-n auto`. One run came back with the grandchild still listed at the moment\
+  \ `join` returned and gone by the next poll \u2014 the gate's failure, in hand.\
+  \ Probe deleted, not committed.\n\n**Fixed by waiting rather than assuming, and\
+  \ checked that the wait is not a decoration**: `_dies_within(os.getpid(), 3.0)`\
+  \ \u2014 a process that never exits \u2014 returns False. The test still fails if\
+  \ the grandchild genuinely survives.\n\n---\n\n**Two things for you, neither blocking.**\n\
+  \n**1. The seventh commit is scope I added.** `test(dispatch): wait for the grandchild\
+  \ to die rather than assume it already has` fixes a pre-existing flake that task-308\
+  \ did not ask about. I judged it in scope because sc-6 is \"the gate passes\" and\
+  \ this is what was stopping it, and because it is a complete fix rather than a workaround\
+  \ \u2014 so I filed no follow-up task. **If you would rather it not ride along with\
+  \ a posture change, say so and I will move it to its own branch**; it is independent\
+  \ of the other six and cherry-picks cleanly.\n\n**2. The `max_posture` question\
+  \ from my last handoff is still open**, and still not blocking the merge. Every\
+  \ project on this machine reads `max_posture=auto`, so the feature ships inert.\
+  \ To turn it on for agentjobs, one line in `~/.agentjobs/dispatch.yaml`:\n\n```yaml\n\
+  projects:\n  agentjobs:\n    posture: auto\n    max_posture: autonomous   # <- add\
+  \ this\n```\n\nI recommend that pair and deliberately did not write it myself \u2014\
+  \ a ceiling this tool set for itself is not a ceiling. Note what it buys: once set,\
+  \ an agent that writes `posture: autonomous` onto its own task record gets it on\
+  \ the next dispatch. Auditable on the run record, not prevented. If you would rather\
+  \ allow escalation only from the pulldown and not the task field, that is a per-source\
+  \ cap rather than one ceiling \u2014 a real design change, and I will file it.\n\
+  \n---\n\n**Next step is yours: approve again and the scripted finish will re-run.**\
+  \ It knows it merged nothing last time and will start from the rebase. I did not\
+  \ merge \u2014 posture `auto`, and I have no authority to."
 archived: false
 priority: high
 queue_position: 245
@@ -687,3 +690,144 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 17
+  ts: '2026-08-25T06:25:46.929349Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 18
+  ts: '2026-08-25T06:25:50.661982Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_f5fde507` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_a6f3d280
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 17
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - --resume
+    - f7884cc6-0407-455d-beab-a728e7217f73
+    cwd: C:\projects\agentjobs
+    git_head: 6ddf50d
+    session_id: 5d9015cd
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 19
+  ts: '2026-08-25T06:41:13.437609Z'
+  actor: claude
+  type: progress
+  body: "**The gate failure was a pre-existing flake in a test this branch does not\
+    \ touch. Found the mechanism, reproduced it, fixed it. Gate now green on `b8d5e78`.**\n\
+    \n## What failed, and what it was not\n\n`tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`,\
+    \ on the assertion `pid 957328 survived the timeout` \u2014 the grandchild had\
+    \ started, so this was the real assertion and not the \"never started, so this\
+    \ proves nothing\" guard above it.\n\n**First thing checked, before anything else:\
+    \ state on disk against what this session remembers.** Worktree present, branch\
+    \ `feat/task-308-posture-ceiling`, the same six commits by title, rebased onto\
+    \ `7fd6713`. `main` has gained exactly one commit since \u2014 `6ddf50d`, the\
+    \ finish's own escalation record, a task-record commit carrying no code. Everything\
+    \ accounted for; nothing improvised.\n\n**Then, before touching a test that had\
+    \ just gone red: does this branch reach it at all?**\n\n- `git diff main..HEAD\
+    \ -- src/agentjobs/dispatch/runner.py` filtered for kill / signal / terminate\
+    \ / grace / timeout / process-group: **no lines**. The branch does not touch the\
+    \ kill path.\n- `git diff --stat main..HEAD -- tests/test_dispatch_runner.py`:\
+    \ **empty**. The branch does not touch the test.\n\n## The mechanism, established\
+    \ rather than assumed\n\n`_terminate` signals the **process group** \u2014 parent\
+    \ and grandchild are killed concurrently and independently. `join(handle)` returns\
+    \ when the supervisor thread finishes, which tracks the **parent**. Nothing in\
+    \ that ordering makes the grandchild's exit precede the parent's, and the test\
+    \ asserted it had already happened, with no tolerance at all.\n\nReading that\
+    \ off the source is a theory, so I measured it. A temporary probe ran the identical\
+    \ scenario but polled the grandchild's pid after `join` instead of asserting once,\
+    \ recording whether it was alive at that instant and how long it then took to\
+    \ die. Six runs, with the full suite running under `-n auto` alongside to load\
+    \ the machine:\n\n```\nalive_at_join=False  lag=2.01s\nalive_at_join=False  lag=2.06s\n\
+    alive_at_join=False  lag=1.67s\nalive_at_join=False  lag=2.18s\nalive_at_join=True\
+    \   lag=1.22s   <- the failure, reproduced\nalive_at_join=False  lag=1.51s\n```\n\
+    \nRun 5 is the gate's failure: still listed at the moment `join` returned, gone\
+    \ by the next poll. The probe was deleted; it is not in the commit.\n\nIncidental\
+    \ finding worth having on the record: **`_pid_alive` shells out to `tasklist`,\
+    \ which costs about a second per call on this machine.** That is why the \"lag\"\
+    \ column never reads near zero even when the grandchild was already dead \u2014\
+    \ it is one `tasklist` round trip. It also means any budget here has to be seconds,\
+    \ not milliseconds.\n\n**What I did not establish**, and will not claim: whether\
+    \ run 5's `alive_at_join=True` was the grandchild genuinely still running, or\
+    \ a `tasklist` false positive within its own ~1s window. I did not distinguish\
+    \ the two. It does not change the fix \u2014 either way the assertion was resting\
+    \ on a one-second-scale timing coincidence \u2014 but it is not something I checked,\
+    \ so it is not something I am asserting.\n\n## The fix, and the check that it\
+    \ is not a decoration\n\nThe assertion now waits for the grandchild to disappear,\
+    \ to a generous budget, via a new `_dies_within(pid, seconds)` helper beside `_pid_alive`.\
+    \ The budget is deliberately not a deadline claim \u2014 it is only large enough\
+    \ that a loaded machine cannot exhaust it, so a failure means \"still running\"\
+    \ and never \"slow\".\n\nA bounded poll that always returns true would be decoration,\
+    \ so I mutation-checked the helper directly: `_dies_within(os.getpid(), 3.0)`\
+    \ \u2014 a process that certainly never exits \u2014 **returns False** after 4.1s,\
+    \ and a dead pid returns True. What the test proves is unchanged: it still fails\
+    \ if the grandchild genuinely survives.\n\n## Verification\n\n- `TestProcessGroup`\
+    \ alone: passes.\n- Full suite under `-n auto` on the branch before the fix: exit\
+    \ 0 \u2014 a second data point on intermittency, and on its own it would only\
+    \ have been \"re-ran it until it went green\", which is why the mechanism above\
+    \ was found first.\n- **Full unqualified `scripts/check.py` on `b8d5e78`: exit\
+    \ 0, 183.4s, all ten stages.** black 0.6 \xB7 ruff 0.1 \xB7 mypy 1.7 \xB7 api\
+    \ 5.0 \xB7 icons 2.5 \xB7 oxlint 0.5 \xB7 pytest 104.6 \xB7 vitest 31.4 \xB7 build\
+    \ 4.3 \xB7 e2e 32.8. Receipt written for `b8d5e786`.\n\nOne intermediate red:\
+    \ `black` wanted the new assertion on one line. Reformatted and amended into the\
+    \ same commit, then the gate re-run from the top \u2014 the green above is a full\
+    \ run, not a resumed one.\n\n## Scope\n\nThis is a seventh commit on the branch\
+    \ doing something task-308 did not ask for, so it is called out rather than buried.\
+    \ I judged it in scope on the narrow ground that sc-6 is \"the gate passes\" and\
+    \ this is what was stopping it \u2014 the fix is complete rather than a workaround,\
+    \ so no follow-up task is warranted. **If you would rather this not ride along\
+    \ with a posture change, say so and I will move it to its own branch**; it is\
+    \ independent of every other commit here and will cherry-pick cleanly.\n"
+  data:
+    operation:
+      id: a91f7c25-4d68-4e30-9b17-52ce8a4d0f93
+      kind: log_append
+      fingerprint: fcdbed8e46be767c651d4769a0605ef5
+- id: 20
+  ts: '2026-08-25T06:41:33.064829Z'
+  actor: claude
+  type: handoff
+  body: Gate green on b8d5e78 after fixing a pre-existing flake that this branch did
+    not cause. Ready for the finish to be re-run.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: f2c6b904-8a53-4e71-9d26-3b7f5e01ca48
+      kind: handoff
+      fingerprint: a2c23846573685eac7c8422ef0a76e3f
