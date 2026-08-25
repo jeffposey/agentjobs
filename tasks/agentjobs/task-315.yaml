@@ -3,25 +3,13 @@ id: task-315
 title: 'A posture chosen at dispatch never reaches the merge: the finisher reads the
   project default and declines'
 created: '2026-08-25T08:52:25.148182Z'
-updated: '2026-08-25T09:07:09.227574Z'
+updated: '2026-08-25T09:09:10.161577Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Ready to merge: `fix/task-315-finish-obeys-dispatch-posture`, 2 commits\
-  \ on b3f5e22, full unqualified gate green 10/10 in 200.7s. Approve on the task page\
-  \ and the scripted finish takes it from there.\n\nThis is the 307 gap you asked\
-  \ me to fix after task-298. The finisher now decides the merge on the posture *this\
-  \ run* was dispatched at, falling back to what a dispatch of the task would resolve\
-  \ when there is no run. Against your real dispatch.yaml and this session's real\
-  \ run record it now reads `posture autonomous (from the dispatch)` where it used\
-  \ to read `auto` off the project default.\n\nEntry 3 has the live output and the\
-  \ three guards that keep it a check rather than a self-grant \u2014 the ceiling\
-  \ is re-read from config at merge time, a run may only vouch for its own task, and\
-  \ nothing reads a caller-supplied flag.\n\n**It cannot merge itself, and that is\
-  \ the fix working.** This run's record names task-298, so its posture does not carry\
-  \ to task-315 \u2014 guard 2. Your approval is what merges it, and the end-to-end\
-  \ autonomous merge gets exercised by the next `autonomous` dispatch after this lands.\n\
-  \nWorktree `C:/projects/worktrees/aj-315` is in place for the finish."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 queue_position: 14600
@@ -291,3 +279,25 @@ log:
       id: 5c2b8a41-0311-4d00-8e11-9a0b1c2d3e05
       kind: handoff
       fingerprint: c51677f9db0eb58aa98fbcc535aac144
+- id: 6
+  ts: '2026-08-25T09:09:08.473223Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 7
+  ts: '2026-08-25T09:09:10.161434Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-315-finish-obeys-dispatch-posture` (4e1b971f).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\aj-315.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_663947c3\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-315-finish-obeys-dispatch-posture
+    finish_id: fin_663947c3
