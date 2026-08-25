@@ -1,0 +1,108 @@
+schema: 2
+id: task-317
+title: The AgentJobs MCP server is declared twice under one name, and the two declarations
+  point at different ports
+created: '2026-08-25T10:43:10.073470Z'
+updated: '2026-08-25T10:43:10.497820Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+queue_position: 8500
+category: meta
+tags:
+- big-dawg-audit
+- mcp
+- context
+effort: an hour, mostly deciding which declaration is canonical
+assignment:
+  eligible: []
+parent: task-269
+spec:
+  summary: Two files declare an MCP server named `agentjobs`, one aimed at port 8876
+    and one at 8765. Only one survives into a session, and nothing says which. Found
+    while measuring the context budget for task-301; filed rather than fixed there
+    because that task was read-and-measure only.
+  description: "## What was found\n\nMeasuring a dispatched session's prompt on 2026-08-25\
+    \ (task-301) turned up two declarations of the same MCP server name:\n\n| declared\
+    \ in | server name | URL |\n|---|---|---|\n| `.mcp.json` at the repo root | `agentjobs`\
+    \ | `http://127.0.0.1:8876` |\n| `plugins/agentjobs/.mcp.json`, reached via `.claude-plugin/marketplace.json`\
+    \ and the plugin's `plugin.json` | `agentjobs` | `http://127.0.0.1:8765` |\n\n\
+    Auditor 8's F11 reported this as a **token** problem \u2014 30 tool declarations\
+    \ and two identical instruction blocks. **That half does not reproduce.** In run\
+    \ `run_dd327e59` the injected MCP block carried exactly one `## agentjobs` instruction\
+    \ block and 16 `mcp__agentjobs__*` tool names, not 32. The names collide, so one\
+    \ declaration wins and the other is discarded silently. The whole MCP surface\
+    \ across all ten servers measured 3,795 tokens, so there is no meaningful saving\
+    \ here.\n\n## Why it still matters\n\nThe surviving half is a correctness problem,\
+    \ and a nastier one than a duplicate.\n\n`GLOBAL-AGENTS.md` warns explicitly that\
+    \ 8765 is the CLI's default port and that a server there \"does not fail loudly\
+    \ \u2014 it serves the same task files from a process nobody restarts, so it goes\
+    \ stale and produces validation errors against task files that are perfectly fine.\"\
+    \ The real dashboard is on 8876. So one of the two declarations points at exactly\
+    \ the failure mode the standing instructions tell every agent to avoid, and which\
+    \ of the two an agent gets is not stated anywhere and was not determined by task-301.\n\
+    \nA dispatched run is passed `enabledMcpjsonServers: [\"agentjobs\"]` in its `--settings`,\
+    \ which may or may not be what decides the winner. That is the first thing to\
+    \ establish.\n\n## What to do\n\n1.  **Determine which declaration wins**, and\
+    \ under which conditions \u2014 dispatched vs interactive, plugin enabled vs not.\
+    \ Do not guess; a session can be asked, because `AGENTJOBS_URL` is in the surviving\
+    \ server's env and the running server reports itself at `/api/version`.\n2.  **Make\
+    \ one of them canonical and remove or align the other.** Whichever survives must\
+    \ point at 8876.\n3.  If the plugin's copy has to keep a default for people who\
+    \ are not Jeff, it should not be a hardcoded port that contradicts the repo's\
+    \ own instructions \u2014 resolve it from the environment or from the registry.\n\
+    \n## Also worth considering while there\n\nNine of the ten MCP servers in a session\
+    \ are global connectors \u2014 Gmail, Slack, Notion, Calendar, Drive, Indeed,\
+    \ Microsoft 365, Chrome, Uber \u2014 that have nothing to do with this repository,\
+    \ and they are the bulk of the 3,795-token MCP block. Per-project MCP scoping\
+    \ would recover most of it. That is a change to Jeff's machine configuration rather\
+    \ than to this repository, so it is a recommendation to him, not a code change:\
+    \ raise it, do not make it."
+  constraints: "Do not change which MCP servers are enabled globally on this machine\
+    \ \u2014 that is Jeff's configuration, not the repository's. This task covers\
+    \ the two `agentjobs` declarations inside this repository and the docs that describe\
+    \ them."
+  out_of_scope: Cutting prose from ENGINEERING.md or ALLAGENTS.md (task-305). Re-measuring
+    the context budget (task-301, done).
+  context:
+  - path: docs/context-budget.md
+    why: Section 2 records the measurement that found this, including why F11's token
+      half does not reproduce
+  - path: .mcp.json
+    why: One of the two declarations (8876)
+  - path: plugins/agentjobs/.mcp.json
+    why: The other declaration (8765)
+  - path: audits/2026-08-21/08-mcp.md
+    why: Auditor 8's F11, the original report, whose token claim task-301 could not
+      reproduce
+acceptance:
+- id: ac-1
+  text: The record states, with evidence from a running session rather than from reading
+    config, which of the two `agentjobs` MCP declarations a session actually gets,
+    for a dispatched run and for an interactive one.
+  status: pending
+- id: ac-2
+  text: Exactly one declaration survives in the repository, or both point at the same
+    port; no declaration in the repository names 8765.
+  status: pending
+- id: ac-3
+  text: The full unqualified scripts/check.py is green on the change.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-25T10:43:10.497096Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: d2a6b48f-1c07-4e39-8b52-95f7c1e0a3d6
+      kind: create
+      fingerprint: 8ad4c0ba5a54724d0b072f30e41aa6dd
