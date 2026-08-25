@@ -3,7 +3,7 @@ id: task-269
 title: 'Static vs dynamic context: get the always-loaded bundle down to the rules
   an agent acts on, and make the split measurable rather than argued'
 created: '2026-08-22T18:59:11.785040Z'
-updated: '2026-08-25T10:12:32.850697Z'
+updated: '2026-08-25T10:46:02.579322Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -362,3 +362,44 @@ log:
       id: 7c3d5a18-9b62-4f07-8e51-2d4a6c9b3e77
       kind: log_append
       fingerprint: ec4744cf931b5ab2d7bf4236064c69f8
+- id: 10
+  ts: '2026-08-25T10:46:02.579132Z'
+  actor: claude
+  type: progress
+  body: "**task-301 is done and parked for Jeff. I restarted the walk past it rather\
+    \ than letting the epic sit \u2014 here is why that is not the walk's stop rule\
+    \ being ignored.**\n\n## Where the epic stands, 10:4x UTC\n\n| Child | State |\n\
+    |---|---|\n| **task-301** | work complete, `active` / `human` / `review`. Branch\
+    \ `docs/task-301-context-budget`, commit `647f2b7`, worktree `C:/projects/worktrees/aj-301`.\
+    \ Full unqualified `scripts/check.py` green on the rebased branch, 10/10, 242.3s.\
+    \ Needs one approval. |\n| task-302 | started by the resumed walk |\n| task-303,\
+    \ task-304, task-306 | open, unblocked, `posture: autonomous` |\n| task-305 |\
+    \ open, blocked \u2014 `needs: task-301` |\n\ntask-301 parked because its run\
+    \ was started at `auto` by the posture defect in entry 9, which I found too late\
+    \ to change for it. Its work is unaffected; only its merge waits.\n\n## Why restarting\
+    \ the walk past a parked child is safe here\n\nThe walk stops on any child that\
+    \ is not clean, and the reason `epic.py` gives is explicit: *\"a sibling that\
+    \ depended on the failed child would now be building on a gap.\"* That is a checkable\
+    \ claim rather than a general caution, so I checked it before restarting rather\
+    \ than reasoning about it:\n\n- `task-302` \u2014 `dependencies: []`\n- `task-303`\
+    \ \u2014 one `related` on task-276, no `needs`\n- `task-304` \u2014 `dependencies:\
+    \ []`\n- `task-306` \u2014 `dependencies: []`\n- `task-305` \u2014 `needs: task-301`,\
+    \ and therefore not claimable; the queue will not offer it and the walk cannot\
+    \ start it\n\nSo no child the resumed walk can start depends on task-301. The\
+    \ one that does is held by the dependency graph, which is the mechanism the stop\
+    \ rule exists to back up, not a substitute for it.\n\n**The rejected alternative**\
+    \ was to leave the epic stopped until Jeff wakes and approves task-301. That is\
+    \ the letter of the rule and it buys nothing: it would idle four independent children\
+    \ for hours over a gap that provably does not reach them.\n\n**What I am not doing:**\
+    \ approving task-301, or merging it. Its branch stays exactly where its own session\
+    \ left it.\n\n## What the walk should do when it runs out\n\nWith task-301 parked\
+    \ and task-305 blocked behind it, the walk will end on `NO_ELIGIBLE_CHILD` rather\
+    \ than `ALL_CHILDREN_DONE` once 302, 303, 304 and 306 are through \u2014 which\
+    \ is the correct report, and is why that stop is distinguished from a finished\
+    \ epic. This parent stays open until task-301 is approved, task-305 runs, and\
+    \ its own five acceptance criteria are judged against what the children recorded."
+  data:
+    operation:
+      id: c8e2f43b-05a7-4d19-b6c0-8f1932ea77d5
+      kind: log_append
+      fingerprint: 8fc8ea00462e800858059ed989c07c94
