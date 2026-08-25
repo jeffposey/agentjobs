@@ -1,0 +1,132 @@
+schema: 2
+id: task-316
+title: The epic walk drops the parent's dispatch-time posture, so an epic dispatched
+  `autonomous` stops at its first child
+created: '2026-08-25T10:13:25.100260Z'
+updated: '2026-08-25T10:13:25.537707Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 14600
+category: infrastructure
+tags:
+- dispatch
+- posture
+- epic
+effort: "small \u2014 one field to pass, plus a decision about which sources may cross\
+  \ the parent/child boundary, plus tests"
+assignment:
+  eligible: []
+spec:
+  summary: "`walk_epic.start_child` builds its `DispatchRequest` without a posture,\
+    \ so every child falls through to the project default however the parent was dispatched.\
+    \ An epic authorised `autonomous` therefore runs its children at `auto`, and the\
+    \ first one hands off for review and halts the walk \u2014 while the supervisor's\
+    \ own generated prompt tells it the opposite."
+  intent: An epic dispatched at a posture runs its children at that posture, or the
+    supervisor is told plainly that it will not.
+  description: "## Observed\n\nFound 2026-08-25 by the session supervising **task-269**,\
+    \ `run_12b2675c`, at the cost of the whole epic stopping on its first child.\n\
+    \nJeff dispatched task-269 at posture `autonomous`, above this project's configured\
+    \ `auto` \u2014 the parent's dispatch entry records `posture: autonomous`, `posture_source:\
+    \ dispatch`, `posture_ceiling: autonomous`. The supervisor prompt generated for\
+    \ that run says, in as many words:\n\n> Posture `autonomous` releases the merge\
+    \ gate: a child you start merges its own work once its gate is green, with no\
+    \ human review.\n\nThe first child the walk started, `run_dd327e59` on task-301\
+    \ at 09:58:05Z, has `posture: auto` and `posture_source: project` in its `meta.yaml`,\
+    \ and its own generated prompt says *\"Posture `auto` stops at the merge gate\
+    \ \u2026 Do not merge.\"*\n\n## Cause\n\n`walk_epic.start_child` (`src/agentjobs/dispatch/epic.py`,\
+    \ in the `start_child` closure) constructs:\n\n```python\nrequest = DispatchRequest(\n\
+    \    task_id=child.id,\n    trigger=DispatchTrigger.CHILD,\n    on_behalf_of_parent=True,\n\
+    )\n```\n\n`DispatchRequest.posture` exists (`dispatch/guards.py`, \"a posture\
+    \ chosen for this one dispatch, when somebody chose one (task-308)\") and is not\
+    \ set. `dispatch_task` then calls `resolve_posture(settings, task=..., requested=request.posture)`\
+    \ with `requested=None`; the children carry no `posture` field of their own, so\
+    \ precedence falls all the way through to the project default.\n\n`agentjobs dispatch\
+    \ walk` has no `--posture` option either, so there is no way to supply it from\
+    \ the command line.\n\n## Why it matters more than one stopped walk\n\nThe module\
+    \ docstring for `epic.py` states the widening this feature accepts: *\"one human\
+    \ act now starts an arbitrarily long chain of runs, and at posture `autonomous`\
+    \ an arbitrarily long chain of merges into `main`.\"* That sentence describes\
+    \ behaviour the code does not currently have. The unattended epic \u2014 the thing\
+    \ task-022 was built for \u2014 cannot happen on a project whose default is `auto`,\
+    \ however the human dispatched the parent, and nothing says so: the walk stops\
+    \ with `CHILD_NEEDS_A_HUMAN`, which reads as a child that genuinely needs a decision\
+    \ rather than a child that was handed the wrong authority.\n\n## The judgement\
+    \ this needs, before the one-line fix\n\nPassing `posture=<the parent run's posture>`\
+    \ into the child's `DispatchRequest` is the obvious repair and it is not obviously\
+    \ the right one, because it decides which of three sources may cross the parent/child\
+    \ boundary and the three are not alike:\n\n- **A posture chosen at the parent's\
+    \ dispatch** (`posture_source: dispatch`) is a person choosing, for this epic,\
+    \ at the moment they authorised it. This is the case that fails today and the\
+    \ one with the clearest claim to inherit.\n- **A posture written on the parent's\
+    \ task record** (`posture_source: task`) is a git-tracked field any agent can\
+    \ write. Inheriting it means an agent widening its own parent's record widens\
+    \ every child at once. `resolve_posture` already clamps this source to the ceiling;\
+    \ whether it should also propagate is a separate question.\n- **The project default**\
+    \ (`posture_source: project`) already reaches the children \u2014 that is what\
+    \ happens now \u2014 so nothing changes there.\n\nWhatever is decided, `dispatch\
+    \ walk` invoked by hand at a shell has no parent run to inherit from, so it likely\
+    \ wants an explicit `--posture` too, refused above the ceiling exactly as a dispatch-time\
+    \ choice is.\n\n## Workaround in the meantime\n\nWrite `posture: autonomous` onto\
+    \ each child's record before walking. That is what task-269's supervisor did (its\
+    \ log entry 9 has the reasoning), and it works because `TaskUpdateRequest.posture`\
+    \ is a supported field and `resolve_posture` honours a task-record posture within\
+    \ the ceiling. It is not a fix: it requires knowing about this defect, it touches\
+    \ every child, and it records `posture_source: task` on runs whose real authority\
+    \ was a human's dispatch-time choice."
+  constraints: "Do not raise a child above the project's machine-local `max_posture`\
+    \ by any path \u2014 the ceiling is the one bound that is not a judgement call,\
+    \ and `resolve_posture` already enforces it for the sources it sees. Whatever\
+    \ inherits must appear in the child run's `posture_source` accurately: a child\
+    \ that merged on the strength of a human's dispatch-time choice must not record\
+    \ `project`."
+  out_of_scope: Changing what any posture means, or the merge gate itself. Widening
+    `max_posture` for any project.
+  context:
+  - path: src/agentjobs/dispatch/epic.py
+    why: walk_epic.start_child builds the child DispatchRequest; the module docstring
+      is what describes the behaviour the code lacks
+  - path: src/agentjobs/dispatch/guards.py
+    why: DispatchRequest.posture, and the resolve_posture call that receives it
+  - path: src/agentjobs/dispatch/config.py
+    why: 'resolve_posture: precedence of dispatch over task over project, and the
+      clamp-vs-refuse asymmetry between them'
+  - path: tasks/agentjobs/task-269.yaml
+    why: log entry 9 records the observation, the workaround applied, and why it was
+      judged in scope
+acceptance:
+- id: ac-1
+  text: "An epic dispatched at a posture above the project default starts its children\
+    \ at a posture consistent with what the supervisor's own prompt claims \u2014\
+    \ or the prompt stops claiming it."
+  status: pending
+- id: ac-2
+  text: Which posture sources cross the parent/child boundary is a recorded decision
+    with its rejected alternative, not an implementation detail.
+  status: pending
+- id: ac-3
+  text: A child run's posture_source names where its posture actually came from.
+  status: pending
+- id: ac-4
+  text: A test covers an epic dispatched above the project default and asserts the
+    child's resolved posture.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-25T10:13:25.536960Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: b41c7e09-3d55-4a6e-9c28-0f7a51d2b6e4
+      kind: create
+      fingerprint: fbfa69953c7e07120f680f295e31e0e2
