@@ -80,6 +80,8 @@ def enable_dispatch(
     project_enabled: bool = True,
     extra_runners: Sequence[str] = (),
     max_posture: Optional[str] = None,
+    finish_enabled: bool = False,
+    push: bool = False,
 ) -> None:
     """Write a machine-local dispatch config whose runner exits immediately.
 
@@ -97,6 +99,10 @@ def enable_dispatch(
     project_entry: Dict[str, object] = {"enabled": project_enabled, "runner": "fake"}
     if max_posture is not None:
         project_entry["max_posture"] = max_posture
+    if finish_enabled:
+        project_entry["finish"] = {"enabled": True}
+    if push:
+        project_entry["push"] = True
     (home / "dispatch.yaml").write_text(
         yaml.safe_dump(
             {
@@ -899,6 +905,52 @@ class TestThePostureCeilingReachesTheBrowser:
             "auto",
             "autonomous",
         ]
+
+    def test_the_state_names_what_each_posture_does_to_the_branch(self, served) -> None:
+        """task-307: the browser must not carry its own copy of this mapping.
+
+        It is the difference between "stops for your review" and "merges without you",
+        so a client that derived it from the posture name could tell an operator the
+        opposite of what the option they picked will do. task-021 fixed the mapping in
+        code; this is that same answer, sent.
+        """
+        client, root, home = served
+        enable_dispatch(home, root.parent)
+
+        state = client.get("/api/projects/sandbox/dispatch").json()
+
+        assert state["posture_merge_policies"] == {
+            "read_only": "none",
+            "supervised": "review",
+            "auto": "review",
+            "autonomous": "automatic",
+        }
+
+    def test_the_state_says_whether_an_autonomous_merge_is_even_possible(self, served) -> None:
+        """task-021 accepted that an autonomous merge runs through the scripted finish,
+        so a project without it has no sanctioned mechanism for one. A chooser needs to
+        know that to offer `autonomous` disabled rather than grant an envelope whose
+        merge cannot be performed."""
+        client, root, home = served
+        enable_dispatch(home, root.parent)
+
+        assert client.get("/api/projects/sandbox/dispatch").json()["finish_enabled"] is False
+
+        enable_dispatch(home, root.parent, finish_enabled=True)
+
+        assert client.get("/api/projects/sandbox/dispatch").json()["finish_enabled"] is True
+
+    def test_the_state_says_whether_this_project_pushes(self, served) -> None:
+        """Per project and never the posture's (task-021). False everywhere today, which
+        is exactly why the field has to be read rather than assumed."""
+        client, root, home = served
+        enable_dispatch(home, root.parent)
+
+        assert client.get("/api/projects/sandbox/dispatch").json()["push"] is False
+
+        enable_dispatch(home, root.parent, push=True)
+
+        assert client.get("/api/projects/sandbox/dispatch").json()["push"] is True
 
     def test_asking_above_the_ceiling_is_refused_under_its_own_code(self, served) -> None:
         """403 rather than 409: this is a permission answer, not a contention one, and

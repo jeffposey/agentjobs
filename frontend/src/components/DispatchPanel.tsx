@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 
 import type { ReviewIdentity } from "../api/generated";
-import type { DispatchRunView, DispatchStateView } from "../api/types";
+import type { DispatchPosture, DispatchRunView, DispatchStateView } from "../api/types";
 
 /**
  * Dispatch, in the browser: the button that starts an agent, the runs it produces,
@@ -108,6 +108,11 @@ export type DispatchRefusal = {
 export type DispatchOptions = {
   /** Runner group to choose from. Outranks the project's own group and its runner. */
   group?: string;
+  /**
+   * What this one run may do. Outranks a posture on the task record and the project's
+   * default, and is refused above the project's ceiling (task-307, task-308).
+   */
+  posture?: DispatchPosture;
   /** The human's brief, sent only when the panel asked for one. */
   note?: string;
 };
@@ -278,6 +283,10 @@ export function DispatchPanel({
   // model" is a decision about one task, and a sticky override would silently apply it
   // to the next one.
   const [group, setGroup] = useState("");
+  // Same rule as `group`, and it matters more here: an override that stuck would carry
+  // "let this one merge itself" onto the next task the reader opened, which is the one
+  // sticky default nobody would want.
+  const [posture, setPosture] = useState("");
 
   if (!taskIsDispatchable && runs.length === 0) return null;
   // Silent on a machine where dispatch was never set up. There is nothing to switch on
@@ -299,6 +308,11 @@ export function DispatchPanel({
   /** What this click will send. Omitted keys are the point -- see `DispatchOptions`. */
   const options = (note?: string): DispatchOptions => ({
     ...(group ? { group } : {}),
+    // Narrowed rather than validated: every value this can hold came out of
+    // `offerable_postures`, which the server derives from the same `Posture` enum the
+    // generated type is generated from. A posture the API would reject cannot reach
+    // here, and if one ever did the API refuses it under `posture_above_ceiling`.
+    ...(posture ? { posture: posture as DispatchPosture } : {}),
     ...(note ? { note } : {}),
   });
 
@@ -344,7 +358,8 @@ export function DispatchPanel({
             ▶ Dispatch — start an agent now
           </button>
           <DispatchGroupChoice state={state} value={group} busy={busy} onChange={setGroup} />
-          <DispatchRunnerNote state={state} user={user} group={group} />
+          <DispatchPostureChoice state={state} value={posture} busy={busy} onChange={setPosture} />
+          <DispatchRunnerNote state={state} user={user} group={group} posture={posture} />
         </div>
       )}
 
@@ -399,7 +414,13 @@ export function DispatchPanel({
               ▶ Dispatch — start an agent now
             </button>
             <DispatchGroupChoice state={state} value={group} busy={busy} onChange={setGroup} />
-            <DispatchRunnerNote state={state} user={user} group={group} />
+            <DispatchPostureChoice
+              state={state}
+              value={posture}
+              busy={busy}
+              onChange={setPosture}
+            />
+            <DispatchRunnerNote state={state} user={user} group={group} posture={posture} />
           </div>
         </form>
       )}
@@ -468,19 +489,135 @@ function DispatchGroupChoice({
   );
 }
 
+/**
+ * What this one run may do, chosen at the moment of dispatching (task-307).
+ *
+ * The same shape as `DispatchGroupChoice` above, deliberately: a labelled select whose
+ * empty option is the project's own answer, whose value is sent only when it is not
+ * that, and which is absent entirely when there is nothing to choose between.
+ *
+ * Three things about it are not cosmetic.
+ *
+ * **The list comes from the server.** `offerable_postures` is every posture at or below
+ * the project's machine-local ceiling, and a browser that derived its own list from the
+ * enum would be the one place in the system that could offer a choice the dispatch API
+ * refuses -- which teaches the operator that the control lies. The refusal still exists
+ * server-side (`posture_above_ceiling`); this just makes it unreachable by clicking.
+ *
+ * **Each option says what it does to the branch, not what it is called.** "autonomous"
+ * tells a reader nothing about whether their work merges without them, and after
+ * task-021 that is exactly what it decides. The consequence text is keyed off
+ * `posture_merge_policies`, which the server sends for the same reason as the list.
+ *
+ * **`autonomous` is offered disabled when this project has no scripted finish**, rather
+ * than silently dropped. task-021 accepted that an autonomous merge runs through
+ * `agentjobs finish --posture-release` and that a machine without it has no sanctioned
+ * mechanism for one; picking it there would produce a run told it may merge with no way
+ * to. Disabled-with-a-reason is right where omitting it is wrong, because the fix is one
+ * line of the reader's own config and they can only make it if they know it is the cause.
+ */
+function DispatchPostureChoice({
+  state,
+  value,
+  busy,
+  onChange,
+}: {
+  state: DispatchStateView | null;
+  value: string;
+  busy: boolean;
+  onChange: (next: string) => void;
+}) {
+  const postures = state?.offerable_postures ?? [];
+  // One option means the project is capped at its own default, so there is no choice to
+  // make and a pulldown saying so is furniture -- the same rule the group select uses.
+  if (postures.length <= 1) return null;
+  return (
+    <div className="flex items-center gap-2">
+      <label htmlFor="dispatch-posture" className="text-sm text-dark-muted">
+        Envelope
+      </label>
+      <select
+        id="dispatch-posture"
+        value={value}
+        disabled={busy}
+        onChange={(event) => onChange(event.target.value)}
+        className="rounded-lg border border-dark-border bg-dark-bg p-2 text-sm text-dark-text focus:border-sky-500 focus:outline-none"
+      >
+        <option value="">Project default</option>
+        {postures.map((name) => {
+          const blocked = postureNeedsFinish(name, state);
+          const says = blocked ? FINISH_REQUIRED : mergeConsequence(name, state);
+          return (
+            <option key={name} value={name} disabled={blocked}>
+              {says ? `${name} — ${says}` : name}
+            </option>
+          );
+        })}
+      </select>
+    </div>
+  );
+}
+
+/** Why `autonomous` cannot be picked on a project that has not switched the finish on. */
+const FINISH_REQUIRED = "needs finish.enabled on this project";
+
+/**
+ * Whether choosing this posture would grant a merge the project cannot actually perform.
+ *
+ * Only ever true of a posture whose merge policy is `automatic`, which is the only one
+ * that runs through the scripted finish. Everything else is unaffected by the switch.
+ */
+function postureNeedsFinish(posture: string, state: DispatchStateView | null): boolean {
+  return state?.posture_merge_policies?.[posture] === "automatic" && !state?.finish_enabled;
+}
+
+/**
+ * What this posture does to the branch, in the operator's terms rather than the enum's.
+ *
+ * Null when the server named a posture but not its policy, and the callers render
+ * nothing at all in that case. Saying something vague would be worse than saying
+ * nothing: this sentence is the one a reader decides on, so filler in the slot where
+ * "merges without you" belongs is actively misleading.
+ */
+function mergeConsequence(posture: string, state: DispatchStateView | null): string | null {
+  switch (state?.posture_merge_policies?.[posture]) {
+    case "automatic":
+      return "merges its own work when the gate passes, no review";
+    case "review":
+      return "stops for your review before merging";
+    case "none":
+      return "no shell, nothing to merge";
+    default:
+      return null;
+  }
+}
+
 /** What the run will be, and whose name goes on it. Both worth reading before clicking. */
 function DispatchRunnerNote({
   state,
   user,
   group,
+  posture: chosen,
 }: {
   state: DispatchStateView | null;
   user: string;
   group: string;
+  posture: string;
 }) {
+  // The chosen posture outranks the project's, so the sentence has to name what will
+  // actually run rather than what the config says -- the same reason the group branch
+  // below names the overriding group. Saying "posture auto" beside a pulldown reading
+  // `autonomous` is the one sentence here that would be reliably wrong.
+  const effective = chosen || state?.posture;
+  const consequence = effective ? mergeConsequence(effective, state) : null;
   const posture = (
     <>
-      posture <strong className="text-dark-text">{state?.posture}</strong>, authorised by{" "}
+      posture <strong className="text-dark-text">{effective}</strong>
+      {consequence ? <> — {consequence}</> : null}
+      {/* Push is per project and never the posture's (task-021). Named only when it is
+          on, because `false` is the answer everywhere today and a sentence repeating
+          the universal default on every task is noise. */}
+      {state?.push ? <>, and pushes</> : null}, authorised by{" "}
       <strong className="text-dark-text">{user}</strong>
     </>
   );

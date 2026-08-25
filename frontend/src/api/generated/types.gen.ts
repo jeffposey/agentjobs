@@ -817,6 +817,12 @@ export type DispatchStateView = {
      */
     default_group?: string | null;
     /**
+     * Finish Enabled
+     *
+     * Whether the scripted finish (task-241) is on for this project, which is what an autonomous merge runs through. task-021 accepted the consequence that without it there is no sanctioned mechanism for one -- so a chooser offers `autonomous` disabled here rather than granting an envelope whose merge cannot be performed.
+     */
+    finish_enabled?: boolean;
+    /**
      * Group
      *
      * Runner group this project is pointed at, if any.
@@ -847,6 +853,14 @@ export type DispatchStateView = {
      */
     posture?: string | null;
     /**
+     * Posture Merge Policies
+     *
+     * What each posture does to the *branch*, keyed by posture value (task-021: `read_only` -> none, `auto`/`supervised` -> review, `autonomous` -> automatic). Sent rather than hardcoded in the client for the same reason `offerable_postures` is, and the stake is higher: this is the difference between 'stops for your review' and 'merges without you', so a browser that carried its own copy could tell an operator the opposite of what the posture they picked will actually do.
+     */
+    posture_merge_policies?: {
+        [key: string]: string;
+    };
+    /**
      * Project Enabled
      *
      * This project is enabled for dispatch.
@@ -856,6 +870,12 @@ export type DispatchStateView = {
      * Project Id
      */
     project_id: string;
+    /**
+     * Push
+     *
+     * Whether this project permits pushing. Per project and never a posture property (task-021), and false everywhere today. Surfaced because 'this project will merge my work without asking me, and publish it' is the one thing worth knowing beside a Dispatch button.
+     */
+    push?: boolean;
     /**
      * Which gate refuses, when can_dispatch is false.
      */
