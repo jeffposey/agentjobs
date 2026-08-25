@@ -3,48 +3,55 @@ id: task-304
 title: 'Context evals: prove which rules in the always-loaded bundle actually change
   agent behaviour, and re-run it whenever a new model ships'
 created: '2026-08-23T21:52:43.476088Z'
-updated: '2026-08-25T20:32:45.229209Z'
+updated: '2026-08-25T23:31:27.393528Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
-  \ was merged.**\n\n`scripts/check.py` failed on feat/task-304-context-evals after\
-  \ the rebase (185s, exit 1). A red gate never merges. The branch is rebased onto\
-  \ main and is otherwise untouched; nothing was merged. Full output: C:\\Users\\\
-  jpose\\.agentjobs\\finishes\\fin_455f9009\\gate.log\n\n```\ntests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_records_traces_and_final_state\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_refusal_scenarios_actually_recorded_refusals\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-m-qzA1UB-py3.13\\\
-  Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response = await\
-  \ handler(conn, exc)\ntests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-m-qzA1UB-py3.13\\\
-  Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
-  \ dependant.call(**values)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
-  \  C:\\projects\\worktrees\\agentjobs-304\\src\\agentjobs\\api\\routes\\web.py:368:\
-  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
-  \ removal in a future version. Use timezone-aware objects to represent datetimes\
-  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
-  tests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
-  \  C:\\projects\\worktrees\\agentjobs-304\\src\\agentjobs\\api\\routes\\web.py:350:\
-  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
-  \ removal in a future version. Use timezone-aware objects to represent datetimes\
-  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
-  -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\e[36m\e\
-  [1m=========================== short test summary info ===========================\e\
-  [0m\n\e[31mFAILED\e[0m tests/test_dispatch_runner.py::\e[1mTestProcessGroup::test_the_timeout_kills_the_grandchild_too\e\
-  [0m - AssertionError: pid 1081552 survived the timeout\n\e[31m========== \e[31m\e\
-  [1m1 failed\e[0m, \e[32m3328 passed\e[0m, \e[33m219 warnings\e[0m\e[31m in 147.52s\
-  \ (0:02:27)\e[0m\e[31m ===========\e[0m\n  black      0.9s\n  ruff       0.3s\n\
-  \  mypy       1.9s\n  api        5.3s\n  icons      3.2s\n  oxlint     0.9s\n  pytest\
-  \   171.7s\n  total    184.2s\nAll done! \\u2728 \\U0001f370 \\u2728\n216 files\
-  \ would be left unchanged.\nFailed at stage 'pytest'.\nFix it, then resume with\
-  \ `--from pytest` instead of paying for the stages above a second time.\n```\n\n\
-  Take it from here by hand. Check the tree against what is written above before acting\
-  \ on anything you remember: if your worktree, your branch or your account of this\
-  \ task no longer matches what is on disk, say so on the record and hand the ball\
-  \ back rather than improvising a recovery."
+ball: human
+ball_reason: decision
+ball_prompt: 'The work is done and verified; the merge is blocked by a test this branch
+  does not touch. Your call on how to unblock it.
+
+
+  **State.** `feat/task-304-context-evals`, 5 commits, rebased onto main at `e71acab1`,
+  worktree `C:/projects/worktrees/agentjobs-304`, clean. All five acceptance criteria
+  met, with evidence in log entries 8, 13 and 14 and in each criterion''s `verify`
+  field. Nothing merged.
+
+
+  **The blocker.** `agentjobs finish --posture-release` ran three times:
+
+  1. gate red - `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`,
+  `pid ... survived the timeout`
+
+  2. gate GREEN, 200.7s - then stopped at `merge` with `base_moved`: another agent
+  moved main mid-gate
+
+  3. gate red - the same test, different pid
+
+
+  Two of three gate runs died on one test, and the run that passed was refused for
+  an unrelated reason.
+
+
+  **Why it is not this branch.** The five commits add `src/agentjobs/contexteval/`,
+  `scripts/context_eval.py`, `evals/context/`, `tests/test_context_eval.py` and about
+  twenty lines of ENGINEERING.md. Nothing under `src/agentjobs/dispatch/`. That test
+  passed 3/3 run alone (4.7s each), and the full unqualified gate went green on this
+  branch three separate times: by hand pre-rebase (327s, receipt `5365d587`), by hand
+  post-rebase (231s, receipt `33257539`), and inside the finisher (200.7s). It is
+  a wall-clock race between a process-group reaper and its assertion, and this machine
+  has several agents on it right now.
+
+
+  **Your call.** Either (a) re-run `poetry run agentjobs finish task-304 --project
+  agentjobs --posture-release` when the machine is quieter, or (b) file the flake
+  as its own task and let this one wait behind it.
+
+
+  I stopped rather than retry a fourth time. Re-rolling a gate until it goes green
+  is the thing the gate exists to prevent, and a test that fails twice in four runs
+  is a finding about the suite rather than noise to route around. I have not filed
+  a task for it - that is a separate concern and this task''s scope says not to absorb
+  follow-ups unasked. Say the word and I will.'
 archived: false
 priority: critical
 queue_position: 1093
@@ -939,3 +946,18 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 26
+  ts: '2026-08-25T23:31:27.393100Z'
+  actor: claude
+  type: handoff
+  body: Handing off. The suite, both baselines and the docs are complete; the gate
+    has gone green on this branch three times including once inside the finisher.
+    The merge is blocked by an intermittent dispatch test unrelated to this branch.
+    Not retrying a fourth time.
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: 7a1c2f30-6d11-4a58-9d43-1b0e5c9f2a09
+      kind: handoff
+      fingerprint: aca8aac8a8aa008530674743a31e8e56
