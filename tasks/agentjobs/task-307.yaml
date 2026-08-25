@@ -2,7 +2,7 @@ schema: 2
 id: task-307
 title: Choose the posture at the moment of dispatching, not only in dispatch.yaml
 created: '2026-08-23T22:34:10.639602Z'
-updated: '2026-08-25T08:07:35.224900Z'
+updated: '2026-08-25T08:10:35.189485Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -923,3 +923,19 @@ log:
     finish_step: started
     branch: feat/task-307-posture-pulldown
     finish_id: fin_c2898b5d
+- id: 29
+  ts: '2026-08-25T08:10:35.189252Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-307-posture-pulldown` into `main` as `5352be8e`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\aj-307
+    before the merge. Approved by a human; no model was in this loop. Delivery --
+    rebuild, restart, verification -- comes next, and this task stays open until it
+    is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 5352be8e5fb451d517c486ddf1594f4cc56a21ce
+    branch: feat/task-307-posture-pulldown
+    base: main
