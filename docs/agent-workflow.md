@@ -30,11 +30,14 @@ That path is a `worktrees/` directory beside the project rather than a sibling o
 several live worktrees do not bury the projects in a listing of the workspace. `git
 worktree add` creates the directory the first time.
 
-`<repo>` is the project's short name, and **a project may declare its own**: AgentJobs
-uses `aj`, so its worktrees are `../worktrees/aj-045` rather than `agentjobs-045`. Check
-the project's `ALLAGENTS.md` before inventing one. Both spellings are in use on a machine
-that has been running a while, and neither is wrong — what matters is that the directory
-names a task, so `git worktree list` reads as an inventory.
+`<repo>` is the project's directory name and `<nnn>` is the task's number, so an
+AgentJobs worktree for task-045 is `../worktrees/agentjobs-045`. **That is the whole
+convention, and it is stated here** — ENGINEERING.md and ALLAGENTS.md show it filled in
+for their own project, and the prompt every dispatched agent receives is this same
+literal command. Older worktrees on a machine that has been running a while may use an
+abbreviated form such as `aj-045`; those are not wrong, they are just not what to write
+next. What matters either way is that the directory names a task, so `git worktree list`
+reads as an inventory.
 
 Work there. Once your branch is merged, remove the worktree and then delete the branch
 with `git branch -d` — in that order, because a branch checked out in a worktree cannot

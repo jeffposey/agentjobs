@@ -174,7 +174,7 @@ are not working it — you are supervising, you take no worktree, and
     is what "done" means. Read the `log[]` newest-first: the last `handoff`, and every
     `decision` and open `question` since. **Decisions are binding — do not relitigate
     them.** Check `dependencies[]` and confirm they are satisfied before starting.
-2.  **Worktree, branch, then claim**: `git worktree add ../worktrees/aj-<nnn> -b <type>/task-<nnn>-<slug>`
+2.  **Worktree, branch, then claim**: `git worktree add ../worktrees/agentjobs-<nnn> -b <type>/task-<nnn>-<slug>`
     and work there — **this is your first act, before anything is written.** Then `claim`
     the task and record the branch in `branches[]`. In that order, so no work is ever
     committed outside a branch. See [Why you get your own worktree](#why-you-get-your-own-worktree).
@@ -211,22 +211,23 @@ are not working it — you are supervising, you take no worktree, and
     is told, in its own prompt, that the merge gate is released for it; that sentence
     is the only authority for skipping this step, and if it is not in your prompt you
     do not have it. See [Your prompt says whether you stop here](#your-prompt-says-whether-you-stop-here).
-6.  **On approval**: Rebase onto `main`, merge `--no-ff`, mark the branch `merged`,
-    `close` the task with `outcome: completed`, then `git worktree remove` your worktree
-    **and `git branch -d` your branch** — in that order, because a branch checked out in
-    a worktree cannot be deleted. `-d`, never `-D`: `-d` refuses a branch `main` does not
-    contain, and a refusal means your merge did not land the way you think it did, which
-    is worth stopping over rather than forcing past.
+6.  **On approval**: everything from here is
+    [ENGINEERING.md's merge gate](ENGINEERING.md#the-merge-gate), steps 3 to 6 — rebase,
+    `--no-ff` merge, mark the branch `merged`, close the task, remove the worktree, then
+    delete the branch, then rebuild and restart so the person who approved the work is
+    looking at the merged version. **That procedure is numbered there and nowhere else**,
+    including which server is yours to restart and which is not; this list stops at the
+    approval deliberately, so there is only ever one copy to keep current.
 
-    The scripted finish does both for you (task-293). Do it by hand only when you merged
-    by hand. `agentjobs branches` lists what got left behind either way.
-7.  **Then put it in front of them.** Rebuild the frontend if you touched it, restart the
-    server, and confirm the change is live. You are not finished when the merge commit
-    exists — you are finished when the person who approved the work can see it. Leaving
-    them on the version they just approved you to replace is the default outcome if you
-    skip this, and they will find out before you do. See
-    [The Merge Gate](ENGINEERING.md#the-merge-gate) for the commands, including which
-    server is yours to restart and which is not.
+    Two things about it to carry in before you get there. The branch deletion is `-d`,
+    **never `-D`**: `-d` refuses a branch `main` does not contain, and a refusal means
+    your merge did not land the way you think it did, which is worth stopping over rather
+    than forcing past. And you are not finished when the merge commit exists — you are
+    finished when the change is live and you have checked, because leaving them on the
+    version they just approved you to replace is the default outcome of skipping it, and
+    they will find out before you do. The scripted finish does the whole of it for you
+    (task-293); do it by hand only when you merged by hand, and `agentjobs branches`
+    lists what got left behind either way.
 
 ### Your prompt says whether you stop here
 
@@ -267,13 +268,14 @@ reason an unreviewed merge is acceptable here.
 If you are supervising a parent task, the clause is phrased for you instead: it tells you
 what the children you start will do, and you approve nothing yourself either way.
 
-### Steps 6 and 7 may be done before you wake up
+### The post-approval steps may be done before you wake up
 
 **Where this machine has the scripted finish switched on, the approval runs them
 itself** — rebase, gate, merge `--no-ff`, rebuild, restart, verify, close, remove the
-worktree, delete the branch — with no agent in the loop at all (task-241). Most of the
-time you will simply never be dispatched again, and the task will be closed by the time
-anyone looks.
+worktree, delete the branch — with no agent in the loop at all (task-241). Those are
+[the merge gate's steps 3 to 6](ENGINEERING.md#steps-3-to-6-may-already-have-happened-before-you-read-them),
+which is the only place they are numbered. Most of the time you will simply never be
+dispatched again, and the task will be closed by the time anyone looks.
 
 You are woken only when it stopped, and then **the record tells you where, and whether
 `main` moved**. Read it before acting on anything you remember:
@@ -358,9 +360,12 @@ neither will they.
 A human working alone does not need this; they have no peer to collide with. You do.
 
 -   Create the worktree **before** the branch, the claim, or anything written to disk.
--   Name it for the task, and put it in the `worktrees/` directory beside the clone --
-    not inside the clone, and not loose in the workspace beside the projects:
-    `../worktrees/aj-045`. `git worktree add` creates that directory the first time.
+-   Name it `<repo>-<nnn>` — the project's directory name and the task's number, so here
+    `agentjobs-045` — and put it in the `worktrees/` directory beside the clone, not
+    inside the clone and not loose in the workspace beside the projects:
+    `../worktrees/agentjobs-045`. `git worktree add` creates that directory the first
+    time. That is the one convention: it is what `docs/agent-workflow.md` states
+    generically and what every dispatched agent's prompt tells it to run.
 -   `git worktree remove` it once the branch is merged, then `git branch -d` the branch —
     the worktree first, because a branch checked out in one cannot be deleted, and `-d`
     rather than `-D` so an unmerged branch is refused instead of destroyed. `git worktree
