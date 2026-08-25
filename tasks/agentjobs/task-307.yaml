@@ -2,7 +2,7 @@ schema: 2
 id: task-307
 title: Choose the posture at the moment of dispatching, not only in dispatch.yaml
 created: '2026-08-23T22:34:10.639602Z'
-updated: '2026-08-25T08:01:30.173138Z'
+updated: '2026-08-25T08:07:35.224900Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -853,3 +853,73 @@ log:
     finish_step: started
     branch: feat/task-307-posture-pulldown
     finish_id: fin_a8c24958
+- id: 26
+  ts: '2026-08-25T08:04:23.387429Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 27
+  ts: '2026-08-25T08:04:26.151594Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_26a695a9` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_f285cacb
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 26
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - --resume
+    - 51b2509c-5a4f-4916-b6bf-f945bc4505d3
+    cwd: C:\projects\agentjobs
+    git_head: eb65df3
+    session_id: '82496126'
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 28
+  ts: '2026-08-25T08:07:35.224645Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-307-posture-pulldown` (d8f985b6).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\aj-307.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_c2898b5d\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-307-posture-pulldown
+    finish_id: fin_c2898b5d
