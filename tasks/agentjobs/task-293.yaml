@@ -3,7 +3,7 @@ id: task-293
 title: 'Merged branches are never deleted, and branches live too long: fix the finish,
   the checklist, and the guidance'
 created: '2026-08-23T19:18:39.567925Z'
-updated: '2026-08-25T09:54:14.847203Z'
+updated: '2026-08-25T09:54:53.719535Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -783,3 +783,13 @@ log:
       id: 6b2f9a10-2931-4c02-b0a1-000000000298
       kind: log_append
       fingerprint: a16933b52ac11a46c0c316291eee888c
+- id: 17
+  ts: '2026-08-25T09:54:53.719379Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 7
+  data:
+    run_id: run_cb91f700
+    outcome: completed
+    duration_seconds: 2534.097545
+    log_path: C:\Users\jpose\.agentjobs\runs\run_cb91f700
