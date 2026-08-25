@@ -27,9 +27,11 @@ import yaml
 
 from agentjobs.dispatch.config import sentinel_path
 from agentjobs.dispatch.ledger import (
+    KIND_FINISH,
     DispatchLedger,
     LedgerError,
     RunLockTimeout,
+    _lock_refusal,
     acquire_run_lock,
     find_run,
     list_runs,
@@ -38,6 +40,7 @@ from agentjobs.dispatch.ledger import (
     read_lock_holder,
     read_run,
     release_stale_locks,
+    stale_lock_reason,
     write_status,
 )
 from agentjobs.dispatch.runner import RunDirectory
@@ -489,6 +492,152 @@ class TestRunLock:
         held.path.write_text("pid=999999999 run=run_unknown", encoding="ascii")
         taken = acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.5)
         taken.release()
+
+    # ----- what the refusal says about who is holding it (task-298) -----------
+
+    def test_a_finish_holder_and_a_dispatch_holder_read_differently(self, home: Path) -> None:
+        """sc-4: the kind comes off the lock, not out of a guess about a pid.
+
+        The two are opposites -- a dispatch becomes a run and outlives its process, a
+        finish never becomes a run and *is* its process -- so one message cannot serve
+        both. This is the test that fails if the field stops being written.
+        """
+        finish = acquire_run_lock(home, "task-224", kind=KIND_FINISH)
+        finish.adopt_finish("fin_689a7558")
+        dispatch = acquire_run_lock(home, "task-225")
+
+        with pytest.raises(RunLockTimeout) as refused_finish:
+            acquire_run_lock(home, "task-224", timeout=0.2)
+        with pytest.raises(RunLockTimeout) as refused_dispatch:
+            acquire_run_lock(home, "task-225", timeout=0.2)
+
+        finish_text = str(refused_finish.value)
+        dispatch_text = str(refused_dispatch.value)
+        assert "scripted finish" in finish_text
+        assert "fin_689a7558" in finish_text
+        assert "scripted finish" not in dispatch_text
+        assert finish_text != dispatch_text
+        finish.release()
+        dispatch.release()
+
+    def test_a_live_finish_is_never_called_a_dispatch(self, home: Path) -> None:
+        """sc-1. The old text said "a dispatch that ... has not yet said which run it
+        became" -- three claims, all false of a finish, one of them permanently."""
+        lock = acquire_run_lock(home, "task-224", kind=KIND_FINISH)
+        lock.adopt_finish("fin_689a7558")
+
+        with pytest.raises(RunLockTimeout) as caught:
+            acquire_run_lock(home, "task-224", timeout=0.2)
+
+        message = str(caught.value)
+        assert "a dispatch" not in message
+        assert "which run it became" not in message
+        assert "fin_689a7558" in message
+        assert "started at" in message, "when it started, so 4 seconds reads unlike 4 hours"
+        lock.release()
+
+    def test_a_live_finish_says_the_approval_already_runs_the_merge(self, home: Path) -> None:
+        """sc-2: the reader does not want to dispatch, and nothing else tells them so.
+
+        Setting ``finish.enabled`` changes the workflow from approve-then-dispatch to
+        approve-and-you-are-done. This refusal is where most people meet that change.
+        """
+        lock = acquire_run_lock(home, "task-224", kind=KIND_FINISH)
+        lock.adopt_finish("fin_689a7558")
+
+        with pytest.raises(RunLockTimeout) as caught:
+            acquire_run_lock(home, "task-224", timeout=0.2)
+
+        message = str(caught.value)
+        assert "merging it now" in message
+        assert "nothing to dispatch" in message
+        assert "runs the merge itself" in message
+        lock.release()
+
+    def test_a_live_finish_is_never_offered_a_restart(self, home: Path) -> None:
+        """sc-3, first half. Restarting AgentJobs mid-gate or mid-merge is the single
+        most harmful thing that was on offer here, and it was offered by default."""
+        lock = acquire_run_lock(home, "task-224", kind=KIND_FINISH)
+        lock.adopt_finish("fin_689a7558")
+
+        with pytest.raises(RunLockTimeout) as caught:
+            acquire_run_lock(home, "task-224", timeout=0.2)
+
+        assert "restart" not in str(caught.value).lower()
+        lock.release()
+
+    def test_a_lock_left_by_a_dead_run_is_still_offered_a_restart(self, home: Path) -> None:
+        """sc-3, second half: narrowed, not deleted.
+
+        A batch run recorded live whose process died is exactly what a restart fixes --
+        ``reconcile`` concludes it ``interrupted`` and *then* sweeps the lock, which is
+        why the advice is attached to the branch that names a run.
+        """
+        seed_run(home, "task-001", run_id="run_going", status="running")
+        held = acquire_run_lock(home, "task-001")
+        held.adopt("run_going")
+
+        with pytest.raises(RunLockTimeout) as caught:
+            acquire_run_lock(home, "task-001", timeout=0.2)
+
+        message = str(caught.value)
+        assert "restarting AgentJobs" in message
+        assert "run_going" in message
+        held.release()
+
+    def test_a_dead_finish_is_told_apart_from_a_live_one(self, home: Path) -> None:
+        """sc-3 again, from the other side: a finish whose process is gone is not merging.
+
+        Normally such a lock is reclaimed rather than refused -- an absent pid is proof
+        for a finish, which runs in the foreground of its own process -- so this reads
+        the refusal directly, which is also what a reader would get if the one reclaim an
+        acquisition is allowed had already been spent.
+        """
+        path = locks_root(home)
+        path.mkdir(parents=True, exist_ok=True)
+        lock_file = path / "task-224.lock"
+        lock_file.write_text(
+            "pid=999999999 run= kind=finish finish=fin_dead started=2026-08-23T13:38:02+00:00",
+            encoding="ascii",
+        )
+        holder = read_lock_holder(lock_file)
+        assert holder is not None
+
+        message = _lock_refusal(home, "task-224", lock_file, holder)
+
+        assert "nothing is merging" in message
+        assert "Restarting AgentJobs" in message
+        assert stale_lock_reason(home, holder) is not None, "and so it is reclaimed, not refused"
+        taken = acquire_run_lock(home, "task-224", timeout=0.5)
+        taken.release()
+
+    def test_a_dispatch_that_has_not_named_its_run_yet_is_not_called_stuck(
+        self, home: Path
+    ) -> None:
+        """The fourth complaint in task-298: "has not reported yet" and "cannot be shown
+        to be over" are different situations that used to read identically. A live pid
+        that has not adopted a run id is the first, and it lasts a moment."""
+        held = acquire_run_lock(home, "task-001")  # this process, no run adopted
+
+        with pytest.raises(RunLockTimeout) as caught:
+            acquire_run_lock(home, "task-001", timeout=0.2)
+
+        message = str(caught.value)
+        assert "try again shortly" in message
+        assert "restart" not in message.lower(), "a restart cannot clear a live holder's lock"
+        held.release()
+
+    def test_a_lock_file_from_before_the_kind_existed_reads_as_a_dispatch(self, home: Path) -> None:
+        """Old files say nothing about kind, and every one of them was a dispatch."""
+        path = locks_root(home)
+        path.mkdir(parents=True, exist_ok=True)
+        lock_file = path / "task-001.lock"
+        lock_file.write_text(f"pid={os.getpid()} run=", encoding="ascii")
+
+        holder = read_lock_holder(lock_file)
+
+        assert holder is not None and not holder.is_finish
+        assert "scripted finish" not in _lock_refusal(home, "task-001", lock_file, holder)
 
     def test_the_refusal_never_tells_a_reader_to_delete_a_file(self, home: Path) -> None:
         """ac-5: this text reaches the browser, where that remedy does not exist.
