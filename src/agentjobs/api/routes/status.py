@@ -26,7 +26,7 @@ from starlette.concurrency import run_in_threadpool
 
 from agentjobs.actors import UnknownActorError, validate_actor
 from agentjobs.dispatch.address import api_base_from_server
-from agentjobs.dispatch.config import DispatchError
+from agentjobs.dispatch.config import DispatchError, Posture
 from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
 from agentjobs.dispatch.runner import DispatchRunError
 from agentjobs.manager import MoveOutcome, TaskManager, TaskNotFoundError
@@ -582,6 +582,7 @@ _DISPATCH_STATUS: dict = {
     "live_run_exists": status.HTTP_409_CONFLICT,
     "concurrency_limit": status.HTTP_409_CONFLICT,
     "dirty_tree": status.HTTP_409_CONFLICT,
+    "posture_above_ceiling": status.HTTP_403_FORBIDDEN,
     "claim_lost": status.HTTP_409_CONFLICT,
     "owner_mismatch": status.HTTP_409_CONFLICT,
 }
@@ -615,6 +616,11 @@ _DISPATCH_ACTION: dict = {
         "limits.max_concurrent_runs in ~/.agentjobs/dispatch.yaml."
     ),
     "dirty_tree": "Commit or stash the working tree, then dispatch.",
+    "posture_above_ceiling": (
+        "Choose a posture at or below the project's ceiling, or raise "
+        "projects.<id>.max_posture in ~/.agentjobs/dispatch.yaml by hand. Nothing "
+        "reachable over the network writes that file, which is the point of it."
+    ),
     "claim_lost": "Someone else took it. Re-read the task before deciding again.",
     "owner_mismatch": "Release the task, or dispatch the runner that owns it.",
 }
@@ -699,6 +705,10 @@ async def dispatch_task_endpoint(
                 authorized_by=payload.user,
                 authorization_note=payload.note,
                 surface="the task page" if payload.user else None,
+                # Converted rather than passed through: the API and the dispatch layer
+                # keep separate enums that mirror each other, and the mirror is checked
+                # here rather than by the two happening to agree.
+                posture=Posture(payload.posture.value) if payload.posture else None,
             ),
             api_base=serving_api_base(request),
         )

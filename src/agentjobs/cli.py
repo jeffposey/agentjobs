@@ -23,6 +23,7 @@ from .dispatch.address import (
 from .dispatch.config import (
     DispatchConfig,
     DispatchError,
+    Posture,
     assert_dispatch_permitted,
     dispatch_config_path,
     load_dispatch_config,
@@ -1136,6 +1137,14 @@ def dispatch_run(
         "--group",
         help="Runner group to pick from, overriding the project's. Must already exist.",
     ),
+    posture: Optional[str] = typer.Option(
+        None,
+        "--posture",
+        help=(
+            "Posture for this run only, overriding the project default and the task's "
+            "own field. Refused above the project's max_posture."
+        ),
+    ),
 ) -> None:
     """Start an agent on a task, if every gate permits it.
 
@@ -1163,11 +1172,20 @@ def dispatch_run(
 
     manager = TaskManager(TaskStorage(project.tasks_dir()))
     try:
+        chosen_posture = Posture(posture) if posture else None
+    except ValueError:
+        names = ", ".join(sorted(item.value for item in Posture))
+        typer.secho(f"--posture must be one of {names}, not {posture!r}.", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
+
+    try:
         handle = dispatch_task(
             manager=manager,
             project=project,
             project_config=project.load_config(),
-            request=DispatchRequest(task_id=task_id, caused_by=caused_by, group=group),
+            request=DispatchRequest(
+                task_id=task_id, caused_by=caused_by, group=group, posture=chosen_posture
+            ),
         )
     except (DispatchError, DispatchRunError) as exc:
         reason = getattr(exc, "reason", "dispatch_failed")
@@ -1175,6 +1193,11 @@ def dispatch_run(
         raise typer.Exit(code=1) from exc
 
     typer.echo(f"✅ Dispatched {task_id} as run {handle.run_id} ({handle.mode.value}).")
+    # Always, not only when something overrode the default: "which of the three sources
+    # decided what this run may do" is the question task-308 exists so that nobody has
+    # to reconstruct, and a line that appears only sometimes trains a reader to skim it.
+    if handle.posture is not None:
+        typer.echo(f"   Envelope: {handle.posture.describe()}.")
     # Printed because a wrong address is otherwise silent: the agent cannot read its
     # task, so it cannot report that it could not read its task. There is no HTTP
     # request here to derive one from, so this is AGENTJOBS_API_BASE, or `api_base:` in
@@ -1701,6 +1724,7 @@ def dispatch_show_config(
         typer.echo(
             f"  {pid:20} {state}  {against}  "
             f"posture={settings.posture.value}  "
+            f"max_posture={settings.ceiling.value}  "
             f"merge={settings.posture.merge_policy.value}  push={settings.push}  "
             f"clean_tree={settings.require_clean_tree}  auto={settings.auto_dispatch}"
         )
@@ -1728,7 +1752,8 @@ def dispatch_show_config(
             typer.echo(
                 f"\n{project_id}: permitted - runner '{resolution.runner.name}'{via} "
                 f"({resolution.runner.mode.value}), posture "
-                f"{resolution.settings.posture.value}, merge "
+                f"{resolution.settings.posture.value} (max "
+                f"{resolution.settings.ceiling.value}), merge "
                 f"{resolution.settings.posture.merge_policy.value}, push "
                 f"{resolution.settings.push}"
             )

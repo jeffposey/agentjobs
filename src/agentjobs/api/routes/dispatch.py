@@ -101,7 +101,27 @@ class DispatchStateView(BaseModel):
     group: Optional[str] = Field(
         default=None, description="Runner group this project is pointed at, if any."
     )
-    posture: Optional[str] = Field(default=None, description="What a run here may do.")
+    posture: Optional[str] = Field(
+        default=None, description="What a run here gets when nothing else names a posture."
+    )
+    max_posture: Optional[str] = Field(
+        default=None,
+        description=(
+            "The widest posture any run here may get, whatever asks for it (task-308). "
+            "Equal to `posture` on a project that has not set a ceiling of its own, "
+            "because that is the only default that cannot silently widen an existing "
+            "machine."
+        ),
+    )
+    offerable_postures: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Every posture at or below `max_posture`, narrowest first. Sent rather "
+            "than derived, for the same reason `resolved_from` is: a browser that "
+            "re-implements the ceiling is the one place in the system that could offer "
+            "a choice the dispatch API will refuse."
+        ),
+    )
     auto_dispatch: bool = Field(default=False, description="Auto-dispatch on approval (task-074).")
     available_runners: List[str] = Field(
         default_factory=list,
@@ -391,6 +411,10 @@ def _state(project: Project) -> DispatchStateView:
         runner=settings.runner if settings else None,
         group=settings.group if settings else None,
         posture=settings.posture.value if settings else None,
+        max_posture=settings.ceiling.value if settings else None,
+        offerable_postures=(
+            [posture.value for posture in settings.offerable_postures()] if settings else []
+        ),
         auto_dispatch=bool(settings and settings.auto_dispatch),
         available_runners=sorted(config.runners) if config else [],
         available_groups=sorted(config.runner_groups) if config else [],
