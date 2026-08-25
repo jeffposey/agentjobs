@@ -3,7 +3,7 @@ id: task-293
 title: 'Merged branches are never deleted, and branches live too long: fix the finish,
   the checklist, and the guidance'
 created: '2026-08-23T19:18:39.567925Z'
-updated: '2026-08-25T09:50:13.874814Z'
+updated: '2026-08-25T09:53:03.830783Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -706,3 +706,21 @@ log:
     finish_step: started
     branch: fix/task-293-delete-merged-branches
     finish_id: fin_1e28c7b0
+- id: 14
+  ts: '2026-08-25T09:53:03.830628Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-293-delete-merged-branches` into `main` as `39db81ec`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-293
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    dispatch) releases the merge gate (task-021), and run run_cb91f700 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 39db81ecd1d62c80cbf22c496fdc6694f61e758a
+    branch: fix/task-293-delete-merged-branches
+    base: main
