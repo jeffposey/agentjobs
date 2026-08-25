@@ -3,7 +3,7 @@ id: task-293
 title: 'Merged branches are never deleted, and branches live too long: fix the finish,
   the checklist, and the guidance'
 created: '2026-08-23T19:18:39.567925Z'
-updated: '2026-08-25T09:53:22.479743Z'
+updated: '2026-08-25T09:54:14.847203Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -744,3 +744,42 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 16
+  ts: '2026-08-25T09:54:14.846966Z'
+  actor: claude
+  type: note
+  body: "**This task's own finish did not delete its own branch, and that is expected\
+    \ rather than a defect. Worth writing down, because the step table looks like\
+    \ the fix failed.**\n\n`agentjobs finish` runs from the shared clone and imports\
+    \ `agentjobs.dispatch.finish` at process start \u2014 from `main`, which at that\
+    \ moment was the commit *before* this merge. The new step did not exist in the\
+    \ code that was running. So the table it printed ends at `worktree`:\n\n```\n\
+    \  merge      ok         0.3s  --no-ff into main as 39db81ec\n  restart    ok\
+    \         0.5s  ran ...open-agentjobs.ps1 -Force -NoOpen\n  verify     ok    \
+    \     0.0s  http://127.0.0.1:8876 is serving c1876c96, which contains 39db81ec\n\
+    \  close      ok         0.0s  closed completed\n  worktree   ok         0.0s\
+    \  removed C:\\projects\\worktrees\\agentjobs-293\n```\n\n**Any change to the\
+    \ finisher is one cycle behind itself.** The first task finished *after* this\
+    \ one is the first whose branch the finish retires. There is nothing to fix here\
+    \ \u2014 the alternative would be a process that re-imports its own source mid-run,\
+    \ which is worse in every way \u2014 but a reader comparing this table against\
+    \ sc-5 would otherwise conclude the feature does not work. sc-5 is discharged\
+    \ by the sandbox run in entry 12, which drove the merged code end to end on a\
+    \ real clone.\n\n**The branch was then deleted by hand, which is what the checklist\
+    \ this task wrote says to do when you merged outside the finish:**\n\n```\n$ git\
+    \ branch -d fix/task-293-delete-merged-branches\nDeleted branch fix/task-293-delete-merged-branches\
+    \ (was 70f8e93)\n```\n\nAnd `agentjobs branches`, run from the merged `main` immediately\
+    \ before and after, is the whole feature working on this repository:\n\n```\n\
+    before:  3 branch(es) main already contains, with no worktree:\n           fix/task-293-delete-merged-branches\
+    \    task-293  closed completed\n           fix/task-298-run-lock-refusal-names-finish\
+    \  task-298  closed completed\n           fix/task-315-finish-obeys-dispatch-posture\
+    \  task-315  closed completed\nafter:   2 branch(es) ...   (the two that are not\
+    \ mine)\n```\n\n`git branch --merged main` now names only those two. They are\
+    \ left in place deliberately \u2014 they belong to other tasks, tidying the clone\
+    \ is out of this task's scope, and the report exists precisely so a person decides\
+    \ rather than an agent sweeping."
+  data:
+    operation:
+      id: 6b2f9a10-2931-4c02-b0a1-000000000298
+      kind: log_append
+      fingerprint: a16933b52ac11a46c0c316291eee888c
