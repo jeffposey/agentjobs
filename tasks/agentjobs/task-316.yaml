@@ -3,40 +3,13 @@ id: task-316
 title: The epic walk drops the parent's dispatch-time posture, so an epic dispatched
   `autonomous` stops at its first child
 created: '2026-08-25T10:13:25.100260Z'
-updated: '2026-08-25T19:25:43.897987Z'
+updated: '2026-08-25T20:23:26.698042Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Ready for review: `fix/task-316-epic-posture-inheritance`, 2 commits,\
-  \ rebased onto main at 658914f, full gate green on the rebased branch (219.5s, all\
-  \ ten stages, receipt for 54dc6b09). Entry 6 has the full evidence and entry 5 the\
-  \ decision.\n\n**What it does.** A child started by the epic walk now inherits the\
-  \ parent run's posture, so an epic you dispatch `autonomous` runs its children `autonomous`\
-  \ and the supervisor's prompt stops lying to it.\n\n**The one thing worth your judgement**\
-  \ is entry 5's decision: only a posture a *person* chose crosses the parent/child\
-  \ boundary. A posture chosen at the parent's dispatch crosses, and so does one the\
-  \ parent itself inherited (nested epics). A posture written on the parent's *task\
-  \ record* does not \u2014 that field is agent-writable, and crossing would let one\
-  \ agent widen every child in an epic at once, with the ceiling bounding nothing\
-  \ here since ours is already `autonomous`. The project default does not need to;\
-  \ it already reaches them.\n\nThe second call: an inherited posture outranks the\
-  \ child's own `posture:` field. So `dispatch` > `epic` > `task` > `project`. That\
-  \ is the placement to push back on if you disagree \u2014 it means a per-child override\
-  \ can no longer contradict what you chose for the epic.\n\n**Nothing widened.**\
-  \ The ceiling is unchanged and still refuses; the inherited posture is read off\
-  \ the parent's stored `dispatch` entry (a type only the manager may write), never\
-  \ taken from the request, so `on_behalf_of_parent` still gives a caller nothing\
-  \ to forge. `assert_human_clocked` and the attempt budget are untouched.\n\n**New\
-  \ affordance:** `agentjobs dispatch walk --posture` for a walk run from a shell\
-  \ with no parent run to inherit from. The walk also now prints the envelope its\
-  \ children will start at before starting any of them \u2014 that line is the only\
-  \ warning a person gets before authorising a chain of unreviewed merges.\n\n**Verified\
-  \ beyond the suite:** ran a real `dispatch walk` against a throwaway project configured\
-  \ like this one, three times, varying only the parent's `posture_source`. `dispatch`\
-  \ \u2192 children got `autonomous` and prompts saying *releases the merge gate*;\
-  \ `task` and `project` \u2192 children got `auto` and *stops at the merge gate*.\
-  \ Table in entry 6.\n\nNo UI surface changed, so there is nothing to look at in\
-  \ the browser. Approve in the GUI and the scripted finish takes it from there."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 queue_position: 14600
@@ -426,3 +399,25 @@ log:
     outcome: completed
     duration_seconds: 2155.627796
     log_path: C:\Users\jpose\.agentjobs\runs\run_81b81b48
+- id: 10
+  ts: '2026-08-25T20:23:23.639915Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 11
+  ts: '2026-08-25T20:23:26.697855Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-316-epic-posture-inheritance` (54dc6b09).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-316.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_2e8887a5\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-316-epic-posture-inheritance
+    finish_id: fin_2e8887a5
