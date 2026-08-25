@@ -57,6 +57,26 @@ LOCKS_DIRNAME = ".locks"
 LOCK_TIMEOUT_SECONDS = 10.0
 LOCK_POLL_SECONDS = 0.01
 
+KIND_DISPATCH = "dispatch"
+KIND_FINISH = "finish"
+"""What kind of thing holds a run lock.
+
+Two things take it and they are opposites, which is why the lock has to say which
+(task-298). A **dispatch** starts a session that outlives the process that started it,
+so its pid is expected to die while the work goes on and the run record is the only
+authority on whether it is over. A **finish** is the process: it holds the lock for one
+attempt, in the foreground of its own detached invocation, and it never becomes a run --
+it has a finish id, not a run id.
+
+Before this, the refusal a human read was written for the first case and shown for both.
+It called a healthy finish "a dispatch that ... has not yet said which run it became",
+which is a permanent truth about every finish, described as an anomaly -- and then
+offered a server restart, which mid-merge is the most harmful thing available. Observed
+twice on 2026-08-23 and read, reasonably, as the product being broken.
+
+An empty kind means a lock file written before this existed; it is treated as a
+dispatch, which is what every such file was."""
+
 
 class RunLockTimeout(Exception):
     """Another run holds this task's lock, or a dead one left it behind."""
@@ -78,18 +98,29 @@ def locks_root(home: Path) -> Path:
 class LockHolder:
     """Who a lock file says is holding it, as far as the file can be read.
 
-    Both fields are optional because both can be missing from a file written by an
-    older version, and a lock nobody can attribute must still be *describable* -- the
-    refusal a human reads is built from this.
+    Every field is optional because every one of them can be missing from a file written
+    by an older version, and a lock nobody can attribute must still be *describable* --
+    the refusal a human reads is built from this.
+
+    ``kind`` is what stops the refusal guessing. The message must never claim more than
+    the lock knows, so the holder writes down what it is at the moment it takes the lock
+    rather than leaving a reader to infer it from a pid's command line.
     """
 
     pid: Optional[int] = None
     run_id: str = ""
+    kind: str = ""
+    finish_id: str = ""
+    started_at: str = ""
     text: str = ""
 
     @classmethod
     def parse(cls, text: str) -> "LockHolder":
-        """Read ``pid=<n> run=<id>``, tolerating anything else."""
+        """Read ``pid=<n> run=<id> kind=<k> finish=<id> started=<iso>``, tolerating rest.
+
+        Whitespace-separated ``key=value``, so every value written here must be free of
+        spaces -- which an ISO-8601 timestamp is.
+        """
         fields: Dict[str, str] = {}
         for token in text.split():
             key, _, value = token.partition("=")
@@ -100,16 +131,64 @@ class LockHolder:
             pid = int(fields["pid"])
         except (KeyError, ValueError):
             pid = None
-        return cls(pid=pid, run_id=fields.get("run", ""), text=text.strip())
+        return cls(
+            pid=pid,
+            run_id=fields.get("run", ""),
+            kind=fields.get("kind", ""),
+            finish_id=fields.get("finish", ""),
+            started_at=fields.get("started", ""),
+            text=text.strip(),
+        )
+
+    @property
+    def is_finish(self) -> bool:
+        """Whether a scripted finish holds this, rather than a dispatch.
+
+        Only an explicit ``kind=finish`` counts. A lock file that predates the field is
+        a dispatch, because that is the only thing that wrote one.
+        """
+        return self.kind == KIND_FINISH
 
     def describe(self) -> str:
         """The holder as a sentence fragment, for a message a human reads."""
         parts = []
         if self.run_id:
             parts.append(f"run {self.run_id}")
+        if self.finish_id:
+            parts.append(self.finish_id)
         if self.pid is not None:
             parts.append(f"pid {self.pid}")
         return ", ".join(parts) or (self.text or "nothing recorded")
+
+    def since_phrase(self) -> str:
+        """ " started at 13:38:02, 3m ago", or "" when the lock recorded no clock.
+
+        Leading space, so it appends to a sentence fragment or vanishes. The elapsed
+        half is the part that answers the question actually being asked -- four seconds
+        in and four hours in are different situations, and until now they read alike.
+        """
+        if not self.started_at:
+            return ""
+        try:
+            started = datetime.fromisoformat(self.started_at)
+        except ValueError:
+            return ""
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+        clock = started.astimezone().strftime("%H:%M:%S")
+        elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+        return f" started at {clock}, {_elapsed_phrase(elapsed)} ago"
+
+
+def _elapsed_phrase(seconds: float) -> str:
+    """``4s``, ``3m``, ``1h 12m`` -- enough to tell "just now" from "stuck"."""
+    seconds = max(0.0, seconds)
+    if seconds < 90:
+        return f"{int(seconds)}s"
+    minutes = int(seconds // 60)
+    if minutes < 90:
+        return f"{minutes}m"
+    return f"{minutes // 60}h {minutes % 60:02d}m"
 
 
 def process_alive(pid: int) -> bool:
@@ -169,12 +248,17 @@ def stale_lock_reason(home: Path, holder: LockHolder) -> Optional[str]:
        pid is *expected* to be gone while the session runs, and reclaiming on that
        would hand a second agent to a task that already has one. That is the failure
        this lock exists to prevent, and it would be worse than the leak.
-    2. **With no run record to consult, the pid decides.** Two ways to get here: the
-       narrow window between taking the lock and the run existing to be named, and a
-       lock naming a run whose directory is no longer on disk. Falling back rather than
-       refusing is deliberate -- a run with no directory cannot be followed, concluded
-       or cancelled by anything, so refusing on it would be the permanent silent block
-       this whole change exists to remove, merely rarer.
+    2. **With no run record to consult, the pid decides.** Three ways to get here: the
+       narrow window between taking the lock and the run existing to be named, a lock
+       naming a run whose directory is no longer on disk, and a **scripted finish**,
+       which never names a run at all. Falling back rather than refusing is deliberate
+       -- a run with no directory cannot be followed, concluded or cancelled by
+       anything, so refusing on it would be the permanent silent block this whole change
+       exists to remove, merely rarer.
+
+       For a finish the fallback is not a fallback but the right rule outright: the
+       recorded pid *is* the finish, running in the foreground of its own process, so
+       its absence is proof the attempt is over rather than an inference about one.
 
     A live pid, or a file too mangled to read a pid out of, is left alone. "I cannot
     tell" refuses, which is the direction that cannot lose work.
@@ -192,6 +276,9 @@ def stale_lock_reason(home: Path, holder: LockHolder) -> Optional[str]:
                 return None
             return f"its run {holder.run_id} is {record.outcome or record.status}"
     if holder.pid is not None and not process_alive(holder.pid):
+        if holder.is_finish:
+            named = f" {holder.finish_id}" if holder.finish_id else ""
+            return f"the scripted finish{named} that took it (pid {holder.pid}) is gone"
         missing = (
             f"and there is no record of run {holder.run_id}"
             if holder.run_id
@@ -222,6 +309,9 @@ class RunLock:
     task_id: str
     path: Path
     run_id: str = ""
+    kind: str = KIND_DISPATCH
+    finish_id: str = ""
+    started_at: str = ""
 
     def adopt(self, run_id: str) -> None:
         """Name the run this lock is held for, once there is a run to name.
@@ -234,8 +324,31 @@ class RunLock:
         could ask.
         """
         self.run_id = run_id
+        self._rewrite()
+
+    def adopt_finish(self, finish_id: str) -> None:
+        """Name the attempt this lock is held for, once there is a finish id to name.
+
+        The finish's counterpart to ``adopt``, and it exists for the same reason: the
+        lock is taken *before* the finish directory is created, because taking it is
+        what decides whether this attempt happens at all. Until this is called the
+        holder is attributable only as "a scripted finish", which is already the fact
+        the old refusal got wrong.
+        """
+        self.finish_id = finish_id
+        self._rewrite()
+
+    def _rewrite(self) -> None:
         try:
-            self.path.write_text(_holder_text(run_id), encoding="ascii")
+            self.path.write_text(
+                _holder_text(
+                    self.run_id,
+                    kind=self.kind,
+                    finish_id=self.finish_id,
+                    started_at=self.started_at,
+                ),
+                encoding="ascii",
+            )
         except OSError:  # pragma: no cover - the lock was cleared underneath us
             pass
 
@@ -259,9 +372,22 @@ class RunLock:
             pass
 
 
-def _holder_text(run_id: str) -> str:
-    """What a lock file says about who holds it."""
-    return f"pid={os.getpid()} run={run_id}"
+def _holder_text(
+    run_id: str, *, kind: str = KIND_DISPATCH, finish_id: str = "", started_at: str = ""
+) -> str:
+    """What a lock file says about who holds it.
+
+    Whitespace-separated ``key=value`` pairs, read back by ``LockHolder.parse``. Fields
+    are appended rather than reordered: an older reader takes what it recognises and
+    ignores the rest, which is what makes a lock written by a newer process readable by
+    a server that has not restarted yet.
+    """
+    parts = [f"pid={os.getpid()}", f"run={run_id}", f"kind={kind or KIND_DISPATCH}"]
+    if finish_id:
+        parts.append(f"finish={finish_id}")
+    if started_at:
+        parts.append(f"started={started_at}")
+    return " ".join(parts)
 
 
 def read_lock_holder(path: Path) -> Optional[LockHolder]:
@@ -276,7 +402,12 @@ def read_lock_holder(path: Path) -> Optional[LockHolder]:
 
 
 def acquire_run_lock(
-    home: Path, task_id: str, *, run_id: str = "", timeout: float = LOCK_TIMEOUT_SECONDS
+    home: Path,
+    task_id: str,
+    *,
+    run_id: str = "",
+    kind: str = KIND_DISPATCH,
+    timeout: float = LOCK_TIMEOUT_SECONDS,
 ) -> RunLock:
     """Take the run lock for one task, or raise saying who is holding it and why.
 
@@ -304,6 +435,7 @@ def acquire_run_lock(
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{task_id}.lock"
     deadline = time.monotonic() + timeout
+    started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     reclaimed = False
     while True:
         try:
@@ -316,10 +448,13 @@ def acquire_run_lock(
         else:
             # Written and closed immediately. The claim is the file, not the handle.
             try:
-                os.write(handle, _holder_text(run_id).encode("ascii"))
+                text = _holder_text(run_id, kind=kind, started_at=started_at)
+                os.write(handle, text.encode("ascii"))
             finally:
                 os.close(handle)
-            return RunLock(task_id=task_id, path=path, run_id=run_id)
+            return RunLock(
+                task_id=task_id, path=path, run_id=run_id, kind=kind, started_at=started_at
+            )
 
         holder = read_lock_holder(path)
         if holder is not None and not reclaimed:
@@ -352,16 +487,72 @@ def _lock_refusal(home: Path, task_id: str, path: Path, holder: Optional[LockHol
             f"{task_id} could not take its run lock, and the lock was gone by the time "
             "the refusal was written. Try again."
         )
+    if holder.is_finish:
+        return _finish_refusal(task_id, holder)
     if holder.run_id:
         return (
             f"{task_id} is held by run {holder.run_id}, which has not reported that it "
             "finished. Cancel that run and this task is dispatchable again; it appears "
-            "under this task's runs."
+            "under this task's runs. If it is genuinely stuck, restarting AgentJobs "
+            "settles runs that were live when it last stopped and clears their locks."
+        )
+    if holder.pid is not None and process_alive(holder.pid):
+        return (
+            f"{task_id} is held by a dispatch that started ({holder.describe()}) and has "
+            "not named its run yet -- that window is a moment wide, so try again shortly, "
+            "and the run will be cancellable under this task once it appears."
         )
     return (
-        f"{task_id} is held by a dispatch that started ({holder.describe()}) and has not "
-        "yet said which run it became, so it cannot be shown to be over. If it is "
-        "genuinely stuck, restarting AgentJobs clears locks whose runs have ended."
+        f"{task_id} is held by a dispatch ({holder.describe()}) that cannot be shown to "
+        "be over. If it is genuinely stuck, restarting AgentJobs clears locks whose runs "
+        "have ended."
+    )
+
+
+def _finish_refusal(task_id: str, holder: LockHolder) -> str:
+    """What to tell someone who clicked Dispatch while a scripted finish holds the task.
+
+    Three things this has to do that the old single message could not (task-298).
+
+    **Name the holder as what it is.** A finish is not a dispatch and never becomes a
+    run, so "has not yet said which run it became" described a permanent, healthy state
+    as an anomaly, for every finish, forever.
+
+    **Say what it means for the reader**, which is that they do not want to dispatch:
+    the merge they were about to ask for is already running. Turning on ``finish.enabled``
+    quietly changes the workflow from approve-then-dispatch to approve-and-you-are-done,
+    and this refusal is where most people will meet that change.
+
+    **Withhold the restart remedy while the finish is alive.** It is sound advice for a
+    lock outliving a dead run and it is the single most harmful thing on offer to
+    somebody three minutes into a gate. It stays for the case it was written for, above
+    and below, and it is not mentioned here at all -- naming it even to warn against it
+    puts the idea in front of a reader who is already looking for a way out.
+    """
+    named = f" ({holder.finish_id})" if holder.finish_id else ""
+    when = holder.since_phrase()
+    # A finish holds its lock in the foreground of its own process, so an absent pid is
+    # proof the attempt is over -- and an unreadable one is the "cannot tell" case, which
+    # refuses without claiming the merge is under way.
+    if holder.pid is None:
+        return (
+            f"{task_id} is held by a scripted finish{named}{when} which has not reported "
+            "that it is over, and the lock does not say which process took it. Approving "
+            "a task on this machine runs the merge itself, so there is nothing to "
+            "dispatch: wait for the task to close or for the ball to come back."
+        )
+    if process_alive(holder.pid):
+        return (
+            f"{task_id} is held by a scripted finish{named}{when}, which is merging it "
+            "now. Approving a task on this machine runs the merge itself -- rebase, the "
+            "full gate, a --no-ff merge, and the rebuild that puts it in front of you -- "
+            "so there is nothing to dispatch. When it lands the task closes; if it stops, "
+            "the ball comes back with the step it stopped at written on the record."
+        )
+    return (
+        f"{task_id} is held by a scripted finish{named}{when} whose process "
+        f"(pid {holder.pid}) is gone, so nothing is merging. Restarting AgentJobs clears "
+        "locks whose holders have ended."
     )
 
 
