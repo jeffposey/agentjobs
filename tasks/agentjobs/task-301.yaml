@@ -3,7 +3,7 @@ id: task-301
 title: "Measure what a session actually loads before its first thought \u2014 harness\
   \ prompt, MCP tool declarations, @-chain, memory \u2014 for Claude and for Codex"
 created: '2026-08-23T21:50:13.685056Z'
-updated: '2026-08-25T18:49:21.250641Z'
+updated: '2026-08-25T18:53:01.164398Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -521,3 +521,19 @@ log:
     finish_step: started
     branch: docs/task-301-context-budget
     finish_id: fin_cf0640e0
+- id: 15
+  ts: '2026-08-25T18:53:01.164203Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `docs/task-301-context-budget` into `main` as `5748e7fb`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\aj-301
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 5748e7fb77efd8898ef0ece01f6cfbba3fd0f495
+    branch: docs/task-301-context-budget
+    base: main
