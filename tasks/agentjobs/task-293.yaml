@@ -3,10 +3,11 @@ id: task-293
 title: 'Merged branches are never deleted, and branches live too long: fix the finish,
   the checklist, and the guidance'
 created: '2026-08-23T19:18:39.567925Z'
-updated: '2026-08-23T21:32:01.773831Z'
-lifecycle: ready
+updated: '2026-08-25T09:48:33.459251Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 queue_position: 593
@@ -18,6 +19,7 @@ tags:
 - docs
 - agent-dx
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: 'ENGINEERING.md and AGENTS.md both say to delete a local branch once it
@@ -278,49 +280,51 @@ acceptance:
     worktree, and a test proves both that it happens on a successful finish and that
     an unmerged branch is refused rather than forced.
   verify: src/agentjobs/dispatch/finish.py and its tests
-  status: pending
+  status: met
 - id: sc-2
   text: What happens when the delete is refused is decided deliberately -- escalate
     or report -- and the reasoning is recorded as a decision on this task, not just
     implemented.
   verify: this task's log
-  status: pending
+  status: met
 - id: sc-3
   text: ALLAGENTS.md step 6 and its worktree section both name branch deletion alongside
     worktree removal, with the -d-not--D reasoning stated.
   verify: ALLAGENTS.md
-  status: pending
+  status: met
 - id: sc-4
   text: Whether anything should enforce the rule beyond those two fixes is answered,
     either by building a read-only report or by a recorded decision that nothing should.
   verify: this task's log, and any new surface
-  status: pending
+  status: met
 - id: sc-5
   text: After one full approve-to-merge cycle run through the finish, `git branch
     --merged main` lists no branch for the closed task.
   verify: demonstrated live on a real task, not asserted
-  status: pending
+  status: met
 - id: sc-6
   text: 'ENGINEERING.md carries short, argued guidance on branch lifetime: rebase
     onto main before handing off for review, and merge promptly once approved. ALLAGENTS.md''s
     lifecycle references it at the step where it applies.'
   verify: ENGINEERING.md and ALLAGENTS.md
-  status: pending
+  status: met
 - id: sc-7
   text: The guidance explicitly says bigger tasks are fine and names the real ceiling
     -- one session's context, and independently checkable acceptance -- rather than
     implying work should be split to keep branches short.
   verify: the guidance text
-  status: pending
+  status: met
 - id: sc-8
   text: The distinction between branch lifetime and task size is stated with the evidence
     for it, so a later reader does not resolve the two goals by shrinking tasks.
   verify: the guidance text
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-293-delete-merged-branches
+  status: active
 log:
 - id: 1
   ts: '2026-08-23T19:18:40.077495Z'
@@ -437,3 +441,187 @@ log:
       id: 371f141a-3d56-443e-86a2-33a50da87c22
       kind: log_append
       fingerprint: c2d8ba95d3e0ceb80f8bf378a443b82c
+- id: 5
+  ts: '2026-08-25T09:12:37.838267Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. They chose
+    posture `autonomous` for this run, above this project''s `auto`. No extra instruction
+    was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 6
+  ts: '2026-08-25T09:12:38.270751Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 7
+  ts: '2026-08-25T09:12:41.181954Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_cb91f700
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: dispatch
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 5
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - 'You are the agent `claude` working task `task-293` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-293-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_cb91f700. Posture `autonomous`
+      releases the merge gate: this run merges its own work with no human review.
+      Record the evidence on the task first, then run `agentjobs finish task-293 --project
+      agentjobs --posture-release` from C:\projects\agentjobs. That rebases, runs
+      the full gate, and merges only on a green one -- it stops and hands the ball
+      back if anything fails. Do not merge by hand. Never push: this project is configured
+      `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 05d3274
+    session_id: 92c8c252
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 8
+  ts: '2026-08-25T09:45:19.307480Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 6b2f9a10-2931-4c02-b0a1-000000000293
+      kind: update_content
+      fingerprint: d8d1f1306157bec26225870427f6c863
+- id: 9
+  ts: '2026-08-25T09:45:39.806386Z'
+  actor: claude
+  type: decision
+  body: "**sc-2: a refused delete is reported, not escalated.** The finish carries\
+    \ on and writes the refusal into its step table.\n\nThe reasoning is about where\
+    \ in the sequence this sits. By the time `delete_branch` runs, the merge has landed,\
+    \ the rebuild and restart have happened, verification has proved the running server\
+    \ is serving the merge, and the task is already closed `completed`. An escalation\
+    \ from there does two things: it hands the ball back to an agent, and \u2014 where\
+    \ `auto_dispatch` is on \u2014 it starts a whole session. Spending a session to\
+    \ delete a ref is a worse trade than leaving the ref, by a wide margin.\n\nIt\
+    \ is also the trade `remove_worktree` already makes, three lines above, in the\
+    \ same position and for the same reason: *\"A failure here is litter, not a half-finished\
+    \ merge... waking a session to delete a directory would cost more than the directory\
+    \ does.\"* Two adjacent cleanup steps answering the same question differently\
+    \ would be the thing a later reader could not account for.\n\n*Rejected: escalating.*\
+    \ The argument for it is that a refusal means something is genuinely wrong \u2014\
+    \ `-d` only refuses a branch `main` does not contain, and the finish just merged\
+    \ it. That is real, and it is why the refusal is written down verbatim with git's\
+    \ own stderr rather than swallowed. But the failure it would be reporting is a\
+    \ merge that did not land, and **the merge step already checks that directly and\
+    \ escalates itself** (`already_merged`, `merge_failed`, `base_moved`). A refusal\
+    \ this late would be a second, weaker detector for something the sequence has\
+    \ already established, and paying a session for it every time it fires the other\
+    \ way \u2014 a transient git state, a lock, a filesystem quirk \u2014 is the cost.\n\
+    \n**The refusal is still made unmistakable in two places.** The step's detail\
+    \ says `refused: <git's stderr> -- left in place, never forced`, and `agentjobs\
+    \ branches` will list the branch afterwards as one `main` contains with no worktree.\
+    \ So the information survives the decision not to escalate on it.\n\n**One thing\
+    \ the ordering had to buy explicitly.** A branch checked out in a worktree cannot\
+    \ be deleted, so this runs after `remove_worktree` \u2014 but it does not *trust*\
+    \ `remove_worktree`, which returns `ok` even when the removal failed. It re-reads\
+    \ `git worktree list --porcelain` and, if the branch is still held, says so in\
+    \ those words. Without that, a failed worktree removal would arrive here as a\
+    \ git refusal phrased in terms of checkout, which reads exactly like the unmerged\
+    \ case and means something completely different. The task asked for the ordering\
+    \ to be explicit rather than incidental; asking git rather than assuming the previous\
+    \ step is what makes it so."
+  data:
+    operation:
+      id: 6b2f9a10-2931-4c02-b0a1-000000000294
+      kind: log_append
+      fingerprint: 1ed4c8b6a13f20fbd92d3df406d3c965
+- id: 10
+  ts: '2026-08-25T09:45:59.799829Z'
+  actor: claude
+  type: decision
+  body: "**sc-4: something does enforce it, and what it does is report. `agentjobs\
+    \ branches` is built.**\n\nThe task offered three shapes and I took the middle\
+    \ one, for the reason it gave: the finish now retires the branch it merged, but\
+    \ **a finish only ever retires branches it merged itself**. Three cases stay outside\
+    \ it \u2014 a branch a person merged by hand (which is where two of the six on\
+    \ 2026-08-23 came from), a branch whose finish escalated after the merge and was\
+    \ never retried, and a branch predating this fix. In every one of those, nothing\
+    \ says the branch is there. That is the same failure mode as before, just narrower,\
+    \ and it is worth a surface.\n\n**What it does.** Lists every local branch in\
+    \ two groups: the ones `main` already contains with no worktree, each with the\
+    \ task that claims it and that task's state, and the ones still in flight with\
+    \ **how long each has really been open**. It exits 0 either way.\n\n**What it\
+    \ deliberately does not do: delete anything.** Several agents work this clone\
+    \ and none of them can see the others. The information that separates \"abandoned\"\
+    \ from \"somebody is mid-task on this\" \u2014 is a session alive, does its author\
+    \ mean to come back \u2014 is not in git, so any automatic sweep is guessing,\
+    \ and a sweep that guesses wrong once costs somebody a day. Reporting costs a\
+    \ person one glance and one `git branch -d`. That is also this repository's existing\
+    \ habit: `queue check` reports, `dispatch reap` refuses rather than forcing, `queue\
+    \ repair` states everything it guessed.\n\n*Rejected: putting it in `scripts/check.py`.*\
+    \ The task already says why and it is right \u2014 the gate runs before a commit\
+    \ and branch cleanup happens after a merge, so the gate could only ever complain\
+    \ about the *previous* task's litter, at the moment you are least able to act\
+    \ on it.\n\n*Rejected: a `doctor` command.* Same content, a name that promises\
+    \ more than one report, and the first thing anyone would add to a \"doctor\" is\
+    \ a `--fix`. Naming it `branches` keeps the scope honest.\n\n*Rejected: doing\
+    \ nothing beyond the two fixes.* Defensible \u2014 a leftover branch harms nothing\
+    \ \u2014 but the whole finding is that the rule was written down twice and executed\
+    \ nowhere, and closing that with two more places it is written down and one place\
+    \ it executes would leave the hand-merge path exactly as invisible as it was.\n\
+    \n**It found real litter on its first run**, before this branch merged: `fix/task-298-run-lock-refusal-names-finish`\
+    \ and `fix/task-315-finish-obeys-dispatch-posture`, both closed `completed`, both\
+    \ contained in `main`, both still sitting there. Neither is deleted \u2014 this\
+    \ task is not the one that tidies the clone, and the point of the report is that\
+    \ a person decides.\n\n**One detail worth keeping.** Age comes from the *author*\
+    \ date of the oldest commit `main` does not contain, not the committer date. A\
+    \ rebase rewrites committer dates and preserves author dates, so `%ct` would report\
+    \ a branch rebased an hour ago as an hour old \u2014 and that number is precisely\
+    \ what the branch-lifetime guidance turns on. There is a test that rebases a nine-day-old\
+    \ branch and checks the figure survives."
+  data:
+    operation:
+      id: 6b2f9a10-2931-4c02-b0a1-000000000295
+      kind: log_append
+      fingerprint: 231edd72a6efd8a3de96160eeee81186
+- id: 11
+  ts: '2026-08-25T09:48:33.458952Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 6b2f9a10-2931-4c02-b0a1-000000000296
+      kind: update_content
+      fingerprint: f18ee66a5f306dff1d98dc92217be321
