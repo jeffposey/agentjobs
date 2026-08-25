@@ -3,15 +3,10 @@ id: task-316
 title: The epic walk drops the parent's dispatch-time posture, so an epic dispatched
   `autonomous` stops at its first child
 created: '2026-08-25T10:13:25.100260Z'
-updated: '2026-08-25T21:58:53.433809Z'
-lifecycle: active
-ball: human
-ball_reason: input
-ball_prompt: Restore or restart the Codex local execution harness, then dispatch/resume
-  an agent to inspect `fix/task-316-epic-posture-inheritance`, rebase it onto current
-  `main`, and run the full gate. The branch was previously implemented and green,
-  but its automated finish stopped before merge because main moved. Do not merge in
-  this auto-posture run; after fresh verification, hand off for review.
+updated: '2026-08-25T23:40:18.468730Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: high
 queue_position: 14600
@@ -23,7 +18,6 @@ tags:
 effort: "small \u2014 one field to pass, plus a decision about which sources may cross\
   \ the parent/child boundary, plus tests"
 assignment:
-  owner: codex
   eligible: []
 spec:
   summary: "`walk_epic.start_child` builds its `DispatchRequest` without a posture,\
@@ -781,3 +775,42 @@ log:
     outcome: finished_without_handoff
     duration_seconds: 3602.370637
     log_path: C:\Users\jpose\.agentjobs\runs\run_9a73f772
+- id: 31
+  ts: '2026-08-25T23:38:40.821730Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'New instructions from Jeff Posey:
+
+
+    Back to Claude, ChatGPT Codex could not manage to resume the task.'
+  data:
+    ball: agent
+    ball_reason: redirect
+- id: 32
+  ts: '2026-08-25T23:38:52.901078Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. They chose
+    posture `autonomous` for this run, above this project''s `auto`. No extra instruction
+    was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 33
+  ts: '2026-08-25T23:40:18.468279Z'
+  actor: claude
+  type: transition
+  body: 'Released back to the pool at Jeff''s request so this can be dispatched fresh
+    to Claude. Codex could not resume it. The branch `fix/task-316-epic-posture-inheritance`
+    already carries an implemented, previously-green change; its scripted finish stopped
+    before the merge because `main` moved. Whoever picks this up: take the existing
+    branch rather than starting over, rebase it onto current `main`, and run the full
+    unqualified `scripts/check.py` before doing anything else.'
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: 3f1c9a52-7d84-4e6b-9a3d-1b2c4e5f6071
+      kind: release
+      fingerprint: 7cb3f7b3e7acd16b1630fe2315794b9a
