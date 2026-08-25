@@ -3,16 +3,11 @@ id: task-301
 title: "Measure what a session actually loads before its first thought \u2014 harness\
   \ prompt, MCP tool declarations, @-chain, memory \u2014 for Claude and for Codex"
 created: '2026-08-23T21:50:13.685056Z'
-updated: '2026-08-25T18:53:01.164398Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-25T18:53:22.195199Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 793
 category: meta
 tags:
 - big-dawg-audit
@@ -20,7 +15,6 @@ tags:
 - measurement
 effort: half a day, mostly instrumentation; no edits to the bundle
 assignment:
-  owner: claude
   eligible: []
 parent: task-269
 posture: autonomous
@@ -127,7 +121,8 @@ dependencies: []
 links: []
 branches:
 - name: docs/task-301-context-budget
-  status: active
+  status: merged
+  merged_at: '2026-08-25T18:53:22.148878Z'
 log:
 - id: 1
   ts: '2026-08-23T21:50:14.143863Z'
@@ -537,3 +532,23 @@ log:
     merge_commit: 5748e7fb77efd8898ef0ece01f6cfbba3fd0f495
     branch: docs/task-301-context-budget
     base: main
+- id: 16
+  ts: '2026-08-25T18:53:22.195021Z'
+  actor: finisher
+  type: transition
+  body: "Merged `docs/task-301-context-budget` into `main` as `5748e7fb` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). Approved\
+    \ by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         1.7s  docs/task-301-context-budget\
+    \ at 647f2b74 in C:\\projects\\worktrees\\aj-301\n  rebase     ok         0.2s\
+    \  docs/task-301-context-budget onto main: 647f2b74 -> 9f84c7da\n  gate      \
+    \ ok       218.9s  scripts/check.py green\n  merge      ok         0.5s  --no-ff\
+    \ into main as 5748e7fb77efd8898ef0ece01f6cfbba3fd0f495\n  rebuild    skipped\
+    \    0.0s  the merge touched no frontend/ path\n  restart    ok         0.9s \
+    \ ran powershell -NoProfile -ExecutionPolicy Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -Force -NoOpen\n  verify     ok         0.0s  http://127.0.0.1:8876 is serving\
+    \ ff0bc213, which contains the merge 5748e7fb, from C:\\projects\\agentjobs (started\
+    \ 2026-08-25T18:53:06.928695+00:00)\n```"
+  data:
+    lifecycle: closed
+    outcome: completed
