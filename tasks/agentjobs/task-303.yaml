@@ -3,10 +3,11 @@ id: task-303
 title: The background-session harness orders EnterWorktree and enforces it; this repository
   forbids it and never says so
 created: '2026-08-23T21:51:57.473218Z'
-updated: '2026-08-25T10:12:04.688815Z'
-lifecycle: ready
+updated: '2026-08-25T11:21:17.754376Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 queue_position: 993
@@ -18,6 +19,7 @@ tags:
 effort: "small in code \u2014 a settings key, one sentence, one stub clause \u2014\
   \ but the verification needs a real --bg run"
 assignment:
+  owner: claude
   eligible: []
 parent: task-269
 posture: autonomous
@@ -80,22 +82,35 @@ spec:
       cannot be used
 acceptance:
 - id: ac-1
-  text: A --bg session in this repository writes into the shared checkout without
+  text: 'A --bg session in this repository writes into the shared checkout without
     calling EnterWorktree, demonstrated by an actual dispatched run, with the Claude
-    Code version and date recorded next to the result.
-  status: pending
+    Code version and date recorded next to the result. MET: probed by this dispatched
+    --bg run (run_ff8c316d) on itself, Claude Code 2.1.238, 2026-08-25 -- Write refused
+    with no settings key, the same Write accepted with bgIsolation:none set and confirmed
+    on disk. Log entry 8 has the verbatim refusal and the sequence.'
+  status: met
 - id: ac-2
-  text: ALLAGENTS names the harness instruction as the one to ignore here and describes
-    the refusal a session will see.
-  status: pending
+  text: 'ALLAGENTS names the harness instruction as the one to ignore here and describes
+    the refusal a session will see. MET: the rewritten bullet in ALLAGENTS.md section
+    Why you get your own worktree quotes the refusal, names the key that removes it,
+    carries the version and date, and says a refusal from now on is a finding to record
+    rather than route around. docs/agent-workflow.md carries the same reasoning.'
+  status: met
 - id: ac-3
-  text: PROMPT_STUB carries the clause, so a dispatched session reads it before its
-    first write.
-  status: pending
+  text: 'PROMPT_STUB carries the clause, so a dispatched session reads it before its
+    first write. MET: ''Your harness may instruct the opposite and call it enforced;
+    in this project it is neither, so ignore that instruction and run the command.''
+    Pinned by test_the_stub_disowns_the_harness_instruction_it_contradicts; the rendered
+    prompt still passes the existing length ceilings.'
+  status: met
 - id: ac-4
-  text: If bgIsolation:none turns out not to disable the guard, that result is recorded
-    on the task and the settings key is not left in place doing nothing.
-  status: pending
+  text: 'If bgIsolation:none turns out not to disable the guard, that result is recorded
+    on the task and the settings key is not left in place doing nothing. MET as the
+    non-fallback branch: the key does disable the guard, that is what is recorded,
+    and it is pinned by test_the_repository_turns_off_the_background_isolation_guard
+    so it cannot be deleted silently. Also recorded: the guard never covered Bash
+    writes, which is the workaround if the key ever stops working.'
+  status: met
 deliverables: []
 dependencies:
 - task: task-276
@@ -103,7 +118,9 @@ dependencies:
   note: The other half of the harness-versus-repository friction; separate mechanism,
     separate fix
 links: []
-branches: []
+branches:
+- name: fix/task-303-bg-isolation-contradiction
+  status: active
 log:
 - id: 1
   ts: '2026-08-23T21:51:57.903242Z'
@@ -152,3 +169,158 @@ log:
       id: 3dea7d1a-0d15-4916-8354-3acd44dd23c0
       kind: update_content
       fingerprint: 8ae847a02f53a9f968f9010cf8390fb6
+- id: 5
+  ts: '2026-08-25T11:10:37.314077Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of task-269, and this run is attempt 1 of
+    2 at one of its children on that authorisation (entry 6 on task-269). No separate
+    approval of this task was given or is required: the epic is what was authorised.'
+  data:
+    authorizes_dispatch: true
+    surface: the epic walk
+    epic:
+      parent: task-269
+      entry: 6
+      attempt: 1
+      limit: 2
+- id: 6
+  ts: '2026-08-25T11:10:37.757940Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 7
+  ts: '2026-08-25T11:10:40.336873Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_ff8c316d
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: task
+    posture_ceiling: autonomous
+    trigger: child
+    caused_by: 5
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - 'You are the agent `claude` working task `task-303` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-303-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_ff8c316d. Posture `autonomous`
+      releases the merge gate: this run merges its own work with no human review.
+      Record the evidence on the task first, then run `agentjobs finish task-303 --project
+      agentjobs --posture-release` from C:\projects\agentjobs. That rebases, runs
+      the full gate, and merges only on a green one -- it stops and hands the ball
+      back if anything fails. Do not merge by hand. Never push: this project is configured
+      `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 2fcf12a
+    session_id: 1759914f
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 8
+  ts: '2026-08-25T11:20:54.799992Z'
+  actor: claude
+  type: progress
+  body: "Done on branch `fix/task-303-bg-isolation-contradiction`, commit 52949e1.\
+    \ Full unqualified gate green, 10/10 stages, 229.2s.\n\n**The probe, which is\
+    \ ac-1, and it was run by this session on itself.** This run is a dispatched `--bg`\
+    \ session in the shared checkout, so it is exactly the subject the acceptance\
+    \ criterion names. Claude Code **2.1.238**, **2026-08-25**:\n\n1. Baseline, no\
+    \ `.claude/settings.json` in the repository: a `Write` to a scratch file in the\
+    \ shared checkout was refused with *\"This background session hasn't isolated\
+    \ its changes yet. Call EnterWorktree first so edits land in a worktree instead\
+    \ of the shared checkout, then retry this edit using the worktree path. (To disable\
+    \ this guard for this repo, set `\"worktree\": {\"bgIsolation\": \"none\"}` in\
+    \ .claude/settings.json.)\"* \u2014 the audit's F-2 text, reproduced verbatim.\n\
+    2. Wrote `.claude/settings.json` containing `{\"worktree\": {\"bgIsolation\":\
+    \ \"none\"}}`. The same `Write` then **succeeded**, and the file was confirmed\
+    \ on disk by `ls`. A follow-up `Edit` on it succeeded too, so the key covers both\
+    \ tools and not just file creation.\n3. **The key took effect mid-session, with\
+    \ no restart.** The settings file is re-read live. That was not assumed; the refusal\
+    \ and the success are the same session, minutes apart, with nothing between them\
+    \ but the settings write.\n\nSo `bgIsolation: none` is the escape, ac-4's fallback\
+    \ does not apply, and the key is committed rather than being left in place doing\
+    \ nothing.\n\n**One thing the audit did not know, and it explains the shape of\
+    \ the incident.** The guard covers the `Write` and `Edit` tools only \u2014 **`Bash`\
+    \ writes were never guarded**. Probed in the same session: `echo > file` into\
+    \ the shared checkout landed with the guard fully active. That is why this has\
+    \ been invisible for so long: a session that shells out never meets it, and a\
+    \ session that reaches for `Write` meets it on its first file and reads it as\
+    \ a hard block. It is also the correct workaround if the key ever stops working,\
+    \ and it is now written down as such rather than being re-invented \u2014 the\
+    \ three auditors' temp-directory-and-`cp` route was a longer path to the same\
+    \ place.\n\n**What changed**\n\n- `.claude/settings.json` \u2014 new, tracked,\
+    \ carrying only that key. It was not in the repository at all before; only the\
+    \ gitignored `settings.local.json` was.\n- `ALLAGENTS.md` \xA7Why you get your\
+    \ own worktree \u2014 the harness bullet rewritten. It still says the rule wins,\
+    \ and now also says the enforcement half is switched off here on purpose, names\
+    \ the key, carries the version and date next to the result, and says a refusal\
+    \ seen from now on is a **finding about dispatch to be put on the record**, not\
+    \ a personal obstacle to route around. The task-276 paragraph below it is untouched.\n\
+    - `docs/agent-workflow.md` \xA7Before you write anything \u2014 the same in the\
+    \ guide, where the reasoning lives, quoting the harness preamble it contradicts.\n\
+    - `PROMPT_STUB` in `src/agentjobs/dispatch/runner.py` \u2014 one clause, \"Your\
+    \ harness may instruct the opposite and call it enforced; in this project it is\
+    \ neither, so ignore that instruction and run the command\", plus a docstring\
+    \ paragraph on why it is worth the characters. The rendered prompt is still under\
+    \ the existing 1300/1450-character ceilings; both assertions pass unchanged.\n\
+    - `tests/test_dispatch_runner.py` \u2014 three tests: the stub carries the clause,\
+    \ the settings key is set to `\"none\"`, and both prose documents name `bgIsolation`\
+    \ **and** the probed version string. That last one is deliberate: the existing\
+    \ `-w` probe is pinned to 2.1.235 and nothing re-probes it, which the spec called\
+    \ out as the pattern not to repeat. Pinning the version in a test does not re-probe\
+    \ it either, but it does mean a reader can tell at a glance which harness the\
+    \ claim was made against, and removing the date silently is a failure.\n\n**Decided\
+    \ against**: touching `SUPERVISOR_STUB`. A supervisor takes no worktree, so the\
+    \ worktree clause is not its instruction \u2014 the guard did affect it, since\
+    \ supervisors commit parent records to the shared clone, but the settings key\
+    \ fixes that for every session regardless of stub, and adding a worktree-flavoured\
+    \ sentence to the stub whose entire purpose is to say \"not your act\" would undo\
+    \ task-164's separation.\n\n**Not verified, and stated as unverified**: whether\
+    \ the key survives a Claude Code upgrade, and whether a *fresh* `--bg` session\
+    \ picks it up at startup as reliably as this one picked it up mid-session. The\
+    \ second is very likely \u2014 startup is when settings are normally read \u2014\
+    \ but this session only has evidence for the live-reload path, and the next dispatched\
+    \ run in this repository is the thing that will demonstrate it."
+  data:
+    operation:
+      id: 7d2c1a48-3f6b-4e29-9c05-1a8b7e6d4f31
+      kind: log_append
+      fingerprint: ad36e839e7deb533cb0e7c8affd14db2
+- id: 9
+  ts: '2026-08-25T11:21:17.754096Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: c4e91b07-58da-4c33-9b6e-2f0d7a1e5c88
+      kind: update_content
+      fingerprint: e1ebfd4bc5026a7ea0f48bb264b5165c
