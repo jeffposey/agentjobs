@@ -2,7 +2,7 @@ schema: 2
 id: task-308
 title: Posture settable on the task record, and whether a task may raise its own
 created: '2026-08-23T22:48:30.766265Z'
-updated: '2026-08-25T06:59:56.277100Z'
+updated: '2026-08-25T07:00:51.754642Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -983,3 +983,13 @@ log:
       id: e04d7a91-5c32-4b8e-a716-2f9c8d0b3e65
       kind: close
       fingerprint: 695abcc2a18dadb05a6ce28711485a29
+- id: 29
+  ts: '2026-08-25T07:00:51.754381Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 25
+  data:
+    run_id: run_0f637826
+    outcome: completed
+    duration_seconds: 648.237299
+    log_path: C:\Users\jpose\.agentjobs\runs\run_0f637826
