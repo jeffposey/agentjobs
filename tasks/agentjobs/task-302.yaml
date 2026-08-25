@@ -3,7 +3,7 @@ id: task-302
 title: "Three statements in the always-loaded bundle contradict the code \u2014 fix\
   \ them, and collapse the double-numbered merge gate"
 created: '2026-08-23T21:50:44.787308Z'
-updated: '2026-08-25T11:05:39.074679Z'
+updated: '2026-08-25T11:07:12.660144Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -456,3 +456,17 @@ log:
       id: 5f2a6cd1-8b47-4e93-a0f6-7d18c4b05e29
       kind: log_append
       fingerprint: c445fbf6d5a37a2a7dd5f490c5c51d3b
+- id: 13
+  ts: '2026-08-25T11:07:12.659938Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `docs/task-302-bundle-contradictions` (f4566676).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-302.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_2fa8a4fe\gate.log.'
+  data:
+    finish_step: started
+    branch: docs/task-302-bundle-contradictions
+    finish_id: fin_2fa8a4fe
