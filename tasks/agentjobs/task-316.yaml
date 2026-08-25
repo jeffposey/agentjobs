@@ -3,7 +3,7 @@ id: task-316
 title: The epic walk drops the parent's dispatch-time posture, so an epic dispatched
   `autonomous` stops at its first child
 created: '2026-08-25T10:13:25.100260Z'
-updated: '2026-08-25T20:58:23.523036Z'
+updated: '2026-08-25T20:58:33.055860Z'
 lifecycle: active
 ball: human
 ball_reason: input
@@ -703,3 +703,13 @@ log:
     outcome: interrupted
     duration_seconds: 875.770468
     log_path: C:\Users\jpose\.agentjobs\runs\run_b4ddf5f7
+- id: 28
+  ts: '2026-08-25T20:58:33.055642Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: 'The Codex App Server session never started: Codex App Server thread/resume
+    failed: no rollout found for thread id 01a03aaa-4233-79e3-b5c0-8346477430a9'
+  data:
+    run_id: run_7efbd96c
+    outcome: crashed
+    log_path: C:\Users\jpose\.agentjobs\runs\run_7efbd96c
