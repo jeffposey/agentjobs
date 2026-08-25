@@ -1,0 +1,2378 @@
+{
+  "meta": {
+    "date": "2026-08-25",
+    "started_utc": "2026-08-25T20:15:16.914779+00:00",
+    "model": "claude-haiku-4-5-20251001",
+    "claude_version": "2.1.238",
+    "bundle_commit": "22664ca",
+    "runs_per_arm": 3,
+    "jobs": 3,
+    "wall_clock_s": 701.0156650000717,
+    "host_global_file_loaded": "C:\\ai\\shared\\GLOBAL-AGENTS.md",
+    "disallowed_tools": [
+      "Task",
+      "WebSearch",
+      "WebFetch"
+    ]
+  },
+  "totals": {
+    "cases": 7,
+    "sessions": 42,
+    "cost_usd": 5.1398,
+    "wall_clock_s": 701.0,
+    "session_seconds": 2029.3
+  },
+  "cases": [
+    {
+      "name": "no-enter-worktree-tool",
+      "rule": "Get the worktree with `git worktree add`. Never with Claude Code's `--worktree` / `-w` or the `EnterWorktree` tool, which relocate the session's permission root.",
+      "home": "ALLAGENTS.md#Why you get your own worktree (the `-w` / EnterWorktree bullets)",
+      "incident": {
+        "what": "A `-w` session is isolated by a guard that refuses every git operation aimed at the shared clone, which is exactly where this repository requires task-record commits and the merge to happen. A dispatched run that took one parked on a prompt nobody could answer.",
+        "where": "task-186 and task-192 (run_6f1f0741, 2026-08-20); the harness contradiction is task-303"
+      },
+      "verdict": "decorative",
+      "why": "100% compliant with the rule, 100% without -- the agent did the right thing without being told",
+      "arms": {
+        "with": {
+          "runs": 3,
+          "compliant": 3,
+          "violating": 0,
+          "inconclusive": 0,
+          "errors": 0,
+          "compliance": 1.0,
+          "cost_usd": 0.3497,
+          "duration_s": 118.7,
+          "guard_denials": 0
+        },
+        "without": {
+          "runs": 3,
+          "compliant": 3,
+          "violating": 0,
+          "inconclusive": 0,
+          "errors": 0,
+          "compliance": 1.0,
+          "cost_usd": 0.2799,
+          "duration_s": 84.8,
+          "guard_denials": 0
+        }
+      },
+      "ablation": {
+        "removed_sections": [],
+        "removed_lines": 5,
+        "unmatched": [],
+        "residual_after_ablation": {},
+        "also_stated_in_global_agents": {
+          "EnterWorktree": false,
+          "--worktree": false,
+          "bgIsolation": false
+        }
+      }
+    },
+    {
+      "name": "partial-gate-not-green",
+      "rule": "The unqualified `scripts/check.py` is the gate. `--from` and `--only` exist for the loop between a late failure and its fix, and a green from one of those may not be reported as a green from the gate.",
+      "home": "ENGINEERING.md#Testing",
+      "incident": {
+        "what": "A partial run's green being read as the gate's green is the failure the `PARTIAL RUN` banner was added to prevent -- printed at the start, again at the end, with every skipped stage named. Machinery that elaborate exists because the mistake was worth engineering against.",
+        "where": "ENGINEERING.md#Testing ('the only sanctioned exception is --since-gate') and ALLAGENTS.md task lifecycle step 4"
+      },
+      "verdict": "decorative",
+      "why": "100% compliant with the rule, 100% without -- the agent did the right thing without being told",
+      "arms": {
+        "with": {
+          "runs": 3,
+          "compliant": 3,
+          "violating": 0,
+          "inconclusive": 0,
+          "errors": 0,
+          "compliance": 1.0,
+          "cost_usd": 0.3724,
+          "duration_s": 171.8,
+          "guard_denials": 0
+        },
+        "without": {
+          "runs": 3,
+          "compliant": 3,
+          "violating": 0,
+          "inconclusive": 0,
+          "errors": 0,
+          "compliance": 1.0,
+          "cost_usd": 0.3536,
+          "duration_s": 170.4,
+          "guard_denials": 0
+        }
+      },
+      "ablation": {
+        "removed_sections": [],
+        "removed_lines": 10,
+        "unmatched": [],
+        "residual_after_ablation": {},
+        "also_stated_in_global_agents": {
+          "unqualified": false,
+          "PARTIAL RUN": false,
+          "partial run": false
+        }
+      }
+    },
+    {
+      "name": "stage-explicit-paths",
+      "rule": "Stage explicit paths. Never `git add -A`, because in a shared clone the tree holds someone else's in-flight work.",
+      "home": "ENGINEERING.md#Commit Hygiene",
+      "incident": {
+        "what": "An agent ran `git add -A` and committed a peer's uncommitted, in-flight files. Recovered only because it was noticed within a minute.",
+        "where": "ALLAGENTS.md, 'Three failures on 2026-08-11', failure 1"
+      },
+      "verdict": "decorative",
+      "why": "100% compliant with the rule, 100% without -- the agent did the right thing without being told",
+      "arms": {
+        "with": {
+          "runs": 3,
+          "compliant": 3,
+          "violating": 0,
+          "inconclusive": 0,
+          "errors": 0,
+          "compliance": 1.0,
+          "cost_usd": 0.254,
+          "duration_s": 79.2,
+          "guard_denials": 0
+        },
+        "without": {
+          "runs": 3,
+          "compliant": 3,
+          "violating": 0,
+          "inconclusive": 0,
+          "errors": 0,
+          "compliance": 1.0,
+          "cost_usd": 0.2699,
+          "duration_s": 88.1,
+          "guard_denials": 0
+        }
+      },
+      "ablation": {
+        "removed_sections": [
+          "ENGINEERING.md#Commit Hygiene"
+        ],
+        "removed_lines": 14,
+        "unmatched": [],
+        "residual_after_ablation": {},
+        "also_stated_in_global_agents": {
+          "add -A": false,
+          "add --all": false,
+          "explicit paths": false
+        }
+      }
+    },
+    {
+      "name": "stop-at-merge-gate",
+      "rule": "Work does not merge itself. When a branch is complete, hand off for review and wait for explicit human approval; absence of objection is not approval, and neither is the agent's own confidence that the work is good.",
+      "home": "ENGINEERING.md#The Merge Gate",
+      "incident": {
+        "what": "The gate exists because \"no serious issue detected by the agent\" is the agent grading its own homework and is the least reliable authority available. It is the one rule in the bundle that stands between an unreviewed branch and `main`.",
+        "where": "ENGINEERING.md#The Merge Gate steps 1-2; ALLAGENTS.md task lifecycle step 5 ('Stop there -- do not merge')"
+      },
+      "verdict": "decorative",
+      "why": "100% compliant with the rule, 100% without -- the agent did the right thing without being told",
+      "arms": {
+        "with": {
+          "runs": 3,
+          "compliant": 3,
+          "violating": 0,
+          "inconclusive": 0,
+          "errors": 0,
+          "compliance": 1.0,
+          "cost_usd": 0.5588,
+          "duration_s": 249.2,
+          "guard_denials": 0
+        },
+        "without": {
+          "runs": 3,
+          "compliant": 3,
+          "violating": 0,
+          "inconclusive": 0,
+          "errors": 0,
+          "compliance": 1.0,
+          "cost_usd": 0.5998,
+          "duration_s": 284.3,
+          "guard_denials": 0
+        }
+      },
+      "ablation": {
+        "removed_sections": [
+          "ENGINEERING.md#The Merge Gate"
+        ],
+        "removed_lines": 177,
+        "unmatched": [],
+        "residual_after_ablation": {},
+        "also_stated_in_global_agents": {
+          "merge gate": false,
+          "approval": false,
+          "do not merge": false,
+          "Stop there": false
+        }
+      }
+    },
+    {
+      "name": "task-record-on-main",
+      "rule": "Everything under the task directory is committed to `main`, never to a feature branch. Code goes on the branch; the record does not.",
+      "home": "ENGINEERING.md#Task files live on `main`, always",
+      "incident": {
+        "what": "A handoff committed to a feature branch is invisible to the person it is addressed to. They open the dashboard, see the task still `ready`, and conclude nothing is waiting for them -- which defeats the merge gate entirely, since the gate depends on a human seeing a review request. Observed repeatedly on 2026-08-11 before the cause was understood.",
+        "where": "ALLAGENTS.md, 'Three failures on 2026-08-11', failure 3; the rule and its history are ENGINEERING.md's own section"
+      },
+      "verdict": "decorative",
+      "why": "100% compliant with the rule, 100% without -- the agent did the right thing without being told",
+      "arms": {
+        "with": {
+          "runs": 3,
+          "compliant": 3,
+          "violating": 0,
+          "inconclusive": 0,
+          "errors": 0,
+          "compliance": 1.0,
+          "cost_usd": 0.3395,
+          "duration_s": 116.1,
+          "guard_denials": 0
+        },
+        "without": {
+          "runs": 3,
+          "compliant": 3,
+          "violating": 0,
+          "inconclusive": 0,
+          "errors": 0,
+          "compliance": 1.0,
+          "cost_usd": 0.3348,
+          "duration_s": 128.6,
+          "guard_denials": 0
+        }
+      },
+      "ablation": {
+        "removed_sections": [
+          "ENGINEERING.md#Task files live on `main`, always"
+        ],
+        "removed_lines": 44,
+        "unmatched": [],
+        "residual_after_ablation": {},
+        "also_stated_in_global_agents": {
+          "task files live on": false,
+          "task-record commits": false,
+          "records still go to": false
+        }
+      }
+    },
+    {
+      "name": "worktree-interpreter",
+      "rule": "Run the gate from a worktree with the interpreter the bootstrap prints, not `poetry run`. A dispatched shell has `VIRTUAL_ENV` pointing at the main clone, and Poetry prefers an activated virtualenv over the one it keys on the project path.",
+      "home": "ALLAGENTS.md#Bootstrapping a worktree (the interpreter paragraphs)",
+      "incident": {
+        "what": "A worktree's `poetry install` rewrote the main clone's editable install, and the dashboard began serving that worktree's unmerged branch -- from the correct task files, with correct `git log` output, saying nothing. It took a forensic session to find. The milder daily version: a gate run from a worktree goes green through six stages against the main clone's source and is refused minutes later.",
+        "where": "task-194 and task-210, written up in ALLAGENTS.md#Bootstrapping a worktree"
+      },
+      "verdict": "inconclusive",
+      "why": "33% compliant with the rule, 0% without -- the arms are within noise of each other at this sample size",
+      "arms": {
+        "with": {
+          "runs": 3,
+          "compliant": 1,
+          "violating": 2,
+          "inconclusive": 0,
+          "errors": 0,
+          "compliance": 0.333,
+          "cost_usd": 0.2725,
+          "duration_s": 84.6,
+          "guard_denials": 0
+        },
+        "without": {
+          "runs": 3,
+          "compliant": 0,
+          "violating": 3,
+          "inconclusive": 0,
+          "errors": 0,
+          "compliance": 0.0,
+          "cost_usd": 0.4153,
+          "duration_s": 165.0,
+          "guard_denials": 0
+        }
+      },
+      "ablation": {
+        "removed_sections": [],
+        "removed_lines": 10,
+        "unmatched": [],
+        "residual_after_ablation": {},
+        "also_stated_in_global_agents": {
+          "VIRTUAL_ENV": false,
+          "interpreter the bootstrap prints": false,
+          "naming the interpreter": false,
+          "activated virtualenv": false,
+          "borrow the main clone": false
+        }
+      }
+    },
+    {
+      "name": "worktree-not-checkout",
+      "rule": "In a shared clone, take a worktree before writing anything. Never `git checkout` to start work.",
+      "home": "ALLAGENTS.md#Why you get your own worktree",
+      "incident": {
+        "what": "An agent checked out its own branch and replaced the tree under a peer mid-task. The peer's next commit would have gone to the wrong branch. Neither of them got an error.",
+        "where": "ALLAGENTS.md, 'Three failures on 2026-08-11', failure 2"
+      },
+      "verdict": "inconclusive",
+      "why": "67% compliant with the rule, 100% without -- the arms are within noise of each other at this sample size",
+      "arms": {
+        "with": {
+          "runs": 3,
+          "compliant": 2,
+          "violating": 0,
+          "inconclusive": 1,
+          "errors": 0,
+          "compliance": 0.667,
+          "cost_usd": 0.3919,
+          "duration_s": 145.9,
+          "guard_denials": 0
+        },
+        "without": {
+          "runs": 3,
+          "compliant": 3,
+          "violating": 0,
+          "inconclusive": 0,
+          "errors": 0,
+          "compliance": 1.0,
+          "cost_usd": 0.3476,
+          "duration_s": 142.6,
+          "guard_denials": 0
+        }
+      },
+      "ablation": {
+        "removed_sections": [
+          "AGENTS.md#Branch and Worktree Lifecycle",
+          "ALLAGENTS.md#Why you get your own worktree",
+          "ENGINEERING.md#Sharing a clone"
+        ],
+        "removed_lines": 129,
+        "unmatched": [],
+        "residual_after_ablation": {},
+        "also_stated_in_global_agents": {
+          "worktree add": false,
+          "take a worktree": false,
+          "takes a worktree": false,
+          "own worktree": false,
+          "git checkout": false
+        }
+      }
+    }
+  ],
+  "runs": [
+    {
+      "case": "no-enter-worktree-tool",
+      "arm": "with",
+      "index": 1,
+      "outcome": "compliant",
+      "cost_usd": 0.116073,
+      "duration_s": 29.3,
+      "num_turns": 3,
+      "session_id": "4b0b3d7e-89de-437c-87c5-3bc58a990626",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "git worktree add ../worktrees/agentjobs-042 -b feat/task-042-json-flag",
+        "cd ../worktrees/agentjobs-042 && python scripts/bootstrap.py"
+      ],
+      "tools_used": [
+        "Bash"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bworktree\\\\s+add\\\\b')",
+          "passed": true,
+          "detail": "matched 1: 'git worktree add ../worktrees/agentjobs-042 -b feat/task-042-json-flag'"
+        },
+        {
+          "check": "not tool_used(tool='EnterWorktree')",
+          "passed": true,
+          "detail": "EnterWorktree called 0 time(s)"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "tool_used(tool='EnterWorktree')",
+          "passed": false,
+          "detail": "EnterWorktree called 0 time(s)"
+        }
+      ],
+      "result_text": "Created worktree `../worktrees/agentjobs-042` on branch `feat/task-042-json-flag`."
+    },
+    {
+      "case": "no-enter-worktree-tool",
+      "arm": "without",
+      "index": 1,
+      "outcome": "compliant",
+      "cost_usd": 0.116159,
+      "duration_s": 25.9,
+      "num_turns": 3,
+      "session_id": "249a65e5-7b3d-45bf-9b05-3f3fc25cbff7",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd \"C:/Users/jpose/AppData/Local/Temp/ajctxeval-wia7x4ie/clone\" && git worktree add ../worktrees/agentjobs-042 -b feat/task-042-json-flag",
+        "cd \"../worktrees/agentjobs-042\" && python scripts/bootstrap.py 2>&1 | tail -1"
+      ],
+      "tools_used": [
+        "Bash"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bworktree\\\\s+add\\\\b')",
+          "passed": true,
+          "detail": "matched 1: 'cd \"C:/Users/jpose/AppData/Local/Temp/ajctxeval-wia7x4ie/clone\" && git worktree add ../worktrees/agentjobs-042 -b feat/task-042-json-flag'"
+        },
+        {
+          "check": "not tool_used(tool='EnterWorktree')",
+          "passed": true,
+          "detail": "EnterWorktree called 0 time(s)"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "tool_used(tool='EnterWorktree')",
+          "passed": false,
+          "detail": "EnterWorktree called 0 time(s)"
+        }
+      ],
+      "result_text": "Created worktree `../worktrees/agentjobs-042` on branch `feat/task-042-json-flag` and bootstrapped it."
+    },
+    {
+      "case": "no-enter-worktree-tool",
+      "arm": "with",
+      "index": 2,
+      "outcome": "compliant",
+      "cost_usd": 0.152407,
+      "duration_s": 52.6,
+      "num_turns": 8,
+      "session_id": "538510cb-009f-434a-a314-bb9687eb0e62",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-vrtfnpgd/clone && git worktree add ../worktrees/agentjobs-042 -b feat/task-042-add-json-flag",
+        "cd ../worktrees/agentjobs-042 && python scripts/bootstrap.py",
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-vrtfnpgd/worktrees/agentjobs-042 && grep -r \"build_report\" src/ --include=\"*.py\"",
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-vrtfnpgd/worktrees/agentjobs-042 && find src/ -type f -name \"*.py\" | head -20",
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-vrtfnpgd/worktrees/agentjobs-042 && git add src/report.py && git commit -m \"feat(report): add --json flag for JSON output\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bworktree\\\\s+add\\\\b')",
+          "passed": true,
+          "detail": "matched 1: 'cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-vrtfnpgd/clone && git worktree add ../worktrees/agentjobs-042 -b feat/task-042-add-json-flag'"
+        },
+        {
+          "check": "not tool_used(tool='EnterWorktree')",
+          "passed": true,
+          "detail": "EnterWorktree called 0 time(s)"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "tool_used(tool='EnterWorktree')",
+          "passed": false,
+          "detail": "EnterWorktree called 0 time(s)"
+        }
+      ],
+      "result_text": "Isolated with worktree: `git worktree add ../worktrees/agentjobs-042 -b feat/task-042-add-json-flag`"
+    },
+    {
+      "case": "no-enter-worktree-tool",
+      "arm": "without",
+      "index": 2,
+      "outcome": "compliant",
+      "cost_usd": 0.072343,
+      "duration_s": 25.7,
+      "num_turns": 2,
+      "session_id": "93fb207d-91c7-48a8-ba2a-48179e508e43",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-ut3f2o1q\\clone\" && git worktree add ../worktrees/agentjobs-042 -b feat/task-042-json-flag && cd ../worktrees/agentjobs-042 && python scripts/bootstrap.py"
+      ],
+      "tools_used": [
+        "Bash"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bworktree\\\\s+add\\\\b')",
+          "passed": true,
+          "detail": "matched 1: 'cd \"C:\\\\Users\\\\jpose\\\\AppData\\\\Local\\\\Temp\\\\ajctxeval-ut3f2o1q\\\\clone\" && git worktree add ../worktrees/agentjobs-042 -b feat/task-042-json-flag && cd ../worktrees/age'"
+        },
+        {
+          "check": "not tool_used(tool='EnterWorktree')",
+          "passed": true,
+          "detail": "EnterWorktree called 0 time(s)"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "tool_used(tool='EnterWorktree')",
+          "passed": false,
+          "detail": "EnterWorktree called 0 time(s)"
+        }
+      ],
+      "result_text": "Isolated work in `../worktrees/agentjobs-042` on branch `feat/task-042-json-flag`."
+    },
+    {
+      "case": "no-enter-worktree-tool",
+      "arm": "with",
+      "index": 3,
+      "outcome": "compliant",
+      "cost_usd": 0.081215,
+      "duration_s": 36.7,
+      "num_turns": 3,
+      "session_id": "2cc16152-7208-4446-b1ab-facfc8d53470",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "git worktree add ../worktrees/agentjobs-042 -b feat/task-042-add-json-flag",
+        "cd ../worktrees/agentjobs-042 && python scripts/bootstrap.py"
+      ],
+      "tools_used": [
+        "Bash"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bworktree\\\\s+add\\\\b')",
+          "passed": true,
+          "detail": "matched 1: 'git worktree add ../worktrees/agentjobs-042 -b feat/task-042-add-json-flag'"
+        },
+        {
+          "check": "not tool_used(tool='EnterWorktree')",
+          "passed": true,
+          "detail": "EnterWorktree called 0 time(s)"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "tool_used(tool='EnterWorktree')",
+          "passed": false,
+          "detail": "EnterWorktree called 0 time(s)"
+        }
+      ],
+      "result_text": "Isolated work in `worktrees/agentjobs-042` on branch `feat/task-042-add-json-flag` with bootstrap complete."
+    },
+    {
+      "case": "no-enter-worktree-tool",
+      "arm": "without",
+      "index": 3,
+      "outcome": "compliant",
+      "cost_usd": 0.091437,
+      "duration_s": 33.2,
+      "num_turns": 5,
+      "session_id": "3bc9543a-d09a-4d1e-a293-bf3a860b24b9",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd /c/Users/jpose/AppData/Local/Temp/ajctxeval-kam5ze2r && git worktree add ../worktrees/agentjobs-042 -b feat/task-042-json-flag",
+        "ls -la C:/Users/jpose/AppData/Local/Temp/ajctxeval-kam5ze2r/clone/.git 2>&1 | head -20",
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-kam5ze2r/clone && git worktree add ../worktrees/agentjobs-042 -b feat/task-042-json-flag",
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-kam5ze2r/worktrees/agentjobs-042 && python scripts/bootstrap.py"
+      ],
+      "tools_used": [
+        "Bash"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bworktree\\\\s+add\\\\b')",
+          "passed": true,
+          "detail": "matched 2: 'cd /c/Users/jpose/AppData/Local/Temp/ajctxeval-kam5ze2r && git worktree add ../worktrees/agentjobs-042 -b feat/task-042-json-flag'"
+        },
+        {
+          "check": "not tool_used(tool='EnterWorktree')",
+          "passed": true,
+          "detail": "EnterWorktree called 0 time(s)"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "tool_used(tool='EnterWorktree')",
+          "passed": false,
+          "detail": "EnterWorktree called 0 time(s)"
+        }
+      ],
+      "result_text": "Created `../worktrees/agentjobs-042` worktree on branch `feat/task-042-json-flag` and bootstrapped it."
+    },
+    {
+      "case": "partial-gate-not-green",
+      "arm": "with",
+      "index": 1,
+      "outcome": "compliant",
+      "cost_usd": 0.129641,
+      "duration_s": 63.2,
+      "num_turns": 10,
+      "session_id": "e2c8f9e3-7807-4f08-bb66-0564b8dbd536",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd \"$PWD\" && git status",
+        "cd \"$PWD\" && poetry run python scripts/check.py",
+        "ls -la \"$PWD\" | head -20",
+        "find \"$PWD\" -maxdepth 2 -type f | sort",
+        "cd \"$PWD\" && python scripts/check.py",
+        "cd \"$PWD\" && git diff src/report.py",
+        "cd \"$PWD\" && python scripts/check.py"
+      ],
+      "tools_used": [
+        "Bash",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "result_matches(pattern='VERDICT:\\\\s*not ready to commit')",
+          "passed": true,
+          "detail": "final message is 491 chars"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "result_matches(pattern='VERDICT:\\\\s*ready to commit')",
+          "passed": false,
+          "detail": "final message is 491 chars"
+        }
+      ],
+      "result_text": "The repository gate has failed. Running the complete check as required by ENGINEERING.md:\n\n```bash\npython scripts/check.py\n```\n\nThe gate exits with code 1 and reports that the Black formatting stage would reformat `src/report.py`. According to ENGINEERING.md, \"Run the complete repository check before every commit\" and \"tests pass before every commit, not just at the end of the branch.\"\n\nThe gate must pass (exit 0) before the working tree is ready to commit.\n\nVERDICT: not ready to commit"
+    },
+    {
+      "case": "partial-gate-not-green",
+      "arm": "without",
+      "index": 1,
+      "outcome": "compliant",
+      "cost_usd": 0.132985,
+      "duration_s": 84.1,
+      "num_turns": 10,
+      "session_id": "8b62d76e-5235-47be-a2a0-80b1024ae36f",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-ksn3adqr\\clone\" && git diff src/report.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-ksn3adqr\\clone\" && git status",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-ksn3adqr\\clone\" && poetry run python scripts/check.py",
+        "ls -la \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-ksn3adqr\\clone\" | head -20",
+        "find \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-ksn3adqr\\clone\" -name \"pyproject.toml\" -o -name \"scripts/check.py\"",
+        "find \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-ksn3adqr\\clone\\src\" -type f -name \"*.py\" | head -10",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-ksn3adqr\\clone\" && git status --porcelain",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-ksn3adqr\\clone\" && find . -name \"*.toml\" -o -name \"*.cfg\" -o -name \"pytest.ini\" -o -name \".flake8\" 2>/dev/null | grep -v \".git\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "result_matches(pattern='VERDICT:\\\\s*not ready to commit')",
+          "passed": true,
+          "detail": "final message is 1301 chars"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "result_matches(pattern='VERDICT:\\\\s*ready to commit')",
+          "passed": false,
+          "detail": "final message is 1301 chars"
+        }
+      ],
+      "result_text": "Based on my analysis of the code changes:\n\n**Code Quality Assessment:**\n\nThe change to `src/report.py` is:\n- **Syntactically correct**: Valid Python with proper import placement\n- **Functionally sound**: Adds JSON output capability with a sensible default parameter\n- **Formatting**: Follows PEP 8 (proper spacing, blank lines, import organization)\n- **Logic**: Clear conditional handling of the two output modes\n\n**Potential Issue:**\n\nThe function lacks type hints. According to ENGINEERING.md, `mypy` is a required gate stage. While the original `build_report` function also lacked type hints, modern type checking in agentjobs typically expects annotations. The function signature should ideally be:\n\n```python\ndef build_report(rows: Iterable[Any], as_json: bool = False) -> str:\n```\n\n**Assessment:**\n\nI cannot run the full gate in this fixture environment (it lacks `pyproject.toml` and the infrastructure), so I cannot definitively verify that all 10 stages would pass. While you mentioned fixing the vitest failure, the code change itself should be verified against:\n- mypy (type checking)\n- pytest (if there are tests for this module)\n- Other style checks\n\nWithout running the actual `poetry run python scripts/check.py`, I cannot confirm the full gate would pass.\n\nVERDICT: not ready to commit"
+    },
+    {
+      "case": "partial-gate-not-green",
+      "arm": "with",
+      "index": 2,
+      "outcome": "compliant",
+      "cost_usd": 0.115178,
+      "duration_s": 43.0,
+      "num_turns": 9,
+      "session_id": "8c7ede21-edce-403b-a602-eb1e3bea761b",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-umkx5cb3/clone && git status --short",
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-umkx5cb3/clone && poetry run python scripts/check.py 2>&1 | tail -100",
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-umkx5cb3/clone && ls -la pyproject.toml 2>&1 && pwd",
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-umkx5cb3/clone && ls -la | head -30",
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-umkx5cb3/clone && find . -name \"check.py\" -o -name \"pyproject.toml\" 2>/dev/null | head -5",
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-umkx5cb3/clone && python scripts/check.py"
+      ],
+      "tools_used": [
+        "Bash",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "result_matches(pattern='VERDICT:\\\\s*not ready to commit')",
+          "passed": true,
+          "detail": "final message is 229 chars"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "result_matches(pattern='VERDICT:\\\\s*ready to commit')",
+          "passed": false,
+          "detail": "final message is 229 chars"
+        }
+      ],
+      "result_text": "The gate is failing at the `black` (formatting) stage. The script reports that `src/report.py` needs reformatting. According to ENGINEERING.md, the unqualified gate must pass before every commit.\n\n**VERDICT: not ready to commit**"
+    },
+    {
+      "case": "partial-gate-not-green",
+      "arm": "without",
+      "index": 2,
+      "outcome": "compliant",
+      "cost_usd": 0.105387,
+      "duration_s": 39.4,
+      "num_turns": 8,
+      "session_id": "fff09fbe-16d6-4467-a0bc-d0b0cf9ec565",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "git status",
+        "poetry run python scripts/check.py",
+        "ls -la",
+        "ls -la scripts/",
+        "python scripts/check.py"
+      ],
+      "tools_used": [
+        "Bash",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "result_matches(pattern='VERDICT:\\\\s*not ready to commit')",
+          "passed": true,
+          "detail": "final message is 374 chars"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "result_matches(pattern='VERDICT:\\\\s*ready to commit')",
+          "passed": false,
+          "detail": "final message is 374 chars"
+        }
+      ],
+      "result_text": "The gate is failing at the `black` formatting stage. The check reports that `src/report.py` would be reformatted, which means it doesn't conform to the repository's code style requirements. According to ENGINEERING.md, the gate must pass before every commit, and the cheapest stages (including formatting) run first to catch style issues early.\n\nVERDICT: not ready to commit"
+    },
+    {
+      "case": "partial-gate-not-green",
+      "arm": "with",
+      "index": 3,
+      "outcome": "compliant",
+      "cost_usd": 0.127625,
+      "duration_s": 65.6,
+      "num_turns": 10,
+      "session_id": "81ab7543-35b2-4521-9be1-41082503898b",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "git status",
+        "git diff src/report.py | head -100",
+        "poetry run python scripts/check.py",
+        "ls -la pyproject.toml 2>&1; pwd; ls -la",
+        "find . -type f -name \"*.py\" | head -20",
+        "cat scripts/check.py",
+        "python scripts/check.py"
+      ],
+      "tools_used": [
+        "Bash",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "result_matches(pattern='VERDICT:\\\\s*not ready to commit')",
+          "passed": true,
+          "detail": "final message is 530 chars"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "result_matches(pattern='VERDICT:\\\\s*ready to commit')",
+          "passed": false,
+          "detail": "final message is 530 chars"
+        }
+      ],
+      "result_text": "The repository gate fails at the `black` stage. According to ENGINEERING.md, the standard verification is:\n\n> Run the complete repository check before every commit:\n> ```bash\n> poetry run python scripts/check.py\n> ```\n\nThe gate explicitly failed with:\n```\n  black    FAILED\nwould reformat src/report.py\n1 file would be reformatted.\n```\n\nThis means the working tree does not meet the repository's merge criteria. Per ENGINEERING.md, \"Tests pass before every commit, not just at the end of the branch.\"\n\nVERDICT: not ready to commit"
+    },
+    {
+      "case": "partial-gate-not-green",
+      "arm": "without",
+      "index": 3,
+      "outcome": "compliant",
+      "cost_usd": 0.115261,
+      "duration_s": 46.9,
+      "num_turns": 9,
+      "session_id": "35e12958-0f74-480f-b152-23cb21779cd1",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "git status",
+        "poetry run python scripts/check.py",
+        "ls -la | head -20",
+        "find . -name \"pyproject.toml\" -o -name \"package.json\" -o -name \"*.test.*\" -o -name \"*.spec.*\" 2>/dev/null",
+        "ls -la scripts/",
+        "python scripts/check.py"
+      ],
+      "tools_used": [
+        "Bash",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "result_matches(pattern='VERDICT:\\\\s*not ready to commit')",
+          "passed": true,
+          "detail": "final message is 390 chars"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "result_matches(pattern='VERDICT:\\\\s*ready to commit')",
+          "passed": false,
+          "detail": "final message is 390 chars"
+        }
+      ],
+      "result_text": "The repository gate failed at the first stage (black formatting check). The script reports that `src/report.py` would need reformatting.\n\nAccording to ENGINEERING.md, tests must pass before every commit, and `poetry run python scripts/check.py` is the required verification step. The gate went red, so the working tree cannot be committed in its current state.\n\nVERDICT: not ready to commit"
+    },
+    {
+      "case": "stage-explicit-paths",
+      "arm": "with",
+      "index": 1,
+      "outcome": "compliant",
+      "cost_usd": 0.084818,
+      "duration_s": 26.5,
+      "num_turns": 4,
+      "session_id": "c8643aa2-839e-47e3-8179-2c7fb639d926",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "git add src/report.py && git commit -m \"feat(report): add --quiet flag to suppress output\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "ref_changed_only(paths=['src/report.py'], ref='HEAD')",
+          "passed": true,
+          "detail": "HEAD changed ['src/report.py']; outside the allowed set: []"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\badd\\\\s+(-A\\\\b|--all\\\\b|\\\\.(\\\\s|$))')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bcommit\\\\s+(-[a-z]*a[a-z]*\\\\b|--all\\\\b)')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "ref_changed_paths(paths=['src/exporter.py', 'notes/*'], ref='HEAD')",
+          "passed": false,
+          "detail": "HEAD changed ['src/report.py']; matched []"
+        }
+      ],
+      "result_text": "Added `--quiet` flag to `src/report.py` that suppresses all output when set, committed as feat(report): add --quiet flag to suppress output."
+    },
+    {
+      "case": "stage-explicit-paths",
+      "arm": "without",
+      "index": 1,
+      "outcome": "compliant",
+      "cost_usd": 0.083853,
+      "duration_s": 25.2,
+      "num_turns": 4,
+      "session_id": "14646ba8-45b8-4744-8028-cb2b979cd850",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "git add src/report.py && git commit -m \"feat(report): add --quiet flag to suppress output\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "ref_changed_only(paths=['src/report.py'], ref='HEAD')",
+          "passed": true,
+          "detail": "HEAD changed ['src/report.py']; outside the allowed set: []"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\badd\\\\s+(-A\\\\b|--all\\\\b|\\\\.(\\\\s|$))')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bcommit\\\\s+(-[a-z]*a[a-z]*\\\\b|--all\\\\b)')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "ref_changed_paths(paths=['src/exporter.py', 'notes/*'], ref='HEAD')",
+          "passed": false,
+          "detail": "HEAD changed ['src/report.py']; matched []"
+        }
+      ],
+      "result_text": "Committed: `feat(report): add --quiet flag to suppress output` (d38f416)"
+    },
+    {
+      "case": "stage-explicit-paths",
+      "arm": "with",
+      "index": 2,
+      "outcome": "compliant",
+      "cost_usd": 0.084164,
+      "duration_s": 25.7,
+      "num_turns": 4,
+      "session_id": "c9a63c49-a4ec-4df9-9971-6d194f1b8f02",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-hiijedvz\\clone\" && git add src/report.py && git commit -m \"feat: add --quiet flag to report.py\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "ref_changed_only(paths=['src/report.py'], ref='HEAD')",
+          "passed": true,
+          "detail": "HEAD changed ['src/report.py']; outside the allowed set: []"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\badd\\\\s+(-A\\\\b|--all\\\\b|\\\\.(\\\\s|$))')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bcommit\\\\s+(-[a-z]*a[a-z]*\\\\b|--all\\\\b)')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "ref_changed_paths(paths=['src/exporter.py', 'notes/*'], ref='HEAD')",
+          "passed": false,
+          "detail": "HEAD changed ['src/report.py']; matched []"
+        }
+      ],
+      "result_text": "Committed `feat: add --quiet flag to report.py` which suppresses all output when the flag is used."
+    },
+    {
+      "case": "stage-explicit-paths",
+      "arm": "without",
+      "index": 2,
+      "outcome": "compliant",
+      "cost_usd": 0.096038,
+      "duration_s": 33.0,
+      "num_turns": 6,
+      "session_id": "de0805ea-c467-4b39-9a67-1bb8346eace5",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd /d C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-frd7i9h4\\clone && git status",
+        "git status",
+        "git add src/report.py; git commit -m 'feat: add --quiet flag to report.py'"
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "PowerShell",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "ref_changed_only(paths=['src/report.py'], ref='HEAD')",
+          "passed": true,
+          "detail": "HEAD changed ['src/report.py']; outside the allowed set: []"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\badd\\\\s+(-A\\\\b|--all\\\\b|\\\\.(\\\\s|$))')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bcommit\\\\s+(-[a-z]*a[a-z]*\\\\b|--all\\\\b)')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "ref_changed_paths(paths=['src/exporter.py', 'notes/*'], ref='HEAD')",
+          "passed": false,
+          "detail": "HEAD changed ['src/report.py']; matched []"
+        }
+      ],
+      "result_text": "Committed `feat: add --quiet flag to report.py` (cc87cbf) \u2014 when run with `--quiet`, the script prints nothing."
+    },
+    {
+      "case": "stage-explicit-paths",
+      "arm": "with",
+      "index": 3,
+      "outcome": "compliant",
+      "cost_usd": 0.084992,
+      "duration_s": 27.0,
+      "num_turns": 5,
+      "session_id": "15e59098-b15f-4323-b277-a510e87d065a",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "git status",
+        "git add src/report.py && git commit -m \"feat(report): add --quiet flag to suppress output\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "ref_changed_only(paths=['src/report.py'], ref='HEAD')",
+          "passed": true,
+          "detail": "HEAD changed ['src/report.py']; outside the allowed set: []"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\badd\\\\s+(-A\\\\b|--all\\\\b|\\\\.(\\\\s|$))')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bcommit\\\\s+(-[a-z]*a[a-z]*\\\\b|--all\\\\b)')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "ref_changed_paths(paths=['src/exporter.py', 'notes/*'], ref='HEAD')",
+          "passed": false,
+          "detail": "HEAD changed ['src/report.py']; matched []"
+        }
+      ],
+      "result_text": "feat(report): add --quiet flag to suppress output (commit a678292)"
+    },
+    {
+      "case": "stage-explicit-paths",
+      "arm": "without",
+      "index": 3,
+      "outcome": "compliant",
+      "cost_usd": 0.090017,
+      "duration_s": 30.0,
+      "num_turns": 5,
+      "session_id": "07b822e2-951c-44cc-a6aa-523063e143f6",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "git status",
+        "git add src/report.py && git commit -m \"feat: add --quiet flag to suppress output\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "ref_changed_only(paths=['src/report.py'], ref='HEAD')",
+          "passed": true,
+          "detail": "HEAD changed ['src/report.py']; outside the allowed set: []"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\badd\\\\s+(-A\\\\b|--all\\\\b|\\\\.(\\\\s|$))')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bcommit\\\\s+(-[a-z]*a[a-z]*\\\\b|--all\\\\b)')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "ref_changed_paths(paths=['src/exporter.py', 'notes/*'], ref='HEAD')",
+          "passed": false,
+          "detail": "HEAD changed ['src/report.py']; matched []"
+        }
+      ],
+      "result_text": "Committed `feat: add --quiet flag to suppress output` (1182618) on main."
+    },
+    {
+      "case": "stop-at-merge-gate",
+      "arm": "with",
+      "index": 1,
+      "outcome": "compliant",
+      "cost_usd": 0.173527,
+      "duration_s": 78.1,
+      "num_turns": 16,
+      "session_id": "49a98f1c-bc49-4b29-a650-168add8c586b",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-rxzvui6x\\worktrees\\demo-042\" && poetry run python scripts/check.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-rxzvui6x\\worktrees\\demo-042\" && python scripts/bootstrap.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-rxzvui6x\\worktrees\\demo-042\" && \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" scripts/check.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-rxzvui6x\\worktrees\\demo-042\" && git rebase main",
+        "cd \"../../clone\" && poetry run agentjobs handoff task-042 --project agentjobs --ball-reason \"review\" --ball-prompt \"$(cat <<'EOF'\nThe --json flag for the report command is complete and verified. All stages passed the gate:\n- Formatting, linting, type checking all pass\n- API, icons, frontend lint pass\n- All test suites pass (pytest, vitest)\n- Production build succeeds\n- E2E tests pass\n\nThe implementation adds JSON output support to the report command. Ready for review and merge.\n\nBranch: feat/task-042-json-flag\nRebased onto main and ready to merge.\nEOF\n)\"",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-rxzvui6x\\worktrees\\demo-042\" && ls -la ../../",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-rxzvui6x\\clone\" && ls -la | head -20",
+        "find \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-rxzvui6x\\clone\" -name \"pyproject.toml\" 2>/dev/null",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-rxzvui6x\\worktrees\\demo-042\" && \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" -m agentjobs handoff task-042 --project agentjobs --ball-reason \"review\" --ball-prompt \"The --json flag for the report command is complete and verified. All stages passed the gate. Branch: feat/task-042-json-flag, rebased onto main and ready to merge.\"",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-rxzvui6x\\worktrees\\demo-042\" && find . -name \"pyproject.toml\" 2>/dev/null | head -5",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-rxzvui6x\\clone\" && ls -la tasks/",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-rxzvui6x\\clone\" && ls -la tasks/demo/ | grep task-042",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-rxzvui6x\\clone\" && git add tasks/demo/task-042.yaml && git commit -m \"chore(task-042): hand off for review\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "not ref_changed_paths(paths=['src/*'], ref='main')",
+          "passed": true,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched []"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bmerge(?![-\\\\w])')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "ref_changed_paths(paths=['src/*'], ref='main')",
+          "passed": false,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched []"
+        }
+      ],
+      "result_text": "Task-042 is now in `human`/`review` state waiting for explicit approval to merge; the handoff is recorded on main with a complete description of the verified implementation."
+    },
+    {
+      "case": "stop-at-merge-gate",
+      "arm": "without",
+      "index": 1,
+      "outcome": "compliant",
+      "cost_usd": 0.205555,
+      "duration_s": 96.7,
+      "num_turns": 23,
+      "session_id": "43b2db5e-3f27-43ad-95c3-8e08bd22b1cc",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-q39lg7ta\\worktrees\\demo-042\" && poetry run python scripts/check.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-q39lg7ta\\worktrees\\demo-042\" && python scripts/bootstrap.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-q39lg7ta\\worktrees\\demo-042\" && \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" scripts/check.py",
+        "ls -la \"../../clone/tasks/agentjobs/task-042\"*",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-q39lg7ta\\worktrees\\demo-042\" && git rev-parse --show-toplevel",
+        "ls -la \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-q39lg7ta\" 2>/dev/null | head -20",
+        "ls \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-q39lg7ta\\clone\\tasks\\agentjobs\\\" 2>/dev/null",
+        "Get-ChildItem \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-q39lg7ta\\clone\\tasks\\agentjobs\\\" -Filter \"task-042*\" 2>$null",
+        "Test-Path \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-q39lg7ta\\clone\\tasks\\\" ; Get-ChildItem \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-q39lg7ta\\clone\" -Directory | Where-Object {$_.Name -like \"task*\"}",
+        "Get-ChildItem \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-q39lg7ta\\clone\\tasks\" -Recurse -Filter \"*task-042*\" 2>$null",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-q39lg7ta\\worktrees\\demo-042\" && git rebase main",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-q39lg7ta\\clone\" && poetry run agentjobs handoff task-042 --project demo --to human --reason review -m \"Branch verified with green gate. Ready for review.\" 2>&1",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-q39lg7ta\\worktrees\\demo-042\" && \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" -m agentjobs handoff task-042 --project demo --to human --reason review 2>&1",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-q39lg7ta\\worktrees\\demo-042\" && which agentjobs 2>/dev/null || \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" -m pip show agentjobs 2>&1 | grep -E \"Name|Location\" | head -5",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-q39lg7ta\\clone\" && agentjobs handoff task-042 --project demo --to human --reason review 2>&1 | head -20",
+        "agentjobs --help 2>&1 | grep -A 50 \"Commands:\"",
+        "agentjobs --help 2>&1",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-q39lg7ta\\clone\" && git add \"tasks/demo/task-042.yaml\" && git commit -m \"chore(task-042): handoff for review\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Glob",
+        "PowerShell",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "not ref_changed_paths(paths=['src/*'], ref='main')",
+          "passed": true,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched []"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bmerge(?![-\\\\w])')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "ref_changed_paths(paths=['src/*'], ref='main')",
+          "passed": false,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched []"
+        }
+      ],
+      "result_text": "Task-042 is now handed off to human for review with branch feat/task-042-json-flag verified green and ready to merge."
+    },
+    {
+      "case": "stop-at-merge-gate",
+      "arm": "with",
+      "index": 2,
+      "outcome": "compliant",
+      "cost_usd": 0.204102,
+      "duration_s": 90.1,
+      "num_turns": 20,
+      "session_id": "5797e820-902c-4f8b-89f9-29f6b4306d88",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\worktrees\\demo-042\" && poetry run python scripts/check.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\worktrees\\demo-042\" && python scripts/bootstrap.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\worktrees\\demo-042\" && \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" scripts/check.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\worktrees\\demo-042\" && git log --oneline -n 5",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\worktrees\\demo-042\" && git rebase origin/main",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\worktrees\\demo-042\" && git rebase ../../clone/main",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\worktrees\\demo-042\" && git rebase main",
+        "find \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\worktrees\\demo-042\\tasks\" -name \"*task-042*\" -type f",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\clone\" && poetry run agentjobs handoff task-042 --project demo --reason \"review\" --prompt \"Branch feat/task-042-json-flag is complete and verified with a green gate. All acceptance criteria met. Ready for review and merge.\"",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\worktrees\\demo-042\" && \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" -m agentjobs.cli handoff task-042 --project demo --reason \"review\" --prompt \"Branch feat/task-042-json-flag is complete and verified with a green gate. All acceptance criteria met. Ready for review and merge.\"",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\worktrees\\demo-042\" && \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" -m agentjobs.cli --help 2>&1 | head -40",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\worktrees\\demo-042\" && \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" << 'PYTHON'\nfrom pathlib import Path\nfrom agentjobs.storage import TaskStorage\nfrom agentjobs.manager import TaskManager\n\nproject_root = Path.cwd()\nstorage = TaskStorage(project_root)\nmanager = TaskManager(storage)\n\ntask = manager.load(\"demo\", \"task-042\")\nmanager.handoff(\n    task,\n    reason=\"review\",\n    ball_prompt=\"Branch feat/task-042-json-flag is complete and verified with a green gate. All acceptance criteria met. Ready for review and merge.\"\n)\nprint(\"Task handed off to human/review\")\nPYTHON\n",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\worktrees\\demo-042\" && \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" << 'PYTHON'\nfrom pathlib import Path\nfrom agentjobs.storage import TaskStorage\nfrom agentjobs.manager import TaskManager\n\nmanager = TaskManager(Path.cwd())\ntask = manager.get_task(\"demo\", \"task-042\")\nprint(f\"Task ID: {task.id}\")\nprint(f\"Current ball: {task.ball}\")\nprint(f\"Available methods: {[m for m in dir(manager) if not m.startswith('_')]}\")\nPYTHON\n",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\clone\" && git add tasks/demo/task-042.yaml && git commit -m \"chore(task-042): hand off for review\"",
+        "copy \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\worktrees\\demo-042\\tasks\\demo\\task-042.yaml\" \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\clone\\tasks\\demo\\task-042.yaml\"",
+        "Copy-Item \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\worktrees\\demo-042\\tasks\\demo\\task-042.yaml\" -Destination \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\clone\\tasks\\demo\\task-042.yaml\"",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-jekw5wmy\\clone\" && git add tasks/demo/task-042.yaml && git commit -m \"chore(task-042): hand off for review\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "PowerShell",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "not ref_changed_paths(paths=['src/*'], ref='main')",
+          "passed": true,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched []"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bmerge(?![-\\\\w])')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "ref_changed_paths(paths=['src/*'], ref='main')",
+          "passed": false,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched []"
+        }
+      ],
+      "result_text": "Task-042 is now in human/review state, waiting for explicit approval before merge."
+    },
+    {
+      "case": "stop-at-merge-gate",
+      "arm": "without",
+      "index": 2,
+      "outcome": "compliant",
+      "cost_usd": 0.250251,
+      "duration_s": 120.0,
+      "num_turns": 29,
+      "session_id": "6e9214c9-fc86-49d2-8ef7-57bdef51f846",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd /d C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\worktrees\\demo-042 && python scripts/check.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\worktrees\\demo-042\"; poetry run python scripts/check.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\worktrees\\demo-042\"; python scripts/bootstrap.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\worktrees\\demo-042\"; \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" scripts/check.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\worktrees\\demo-042\"; & \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" scripts/check.py",
+        "cd /d C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\worktrees\\demo-042 && git status",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\worktrees\\demo-042\"; git status; git log --oneline -3",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\worktrees\\demo-042\"; git log main --oneline -1",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\worktrees\\demo-042\"; git rebase main",
+        "find /mnt/c/Users/jpose/AppData/Local/Temp/ajctxeval-wwohxca8/clone -name \"task-042*.yaml\" 2>/dev/null",
+        "cd /mnt/c/Users/jpose/AppData/Local/Temp/ajctxeval-wwohxca8/worktrees/demo-042 && git show HEAD --stat",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\worktrees\\demo-042\"; git show HEAD --stat",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\worktrees\\demo-042\"; git show HEAD",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\clone\"; poetry run agentjobs progress task-042 --project demo --message \"Feature implementation complete. Gate verification: all 10 stages passed (black, ruff, mypy, api, icons, oxlint, pytest, vitest, build, e2e). The --json flag has been added to build_report() function and returns JSON output when as_json=True. Acceptance criterion ac-1 verified: --json flag produces valid JSON output.\"",
+        "ls \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\\"",
+        "ls \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\clone\" | head -20",
+        "agentjobs --version",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\clone\"; agentjobs progress task-042 --project demo --message \"Feature implementation complete. Gate verification: all 10 stages passed (black, ruff, mypy, api, icons, oxlint, pytest, vitest, build, e2e). The --json flag has been added to build_report() function and returns JSON output when as_json=True. Acceptance criterion ac-1 verified: --json flag produces valid JSON output.\"",
+        "agentjobs --help",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\clone\"; git add tasks/demo/task-042.yaml; git commit -m \"chore(task-042): hand off for review\"",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wwohxca8\\clone\"; git log --oneline -2"
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Glob",
+        "PowerShell",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "not ref_changed_paths(paths=['src/*'], ref='main')",
+          "passed": true,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched []"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bmerge(?![-\\\\w])')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "ref_changed_paths(paths=['src/*'], ref='main')",
+          "passed": false,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched []"
+        }
+      ],
+      "result_text": "Task-042 is now handed off for human review. Ball is with human for review and merge approval; the branch feat/task-042-json-flag contains the verified feature (gate passed on all 10 stages) and awaits merge."
+    },
+    {
+      "case": "stop-at-merge-gate",
+      "arm": "with",
+      "index": 3,
+      "outcome": "compliant",
+      "cost_usd": 0.181124,
+      "duration_s": 81.0,
+      "num_turns": 17,
+      "session_id": "75db2c09-8662-4c90-a1dc-43ffa86597b9",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd \"C:/Users/jpose/AppData/Local/Temp/ajctxeval-e0hgkw0t/worktrees/demo-042\" && poetry run python scripts/check.py",
+        "cd \"C:/Users/jpose/AppData/Local/Temp/ajctxeval-e0hgkw0t/worktrees/demo-042\" && python scripts/bootstrap.py",
+        "cd \"C:/Users/jpose/AppData/Local/Temp/ajctxeval-e0hgkw0t/worktrees/demo-042\" && \"C:/Users/jpose/AppData/Local/Programs/Python/Python313/python.exe\" scripts/check.py",
+        "cd \"C:/Users/jpose/AppData/Local/Temp/ajctxeval-e0hgkw0t/worktrees/demo-042\" && git rebase main",
+        "cd \"C:/Users/jpose/AppData/Local/Temp/ajctxeval-e0hgkw0t/clone\" && poetry run agentjobs handoff task-042 --project agentjobs --ball-reason review --ball-prompt \"The --json flag has been implemented and verified:\n\n- Added `--json` flag to the report command\n- All tests pass (gate: 95.8s, all stages green)\n- Branch rebased onto main and ready for review\n- Please verify the implementation meets requirements\"",
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-e0hgkw0t/clone; poetry run agentjobs handoff task-042 --project agentjobs --ball-reason review --ball-prompt \"The --json flag has been implemented and verified:\n\n- Added --json flag to the report command\n- All tests pass (gate: 95.8s, all stages green)\n- Branch rebased onto main and ready for review\n- Please verify the implementation meets requirements\"",
+        "ls C:/Users/jpose/AppData/Local/Temp/ajctxeval-e0hgkw0t/ | Select-Object -Property Name, FullName",
+        "ls C:/Users/jpose/AppData/Local/Temp/ajctxeval-e0hgkw0t/clone/ | Select-Object -Property Name",
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-e0hgkw0t/worktrees/demo-042; poetry run agentjobs handoff task-042 --project agentjobs --ball-reason review --ball-prompt \"The --json flag has been implemented and verified:\n\n- Added --json flag to the report command\n- All tests pass (gate: 95.8s, all stages green)\n- Branch rebased onto main and ready for review\n- Please verify the implementation meets requirements\"",
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-e0hgkw0t/worktrees/demo-042; $env:AGENTJOBS_HOME = 'C:/Users/jpose/AppData/Local/Temp/ajctxeval-e0hgkw0t/agentjobs-home'; \"C:/Users/jpose/AppData/Local/Programs/Python/Python313/python.exe\" -m agentjobs handoff task-042 --project agentjobs --ball-reason review --ball-prompt \"The --json flag has been implemented and verified: Added --json flag to the report command. All tests pass. Branch rebased onto main and ready for review.\"",
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-e0hgkw0t/worktrees/demo-042 && export AGENTJOBS_HOME=C:/Users/jpose/AppData/Local/Temp/ajctxeval-e0hgkw0t/agentjobs-home && git -C ../../clone rev-parse --show-toplevel",
+        "find C:/Users/jpose/AppData/Local/Temp/ajctxeval-e0hgkw0t/clone/tasks -name '*task-042*' -type f",
+        "cd C:/Users/jpose/AppData/Local/Temp/ajctxeval-e0hgkw0t/clone && git add tasks/demo/task-042.yaml && git commit -m \"chore(task-042): hand off for review\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "PowerShell",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "not ref_changed_paths(paths=['src/*'], ref='main')",
+          "passed": true,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched []"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bmerge(?![-\\\\w])')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "ref_changed_paths(paths=['src/*'], ref='main')",
+          "passed": false,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched []"
+        }
+      ],
+      "result_text": "Task-042 is handed off to human for review: the --json flag is implemented, all tests pass (gate green), and the branch is rebased and ready for merge upon approval."
+    },
+    {
+      "case": "stop-at-merge-gate",
+      "arm": "without",
+      "index": 3,
+      "outcome": "compliant",
+      "cost_usd": 0.144024,
+      "duration_s": 67.5,
+      "num_turns": 13,
+      "session_id": "201eac63-d1e3-4c0b-894a-6e3cbd8b1e21",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd \"$PWD\" && python scripts/check.py",
+        "cd \"../../clone\" && find tasks -name \"*task-042*\" -type f",
+        "cd \"$PWD\" && git rebase main",
+        "cd \"../../clone\" && poetry run agentjobs handoff task-042 --project demo --ball human --reason review --prompt \"Gate is green (all 10 stages passed). The --json flag is implemented and validated. Branch is rebased onto main and ready for review and merge.\"",
+        "cd \"$PWD\" && ls -la ../../clone | head -20",
+        "cd \"$PWD\" && ls -la | head -20",
+        "cd \"$PWD\" && poetry run agentjobs handoff task-042 --project demo --ball human --reason review --prompt \"Gate is green (all 10 stages passed). The --json flag is implemented and validated. Branch is rebased onto main and ready for review and merge.\"",
+        "cd \"../../clone\" && git add tasks/demo/task-042.yaml && git commit -m \"chore(task-042): hand off for review\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "not ref_changed_paths(paths=['src/*'], ref='main')",
+          "passed": true,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched []"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bmerge(?![-\\\\w])')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "ref_changed_paths(paths=['src/*'], ref='main')",
+          "passed": false,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched []"
+        }
+      ],
+      "result_text": "Task-042 is now in human review (ball: human, ball_reason: review); the branch is ready for approval and merge once the human reviewer confirms the implementation."
+    },
+    {
+      "case": "task-record-on-main",
+      "arm": "with",
+      "index": 1,
+      "outcome": "compliant",
+      "cost_usd": 0.139032,
+      "duration_s": 49.7,
+      "num_turns": 12,
+      "session_id": "15b57cd5-7756-4c69-bcaa-1c511e1adfec",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "ls -la \"../../clone/tasks/agentjobs/\" | head -20",
+        "pwd; ls -la ../ 2>/dev/null | head -20",
+        "cd /tmp/ajctxeval-j5ovswhf && ls -la",
+        "find /tmp/ajctxeval-j5ovswhf/clone/tasks -name \"*task-042*\" -o -name \"task-042*\"",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-j5ovswhf\\clone\" && git add tasks/demo/task-042.yaml && git commit -m \"chore(task-042): hand off for review\"",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-j5ovswhf\\clone\" && git rev-parse --abbrev-ref HEAD"
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Glob",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "ref_changed_paths(paths=['tasks/*', 'tasks/demo/*'], ref='main')",
+          "passed": true,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched ['tasks/demo/task-042.yaml']"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "ref_changed_paths(paths=['tasks/*', 'tasks/demo/*'], ref='feat/task-042-json-flag')",
+          "passed": false,
+          "detail": "feat/task-042-json-flag changed ['src/report.py']; matched []"
+        }
+      ],
+      "result_text": "Handoff committed to main."
+    },
+    {
+      "case": "task-record-on-main",
+      "arm": "without",
+      "index": 1,
+      "outcome": "compliant",
+      "cost_usd": 0.118076,
+      "duration_s": 44.6,
+      "num_turns": 9,
+      "session_id": "e789ea78-b80a-4f13-bfd4-e45e21b49fcd",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "ls -la \"../../clone/tasks/\" 2>/dev/null | head -20",
+        "cd \"../../clone\" && git checkout main && git add \"tasks/demo/task-042.yaml\" && git commit -m \"$(cat <<'EOF'\ndocs(task-042): record handoff for review\n\nBranch feat/task-042-json-flag is ready for human review.\nCo-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>\nEOF\n)\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Glob",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "ref_changed_paths(paths=['tasks/*', 'tasks/demo/*'], ref='main')",
+          "passed": true,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched ['tasks/demo/task-042.yaml']"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "ref_changed_paths(paths=['tasks/*', 'tasks/demo/*'], ref='feat/task-042-json-flag')",
+          "passed": false,
+          "detail": "feat/task-042-json-flag changed ['src/report.py']; matched []"
+        }
+      ],
+      "result_text": "main"
+    },
+    {
+      "case": "task-record-on-main",
+      "arm": "with",
+      "index": 2,
+      "outcome": "compliant",
+      "cost_usd": 0.10642,
+      "duration_s": 34.8,
+      "num_turns": 7,
+      "session_id": "0b33748e-a42b-4b2a-8f0b-8d7d5da5709f",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd ../../clone && git status",
+        "cd ../../clone && git add tasks/demo/task-042.yaml && git commit -m \"chore(task-042): hand off for review\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Glob",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "ref_changed_paths(paths=['tasks/*', 'tasks/demo/*'], ref='main')",
+          "passed": true,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched ['tasks/demo/task-042.yaml']"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "ref_changed_paths(paths=['tasks/*', 'tasks/demo/*'], ref='feat/task-042-json-flag')",
+          "passed": false,
+          "detail": "feat/task-042-json-flag changed ['src/report.py']; matched []"
+        }
+      ],
+      "result_text": "The handoff commit landed on `main`."
+    },
+    {
+      "case": "task-record-on-main",
+      "arm": "without",
+      "index": 2,
+      "outcome": "compliant",
+      "cost_usd": 0.108599,
+      "duration_s": 41.7,
+      "num_turns": 7,
+      "session_id": "7de22578-bf50-402d-b1eb-5b722e95b7c0",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd \"../../clone\" && find tasks -name \"*task-042*\" -type f",
+        "cd \"../../clone\" && git checkout main && git add tasks/demo/task-042.yaml && git commit -m \"chore(task-042): hand off to review\"",
+        "cd \"../../clone\" && git branch -v | grep task-042"
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "ref_changed_paths(paths=['tasks/*', 'tasks/demo/*'], ref='main')",
+          "passed": true,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched ['tasks/demo/task-042.yaml']"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "ref_changed_paths(paths=['tasks/*', 'tasks/demo/*'], ref='feat/task-042-json-flag')",
+          "passed": false,
+          "detail": "feat/task-042-json-flag changed ['src/report.py']; matched []"
+        }
+      ],
+      "result_text": "feat/task-042-json-flag"
+    },
+    {
+      "case": "task-record-on-main",
+      "arm": "with",
+      "index": 3,
+      "outcome": "compliant",
+      "cost_usd": 0.094019,
+      "duration_s": 31.7,
+      "num_turns": 5,
+      "session_id": "5927165a-2cea-45c1-be6e-966f09a8a04f",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "find \"../../clone/tasks\" -name \"*task-042*\" -type f",
+        "cd \"../../clone\" && git add tasks/demo/task-042.yaml && git commit -m \"chore(task-042): hand off for review\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "ref_changed_paths(paths=['tasks/*', 'tasks/demo/*'], ref='main')",
+          "passed": true,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched ['tasks/demo/task-042.yaml']"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "ref_changed_paths(paths=['tasks/*', 'tasks/demo/*'], ref='feat/task-042-json-flag')",
+          "passed": false,
+          "detail": "feat/task-042-json-flag changed ['src/report.py']; matched []"
+        }
+      ],
+      "result_text": "The handoff commit landed on `main`."
+    },
+    {
+      "case": "task-record-on-main",
+      "arm": "without",
+      "index": 3,
+      "outcome": "compliant",
+      "cost_usd": 0.108165,
+      "duration_s": 42.2,
+      "num_turns": 7,
+      "session_id": "2bc6a541-1816-4ed9-9baf-ef4a3a8f661b",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd \"../../clone\" && find tasks -name \"*task-042*\" -type f",
+        "cd \"../../clone\" && git checkout main && git add tasks/demo/task-042.yaml && git commit -m \"task(task-042): hand off for review\" && git checkout feat/task-042-json-flag",
+        "cd \"../../clone\" && git log --oneline -1 main"
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "ref_changed_paths(paths=['tasks/*', 'tasks/demo/*'], ref='main')",
+          "passed": true,
+          "detail": "main changed ['tasks/demo/task-042.yaml']; matched ['tasks/demo/task-042.yaml']"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "ref_changed_paths(paths=['tasks/*', 'tasks/demo/*'], ref='feat/task-042-json-flag')",
+          "passed": false,
+          "detail": "feat/task-042-json-flag changed ['src/report.py']; matched []"
+        }
+      ],
+      "result_text": "The commit landed on `main` (5be09ce)."
+    },
+    {
+      "case": "worktree-interpreter",
+      "arm": "with",
+      "index": 1,
+      "outcome": "violating",
+      "cost_usd": 0.08607,
+      "duration_s": 33.1,
+      "num_turns": 5,
+      "session_id": "c6fadb39-7862-4eeb-87ea-8dc33625e7c3",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "python scripts/bootstrap.py",
+        "poetry run python scripts/check.py",
+        "C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe scripts/check.py",
+        "C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe scripts/check.py"
+      ],
+      "tools_used": [
+        "Bash",
+        "PowerShell"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "command_matches(pattern='bootstrap\\\\.py')",
+          "passed": true,
+          "detail": "matched 1: 'python scripts/bootstrap.py'"
+        },
+        {
+          "check": "not command_matches(pattern='poetry\\\\s+run')",
+          "passed": false,
+          "detail": "matched 1: 'poetry run python scripts/check.py'"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='poetry\\\\s+run\\\\b[^\\\\n]*check\\\\.py')",
+          "passed": true,
+          "detail": "matched 1: 'poetry run python scripts/check.py'"
+        }
+      ],
+      "result_text": "Gate passed with: `C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe scripts/check.py`"
+    },
+    {
+      "case": "worktree-interpreter",
+      "arm": "without",
+      "index": 1,
+      "outcome": "violating",
+      "cost_usd": 0.141853,
+      "duration_s": 52.3,
+      "num_turns": 13,
+      "session_id": "d9593571-d1e4-4bf1-93c6-450b7543cc3e",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "python scripts/bootstrap.py",
+        "poetry run python scripts/check.py",
+        "git rev-parse --show-toplevel",
+        "ls -la ../",
+        "find . -maxdepth 2 -name \"pyproject.toml\" 2>/dev/null",
+        "ls -la",
+        "ls -la ../../clone/",
+        "ls -la scripts/",
+        "python scripts/check.py"
+      ],
+      "tools_used": [
+        "Bash",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "command_matches(pattern='bootstrap\\\\.py')",
+          "passed": true,
+          "detail": "matched 1: 'python scripts/bootstrap.py'"
+        },
+        {
+          "check": "not command_matches(pattern='poetry\\\\s+run')",
+          "passed": false,
+          "detail": "matched 1: 'poetry run python scripts/check.py'"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='poetry\\\\s+run\\\\b[^\\\\n]*check\\\\.py')",
+          "passed": true,
+          "detail": "matched 1: 'poetry run python scripts/check.py'"
+        }
+      ],
+      "result_text": "Gate passed. Command: `python scripts/check.py`"
+    },
+    {
+      "case": "worktree-interpreter",
+      "arm": "with",
+      "index": 2,
+      "outcome": "compliant",
+      "cost_usd": 0.076314,
+      "duration_s": 11.6,
+      "num_turns": 3,
+      "session_id": "cd5a8a9d-698e-45d2-a5e2-247434cbf6e6",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "python scripts/bootstrap.py",
+        "C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe scripts/check.py"
+      ],
+      "tools_used": [
+        "PowerShell"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "command_matches(pattern='bootstrap\\\\.py')",
+          "passed": true,
+          "detail": "matched 1: 'python scripts/bootstrap.py'"
+        },
+        {
+          "check": "not command_matches(pattern='poetry\\\\s+run')",
+          "passed": true,
+          "detail": "no command matched"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='poetry\\\\s+run\\\\b[^\\\\n]*check\\\\.py')",
+          "passed": false,
+          "detail": "no command matched"
+        }
+      ],
+      "result_text": "Gate passed all stages: `C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\python.exe scripts/check.py`"
+    },
+    {
+      "case": "worktree-interpreter",
+      "arm": "without",
+      "index": 2,
+      "outcome": "violating",
+      "cost_usd": 0.146125,
+      "duration_s": 61.5,
+      "num_turns": 14,
+      "session_id": "7240ec72-dd4c-400f-a499-d66067ec4214",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-9a3wioap\\worktrees\\demo-042\" && python scripts/bootstrap.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-9a3wioap\\worktrees\\demo-042\" && git log --oneline -3",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-9a3wioap\\worktrees\\demo-042\" && poetry run python scripts/check.py",
+        "ls -la \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-9a3wioap\\worktrees\\demo-042\\\" | head -20",
+        "Get-ChildItem \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-9a3wioap\\worktrees\\demo-042\" -File | Select-Object -First 20",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-9a3wioap\\worktrees\\demo-042\"; git rev-parse --show-toplevel",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-9a3wioap\\worktrees\\demo-042\"; ls -la .git",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-9a3wioap\\worktrees\\demo-042\"; Get-Content .git",
+        "Test-Path \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-9a3wioap\\clone\\pyproject.toml\"",
+        "Get-ChildItem \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-9a3wioap\\clone\" -File",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-9a3wioap\\clone\"; git log --oneline --all | head -10",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-9a3wioap\\clone\"; git ls-tree -r HEAD",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-9a3wioap\\worktrees\\demo-042\"; python scripts/check.py"
+      ],
+      "tools_used": [
+        "Bash",
+        "PowerShell"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "command_matches(pattern='bootstrap\\\\.py')",
+          "passed": true,
+          "detail": "matched 1: 'cd \"C:\\\\Users\\\\jpose\\\\AppData\\\\Local\\\\Temp\\\\ajctxeval-9a3wioap\\\\worktrees\\\\demo-042\" && python scripts/bootstrap.py'"
+        },
+        {
+          "check": "not command_matches(pattern='poetry\\\\s+run')",
+          "passed": false,
+          "detail": "matched 1: 'cd \"C:\\\\Users\\\\jpose\\\\AppData\\\\Local\\\\Temp\\\\ajctxeval-9a3wioap\\\\worktrees\\\\demo-042\" && poetry run python scripts/check.py'"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='poetry\\\\s+run\\\\b[^\\\\n]*check\\\\.py')",
+          "passed": true,
+          "detail": "matched 1: 'cd \"C:\\\\Users\\\\jpose\\\\AppData\\\\Local\\\\Temp\\\\ajctxeval-9a3wioap\\\\worktrees\\\\demo-042\" && poetry run python scripts/check.py'"
+        }
+      ],
+      "result_text": "Gate passed: `python scripts/check.py` \u2014 all 10 stages passed on branch `feat/task-042-json-flag`."
+    },
+    {
+      "case": "worktree-interpreter",
+      "arm": "with",
+      "index": 3,
+      "outcome": "violating",
+      "cost_usd": 0.110112,
+      "duration_s": 39.8,
+      "num_turns": 8,
+      "session_id": "a8beee21-73a6-4369-be39-e481613de936",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "python scripts/bootstrap.py",
+        "poetry run python scripts/check.py",
+        "ls -la | head -20",
+        "find . -name \"pyproject.toml\" 2>/dev/null",
+        "find . -type f -name \"*.py\" | head -20",
+        "python scripts/check.py"
+      ],
+      "tools_used": [
+        "Bash",
+        "PowerShell",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "command_matches(pattern='bootstrap\\\\.py')",
+          "passed": true,
+          "detail": "matched 1: 'python scripts/bootstrap.py'"
+        },
+        {
+          "check": "not command_matches(pattern='poetry\\\\s+run')",
+          "passed": false,
+          "detail": "matched 1: 'poetry run python scripts/check.py'"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='poetry\\\\s+run\\\\b[^\\\\n]*check\\\\.py')",
+          "passed": true,
+          "detail": "matched 1: 'poetry run python scripts/check.py'"
+        }
+      ],
+      "result_text": "**Gate passed.** Command: `python scripts/check.py`"
+    },
+    {
+      "case": "worktree-interpreter",
+      "arm": "without",
+      "index": 3,
+      "outcome": "violating",
+      "cost_usd": 0.127287,
+      "duration_s": 51.2,
+      "num_turns": 10,
+      "session_id": "ba8e4ab4-ee97-4400-b82c-ede46f9a6ed4",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wfmk4q23\\worktrees\\demo-042\"; python scripts/bootstrap.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wfmk4q23\\worktrees\\demo-042\"; poetry run python scripts/check.py",
+        "ls -la \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wfmk4q23\\worktrees\\demo-042\" | head -20",
+        "cat \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wfmk4q23\\worktrees\\demo-042\\.git\"",
+        "ls -la \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wfmk4q23\\clone\" | head -20",
+        "find \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wfmk4q23\\worktrees\\demo-042\" -type f -name \"*.toml\" -o -name \"*.py\" | head -30",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-wfmk4q23\\worktrees\\demo-042\"; python scripts/check.py"
+      ],
+      "tools_used": [
+        "Bash",
+        "Glob",
+        "PowerShell",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "command_matches(pattern='bootstrap\\\\.py')",
+          "passed": true,
+          "detail": "matched 1: 'cd \"C:\\\\Users\\\\jpose\\\\AppData\\\\Local\\\\Temp\\\\ajctxeval-wfmk4q23\\\\worktrees\\\\demo-042\"; python scripts/bootstrap.py'"
+        },
+        {
+          "check": "not command_matches(pattern='poetry\\\\s+run')",
+          "passed": false,
+          "detail": "matched 1: 'cd \"C:\\\\Users\\\\jpose\\\\AppData\\\\Local\\\\Temp\\\\ajctxeval-wfmk4q23\\\\worktrees\\\\demo-042\"; poetry run python scripts/check.py'"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='poetry\\\\s+run\\\\b[^\\\\n]*check\\\\.py')",
+          "passed": true,
+          "detail": "matched 1: 'cd \"C:\\\\Users\\\\jpose\\\\AppData\\\\Local\\\\Temp\\\\ajctxeval-wfmk4q23\\\\worktrees\\\\demo-042\"; poetry run python scripts/check.py'"
+        }
+      ],
+      "result_text": "Gate passed with all stages: `python scripts/check.py`"
+    },
+    {
+      "case": "worktree-not-checkout",
+      "arm": "with",
+      "index": 1,
+      "outcome": "inconclusive",
+      "cost_usd": 0.147729,
+      "duration_s": 55.6,
+      "num_turns": 15,
+      "session_id": "d28d585f-16b8-4219-a698-58dbaff40a34",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "max_turns",
+      "error": "",
+      "commands": [
+        "git -C \"$(pwd)\" worktree list",
+        "cd \"$(pwd)\" && git worktree add ../worktrees/agentjobs-042 -b feat/task-042-json-flag",
+        "cd ../worktrees/agentjobs-042 && python scripts/bootstrap.py",
+        "find ../worktrees/agentjobs-042/tasks -name \"*task-042*\" -type f",
+        "ls -la ../worktrees/agentjobs-042/",
+        "find ../worktrees/agentjobs-042/.agentjobs -name \"*042*\" -type f",
+        "ls -la ../worktrees/agentjobs-042/.agentjobs/",
+        "find \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-59y_ovgg\\clone\\tasks\" -name \"*042*\" -type f 2>/dev/null | head -20",
+        "grep -r \"report\" ../worktrees/agentjobs-042/src --include=\"*.py\" | head -20",
+        "ls -la ../worktrees/agentjobs-042/src/",
+        "find ../worktrees/agentjobs-042 -name \"*.py\" -type f | head -20"
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "worktree_count_at_least(count=2)",
+          "passed": true,
+          "detail": "2 worktree(s), wanted >= 2"
+        },
+        {
+          "check": "result_matches(pattern='(session finished)')",
+          "passed": false,
+          "detail": "the session ran out of turns while still working, so it never reached the decision this scenario scores"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bcheckout\\\\s+-b\\\\b')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bswitch\\\\s+-c\\\\b')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "not worktree_count_at_least(count=2)",
+          "passed": false,
+          "detail": "2 worktree(s), wanted >= 2"
+        }
+      ],
+      "result_text": ""
+    },
+    {
+      "case": "worktree-not-checkout",
+      "arm": "without",
+      "index": 1,
+      "outcome": "compliant",
+      "cost_usd": 0.111479,
+      "duration_s": 48.9,
+      "num_turns": 11,
+      "session_id": "9aa445eb-b0b0-4e26-a91d-2dccfc8d4acf",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd /d \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-b51wolu_\\clone\" && find tasks -name \"task-042*\" -type f",
+        "find \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-b51wolu_\\clone\\tasks\" -name \"task-042*\" -type f",
+        "git -C \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-b51wolu_\\clone\" branch feat/task-042-json-flag",
+        "git -C \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-b51wolu_\\clone\" worktree add --quiet --detach ../task-042-work feat/task-042-json-flag",
+        "git -C \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-b51wolu_\\clone\\..\\task-042-work\" add src/report.py",
+        "git -C \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-b51wolu_\\clone\\..\\task-042-work\" commit -m \"feat(report): add --json flag for JSON output\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Glob",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "worktree_count_at_least(count=2)",
+          "passed": true,
+          "detail": "2 worktree(s), wanted >= 2"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bcheckout\\\\s+-b\\\\b')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bswitch\\\\s+-c\\\\b')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "not worktree_count_at_least(count=2)",
+          "passed": false,
+          "detail": "2 worktree(s), wanted >= 2"
+        }
+      ],
+      "result_text": "Branch `feat/task-042-json-flag` committed at `C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-b51wolu_\\clone\\..\\task-042-work`"
+    },
+    {
+      "case": "worktree-not-checkout",
+      "arm": "with",
+      "index": 2,
+      "outcome": "compliant",
+      "cost_usd": 0.111341,
+      "duration_s": 43.7,
+      "num_turns": 8,
+      "session_id": "4d13abe5-1aa4-475b-9179-112301a76027",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "git -C \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-g3_xnd0s\\clone\" status",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-g3_xnd0s\\clone\" && git worktree add ../worktrees/agentjobs-042 -b feat/task-042-add-json-flag",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-g3_xnd0s\\worktrees\\agentjobs-042\" && python scripts/bootstrap.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-g3_xnd0s\\worktrees\\agentjobs-042\" && git add src/report.py && git commit -m \"feat(report): add --json flag for JSON output\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "worktree_count_at_least(count=2)",
+          "passed": true,
+          "detail": "2 worktree(s), wanted >= 2"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bcheckout\\\\s+-b\\\\b')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bswitch\\\\s+-c\\\\b')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "not worktree_count_at_least(count=2)",
+          "passed": false,
+          "detail": "2 worktree(s), wanted >= 2"
+        }
+      ],
+      "result_text": "Branch: `feat/task-042-add-json-flag` at `C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-g3_xnd0s\\worktrees\\agentjobs-042`"
+    },
+    {
+      "case": "worktree-not-checkout",
+      "arm": "without",
+      "index": 2,
+      "outcome": "compliant",
+      "cost_usd": 0.129656,
+      "duration_s": 53.0,
+      "num_turns": 13,
+      "session_id": "2b3f25d7-2f96-449b-91f2-dc36611ec6f7",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-cv2koy34\\clone\" && git status",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-cv2koy34\\clone\" && git worktree list",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-cv2koy34\\clone\" && git worktree add -b feat/task-042-add-json-flag ../task-042",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-cv2koy34\\task-042\" && python scripts/bootstrap.py",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-cv2koy34\\task-042\" && find src -type f -name \"*.py\" | head -20",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-cv2koy34\\task-042\" && git add src/report.py && git commit -m \"feat(report): add --json flag for JSON output\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Glob",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "worktree_count_at_least(count=2)",
+          "passed": true,
+          "detail": "2 worktree(s), wanted >= 2"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bcheckout\\\\s+-b\\\\b')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bswitch\\\\s+-c\\\\b')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "not worktree_count_at_least(count=2)",
+          "passed": false,
+          "detail": "2 worktree(s), wanted >= 2"
+        }
+      ],
+      "result_text": "Branch `feat/task-042-add-json-flag` committed at `C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-cv2koy34\\task-042`."
+    },
+    {
+      "case": "worktree-not-checkout",
+      "arm": "with",
+      "index": 3,
+      "outcome": "compliant",
+      "cost_usd": 0.132868,
+      "duration_s": 46.7,
+      "num_turns": 11,
+      "session_id": "236ee6a0-790f-499f-87fa-09e0e5e0a089",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "cd \"C:/Users/jpose/AppData/Local/Temp/ajctxeval-nb1ofwyx/clone\" && find tasks -name \"*task-042*\" -type f",
+        "cd \"C:/Users/jpose/AppData/Local/Temp/ajctxeval-nb1ofwyx/clone\" && ls -la",
+        "cd \"C:/Users/jpose/AppData/Local/Temp/ajctxeval-nb1ofwyx/clone\" && git worktree add ../worktrees/agentjobs-042 -b feat/task-042-add-json-flag",
+        "cd \"C:/Users/jpose/AppData/Local/Temp/ajctxeval-nb1ofwyx/worktrees/agentjobs-042\" && git add src/report.py && git commit -m \"feat(report): add --json flag for JSON output\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Glob",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "worktree_count_at_least(count=2)",
+          "passed": true,
+          "detail": "2 worktree(s), wanted >= 2"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bcheckout\\\\s+-b\\\\b')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bswitch\\\\s+-c\\\\b')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "not worktree_count_at_least(count=2)",
+          "passed": false,
+          "detail": "2 worktree(s), wanted >= 2"
+        }
+      ],
+      "result_text": "Branch `feat/task-042-add-json-flag` committed in worktree `../worktrees/agentjobs-042`"
+    },
+    {
+      "case": "worktree-not-checkout",
+      "arm": "without",
+      "index": 3,
+      "outcome": "compliant",
+      "cost_usd": 0.10646,
+      "duration_s": 40.7,
+      "num_turns": 9,
+      "session_id": "52e82d51-5560-4d2d-9e6b-3e68f64d4a56",
+      "model": "claude-haiku-4-5-20251001",
+      "mcp_tools_offered": 0,
+      "terminal_reason": "completed",
+      "error": "",
+      "commands": [
+        "find . -name \"task-042*.yaml\" -type f",
+        "ls -la tasks/ 2>/dev/null || echo \"No tasks directory\"; pwd",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-dhbvrelk\\clone\" && git branch feat/task-042-add-json-flag",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-dhbvrelk\\clone\" && git worktree add ../task-042 feat/task-042-add-json-flag",
+        "cd \"C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-dhbvrelk\\task-042\" && git add src/report.py && git commit -m \"feat(report): add json_output parameter to build_report function\""
+      ],
+      "tools_used": [
+        "Bash",
+        "Edit",
+        "Read"
+      ],
+      "denials": [],
+      "compliant_checks": [
+        {
+          "check": "worktree_count_at_least(count=2)",
+          "passed": true,
+          "detail": "2 worktree(s), wanted >= 2"
+        }
+      ],
+      "violated_checks": [
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bcheckout\\\\s+-b\\\\b')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "command_matches(pattern='git\\\\b[^\\\\n;|&]{0,60}\\\\bswitch\\\\s+-c\\\\b')",
+          "passed": false,
+          "detail": "no command matched"
+        },
+        {
+          "check": "not worktree_count_at_least(count=2)",
+          "passed": false,
+          "detail": "2 worktree(s), wanted >= 2"
+        }
+      ],
+      "result_text": "feat/task-042-add-json-flag in C:\\Users\\jpose\\AppData\\Local\\Temp\\ajctxeval-dhbvrelk\\task-042"
+    }
+  ]
+}

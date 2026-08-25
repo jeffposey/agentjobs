@@ -126,3 +126,41 @@ Three limits, stated rather than buried:
 `baselines/` holds one committed report per model, dated and naming the model id and the
 bundle commit. That is the whole point of the exercise: without a baseline, the next release
 has nothing to compare against. `results/` is where a fresh run lands and is gitignored.
+
+### 2026-08-25 — the first two
+
+| | `claude-opus-5` | `claude-haiku-4-5` |
+|---|---|---|
+| sessions | 42 | 42 |
+| cost | $30.34 | $5.14 |
+| wall clock, 3 concurrent | 17.4 min | 11.7 min |
+| runs scored compliant | **42 of 42** | 36 of 42 |
+| verdicts | 7 decorative | 5 decorative, 2 inconclusive |
+
+**Opus-5 did the right thing in every scenario, in both arms.** Removing the section did
+not change what it did, once in seven cases across 42 sessions.
+
+**Read the second column before drawing a conclusion from the first.** A suite that returns
+the same answer everywhere is indistinguishable, from the outside, from a suite that
+measures nothing — so the honest question is what would have shown a difference, and the
+haiku column answers it with data rather than with assurance. The same scenarios, the same
+checks, the same fixtures: 5 runs violating and 1 inconclusive. `worktree-interpreter`
+alone went 5-of-6 violating, reaching for `poetry run` from a worktree exactly as task-194
+describes. The checks fire. Opus-5 does not trip them.
+
+### What "decorative" licenses, and what it does not
+
+It licenses **moving** the named section out of the always-loaded chain. It does not
+license deleting the rule, and three limits are why:
+
+1. **The ablated arm still carries the rest of the bundle**, which is dense with the same
+   norms and with the situations that motivate them. So what was measured is "is this
+   section redundant *given everything else that stays*" — which is exactly the question
+   the compression work asks, and is weaker than "this rule is never needed".
+2. **A scenario is a proxy for an incident.** It is built from the incident's task record,
+   and it is still a constructed situation with a prompt that frames it.
+3. **Three runs per arm**, no significance test. A verdict is a signal, not a proof.
+
+One more thing the opus sweep established, and it is not a verdict: **four sandbox
+sessions reached into `C:/projects/agentjobs` and were refused by the guard.** Containment
+here is a mechanism, not a hope, and the number is in the report.
