@@ -2,26 +2,11 @@ schema: 2
 id: task-308
 title: Posture settable on the task record, and whether a task may raise its own
 created: '2026-08-23T22:48:30.766265Z'
-updated: '2026-08-25T06:50:05.561346Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.
-
-
-  Note from Jeff Posey:
-
-
-  Approved, go ahead and set the project to max posture autonomous
-
-
-  That note is context to carry into the merge, not another review round: you are
-  still cleared to merge.'
+updated: '2026-08-25T06:59:56.277100Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 245
 category: architecture
 tags:
 - dispatch
@@ -30,7 +15,6 @@ tags:
 - schema
 effort: half a day
 assignment:
-  owner: claude
   eligible: []
 parent: task-160-dispatch-phase-two
 spec:
@@ -167,7 +151,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-308-posture-ceiling
-  status: active
+  status: merged
+  merged_at: '2026-08-25T06:55:00Z'
 log:
 - id: 1
   ts: '2026-08-23T22:48:31.468658Z'
@@ -895,3 +880,106 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 26
+  ts: '2026-08-25T06:58:55.222210Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: c8e5a137-90b2-4d64-a3f8-6e1b74c2509d
+      kind: update_content
+      fingerprint: 7978dbe9e8f02f8e52da95e4c23ea321
+- id: 27
+  ts: '2026-08-25T06:59:29.589586Z'
+  actor: claude
+  type: progress
+  body: "**Merged and delivered by hand. `bc02a36`. The running server on 8876 is\
+    \ serving it, and agentjobs' ceiling is now `autonomous`.**\n\n## The scripted\
+    \ finish had left something running; it had not merged\n\nBefore touching anything\
+    \ I checked state, and found more than the prompt described. Entry 23's finish\
+    \ `fin_f2bca6ff` started at 06:46:53 and **never finished**: its `meta.yaml` still\
+    \ says `outcome: running`, and `phases.jsonl` holds `finish_preflight` and `gate_started`\
+    \ with no `gate_finished`. It had already rebased the branch, which is why the\
+    \ commit hashes had moved again since entry 19.\n\nSo the question was whether\
+    \ a gate was live in my worktree at that moment \u2014 starting a merge underneath\
+    \ one would have been the wrong kind of improvisation. Checked rather than assumed:\n\
+    \n- no process anywhere matching `check.py` or `pytest`;\n- no process of any\
+    \ kind with `agentjobs-308` in its command line except my own shells;\n- `git\
+    \ log --merges` on `main` showed no task-308 merge;\n- five minutes had passed\
+    \ since `gate_started`, against a gate that takes under three.\n\nDead, not slow.\
+    \ It merged nothing, exactly as the prompt said. **`~/.agentjobs/finishes/fin_f2bca6ff/meta.yaml`\
+    \ is now stale at `outcome: running`** \u2014 machine-local, harmless to the repository,\
+    \ but `scripts/run_report.py` reads that directory, so it is worth knowing it\
+    \ is there. I left it alone rather than editing a record I did not write.\n\n\
+    ## The merge\n\n1. Committed the pending approval/dispatch entries to `main` (`73cff73`).\n\
+    2. Rebased the branch onto `main` \u2014 seven commits, clean, no conflicts. Tip\
+    \ `95a9b0e`.\n3. **Full unqualified `scripts/check.py` on `95a9b0e`, the exact\
+    \ commit that merges: exit 0, 166.8s, all ten stages.** black 0.7 \xB7 ruff 0.1\
+    \ \xB7 mypy 1.7 \xB7 api 4.6 \xB7 icons 2.5 \xB7 oxlint 0.7 \xB7 pytest 113.5\
+    \ \xB7 vitest 6.0 \xB7 build 3.9 \xB7 e2e 33.0. Receipt written for `95a9b0ec`.\
+    \ Re-run rather than relying on the green from `b8d5e78`: same content, different\
+    \ commits, and the gate's claim is about a commit.\n4. `git merge --no-ff` \u2192\
+    \ **`bc02a36`**. 21 files, +1450 / \u221226.\n5. Rebuilt the frontend \u2014 `frontend_dist/`\
+    \ is gitignored, so merging a change to the generated API client does not update\
+    \ what the server hands a browser.\n6. Restarted via this machine's own launcher,\
+    \ `C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen`, which is what `finish.restart`\
+    \ names. Not `agentjobs restart`: that binds the default 8765 and would have left\
+    \ the real dashboard stale while appearing to work.\n\n**Verified live rather\
+    \ than assumed.** `/api/version` reports `source_commit: bc02a36e67c609987b9df94ef637bdd971f22b5d`\
+    \ and `frontend_bundle: present`. One caution for the record: the first `curl`\
+    \ after the restart failed with connection-refused because the server was still\
+    \ coming up \u2014 that is a restart in progress, not a failed one, and the check\
+    \ was repeated rather than reported either way.\n\n## The ceiling is set, and\
+    \ what that now permits\n\nJeff, on this approval: *\"go ahead and set the project\
+    \ to max posture autonomous\"*. Done, in `~/.agentjobs/dispatch.yaml`, with a\
+    \ comment recording who set it and when.\n\n**The default is unchanged.** `posture:\
+    \ auto` stays, so an ordinary run here still gets `auto` and still stops for review.\
+    \ What moved is only the ceiling.\n\nRead back through the live API, which is\
+    \ the real path rather than the file I just wrote:\n\n| Project | posture | max_posture\
+    \ | offerable |\n|---|---|---|---|\n| agentjobs | auto | **autonomous** | read_only,\
+    \ supervised, auto, autonomous |\n| job-hunting | auto | auto | \u2014 |\n| mastercalls\
+    \ | auto | auto | \u2014 |\n\nThe other two are untouched, which is the per-project\
+    \ property working. No restart was needed for the config to take effect: `load_dispatch_config`\
+    \ reads from disk on every call, deliberately.\n\n**State the consequence plainly,\
+    \ because it is now real rather than hypothetical.** With the ceiling at `autonomous`,\
+    \ an agent that writes `posture: autonomous` onto its own task record gets it\
+    \ on the next dispatch of that task. The run's `dispatch` entry names `posture_source:\
+    \ task`, so it is auditable \u2014 it is not prevented. It is prevented only by\
+    \ that one line in a machine-local file, which is the design, and Jeff chose it\
+    \ knowingly. `assert_human_clocked` is untouched throughout: an agent still cannot\
+    \ *start* the run that would use it.\n\n## Closing state\n\nBranch `feat/task-308-posture-ceiling`\
+    \ marked `merged`. Worktree removed. Nothing was pushed \u2014 this project is\
+    \ `push: false` and always will be.\n\ntask-307 is now fully unblocked: `max_posture`,\
+    \ `offerable_postures`, the `posture` request field and the `posture_above_ceiling`\
+    \ 403 are all on `main`, and this machine's ceiling is raised so its pulldown\
+    \ has more than one option to offer.\n"
+  data:
+    operation:
+      id: d61e0b48-27a9-4c53-96f7-8ba4c1e0f2d7
+      kind: log_append
+      fingerprint: fbdf15421381a124f3627bf5037bc4aa
+- id: 28
+  ts: '2026-08-25T06:59:56.276787Z'
+  actor: claude
+  type: transition
+  body: "Merged as `bc02a36` on Jeff's approval, all six acceptance criteria met with\
+    \ evidence. Full unqualified gate green on the exact commit that merged (`95a9b0e`,\
+    \ exit 0, ten stages, receipt written). Frontend rebuilt, server restarted via\
+    \ this machine's launcher, and `/api/version` confirms it is serving `bc02a36e`.\
+    \ Branch marked merged and deleted, worktree removed, nothing pushed.\n\nagentjobs'\
+    \ `max_posture` is now `autonomous` at Jeff's instruction, with the default left\
+    \ at `auto` \u2014 verified through the live API, and the other two projects untouched\
+    \ at `auto`.\n\nOne loose end left deliberately for a human, since I did not write\
+    \ it: `~/.agentjobs/finishes/fin_f2bca6ff/meta.yaml` is stale at `outcome: running`.\
+    \ That finish died mid-gate before this run took over; it merged nothing, and\
+    \ it is machine-local, but `scripts/run_report.py` reads that directory.\n"
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: e04d7a91-5c32-4b8e-a716-2f9c8d0b3e65
+      kind: close
+      fingerprint: 695abcc2a18dadb05a6ce28711485a29
