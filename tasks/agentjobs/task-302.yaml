@@ -3,7 +3,7 @@ id: task-302
 title: "Three statements in the always-loaded bundle contradict the code \u2014 fix\
   \ them, and collapse the double-numbered merge gate"
 created: '2026-08-23T21:50:44.787308Z'
-updated: '2026-08-25T11:07:12.660144Z'
+updated: '2026-08-25T11:10:11.971317Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -470,3 +470,21 @@ log:
     finish_step: started
     branch: docs/task-302-bundle-contradictions
     finish_id: fin_2fa8a4fe
+- id: 14
+  ts: '2026-08-25T11:10:11.971167Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `docs/task-302-bundle-contradictions` into `main` as `8d25928e`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-302
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    task) releases the merge gate (task-021), and run run_a07731b6 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 8d25928e13e9be75e3ac4ab5d18fd58b0f9a44bc
+    branch: docs/task-302-bundle-contradictions
+    base: main
