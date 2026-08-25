@@ -72,3 +72,7 @@ out/
 # one machine's virtualenv, so there is no version of this file that is correct for
 # two people at once. docs/mcp-clients.md carries both invocations; write your own.
 .mcp.json
+
+# Context-eval results. One committed baseline per model lives in
+# evals/context/baselines/; a fresh sweep is evidence of a run, not a source.
+evals/context/results/

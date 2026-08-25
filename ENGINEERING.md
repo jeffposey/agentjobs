@@ -269,6 +269,31 @@ source rather than a neighbouring one's.
     Prefer asserting on task files parsed rather than on wall-clock time: the parse
     count means the same thing on every machine, and a timing threshold does not.
 
+### Measuring this file
+
+Every session loads `CLAUDE.md` and the three files it imports before its first thought.
+`scripts/context_eval.py` measures which of those words change what an agent *does*: it
+runs a scenario twice, once against a copy of the bundle and once against the same copy
+with one section cut out, and scores each run on its action trace -- which ref the commit
+landed on, whether a worktree was taken, what got staged.
+
+```bash
+poetry run python scripts/context_eval.py --dry-run    # validate the ablations, run nothing
+poetry run python scripts/context_eval.py --tag quick  # the per-release subset
+```
+
+**Run it on a new model release**, and before cutting anything from these files. A rule
+that is load-bearing for one generation may be redundant with the next model's defaults,
+which is why a verdict here carries a model id and a date. `evals/context/README.md` has
+the scenarios, the scoring vocabulary, the three limits worth knowing, and
+`evals/context/baselines/` holds one committed report per model to compare against.
+
+It is deliberately **not** in `scripts/check.py`: it costs tens of minutes and real money,
+and a gate stage like that gets disabled within a week. The cheap half is in the gate --
+`tests/test_context_eval.py` re-renders every ablation against the current bundle and fails
+when a case's target heading has been renamed or its rule restated somewhere the ablation
+does not reach, which is how the suite would otherwise rot.
+
 ### Code Style
 -   **Formatter**: Black
 -   **Linter**: Ruff
