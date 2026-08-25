@@ -1,0 +1,164 @@
+schema: 2
+id: task-315
+title: 'A posture chosen at dispatch never reaches the merge: the finisher reads the
+  project default and declines'
+created: '2026-08-25T08:52:25.148182Z'
+updated: '2026-08-25T08:52:33.059839Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
+archived: false
+priority: high
+queue_position: 14600
+category: infrastructure
+tags:
+- dispatch
+- finish
+- posture
+- agent-dx
+assignment:
+  owner: claude
+  eligible: []
+spec:
+  summary: task-307 and task-308 let a human choose a run's posture at the moment
+    of dispatching, above the project's default. That choice reaches the agent's prompt
+    and stops there. `agentjobs finish --posture-release` re-reads the project default,
+    so a run told "posture `autonomous` releases the merge gate" is refused by the
+    very command its prompt named.
+  intent: 'A run is told it may merge and then refused by the thing that merges. Whichever
+    half is right, the pair cannot both be, and the cost lands on the human: an autonomous
+    run they authorised parks for a review they were trying to skip. The posture system
+    already has one function that decides this correctly and bounds it by the machine-local
+    ceiling; the finisher just does not call it.'
+  description: "**Observed 2026-08-25 on task-298, in the run that was working it.**\n\
+    \nJeff dispatched task-298 from the task page and chose posture `autonomous` for\
+    \ that run, above this project's configured `auto`. The dispatch entry records\
+    \ it: `posture: autonomous`, `posture_source: dispatch`, `posture_ceiling: autonomous`.\
+    \ The run's prompt said, verbatim, *\"Posture `autonomous` releases the merge\
+    \ gate: this run merges its own work with no human review... run `agentjobs finish\
+    \ task-298 --project agentjobs --posture-release`.\"*\n\nRunning exactly that\
+    \ exits 2:\n\n> task-298: declined (posture_requires_review)\n> agentjobs runs\
+    \ at posture `auto`, whose merge policy is `review`. Only `autonomous` releases\
+    \ the merge gate. Hand the ball to human/review and stop; nothing was touched.\n\
+    \n## Where it goes wrong\n\n`finish_task` with `authority=POSTURE` (`src/agentjobs/dispatch/finish.py`,\
+    \ the `if authority == POSTURE:` block) does:\n\n```python\nreleased = assert_dispatch_permitted(project.id,\
+    \ resolved_home)\nposture = released.settings.posture          # <- the project\
+    \ default, and only that\n```\n\n`ProjectDispatchSettings.posture` is `projects.<id>.posture`\
+    \ in `dispatch.yaml`. It is one of *three* sources `resolve_posture` weighs \u2014\
+    \ dispatch choice, then task record, then project default, most-specific-wins,\
+    \ all bounded by `settings.ceiling`. The finisher reads the least specific one\
+    \ and ignores the other two, so:\n\n- a posture chosen **at dispatch** (task-307's\
+    \ GUI pulldown, or `--posture`) never reaches the merge;\n- a `posture:` field\
+    \ **on the task record** (task-308) never reaches it either.\n\nNothing in that\
+    \ path is told which run is asking. `AGENTJOBS_RUN_ID` is in the environment and\
+    \ `cli.py` already reads it a few lines later \u2014 only to compose the approver\
+    \ string.\n\n## The rule this should follow\n\n**The merge policy is decided by\
+    \ the posture the run was dispatched at; where there is no run, by the posture\
+    \ a dispatch would resolve right now.** Both bounded by the machine-local ceiling,\
+    \ exactly as `resolve_posture` already bounds them.\n\n- With `AGENTJOBS_RUN_ID`\
+    \ naming a run whose record is for this task, take that run's recorded `posture`.\
+    \ It is a decision already made and already attributed to a human on the dispatch\
+    \ entry; re-deriving it would be a second implementation of the same rule, free\
+    \ to drift.\n- Otherwise \u2014 a person running the command from a shell \u2014\
+    \ `resolve_posture(settings, task=<the task record's posture field>)`, which is\
+    \ what a dispatch of that task would produce.\n- **Clamp to `settings.ceiling`\
+    \ either way.** The ceiling is `max_posture` in machine-local `dispatch.yaml`,\
+    \ which nothing reachable over the network writes, and it is already the only\
+    \ thing standing between an agent and its own posture \u2014 Jeff's own comment\
+    \ in that file says so in as many words. A run record under `~/.agentjobs/runs/`\
+    \ is no harder for an agent to edit than a task record is, so the clamp is what\
+    \ keeps this honest, not the provenance of the field.\n\n**The check must stay\
+    \ a check.** Nothing here may be taken from a flag or an argument the caller passes:\
+    \ `--posture-release` says *which authority is being claimed*, never *that it\
+    \ is granted*. An agent that can talk the finisher into its own posture has turned\
+    \ the merge gate into a formality.\n\n## Not the same question as who may push\n\
+    \nPush stays per project and stays `false` here. Nothing in this task touches\
+    \ it."
+  constraints: "- `--posture-release` must not become a self-grant. The posture is\
+    \ read off recorded state and clamped by the machine-local ceiling; it is never\
+    \ taken from an argument.\n- Reuse `resolve_posture`. A second place that decides\
+    \ what a posture means is a second place for the answer to drift, and the ceiling\
+    \ handling is the subtle part.\n- Do not change the merge policy of any posture,\
+    \ or which postures exist. `auto` and `supervised` still stop for review; only\
+    \ `autonomous` releases.\n- The decline that remains \u2014 a run genuinely at\
+    \ a review posture \u2014 must keep saying which posture and where it came from,\
+    \ or the next person debugging this is back where task-298 started."
+  out_of_scope: "Push policy. The dispatch prompt's `AUTOMATIC_CLAUSE` wording (a\
+    \ separate question Jeff has open about whether a run should retry a red gate\
+    \ rather than hand off). Whether the approval hook's spawned finish can die mid-gate\
+    \ without writing a terminal outcome \u2014 seen on task-298 as `fin_e2862576`\
+    \ and closer to task-297."
+  context:
+  - path: src/agentjobs/dispatch/finish.py
+    why: The `if authority == POSTURE:` block that reads `released.settings.posture`
+      and declines. The whole defect is these three lines.
+  - path: src/agentjobs/dispatch/config.py
+    why: '`resolve_posture`, `ResolvedPosture` and `PostureSource` already implement
+      precedence and the ceiling correctly; the finisher should call them rather than
+      read one field.'
+  - path: src/agentjobs/dispatch/ledger.py
+    why: '`RunRecord.posture` is where the run''s dispatched posture is recorded,
+      and `AGENTJOBS_RUN_ID` names the run.'
+  - path: tasks/agentjobs/task-298.yaml
+    why: Log entry 8 is the live observation, with the command, the exact decline,
+      and the reasoning.
+acceptance:
+- id: sc-1
+  text: A run dispatched at `autonomous` on a project configured `auto` merges through
+    `agentjobs finish --posture-release`, and the merge's authorisation line names
+    the posture and where it came from.
+  verify: test, plus the live path on this repository
+  status: pending
+- id: sc-2
+  text: A run dispatched at `auto` or `supervised` still declines `posture_requires_review`,
+    and the decline names the posture and its source rather than only the project
+    default.
+  verify: test
+  status: pending
+- id: sc-3
+  text: "A posture above the project's `max_posture` ceiling does not release the\
+    \ merge, however it was recorded \u2014 including a run record edited by hand\
+    \ after dispatch."
+  verify: test that writes a raised posture onto a run record and expects the clamp
+  status: pending
+- id: sc-4
+  text: "With no `AGENTJOBS_RUN_ID` \u2014 a person running the command from a shell\
+    \ \u2014 the posture resolves the way a dispatch of that task would, honouring\
+    \ a `posture:` field on the task record, clamped."
+  verify: test
+  status: pending
+- id: sc-5
+  text: 'No new way for a caller to assert its own posture: nothing in the resolution
+    reads an argument or a flag.'
+  verify: read the diff; the flag still selects only which authority is claimed
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-25T08:52:25.559139Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 5c2b8a41-0311-4d00-8e11-9a0b1c2d3e01
+      kind: create
+      fingerprint: 61b473a01556a18224deab5ed0939f83
+- id: 2
+  ts: '2026-08-25T08:52:33.059726Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 5c2b8a41-0311-4d00-8e11-9a0b1c2d3e02
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
