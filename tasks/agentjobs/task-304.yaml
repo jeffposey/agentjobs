@@ -3,7 +3,7 @@ id: task-304
 title: 'Context evals: prove which rules in the always-loaded bundle actually change
   agent behaviour, and re-run it whenever a new model ships'
 created: '2026-08-23T21:52:43.476088Z'
-updated: '2026-08-25T20:20:31.767160Z'
+updated: '2026-08-25T20:25:40.381213Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -737,3 +737,43 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 19
+  ts: '2026-08-25T20:25:40.380723Z'
+  actor: claude
+  type: progress
+  body: "The first `agentjobs finish --posture-release` escalated at the gate, and\
+    \ I am retrying it. Writing down what happened, because \"I re-ran it and it went\
+    \ green\" is the shape of an agent grading its own homework and should not be\
+    \ taken on trust.\n\n**What the finisher did.** Preflight ok. Rebased `feat/task-304-context-evals`\
+    \ onto `main`: `439b5a98` -> `33257539`, clean. Then ran the full unqualified\
+    \ gate on the rebased branch and got exit 1 at the `pytest` stage after 169s.\
+    \ It merged nothing and left the branch rebased and otherwise untouched, which\
+    \ is what a red gate is supposed to produce. `fin_d871fcea/gate.log` has the whole\
+    \ run.\n\n**The failure.** One test out of 3329:\n\n    FAILED tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too\n\
+    \    AssertionError: pid 1088060 survived the timeout\n\n**Why I am treating it\
+    \ as contention rather than a regression, and what would falsify that.**\n\n-\
+    \ It is a wall-clock race: the test spawns a process group, times it out, and\
+    \ asserts the grandchild is gone. Under a loaded machine the reaper's window and\
+    \ the assertion can cross.\n- It passed **three times out of three** run alone\
+    \ immediately afterwards, 4.7s / 4.7s / 4.9s.\n- **The whole gate then passed\
+    \ on the same rebased commit `33257539`**, all ten stages, exit 0, 231s, receipt\
+    \ written. That is the check that matters: not the single test re-run, but the\
+    \ same unqualified gate the finisher runs, on the same commit, going green.\n\
+    - Nothing on this branch touches `src/agentjobs/dispatch/`. The five commits add\
+    \ `src/agentjobs/contexteval/`, `scripts/context_eval.py`, `evals/context/`, `tests/test_context_eval.py`,\
+    \ and about twenty lines of `ENGINEERING.md`. `git diff main...HEAD --stat` names\
+    \ no dispatch file.\n- The machine was not quiet. The 231s green and the 327s\
+    \ green earlier are both well above the 96s quiet-machine figure in ENGINEERING.md,\
+    \ which is the same contention story that section already tells.\n\nIf this test\
+    \ fails again on a quiet machine, that reasoning is wrong and it is a real flake\
+    \ worth its own task -- but it would still not be a regression from this branch.\n\
+    \n**What I did not do.** I did not merge by hand, and I did not re-run the gate\
+    \ repeatedly until it went green: it was run twice in total on this branch, once\
+    \ before the rebase (327s, green, receipt `5365d587`) and once after (231s, green,\
+    \ receipt `33257539`). The finisher runs it a third time itself, and that run\
+    \ -- not either of mine -- is the one that authorises the merge."
+  data:
+    operation:
+      id: 7a1c2f30-6d11-4a58-9d43-1b0e5c9f2a07
+      kind: log_append
+      fingerprint: ac3e3cbd18308b41df3db79a03aa1979
