@@ -3,7 +3,7 @@ id: task-316
 title: The epic walk drops the parent's dispatch-time posture, so an epic dispatched
   `autonomous` stops at its first child
 created: '2026-08-25T10:13:25.100260Z'
-updated: '2026-08-25T19:25:13.346768Z'
+updated: '2026-08-25T19:25:43.897987Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -416,3 +416,13 @@ log:
       id: a2f47d09-5b81-4c33-8e6a-71d90fb2c1a8
       kind: handoff
       fingerprint: 2126124dc16f6a4c2c4bd6f8a8610979
+- id: 9
+  ts: '2026-08-25T19:25:43.897775Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 4
+  data:
+    run_id: run_81b81b48
+    outcome: completed
+    duration_seconds: 2155.627796
+    log_path: C:\Users\jpose\.agentjobs\runs\run_81b81b48
