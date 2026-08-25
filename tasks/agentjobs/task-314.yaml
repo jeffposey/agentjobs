@@ -1,0 +1,150 @@
+schema: 2
+id: task-314
+title: Study Kiro Crew patterns for triggers, stalled sessions, and resumable checkpoints
+created: '2026-08-25T04:53:23.200192Z'
+updated: '2026-08-25T04:53:23.930314Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: medium
+queue_position: 8400
+category: architecture
+tags:
+- research
+- dispatch
+- reliability
+- automation
+- kiro
+effort: research and design; implementation split into follow-on tasks
+assignment:
+  eligible: []
+spec:
+  summary: Research Kiro and Kiro Crew as design references for AgentJobs, concentrating
+    on event-driven work triggers, session-stall detection, and resumable checkpoints.
+    Decide which ideas fit AgentJobs and turn the adopted ideas into a concrete, dependency-aware
+    set of implementation tasks.
+  intent: Learn from Kiro's operational design without integrating Kiro as a runtime
+    or duplicating capabilities AgentJobs already owns. The result should strengthen
+    AgentJobs' existing dispatch and autonomous-work machinery while preserving its
+    explicit, git-backed workflow model.
+  description: '## Research target
+
+
+    Study the current Kiro and Kiro Crew documentation and, where implementation detail
+    matters, the open-source Kiro Crew code. Treat them as competitive design references
+    rather than dependencies.
+
+
+    The two main areas are:
+
+
+    1. **Event-driven work triggers:** cron schedules, authenticated webhooks, and
+    CI/CD heartbeats or events that can create, promote, or wake AgentJobs work without
+    bypassing its deterministic queue and authorization model.
+
+    2. **Session health and recovery:** watchdog/stall detection, useful distinctions
+    between slow, waiting, parked, dead, and recoverable sessions, plus resumable
+    checkpoints that let long-running work continue without replaying completed work.
+
+
+    ## Work to do
+
+
+    - Document how Kiro and Kiro Crew implement or present these ideas, using current
+    primary evidence.
+
+    - Compare each mechanism with AgentJobs as it exists when the task is worked:
+    dispatch ledger and poller, task resumption contract, parent/child dispatch walk,
+    bounded retries, auth-park detection, scripted finish, and human handoffs.
+
+    - Identify actual gaps rather than renaming or rebuilding existing AgentJobs behavior.
+
+    - For each candidate idea, record an adopt/adapt/reject decision with reasoning,
+    failure semantics, safety boundaries, and the rejected alternative.
+
+    - Flesh out the ideas that survive that analysis into a coherent design for AgentJobs.
+
+    - Create a set of follow-on AgentJobs tasks for implementation. Those tasks should
+    have clear scope, acceptance criteria, dependencies, and an execution order that
+    avoids overlapping ownership.
+
+
+    ## Starting references
+
+
+    - https://kiro.dev/crew/
+
+    - https://kiro.dev/docs/crew/features/task-runner/
+
+    - https://kiro.dev/docs/
+
+
+    The research should follow current links and release notes rather than treating
+    these URLs as a frozen source list.'
+  constraints: '- AgentJobs remains the workflow authority and git-backed source of
+    truth.
+
+    - Do not propose using Kiro or Kiro Crew as AgentJobs'' runtime merely to obtain
+    capabilities AgentJobs already has.
+
+    - Triggered work must still pass through AgentJobs'' explicit state transitions,
+    queue, permissions, and audit log.
+
+    - Session-health signals must distinguish evidence from inference and must not
+    classify ordinary long-running work as stalled solely because of elapsed wall
+    time.
+
+    - Checkpoints must be explicit and inspectable; avoid opaque semantic memory as
+    task state.
+
+    - Do not implement product changes in this research task. Produce decisions, design,
+    and follow-on tasks first.'
+  out_of_scope: Integrating or embedding Kiro/Kiro Crew; replacing AgentJobs dispatch,
+    task YAML, queue, or handoff semantics; adding a coding model or IDE; copying
+    Kiro's general memory, skills, Powers, or app ecosystem; implementing speculative
+    features before the gap analysis is complete.
+  context: []
+acceptance:
+- id: ac-1
+  text: Current Kiro and Kiro Crew behavior relevant to event triggers, session health,
+    stall detection, recovery, and checkpoints is documented from primary sources
+    or inspected implementation evidence.
+  status: pending
+- id: ac-2
+  text: Each candidate mechanism is compared against current AgentJobs behavior, and
+    the analysis identifies genuine gaps without presenting existing dispatch, autonomous
+    execution, or child-session capabilities as new.
+  status: pending
+- id: ac-3
+  text: Adopt, adapt, or reject decisions are recorded for cron/webhook/CI triggers,
+    session-stall detection, and resumable checkpoints, including safety boundaries,
+    failure semantics, reasoning, and rejected alternatives.
+  status: pending
+- id: ac-4
+  text: The ideas selected for AgentJobs are fleshed out into a coherent design that
+    preserves the deterministic queue, explicit ball and handoffs, managed state transitions,
+    and git-backed auditability.
+  status: pending
+- id: ac-5
+  text: A non-overlapping set of follow-on implementation tasks is created for the
+    adopted ideas, with clear acceptance criteria, dependencies, and intended execution
+    order; rejected ideas create no implementation work.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-25T04:53:23.929471Z'
+  actor: codex
+  type: transition
+  body: Created draft by codex.
+  data:
+    lifecycle: draft
+    operation:
+      id: b9a8a10d-2f87-4c33-9ee8-1795e95775d6
+      kind: create
+      fingerprint: 6416f12d774cec770aec486f4057b2f7
