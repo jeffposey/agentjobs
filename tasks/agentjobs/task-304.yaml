@@ -3,7 +3,7 @@ id: task-304
 title: 'Context evals: prove which rules in the always-loaded bundle actually change
   agent behaviour, and re-run it whenever a new model ships'
 created: '2026-08-23T21:52:43.476088Z'
-updated: '2026-08-25T23:31:27.393528Z'
+updated: '2026-08-25T23:33:10.312277Z'
 lifecycle: active
 ball: human
 ball_reason: decision
@@ -961,3 +961,17 @@ log:
       id: 7a1c2f30-6d11-4a58-9d43-1b0e5c9f2a09
       kind: handoff
       fingerprint: aca8aac8a8aa008530674743a31e8e56
+- id: 27
+  ts: '2026-08-25T23:33:10.312066Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-304-context-evals` (e71acab1).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-304.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_0a6ff89b\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-304-context-evals
+    finish_id: fin_0a6ff89b
