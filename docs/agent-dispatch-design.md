@@ -22,6 +22,7 @@ trust it.
 | 5 | Run ledger, cancellation, startup reconciliation | task-072 |
 | 6 | The web UI's dispatch surface and per-project toggle | task-073 |
 | 7a | Permission posture — three postures, default `supervised` | task-076 |
+| 7d | Per-task posture and the project's `max_posture` ceiling | task-308 |
 | 7b | Session mode as the primary path, batch retained | task-077 |
 | 7c | Runner groups | task-177 |
 | 7 | Auto-dispatch on approval, opt-in per project | task-074 |
@@ -871,7 +872,10 @@ was a real dilemma only because a batch run has no third move. A session has one
 
 #### Four postures, chosen per project
 
-Machine-local in `~/.agentjobs/dispatch.yaml`, like every other dispatch setting.
+Machine-local in `~/.agentjobs/dispatch.yaml`, like every other dispatch setting. Since
+task-308 a project declares two of them -- a default and a ceiling -- and two other
+places may choose within that ceiling; see [Where a posture may come
+from](#where-a-posture-may-come-from-task-308-2026-08-25).
 
 | Posture | Flags | Merge | For |
 |---|---|---|---|
@@ -1142,6 +1146,105 @@ correctly, and `autonomous` would mean nothing at all.
 
 A supervisor gets the same policy phrased for a run that holds no branch: what the
 children it starts will do. It still approves nothing under either policy.
+
+#### Where a posture may come from (task-308, 2026-08-25)
+
+Everything above chose a posture in one place: a machine-local file a human edits. Jeff's
+requirement on 2026-08-21 was that it also be settable **per task**, and he named the
+problem in the same sentence: a task record is git-tracked and agent-writable, so a task
+that can raise its own posture to `autonomous` is a privilege-escalation path.
+
+##### A ceiling, not a provenance check
+
+The design that was put up offered two answers, and Jeff rejected both on 2026-08-23 in
+favour of a third: *"project should have max posture, and default posture"*.
+
+```yaml
+projects:
+  agentjobs:
+    posture: auto            # the default a run gets
+    max_posture: autonomous  # the widest any run may get, whatever asks for it
+```
+
+Both rejected answers treated the danger as *who wrote the field*. **Narrow-only** --
+a task may lower its posture but never raise it -- is safe and costs the feature the case
+it was asked for, which is marking one specific task safe to run unattended.
+**Provenance checks** -- accept the value only if a configured human actor wrote it, or
+only if a human-clocked entry followed it -- are as strong as the identity machinery
+behind them, and an agent with write access to a git-tracked file is well placed to
+produce entries that satisfy them.
+
+A ceiling makes the question moot instead of answering it. `dispatch.yaml` is
+machine-local: not in the repository, not carried by a clone, and not written by any
+AgentJobs API route, CLI verb or MCP tool. So it genuinely does not matter who wrote the
+task-level posture. An agent that edits its own task record to `autonomous` on a project
+capped at `auto` gets `auto`. That is the difference between a control and a convention,
+and it is why nothing in `resolve_posture` inspects an actor.
+
+The **push** switch and `assert_human_clocked` are both untouched by this. Choosing what
+a run may do and being allowed to start one are separate gates; this section is entirely
+about the first.
+
+##### Three sources, most-specific-wins, and two different failure modes
+
+| Rank | Source | Written by | Above the ceiling |
+|---|---|---|---|
+| 1 | Chosen for this dispatch: `--posture`, or the GUI control (task-307) | a person, per run | **Refused** (`posture_above_ceiling`, HTTP 403) |
+| 2 | `posture:` on the task record | anyone who can write the repository, including an agent | **Clamped** to the ceiling |
+| 3 | `posture:` in the project's `dispatch.yaml` | a person, on this machine | Cannot happen -- the config parser refuses it |
+
+Precedence is the reading anyone would guess, and it is stated and tested rather than
+inferred, because a field whose effect cannot be predicted is worse than no field.
+
+The asymmetry in the last column is the part worth understanding. A dispatch-time choice
+has a caller waiting on an answer, so refusing beats quietly handing them something
+narrower than they asked for -- and a chooser should never offer it in the first place,
+which is why `ProjectDispatchSettings.offerable_postures()` exists and is sent to the
+browser on the dispatch state view rather than re-derived there. A task-record posture
+has nobody waiting, and refusing it would hand every agent a denial of service on its own
+task: write an over-ceiling value once and every future dispatch of that task fails.
+Clamping is strictly safer, and the run says on its record that it happened.
+
+##### The width order, which is not the enum's order
+
+`read_only` < `supervised` < `auto` < `autonomous`.
+
+`supervised` sitting below `auto` surprises people and is deliberate. The question a
+ceiling asks is what a run may do **unattended**: supervised runs nine allow-listed
+command prefixes and parks on everything else, where `auto` is classifier-gated over a
+far larger set. Supervised *feels* wider because a human at a terminal can approve
+whatever it parks on -- but that is a second authorisation arriving, not something the
+run was granted, and a `--bg` session at `supervised` gets no such approval and simply
+stops. So a project setting `max_posture: supervised` is saying "nothing here runs
+unwatched", and handing it `auto` under that ceiling would defeat exactly that.
+
+The order lives in `Posture.rank`, and the comparison is `Posture.within(ceiling)` rather
+than `<=`. `Posture` inherits `str`, so it already has comparison operators and they
+compare spelling -- `Posture.AUTONOMOUS < Posture.AUTO` is true as text and catastrophic
+as a ceiling check. Overriding some of the six would leave the rest still comparing
+spelling, which is worse than overriding none.
+
+##### The default ceiling, and what it costs
+
+`max_posture` unset means "the same as `posture`". That is the only default that cannot
+silently widen a machine on upgrade: before this existed, the project's posture was the
+only posture a run could ever get, and an unset ceiling reproduces that exactly.
+
+The cost is that the feature is opt-in twice. A task's `posture: autonomous` and
+task-307's pulldown both do nothing on a project that has not raised its ceiling by hand,
+and the only place to raise it is a file no AgentJobs surface writes. That is the point
+of it, so this is a cost to state rather than a wrinkle to smooth.
+
+##### The run record answers "why did this run get that envelope"
+
+The `dispatch` entry carries `posture_source` (`project` / `task` / `dispatch`),
+`posture_ceiling`, and -- only when the ceiling cut something down -- `posture_requested`.
+The run directory's `meta.yaml` carries the same three. Both are needed because the other
+two places the answer could live are invisible to a reader of the task file: the ceiling
+is machine-local, and the task's own `posture` field may have been edited since the run.
+
+`posture_source` is absent on every entry written before task-308. Read that as
+`project`, which is what it always was -- never as unknown.
 
 #### No auto-escalation, ever
 
