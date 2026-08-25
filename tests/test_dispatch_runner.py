@@ -1108,6 +1108,54 @@ class TestPromptStub:
         assert "not a built-in worktree tool" in prompt
         assert "permission root" in prompt
 
+    def test_the_stub_disowns_the_harness_instruction_it_contradicts(
+        self, workspace: Path, manager: TaskManager, task
+    ) -> None:
+        """task-303. Forbidding the tool is not enough when something else demands it.
+
+        A Claude Code ``--bg`` session is opened with a preamble telling it to call
+        ``EnterWorktree`` and saying the instruction is enforced. That preamble arrives
+        before this prompt does, so a stub that merely says "not a built-in worktree
+        tool" leaves the session adjudicating a contradiction with no context. Three
+        auditors on 2026-08-21 each resolved it alone and each invented the same
+        workaround. The stub names the conflict instead.
+        """
+        runner = build(workspace, manager, make_resolution(["fake"]))
+
+        prompt = runner.build_prompt(task.id, "run_abcd1234")
+
+        assert "harness" in prompt
+        assert "ignore that instruction" in prompt
+
+    def test_the_repository_turns_off_the_background_isolation_guard(self) -> None:
+        """task-303, ac-1 and ac-4. The settings key is the half that is enforced.
+
+        Without it the harness refuses a background session's ``Write`` into the shared
+        checkout -- which is where this project requires task records to be committed,
+        so the refusal is not a nuisance but a block on the workflow. Probed on Claude
+        Code 2.1.238, 2026-08-25: refused with the key absent, accepted with it present,
+        and the change took effect mid-session. This test pins the key so that removing
+        it is a failure rather than a silent return of the block.
+        """
+        settings = json.loads((REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
+
+        assert settings["worktree"]["bgIsolation"] == "none"
+
+    def test_both_prose_documents_name_the_harness_conflict(self) -> None:
+        """task-303, ac-2. The stub is one clause; the reasoning lives in prose.
+
+        ALLAGENTS is what a session reads from its automatically loaded context and the
+        guide is what the stub points at, so a session that reads either one has to
+        arrive at the same answer about a preamble it was given before both.
+        """
+        for name in ("ALLAGENTS.md", GUIDE_PATH):
+            text = (REPO_ROOT / name).read_text(encoding="utf-8")
+
+            assert "bgIsolation" in text, name
+            # The version and date sit next to the result, so a later reader can tell
+            # whether the probe still describes the harness they are running.
+            assert "2.1.238" in text, name
+
     def test_the_guide_states_the_worktree_requirement_too(self) -> None:
         """The stub is one clause; the guide is where the reasoning lives.
 
