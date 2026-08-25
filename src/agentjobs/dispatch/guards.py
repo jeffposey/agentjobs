@@ -64,8 +64,10 @@ from agentjobs.dispatch.address import (
 from agentjobs.dispatch.config import (
     DispatchError,
     DispatchResolution,
+    Posture,
     assert_dispatch_permitted,
     dispatch_config_path,
+    resolve_posture,
 )
 from agentjobs.dispatch.config import DispatchRunner as ConfigRunner
 from agentjobs.dispatch.ledger import RunLockTimeout, acquire_run_lock
@@ -612,6 +614,22 @@ class DispatchRequest:
     """Where the click happened, for the composed sentence. Prose for a reader, never
     read back by any check."""
 
+    posture: Optional[Posture] = None
+    """A posture chosen for this one dispatch, when somebody chose one (task-308).
+
+    The narrowest of the three sources and the one that wins, because it is the only one
+    that describes *this run* rather than this task or this project. It is a request, and
+    it is checked against the project's machine-local ceiling: unlike a posture on the
+    task record, which is clamped, one named here is **refused** when it exceeds the
+    ceiling. There is a caller waiting on the answer, so telling them no beats quietly
+    giving them something narrower than they asked for.
+
+    Nothing about *who* is asking is inspected, and nothing needs to be -- the ceiling is
+    the control, and it lives in a file no AgentJobs surface writes. The authority to
+    start a run at all is a separate gate and is untouched: ``assert_human_clocked``
+    still requires a human's stored entry, so this widens no run an agent could start.
+    """
+
     playbook: Optional[PlaybookPointer] = None
     """The playbook supplying this run's brief, when one does (playbooks design section 4).
 
@@ -792,6 +810,17 @@ def dispatch_task(
     # dirtied by dispatch itself, both before the spawn (the claim) and after the run (the
     # terminal dispatch_result entry). Counting those refused every dispatch on the
     # strength of AgentJobs' own writes; see task-182 and the design doc.
+    # Resolved before anything is written, and deliberately before the run lock: an
+    # over-ceiling request is a refusal like any other, and refusals that cost nothing
+    # belong above the ones that take locks and write records. Read from the task as it
+    # stands now -- the claim below does not touch this field, so re-reading afterwards
+    # would only widen the window in which it could change.
+    posture = resolve_posture(
+        resolution.settings,
+        task=Posture(task.posture.value) if task.posture is not None else None,
+        requested=request.posture,
+    )
+
     if resolution.settings.require_clean_tree:
         dirty = uncommitted_paths(project.root, ignore=[manager.storage.tasks_dir])
         if dirty is None or dirty:
@@ -850,6 +879,7 @@ def dispatch_task(
             home=machine_home,
             api_base=api_base,
             playbook=request.playbook,
+            posture=posture,
         )
         handle = runner.start(
             task,

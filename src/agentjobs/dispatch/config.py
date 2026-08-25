@@ -91,6 +91,12 @@ class DispatchConfigError(DispatchError):
     reason = "invalid_config"
 
 
+class PostureAboveCeilingError(DispatchError):
+    """A dispatch asked for a posture wider than the project's ceiling (task-308)."""
+
+    reason = "posture_above_ceiling"
+
+
 class DispatchNotConfiguredError(DispatchError):
     """No ``~/.agentjobs/dispatch.yaml`` on this machine.
 
@@ -251,6 +257,177 @@ class Posture(str, Enum):
         if self is Posture.AUTONOMOUS:
             return MergePolicy.AUTOMATIC
         return MergePolicy.REVIEW
+
+    @property
+    def rank(self) -> int:
+        """How wide this posture's envelope is. Higher is wider (task-308).
+
+        A ceiling has to compare postures, so they need an order, and the order is not
+        the declaration order of the enum. It is:
+
+        ``read_only`` (0) < ``supervised`` (1) < ``auto`` (2) < ``autonomous`` (3)
+
+        **``supervised`` is narrower than ``auto``, which surprises people.** The
+        question a rank answers is *what can this process do on its own*, and supervised
+        can do nine allow-listed command prefixes and then it parks. ``auto`` is
+        classifier-gated, which is a far larger set. The reason supervised *feels* wider
+        is that a human at a terminal can approve anything it parks on -- but that is a
+        second authorisation arriving, not something this run was granted, and an
+        unattended ``--bg`` session at ``supervised`` gets no such approval and simply
+        stops (see this class's own docstring for the incident).
+
+        So the rank is deliberately about the *unattended* envelope. A project that sets
+        ``max_posture: supervised`` is saying "nothing here runs unwatched", and getting
+        ``auto`` under that ceiling would defeat exactly that.
+        """
+        return _POSTURE_RANK[self]
+
+    def within(self, ceiling: "Posture") -> bool:
+        """Whether this posture's envelope fits inside ``ceiling``'s.
+
+        A named method rather than ``<=``, and that is a decision worth keeping.
+        ``Posture`` inherits ``str``, so it already *has* comparison operators and they
+        compare spelling: ``Posture.AUTONOMOUS < Posture.AUTO`` is true as text and
+        catastrophic as a ceiling check. Overriding some of the six would leave the
+        others still comparing spelling, which is worse than overriding none -- so the
+        ordering has one spelling, it reads as what it means, and ``<=`` on a posture
+        stays as obviously wrong as it has always been.
+        """
+        return self.rank <= ceiling.rank
+
+
+_POSTURE_RANK: Dict["Posture", int] = {
+    Posture.READ_ONLY: 0,
+    Posture.SUPERVISED: 1,
+    Posture.AUTO: 2,
+    Posture.AUTONOMOUS: 3,
+}
+"""Width order, defined after the class because it names its own members."""
+
+
+class PostureSource(str, Enum):
+    """Which of the three places a run's posture came from (task-308).
+
+    Recorded on the dispatch entry and on the run directory so that "why did this run
+    get that envelope" has exactly one answer a reader can look up, rather than a
+    reconstruction from three files two of which are machine-local.
+    """
+
+    PROJECT = "project"
+    """``projects.<id>.posture`` in ``dispatch.yaml`` -- the default, and the answer for
+    every run that existed before this task."""
+
+    TASK = "task"
+    """The ``posture:`` field on the task record."""
+
+    DISPATCH = "dispatch"
+    """Chosen for this one dispatch: the GUI pulldown (task-307), or ``--posture``."""
+
+
+@dataclass(frozen=True)
+class ResolvedPosture:
+    """What a run may do, and the account of how that was arrived at (task-308)."""
+
+    posture: Posture
+    source: PostureSource
+    ceiling: Posture
+    requested: Optional[Posture] = None
+    """What the winning source asked for, when the ceiling cut it down. ``None`` when
+    nothing was clamped, so an ordinary run records nothing extra."""
+
+    @property
+    def clamped(self) -> bool:
+        """True when the ceiling reduced what the winning source asked for."""
+        return self.requested is not None
+
+    def as_data(self) -> Dict[str, str]:
+        """The fields that go on the dispatch entry, ``clamped`` keys omitted when not.
+
+        ``posture`` is deliberately absent: the entry already carries it as a top-level
+        field and has since task-076, and writing it twice invites the two to disagree.
+        """
+        data = {"posture_source": self.source.value, "posture_ceiling": self.ceiling.value}
+        if self.requested is not None:
+            data["posture_requested"] = self.requested.value
+        return data
+
+    def describe(self) -> str:
+        """One sentence for a human reading a log or a CLI line."""
+        if self.requested is not None:
+            return (
+                f"posture {self.posture.value} (asked for {self.requested.value} on the "
+                f"{self.source.value}, clamped to the project ceiling {self.ceiling.value})"
+            )
+        return f"posture {self.posture.value} (from the {self.source.value})"
+
+
+def resolve_posture(
+    settings: "ProjectDispatchSettings",
+    *,
+    task: Optional[Posture] = None,
+    requested: Optional[Posture] = None,
+) -> ResolvedPosture:
+    """Decide what one run may do, from up to three sources and one ceiling (task-308).
+
+    **Precedence is most-specific-wins**: a posture chosen for this dispatch beats one
+    written on the task record, which beats the project's default. Each is a narrower
+    statement about *which run* than the one below it, and the reading anyone would
+    guess is the one that should be true. It is stated here and tested rather than
+    inferred, because the whole point of the field is that a reader can predict it.
+
+    **Then the ceiling, and the two sources it bounds are treated differently.** That
+    difference is the load-bearing part of this function:
+
+    * ``requested`` -- a person choosing at the moment of dispatch -- is **refused** when
+      it exceeds the ceiling. There is a caller waiting on an answer, and quietly giving
+      them something narrower than they asked for is worse than telling them no. A
+      chooser should not offer it at all; ``ProjectDispatchSettings.offerable_postures``
+      is what it populates from, so the refusal is a backstop rather than a UI.
+
+    * ``task`` -- a field in a git-tracked file, writable by any agent that can write the
+      repository -- is **clamped**, silently as far as the run is concerned and loudly on
+      the record. Refusing it instead would hand every agent a denial of service on its
+      own task: write ``autonomous`` onto a record whose project ceiling is ``auto`` and
+      every future dispatch of that task fails. Clamping is strictly safer, and it is
+      also the behaviour Jeff's decision describes in as many words -- *"an agent that
+      edits its own task record to autonomous on a project whose max_posture is auto
+      gets auto"*.
+
+    The project default is clamped too, though the config parser refuses that
+    combination before it can get here. It is defence for a settings object built in
+    code rather than loaded from a file.
+    """
+    ceiling = settings.ceiling
+
+    if requested is not None:
+        if not requested.within(ceiling):
+            raise PostureAboveCeilingError(
+                f"This dispatch asked for posture {requested.value!r}, and "
+                f"{settings.project_id} is capped at {ceiling.value!r}. The cap is "
+                f"`projects.{settings.project_id}.max_posture` in this machine's "
+                "dispatch.yaml, which is the only place it can be raised -- "
+                "deliberately, because nothing reachable over the network writes that "
+                "file."
+            )
+        return ResolvedPosture(posture=requested, source=PostureSource.DISPATCH, ceiling=ceiling)
+
+    if task is not None:
+        if task.within(ceiling):
+            return ResolvedPosture(posture=task, source=PostureSource.TASK, ceiling=ceiling)
+        return ResolvedPosture(
+            posture=ceiling, source=PostureSource.TASK, ceiling=ceiling, requested=task
+        )
+
+    if settings.posture.within(ceiling):
+        return ResolvedPosture(
+            posture=settings.posture, source=PostureSource.PROJECT, ceiling=ceiling
+        )
+    return ResolvedPosture(
+        posture=ceiling,
+        source=PostureSource.PROJECT,
+        ceiling=ceiling,
+        requested=settings.posture,
+    )
 
 
 @dataclass(frozen=True)
@@ -434,6 +611,29 @@ class ProjectDispatchSettings:
     require_clean_tree: bool = True
     auto_dispatch: bool = False
     posture: Posture = Posture.AUTO
+    """What a run here gets when nothing else names a posture. The default (task-308).
+
+    Unchanged in meaning from before ``max_posture`` existed: a config that sets only
+    this behaves exactly as it did, because the ceiling then defaults to it and no other
+    source can widen past it.
+    """
+
+    max_posture: Optional[Posture] = None
+    """The widest envelope any run here may get, whatever asks for it (task-308).
+
+    ``None`` means "the same as ``posture``", and that is the only safe default: a
+    machine upgrading an existing ``dispatch.yaml`` must not silently gain a wider
+    envelope than it had, and before this field existed the project's posture was the
+    only posture a run could ever get. Read it through ``ceiling`` rather than directly.
+
+    **This is the whole of the privilege-escalation answer** (Jeff, 2026-08-23). Two
+    other sources can name a posture -- the task record, which any agent with write
+    access to the repository can edit, and a dispatch-time choice. Neither can exceed
+    this, and this lives in a machine-local file that no AgentJobs surface writes and no
+    clone carries. So the question "did a human write that posture" never has to be
+    asked, let alone answered by an identity check an agent could spoof.
+    """
+
     push: bool = False
     """Whether a run here may push the base branch to a remote. Off unless asked.
 
@@ -472,6 +672,25 @@ class ProjectDispatchSettings:
 
     finish: FinishSettings = field(default_factory=FinishSettings)
     """The scripted post-approval finish (task-241). Off unless this machine asks."""
+
+    @property
+    def ceiling(self) -> Posture:
+        """The widest posture a run here may get. Never ``None`` (task-308)."""
+        return self.max_posture or self.posture
+
+    def offerable_postures(self) -> List[Posture]:
+        """Every posture at or below this project's ceiling, narrowest first.
+
+        What a chooser may offer. Exists here rather than in the GUI so that the list a
+        person is shown and the list ``resolve_posture`` will accept are the same list,
+        computed once -- a pulldown that offers a posture the API refuses is a bug that
+        can only be found by clicking it.
+        """
+        ceiling = self.ceiling
+        return sorted(
+            (posture for posture in Posture if posture.rank <= ceiling.rank),
+            key=lambda posture: posture.rank,
+        )
 
 
 @dataclass(frozen=True)
@@ -812,6 +1031,28 @@ def _parse_project(project_id: str, raw: object, path: Path) -> ProjectDispatchS
             f"{_values(Posture)}, not {posture_raw!r}."
         ) from exc
 
+    max_posture_raw = mapping.get("max_posture")
+    max_posture: Optional[Posture] = None
+    if max_posture_raw is not None:
+        try:
+            max_posture = Posture(max_posture_raw)
+        except ValueError as exc:
+            raise DispatchConfigError(
+                f"Invalid dispatch config at {path}: {where}.max_posture must be one of "
+                f"{_values(Posture)}, not {max_posture_raw!r}."
+            ) from exc
+        if not posture.within(max_posture):
+            # Refused here rather than clamped, because unlike the two sources this
+            # ceiling exists to bound, both halves of this contradiction were typed by
+            # the same person into the same file. Silently running their default at
+            # their ceiling would be this tool deciding which of the two they meant.
+            raise DispatchConfigError(
+                f"Invalid dispatch config at {path}: {where}.posture is "
+                f"{posture.value!r}, which is wider than {where}.max_posture "
+                f"{max_posture.value!r}. A project's default has to fit inside its own "
+                "ceiling; lower the default or raise the ceiling."
+            )
+
     return ProjectDispatchSettings(
         project_id=project_id,
         enabled=_bool(mapping.get("enabled"), f"{where}.enabled", path, default=False),
@@ -824,6 +1065,7 @@ def _parse_project(project_id: str, raw: object, path: Path) -> ProjectDispatchS
             mapping.get("auto_dispatch"), f"{where}.auto_dispatch", path, default=False
         ),
         posture=posture,
+        max_posture=max_posture,
         push=_bool(mapping.get("push"), f"{where}.push", path, default=False),
         resume_sessions=_bool(
             mapping.get("resume_sessions"), f"{where}.resume_sessions", path, default=True

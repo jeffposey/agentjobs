@@ -21,6 +21,7 @@ import os
 import subprocess
 import sys
 import textwrap
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
@@ -1702,7 +1703,39 @@ class TestProcessGroup:
 
         join(handle)
 
-        assert not _pid_alive(grandchild_pid), f"pid {grandchild_pid} survived the timeout"
+        # Waited for rather than asserted outright, because the kill is asynchronous and
+        # this assertion is not. `_terminate` signals the *process group*, so the parent
+        # and the grandchild are killed concurrently and independently; `join` returns
+        # when the supervisor thread finishes, which tracks the parent. Nothing makes the
+        # grandchild's exit precede that, and under load it does not.
+        #
+        # Measured on 2026-08-25, this machine, while the full suite ran under `-n auto`:
+        # six runs of this scenario, and in one of them the grandchild was still listed
+        # at the moment `join` returned and gone by the next poll. That is the flake that
+        # failed the gate for task-308's finish -- the branch under it touched neither
+        # this test nor the kill path.
+        #
+        # This still fails if the grandchild genuinely survives, which is the whole point
+        # of the test. It no longer also fails when the grandchild dies a second late.
+        assert _dies_within(grandchild_pid, 30.0), f"pid {grandchild_pid} survived the timeout"
+
+
+def _dies_within(pid: int, seconds: float) -> bool:
+    """Whether ``pid`` is gone within ``seconds``. Polls; never sleeps the full budget.
+
+    The budget is generous on purpose. It is not a measurement of how fast a kill ought
+    to be -- nothing here asserts a deadline -- it is only large enough that a loaded
+    machine cannot exhaust it, so that a failure means "still running", never "slow".
+    `_pid_alive` shells out to `tasklist`, which is itself about a second per call here,
+    and that cost is inside the budget rather than beside it.
+    """
+    deadline = time.monotonic() + seconds
+    while True:
+        if not _pid_alive(pid):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.1)
 
 
 def _pid_alive(pid: int) -> bool:

@@ -16,6 +16,7 @@ from agentjobs.models_v2 import (
     ContextPointer,
     Deliverable,
     Dependency,
+    DispatchPosture,
     Lifecycle,
     Link,
     LogEntryType,
@@ -359,6 +360,14 @@ class TaskUpdateRequest(RevisionedRequest):
     effort: Optional[str] = None
     tags: Optional[List[str]] = None
     parent: Optional[str] = None
+    posture: Optional[DispatchPosture] = Field(
+        default=None,
+        description=(
+            "What a run dispatched at this task may do. Content, not a state axis: it "
+            "is a request bounded by the project's machine-local ceiling, never a "
+            "grant, so it needs no verb of its own (task-308). Send null to clear it."
+        ),
+    )
     spec: Optional[Spec] = None
     acceptance: Optional[List[AcceptanceCriterion]] = None
     deliverables: Optional[List[Deliverable]] = None
@@ -857,6 +866,16 @@ class DispatchRequestBody(BaseModel):
             "to the task before the run starts, and the dispatch is attributed to it. "
             "Must be an actor this project configures with 'kind: human'. Mutually "
             "exclusive with caused_by."
+        ),
+    )
+    posture: Optional[DispatchPosture] = Field(
+        default=None,
+        description=(
+            "What this one run may do, overriding both the project default and any "
+            "posture on the task record. Refused with 'posture_above_ceiling' when it "
+            "exceeds the project's machine-local max_posture -- populate a chooser "
+            "from the dispatch state view's 'offerable_postures' so the refusal is "
+            "never reachable by clicking (task-308)."
         ),
     )
     note: Optional[str] = Field(

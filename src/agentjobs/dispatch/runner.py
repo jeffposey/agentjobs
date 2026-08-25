@@ -62,9 +62,11 @@ from agentjobs.dispatch.config import (
     DispatchRunner as RunnerConfig,
     MergePolicy,
     Posture,
+    ResolvedPosture,
     RunnerDriver,
     RunnerMode,
     RunnerSelection,
+    resolve_posture,
     sentinel_active,
     substitute_argv,
 )
@@ -1059,6 +1061,14 @@ class RunHandle:
     """
     group: Optional[str] = None
     """The group it was chosen from, when one participated."""
+    posture: Optional[ResolvedPosture] = None
+    """What this run may do, and which of the three sources decided (task-308).
+
+    Stamped by ``DispatchRunner.start`` on the way out, so a handle rebuilt from disk by
+    the poller leaves it ``None`` -- that path reports on runs it did not start and has
+    the run directory's ``posture`` fields to read instead.
+    """
+
     api_base: Optional[str] = None
     """The AgentJobs address this run's agent was given.
 
@@ -1108,9 +1118,21 @@ class DispatchRunner:
         clock: Callable[[], datetime] = utcnow,
         claude_home: Optional[Path] = None,
         playbook: Optional[PlaybookPointer] = None,
+        posture: Optional[ResolvedPosture] = None,
     ) -> None:
         self.manager = manager
         self.resolution = resolution
+        self.posture = posture or resolve_posture(resolution.settings)
+        """What this run may do, and which of the three sources said so (task-308).
+
+        Resolved by the caller when a task record or a dispatch-time choice had anything
+        to say, and defaulted here to the project's own posture so that every other
+        caller -- tests, the poller rebuilding a handle, anything predating this -- keeps
+        the behaviour it had. Held on the runner rather than read off
+        ``resolution.settings`` at each use, because there are ten of those uses and one
+        of them disagreeing with the rest is a run whose recorded posture is not the one
+        it was started with.
+        """
         self.project_root = Path(project_root)
         self.home = Path(home)
         self.api_base = resolve_api_base(api_base, home=self.home)
@@ -1200,7 +1222,7 @@ class DispatchRunner:
         )
         settings = self.resolution.settings
         clause = policy_clause(
-            settings.posture,
+            self.posture.posture,
             push=settings.push,
             task_id=task_id,
             project_id=self.resolution.project_id,
@@ -1243,7 +1265,7 @@ class DispatchRunner:
             "api_base": self.api_base,
         }
         flags = posture_flags(
-            self.resolution.settings.posture,
+            self.posture.posture,
             mcpjson_server_names(self.project_root),
             supervisor=bool(children),
             driver=self.runner.driver,
@@ -1295,7 +1317,7 @@ class DispatchRunner:
                 previous_run_id=wake.previous_run_id,
             )
         settings = parse_session_settings(
-            argv, posture=self.resolution.settings.posture.value, project_root=self.project_root
+            argv, posture=self.posture.posture.value, project_root=self.project_root
         )
         directory = RunDirectory.create(
             self.home,
@@ -1306,7 +1328,8 @@ class DispatchRunner:
                 "project_id": self.resolution.project_id,
                 "mode": DispatchMode.SESSION.value,
                 "driver": self.runner.driver.value,
-                "posture": self.resolution.settings.posture.value,
+                "posture": self.posture.posture.value,
+                **self.posture.as_data(),
                 "status": "starting",
                 "codex_status": "starting",
                 "codex_lifecycle": "preflight",
@@ -1569,7 +1592,7 @@ class DispatchRunner:
         try:
             settings = parse_session_settings(
                 rendered_argv,
-                posture=str(meta.get("posture") or self.resolution.settings.posture.value),
+                posture=str(meta.get("posture") or self.posture.posture.value),
                 project_root=self.project_root,
             )
             observer = CodexAppServerProcess(
@@ -1693,7 +1716,12 @@ class DispatchRunner:
             agent=self.runner.actor_id,
             runner=self.runner.name,
             mode=mode,
-            posture=DispatchPosture(self.resolution.settings.posture.value),
+            posture=DispatchPosture(self.posture.posture.value),
+            posture_source=self.posture.source.value,
+            posture_ceiling=self.posture.ceiling.value,
+            posture_requested=(
+                self.posture.requested.value if self.posture.requested is not None else None
+            ),
             trigger=trigger,
             caused_by=caused_by,
             argv=argv,
@@ -1720,8 +1748,15 @@ class DispatchRunner:
         """Start a run for ``task`` in whichever mode the runner declares."""
         self._assert_spawnable(task)
         if self.runner.mode is RunnerMode.SESSION:
-            return self._start_session(task, actor=actor, caused_by=caused_by, trigger=trigger)
-        return self._start_batch(task, actor=actor, caused_by=caused_by, trigger=trigger)
+            handle = self._start_session(task, actor=actor, caused_by=caused_by, trigger=trigger)
+        else:
+            handle = self._start_batch(task, actor=actor, caused_by=caused_by, trigger=trigger)
+        # Stamped once here rather than threaded through both mode paths and every
+        # `RunHandle(...)` inside them. It is surfaced for the same reason `api_base` is:
+        # it is otherwise buried in a run directory nobody opens, and a caller that just
+        # spent money on a run should be able to say what envelope it got.
+        handle.posture = self.posture
+        return handle
 
     # ----- session mode ------------------------------------------------------
 
@@ -1797,7 +1832,8 @@ class DispatchRunner:
             # "claude" -- correct for the runs that existed, and an inference that gets
             # quietly wrong the first time a third driver lands.
             "driver": self.runner.driver.value,
-            "posture": self.resolution.settings.posture.value,
+            "posture": self.posture.posture.value,
+            **self.posture.as_data(),
             "status": "starting",
             "started_at": self.clock().isoformat(),
             "caused_by": caused_by,
@@ -2196,7 +2232,7 @@ class DispatchRunner:
         try:
             settings = parse_session_settings(
                 rendered_argv,
-                posture=str(meta.get("posture") or self.resolution.settings.posture.value),
+                posture=str(meta.get("posture") or self.posture.posture.value),
                 project_root=self.project_root,
             )
             app_server = CodexAppServerProcess(
@@ -2479,7 +2515,8 @@ class DispatchRunner:
                 "project_id": self.resolution.project_id,
                 "mode": DispatchMode.BATCH.value,
                 "driver": self.runner.driver.value,
-                "posture": self.resolution.settings.posture.value,
+                "posture": self.posture.posture.value,
+                **self.posture.as_data(),
                 "status": "starting",
                 "started_at": self.clock().isoformat(),
                 "caused_by": caused_by,

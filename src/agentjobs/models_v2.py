@@ -554,6 +554,31 @@ class DispatchData(StrictModel):
     runner: str = Field(..., description="Runner name from ~/.agentjobs/dispatch.yaml.")
     mode: DispatchMode = Field(..., description="Session or batch (task-077).")
     posture: DispatchPosture = Field(..., description="What the run may do (task-076).")
+    posture_source: Optional[str] = Field(
+        default=None,
+        description=(
+            "Which of the three sources supplied `posture`: 'project' (dispatch.yaml's "
+            "default), 'task' (the record's own field) or 'dispatch' (chosen for this "
+            "run). Absent on every entry written before task-308, where the answer was "
+            "always 'project' -- read an absent value as that, never as unknown."
+        ),
+    )
+    posture_ceiling: Optional[str] = Field(
+        default=None,
+        description=(
+            "The project's machine-local `max_posture` at the moment this run started. "
+            "Recorded because the ceiling lives in a file no reader of this record can "
+            "see, and it is what makes `posture_requested` legible."
+        ),
+    )
+    posture_requested: Optional[str] = Field(
+        default=None,
+        description=(
+            "What `posture_source` asked for, when the ceiling cut it down. Present "
+            "only on a clamped run, so its presence is itself the signal that "
+            "something asked for more than it got (task-308)."
+        ),
+    )
     trigger: DispatchTrigger = Field(..., description="Manual click or auto-dispatch.")
     caused_by: int = Field(
         ...,
@@ -738,6 +763,34 @@ class Task(StrictModel):
 
     assignment: Assignment = Field(default_factory=Assignment)
     parent: Optional[str] = Field(default=None, description="Task id of the umbrella task, if any.")
+
+    posture: Optional[DispatchPosture] = Field(
+        default=None,
+        description=(
+            "What a run dispatched at this task may do, when this task wants something "
+            "other than its project's default. Bounded by the project's machine-local "
+            "ceiling: a value above it is clamped, never honoured (task-308)."
+        ),
+    )
+    """This task's request for a dispatch envelope. A request, not a grant.
+
+    The only field on this model that says anything about what may *execute*, so it is
+    worth being explicit about why that is safe. A task record is a git-tracked file that
+    any agent with write access to the repository can edit, including the agent working
+    this very task -- so on its own it would be a privilege-escalation path, and Jeff
+    named it as one on 2026-08-21 before the field existed.
+
+    What makes it safe is that it is not authoritative. ``dispatch.yaml`` on the machine
+    doing the dispatching declares a ``max_posture`` per project; ``dispatch.config
+    .resolve_posture`` clamps this to it. A task asking for ``autonomous`` on a project
+    capped at ``auto`` gets ``auto``, and the run's dispatch entry records that it was
+    cut down and what asked. Nothing checks *who* wrote this, deliberately: a provenance
+    check is only as good as the identity machinery behind it, and a ceiling in a file
+    no AgentJobs surface writes needs no such trust. See task-308's decision entry.
+
+    ``None`` -- the ordinary case, and every task that existed before this field -- means
+    the task expresses no preference and the project's default is used.
+    """
 
     spec: Spec
     acceptance: List[AcceptanceCriterion] = Field(default_factory=list)

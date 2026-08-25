@@ -192,6 +192,28 @@ default_group: standard
 #       gate runs on the rebased branch first and a red one still stops. Choosing
 #       autonomous is choosing both halves; there is no third switch.
 #
+#     max_posture: autonomous  # optional; defaults to whatever `posture` above says
+#
+#       The widest envelope any run here may get, whatever asks for it (task-308).
+#       `posture` above is only the DEFAULT; two other places may choose within this
+#       ceiling -- a `posture:` field on the task record, and a choice made at the
+#       moment of dispatch (`agentjobs dispatch run --posture`, or the GUI control).
+#
+#       This is what makes the task-record field safe to have at all. A task record is
+#       a git-tracked file any agent with write access can edit, including the agent
+#       working that task. It does not matter: a task asking for `autonomous` on a
+#       project capped at `auto` gets `auto`, and the run's dispatch entry records that
+#       it was cut down. THIS FILE is the control, because nothing reachable over the
+#       network writes it -- so leave it out until you mean it.
+#
+#       Width order is read_only < supervised < auto < autonomous. supervised is
+#       NARROWER than auto: it parks on anything outside the nine allow-listed
+#       prefixes, and an unattended run has nobody to answer.
+#
+#       Omitting it means "the ceiling is the default", so nothing but this file can
+#       change what a run here gets. That is the behaviour every machine had before
+#       task-308, which is why it is the default.
+#
 #     push: false
 #
 #       Whether a run here may push to a remote. Off unless you say otherwise, and NOT

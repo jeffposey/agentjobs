@@ -511,6 +511,17 @@ export type DispatchEnableRequest = {
 };
 
 /**
+ * DispatchPosture
+ *
+ * What the run was permitted to do (design doc section 4, task-076).
+ *
+ * Mirrors ``dispatch.config.Posture``, and must keep mirroring it: this is the value
+ * written into the task's dispatch log entry, so a posture missing here cannot be
+ * recorded even though a run was started under it. ``auto`` was added by task-020.
+ */
+export type DispatchPosture = 'read_only' | 'auto' | 'supervised' | 'autonomous';
+
+/**
  * DispatchRefusalView
  *
  * The gate that currently refuses this project, in the API's own vocabulary.
@@ -575,6 +586,10 @@ export type DispatchRequestBody = {
      * What the human typed, when the record could not brief an agent on its own. Becomes the body of the authorising entry. Only meaningful alongside 'user'.
      */
     note?: string | null;
+    /**
+     * What this one run may do, overriding both the project default and any posture on the task record. Refused with 'posture_above_ceiling' when it exceeds the project's machine-local max_posture -- populate a chooser from the dispatch state view's 'offerable_postures' so the refusal is never reachable by clicking (task-308).
+     */
+    posture?: DispatchPosture | null;
     /**
      * User
      *
@@ -814,9 +829,21 @@ export type DispatchStateView = {
      */
     master_enabled: boolean;
     /**
+     * Max Posture
+     *
+     * The widest posture any run here may get, whatever asks for it (task-308). Equal to `posture` on a project that has not set a ceiling of its own, because that is the only default that cannot silently widen an existing machine.
+     */
+    max_posture?: string | null;
+    /**
+     * Offerable Postures
+     *
+     * Every posture at or below `max_posture`, narrowest first. Sent rather than derived, for the same reason `resolved_from` is: a browser that re-implements the ceiling is the one place in the system that could offer a choice the dispatch API will refuse.
+     */
+    offerable_postures?: Array<string>;
+    /**
      * Posture
      *
-     * What a run here may do.
+     * What a run here gets when nothing else names a posture.
      */
     posture?: string | null;
     /**
@@ -2644,6 +2671,10 @@ export type Task = {
      * Task id of the umbrella task, if any.
      */
     parent?: string | null;
+    /**
+     * What a run dispatched at this task may do, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: a value above it is clamped, never honoured (task-308).
+     */
+    posture?: DispatchPosture | null;
     priority?: Priority;
     /**
      * Queue Position
@@ -2943,6 +2974,10 @@ export type TaskReadInput = {
      * Task id of the umbrella task, if any.
      */
     parent?: string | null;
+    /**
+     * What a run dispatched at this task may do, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: a value above it is clamped, never honoured (task-308).
+     */
+    posture?: DispatchPosture | null;
     priority?: Priority;
     /**
      * Queue Position
@@ -3089,6 +3124,10 @@ export type TaskReadOutput = {
      * Task id of the umbrella task, if any.
      */
     parent?: string | null;
+    /**
+     * What a run dispatched at this task may do, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: a value above it is clamped, never honoured (task-308).
+     */
+    posture?: DispatchPosture | null;
     priority?: Priority;
     /**
      * Queue Position
@@ -3180,6 +3219,10 @@ export type TaskUpdateRequest = {
      * Parent
      */
     parent?: string | null;
+    /**
+     * What a run dispatched at this task may do. Content, not a state axis: it is a request bounded by the project's machine-local ceiling, never a grant, so it needs no verb of its own (task-308). Send null to clear it.
+     */
+    posture?: DispatchPosture | null;
     priority?: Priority | null;
     spec?: Spec | null;
     /**
@@ -3530,6 +3573,10 @@ export type TaskWritable = {
      * Task id of the umbrella task, if any.
      */
     parent?: string | null;
+    /**
+     * What a run dispatched at this task may do, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: a value above it is clamped, never honoured (task-308).
+     */
+    posture?: DispatchPosture | null;
     priority?: Priority;
     /**
      * Queue Position
@@ -3687,6 +3734,10 @@ export type TaskReadOutputWritable = {
      * Task id of the umbrella task, if any.
      */
     parent?: string | null;
+    /**
+     * What a run dispatched at this task may do, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: a value above it is clamped, never honoured (task-308).
+     */
+    posture?: DispatchPosture | null;
     priority?: Priority;
     /**
      * Queue Position
