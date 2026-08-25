@@ -27,29 +27,60 @@ the bundle tells the agent to use -- resolves an empty registry instead of the l
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, Sequence
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from agentjobs.contexteval.cases import Case
 
-GUARD_PATTERNS: tuple = (
+STATIC_GUARD_PATTERNS: Tuple[str, ...] = (
     r"c:[\\/]projects",
     r"/c/projects",
-    r"[\\/]\.agentjobs[\\/]",
     r"~[\\/]\.agentjobs",
     r":8876\b",
     r":8765\b",
 )
-"""Everything a sandbox session must not reach.
+"""Everything a sandbox session must not reach, independent of who is running it.
 
 The two ports are the live dashboard and the CLI default. A scenario about restarting a
 server has no business talking to either, and an agent that has read the bundle knows both
 numbers by heart.
 """
+
+
+def guard_patterns(home: Optional[Path] = None) -> Tuple[str, ...]:
+    """The deny list, with this machine's real AgentJobs home spelled out.
+
+    The home entry is built from ``Path.home()`` rather than written as a bare
+    ``[\\\\/]\\.agentjobs[\\\\/]`` fragment, and the difference is not pedantic. The first
+    opus sweep denied **six** reads of the sandbox's *own* ``clone/.agentjobs/config.yaml``
+    -- the throwaway project config the fixture puts there on purpose -- because the generic
+    fragment matches any path with that directory name in it. The agent could not read the
+    config the bundle tells it to read, and spent turns working out why, in the one scenario
+    whose turn budget was already tight.
+
+    The seventh denial in that sweep was the real thing: a run reaching for
+    ``C:/projects/agentjobs/src/agentjobs``. That is the case this guard exists for, and it
+    is caught by the static entries above. Blocking a sandbox's own files buys nothing and
+    costs the measurement.
+    """
+    root = Path.home() if home is None else home
+    text = str(root)
+    escaped = re.escape(text)
+    # The same path is written both ways on Windows, and an agent picks whichever the last
+    # command it read used, so both spellings have to be in the list.
+    both = {escaped, re.escape(text.replace("\\", "/")), re.escape(text.replace("/", "\\"))}
+    return STATIC_GUARD_PATTERNS + tuple(
+        rf"{spelling}[\\/]\.agentjobs" for spelling in sorted(both)
+    )
+
+
+GUARD_PATTERNS: Tuple[str, ...] = guard_patterns()
+"""The deny list for this machine. Kept as a module constant so callers can pass it around."""
 
 _GUARD_SOURCE = '''"""Refuse any tool call that reaches outside the eval sandbox.
 
@@ -152,7 +183,7 @@ def build(
     bundle_files: Mapping[str, str],
     *,
     parent: Optional[Path] = None,
-    guard_patterns: Sequence[str] = GUARD_PATTERNS,
+    deny_patterns: Sequence[str] = GUARD_PATTERNS,
 ) -> Sandbox:
     """Create the sandbox for one arm of one scenario and return it ready to run in.
 
@@ -209,7 +240,7 @@ def build(
             _git(target, "add", *[str(r) for r in seeded])
             _git(target, "commit", "-q", "-m", str(spec.get("message", "feat: work in progress")))
 
-    write_guard(root, guard_patterns)
+    write_guard(root, deny_patterns)
     # A worktree's own directory does not inherit the clone's .claude, and the session's
     # cwd is what Claude Code reads project settings from.
     if case.fixture.worktrees:

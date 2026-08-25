@@ -595,3 +595,48 @@ class TestSandboxGuard:
             timeout=60,
         )
         assert json.loads(done.stdout) == {}
+
+    def test_it_allows_the_sandbox_to_read_its_own_agentjobs_config(self, tmp_path):
+        """Over-blocking costs the measurement and buys nothing.
+
+        The fixture puts a throwaway `.agentjobs/config.yaml` in the scratch clone on
+        purpose -- it is what makes the sandbox look like an AgentJobs project. The first
+        opus sweep denied six reads of it, because the deny list carried a bare
+        `.agentjobs` fragment that matched any path with that name. The agent could not
+        read the file the bundle tells it to read.
+        """
+        from agentjobs.contexteval.sandbox import write_guard
+
+        guard = write_guard(tmp_path)
+        for command in (
+            "cat ../../clone/.agentjobs/config.yaml",
+            "cat /tmp/ajctxeval-abc/clone/.agentjobs/config.yaml",
+        ):
+            done = subprocess.run(
+                ["python", str(guard)],
+                input=json.dumps({"tool_input": {"command": command}}),
+                capture_output=True,
+                encoding="utf-8",
+                timeout=60,
+            )
+            assert json.loads(done.stdout) == {}, command
+
+    def test_it_still_denies_the_real_agentjobs_home(self, tmp_path):
+        from agentjobs.contexteval.sandbox import write_guard
+
+        guard = write_guard(tmp_path)
+        home = Path.home()
+        for command in (
+            "ls ~/.agentjobs",
+            f"ls {home.as_posix()}/.agentjobs/projects.yaml",
+            "curl 127.0.0.1:8876/api/version",
+        ):
+            done = subprocess.run(
+                ["python", str(guard)],
+                input=json.dumps({"tool_input": {"command": command}}),
+                capture_output=True,
+                encoding="utf-8",
+                timeout=60,
+            )
+            answer = json.loads(done.stdout)
+            assert answer.get("hookSpecificOutput", {}).get("permissionDecision") == "deny", command
