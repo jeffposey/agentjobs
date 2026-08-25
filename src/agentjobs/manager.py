@@ -2445,6 +2445,9 @@ class TaskManager:
         runner: str,
         mode: DispatchMode,
         posture: DispatchPosture,
+        posture_source: Optional[str] = None,
+        posture_ceiling: Optional[str] = None,
+        posture_requested: Optional[str] = None,
         trigger: DispatchTrigger,
         caused_by: int,
         argv: List[str],
@@ -2470,6 +2473,12 @@ class TaskManager:
         ``playbook`` and ``playbook_hash`` are present only when the run was given a
         playbook as its brief (playbooks design section 4.3). They pin *which brief*, as
         distinct from ``git_head``'s *which commit*.
+
+        ``posture_source`` and its two companions say *where* ``posture`` came from
+        (task-308). They are optional so that a caller written before per-task postures
+        existed still records exactly the entry it always did; the constraint they exist
+        to satisfy is that a reader of this entry can answer "why did this run get that
+        envelope" without opening a machine-local file they may not have.
         """
         payload = DispatchData(
             run_id=run_id,
@@ -2477,6 +2486,9 @@ class TaskManager:
             runner=runner,
             mode=mode,
             posture=posture,
+            posture_source=posture_source,
+            posture_ceiling=posture_ceiling,
+            posture_requested=posture_requested,
             trigger=trigger,
             caused_by=caused_by,
             argv=list(argv),

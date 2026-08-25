@@ -255,6 +255,9 @@ class TestPublishedSurface:
             "effort",
             "tags",
             "parent",
+            # A request for a dispatch envelope, clamped by the project's machine-local
+            # ceiling, so it grants nothing however writes it (task-308).
+            "posture",
             "spec",
             "acceptance",
             "deliverables",
