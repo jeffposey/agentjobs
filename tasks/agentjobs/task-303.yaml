@@ -3,7 +3,7 @@ id: task-303
 title: The background-session harness orders EnterWorktree and enforces it; this repository
   forbids it and never says so
 created: '2026-08-23T21:51:57.473218Z'
-updated: '2026-08-25T11:22:37.301520Z'
+updated: '2026-08-25T11:25:48.005938Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -338,3 +338,21 @@ log:
     finish_step: started
     branch: fix/task-303-bg-isolation-contradiction
     finish_id: fin_637e9018
+- id: 11
+  ts: '2026-08-25T11:25:48.005790Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-303-bg-isolation-contradiction` into `main` as `49e64ab9`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-303
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    task) releases the merge gate (task-021), and run run_ff8c316d ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 49e64ab9fb9fd0373298009e699f41fec713bdbf
+    branch: fix/task-303-bg-isolation-contradiction
+    base: main
