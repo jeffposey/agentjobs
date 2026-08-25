@@ -614,6 +614,18 @@ class RunRecord:
     project_id: str = ""
     mode: str = ""
     posture: str = ""
+    posture_source: str = ""
+    posture_ceiling: str = ""
+    posture_requested: str = ""
+    """How this run's posture was arrived at, as ``ResolvedPosture.as_data`` wrote it.
+
+    The dispatcher has recorded these since task-308 and nothing read them back until
+    task-315, when the finisher needed to know what *this run* was authorised to do
+    rather than what the project defaults to. Empty on a run started before that, and on
+    anything that wrote a meta by hand -- which is why every reader of them treats an
+    unparseable value as absent rather than as a claim.
+    """
+
     status: str = "unknown"
     outcome: Optional[str] = None
     session_id: Optional[str] = None
@@ -699,6 +711,9 @@ def read_run(directory: Path) -> RunRecord:
         project_id=str(meta.get("project_id") or ""),
         mode=str(meta.get("mode") or ""),
         posture=str(meta.get("posture") or ""),
+        posture_source=str(meta.get("posture_source") or ""),
+        posture_ceiling=str(meta.get("posture_ceiling") or ""),
+        posture_requested=str(meta.get("posture_requested") or ""),
         status=str(meta.get("status") or "unknown"),
         outcome=str(meta["outcome"]) if meta.get("outcome") else None,
         session_id=str(meta["session_id"]) if meta.get("session_id") else None,

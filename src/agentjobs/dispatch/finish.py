@@ -74,13 +74,20 @@ from agentjobs.dispatch.config import (
     DispatchError,
     FinishSettings,
     MergePolicy,
+    Posture,
+    PostureSource,
+    ProjectDispatchSettings,
+    ResolvedPosture,
     assert_dispatch_permitted,
+    resolve_posture,
 )
 from agentjobs.dispatch.ledger import (
     KIND_FINISH,
+    LedgerError,
     RunLock,
     RunLockTimeout,
     acquire_run_lock,
+    find_run,
     locks_root,
     read_lock_holder,
 )
@@ -230,7 +237,7 @@ class Escalate(Exception):
 # ----- subprocess plumbing ----------------------------------------------------
 
 
-def authorisation_phrase(authority: str, approver: str, posture: str = "") -> str:
+def authorisation_phrase(authority: str, approver: str, posture: str = "", source: str = "") -> str:
     """One sentence naming what made this merge legitimate. Never decorative.
 
     Every place the finish writes down a merge -- the merge message, the log entry, the
@@ -238,11 +245,18 @@ def authorisation_phrase(authority: str, approver: str, posture: str = "") -> st
     "a person approved this" is the whole difference between them and a reader six
     months later has no other way to tell. Rendered in one function so the three cannot
     drift into saying different things about the same merge.
+
+    ``source`` names which of the three places the posture came from (task-315). It used
+    to say "for this project" unconditionally, which stopped being true the moment a
+    posture could be chosen for one dispatch: a reader looking up why an unreviewed merge
+    happened would have gone to ``dispatch.yaml``, found `auto`, and concluded the record
+    was lying to them.
     """
     if authority == POSTURE:
+        whence = f" (from the {source})" if source else ""
         return (
-            f"No human reviewed this merge: posture `{posture or 'autonomous'}` releases "
-            f"the merge gate for this project (task-021), and {approver} ran the finish. "
+            f"No human reviewed this merge: posture `{posture or 'autonomous'}`{whence} "
+            f"releases the merge gate (task-021), and {approver} ran the finish. "
             "What authorised it is the gate -- `scripts/check.py` green on the rebased "
             "branch, run here rather than reported by the agent."
         )
@@ -1109,6 +1123,81 @@ def escalate_on_record(
 # ----- the orchestrator -------------------------------------------------------
 
 
+def released_posture(
+    *,
+    settings: ProjectDispatchSettings,
+    task_id: str,
+    task_posture: Optional[Posture],
+    home: Path,
+    run_id: str = "",
+) -> ResolvedPosture:
+    """Which posture decides this merge, and where it came from (task-315).
+
+    **The rule: the posture the run was dispatched at; with no run, the posture a
+    dispatch would resolve right now.** Both clamped by this machine's ceiling.
+
+    Until task-315 this was `settings.posture` and nothing else -- the project default,
+    which is the *least* specific of the three sources ``resolve_posture`` weighs. So a
+    posture chosen for one dispatch (task-307's pulldown, or ``--posture``) reached the
+    agent's prompt, told it the merge gate was released, and was then contradicted by the
+    command that prompt named. Observed on task-298: dispatched ``autonomous``, refused
+    ``posture_requires_review``, ball parked on a human who had chosen not to be one.
+
+    Two sources, in this order, and the order is the point:
+
+    1. **The run's own record**, when ``run_id`` names one for *this task*. That posture
+       was resolved once, at dispatch, from the human's choice, and written down with the
+       source that won -- so it is read back rather than re-derived. Re-deriving would be
+       a second implementation of ``resolve_posture``'s precedence, free to disagree with
+       the first, and it could not see a ``requested`` value that only ever existed as an
+       argument to that one call.
+    2. **``resolve_posture``**, for a person running the command from a shell. That
+       honours a ``posture:`` field on the task record and the project default, in the
+       same precedence a dispatch of this task would apply.
+
+    **The ceiling is re-applied here, from the config as it stands now.** Not the
+    ``posture_ceiling`` the run recorded -- that is history, and the useful question is
+    what this machine permits today, which is lower if somebody has since lowered it. It
+    is also what keeps this honest: a run record under ``~/.agentjobs/runs/`` is no
+    harder for an agent to edit than a task record is, and ``max_posture`` in
+    machine-local ``dispatch.yaml`` is the one line in the system that nothing reachable
+    over the network writes. An edited run record buys at most the ceiling.
+
+    Nothing here reads an argument the *caller* chose. ``--posture-release`` says which
+    authority is being claimed; it never says that the claim is granted.
+    """
+    ceiling = settings.ceiling
+    if run_id:
+        record = None
+        try:
+            record = find_run(home, run_id)
+        except LedgerError:
+            record = None
+        # A run may only vouch for the task it was dispatched against. Without this, a
+        # run at `autonomous` could name any other open task on the command line and
+        # merge its branch on a posture nobody granted for it.
+        if record is not None and record.task_id and record.task_id != task_id:
+            record = None
+        if record is not None and record.posture:
+            try:
+                dispatched = Posture(record.posture)
+            except ValueError:
+                dispatched = None  # a meta written by hand; fall through to re-resolving
+            if dispatched is not None:
+                try:
+                    source = PostureSource(record.posture_source)
+                except ValueError:
+                    # Recorded before task-308, or unparseable. The posture is still a
+                    # fact; only the account of where it came from is missing.
+                    source = PostureSource.DISPATCH
+                if dispatched.within(ceiling):
+                    return ResolvedPosture(posture=dispatched, source=source, ceiling=ceiling)
+                return ResolvedPosture(
+                    posture=ceiling, source=source, ceiling=ceiling, requested=dispatched
+                )
+    return resolve_posture(settings, task=task_posture)
+
+
 def finish_task(
     *,
     manager: TaskManager,
@@ -1133,6 +1222,7 @@ def finish_task(
     """
     resolved_home = home or default_home()
     posture_name = ""
+    posture_source = ""
     if authority == POSTURE:
         try:
             released = assert_dispatch_permitted(project.id, resolved_home)
@@ -1143,17 +1233,40 @@ def finish_task(
                 reason=getattr(exc, "reason", "dispatch_error"),
                 detail=str(exc),
             )
-        posture = released.settings.posture
+        # The posture *this run* was authorised at, not the project's default. See
+        # `released_posture`; before task-315 this line read `released.settings.posture`
+        # and a dispatch-time choice never reached the merge.
+        candidate = manager.get_task(task_id)
+        merge_posture = released_posture(
+            settings=released.settings,
+            task_id=task_id,
+            task_posture=(
+                Posture(candidate.posture.value)
+                if candidate is not None and candidate.posture is not None
+                else None
+            ),
+            home=resolved_home,
+            run_id=os.environ.get(RUN_ID_ENV, ""),
+        )
+        posture = merge_posture.posture
         posture_name = posture.value
+        posture_source = merge_posture.source.value
         if posture.merge_policy is not MergePolicy.AUTOMATIC:
+            clamped = (
+                f" It asked for `{merge_posture.requested.value}` and this machine caps "
+                f"{project.id} at `{merge_posture.ceiling.value}` "
+                f"(`projects.{project.id}.max_posture`)."
+                if merge_posture.requested is not None
+                else ""
+            )
             return FinishResult(
                 task_id=task_id,
                 outcome=DECLINED,
                 reason="posture_requires_review",
                 detail=(
-                    f"{project.id} runs at posture `{posture.value}`, whose merge policy "
-                    f"is `{posture.merge_policy.value}`. Only `autonomous` releases the "
-                    "merge gate. Hand the ball to human/review and stop; nothing was "
+                    f"This finish runs at {merge_posture.describe()}, whose merge policy is "
+                    f"`{posture.merge_policy.value}`. Only `autonomous` releases the merge "
+                    f"gate.{clamped} Hand the ball to human/review and stop; nothing was "
                     "touched."
                 ),
             )
@@ -1212,7 +1325,7 @@ def finish_task(
             manager=manager,
             project=project,
             task=task,
-            authorisation=authorisation_phrase(authority, approver, posture_name),
+            authorisation=authorisation_phrase(authority, approver, posture_name, posture_source),
             settings=settings,
             api_base=api_base,
             directory=directory,

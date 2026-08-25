@@ -26,7 +26,7 @@ import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any, Dict, Iterator
+from typing import Any, Dict, Iterator, Optional
 
 import pytest
 import yaml
@@ -45,8 +45,9 @@ from agentjobs.dispatch.finish import (
     verify_live,
     worktree_paths,
 )
+from agentjobs.dispatch.phases import RUN_ID_ENV
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Ball, BranchStatus, Lifecycle, Outcome
+from agentjobs.models_v2 import Ball, BranchStatus, DispatchPosture, Lifecycle, Outcome
 from agentjobs.projects import Project
 from agentjobs.storage import TaskStorage
 
@@ -822,30 +823,69 @@ class TestTheRecordWhileItRuns:
         assert "up to and including verification" in closing.body
 
 
-def write_dispatch_config(world: Dict[str, Any], posture: str) -> None:
+def write_dispatch_config(
+    world: Dict[str, Any], posture: str, *, max_posture: Optional[str] = None
+) -> None:
     """A machine-local dispatch config that permits ``demo`` at ``posture``.
 
     Written into the world's own home rather than mocked, because the posture check is
     the whole point of the authority: reading it from the real configuration loader is
     what makes the test evidence that a *deployment* cannot merge unreviewed unless it
     said so.
+
+    ``max_posture`` is the ceiling (task-308), and omitting it means the ceiling *is*
+    ``posture`` -- which is what makes the clamp tests below read the way they do: a
+    config with no ceiling of its own permits nothing wider than its default.
     """
     home = world["home"]
     home.mkdir(parents=True, exist_ok=True)
+    project: Dict[str, Any] = {"enabled": True, "runner": "claude", "posture": posture}
+    if max_posture is not None:
+        project["max_posture"] = max_posture
     (home / "dispatch.yaml").write_text(
         yaml.safe_dump(
             {
                 "version": 1,
                 "enabled": True,
                 "runners": {"claude": {"argv": ["claude", "-p", "{prompt}"]}},
-                "projects": {
-                    "demo": {"enabled": True, "runner": "claude", "posture": posture},
-                },
+                "projects": {"demo": project},
             },
             sort_keys=False,
         ),
         encoding="utf-8",
     )
+
+
+def seed_run_record(
+    world: Dict[str, Any],
+    run_id: str,
+    *,
+    posture: str,
+    source: str = "dispatch",
+    ceiling: Optional[str] = None,
+) -> Path:
+    """A run directory shaped the way the dispatcher writes one (task-315).
+
+    Real files rather than a patched reader: what is under test is that the finisher
+    consults the run's *recorded* posture, and a stub would assert only that some
+    function was called. The fields are the ones ``ResolvedPosture.as_data`` writes.
+    """
+    directory: Path = Path(world["home"]) / "runs" / run_id
+    directory.mkdir(parents=True, exist_ok=True)
+    meta: Dict[str, Any] = {
+        "run_id": run_id,
+        "task_id": world["task_id"],
+        "project_id": "demo",
+        "mode": "session",
+        "posture": posture,
+        "posture_source": source,
+        "status": "running",
+        "started_at": "2026-08-25T08:00:00+00:00",
+    }
+    if ceiling is not None:
+        meta["posture_ceiling"] = ceiling
+    (directory / "meta.yaml").write_text(yaml.safe_dump(meta, sort_keys=False), encoding="utf-8")
+    return directory
 
 
 def release(world: Dict[str, Any], **overrides: Any) -> Any:
@@ -974,3 +1014,193 @@ class TestThePostureAuthority:
 
         assert result.outcome == DECLINED
         assert not merged_into(world["root"], world["branch"])
+
+
+class TestThePostureThatDecides:
+    """task-315. *Which* posture releases the merge -- the run's, not the project's.
+
+    task-307 and task-308 made a run's posture a per-run fact: chosen at dispatch, or
+    written on the task record, or defaulted by the project, most-specific-wins, capped
+    by the machine's ceiling. The finisher went on reading the project default alone, so
+    a run dispatched `autonomous` on a project configured `auto` was told in its own
+    prompt that the merge gate was released and then refused by the command that prompt
+    named. These fix the direction of that, and the two directions are not symmetric --
+    the widening case is the bug, and the narrowing case is the one a careless fix
+    breaks.
+    """
+
+    def test_a_run_dispatched_autonomous_merges_on_a_project_configured_auto(
+        self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """sc-1: the reported failure, from the other side.
+
+        Exactly the shape of task-298: project default `auto`, ceiling raised to
+        `autonomous`, and a human who chose `autonomous` for this one dispatch.
+        """
+        write_dispatch_config(world, "auto", max_posture="autonomous")
+        seed_run_record(world, "run_raised", posture="autonomous", source="dispatch")
+        monkeypatch.setenv(RUN_ID_ENV, "run_raised")
+
+        result = release(world)
+
+        assert result.outcome == FINISHED
+        assert merged_into(world["root"], world["branch"])
+
+    def test_the_merge_says_the_posture_came_from_the_dispatch(
+        self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The record must not send a reader to `dispatch.yaml` to find `auto` there.
+
+        That file says `auto` and this merge happened without a review, so a record that
+        only cited "the project" would read as a contradiction -- or worse, as evidence
+        the gate had been bypassed.
+        """
+        write_dispatch_config(world, "auto", max_posture="autonomous")
+        seed_run_record(world, "run_raised", posture="autonomous", source="dispatch")
+        monkeypatch.setenv(RUN_ID_ENV, "run_raised")
+
+        result = release(world)
+
+        assert result.merge_commit, "nothing merged, so there is no message to read"
+        message = git(world["root"], "log", "-1", "--format=%B", result.merge_commit).stdout
+        assert "autonomous" in message
+        assert "from the dispatch" in message
+        assert "No human reviewed this merge" in message
+
+    def test_a_run_dispatched_auto_declines_on_a_project_configured_autonomous(
+        self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """sc-2, and the half a careless fix loses.
+
+        Narrowing is a choice too. A human who picked `auto` for this dispatch on a
+        project that defaults to `autonomous` has asked for a review, and reading the
+        project default here would quietly overrule them -- in the direction that merges.
+        """
+        write_dispatch_config(world, "autonomous")
+        seed_run_record(world, "run_narrowed", posture="auto", source="dispatch")
+        monkeypatch.setenv(RUN_ID_ENV, "run_narrowed")
+        before = head(world["root"])
+
+        result = release(world)
+
+        assert result.outcome == DECLINED
+        assert result.reason == "posture_requires_review"
+        assert not merged_into(world["root"], world["branch"])
+        assert head(world["root"]) == before
+        assert "auto" in result.detail
+        assert "dispatch" in result.detail, "and where that posture came from"
+
+    def test_a_posture_raised_on_a_run_record_cannot_exceed_the_ceiling(
+        self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """sc-3. The run directory is machine-local, not sacred.
+
+        An agent that can run a shell can write `~/.agentjobs/runs/<id>/meta.yaml` as
+        easily as it can write its own task record. What stops that buying a merge is
+        `max_posture`, which lives in a file nothing reachable over the network writes --
+        so this is the test that the clamp is applied to *this* source and not only to
+        the task record it was written for.
+        """
+        write_dispatch_config(world, "auto")  # no max_posture: the ceiling is `auto`
+        seed_run_record(world, "run_forged", posture="autonomous", source="dispatch")
+        monkeypatch.setenv(RUN_ID_ENV, "run_forged")
+
+        result = release(world)
+
+        assert result.outcome == DECLINED
+        assert result.reason == "posture_requires_review"
+        assert not merged_into(world["root"], world["branch"])
+        assert "max_posture" in result.detail, "and it says what would have to change"
+
+    def test_the_ceiling_is_read_now_not_as_the_run_recorded_it(
+        self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A ceiling lowered after dispatch binds the merge that has not happened yet.
+
+        The run wrote down the ceiling it started under, and that is history. The
+        question at merge time is what this machine permits now.
+        """
+        write_dispatch_config(world, "auto")
+        seed_run_record(
+            world, "run_stale", posture="autonomous", source="dispatch", ceiling="autonomous"
+        )
+        monkeypatch.setenv(RUN_ID_ENV, "run_stale")
+
+        assert release(world).reason == "posture_requires_review"
+
+    def test_with_no_run_the_task_records_posture_decides(
+        self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """sc-4: a person running the command from a shell.
+
+        No run to read, so the posture resolves the way a dispatch of this task would --
+        which is the coherent rule, and the one that makes a hand-run finish and a
+        dispatched one agree about the same task.
+        """
+        monkeypatch.delenv(RUN_ID_ENV, raising=False)
+        write_dispatch_config(world, "auto", max_posture="autonomous")
+        world["manager"].update_task(
+            world["task_id"], actor="claude", posture=DispatchPosture.AUTONOMOUS
+        )
+
+        result = release(world)
+
+        assert result.outcome == FINISHED
+        assert merged_into(world["root"], world["branch"])
+
+    def test_a_task_records_posture_is_still_clamped(
+        self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The task record is a git-tracked file any agent can write. Same ceiling."""
+        monkeypatch.delenv(RUN_ID_ENV, raising=False)
+        write_dispatch_config(world, "auto")
+        world["manager"].update_task(
+            world["task_id"], actor="claude", posture=DispatchPosture.AUTONOMOUS
+        )
+
+        assert release(world).reason == "posture_requires_review"
+
+    def test_a_run_id_naming_nothing_falls_back_rather_than_failing(
+        self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A run directory that has been swept is not an authority and not a crash.
+
+        It resolves as if there were no run at all, which for this world is the project
+        default -- and that is the fail-closed direction.
+        """
+        write_dispatch_config(world, "auto", max_posture="autonomous")
+        monkeypatch.setenv(RUN_ID_ENV, "run_thatneverexisted")
+
+        assert release(world).reason == "posture_requires_review"
+
+    def test_a_run_cannot_vouch_for_a_task_it_was_not_dispatched_against(
+        self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A posture is granted for one task, and it does not travel.
+
+        The task id is an argument on the command line; the posture is not. Without this
+        binding, a run authorised `autonomous` for its own task could name any other open
+        task and merge that branch on an authority nobody granted for it.
+        """
+        write_dispatch_config(world, "auto", max_posture="autonomous")
+        record = seed_run_record(world, "run_elsewhere", posture="autonomous", source="dispatch")
+        meta = yaml.safe_load((record / "meta.yaml").read_text(encoding="utf-8"))
+        meta["task_id"] = "task-999"
+        (record / "meta.yaml").write_text(yaml.safe_dump(meta, sort_keys=False), encoding="utf-8")
+        monkeypatch.setenv(RUN_ID_ENV, "run_elsewhere")
+
+        result = release(world)
+
+        assert result.outcome == DECLINED
+        assert result.reason == "posture_requires_review"
+        assert not merged_into(world["root"], world["branch"])
+
+    def test_an_unparseable_posture_on_a_run_record_is_not_a_claim(
+        self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Garbage in the meta resolves as absence, never as permission."""
+        write_dispatch_config(world, "auto", max_posture="autonomous")
+        seed_run_record(world, "run_junk", posture="wide-open", source="dispatch")
+        monkeypatch.setenv(RUN_ID_ENV, "run_junk")
+
+        assert release(world).reason == "posture_requires_review"
