@@ -3,14 +3,11 @@ id: task-316
 title: The epic walk drops the parent's dispatch-time posture, so an epic dispatched
   `autonomous` stops at its first child
 created: '2026-08-25T10:13:25.100260Z'
-updated: '2026-08-25T23:52:31.072971Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-25T23:52:55.811902Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 14600
 category: infrastructure
 tags:
 - dispatch
@@ -19,7 +16,6 @@ tags:
 effort: "small \u2014 one field to pass, plus a decision about which sources may cross\
   \ the parent/child boundary, plus tests"
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "`walk_epic.start_child` builds its `DispatchRequest` without a posture,\
@@ -121,7 +117,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-316-epic-posture-inheritance
-  status: active
+  status: merged
+  merged_at: '2026-08-25T23:52:55.704770Z'
 log:
 - id: 1
   ts: '2026-08-25T10:13:25.536960Z'
@@ -1032,3 +1029,26 @@ log:
     merge_commit: 7f75fcb4f0f84b774ccf5b66714d3a4981ac08f9
     branch: fix/task-316-epic-posture-inheritance
     base: main
+- id: 41
+  ts: '2026-08-25T23:52:55.811617Z'
+  actor: finisher
+  type: transition
+  body: "Merged `fix/task-316-epic-posture-inheritance` into `main` as `7f75fcb4`\
+    \ and verified live. Finished by the scripted path with no agent session (task-241).\
+    \ No human reviewed this merge: posture `autonomous` (from the dispatch) releases\
+    \ the merge gate (task-021), and run run_68ea396e ran the finish. What authorised\
+    \ it is the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.2s  fix/task-316-epic-posture-inheritance at\
+    \ abc26840 in C:\\projects\\worktrees\\agentjobs-316\n  rebase     ok        \
+    \ 0.2s  fix/task-316-epic-posture-inheritance onto main: abc26840 -> 81d92057\n\
+    \  gate       ok       238.9s  scripts/check.py green\n  merge      ok       \
+    \  0.3s  --no-ff into main as 7f75fcb4f0f84b774ccf5b66714d3a4981ac08f9\n  rebuild\
+    \    skipped    0.0s  the merge touched no frontend/ path\n  restart    ok   \
+    \      0.6s  ran powershell -NoProfile -ExecutionPolicy Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -Force -NoOpen\n  verify     ok         0.0s  http://127.0.0.1:8876 is serving\
+    \ 2e70990c, which contains the merge 7f75fcb4, from C:\\projects\\agentjobs (started\
+    \ 2026-08-25T23:52:37.501328+00:00)\n```"
+  data:
+    lifecycle: closed
+    outcome: completed
