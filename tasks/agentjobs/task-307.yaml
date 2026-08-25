@@ -2,7 +2,7 @@ schema: 2
 id: task-307
 title: Choose the posture at the moment of dispatching, not only in dispatch.yaml
 created: '2026-08-23T22:34:10.639602Z'
-updated: '2026-08-25T08:10:59.291636Z'
+updated: '2026-08-25T08:12:08.482386Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -954,3 +954,13 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 31
+  ts: '2026-08-25T08:12:08.482150Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 27
+  data:
+    run_id: run_f285cacb
+    outcome: completed
+    duration_seconds: 463.887281
+    log_path: C:\Users\jpose\.agentjobs\runs\run_f285cacb
