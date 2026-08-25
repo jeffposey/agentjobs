@@ -2,60 +2,13 @@ schema: 2
 id: task-307
 title: Choose the posture at the moment of dispatching, not only in dispatch.yaml
 created: '2026-08-23T22:34:10.639602Z'
-updated: '2026-08-25T07:58:03.200194Z'
+updated: '2026-08-25T08:01:30.173138Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "**Ready for review. Branch `feat/task-307-posture-pulldown`, two commits,\
-  \ full unqualified gate green with a receipt for `9c37905e`. All six acceptance\
-  \ criteria met. Not merged \u2014 posture `auto` stops here.**\n\n**Look at it before\
-  \ you read the diff.** Sandbox running on **port 8902**, five projects, one for\
-  \ each state the control behaves differently in:\n\n- `http://127.0.0.1:8902/app/p/raised/tasks/task-001`\
-  \ \u2014 the full pulldown, every option live\n- `http://127.0.0.1:8902/app/p/nofinish/tasks/task-001`\
-  \ \u2014 `autonomous` greyed out, saying why\n- `http://127.0.0.1:8902/app/p/unraised/tasks/task-001`\
-  \ \u2014 **look here first**, this is what agentjobs itself looks like\n- `http://127.0.0.1:8902/app/p/readonly/tasks/task-001`\
-  \ \u2014 no pulldown at all\n- `http://127.0.0.1:8902/app/p/pushes/tasks/task-001`\
-  \ \u2014 the push clause\n\nThrowaway data, own port, safe to press anything including\
-  \ Dispatch. Tell me when you are done and I will stop it \u2014 I am not leaving\
-  \ it running.\n\n**On your aside \u2014 I never set 308 as a dependency.** That\
-  \ was deliberate and it is on the record twice (entry 2 here, entry 3 on 308): a\
-  \ `needs` dependency means *prerequisite*, and a false one makes a task unclaimable\
-  \ and lies to its readers, so ALLAGENTS.md says to express ordering through the\
-  \ queue instead. 308 was moved directly ahead of this, at position 245. **The mechanism\
-  \ failed anyway, and that is the honest part**: you dispatch by hand from the task\
-  \ page, which does not consult the queue, so the ordering the queue expressed never\
-  \ reached the moment it mattered. That is a real gap and probably worth its own\
-  \ task \u2014 I have not filed one.\n\n**What actually remained.** 308 delivered\
-  \ more of this task than its own spec expected: the request field, the CLI flag,\
-  \ the refusal, the run-record fields, and `offerable_postures`. sc-2, sc-3 and sc-5\
-  \ were already met before I started. What was missing was the control itself, plus\
-  \ the two design decisions this task owns (entries 14 and 15), both now implemented\
-  \ rather than only written down.\n\n**Three things worth your eye:**\n\n1. **`autonomous`\
-  \ is offered *disabled with a reason*, not hidden**, where a project has no scripted\
-  \ finish. task-021 accepted that an autonomous merge runs through `agentjobs finish\
-  \ --posture-release`; without it, picking `autonomous` starts a run told it may\
-  \ merge with no way to. I judged disabled-plus-reason better than omitting, because\
-  \ the fix is one line of your own config and you can only make it if you know that\
-  \ is the cause. Reasonable to disagree with.\n2. **Escalation now writes itself\
-  \ into your own authorising entry**: *\"They chose posture `autonomous` for this\
-  \ run, above this project's `auto`.\"* Deliberately silent when a task-record posture\
-  \ does the widening \u2014 that writer need not be human, which is exactly why 308\
-  \ bounds it with a ceiling instead of trusting provenance.\n3. **The panel now says\
-  \ whether the project pushes.** task-021 named that gap itself and left it for a\
-  \ later task; this control is the place it was describing, so I closed it here rather\
-  \ than filing another. Say if you would rather it were separate.\n\n**One correction\
-  \ to my own work, caught by standing it up rather than by a test.** My first draft\
-  \ of the design note said the control is absent on \"every project that has not\
-  \ raised its ceiling\". Wrong. An unset `max_posture` means the ceiling is the project's\
-  \ own posture, so agentjobs at `auto` still offers three postures and simply cannot\
-  \ escalate. The control vanishes only at a `read_only` ceiling. Fixed in the doc,\
-  \ the code comment and the fixtures \u2014 and it is why `unraised` exists as a\
-  \ sandbox project.\n\n**One flake, reported rather than buried.** `test_the_timeout_kills_the_grandchild_too`\
-  \ failed once under parallel load, then passed 3/3 isolated and on two further full\
-  \ gates. Process-group timing, untouched by this branch, and 308's own last commit\
-  \ was a flakiness fix to that same test.\n\nOn approval the scripted finish will\
-  \ rebase, gate, merge `--no-ff`, rebuild and restart. Nothing has been pushed and\
-  \ nothing will be."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 queue_position: 257
@@ -878,3 +831,25 @@ log:
     outcome: completed
     duration_seconds: 3337.532474
     log_path: C:\Users\jpose\.agentjobs\runs\run_26a695a9
+- id: 24
+  ts: '2026-08-25T08:01:28.387102Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 25
+  ts: '2026-08-25T08:01:30.172903Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-307-posture-pulldown` (9c37905e).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\aj-307.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_a8c24958\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-307-posture-pulldown
+    finish_id: fin_a8c24958
