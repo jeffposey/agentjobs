@@ -2,54 +2,13 @@ schema: 2
 id: task-308
 title: Posture settable on the task record, and whether a task may raise its own
 created: '2026-08-23T22:48:30.766265Z'
-updated: '2026-08-25T05:58:37.373051Z'
+updated: '2026-08-25T06:17:19.112860Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "**Ready for review. Branch `feat/task-308-posture-ceiling` at `eb4e9f6`,\
-  \ six commits. Full unqualified gate green, exit 0, 158.0s, receipt written. All\
-  \ six acceptance criteria met with evidence on each.**\n\nEntry 8 is the decision\
-  \ entry with the four open questions from your entry 2 answered and their rejected\
-  \ alternatives; entry 9 is what was built and how it was verified. Both are written\
-  \ for someone with no memory of this session.\n\n---\n\n**The one thing I did not\
-  \ do, because your entry 2 said not to assume it.**\n\nYou asked to confirm agentjobs'\
-  \ own two values rather than guess: *\"a wrong ceiling here is the one that matters\"\
-  *. So I set nothing in `~/.agentjobs/dispatch.yaml` \u2014 it is yours, it is machine-local,\
-  \ and it is the whole control. **Every project on this machine currently reads `max_posture=auto`**,\
-  \ which is exactly today's behaviour and is what the absent-ceiling default is for.\n\
-  \nThat means the feature is inert until you add one line. To turn it on for agentjobs:\n\
-  \n```yaml\nprojects:\n  agentjobs:\n    posture: auto\n    max_posture: autonomous\
-  \   # <- add this\n```\n\nI recommend that pair, agreeing with task-307's entry\
-  \ 16: `auto` is what the project runs at now, `finish.enabled` is true so `autonomous`\
-  \ is mechanically complete, and you dispatched task-021 as `autonomous` deliberately.\
-  \ But it is one line in your file and it should be your keystroke, not mine \u2014\
-  \ a ceiling this tool set for itself is not a ceiling.\n\n**Understand what that\
-  \ line buys and what it costs.** Once `max_posture: autonomous` is set on agentjobs,\
-  \ an agent that writes `posture: autonomous` onto its own task record will get it\
-  \ on the next dispatch \u2014 because you chose to allow that band. The run's dispatch\
-  \ entry names the source, so it is auditable, but it is not prevented. If you would\
-  \ rather keep the escalation to the pulldown only (a person clicking) and not the\
-  \ task field, say so and I will file a follow-up: it would need a per-source cap\
-  \ rather than one ceiling, which is a real design change and not a tweak.\n\n---\n\
-  \n**Worth your eye in review, in order:**\n\n1. **`Posture.rank` in `dispatch/config.py`**\
-  \ \u2014 the width order, `read_only < supervised < auto < autonomous`. `supervised`\
-  \ below `auto` is the judgement call. Entry 8 part 3 argues it; if you disagree\
-  \ with that reading, this is the line to change and everything else follows from\
-  \ it.\n2. **`resolve_posture`, same file** \u2014 the whole precedence and clamping\
-  \ rule, one function, reads no identity. That it reads no identity is the design,\
-  \ not an omission.\n3. **`tests/test_dispatch_posture_ceiling.py::TestAgentWrittenPostureCannotWiden`**\
-  \ \u2014 the security property, asserted on the recorded argv rather than on the\
-  \ resolver, plus the counterpart proving the ceiling is what was stopping it.\n\n\
-  **Nothing to click.** No React component reads the two new state-view fields yet,\
-  \ so there is no UI change to look at and no sandbox was stood up. task-307 is the\
-  \ task that gets a review server.\n\n---\n\n**After approval:** task-307 is unblocked.\
-  \ It handed back on 2026-08-24 needing exactly one thing \u2014 `max_posture` in\
-  \ the codebase \u2014 and now also has `offerable_postures` on the state view, the\
-  \ `posture` request field, and the 403 its pulldown must never be able to provoke.\
-  \ Its own entries 14 and 15 asked whoever landed first to implement `posture_source`;\
-  \ that is done here, so 307 consumes it rather than adding it again. It said it\
-  \ would be a short run.\n\nI did not merge. Posture `auto`, and I have no authority\
-  \ to."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 queue_position: 245
@@ -584,3 +543,25 @@ log:
     outcome: completed
     duration_seconds: 3114.39245
     log_path: C:\Users\jpose\.agentjobs\runs\run_f5fde507
+- id: 13
+  ts: '2026-08-25T06:17:16.258874Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 14
+  ts: '2026-08-25T06:17:19.112673Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-308-posture-ceiling` (eb4e9f6c).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-308.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_1577095c\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-308-posture-ceiling
+    finish_id: fin_1577095c
