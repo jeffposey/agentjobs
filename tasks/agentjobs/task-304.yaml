@@ -3,58 +3,11 @@ id: task-304
 title: 'Context evals: prove which rules in the always-loaded bundle actually change
   agent behaviour, and re-run it whenever a new model ships'
 created: '2026-08-23T21:52:43.476088Z'
-updated: '2026-08-25T23:37:39.145733Z'
-lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: 'The work is done and verified; the merge is blocked by a test this branch
-  does not touch. Your call on how to unblock it.
-
-
-  **State.** `feat/task-304-context-evals`, 5 commits, rebased onto main at `e71acab1`,
-  worktree `C:/projects/worktrees/agentjobs-304`, clean. All five acceptance criteria
-  met, with evidence in log entries 8, 13 and 14 and in each criterion''s `verify`
-  field. Nothing merged.
-
-
-  **The blocker.** `agentjobs finish --posture-release` ran three times:
-
-  1. gate red - `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`,
-  `pid ... survived the timeout`
-
-  2. gate GREEN, 200.7s - then stopped at `merge` with `base_moved`: another agent
-  moved main mid-gate
-
-  3. gate red - the same test, different pid
-
-
-  Two of three gate runs died on one test, and the run that passed was refused for
-  an unrelated reason.
-
-
-  **Why it is not this branch.** The five commits add `src/agentjobs/contexteval/`,
-  `scripts/context_eval.py`, `evals/context/`, `tests/test_context_eval.py` and about
-  twenty lines of ENGINEERING.md. Nothing under `src/agentjobs/dispatch/`. That test
-  passed 3/3 run alone (4.7s each), and the full unqualified gate went green on this
-  branch three separate times: by hand pre-rebase (327s, receipt `5365d587`), by hand
-  post-rebase (231s, receipt `33257539`), and inside the finisher (200.7s). It is
-  a wall-clock race between a process-group reaper and its assertion, and this machine
-  has several agents on it right now.
-
-
-  **Your call.** Either (a) re-run `poetry run agentjobs finish task-304 --project
-  agentjobs --posture-release` when the machine is quieter, or (b) file the flake
-  as its own task and let this one wait behind it.
-
-
-  I stopped rather than retry a fourth time. Re-rolling a gate until it goes green
-  is the thing the gate exists to prevent, and a test that fails twice in four runs
-  is a finding about the suite rather than noise to route around. I have not filed
-  a task for it - that is a separate concern and this task''s scope says not to absorb
-  follow-ups unasked. Say the word and I will.'
+updated: '2026-08-25T23:38:04.984207Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 1093
 category: meta
 tags:
 - big-dawg-audit
@@ -63,7 +16,6 @@ tags:
 effort: a design pass first, then a scenario set and a runner; the value is in the
   ablation, not the harness
 assignment:
-  owner: claude
   eligible: []
 parent: task-269
 posture: autonomous
@@ -199,7 +151,8 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-304-context-evals
-  status: active
+  status: merged
+  merged_at: '2026-08-25T23:38:04.889544Z'
 log:
 - id: 1
   ts: '2026-08-23T21:52:43.940714Z'
@@ -993,3 +946,26 @@ log:
     merge_commit: cff98a837812a7c2ad612b97047cfa9ebb24b3b7
     branch: feat/task-304-context-evals
     base: main
+- id: 29
+  ts: '2026-08-25T23:38:04.984021Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-304-context-evals` into `main` as `cff98a83` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). No human\
+    \ reviewed this merge: posture `autonomous` (from the task) releases the merge\
+    \ gate (task-021), and run run_12b2675c ran the finish. What authorised it is\
+    \ the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.1s  feat/task-304-context-evals at e71acab1 in\
+    \ C:\\projects\\worktrees\\agentjobs-304\n  rebase     ok         0.3s  feat/task-304-context-evals\
+    \ onto main: e71acab1 -> 380bc392\n  gate       ok       267.9s  scripts/check.py\
+    \ green\n  merge      ok         0.3s  --no-ff into main as cff98a837812a7c2ad612b97047cfa9ebb24b3b7\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         1.0s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving 59cf1d1e, which contains the merge\
+    \ cff98a83, from C:\\projects\\agentjobs (started 2026-08-25T23:37:45.170037+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
