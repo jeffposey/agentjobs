@@ -3,13 +3,23 @@ id: task-316
 title: The epic walk drops the parent's dispatch-time posture, so an epic dispatched
   `autonomous` stops at its first child
 created: '2026-08-25T10:13:25.100260Z'
-updated: '2026-08-25T20:23:26.698042Z'
+updated: '2026-08-25T20:27:02.136112Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+ball_prompt: 'The approval ran the scripted finish and it stopped at `merge`. **Nothing
+  was merged.**
+
+
+  main moved from 548224bc to ac1018f1 while the gate was running, so what was verified
+  is no longer what would be merged. The branch is rebased onto the older base and
+  nothing was merged.
+
+
+  Take it from here by hand. Check the tree against what is written above before acting
+  on anything you remember: if your worktree, your branch or your account of this
+  task no longer matches what is on disk, say so on the record and hand the ball back
+  rather than improvising a recovery.'
 archived: false
 priority: high
 queue_position: 14600
@@ -421,3 +431,42 @@ log:
     finish_step: started
     branch: fix/task-316-epic-posture-inheritance
     finish_id: fin_2e8887a5
+- id: 12
+  ts: '2026-08-25T20:27:02.065065Z'
+  actor: finisher
+  type: progress
+  body: "The scripted finish stopped at `merge` (base_moved).\n\n**Nothing was merged.**\n\
+    \nmain moved from 548224bc to ac1018f1 while the gate was running, so what was\
+    \ verified is no longer what would be merged. The branch is rebased onto the older\
+    \ base and nothing was merged.\n\n```\n  preflight  ok         2.4s  fix/task-316-epic-posture-inheritance\
+    \ at 54dc6b09 in C:\\projects\\worktrees\\agentjobs-316\n  rebase     ok     \
+    \    0.2s  fix/task-316-epic-posture-inheritance onto main: 54dc6b09 -> 82f12abe\n\
+    \  gate       ok       213.9s  scripts/check.py green\n  merge      STOPPED  \
+    \  0.0s  main moved from 548224bc to ac1018f1 while the gate was running, so what\
+    \ was verified is no longer what would be merged. The branch is rebased onto the\
+    \ older base and nothing was merged.\n```"
+  data:
+    finish_step: merge
+    finish_reason: base_moved
+    merge_commit: null
+    merged: false
+- id: 13
+  ts: '2026-08-25T20:27:02.135801Z'
+  actor: finisher
+  type: handoff
+  body: 'The approval ran the scripted finish and it stopped at `merge`. **Nothing
+    was merged.**
+
+
+    main moved from 548224bc to ac1018f1 while the gate was running, so what was verified
+    is no longer what would be merged. The branch is rebased onto the older base and
+    nothing was merged.
+
+
+    Take it from here by hand. Check the tree against what is written above before
+    acting on anything you remember: if your worktree, your branch or your account
+    of this task no longer matches what is on disk, say so on the record and hand
+    the ball back rather than improvising a recovery.'
+  data:
+    ball: agent
+    ball_reason: work
