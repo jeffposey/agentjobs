@@ -3,7 +3,7 @@ id: task-315
 title: 'A posture chosen at dispatch never reaches the merge: the finisher reads the
   project default and declines'
 created: '2026-08-25T08:52:25.148182Z'
-updated: '2026-08-25T09:09:10.161577Z'
+updated: '2026-08-25T09:11:18.522779Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -301,3 +301,19 @@ log:
     finish_step: started
     branch: fix/task-315-finish-obeys-dispatch-posture
     finish_id: fin_663947c3
+- id: 8
+  ts: '2026-08-25T09:11:18.522638Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-315-finish-obeys-dispatch-posture` into `main` as `ac348aa0`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\aj-315
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: ac348aa0db1dbb9b35fd1680021b48ed7bd1cecc
+    branch: fix/task-315-finish-obeys-dispatch-posture
+    base: main
