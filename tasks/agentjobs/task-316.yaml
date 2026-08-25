@@ -3,7 +3,7 @@ id: task-316
 title: The epic walk drops the parent's dispatch-time posture, so an epic dispatched
   `autonomous` stops at its first child
 created: '2026-08-25T10:13:25.100260Z'
-updated: '2026-08-25T23:41:38.067085Z'
+updated: '2026-08-25T23:46:41.669550Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -884,3 +884,50 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 37
+  ts: '2026-08-25T23:46:41.669235Z'
+  actor: claude
+  type: progress
+  body: "**Recovery run `run_68ea396e`, posture `autonomous` (source `dispatch`).**\
+    \ No new implementation \u2014 the branch built in `run_81b81b48` was intact and\
+    \ is what merges. This entry records only the re-verification the record asked\
+    \ for in entry 33.\n\n## What I found on disk, checked before acting on the record\n\
+    \n- Worktree `C:\\projects\\worktrees\\agentjobs-316` present and clean; branch\
+    \ `fix/task-316-epic-posture-inheritance` at `82f12ab`, two commits ahead of the\
+    \ `main` it was rebased onto in entry 6. Nothing was lost between entry 12's `base_moved`\
+    \ stop and now \u2014 the Codex runs (entries 24\u201330) made no repository changes,\
+    \ as entry 24 states.\n- `main` had moved twice since that stop (`ac1018f1` \u2192\
+    \ task-304's merge \u2192 `ad59ac2`). The branch was behind by task-304's context-eval\
+    \ work.\n- The only uncommitted thing in the shared clone was this task's own\
+    \ claim/dispatch bookkeeping, committed to `main` as `663c69b` before touching\
+    \ anything else.\n\n## Re-verification on the rebased branch\n\n- **Rebased onto\
+    \ current `main`** (`663c69b`): clean, no conflicts. `54dc6b09`/`82f12ab` \u2192\
+    \ `f1a5180` + `abc2684`. Diff unchanged at 906 insertions across 10 files.\n-\
+    \ **Bootstrapped the worktree** (16s) so the gate runs against this checkout's\
+    \ own source, and verified the printed import path resolves inside `agentjobs-316`.\n\
+    - **The four dispatch suites: 189 passed, 127s** \u2014 `test_dispatch_epic.py`,\
+    \ `test_dispatch_posture_ceiling.py`, `test_dispatch_cli.py`, `test_dispatch_finish.py`.\
+    \ That is the 24 tests entry 6 added plus everything around them, and it is the\
+    \ direct check that task-304's merge did not disturb the posture chain.\n- **Cheap\
+    \ gate stages green on the rebased branch, 34.4s** \u2014 black, ruff, mypy, api,\
+    \ icons, oxlint. Run as `--only` and reported as a `PARTIAL RUN`; it is not the\
+    \ gate and is not offered as one. Its purpose was to fail fast before spending\
+    \ a full gate inside the finisher.\n\n## What happens next and why by this route\n\
+    \nHanding to `agentjobs finish task-316 --project agentjobs --posture-release`,\
+    \ which runs the full unqualified `scripts/check.py` on the rebased branch itself\
+    \ and merges only on a green one. I deliberately did **not** pre-run the full\
+    \ gate and report it: at posture `autonomous` the authority for this merge is\
+    \ the finisher's own gate exit, not a green I paste onto the record, and a second\
+    \ full run would only add four minutes and another window for the `base_moved`\
+    \ race that stopped entry 12.\n\nGuarding against exactly that race: `663c69b`\
+    \ is the last thing this session writes to `main` before the finish, so nothing\
+    \ of mine moves the base while the gate runs.\n\nAcceptance ac-1 to ac-4 were\
+    \ assessed met in entry 6 against evidence \u2014 the suite plus a real `dispatch\
+    \ walk` against a throwaway project, table in that entry \u2014 and nothing in\
+    \ this run changes that assessment. The rebase re-establishes that the evidence\
+    \ still applies to the code that will actually merge."
+  data:
+    operation:
+      id: a1c7e402-6b3d-4f18-9d55-2e8b0c41f7a3
+      kind: log_append
+      fingerprint: a77ffe4a7031b5e5f82a432dc3b30fea
