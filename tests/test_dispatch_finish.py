@@ -1196,6 +1196,46 @@ class TestThePostureThatDecides:
         assert "from the dispatch" in message
         assert "No human reviewed this merge" in message
 
+    def test_a_child_of_an_epic_merges_on_the_posture_it_inherited(
+        self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """task-316, at the far end of the chain it fixes.
+
+        A child started by the epic walk records ``posture_source: epic``. This is the
+        only test that the value the walk writes is one the finisher can act on -- an
+        inherited posture that merged nothing would leave the walk stopping on its first
+        child for a different reason than it used to, which is not an improvement.
+        """
+        write_dispatch_config(world, "auto", max_posture="autonomous")
+        seed_run_record(world, "run_child", posture="autonomous", source="epic")
+        monkeypatch.setenv(RUN_ID_ENV, "run_child")
+
+        result = release(world)
+
+        assert result.outcome == FINISHED
+        assert landed(world["root"], result)
+
+    def test_the_merge_says_the_posture_came_from_the_epic(
+        self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Where a reader goes to find out who authorised an unreviewed merge.
+
+        ``from the dispatch`` would send them to this task's own record looking for a
+        click nobody made on it; ``from the project`` would send them to ``dispatch.yaml``
+        to find ``auto``. The act is on the *parent's* record, and this is the word that
+        says so.
+        """
+        write_dispatch_config(world, "auto", max_posture="autonomous")
+        seed_run_record(world, "run_child", posture="autonomous", source="epic")
+        monkeypatch.setenv(RUN_ID_ENV, "run_child")
+
+        result = release(world)
+
+        assert result.merge_commit, "nothing merged, so there is no message to read"
+        message = git(world["root"], "log", "-1", "--format=%B", result.merge_commit).stdout
+        assert "from the epic" in message
+        assert "No human reviewed this merge" in message
+
     def test_a_run_dispatched_auto_declines_on_a_project_configured_autonomous(
         self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
     ) -> None:
