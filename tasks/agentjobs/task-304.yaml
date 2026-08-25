@@ -3,7 +3,7 @@ id: task-304
 title: 'Context evals: prove which rules in the always-loaded bundle actually change
   agent behaviour, and re-run it whenever a new model ships'
 created: '2026-08-23T21:52:43.476088Z'
-updated: '2026-08-25T23:33:10.312277Z'
+updated: '2026-08-25T23:37:39.145733Z'
 lifecycle: active
 ball: human
 ball_reason: decision
@@ -975,3 +975,21 @@ log:
     finish_step: started
     branch: feat/task-304-context-evals
     finish_id: fin_0a6ff89b
+- id: 28
+  ts: '2026-08-25T23:37:39.145534Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-304-context-evals` into `main` as `cff98a83`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-304
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    task) releases the merge gate (task-021), and run run_12b2675c ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: cff98a837812a7c2ad612b97047cfa9ebb24b3b7
+    branch: feat/task-304-context-evals
+    base: main
