@@ -3,7 +3,7 @@ id: task-317
 title: The AgentJobs MCP server is declared twice under one name, and the two declarations
   point at different ports
 created: '2026-08-25T10:43:10.073470Z'
-updated: '2026-08-25T10:43:10.497820Z'
+updated: '2026-08-25T11:00:37.085863Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -67,16 +67,15 @@ spec:
   out_of_scope: Cutting prose from ENGINEERING.md or ALLAGENTS.md (task-305). Re-measuring
     the context budget (task-301, done).
   context:
-  - path: docs/context-budget.md
-    why: Section 2 records the measurement that found this, including why F11's token
-      half does not reproduce
   - path: .mcp.json
     why: One of the two declarations (8876)
   - path: plugins/agentjobs/.mcp.json
     why: The other declaration (8765)
   - path: audits/2026-08-21/08-mcp.md
     why: Auditor 8's F11, the original report, whose token claim task-301 could not
-      reproduce
+      reproduce. task-301's own measurement -- section 2 of the context-budget document
+      it produced -- is the fuller account, and is not on main yet; point an entry
+      at it once that branch merges.
 acceptance:
 - id: ac-1
   text: The record states, with evidence from a running session rather than from reading
@@ -106,3 +105,55 @@ log:
       id: d2a6b48f-1c07-4e39-8b52-95f7c1e0a3d6
       kind: create
       fingerprint: 8ad4c0ba5a54724d0b072f30e41aa6dd
+- id: 2
+  ts: '2026-08-25T10:59:56.212377Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 280d9557-ad18-41b4-80ed-7990b9d9bfc8
+      kind: update_content
+      fingerprint: 8a68baf842e6ce9f4e9886c70a8b65d2
+- id: 3
+  ts: '2026-08-25T11:00:37.085733Z'
+  actor: claude
+  type: decision
+  body: "**A context pointer on this task was turning every gate run in the repository\
+    \ red, on `main` and on every branch. Removed it; the information it carried is\
+    \ preserved in the audit pointer's `why`.**\n\nFound 2026-08-25 by the run working\
+    \ task-302, whose gate failed at `tests/test_task_corpus.py::test_agentjobs_context_paths_exist`:\n\
+    \n```\ncontext pointers name paths that do not exist: task-317 -> docs/context-budget.md\n\
+    ```\n\n**This was not a stale-worktree artefact.** I ran the same test in the\
+    \ main clone before touching anything and it failed there too \u2014 so `main`\
+    \ was red, and so was every branch cut from it. That is the whole reason this\
+    \ was worth fixing from another task rather than reported and left.\n\n**Cause.**\
+    \ This task was filed by the session working task-301, and pointed at `docs/context-budget.md`\
+    \ \u2014 task-301's own deliverable, which exists only on `docs/task-301-context-budget`.\
+    \ That branch is parked at `human`/`review` and unmerged, so the pointer was a\
+    \ forward reference to a file the repository does not contain.\n\n**What changed.**\
+    \ The `docs/context-budget.md` entry is gone. Its `why` said section 2 records\
+    \ the measurement that found this, including why F11's token half does not reproduce;\
+    \ that sentence now lives on the `audits/2026-08-21/08-mcp.md` entry, together\
+    \ with an instruction to point an entry back at the context-budget document once\
+    \ task-301's branch merges. Nothing else on this task was touched \u2014 not the\
+    \ spec prose, not the acceptance criteria, not the queue position.\n\n**Rejected:\
+    \ waiting for task-301 to merge.** It is the tidier repair and it restores the\
+    \ pointer for free, but it is gated on a human review that had not happened, and\
+    \ it left every branch in the repository unable to pass its own gate in the meantime\
+    \ \u2014 including the other children of the task-269 epic, which merge through\
+    \ `agentjobs finish` and therefore cannot merge at all against a red gate.\n\n\
+    **Also rejected: relaxing the test.** The contract is right. A context pointer\
+    \ that names a non-existent path is exactly the defect it is there to catch, and\
+    \ this is a true positive.\n\n**The general shape of this is task-311's**, which\
+    \ asks whether task records should live somewhere shared across worktrees rather\
+    \ than versioned alongside the code. This instance is narrower than that \u2014\
+    \ the pointer was wrong on `main` itself, not merely absent from a branch snapshot\
+    \ \u2014 so it is repaired here rather than folded into that question."
+  data:
+    operation:
+      id: b3e57a91-6c40-4d2f-9e18-5a7c2d804f63
+      kind: log_append
+      fingerprint: 42123d2a6fe24b57007a8c67fd282ed9
