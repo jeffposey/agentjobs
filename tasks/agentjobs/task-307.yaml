@@ -2,16 +2,11 @@ schema: 2
 id: task-307
 title: Choose the posture at the moment of dispatching, not only in dispatch.yaml
 created: '2026-08-23T22:34:10.639602Z'
-updated: '2026-08-25T08:10:35.189485Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-25T08:10:59.291636Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 257
 category: ux
 tags:
 - dispatch
@@ -21,7 +16,6 @@ tags:
 - api
 effort: half a day
 assignment:
-  owner: claude
   eligible: []
 parent: task-160-dispatch-phase-two
 spec:
@@ -147,7 +141,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-307-posture-pulldown
-  status: active
+  status: merged
+  merged_at: '2026-08-25T08:10:59.200343Z'
 log:
 - id: 1
   ts: '2026-08-23T22:34:11.116978Z'
@@ -939,3 +934,23 @@ log:
     merge_commit: 5352be8e5fb451d517c486ddf1594f4cc56a21ce
     branch: feat/task-307-posture-pulldown
     base: main
+- id: 30
+  ts: '2026-08-25T08:10:59.291410Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-307-posture-pulldown` into `main` as `5352be8e` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). Approved\
+    \ by a human; no model was in this loop.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.1s  feat/task-307-posture-pulldown at d8f985b6\
+    \ in C:\\projects\\worktrees\\aj-307\n  rebase     ok         0.2s  feat/task-307-posture-pulldown\
+    \ onto main: d8f985b6 -> 5cafc6dc\n  gate       ok       179.3s  scripts/check.py\
+    \ green\n  merge      ok         0.2s  --no-ff into main as 5352be8e5fb451d517c486ddf1594f4cc56a21ce\n\
+    \  rebuild    ok         3.8s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         0.6s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     ok         0.0s  http://127.0.0.1:8876 is serving b6e9513c, which contains\
+    \ the merge 5352be8e, from C:\\projects\\agentjobs (started 2026-08-25T08:10:44.380574+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
