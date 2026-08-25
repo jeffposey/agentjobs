@@ -1279,10 +1279,17 @@ exactly the sort of thing that should be visible where the Dispatch button is. I
 only where `push` is true, because false is the answer everywhere today and a sentence
 repeating the universal default on every task is noise.
 
-The control is **absent entirely** when `offerable_postures` holds one entry, which is
-every project that has not raised its ceiling. A pulldown whose single option means "the
-only thing that can happen" is furniture, and such a project reads exactly as it did
-before the control existed.
+The control is **absent entirely** when `offerable_postures` holds one entry. A pulldown
+whose single option means "the only thing that can happen" is furniture, and such a
+project reads exactly as it did before the control existed.
+
+That is rarer than it sounds, and worth stating precisely because the obvious guess is
+wrong. An unraised ceiling does **not** remove the control: `max_posture` unset means the
+ceiling is the project's own posture, so a project at `auto` still offers `read_only`,
+`supervised` and `auto` — everything at or below it. What an unraised project cannot do
+is *escalate*, which is the double opt-in the ceiling exists to create. The control
+disappears only where the ceiling is the narrowest posture there is, `read_only`, because
+that is the only ceiling with nothing underneath it.
 
 #### No auto-escalation, ever
 

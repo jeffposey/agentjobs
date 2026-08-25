@@ -26,6 +26,7 @@ from agentjobs.dispatch.config import (
     DispatchDisabledError,
     DispatchNotConfiguredError,
     DispatchSentinelError,
+    Posture,
     ProjectNotEnabledError,
 )
 from agentjobs.dispatch.guards import (
@@ -884,6 +885,7 @@ def run_as(
     user: Optional[str],
     note: Optional[str] = None,
     surface: Optional[str] = "the task page",
+    posture: Optional[Posture] = None,
 ):
     """Call the guard chain the way the React app's Dispatch button does."""
     return dispatch_task(
@@ -895,6 +897,7 @@ def run_as(
             authorized_by=user,
             authorization_note=note,
             surface=surface,
+            posture=posture,
         ),
         home=home,
     )
@@ -1144,6 +1147,83 @@ class TestAuthorizingEntryIsWritten:
         assert "Dispatched by" not in body
         assert [e for e in stored.log if e.type is LogEntryType.DISPATCH] == []
         assert live_runs(home) == []
+
+
+class TestEscalationIsRecorded:
+    """What choosing a wider envelope costs, at the point of use (task-307).
+
+    The `dispatch` entry already carries `posture_source` and `posture_ceiling`
+    (task-308), and joined with `caused_by` those reconstruct the same fact. These
+    assert the cheaper thing: that the human's own entry says it, so nobody has to hold
+    two entries side by side to answer "who decided this run could merge itself".
+    """
+
+    def test_the_authorising_entry_names_a_posture_raised_above_the_project(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        write_dispatch_config(home, fake_runner, require_clean_tree=False, max_posture="autonomous")
+
+        run_as(
+            manager,
+            project,
+            home,
+            ready_task.id,
+            user="Jeff Posey",
+            posture=Posture.AUTONOMOUS,
+        )
+
+        stored = manager.get_task(ready_task.id)
+        assert stored is not None
+        body = next(
+            entry.body or ""
+            for entry in reversed(stored.log)
+            if entry.type is LogEntryType.NOTE and "authorised a dispatch" in (entry.body or "")
+        )
+        assert "chose posture `autonomous` for this run, above this project's `auto`" in body
+
+    def test_it_stays_silent_when_the_choice_does_not_widen_anything(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """Narrowing is not an escalation, and neither is picking the default. A clause
+        that fired on every dispatch would say nothing by saying it every time."""
+        write_dispatch_config(home, fake_runner, require_clean_tree=False, max_posture="autonomous")
+
+        run_as(
+            manager,
+            project,
+            home,
+            ready_task.id,
+            user="Jeff Posey",
+            posture=Posture.SUPERVISED,
+        )
+
+        stored = manager.get_task(ready_task.id)
+        assert stored is not None
+        body = next(
+            entry.body or ""
+            for entry in reversed(stored.log)
+            if entry.type is LogEntryType.NOTE and "authorised a dispatch" in (entry.body or "")
+        )
+        assert "above this project's" not in body
+
+    def test_a_dispatch_that_chose_nothing_reads_exactly_as_it_did_before(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+
+        run_as(manager, project, home, ready_task.id, user="Jeff Posey")
+
+        stored = manager.get_task(ready_task.id)
+        assert stored is not None
+        body = next(
+            entry.body or ""
+            for entry in reversed(stored.log)
+            if entry.type is LogEntryType.NOTE and "authorised a dispatch" in (entry.body or "")
+        )
+        assert body == (
+            "Jeff Posey authorised a dispatch of this task from the task page. No extra "
+            "instruction was given: the task record is the brief."
+        )
 
 
 class TestSufficiency:

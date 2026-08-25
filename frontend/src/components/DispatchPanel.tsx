@@ -528,8 +528,11 @@ function DispatchPostureChoice({
   onChange: (next: string) => void;
 }) {
   const postures = state?.offerable_postures ?? [];
-  // One option means the project is capped at its own default, so there is no choice to
-  // make and a pulldown saying so is furniture -- the same rule the group select uses.
+  // One option means there is nothing to choose and a pulldown saying so is furniture --
+  // the same rule the group select uses. Note this is *not* "the project has not raised
+  // its ceiling": an unraised ceiling is the project's own posture, so a project at
+  // `auto` still offers the three postures at or below it and simply cannot escalate.
+  // The only ceiling with nothing under it is `read_only`.
   if (postures.length <= 1) return null;
   return (
     <div className="flex items-center gap-2">
