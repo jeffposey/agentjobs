@@ -79,6 +79,7 @@ def enable_dispatch(
     body: str = "print('started')\n",
     project_enabled: bool = True,
     extra_runners: Sequence[str] = (),
+    max_posture: Optional[str] = None,
 ) -> None:
     """Write a machine-local dispatch config whose runner exits immediately.
 
@@ -93,13 +94,16 @@ def enable_dispatch(
     defined: Dict[str, Dict[str, object]] = {"fake": {"argv": argv, "actor": "claude"}}
     for name in extra_runners:
         defined[name] = {"argv": list(argv), "actor": "claude"}
+    project_entry: Dict[str, object] = {"enabled": project_enabled, "runner": "fake"}
+    if max_posture is not None:
+        project_entry["max_posture"] = max_posture
     (home / "dispatch.yaml").write_text(
         yaml.safe_dump(
             {
                 "version": 1,
                 "enabled": True,
                 "runners": defined,
-                "projects": {"sandbox": {"enabled": project_enabled, "runner": "fake"}},
+                "projects": {"sandbox": project_entry},
             },
             sort_keys=False,
         ),
@@ -861,6 +865,62 @@ class TestDispatchAgainstAGroup:
         assert state["available_groups"] == []
         assert state["group"] is None
         assert state["default_group"] is None
+
+
+class TestThePostureCeilingReachesTheBrowser:
+    """task-308. The state view is what task-307's control populates from.
+
+    It is sent rather than derived for the same reason ``resolved_from`` is: a browser
+    that re-implements the ceiling is the one place in the system that could offer a
+    choice this API will then refuse.
+    """
+
+    def test_an_unset_ceiling_is_reported_as_the_project_default(self, served) -> None:
+        client, root, home = served
+        enable_dispatch(home, root.parent)
+
+        state = client.get("/api/projects/sandbox/dispatch").json()
+
+        assert state["posture"] == "auto"
+        assert state["max_posture"] == "auto"
+        assert state["offerable_postures"] == ["read_only", "supervised", "auto"]
+
+    def test_a_raised_ceiling_widens_what_may_be_offered(self, served) -> None:
+        client, root, home = served
+        enable_dispatch(home, root.parent, max_posture="autonomous")
+
+        state = client.get("/api/projects/sandbox/dispatch").json()
+
+        assert state["posture"] == "auto"
+        assert state["max_posture"] == "autonomous"
+        assert state["offerable_postures"] == [
+            "read_only",
+            "supervised",
+            "auto",
+            "autonomous",
+        ]
+
+    def test_asking_above_the_ceiling_is_refused_under_its_own_code(self, served) -> None:
+        """403 rather than 409: this is a permission answer, not a contention one, and
+        the browser renders different copy for each."""
+        client, root, home = served
+        enable_dispatch(home, root.parent)
+        task_id = seed_task(root)
+
+        response = client.post(f"/api/tasks/{task_id}/dispatch", json={"posture": "autonomous"})
+
+        assert response.status_code == 403
+        assert response.json()["code"] == "posture_above_ceiling"
+
+    def test_asking_within_the_ceiling_starts_the_run_at_that_posture(self, served) -> None:
+        client, root, home = served
+        enable_dispatch(home, root.parent)
+        task_id = seed_task(root)
+
+        response = client.post(f"/api/tasks/{task_id}/dispatch", json={"posture": "read_only"})
+
+        assert response.status_code == 202
+        assert response.json()["posture"] == "read_only"
 
 
 class TestOneClickDispatch:
