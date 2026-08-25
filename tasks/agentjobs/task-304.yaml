@@ -3,13 +3,17 @@ id: task-304
 title: 'Context evals: prove which rules in the always-loaded bundle actually change
   agent behaviour, and re-run it whenever a new model ships'
 created: '2026-08-23T21:52:43.476088Z'
-updated: '2026-08-25T12:53:13.514953Z'
+updated: '2026-08-25T19:17:03.150392Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: A dispatched session (8da26bd2) finished without handing off, so nobody
-  was told what it needs. Read what it did, then either attach to it or move this
-  task on yourself.
+ball: agent
+ball_reason: work
+ball_prompt: 'Session 8da26bd2 is alive and working this again; the dispatcher''s
+  handoff at entry 11 was a pause at a usage checkpoint, not a stop. The harness is
+  built and committed on feat/task-304-context-evals at 94028bb (50 tests green).
+  What remains: the definitive opus-5 baseline sweep is running now (7 cases x 2 arms
+  x 3 runs), then commit its report to evals/context/baselines/, add the measured
+  cost to the ac-1 decision, set the acceptance statuses, run the full gate, and finish
+  with --posture-release.'
 archived: false
 priority: critical
 queue_position: 1093
@@ -386,3 +390,17 @@ log:
   data:
     ball: human
     ball_reason: decision
+- id: 12
+  ts: '2026-08-25T19:17:03.149931Z'
+  actor: claude
+  type: handoff
+  body: Resuming. The dispatcher moved the ball to human/decision because this session
+    paused at a usage checkpoint mid-turn; it was not stuck and nothing needs a human.
+    Taking the ball back.
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 7a1c2f30-6d11-4a58-9d43-1b0e5c9f2a03
+      kind: handoff
+      fingerprint: c91009de2539f8bba0ead8195804fac0
