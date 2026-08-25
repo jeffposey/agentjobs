@@ -3,10 +3,11 @@ id: task-298
 title: The run-lock refusal blames a stuck dispatch when the holder is a scripted
   finish, and never says the merge is already happening
 created: '2026-08-23T20:58:00.297051Z'
-updated: '2026-08-23T20:58:00.729139Z'
-lifecycle: ready
+updated: '2026-08-25T08:35:12.255546Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 queue_position: 493
@@ -17,6 +18,7 @@ tags:
 - error-messages
 - agent-dx
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: Approving a task now starts a scripted finish, which holds the task's run
@@ -133,31 +135,33 @@ acceptance:
   text: When a scripted finish holds the lock, the refusal identifies it as a finish,
     names its finish id and when it started, and does not call it a dispatch.
   verify: the refusal text, reproduced against a live finish
-  status: pending
+  status: met
 - id: sc-2
   text: The refusal tells the user that the approval already runs the merge and no
     dispatch is needed.
   verify: the refusal text
-  status: pending
+  status: met
 - id: sc-3
   text: The restart-AgentJobs suggestion is not shown when the holder is a live finish,
     and is still shown for a lock outliving a dead run.
   verify: both cases, tested
-  status: pending
+  status: met
 - id: sc-4
   text: The lock records the holder's kind rather than the message inferring it; a
     test proves a finish holder and a dispatch holder produce different text.
   verify: ledger tests
-  status: pending
+  status: met
 - id: sc-5
   text: 'Reproduced live: approve a task with finish enabled, attempt a dispatch during
     the finish, and read the message a user would actually see.'
   verify: live evidence, not asserted
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-298-run-lock-refusal-names-finish
+  status: active
 log:
 - id: 1
   ts: '2026-08-23T20:58:00.728329Z'
@@ -170,3 +174,250 @@ log:
       id: c1d2e3f4-0004-4a00-9e00-2b3c4d5e0296
       kind: create
       fingerprint: c196b8c403fe647b12789d723fd8abcf
+- id: 2
+  ts: '2026-08-25T08:16:00.504426Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. They chose
+    posture `autonomous` for this run, above this project''s `auto`. No extra instruction
+    was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 3
+  ts: '2026-08-25T08:16:01.072041Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 4
+  ts: '2026-08-25T08:16:04.032357Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_a3fb227d
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: dispatch
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 2
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - 'You are the agent `claude` working task `task-298` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-298-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_a3fb227d. Posture `autonomous`
+      releases the merge gate: this run merges its own work with no human review.
+      Record the evidence on the task first, then run `agentjobs finish task-298 --project
+      agentjobs --posture-release` from C:\projects\agentjobs. That rebases, runs
+      the full gate, and merges only on a green one -- it stops and hands the ball
+      back if anything fails. Do not merge by hand. Never push: this project is configured
+      `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 43c06da
+    session_id: 45d8fc0d
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 5
+  ts: '2026-08-25T08:34:32.801257Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 3f1a9c22-0298-4b10-9e21-7c1d4e5f0001
+      kind: update_content
+      fingerprint: 681b892ed30fc6522804a3511bab3347
+- id: 6
+  ts: '2026-08-25T08:35:02.493067Z'
+  actor: claude
+  type: progress
+  body: 'Done on `fix/task-298-run-lock-refusal-names-finish` (3 commits, full gate
+    green 10/10 in 199.8s).
+
+
+    ## What changed
+
+
+    **The lock now records what took it.** `_holder_text` writes `kind=dispatch|finish`,
+    and for a finish a `finish=<id>` adopted the moment the finish directory exists,
+    plus `started=<iso>` from the acquisition. `LockHolder` parses all three and exposes
+    `is_finish`. An absent `kind` is a lock file written before this and reads as
+    a dispatch, because that is what every one of them was. `RunLock.adopt_finish()`
+    is the finish''s counterpart to `adopt()` and exists for the same reason -- the
+    lock is taken *before* the directory, because taking it is what decides whether
+    the attempt happens at all.
+
+
+    `finish_task` acquires with `kind=KIND_FINISH` and calls `adopt_finish` immediately
+    after `FinishDirectory.create`. That is the only change in `finish.py`; nothing
+    about when a finish is spawned moved.
+
+
+    **`_lock_refusal` now has four branches instead of two**, and `_finish_refusal`
+    carries the finish ones.
+
+
+    **The restart remedy moved to the branch it is actually right about**, which is
+    not where it was. `release_stale_locks` uses exactly the same evidence as the
+    reclaim inside `acquire_run_lock`, so a restart can never clear a lock that acquisition
+    just refused on -- with one exception: `reconcile()` concludes orphaned runs `interrupted`
+    *first* and sweeps the locks *after*, so a lock naming a run that was recorded
+    live when the process died is precisely what a restart fixes. That is the `holder.run_id`
+    branch, and it now carries the advice. The no-run branch, which carried it before,
+    cannot benefit from a restart at all.
+
+
+    ## The before and after, taken live
+
+
+    `scripts/finish_lock_refusal_sandbox.py` (new) builds a throwaway clone, branch,
+    worktree, task record and dispatch config with `finish.enabled`, spawns a real
+    `finish_task` in a detached process whose `scripts/check.py` sleeps, waits for
+    it to be inside the gate, and then goes through the real `dispatch_task` guard
+    -- the function the browser''s POST calls. Run it with another checkout''s interpreter
+    and it reports what that checkout says. Both of these are that script''s output,
+    ten minutes apart:
+
+
+    **Before** (main clone''s interpreter, unmodified `main` at 43c06da) -- the reported
+    bug, reproduced:
+
+
+    > task-001 is held by a dispatch that started (pid 962208) and has not yet said
+    which run it became, so it cannot be shown to be over. If it is genuinely stuck,
+    restarting AgentJobs clears locks whose runs have ended.
+
+
+    Lock file: `pid=962208 run=`
+
+
+    **After** (this branch):
+
+
+    > task-001 is held by a scripted finish (fin_1ffd1590) started at 03:27:41, 9s
+    ago, which is merging it now. Approving a task on this machine runs the merge
+    itself -- rebase, the full gate, a --no-ff merge, and the rebuild that puts it
+    in front of you -- so there is nothing to dispatch. When it lands the task closes;
+    if it stops, the ball comes back with the step it stopped at written on the record.
+
+
+    Lock file: `pid=978148 run= kind=finish finish=fin_1ffd1590 started=2026-08-25T08:27:41+00:00`
+
+
+    Both refusals are `LiveRunExistsError(reason=live_run_exists)`, which is what
+    the task page renders verbatim. The exception type, the reason and the lock''s
+    behaviour are unchanged -- only what it says.
+
+
+    ## The other three shapes
+
+
+    - **Dispatch, run named, run recorded live** -- unchanged text plus the restart
+    sentence: *"...Cancel that run and this task is dispatchable again; it appears
+    under this task''s runs. If it is genuinely stuck, restarting AgentJobs settles
+    runs that were live when it last stopped and clears their locks."*
+
+    - **Dispatch, no run named, pid alive** -- this is the brief window between taking
+    the lock and having a run to name, and it is now described as that: *"...has not
+    named its run yet -- that window is a moment wide, so try again shortly..."*.
+    No restart advice: a live holder''s lock is not something a restart clears.
+
+    - **Finish whose process is gone** -- *"...whose process (pid N) is gone, so nothing
+    is merging. Restarting AgentJobs clears locks whose holders have ended."* Normally
+    unreachable, because for a finish an absent pid is proof and the lock is reclaimed
+    rather than refused; it survives for the case where the one reclaim an acquisition
+    is allowed has already been spent.
+
+
+    ## Verification
+
+
+    - Full gate, unqualified, on the branch: 10/10 green, 199.8s (pytest 118.3s --
+    three concurrent gates were not running, but the machine was not idle either).
+
+    - Eight new tests in `tests/test_dispatch_lifecycle.py::TestRunLock`. The load-bearing
+    one is `test_a_finish_holder_and_a_dispatch_holder_read_differently`: same contention,
+    two kinds of holder, two messages -- it fails if the kind stops being written
+    and the code goes back to inferring the holder. sc-3 is tested from both sides
+    deliberately, because narrowing the restart advice is easy to overshoot into deleting
+    it.
+
+    - `tests/test_dispatch_lifecycle.py tests/test_dispatch_guards.py tests/test_dispatch_finish.py
+    tests/test_finish_approval_hook.py`: 178 passed.
+
+
+    ## Not done, deliberately
+
+
+    The spec''s own aside -- whether the GUI should hide or disable Dispatch while
+    a finish holds the lock -- is untouched. It is a second question, the task says
+    so, and it needs the browser to know a finish is running, which is a different
+    piece of plumbing from what a refusal says once it has already happened.'
+  data:
+    operation:
+      id: 3f1a9c22-0298-4b10-9e21-7c1d4e5f0002
+      kind: log_append
+      fingerprint: d12e2f304e2a64141fbc10307b7bc06f
+- id: 7
+  ts: '2026-08-25T08:35:12.255325Z'
+  actor: claude
+  type: decision
+  body: '**The restart advice moves branch rather than staying where it was and being
+    suppressed for finishes.**
+
+
+    The obvious reading of the constraint -- "narrows when it is shown, does not delete
+    it" -- is to leave the sentence on the no-run dispatch branch and skip it for
+    a finish. That is wrong, and following it would have preserved a remedy that cannot
+    work.
+
+
+    `release_stale_locks` judges a lock by exactly the same rule as the reclaim inside
+    `acquire_run_lock`: a terminal run, or an absent process. So a restart can never
+    clear a lock that acquisition has just refused on -- both would have cleared it
+    already. The advice was, in that branch, unconditionally useless.
+
+
+    The one thing a restart does that acquisition cannot is `reconcile()`, which concludes
+    runs that were recorded live when a previous process died, and only *then* sweeps.
+    So a lock naming a run whose record still says `running` is the genuine "lock
+    outliving a dead run", and it is the `holder.run_id` branch. The advice now lives
+    there.
+
+
+    **Rejected:** keeping it in both places to be safe. Advice offered where it cannot
+    help is what produced this task -- the message was not merely unhelpful, it recommended
+    an action that would have damaged a healthy merge. Two more places to offer it
+    is two more chances to make the same mistake.'
+  data:
+    operation:
+      id: 3f1a9c22-0298-4b10-9e21-7c1d4e5f0003
+      kind: log_append
+      fingerprint: 0ce6506eaeb3cf999a2e02cd71b4fc08
