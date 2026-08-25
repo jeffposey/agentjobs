@@ -60,14 +60,13 @@ def repo(tmp_path: Path) -> Dict[str, Any]:
     return {"root": root, "manager": manager, "tmp": tmp_path}
 
 
-def make_branch(repo: Dict[str, Any], name: str, file: str, *, author_date: str = "") -> Path:
+def make_branch(repo: Dict[str, Any], name: str, file: str, *, author_date: str = "") -> None:
     """A branch with one commit of its own, made in its own worktree and then released."""
-    root = repo["root"]
-    worktree = repo["tmp"] / "worktrees" / name.replace("/", "-")
+    root: Path = repo["root"]
+    worktree: Path = repo["tmp"] / "worktrees" / name.replace("/", "-")
     git(root, "worktree", "add", "-b", name, str(worktree), "main")
     commit(worktree, file, author_date=author_date)
     git(root, "worktree", "remove", str(worktree))
-    return worktree
 
 
 def task_for(repo: Dict[str, Any], branch: str, *, closed: bool = False) -> str:
