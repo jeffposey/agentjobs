@@ -41,6 +41,7 @@ from agentjobs.dispatch.finish import (
     Escalate,
     Plan,
     active_branches,
+    delete_branch,
     finish_task,
     verify_live,
     worktree_paths,
@@ -178,10 +179,40 @@ def merged_into(root: Path, branch: str, base: str = "main") -> bool:
     the base's tip against a value captured earlier does *not* answer it: the finisher
     commits its own escalation onto the base, so the tip legitimately moves even when
     nothing was merged.
+
+    **Only askable while the branch still exists**, which since task-293 means only on
+    the paths that stop: a successful finish deletes the branch it merged. A missing ref
+    is therefore a test error rather than a ``False`` -- ``git merge-base --is-ancestor``
+    exits non-zero for "not contained" and for "no such ref" alike, so a deleted branch
+    would read as "nothing was merged", which is the exact opposite of what it means.
+    Successful paths ask `landed` instead.
     """
+    assert (
+        subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--verify", f"refs/heads/{branch}"],
+            capture_output=True,
+        ).returncode
+        == 0
+    ), f"{branch} no longer exists in {root}; ask `landed` about a finish that succeeded"
     return (
         subprocess.run(
             ["git", "-C", str(root), "merge-base", "--is-ancestor", branch, base],
+            capture_output=True,
+        ).returncode
+        == 0
+    )
+
+
+def landed(root: Path, result: Any, base: str = "main") -> bool:
+    """Whether ``base`` contains this finish's merge commit.
+
+    What `merged_into` asks, of the one name that survives a successful finish. Since
+    task-293 the branch does not: retiring it is the last thing the sequence does.
+    """
+    assert result.merge_commit, result.render()
+    return (
+        subprocess.run(
+            ["git", "-C", str(root), "merge-base", "--is-ancestor", result.merge_commit, base],
             capture_output=True,
         ).returncode
         == 0
@@ -265,7 +296,7 @@ class TestTheCommonCase:
 
         assert result.outcome == FINISHED, result.render()
         root = world["root"]
-        assert merged_into(root, world["branch"])
+        assert landed(root, result)
         # --no-ff, so the merge commit has two parents and is itself the reviewable unit.
         parents = git(root, "rev-list", "--parents", "-n", "1", result.merge_commit).stdout
         assert len(parents.split()) == 3
@@ -279,6 +310,24 @@ class TestTheCommonCase:
         assert task.branches[0].merged_at is not None
         assert world["branch"] not in worktree_paths(root)
         assert not world["worktree"].exists()
+        # The other half of ENGINEERING.md step 5, missing until task-293.
+        assert git(root, "branch", "--list", world["branch"]).stdout.strip() == ""
+
+    def test_the_branch_is_deleted_and_the_step_table_says_so(
+        self, world: Dict[str, Any]
+    ) -> None:
+        """task-293: six merged branches accumulated in one night because nothing did this."""
+        result = run(world)
+
+        assert result.outcome == FINISHED, result.render()
+        root = world["root"]
+        assert git(root, "branch", "--list", world["branch"]).stdout.strip() == ""
+        assert world["branch"] not in git(root, "branch", "--merged", "main").stdout
+        step = next(entry for entry in result.steps if entry.step == "branch")
+        assert step.ok and world["branch"] in step.detail and "deleted" in step.detail
+        # And after the worktree, because a checked-out branch cannot be deleted.
+        order = [entry.step for entry in result.steps]
+        assert order.index("worktree") < order.index("branch")
 
     def test_the_merge_message_names_the_task_and_the_approver(self, world: Dict[str, Any]) -> None:
         result = run(world)
@@ -312,6 +361,90 @@ class TestTheCommonCase:
         run(world)
         locks = world["home"] / "runs" / ".locks"
         assert not locks.exists() or not list(locks.iterdir())
+
+
+# ----- deleting the branch, and the two cases where it must not ---------------
+
+
+class TestRetiringTheBranch:
+    """``git branch -d`` on real branches, because a refusal is the safety argument.
+
+    Driven against ``delete_branch`` rather than through a whole finish, because the two
+    interesting states -- an unmerged branch, and one still checked out -- are states a
+    successful finish cannot be in. Constructing them through the sequence would mean
+    faking the merge, and then the test would be about the fake.
+    """
+
+    def _plan(self, world: Dict[str, Any], branch: str) -> Plan:
+        return Plan(
+            root=world["root"],
+            branch=branch,
+            worktree=world["worktree"],
+            interpreter=Path(_interpreter()),
+            base="main",
+            branch_head_before=head(world["root"], branch),
+            base_head_before=head(world["root"], "main"),
+        )
+
+    def _unmerged(self, world: Dict[str, Any]) -> str:
+        """A branch with a commit of its own that ``main`` does not contain."""
+        root, worktree = world["root"], world["worktree"]
+        branch = "feat/task-002-unmerged"
+        git(root, "branch", branch, "main")
+        spare = worktree.parent / "spare"
+        git(root, "worktree", "add", str(spare), branch)
+        (spare / "docs").mkdir(parents=True, exist_ok=True)
+        (spare / "docs" / "unmerged.md").write_text("not in main\n", encoding="utf-8")
+        git(spare, "add", "--", "docs/unmerged.md")
+        git(spare, "commit", "-m", "docs: unmerged work")
+        git(root, "worktree", "remove", str(spare))
+        return branch
+
+    def test_an_unmerged_branch_is_refused_rather_than_forced(
+        self, world: Dict[str, Any]
+    ) -> None:
+        """`-d`, never `-D`. A refusal means the assumption behind deleting it is wrong."""
+        branch = self._unmerged(world)
+        before = head(world["root"], branch)
+
+        step = delete_branch(self._plan(world, branch))
+
+        assert git(world["root"], "branch", "--list", branch).stdout.strip() != ""
+        assert head(world["root"], branch) == before
+        assert "refused" in step.detail and "never forced" in step.detail
+        assert branch in step.detail
+
+    def test_a_refusal_does_not_stop_the_finish(self, world: Dict[str, Any]) -> None:
+        """The merge is in and the delivery is verified by then; a ref is not worth a wake."""
+        step = delete_branch(self._plan(world, self._unmerged(world)))
+        assert step.ok
+        assert not step.skipped
+
+    def test_a_branch_still_checked_out_is_left_alone_and_says_which_worktree(
+        self, world: Dict[str, Any]
+    ) -> None:
+        """The ordering constraint, asked of git rather than assumed of the step above.
+
+        A failed ``git worktree remove`` would otherwise come back here as a refusal
+        phrased in terms of checkout, which reads exactly like the unmerged case above
+        and means something entirely different.
+        """
+        git(world["root"], "merge", "--no-ff", "--no-edit", "-m", "by hand", world["branch"])
+
+        step = delete_branch(self._plan(world, world["branch"]))
+
+        assert git(world["root"], "branch", "--list", world["branch"]).stdout.strip() != ""
+        assert "still checked out" in step.detail
+        assert str(world["worktree"]) in step.detail
+
+    def test_a_merged_branch_with_no_worktree_is_deleted(self, world: Dict[str, Any]) -> None:
+        git(world["root"], "merge", "--no-ff", "--no-edit", "-m", "by hand", world["branch"])
+        git(world["root"], "worktree", "remove", str(world["worktree"]))
+
+        step = delete_branch(self._plan(world, world["branch"]))
+
+        assert git(world["root"], "branch", "--list", world["branch"]).stdout.strip() == ""
+        assert "deleted" in step.detail
 
 
 # ----- declining: never a candidate, so nothing happens -----------------------
@@ -948,7 +1081,7 @@ class TestThePostureAuthority:
         result = release(world)
 
         assert result.outcome == FINISHED
-        assert merged_into(world["root"], world["branch"])
+        assert landed(world["root"], result)
 
     def test_a_red_gate_still_stops_it(self, world: Dict[str, Any]) -> None:
         """The objective floor. It is the authority, so it cannot be the soft half."""
@@ -1044,7 +1177,7 @@ class TestThePostureThatDecides:
         result = release(world)
 
         assert result.outcome == FINISHED
-        assert merged_into(world["root"], world["branch"])
+        assert landed(world["root"], result)
 
     def test_the_merge_says_the_posture_came_from_the_dispatch(
         self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
@@ -1146,7 +1279,7 @@ class TestThePostureThatDecides:
         result = release(world)
 
         assert result.outcome == FINISHED
-        assert merged_into(world["root"], world["branch"])
+        assert landed(world["root"], result)
 
     def test_a_task_records_posture_is_still_clamped(
         self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch

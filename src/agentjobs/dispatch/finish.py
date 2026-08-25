@@ -981,6 +981,54 @@ def remove_worktree(plan: Plan) -> StepResult:
     return StepResult("worktree", True, f"removed {plan.worktree}", 0.0)
 
 
+def delete_branch(plan: Plan) -> StepResult:
+    """Delete the merged branch -- the half of ENGINEERING.md step 5 nothing implemented.
+
+    The rule has been written down in three places since the repository had three
+    contract files, and until task-293 no code ran it: every task the finisher merged
+    left its branch behind by construction. That is harmless one at a time, which is
+    exactly why six accumulated in a single night before anybody noticed. The cost is
+    that ``git branch --list`` stops reading as a statement of what is in flight.
+
+    **``-d``, never ``-D``.** ``-d`` refuses a branch the base does not contain, and that
+    refusal is the whole safety argument for doing this unattended: if git will not
+    delete it, the assumption that this branch was merged is wrong, and forcing past a
+    refusal would destroy the one case worth keeping.
+
+    **The ordering is a real constraint, not a preference.** A branch checked out in a
+    worktree cannot be deleted, so this runs after ``remove_worktree`` -- and it asks git
+    whether the worktree is really gone rather than assuming the previous step worked.
+    Without that check a failed worktree removal would come back here as a refusal
+    phrased in terms of checkout, which reads exactly like the unmerged case and means
+    something completely different.
+
+    **A refusal is reported, not escalated**, which is the same trade ``remove_worktree``
+    makes and for the same reason. By the time this runs the merge has landed, the
+    delivery has been verified and the task is closed; waking a session to delete a ref
+    would cost more than the ref does. It is written into the step table instead, which
+    is what makes it findable.
+    """
+    holder = worktree_paths(plan.root).get(plan.branch)
+    if holder is not None:
+        return StepResult(
+            "branch",
+            True,
+            f"{plan.branch} is still checked out at {holder}, so it cannot be deleted "
+            "-- left in place",
+            0.0,
+        )
+    result = git(plan.root, ["branch", "-d", plan.branch])
+    if result.returncode != 0:
+        return StepResult(
+            "branch",
+            True,
+            f"`git branch -d {plan.branch}` refused: {tail(result.stderr, 3)} "
+            "-- left in place, never forced",
+            0.0,
+        )
+    return StepResult("branch", True, f"deleted {plan.branch}", 0.0)
+
+
 # ----- writing it down --------------------------------------------------------
 
 
@@ -1562,13 +1610,17 @@ def _sequence(
             # has to say the same thing for a different reason -- "verified live" is a
             # claim, and this is the evidence for it, including what verification
             # actually asked and what answered. It stops at verification because this
-            # entry *is* the close; the worktree is retired immediately after it.
+            # entry *is* the close; the worktree and the branch are retired
+            # immediately after it.
             "Everything up to and including verification:\n\n"
             "```\n" + "\n".join(step.render() for step in steps) + "\n```"
         ),
     )
     steps.append(StepResult("close", True, "closed completed", 0.0))
+    # In this order because a branch checked out in a worktree cannot be deleted. See
+    # `delete_branch`, which re-reads git rather than trusting the step above it.
     steps.append(remove_worktree(plan))
+    steps.append(delete_branch(plan))
     commit_task_record(
         manager, task.id, subject=f"close after merging {plan.branch}", actor=FINISHER
     )
