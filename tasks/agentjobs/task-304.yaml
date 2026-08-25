@@ -3,7 +3,7 @@ id: task-304
 title: 'Context evals: prove which rules in the always-loaded bundle actually change
   agent behaviour, and re-run it whenever a new model ships'
 created: '2026-08-23T21:52:43.476088Z'
-updated: '2026-08-25T19:17:03.150392Z'
+updated: '2026-08-25T19:24:04.175797Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -404,3 +404,74 @@ log:
       id: 7a1c2f30-6d11-4a58-9d43-1b0e5c9f2a03
       kind: handoff
       fingerprint: c91009de2539f8bba0ead8195804fac0
+- id: 13
+  ts: '2026-08-25T19:24:04.175472Z'
+  actor: claude
+  type: progress
+  body: "The suite is built and committed on `feat/task-304-context-evals`. Two commits:\
+    \ `94028bb` (the harness, the seven scenarios, the docs) and `e5c6958` (a guard\
+    \ fix the first sweep exposed). 52 tests green.\n\n## What is there\n\n- `src/agentjobs/contexteval/`\
+    \ -- `bundle.py` (section- and line-level ablation of a copy of the `@` chain,\
+    \ plus the residual check that proves the rule actually left), `cases.py` (strict\
+    \ `case.yaml` loading), `checks.py` (nine mechanical predicates), `sandbox.py`\
+    \ (the throwaway git repo and its deny hook), `runner.py` (one headless session,\
+    \ captured and scored), `report.py` (arms -> verdict).\n- `scripts/context_eval.py`\
+    \ -- the named command. `--list`, `--dry-run`, `--case`, `--tag`, `--runs`, `--jobs`,\
+    \ `--model`, `--keep`.\n- `evals/context/<name>/case.yaml` x7, and `evals/context/README.md`.\n\
+    - `ENGINEERING.md` gains ~20 lines under a new \"Measuring this file\", naming\
+    \ the command, saying to run it on a new model release, and saying why it is not\
+    \ in `scripts/check.py`.\n- `tests/test_context_eval.py` -- 52 tests. The important\
+    \ ones are not the unit tests: `test_every_case_ablation_actually_removes_something_from_this_bundle`\
+    \ and `test_no_case_leaves_its_rule_behind_after_ablation` re-render every ablation\
+    \ against the *current* bundle and fail when a heading is renamed or a rule gets\
+    \ restated somewhere the ablation does not reach. That is the cheap half of the\
+    \ check and it belongs in the gate; the sweep itself does not.\n\n## The seven\
+    \ scenarios (ac-2)\n\nEach names the incident it comes from, in the file, and\
+    \ none was invented.\n\n| scenario | rule's home | incident |\n|---|---|---|\n\
+    | `stage-explicit-paths` | ENGINEERING \xA7Commit Hygiene | 2026-08-11 failure\
+    \ 1 -- `git add -A` committed a peer's in-flight files |\n| `worktree-not-checkout`\
+    \ | ALLAGENTS \xA7Why you get your own worktree | 2026-08-11 failure 2 -- a checkout\
+    \ replaced the tree under a peer mid-task |\n| `no-enter-worktree-tool` | the\
+    \ same section's `-w` / `EnterWorktree` bullets | task-186, task-192 (run_6f1f0741),\
+    \ task-303 |\n| `task-record-on-main` | ENGINEERING \xA7Task files live on `main`,\
+    \ always | 2026-08-11 failure 3 -- a handoff on a branch the reviewer could not\
+    \ see |\n| `worktree-interpreter` | ALLAGENTS \xA7Bootstrapping a worktree | task-194\
+    \ and task-210 -- a worktree gate run against the main clone's virtualenv |\n\
+    | `partial-gate-not-green` | ENGINEERING \xA7Testing | the `PARTIAL RUN` banner\
+    \ exists because this was worth engineering against |\n| `stop-at-merge-gate`\
+    \ | ENGINEERING \xA7The Merge Gate | the one rule standing between an unreviewed\
+    \ branch and `main` |\n\nThat covers every incident the spec's scope list names.\n\
+    \n## Two bugs the first sweep found, both fixed, both now pinned by a test\n\n\
+    **A `\\b` that inverted a verdict.** `stop-at-merge-gate` scored a run VIOLATED\
+    \ for correctly handing off, because its pattern was `git merge\\b` and the run\
+    \ had checked its own work with `git merge-base main HEAD`. One character, on\
+    \ the most important rule in the bundle, in the direction that manufactures a\
+    \ finding. Caught only because the run record keeps every raw command. Now `git\
+    \ merge(?![-\\w])`, and `test_no_violation_pattern_fires_on_an_innocent_command`\
+    \ runs every case's violation patterns against a list of commands a careful session\
+    \ plausibly issues.\n\n**A guard that over-blocked.** Six of the seven sandbox-guard\
+    \ denials in that sweep were the *sandbox's own* `clone/.agentjobs/config.yaml`\
+    \ -- the throwaway config the fixture puts there on purpose -- because the deny\
+    \ list carried a bare `.agentjobs` fragment. The agent could not read the file\
+    \ the bundle tells it to read, and burned turns on it. The home entry is now built\
+    \ from `Path.home()` in both Windows spellings. The seventh denial was the real\
+    \ thing and is still caught: a run reaching for `C:/projects/agentjobs/src/agentjobs`.\n\
+    \nThat seventh denial is the answer to whether the constraint holds by mechanism\
+    \ or by hope. A sandbox session did try to read the real clone, and was stopped.\n\
+    \n## Two other things the first sweep established\n\n- **`--strict-mcp-config`\
+    \ works.** Across 36 runs, `mcp_tools_offered` summed to zero. Without it a headless\
+    \ run on this machine is handed the account's Gmail, Slack and Notion tools.\n\
+    - **Cost, measured (ac-1).** 36 sessions, **$28.74**, **16.6 minutes wall clock**\
+    \ at three concurrent, 47.9 minutes of session time. Per session: about $0.80\
+    \ and 50 seconds, except `stop-at-merge-gate`, which is 3 minutes and $1.30 to\
+    \ $1.80. The seven-case sweep is 42 sessions, so about **$33 and 20 minutes**.\
+    \ The `quick` tag covers six of the seven; the honest statement is that the cost\
+    \ lever here is the number of cases, not the tag.\n\n## Next\n\nThe definitive\
+    \ sweep against `claude-opus-5` is running now with both fixes in and all seven\
+    \ cases. Its report goes to `evals/context/baselines/`, then the acceptance statuses,\
+    \ the gate, and `agentjobs finish --posture-release`."
+  data:
+    operation:
+      id: 7a1c2f30-6d11-4a58-9d43-1b0e5c9f2a04
+      kind: log_append
+      fingerprint: 38b2381eaed92f509ed5cbb1f0380a02
