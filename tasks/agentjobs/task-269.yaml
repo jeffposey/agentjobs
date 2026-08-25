@@ -3,7 +3,7 @@ id: task-269
 title: 'Static vs dynamic context: get the always-loaded bundle down to the rules
   an agent acts on, and make the split measurable rather than argued'
 created: '2026-08-22T18:59:11.785040Z'
-updated: '2026-08-25T10:46:02.579322Z'
+updated: '2026-08-25T10:47:01.445377Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -403,3 +403,36 @@ log:
       id: c8e2f43b-05a7-4d19-b6c0-8f1932ea77d5
       kind: log_append
       fingerprint: 8fc8ea00462e800858059ed989c07c94
+- id: 11
+  ts: '2026-08-25T10:47:01.445195Z'
+  actor: claude
+  type: decision
+  body: "**A seventh child appeared mid-walk. I left it at the project's `auto` posture\
+    \ deliberately, unlike its six siblings.**\n\n`task-317` \u2014 *\"The AgentJobs\
+    \ MCP server is declared twice under one name, and the two declarations point\
+    \ at different ports\"* \u2014 was created at 10:43:10Z by the task-301 session,\
+    \ with `parent: task-269`. It is a genuine finding and belongs somewhere; the\
+    \ question is whether it inherits this epic's authorisation.\n\nI decided it does\
+    \ not, and did not write `posture: autonomous` onto it.\n\n**Why.** The widening\
+    \ `epic.py` argues for is bounded by what the human saw: *\"the epic's children\
+    \ were named on its record at the moment they clicked it.\"* Jeff clicked at 09:57:24Z.\
+    \ task-317 did not exist, is not in this parent's spec table of six children,\
+    \ and is the kind of follow-up the epic's own `out_of_scope` pushes out \u2014\
+    \ *\"Reducing the MCP surface itself, if the measurement points there, gets its\
+    \ own task rather than being absorbed here.\"* Entry 9's reasoning was that writing\
+    \ the field makes the run behave as it was **authorised** to behave; that argument\
+    \ does not reach a task nobody authorised.\n\n**The consequence, stated so it\
+    \ is not read as a failure.** The walk will still start task-317 \u2014 it starts\
+    \ any open child \u2014 but at `auto` it will do its work, hand off to `human/review`,\
+    \ and stop the walk. That is the outcome I want for it: an unreviewed merge of\
+    \ work Jeff has never seen is the one case where the extra approval is worth its\
+    \ cost.\n\nIt sorts last regardless. It is `medium`/8500 against the six siblings\
+    \ at `critical`/893-1293, so it cannot displace them.\n\n**If you disagree**,\
+    \ the fix is one write \u2014 set `posture: autonomous` on task-317 and re-run\
+    \ the walk. Or move it out from under this parent entirely, which is arguably\
+    \ where it belongs.\n"
+  data:
+    operation:
+      id: 2cd69fa5-7b70-41ed-a3b9-66a9e8b6a79b
+      kind: log_append
+      fingerprint: 3ea9606b829c9ef9f690bc9920e7432c
