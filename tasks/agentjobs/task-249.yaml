@@ -3,7 +3,7 @@ id: task-249
 title: 'Dispatch: run identity and the runner''s env: never reach a --bg worker in
   steady state (the daemon owns the environment)'
 created: '2026-08-22T18:51:44.798464Z'
-updated: '2026-08-26T00:34:14.925667Z'
+updated: '2026-08-26T00:34:28.002107Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -405,3 +405,17 @@ log:
       id: 3f8ec46f-0003-4000-8000-000000000003
       kind: log_append
       fingerprint: f1f9cb7fb83d1156afb571f44f943868
+- id: 11
+  ts: '2026-08-26T00:34:28.001917Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-249-run-identity-from-ledger` (cd232dbd).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-249.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_9877677d\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-249-run-identity-from-ledger
+    finish_id: fin_9877677d
