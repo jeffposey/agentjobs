@@ -3,11 +3,11 @@ id: task-249
 title: 'Dispatch: run identity and the runner''s env: never reach a --bg worker in
   steady state (the daemon owns the environment)'
 created: '2026-08-22T18:51:44.798464Z'
-updated: '2026-08-25T23:53:42.226391Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Finish specifying this task.
+updated: '2026-08-25T23:59:54.364527Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 queue_position: 87
@@ -16,6 +16,7 @@ tags:
 - big-dawg-audit
 - dispatch
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: "Big Dawg Audit P1 (auditor 10 P1-1; auditor 11 and auditor 1 observed\
@@ -174,3 +175,126 @@ log:
       id: 6b2d81f4-93a7-4c05-a1e9-7d34e05f2b60
       kind: log_append
       fingerprint: b52aadf2b475e134f0ca1995a92d1651
+- id: 4
+  ts: '2026-08-25T23:56:34.196161Z'
+  actor: Jeff Posey
+  type: transition
+  body: Promoted by Jeff Posey; the spec is finished and it is claimable.
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+- id: 5
+  ts: '2026-08-25T23:56:42.606280Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. They chose
+    posture `autonomous` for this run, above this project''s `auto`. No extra instruction
+    was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 6
+  ts: '2026-08-25T23:56:43.222786Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 7
+  ts: '2026-08-25T23:56:46.956483Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_3f8ec46f
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: dispatch
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 5
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - 'You are the agent `claude` working task `task-249` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-249-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_3f8ec46f. Posture `autonomous` releases the merge gate:
+      this run merges its own work with no human review. Record the evidence on the
+      task first, then run `agentjobs finish task-249 --project agentjobs --posture-release`
+      from C:\projects\agentjobs. That rebases, runs the full gate, and merges only
+      on a green one -- it stops and hands the ball back if anything fails. Do not
+      merge by hand. Never push: this project is configured `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 8fae0cd
+    session_id: 7a0cba89
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 8
+  ts: '2026-08-25T23:59:54.364257Z'
+  actor: claude
+  type: progress
+  body: "## Spec step 1 answered, empirically, and it changes the fix\n\nAuditor 10\
+    \ did not run step 1. I did, and **the installed CLI does offer a per-session\
+    \ environment for `--bg`** \u2014 it is just not called that in `--help`. `--settings\
+    \ <file-or-json>` is documented as \"load additional settings from\", and a Claude\
+    \ Code settings file carries an `env` block. Because it travels in **argv**, it\
+    \ survives the daemon hop that discards the launcher's environment.\n\n### The\
+    \ probe\n\nClaude Code **2.1.238**, 2026-08-25. `claude agents --help` and `claude\
+    \ --help` have no env flag for `--bg`; `--environment` is a cloud-session id and\
+    \ unrelated.\n\nThe daemon was already up, so this is the **steady state** the\
+    \ task is about, not the daemon-start case: no \"Starting background service\"\
+    \ banner was printed. Launched a throwaway `--bg` session with an env var exported\
+    \ into the launcher *and* a second one in a `--settings` file, asked it to print\
+    \ both:\n\n```\nSETTINGS=[settings-value-arrived] LAUNCHER=[]\n```\n\nDecisive\
+    \ in both directions in one shot. The launcher's exported variable is **discarded**,\
+    \ exactly as the task predicts; the `--settings` value **arrives**.\n\n### Confirmation\
+    \ of the mechanism, from this very run\n\n`~/.claude/daemon.log` for my own dispatch:\n\
+    \n```\n23:54:11Z [supervisor] idle 5s with no clients \u2014 exiting  (uptime=50204s)\n\
+    23:56:46Z [supervisor] \u2500\u2500\u2500 daemon start \u2500\u2500\u2500 version=2.1.238\
+    \ pid=1113332 origin=transient\n23:56:46Z [bg] bg spawned 7a0cba89 (shell)\n```\n\
+    \nMy `AGENTJOBS_RUN_ID` is correct (`run_3f8ec46f`) for precisely the reason the\
+    \ task names: the daemon had idle-exited 2m35s earlier, so **my launch started\
+    \ it** and my launcher's environment became the daemon's. `run_68ea396e` fourteen\
+    \ hours earlier inherited `run_12b2675c` because the daemon then in place carried\
+    \ that. Same mechanism, both directions, observed on the same machine within a\
+    \ day.\n\n### What this changes\n\n- **`--settings` takes a file path**, so the\
+    \ runner's `env:` can be delivered *without* appearing in argv. That is the property\
+    \ the secrets advice in `docs/agent-dispatch-design.md` and `config.py` was claiming\
+    \ and not delivering \u2014 so ac-3 resolves in the \"make it true\" direction\
+    \ rather than \"remove the advice\".\n- Spec step 2 (derive from the ledger) is\
+    \ still worth having, but demoted to a **fallback** rather than the primary fix.\
+    \ It cannot be the primary: as entry 3 notes, `released_posture` is a second consumer\
+    \ that reaches a *merge authority* decision, and filtering `live_runs` by project\
+    \ would have been ambiguous at several points today.\n\nPlan: deliver the environment\
+    \ through a per-run settings file (primary), keep a ledger-derived fallback for\
+    \ anything that still arrives without it, record `daemon_started` in `meta.yaml`,\
+    \ and teach `run_report` to tell the three cases apart.\n\nWorktree `../worktrees/agentjobs-249`,\
+    \ branch `fix/task-249-run-identity-from-ledger`, bootstrapped in 36s."
+  data:
+    operation:
+      id: 3f8ec46f-0001-4000-8000-000000000001
+      kind: log_append
+      fingerprint: 4d6f589f9d9fddc53827aa882a520be8
