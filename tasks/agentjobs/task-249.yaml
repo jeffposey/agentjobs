@@ -3,7 +3,7 @@ id: task-249
 title: 'Dispatch: run identity and the runner''s env: never reach a --bg worker in
   steady state (the daemon owns the environment)'
 created: '2026-08-22T18:51:44.798464Z'
-updated: '2026-08-25T23:59:54.364527Z'
+updated: '2026-08-26T00:34:14.925667Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -69,18 +69,20 @@ acceptance:
 - id: ac-1
   text: A gate run inside a dispatched session whose launch did not start the daemon
     still produces gate_started/gate_finished in that run's directory.
-  status: pending
+  status: met
 - id: ac-2
   text: run_report distinguishes 'no gate ran' from 'instrumentation absent'.
-  status: pending
+  status: met
 - id: ac-3
   text: The secrets-in-env advice in the design doc and config.py is either true or
     removed.
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-249-run-identity-from-ledger
+  status: active
 log:
 - id: 1
   ts: '2026-08-22T18:51:45.393178Z'
@@ -298,3 +300,108 @@ log:
       id: 3f8ec46f-0001-4000-8000-000000000001
       kind: log_append
       fingerprint: 4d6f589f9d9fddc53827aa882a520be8
+- id: 9
+  ts: '2026-08-26T00:33:35.840005Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 3f8ec46f-0002-4000-8000-000000000002
+      kind: update_content
+      fingerprint: 3a2fb51b44502176c22ccc4a6ebe16d1
+- id: 10
+  ts: '2026-08-26T00:34:14.925402Z'
+  actor: claude
+  type: progress
+  body: "## Built, verified, gate green. `cd232db` on `fix/task-249-run-identity-from-ledger`.\n\
+    \nFull unqualified `scripts/check.py`: **202.2s, all ten stages, exit 0**.\n\n\
+    ### What was built\n\n**1. The identity travels in argv, not the environment**\
+    \ \u2014 new `dispatch/session_env.py`, spliced in at `_start_session`.\n\nThe\
+    \ discovery that shaped the whole design came from watching the first version\
+    \ of my own test fail: **`--settings` was already occupied.** `posture_flags`\
+    \ puts the run's *permission envelope* there \u2014 `permissions.allow` and `enabledMcpjsonServers`\
+    \ \u2014 as an inline JSON string, and the flag is **not repeatable**, so appending\
+    \ a second would have silently won and launched every dispatched run with an envelope\
+    \ nobody chose. That is a worse defect than the one I was sent to fix, and I would\
+    \ have shipped it if the temporary-disable check below had not put the real argv\
+    \ in front of me.\n\nSo the document is **merged into, never appended beside**,\
+    \ and a document that cannot be parsed is left strictly alone (`session_env: conflict`)\
+    \ rather than replaced.\n\n**2. It stays inline unless a runner has secrets.**\
+    \ `meta.yaml` records argv verbatim, and that is how a reader of a run record\
+    \ sees which permissions a run was granted \u2014 so the default case keeps its\
+    \ shape exactly. A runner that declares its own `env:` gets a `0600` file instead,\
+    \ because those values are where operators are *told* to put secrets precisely\
+    \ because argv is recorded; the redacted document then goes to `meta.yaml` under\
+    \ `session_settings`, so the envelope stays auditable either way.\n\n**3. Second\
+    \ line of defence, covering both consumers** \u2014 because fixing the source\
+    \ does not undo a leak that already happened, and entry 3 asked for exactly this:\n\
+    \n- `phases.current_run` declines a run whose `finished_at` is set, rather than\
+    \ filing this session's gate records under it.\n- `finish.own_run_id` recovers\
+    \ the true run **from the task's run lock** when \u2014 and only when \u2014 the\
+    \ environment names one that cannot vouch for this task. The lock was written\
+    \ by the dispatch that started the run and names it; nothing a caller controls\
+    \ forges one. It fires only on that exact signature, so a person at a shell with\
+    \ no variable set is unaffected, and nothing there can widen an envelope: `released_posture`\
+    \ re-applies the machine ceiling regardless.\n\nI rejected the spec's step 2 as\
+    \ written \u2014 `live_runs(home)` filtered by project \u2014 for the reason entry\
+    \ 3 gives and one more: it has to *pick*, and it would have had two candidates\
+    \ at several points on 2026-08-25. The lock is an existing, forgeable-by-nobody\
+    \ fact that names one run.\n\n**4. `run_report` tells the three cases apart**\
+    \ (ac-2), **5.** `daemon_started` recorded from the launcher banner, **6.** the\
+    \ secrets advice in the design doc and `config.py` made true with its trade stated\
+    \ (ac-3).\n\n### Verification, and what each piece actually proves\n\n**The primary\
+    \ path was probed end to end, in the production shape.** Rendering the real `posture_flags(AUTO,\
+    \ ['agentjobs'])` through `deliver_identity` gives a 675-character document with\
+    \ all three keys, and launching a `--bg` session with it \u2014 daemon already\
+    \ up, no banner, so genuinely steady state \u2014 returned:\n\n```\nRUNID=[run_probe99]\
+    \ DIR=[C:\\tmp\\x]\n```\n\nI had only probed the *file* form earlier. Once the\
+    \ design moved to inline-by-default I re-probed the inline form rather than assuming\
+    \ the two behave alike, because that assumption was the load-bearing one. Incidentally\
+    \ confirming: an earlier attempt at `--permission-mode auto` **parked on a permission\
+    \ prompt** rather than running the command, which is the merged allow-list doing\
+    \ its job.\n\n**ac-1 is demonstrated, not asserted.** `TestIdentitySurvivesTheDaemonHop`\
+    \ drives a launcher that pops both variables before doing anything else and then\
+    \ knows only what argv told it \u2014 the daemon hop, modelled. `TestTheRunIsMeasurable`\
+    \ structurally cannot see this: its fake runner is `sys.executable` and inherits\
+    \ `Popen`'s environment directly, which is the batch case and the one that always\
+    \ worked.\n\n**I checked the new tests bite.** Temporarily disabling the delivery\
+    \ turned 5 of 7 red \u2014 and that run is what surfaced the `--settings` collision,\
+    \ since the failure output printed the posture JSON the fake launcher had tried\
+    \ to open as a path. A green test that would pass without the fix is decoration;\
+    \ this one is not, and it earned its keep before it was even finished.\n\n`test_without_the_repair_the_same_input_falls_through_to_the_project`\
+    \ pins the task-316 failure itself: the same input, without `own_run_id`, still\
+    \ resolves to `auto`. So a regression of the repair is a red test rather than\
+    \ a silent return to waking humans for decisions they already made.\n\n### Spec\
+    \ step 4: the baseline, re-measured\n\n`scripts/run_report.py` over all 114 runs:\
+    \ **48.0h, 51 tasks, 2.24 runs per task, median 45.6m, p50 run 14.3m.** The report\
+    \ now says plainly that all 114 predate the delivery.\n\n**And the corruption\
+    \ entry 3 predicted is confirmed on disk, not merely inferred.** 71 gate runs\
+    \ sit in just 14 of 114 run directories. `run_12b2675c` \u2014 the run whose id\
+    \ leaked to `run_68ea396e` \u2014 holds 13 of them, and:\n\n```\nfinished_at:\
+    \ 2026-08-25T12:53:25Z\nlast phase record: 2026-08-25T23:46:18Z     # eleven hours\
+    \ after it ended\n14 phase records stamped after the run finished\n```\n\nLater\
+    \ sessions wrote their gate records into a finished run's directory for the rest\
+    \ of the day. That is not a lost measurement; it is other runs' work counted as\
+    \ that run's, which is precisely what `run_12b2675c`'s outlying 13-gate count\
+    \ was. The liveness check in `current_run` is what stops it, and it would have\
+    \ stopped every one of those 14.\n\n**So the task-233 numbers should not be quoted\
+    \ from the instrumented subset.** The 14 directories that have records are a biased\
+    \ sample twice over \u2014 they are the launches that happened to start the daemon,\
+    \ *and* they absorbed everybody else's gates. I have not restated the ENGINEERING.md\
+    \ table on that basis; the honest position is that a trustworthy baseline starts\
+    \ accumulating from this merge, and the report now says so per run rather than\
+    \ leaving a reader to assume coverage it never had.\n\n### One thing I did not\
+    \ do\n\nI left `DispatchRunner._environment` alone, as entry 3 instructs \u2014\
+    \ it is not the leak \u2014 but added a note there pointing at `session_env`,\
+    \ because the two now have to be kept in step: a variable added there that a session\
+    \ agent must see will otherwise silently fail to arrive, which is this whole task\
+    \ in miniature.\n\nNext: `agentjobs finish task-249 --project agentjobs --posture-release`."
+  data:
+    operation:
+      id: 3f8ec46f-0003-4000-8000-000000000003
+      kind: log_append
+      fingerprint: f1f9cb7fb83d1156afb571f44f943868
