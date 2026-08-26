@@ -3,7 +3,7 @@ id: task-249
 title: 'Dispatch: run identity and the runner''s env: never reach a --bg worker in
   steady state (the daemon owns the environment)'
 created: '2026-08-22T18:51:44.798464Z'
-updated: '2026-08-26T00:34:28.002107Z'
+updated: '2026-08-26T00:37:45.542860Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -419,3 +419,21 @@ log:
     finish_step: started
     branch: fix/task-249-run-identity-from-ledger
     finish_id: fin_9877677d
+- id: 12
+  ts: '2026-08-26T00:37:45.542719Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-249-run-identity-from-ledger` into `main` as `adde8112`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-249
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    dispatch) releases the merge gate (task-021), and run run_3f8ec46f ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: adde8112f369990b3029ae2958c1cf9d901d3f11
+    branch: fix/task-249-run-identity-from-ledger
+    base: main
