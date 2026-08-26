@@ -94,6 +94,7 @@ from agentjobs.models_v2 import (
     utcnow,
 )
 from agentjobs.dispatch.phases import RUN_DIR_ENV, RUN_ID_ENV
+from agentjobs.dispatch.session_env import daemon_was_started, deliver_identity
 from agentjobs.project_setup import MCP_CONFIG_FILENAME
 
 RUNS_DIRNAME = "runs"
@@ -1646,6 +1647,14 @@ class DispatchRunner:
         without being told which run it belongs to (``dispatch.phases``). The two
         polling helpers that also call this do not pass a run, and must not: they are
         asking the runner about a session, not doing work inside one.
+
+        **This reaches a batch run's agent and does not reach a session's** (task-249).
+        The process started under ``--bg`` is a launcher; it hands the session to a
+        persistent daemon which spawns the worker from the daemon's own environment, and
+        everything set here is dropped. What is built here is still correct and still
+        needed -- the launcher runs in it -- but a session agent's copy arrives through
+        ``session_env.deliver_identity`` instead. Keep the two in step: a variable added
+        here that a session agent must see has to be added there as well.
         """
         environment = dict(os.environ)
         environment.update(self.runner.env)
@@ -1836,6 +1845,18 @@ class DispatchRunner:
             )
         run_id = new_run_id()
         argv, prompt = self.build_argv_and_prompt(task.id, run_id)
+        # Before `_plan_wake`, so a resumed session gets the flag too: `wake_argv`
+        # rewrites only the element carrying the prompt and preserves everything else.
+        # The directory is named here and created a few lines below; `deliver_identity`
+        # makes it, because the settings document has to exist before the launcher runs.
+        delivered = deliver_identity(
+            argv,
+            prompt=prompt,
+            directory=runs_root(self.home) / run_id,
+            run_id=run_id,
+            runner_env=self.runner.env,
+        )
+        argv = delivered.argv
         wake, argv, stdin_text = self._plan_wake(task, run_id, argv, prompt)
         meta: Dict[str, object] = {
             "run_id": run_id,
@@ -1853,7 +1874,18 @@ class DispatchRunner:
             "started_at": self.clock().isoformat(),
             "caused_by": caused_by,
             "argv": argv,
+            # How this run's identity reached its worker (task-249). Recorded because
+            # "no phase records" has three causes -- predates the instrumentation, the
+            # identity never arrived, no gate was run -- and they used to be one line in
+            # every report. A run with no key at all is the first.
+            "session_env": delivered.delivery.value,
         }
+        if delivered.document is not None:
+            # Only when the settings went to a file, which happens only for a runner with
+            # secrets of its own. argv then names a path instead of carrying the document,
+            # so the permission envelope would otherwise stop being readable from the run
+            # record -- and that readability is the whole point of recording argv.
+            meta["session_settings"] = delivered.document
         if wake is not None:
             # Recorded on the run rather than only in the task entry, because this is
             # what `scripts/run_report.py` reads to tell a woken run from a cold one --
@@ -1884,6 +1916,10 @@ class DispatchRunner:
 
         output = f"{completed.stdout}\n{completed.stderr}"
         (directory.path / STDOUT_FILENAME).write_text(output, encoding="utf-8")
+        # Whether this launch started the daemon or joined one already running. Nothing
+        # branches on it; it is the evidence that says whether a run's environment could
+        # have come from its own launcher at all (task-249).
+        directory.update_meta(daemon_started=daemon_was_started(output))
         if completed.returncode != 0:
             directory.update_meta(status="failed", exit_code=completed.returncode)
             raise DispatchRunError(

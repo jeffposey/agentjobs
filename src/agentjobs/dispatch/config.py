@@ -479,6 +479,20 @@ class DispatchRunner:
     name: str
     argv: List[str]
     env: Dict[str, str] = field(default_factory=dict)
+    """Variables to set on the agent, and where a runner's secrets belong.
+
+    They belong here rather than in ``argv`` because ``meta.yaml`` records argv verbatim
+    and that recording is a safety feature, not something to weaken to hide a token.
+
+    **How they get there depends on the mode, and for sessions it was broken until
+    task-249.** A ``batch`` run is a direct subprocess and simply inherits them. A
+    ``session`` run's launcher is not the worker -- a persistent daemon spawns that, from
+    its own environment -- so these were delivered only when the launch happened to start
+    the daemon. They now travel in a ``--settings`` document written to the run's own
+    directory at mode ``0600``, with only its path in argv; see ``dispatch.session_env``.
+    The claim above therefore holds, at the cost of those values resting in a file beside
+    the run.
+    """
     mode: RunnerMode = RunnerMode.BATCH
     actor: Optional[str] = None
     """Which configured actor this runner writes as. Defaults to the runner's name.

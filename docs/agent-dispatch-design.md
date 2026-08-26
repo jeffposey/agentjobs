@@ -489,6 +489,30 @@ It is absent otherwise, so a flat configuration's entries are unchanged.
 argv** — put them in `env`, which is never logged. Stated here because the recording is
 the safety feature and weakening it to hide a token would be the wrong fix.
 
+**That advice was false for `--bg` session runners for as long as they have existed, and
+task-249 made it true.** `env:` was set on the process AgentJobs launches, and for a
+session that process is a *launcher*: it hands the session to a persistent Claude Code
+daemon, and the daemon spawns the worker from its own environment. So a runner's `env:`
+reached the worker only when that launch happened to be the one that started the daemon
+— 12 launches in 61 on the machine where this was found — and a runner depending on it
+worked about once per daemon lifetime, silently and unrepeatably.
+
+It is now delivered through `--settings`, which takes "a settings JSON file or a JSON
+string" and travels in argv, where the daemon does deliver it. The document is written
+to `session-settings.json` in the run's own directory at mode `0600`, and **only its
+path** goes into argv. So the property this paragraph claims — values that argv's
+verbatim recording never sees — is the one you now get. The trade, stated so nobody
+finds it by surprise: those values rest in a file beside the run for as long as the run
+directory does. Machine-local, user-scoped, and never committed, but on disk.
+
+Two consequences worth knowing. A runner whose own argv already carries `--settings`
+has its document read and merged rather than replaced, because the flag is not
+repeatable and a second one would silently win; if that document cannot be read, nothing
+is spliced and `meta.yaml` records `session_env: conflict` rather than clobbering it. And
+the same channel carries `AGENTJOBS_RUN_ID` / `AGENTJOBS_RUN_DIR`, which is what makes a
+dispatched session's gate records land in its own run directory rather than in whichever
+run last started the daemon.
+
 On a successful run the `dispatch_result` body stays empty: the agent's own `progress`
 and `handoff` entries carry the substance, and duplicating a transcript tail into git
 would be noise. On any non-success outcome the last ~40 lines of combined output are

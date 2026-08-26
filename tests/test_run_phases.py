@@ -159,6 +159,8 @@ def write_run(
     started: str = "2026-08-21T10:00:00+00:00",
     finished: str | None = "2026-08-21T10:30:00+00:00",
     driver: str | None = None,
+    session_env: str | None = None,
+    daemon_started: bool | None = None,
 ) -> Path:
     directory = home / "runs" / run_id
     directory.mkdir(parents=True)
@@ -170,6 +172,10 @@ def write_run(
     ]
     if driver:
         lines.append(f"driver: {driver}")
+    if session_env:
+        lines.append(f"session_env: {session_env}")
+    if daemon_started is not None:
+        lines.append(f"daemon_started: {str(daemon_started).lower()}")
     if finished:
         lines.append(f"finished_at: '{finished}'")
     (directory / "meta.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -206,7 +212,10 @@ class TestRunReport:
     ) -> None:
         write_run(tmp_path, "run_a", task_id="task-001")
 
-        assert "No phase records yet" in run_report.summary(run_report.load_runs(tmp_path))
+        text = run_report.summary(run_report.load_runs(tmp_path))
+
+        assert "No gate lines can be computed" in text
+        assert "predate the identity delivery" in text
 
     def test_gate_time_comes_from_phase_records(self, tmp_path: Path) -> None:
         directory = write_run(tmp_path, "run_a", task_id="task-001")
@@ -223,7 +232,7 @@ class TestRunReport:
         directory = write_run(tmp_path, "run_a", task_id="task-001")
         record_phase(directory, "gate_started", scope="full")
 
-        assert "No phase records yet" in run_report.summary(run_report.load_runs(tmp_path))
+        assert "No gate lines can be computed" in run_report.summary(run_report.load_runs(tmp_path))
 
     def test_the_per_task_table_ranks_by_time_spent(self, tmp_path: Path) -> None:
         """Finding 2 of task-233 -- one epic taking a third of everything -- is this view."""
@@ -510,3 +519,106 @@ class TestScriptedFinishesInTheReport:
         printed = capsys.readouterr().out
         assert "No dispatched runs matched" in printed
         assert "scripted finishes     1" in printed
+
+
+class TestAStaleIdentityIsWorseThanNone:
+    """Task-249. A ``--bg`` session can come up holding another run's ids.
+
+    ``run_68ea396e`` was dispatched against task-316 and came up as ``run_12b2675c`` --
+    the task-269 supervisor, dispatched fourteen hours earlier -- because the daemon that
+    spawned it had been started by that run's launcher. Writing this session's gate
+    records into that directory does not merely lose them: it files them as that run's
+    work, and the report counts them there.
+
+    ``session_env.deliver_identity`` is what stops the ids being wrong. This is the
+    second line, for a worker started by a CLI too old to take ``--settings``.
+    """
+
+    def test_a_finished_run_is_not_the_run_this_process_belongs_to(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        (tmp_path / "meta.yaml").write_text(
+            "run_id: run_12b2675c\nstatus: completed\nfinished_at: '2026-08-25T09:57:00+00:00'\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv(RUN_DIR_ENV, str(tmp_path))
+        monkeypatch.setenv(RUN_ID_ENV, "run_12b2675c")
+
+        assert current_run() is None
+        assert record_phase_from_env("gate_started") is None
+        assert read_phases(tmp_path) == []
+
+    def test_a_live_run_is_still_recorded_against(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        (tmp_path / "meta.yaml").write_text(
+            "run_id: run_3f8ec46f\nstatus: running\n", encoding="utf-8"
+        )
+        monkeypatch.setenv(RUN_DIR_ENV, str(tmp_path))
+        monkeypatch.setenv(RUN_ID_ENV, "run_3f8ec46f")
+
+        assert record_phase_from_env("gate_finished", passed=True, seconds=95.8) is not None
+
+    def test_metadata_that_cannot_be_read_is_not_treated_as_stale(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Losing records because a file would not open is a failure for a reason that
+        has nothing to do with staleness."""
+        (tmp_path / "meta.yaml").write_text("{{ not yaml", encoding="utf-8")
+        monkeypatch.setenv(RUN_DIR_ENV, str(tmp_path))
+        monkeypatch.setenv(RUN_ID_ENV, "run_3f8ec46f")
+
+        assert record_phase_from_env("gate_started") is not None
+
+
+class TestWhyARunHasNoGateLines:
+    """Three different facts used to print one sentence, and only one is about the work."""
+
+    def test_a_run_predating_the_delivery_says_so(self, tmp_path: Path) -> None:
+        write_run(tmp_path, "run_a", task_id="task-001")
+
+        text = run_report.summary(run_report.load_runs(tmp_path))
+
+        assert "predate the identity delivery" in text
+        assert "ran no gate at all" not in text
+
+    def test_a_run_that_joined_somebody_elses_daemon_is_counted(self, tmp_path: Path) -> None:
+        """Before the delivery existed, that is exactly the run whose gate records went
+        into another run's directory."""
+        write_run(tmp_path, "run_a", task_id="task-001", daemon_started=False)
+
+        assert "joined a daemon started by something else" in run_report.summary(
+            run_report.load_runs(tmp_path)
+        )
+
+    def test_an_instrumented_run_with_no_gate_is_a_fact_about_the_session(
+        self, tmp_path: Path
+    ) -> None:
+        write_run(tmp_path, "run_a", task_id="task-001", session_env="delivered")
+
+        text = run_report.summary(run_report.load_runs(tmp_path))
+
+        assert "ran no gate at all" in text
+        assert "predate the identity delivery" not in text
+
+    def test_a_delivery_that_did_not_complete_is_named_with_its_reason(
+        self, tmp_path: Path
+    ) -> None:
+        write_run(tmp_path, "run_a", task_id="task-001", session_env="conflict")
+
+        text = run_report.summary(run_report.load_runs(tmp_path))
+
+        assert "attempted and not completed (conflict)" in text
+        assert "nowhere to write" in text
+
+    def test_a_window_where_every_run_delivered_and_gated_says_nothing_extra(
+        self, tmp_path: Path
+    ) -> None:
+        directory = write_run(tmp_path, "run_a", task_id="task-001", session_env="delivered")
+        record_phase(directory, "gate_finished", passed=True, seconds=95.8, scope="full")
+
+        text = run_report.summary(run_report.load_runs(tmp_path))
+
+        assert "predate the identity delivery" not in text
+        assert "ran no gate at all" not in text
+        assert "gate runs             1" in text

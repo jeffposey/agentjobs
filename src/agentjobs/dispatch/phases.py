@@ -21,9 +21,17 @@ write one is a lost hour of work.
 **The producer does not have to know it is being measured.** ``record_phase_from_env``
 returns ``None`` and writes nothing when the environment says this is not a dispatched
 run, so ``scripts/check.py`` calls it unconditionally and a developer running the gate
-by hand pays a dictionary lookup. Dispatch sets the two variables when it spawns
-(``runner.RunLaunch._environment``), and a child process of the agent -- the gate, the
-CLI, the MCP server -- inherits them.
+by hand pays a dictionary lookup. Everything below the agent -- the gate, the CLI, the
+MCP server -- inherits the two variables from the session and needs to know nothing.
+
+**How the session itself gets them is a separate problem, and it was wrong for months.**
+``runner.RunLaunch._environment`` sets the pair on the process AgentJobs starts, which
+for a ``--bg`` run is a *launcher*: it hands the session to a persistent daemon that
+spawns the worker from the daemon's own environment. So the pair arrived only when the
+launch happened to start the daemon -- 12 launches in 61 -- and otherwise the session
+inherited whatever run started the daemon that is up, possibly hours earlier and against
+another task. ``dispatch.session_env`` is the fix (task-249); ``current_run`` below
+declines a stale identity as the second line of defence.
 """
 
 from __future__ import annotations
@@ -33,6 +41,8 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+import yaml
 
 RUN_ID_ENV = "AGENTJOBS_RUN_ID"
 """The run a process belongs to, set by dispatch on the session it spawns."""
@@ -81,13 +91,55 @@ def record_phase(directory: Path, kind: str, **fields: Any) -> Optional[Path]:
     return path
 
 
+def run_is_live(directory: Path) -> bool:
+    """Whether the run this directory describes is one nothing has declared over.
+
+    Read straight from ``meta.yaml`` rather than through ``ledger.live_runs``, because
+    the question is about *this* directory and answering it must not depend on resolving
+    an ``AGENTJOBS_HOME`` -- which is exactly the resolution ``RUN_DIR_ENV`` exists to
+    avoid. Unreadable or unparseable metadata reads as live: refusing to record on the
+    strength of a file we could not open would lose records for a reason that has
+    nothing to do with staleness.
+    """
+    meta_path = directory / "meta.yaml"
+    if not meta_path.is_file():
+        return True
+    try:
+        loaded = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):  # pragma: no cover - not evidence of staleness
+        return True
+    if not isinstance(loaded, dict):
+        return True
+    # `finished_at` is stamped by the write that ends a run, whatever ended it, so it is
+    # a stronger signal than `status` -- which a killed supervisor can leave at
+    # `running` forever.
+    return not loaded.get("finished_at")
+
+
 def current_run() -> Optional[Path]:
-    """The run directory this process belongs to, if it belongs to one."""
+    """The run directory this process belongs to, if it belongs to one.
+
+    **A stale identity is worse than none, so the run is checked for life (task-249).**
+    ``--bg`` hands the session to a persistent daemon that spawns the worker from its own
+    environment, so a session can come up holding the ids of whichever run happened to
+    start that daemon -- ``run_68ea396e`` came up as ``run_12b2675c``, dispatched
+    fourteen hours earlier against a different task. Writing this run's gate records into
+    that run's directory does not merely lose them: it puts them on somebody else's
+    ledger row, where the report counts them as that run's work.
+
+    ``session_env.deliver_identity`` is what stops the ids being wrong in the first
+    place. This is the second line, for a worker started by a CLI too old to take
+    ``--settings`` or by anything else that inherited the pair by accident. A finished
+    run is never the one this process is part of, so declining to write is the whole
+    of the remedy -- there is nothing here to guess with.
+    """
     run_dir = os.environ.get(RUN_DIR_ENV)
     if not run_dir:
         return None
     directory = Path(run_dir)
-    return directory if directory.is_dir() else None
+    if not directory.is_dir():
+        return None
+    return directory if run_is_live(directory) else None
 
 
 def record_phase_from_env(kind: str, **fields: Any) -> Optional[Path]:
