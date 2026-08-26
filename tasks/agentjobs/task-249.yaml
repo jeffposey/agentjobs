@@ -3,7 +3,7 @@ id: task-249
 title: 'Dispatch: run identity and the runner''s env: never reach a --bg worker in
   steady state (the daemon owns the environment)'
 created: '2026-08-22T18:51:44.798464Z'
-updated: '2026-08-26T00:38:08.002415Z'
+updated: '2026-08-26T00:39:06.007649Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -457,3 +457,13 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 14
+  ts: '2026-08-26T00:39:06.007513Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 7
+  data:
+    run_id: run_3f8ec46f
+    outcome: completed
+    duration_seconds: 2540.859348
+    log_path: C:\Users\jpose\.agentjobs\runs\run_3f8ec46f
