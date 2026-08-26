@@ -1373,3 +1373,196 @@ class TestThePostureThatDecides:
         monkeypatch.setenv(RUN_ID_ENV, "run_junk")
 
         assert release(world).reason == "posture_requires_review"
+
+
+# --- which run is calling, when the environment may be lying (task-249) ---------------
+
+
+def write_run_record(home: Path, run_id: str, *, task_id: str, live: bool = True, **extra) -> None:
+    directory = home / "runs" / run_id
+    directory.mkdir(parents=True, exist_ok=True)
+    meta = {
+        "run_id": run_id,
+        "task_id": task_id,
+        "status": "running" if live else "finished",
+        **extra,
+    }
+    (directory / "meta.yaml").write_text(yaml.safe_dump(meta), encoding="utf-8")
+
+
+def hold_lock(home: Path, task_id: str, run_id: str) -> None:
+    locks = home / "runs" / ".locks"
+    locks.mkdir(parents=True, exist_ok=True)
+    (locks / f"{task_id}.lock").write_text(
+        f"pid=1234 run={run_id} kind=dispatch started=2026-08-25T23:56:46+00:00",
+        encoding="utf-8",
+    )
+
+
+class TestWhichRunIsCalling:
+    """AGENTJOBS_RUN_ID is set on a launcher, and for --bg that is not the worker.
+
+    A persistent daemon spawns the worker from its own environment, so a session can
+    come up holding whichever run started that daemon. run_68ea396e came up as
+    run_12b2675c -- fourteen hours old, another task -- and both consumers here read the
+    wrong run: the posture resolution fell through to the project default and told an
+    autonomous run that a human had to review work a human had already released, and the
+    lock check would have refused it `locked` immediately afterwards.
+
+    The repair is narrow by construction. It fires only on that exact signature, takes
+    its replacement from the lock file rather than from a search, and can never widen an
+    envelope -- released_posture re-applies the machine ceiling to whatever comes out.
+    """
+
+    def test_an_environment_naming_this_tasks_own_live_run_is_believed(
+        self, tmp_path: Path
+    ) -> None:
+        from agentjobs.dispatch.finish import own_run_id
+
+        write_run_record(tmp_path, "run_3f8ec46f", task_id="task-249")
+
+        assert (
+            own_run_id(tmp_path, "task-249", environ={RUN_ID_ENV: "run_3f8ec46f"}) == "run_3f8ec46f"
+        )
+
+    def test_a_stale_id_is_replaced_by_the_run_holding_this_tasks_lock(
+        self, tmp_path: Path
+    ) -> None:
+        """The task-316 incident, reproduced: a finished run against another task."""
+        from agentjobs.dispatch.finish import own_run_id
+
+        write_run_record(tmp_path, "run_12b2675c", task_id="task-269", live=False)
+        write_run_record(tmp_path, "run_68ea396e", task_id="task-316")
+        hold_lock(tmp_path, "task-316", "run_68ea396e")
+
+        assert (
+            own_run_id(tmp_path, "task-316", environ={RUN_ID_ENV: "run_12b2675c"}) == "run_68ea396e"
+        )
+
+    def test_a_person_at_a_shell_is_not_treated_as_a_run(self, tmp_path: Path) -> None:
+        """No variable means nothing dispatched this process, and their behaviour must
+        not change: the lock is not a licence to adopt somebody else's authority."""
+        from agentjobs.dispatch.finish import own_run_id
+
+        write_run_record(tmp_path, "run_68ea396e", task_id="task-316")
+        hold_lock(tmp_path, "task-316", "run_68ea396e")
+
+        assert own_run_id(tmp_path, "task-316", environ={}) == ""
+
+    def test_a_lock_held_by_a_finished_run_is_not_adopted(self, tmp_path: Path) -> None:
+        from agentjobs.dispatch.finish import own_run_id
+
+        write_run_record(tmp_path, "run_12b2675c", task_id="task-269", live=False)
+        write_run_record(tmp_path, "run_old", task_id="task-316", live=False)
+        hold_lock(tmp_path, "task-316", "run_old")
+
+        assert (
+            own_run_id(tmp_path, "task-316", environ={RUN_ID_ENV: "run_12b2675c"}) == "run_12b2675c"
+        )
+
+    def test_a_lock_held_for_another_task_is_not_adopted(self, tmp_path: Path) -> None:
+        """released_posture's own rule -- a run may only vouch for the task it was
+        dispatched against -- applied here so the two cannot disagree."""
+        from agentjobs.dispatch.finish import own_run_id
+
+        write_run_record(tmp_path, "run_12b2675c", task_id="task-269", live=False)
+        write_run_record(tmp_path, "run_elsewhere", task_id="task-999")
+        hold_lock(tmp_path, "task-316", "run_elsewhere")
+
+        assert (
+            own_run_id(tmp_path, "task-316", environ={RUN_ID_ENV: "run_12b2675c"}) == "run_12b2675c"
+        )
+
+    def test_with_no_lock_at_all_the_declared_id_stands(self, tmp_path: Path) -> None:
+        from agentjobs.dispatch.finish import own_run_id
+
+        assert (
+            own_run_id(tmp_path, "task-316", environ={RUN_ID_ENV: "run_12b2675c"}) == "run_12b2675c"
+        )
+
+
+class TestAStaleIdentityDoesNotStripAuthority:
+    """The consequence the repair above exists for, stated in the units that matter."""
+
+    def test_the_dispatched_posture_survives_a_leaked_run_id(self, tmp_path: Path) -> None:
+        from agentjobs.dispatch.config import Posture, ProjectDispatchSettings
+        from agentjobs.dispatch.finish import own_run_id, released_posture
+
+        # The leak: the environment names a finished run against another task.
+        write_run_record(tmp_path, "run_12b2675c", task_id="task-269", live=False)
+        # The truth: a live run dispatched against this task at `autonomous`.
+        write_run_record(
+            tmp_path,
+            "run_68ea396e",
+            task_id="task-316",
+            posture="autonomous",
+            posture_source="dispatch",
+        )
+        hold_lock(tmp_path, "task-316", "run_68ea396e")
+
+        settings = ProjectDispatchSettings(
+            project_id="agentjobs", posture=Posture.AUTO, max_posture=Posture.AUTONOMOUS
+        )
+        resolved = released_posture(
+            settings=settings,
+            task_id="task-316",
+            task_posture=None,
+            home=tmp_path,
+            run_id=own_run_id(tmp_path, "task-316", environ={RUN_ID_ENV: "run_12b2675c"}),
+        )
+
+        assert resolved.posture is Posture.AUTONOMOUS
+
+    def test_without_the_repair_the_same_input_falls_through_to_the_project(
+        self, tmp_path: Path
+    ) -> None:
+        """What actually happened on task-316: `posture_requires_review`, on a task a
+        human had already released. Pinned so the repair above cannot quietly regress."""
+        from agentjobs.dispatch.config import Posture, ProjectDispatchSettings
+        from agentjobs.dispatch.finish import released_posture
+
+        write_run_record(tmp_path, "run_12b2675c", task_id="task-269", live=False)
+
+        settings = ProjectDispatchSettings(
+            project_id="agentjobs", posture=Posture.AUTO, max_posture=Posture.AUTONOMOUS
+        )
+        resolved = released_posture(
+            settings=settings,
+            task_id="task-316",
+            task_posture=None,
+            home=tmp_path,
+            run_id="run_12b2675c",
+        )
+
+        assert resolved.posture is Posture.AUTO
+
+    def test_the_machine_ceiling_still_caps_what_a_recovered_run_may_claim(
+        self, tmp_path: Path
+    ) -> None:
+        """Nothing recovered here can widen an envelope; the ceiling is re-applied from
+        machine-local config whatever the run record says."""
+        from agentjobs.dispatch.config import Posture, ProjectDispatchSettings
+        from agentjobs.dispatch.finish import own_run_id, released_posture
+
+        write_run_record(
+            tmp_path,
+            "run_68ea396e",
+            task_id="task-316",
+            posture="autonomous",
+            posture_source="dispatch",
+        )
+        hold_lock(tmp_path, "task-316", "run_68ea396e")
+
+        settings = ProjectDispatchSettings(
+            project_id="agentjobs", posture=Posture.AUTO, max_posture=Posture.SUPERVISED
+        )
+        resolved = released_posture(
+            settings=settings,
+            task_id="task-316",
+            task_posture=None,
+            home=tmp_path,
+            run_id=own_run_id(tmp_path, "task-316", environ={RUN_ID_ENV: "run_stale"}),
+        )
+
+        assert resolved.posture is Posture.SUPERVISED
+        assert resolved.requested is Posture.AUTONOMOUS

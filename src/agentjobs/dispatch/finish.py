@@ -67,7 +67,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from agentjobs.actors import FINISHER
 from agentjobs.dispatch.config import (
@@ -1294,7 +1294,10 @@ def finish_task(
                 else None
             ),
             home=resolved_home,
-            run_id=os.environ.get(RUN_ID_ENV, ""),
+            # Not `os.environ[RUN_ID_ENV]` directly: a `--bg` session can come up holding
+            # another run's identity, and that stripped task-316 of the posture a human
+            # had granted it. See `own_run_id` (task-249).
+            run_id=own_run_id(resolved_home, task_id),
         )
         posture = merge_posture.posture
         posture_name = posture.value
@@ -1456,6 +1459,67 @@ def finish_task(
             lock.release()
 
 
+def _run_vouching_for(home: Path, run_id: str, task_id: str) -> bool:
+    """Whether ``run_id`` is a live run that was dispatched against ``task_id``.
+
+    Both halves matter. A run that has finished is not the one calling this, and a run
+    dispatched against another task may not speak for this one -- that second rule is
+    ``released_posture``'s own guard, applied here so the two cannot disagree.
+    """
+    if not run_id:
+        return False
+    try:
+        record = find_run(home, run_id)
+    except LedgerError:
+        return False
+    return record.is_live and bool(record.task_id) and record.task_id == task_id
+
+
+def own_run_id(home: Path, task_id: str, *, environ: Optional[Mapping[str, str]] = None) -> str:
+    """Which run this process actually belongs to, when the environment may be lying.
+
+    ``AGENTJOBS_RUN_ID`` is set on the launcher, and for a ``--bg`` run the launcher is
+    not the worker: a persistent daemon spawns the worker from its own environment, so a
+    session can come up holding the identity of whichever run started that daemon. See
+    ``dispatch.session_env``, which stops that happening for runs dispatched from now on.
+    This is what protects the ones that still arrive wrong.
+
+    **The failure this repairs is not a lost measurement.** ``run_68ea396e`` was
+    dispatched against task-316 at ``autonomous`` and came up holding ``run_12b2675c`` --
+    the task-269 supervisor, fourteen hours earlier. Both consumers below then read the
+    wrong run: ``released_posture`` correctly refused a record naming another task and
+    fell through to the project default, so the run was told a human must review work a
+    human had already released; and the lock check compared against a run that holds no
+    lock, so the next stop would have been ``locked``. Two individually correct guards,
+    one wrong input.
+
+    The repair is deliberately narrow, and each condition is load-bearing:
+
+    - **It fires only when the variable is set and cannot vouch for this task.** An
+      absent variable means nothing dispatched this process -- a person at a shell --
+      and their behaviour is unchanged. Only the exact leak signature is treated.
+    - **The replacement comes from the task's run lock, not from a search.** The lock
+      file was written by the dispatch that started the run and names it; nothing a
+      caller controls forges one. Guessing from ``live_runs`` was the original plan and
+      is worse: it has to pick, and at several points on 2026-08-25 there were two
+      candidates.
+    - **The lock holder still has to be a live run for this task**, or the declared
+      value is returned unchanged and the existing refusals stand.
+
+    Nothing here can widen an envelope. ``released_posture`` re-applies the machine's
+    ceiling to whatever this returns, so the worst a wrong answer buys is the posture a
+    human already granted the run that holds this task's lock.
+    """
+    source = os.environ if environ is None else environ
+    declared = (source.get(RUN_ID_ENV) or "").strip()
+    if not declared or _run_vouching_for(home, declared, task_id):
+        return declared
+    holder = read_lock_holder(locks_root(home) / f"{task_id}.lock")
+    if holder is None or not _run_vouching_for(home, holder.run_id, task_id):
+        return declared
+    return holder.run_id
+
+
 def _own_run_holds_lock(home: Path, task_id: str) -> bool:
     """Whether the lock on this task is held by *the run calling this* (task-022).
 
@@ -1479,7 +1543,7 @@ def _own_run_holds_lock(home: Path, task_id: str) -> bool:
     would free the task while its agent was still executing, which is the state the lock
     exists to make impossible.
     """
-    own_run = os.environ.get(RUN_ID_ENV, "").strip()
+    own_run = own_run_id(home, task_id)
     if not own_run:
         return False
     holder = read_lock_holder(locks_root(home) / f"{task_id}.lock")

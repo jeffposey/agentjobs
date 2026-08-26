@@ -121,6 +121,23 @@ class Run:
     mode, same shape, same phase records -- and the whole claim of task-234 is that one
     of them is much shorter than the other.
     """
+    session_env: Optional[str] = None
+    """How this run's identity reached its worker, or None if nothing recorded it.
+
+    ``None`` is the honest answer for every run dispatched before task-249, and it is
+    the distinction this field exists to make: a run with no phase records because the
+    delivery did not exist yet is a different fact from one that had the delivery and
+    ran no gate. See ``dispatch.session_env.Delivery`` for the vocabulary.
+    """
+    daemon_started: Optional[bool] = None
+    """Whether this run's own launch started the Claude Code daemon (task-249).
+
+    Recorded from the launcher's banner. Before the ``--settings`` delivery existed this
+    was the whole of it: a run whose launch started the daemon got its own environment,
+    and a run that joined a daemon somebody else started inherited that one's -- 12 of
+    61 launches on this machine printed the banner. Kept afterwards because it is the
+    evidence that the delivery, not the accident, is what is now doing the work.
+    """
 
     @property
     def resumed(self) -> bool:
@@ -205,6 +222,12 @@ def read_run(directory: Path) -> Optional[Run]:
         driver=str(meta.get("driver") or "claude"),
         resumed_from=(
             str(meta["resumed_from"]) if isinstance(meta.get("resumed_from"), str) else None
+        ),
+        session_env=(
+            str(meta["session_env"]) if isinstance(meta.get("session_env"), str) else None
+        ),
+        daemon_started=(
+            bool(meta["daemon_started"]) if isinstance(meta.get("daemon_started"), bool) else None
         ),
     )
 
@@ -380,17 +403,82 @@ def summary(runs: List[Run], finishes: Sequence[Finish] = ()) -> str:
                 "                        summed gate time exceeds the run, so the shares",
                 "                        above are sums rather than shares of a timeline",
             ]
-    else:
-        lines += [
-            "",
-            "  No phase records yet. Runs dispatched before instrumentation landed carry",
-            "  only meta.yaml, so the gate lines cannot be computed for them.",
-        ]
-
+    lines += _instrumentation_lines(runs, gate_runs)
     lines += _resume_lines(timed)
     lines += _finish_lines(finishes)
 
     return "\n".join(lines)
+
+
+DELIVERED = "delivered"
+"""``session_env.Delivery.DELIVERED``, restated rather than imported.
+
+This script reads run directories written by whatever version of AgentJobs dispatched
+them, so the value is a wire constant here, not a live enum member.
+"""
+
+
+def _instrumentation_lines(runs: Sequence[Run], gate_runs: int) -> List[str]:
+    """Why a run has no gate lines, told apart from the other reasons it might not.
+
+    Three different facts used to print the same sentence, and only one of them is about
+    the work (task-249):
+
+    - **the instrumentation did not exist** when the run was dispatched -- no
+      ``session_env`` key at all;
+    - **the run's identity never reached its worker**, so the gate it ran had nowhere to
+      write. That was the steady state under ``--bg``: the launcher's environment is
+      discarded by the daemon that spawns the worker, and only 12 launches in 61 were
+      the one that started the daemon;
+    - **the identity arrived and no gate was ever run**, which is the only one of the
+      three that says something about the session.
+
+    Reading the first as the third is how the task-233 baseline came to be quoted from
+    records that mostly did not exist.
+    """
+    if not runs:
+        return []
+    uninstrumented = [run for run in runs if run.session_env is None]
+    undelivered = [
+        run for run in runs if run.session_env is not None and run.session_env != DELIVERED
+    ]
+    silent = [
+        run
+        for run in runs
+        if run.session_env == DELIVERED and not run.gates and run.outcome not in {"unknown"}
+    ]
+
+    lines: List[str] = []
+    if not gate_runs:
+        lines += ["", "  No gate lines can be computed for this window:"]
+    elif uninstrumented or undelivered:
+        lines += ["", "  Gate lines are missing for some runs in this window:"]
+    else:
+        return lines
+
+    if uninstrumented:
+        lines.append(
+            f"  {len(uninstrumented)} run(s) predate the identity delivery (task-249) and "
+            "carry no"
+        )
+        lines.append("      session_env key, so a missing gate line is not evidence either way.")
+        inherited = [run for run in uninstrumented if run.daemon_started is False]
+        if inherited:
+            lines.append(
+                f"      {len(inherited)} of those joined a daemon started by something else, "
+                "so their"
+            )
+            lines.append("      environment was another run's and their gate records went astray.")
+    if undelivered:
+        reasons = ", ".join(sorted({str(run.session_env) for run in undelivered}))
+        lines.append(
+            f"  {len(undelivered)} run(s) had the delivery attempted and not completed "
+            f"({reasons});"
+        )
+        lines.append("      their gates had nowhere to write.")
+    if silent:
+        lines.append(f"  {len(silent)} run(s) were instrumented and ran no gate at all.")
+    return lines
 
 
 def _resume_lines(timed: List[Run]) -> List[str]:

@@ -24,7 +24,7 @@ import textwrap
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import pytest
 import yaml
@@ -110,9 +110,10 @@ def make_resolution(
     stale: int = 3600,
     require_clean_tree: bool = False,
     push: bool = False,
+    env: Optional[Dict[str, str]] = None,
 ) -> DispatchResolution:
     """A resolution as task-068's config layer would produce it."""
-    runner = RunnerConfig(name="fake", argv=argv, env={}, mode=mode, driver=driver)
+    runner = RunnerConfig(name="fake", argv=argv, env=dict(env or {}), mode=mode, driver=driver)
     settings = ProjectDispatchSettings(
         project_id="sandbox",
         enabled=True,
@@ -2571,3 +2572,166 @@ class TestSupervisorMcpGrant:
         settings = json.loads(argv[argv.index("--settings") + 1])
         assert any("supervisor, not the worker" in arg for arg in argv)
         assert "mcp__agentjobs" in settings["permissions"]["allow"]
+
+
+DAEMON_HOP_CLI = """
+import json
+import os
+import sys
+
+# What the daemon does to the launcher's environment: discards it. This is the steady
+# state -- 12 launches in 61 on the machine where task-249 was found were the one that
+# started the daemon, and the other 49 got whatever the running daemon had.
+os.environ.pop("AGENTJOBS_RUN_ID", None)
+os.environ.pop("AGENTJOBS_RUN_DIR", None)
+
+# What the daemon does deliver: argv. Everything the worker knows comes through here.
+argv = sys.argv[1:]
+if "--settings" in argv:
+    value = argv[argv.index("--settings") + 1]
+    if os.path.isfile(value):
+        value = open(value, encoding="utf-8").read()
+    os.environ.update(json.loads(value).get("env", {}))
+
+from agentjobs.dispatch.phases import record_phase_from_env
+
+record_phase_from_env("gate_finished", passed=True, seconds=95.8, scope="full")
+print("Starting background service")
+print("backgrounded, b55b35ad")
+"""
+
+
+class TestIdentitySurvivesTheDaemonHop:
+    """Task-249, and the acceptance criterion it exists for.
+
+    ``--bg`` does not start the worker. It contacts a persistent daemon, and the daemon
+    spawns the worker from the daemon's own environment -- so everything
+    ``_environment`` sets is discarded unless this launch happened to start the daemon.
+    ``TestTheRunIsMeasurable`` above cannot see any of this: its fake runner is
+    ``sys.executable`` and inherits ``Popen``'s environment directly, which is the batch
+    case and the one that always worked.
+
+    The launcher below models the hop instead: it drops the two variables before doing
+    anything else, and then knows only what argv told it. A phase record that lands in
+    the right run directory after that could only have got there through ``--settings``.
+    """
+
+    def test_a_worker_whose_environment_was_discarded_still_records_its_own_run(
+        self, workspace: Path, manager: TaskManager, task, tmp_path: Path
+    ) -> None:
+        from agentjobs.dispatch.phases import read_phases
+
+        launcher = write_script(tmp_path / "daemon_hop.py", DAEMON_HOP_CLI)
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(
+                [sys.executable, str(launcher), "--bg", "{prompt}"], mode=RunnerMode.SESSION
+            ),
+        )
+
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+
+        directory = workspace / "home" / "runs" / handle.run_id
+        (record,) = read_phases(directory)
+        assert record["kind"] == "gate_finished"
+        assert record["run_id"] == handle.run_id
+        assert record["seconds"] == 95.8
+
+    def test_the_identity_is_merged_into_the_settings_argv_already_carried(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """`posture_flags` already puts the permission envelope in `--settings`, and the
+        flag is not repeatable. One flag has to reach the launcher, holding both."""
+        runner = build(workspace, manager, session_resolution(fake_cli))
+
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+
+        argv = cast(
+            List[str], RunDirectory(workspace / "home" / "runs" / handle.run_id).read_meta()["argv"]
+        )
+        assert argv.count("--settings") == 1
+        document = json.loads(argv[argv.index("--settings") + 1])
+        assert document["env"]["AGENTJOBS_RUN_ID"] == handle.run_id
+
+    def test_the_flag_is_spliced_before_the_prompt(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """Where the posture flags go, and for the same reason: a CLI expects its
+        options before a positional argument."""
+        runner = build(workspace, manager, session_resolution(fake_cli))
+
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+
+        argv = cast(
+            List[str], RunDirectory(workspace / "home" / "runs" / handle.run_id).read_meta()["argv"]
+        )
+        prompt_at = max(index for index, element in enumerate(argv) if "task-" in element)
+        assert argv.index("--settings") < prompt_at
+
+    def test_a_runners_own_env_travels_with_it(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """This is where the design doc tells operators to put secrets, on the grounds
+        that argv is recorded verbatim. Until now it reached a session about once per
+        daemon lifetime."""
+        runner = build(
+            workspace,
+            manager,
+            session_resolution(fake_cli, env={"AGENT_TOKEN": "sk-live-xyz"}),
+        )
+
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+
+        meta = RunDirectory(workspace / "home" / "runs" / handle.run_id).read_meta()
+        argv = cast(List[str], meta["argv"])
+        document = json.loads(Path(argv[argv.index("--settings") + 1]).read_text(encoding="utf-8"))
+        assert document["env"]["AGENT_TOKEN"] == "sk-live-xyz"
+        # The property the advice actually claims: not in the thing that gets recorded.
+        assert "sk-live-xyz" not in json.dumps(argv)
+        assert "sk-live-xyz" not in json.dumps(meta["session_settings"], default=str)
+        # ...and the envelope is still readable from the record, which argv no longer
+        # carries once the document has gone to a file.
+        recorded = cast(Dict[str, Any], meta["session_settings"])
+        assert cast(Dict[str, Any], recorded["permissions"])["allow"]
+
+    def test_the_run_records_how_its_identity_was_delivered(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """So a report can tell 'no gate ran' from 'the gate had nowhere to write'."""
+        runner = build(workspace, manager, session_resolution(fake_cli))
+
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+
+        meta = RunDirectory(workspace / "home" / "runs" / handle.run_id).read_meta()
+        assert meta["session_env"] == "delivered"
+
+    def test_whether_this_launch_started_the_daemon_is_recorded(
+        self, workspace: Path, manager: TaskManager, task, tmp_path: Path
+    ) -> None:
+        """Read off the launcher's own banner. Nothing branches on it; it is the
+        evidence for whether a run's environment could have been its own."""
+        from agentjobs.dispatch.runner import RunDirectory as Directory
+
+        launcher = write_script(tmp_path / "daemon_hop.py", DAEMON_HOP_CLI)
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(
+                [sys.executable, str(launcher), "--bg", "{prompt}"], mode=RunnerMode.SESSION
+            ),
+        )
+
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+
+        assert Directory(workspace / "home" / "runs" / handle.run_id).read_meta()["daemon_started"]
+
+    def test_a_launch_that_joined_a_running_daemon_says_so(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        runner = build(workspace, manager, session_resolution(fake_cli))
+
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+
+        meta = RunDirectory(workspace / "home" / "runs" / handle.run_id).read_meta()
+        assert meta["daemon_started"] is False
