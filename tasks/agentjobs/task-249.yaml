@@ -3,20 +3,16 @@ id: task-249
 title: 'Dispatch: run identity and the runner''s env: never reach a --bg worker in
   steady state (the daemon owns the environment)'
 created: '2026-08-22T18:51:44.798464Z'
-updated: '2026-08-26T00:37:45.542860Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-26T00:38:08.002415Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 87
 category: infrastructure
 tags:
 - big-dawg-audit
 - dispatch
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "Big Dawg Audit P1 (auditor 10 P1-1; auditor 11 and auditor 1 observed\
@@ -82,7 +78,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-249-run-identity-from-ledger
-  status: active
+  status: merged
+  merged_at: '2026-08-26T00:38:07.958167Z'
 log:
 - id: 1
   ts: '2026-08-22T18:51:45.393178Z'
@@ -437,3 +434,26 @@ log:
     merge_commit: adde8112f369990b3029ae2958c1cf9d901d3f11
     branch: fix/task-249-run-identity-from-ledger
     base: main
+- id: 13
+  ts: '2026-08-26T00:38:08.002262Z'
+  actor: finisher
+  type: transition
+  body: "Merged `fix/task-249-run-identity-from-ledger` into `main` as `adde8112`\
+    \ and verified live. Finished by the scripted path with no agent session (task-241).\
+    \ No human reviewed this merge: posture `autonomous` (from the dispatch) releases\
+    \ the merge gate (task-021), and run run_3f8ec46f ran the finish. What authorised\
+    \ it is the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.5s  fix/task-249-run-identity-from-ledger at\
+    \ cd232dbd in C:\\projects\\worktrees\\agentjobs-249\n  rebase     ok        \
+    \ 0.2s  fix/task-249-run-identity-from-ledger onto main: cd232dbd -> d1e83861\n\
+    \  gate       ok       196.3s  scripts/check.py green\n  merge      ok       \
+    \  0.5s  --no-ff into main as adde8112f369990b3029ae2958c1cf9d901d3f11\n  rebuild\
+    \    skipped    0.0s  the merge touched no frontend/ path\n  restart    ok   \
+    \      0.7s  ran powershell -NoProfile -ExecutionPolicy Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -Force -NoOpen\n  verify     ok         0.0s  http://127.0.0.1:8876 is serving\
+    \ 6e459c5a, which contains the merge adde8112, from C:\\projects\\agentjobs (started\
+    \ 2026-08-26T00:37:51.724836+00:00)\n```"
+  data:
+    lifecycle: closed
+    outcome: completed
