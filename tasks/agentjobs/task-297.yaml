@@ -3,7 +3,7 @@ id: task-297
 title: 'The scripted finish cannot merge under concurrency: base_moved fires on task-record
   commits, and each escalation causes the next'
 created: '2026-08-23T20:57:20.855780Z'
-updated: '2026-08-27T16:41:06.737978Z'
+updated: '2026-08-27T16:51:52.361303Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -747,3 +747,31 @@ log:
       id: 7f2a1c30-9d41-4b62-8e05-1a2b3c4d5e08
       kind: log_append
       fingerprint: 49315010d44e40ae0c23f7cc67086bbe
+- id: 19
+  ts: '2026-08-27T16:48:22.061897Z'
+  actor: finisher
+  type: progress
+  body: 'Queued for this repository''s merge runway, held by fin_392ce6db, pid 1463644
+    started at 11:47:58, 24s ago.
+
+
+    **This is the queue working, not a stall.** Children of an epic fly in parallel
+    and land one at a time, because a gate is only evidence about the base it ran
+    against. Nothing here is rebased, gated or merged until the runway is free.'
+  data:
+    finish_step: runway_queued
+    finish_id: fin_61fe41b2
+- id: 20
+  ts: '2026-08-27T16:51:52.361138Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-297-finish-catch-up` (ab705439).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-297.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_61fe41b2\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-297-finish-catch-up
+    finish_id: fin_61fe41b2
