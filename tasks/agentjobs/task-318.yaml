@@ -3,7 +3,7 @@ id: task-318
 title: A child of the epic walk inherits the parent's AGENTJOBS_RUN_ID, so its own
   sanctioned autonomous merge is declined `locked`
 created: '2026-08-25T11:11:28.166849Z'
-updated: '2026-08-27T11:13:53.574205Z'
+updated: '2026-08-27T11:28:33.755457Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -114,7 +114,7 @@ acceptance:
   text: The record states, from a live dispatched child rather than from reading the
     spawn code, what AGENTJOBS_RUN_ID a walk-started child actually sees, and which
     of the two candidate causes is the real one.
-  status: pending
+  status: met
 - id: ac-2
   text: A child started by `dispatch walk` runs `agentjobs finish <its own task> --posture-release`
     successfully with no environment override.
@@ -123,14 +123,14 @@ acceptance:
   text: 'A test covers the child-inherits-parent case specifically: a lock naming
     run B while the environment names run A must not be treated as self-held, and
     a walk-started child must be given B.'
-  status: pending
+  status: met
 - id: ac-4
   text: The child's gate phase records land in the child's own run directory, so run_report.py
     attributes them to the child.
-  status: pending
+  status: met
 - id: ac-5
   text: The full unqualified scripts/check.py is green on the change.
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -438,3 +438,127 @@ log:
       id: 7b2e4f18-3c95-4a06-b8d3-1e5f9a27c604
       kind: log_append
       fingerprint: 470f1ce78d4eda2ee32013150fd844ed
+- id: 10
+  ts: '2026-08-27T11:28:08.862271Z'
+  actor: claude
+  type: progress
+  body: "**Every acceptance criterion met. The reported defect was fixed by task-249;\
+    \ the work here is the coverage that was missing for the walk case, plus one real\
+    \ hole the investigation turned up in task-249's own repair.**\n\nBranch `test/task-318-walk-child-run-identity`,\
+    \ two commits, rebased onto `main` at `4cf25e2`. Full unqualified `scripts/check.py`:\
+    \ **green, 10 of 10 stages, 242.7s**.\n\n## ac-2 \u2014 the finish, with no override\n\
+    \nRun at the end of this entry. `_own_run_holds_lock`'s two conditions were shown\
+    \ to hold independently in entry 9, so there is nothing left to correct: the command\
+    \ in the prompt is run verbatim.\n\n## ac-3 \u2014 what the existing tests did\
+    \ not reach\n\nTwo gaps, both real, both now covered.\n\n**1. Every existing `own_run_id`\
+    \ test uses a *finished* leaked run.** All six of `TestWhichRunIsCalling`'s cases\
+    \ write the stale run `live=False`, so the liveness half of `_run_vouching_for`\
+    \ rejects it on its own and the task-id comparison never decides the declared\
+    \ value. **A walk supervisor is live while its children work** \u2014 it is the\
+    \ one leak shape where the task id is the only thing separating the two runs.\
+    \ `TestTheLeakedRunIsTheOneRunningOneLevelUp` covers it, including `_own_run_holds_lock`\
+    \ itself returning `True`, which is the unit task-302 and task-303 actually failed\
+    \ in.\n\nVerified by mutation rather than asserted: dropping the task-id comparison\
+    \ from `_run_vouching_for` turns **three** tests red \u2014 two new, plus the\
+    \ existing `test_a_lock_held_for_another_task_is_not_adopted`, which covers the\
+    \ *holder* side. My first draft of that docstring claimed all six existing tests\
+    \ would survive the mutation; running it showed one does not, and the docstring\
+    \ now says the checked thing.\n\n**2. `TestIdentitySurvivesTheDaemonHop` models\
+    \ the daemon as *dropping* the identity, never as *replacing* it.** That is the\
+    \ half of the hop which loses a measurement. The half that cost two runs their\
+    \ merge is the other one, and it had no test at all. `TestAWalkStartedChildIsNotGivenItsSupervisorsIdentity`\
+    \ uses a launcher that sets the supervisor's identity the way the daemon does,\
+    \ with the supervisor's run directory **live and writable** so a misdirected record\
+    \ lands rather than being declined. Mutation-checked: with `deliver_identity`\
+    \ short-circuited all three fail, and one fails by finding the child's gate filed\
+    \ under the supervisor.\n\n## The hole this turned up in task-249's repair \u2014\
+    \ fixed\n\n`_own_run_holds_lock`'s docstring promises, in as many words, *\"A\
+    \ process that invents the variable matches no lock and gets the ordinary refusal.\"\
+    * **That stopped being true when task-249 landed**, and this task's own constraint\
+    \ is the sentence that names it: *do not read the holder without comparing it.*\n\
+    \n`own_run_id` substituted the lock holder for **any** declared value it could\
+    \ not vouch for, including one naming no run at all. Demonstrated by a failing\
+    \ test before anything was changed:\n\n```\nassert own_run_id(home, \"task-318\"\
+    , environ={RUN_ID_ENV: \"run_nonsense\"}) == \"run_nonsense\"\nE  AssertionError:\
+    \ assert 'run_74dfbc1c' == 'run_nonsense'\n```\n\nSo typing a nonsense value bought\
+    \ **strictly more** than setting nothing: an empty variable gets the ordinary\
+    \ refusals, a garbage one got the live lock holder's identity, that run's released\
+    \ posture, and a finish that skips acquiring the lock entirely. That is the opposite\
+    \ of what a guard should do.\n\n**The fix is one condition \u2014 the declared\
+    \ value has to name a run the ledger has heard of.** It costs task-249's repair\
+    \ nothing, because a leaked identity is *always* a real run: it is whichever run\
+    \ started the daemon, and that run has a directory. Only the invented case changes.\n\
+    \n**Decision, with the rejected alternative.** The alternative was to leave it\
+    \ and note it, on the grounds that task-249 is a merged decision with a documented\
+    \ rationale and this project is `push: false`, so the blast radius of a bad local\
+    \ merge is recoverable. Rejected because the constraint on *this* task names the\
+    \ property directly, the promise is still written in the docstring of the function\
+    \ being defended, and the repair is one line that cannot regress task-249 \u2014\
+    \ its own tests all pass unchanged. One existing fixture did change: the machine-ceiling\
+    \ test declared `run_stale` without ever writing a record for it, which is precisely\
+    \ the shape recovery now ignores, so it gets the realistic leaked identity the\
+    \ rest of its class already uses. The test's intent is untouched.\n\n## ac-4 \u2014\
+    \ verified live, not only in a test\n\nThe gate this run executed wrote into **its\
+    \ own** directory:\n\n```\n$ cat ~/.agentjobs/runs/run_74dfbc1c/phases.jsonl\n\
+    {\"kind\": \"gate_started\",  \"scope\": \"full\", \"stages_total\": 10, \"run_id\"\
+    : \"run_74dfbc1c\"}\n{\"kind\": \"gate_finished\", \"scope\": \"full\", \"passed\"\
+    : false, \"seconds\": 4.2, \"run_id\": \"run_74dfbc1c\"}\n...\n$ ls ~/.agentjobs/runs/run_1132ebf8/phases.jsonl\n\
+    no such file            # the supervisor's run\n```\n\nContrast the historical\
+    \ shape, which answers entry 4's first standing question and quantifies it:\n\n\
+    | run | task | phase lines |\n|---|---|---|\n| `run_12b2675c` | task-269 (supervisor)\
+    \ | **26** |\n| `run_a07731b6` | task-302 (child) | 0 |\n| `run_ff8c316d` | task-303\
+    \ (child) | 0 |\n| `run_68ea396e` | task-316 (child) | 0 |\n\n**Those 26 lines\
+    \ are the children's gates, billed to the supervisor.** No code change fixes it\
+    \ retroactively, so: do not quote a per-task cost from before 2026-08-25 19:37\
+    \ without discounting `run_12b2675c`, and read a supervisor run showing gate time\
+    \ as suspect on its face, because a supervisor takes no worktree and runs no gate\
+    \ of its own.\n\n## Entry 4's second standing question: one fix or two?\n\n**Two,\
+    \ and the file sets barely touch.** From the merge diffs:\n\n- **task-316** \u2014\
+    \ `cli.py`, `config.py`, `epic.py`, `guards.py`. The posture never reached `start_child`.\
+    \ The defect was *inside* the walk.\n- **task-249** \u2014 `finish.py`, `phases.py`,\
+    \ `runner.py`, `session_env.py`. The identity never reached the worker. The defect\
+    \ was *outside* AgentJobs entirely, in the Claude Code daemon.\n\n`epic.py` appears\
+    \ in task-316's diff and not in task-249's, which is the same conclusion entry\
+    \ 9 reached by reading `start_child`: the walk was never the leak. The spec's\
+    \ hypothesis that the two were one fix \u2014 *\"the walk not giving each child\
+    \ a correctly-scoped environment of its own\"* \u2014 is a correct description\
+    \ of task-316 and a wrong one of this task. Same symptom class, different subsystems.\
+    \ Recorded here rather than on task-316, which is closed, and nothing about it\
+    \ changes.\n\n## One thing deliberately not fixed, so nobody reads its absence\
+    \ as an oversight\n\n**`phases.current_run()` cannot defend against a *live* wrong\
+    \ run, and I did not give it a way to.** Its staleness check asks whether the\
+    \ run has finished, which catches the daemon-started-yesterday case and is blind\
+    \ to a supervisor that is running right now. The lock-file trick `own_run_id`\
+    \ uses is unavailable to it: locks are per task, and `record_phase_from_env` is\
+    \ called by `scripts/check.py`, which has no task id and deliberately does not\
+    \ resolve `AGENTJOBS_HOME`.\n\nIt is not currently reachable \u2014 delivery works,\
+    \ as the table above shows \u2014 and it needs `deliver_identity` to return `conflict`\
+    \ or `failed` to become so. `meta.yaml` records which, and `scripts/run_report.py`\
+    \ already names a run whose delivery did not complete, so a reader has the signal.\
+    \ I am flagging it rather than inventing a mechanism for it; if it is worth closing\
+    \ it is a separate task, and filing one is a judgement about the backlog rather\
+    \ than about this work.\n\n## Acceptance\n\n- **ac-1 \u2014 met.** Entry 9. Shell,\
+    \ lock and `meta.yaml` all name `run_74dfbc1c`; cause identified as the daemon\
+    \ owning the environment, not either candidate as worded.\n- **ac-2 \u2014 met\
+    \ on the finish below.**\n- **ac-3 \u2014 met.** `TestTheLeakedRunIsTheOneRunningOneLevelUp`\
+    \ (live supervisor, both directions, invented identity) and `TestAWalkStartedChildIsNotGivenItsSupervisorsIdentity`\
+    \ (the child is given its own). Both mutation-checked.\n- **ac-4 \u2014 met.**\
+    \ Verified live above and pinned by two tests, one asserting from each side.\n\
+    - **ac-5 \u2014 met.** Green, 10 of 10, 242.7s."
+  data:
+    operation:
+      id: c81d6a37-52f9-4e3b-9d70-4a83f1b6e25c
+      kind: log_append
+      fingerprint: 4ee614f7085244eea35f101285683012
+- id: 11
+  ts: '2026-08-27T11:28:33.755199Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 9d4a0c65-7f31-4e28-b5c9-3a6e18f0d772
+      kind: update_content
+      fingerprint: f7b5721588af4be36049fbe73020345c
