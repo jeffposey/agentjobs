@@ -85,6 +85,45 @@ record it. So the containment is unchanged in what it protects; taking it is now
 first act rather than the launcher's. The full argument, with the reproduction, is in
 [the dispatch design](agent-dispatch-design.md).
 
+## Then register, whatever started you
+
+```bash
+poetry run agentjobs run register --task task-<nnn> --project <project>
+```
+
+**Run it always.** A session AgentJobs dispatched recognises itself from
+`AGENTJOBS_RUN_ID`, prints that it is already known, and writes nothing — so there is no
+condition here for you to evaluate, and that is deliberate: a rule with an exception
+attached is a rule some fraction of readers gets wrong.
+
+What it buys, if you were hand-spawned rather than dispatched, is every stall protection
+AgentJobs has. All of them are keyed on a run record: the poller iterates the run
+directories, so a session with none is polled by nothing, and none of the permission
+park, the expired-login handoff, the settle on a session that finished without handing
+off, or the stall report can reach it. The task then reads `agent`/`work` throughout
+while nothing happens to it, and a supervisor following *the signal is the task record*
+waits on a process nobody is watching. That is what left task-217 dead for four hours on
+2026-08-23.
+
+Registering writes the run record a dispatch would have written, and from the next poll
+you are followed by exactly the same code. It also takes the task's run lock, so nobody
+can dispatch a second agent at the task you are working.
+
+It refuses rather than guessing, and each refusal names its gate:
+
+| Refusal | What it means |
+| --- | --- |
+| `session_unnamed` | Your runner does not publish its own session id. Find it with `<runner> agents` and pass `--session`. |
+| `session_unknown` | No live session with that id under the project root. A session launched from inside a worktree is not listed there — the poller would look it up the same way and report it gone. |
+| `session_interactive` | A session a person is sitting in is deliberately not adoptable. Claiming the task is what records that you are working it. |
+| `live_run_exists` | Something is already following this task. |
+| `dispatched_elsewhere` | You are a dispatched run for a *different* task. |
+
+Nothing here restarts or stops anything, and registration is **not** a dispatch: no
+run was authorised and none was started, so what lands on the task record is a note
+rather than a `dispatch` entry. The design argument, including what was rejected, is in
+[the dispatch design](agent-dispatch-design.md#every-protection-above-is-keyed-on-a-run-record-task-320-2026-08-27).
+
 ## When the work is done: does this run merge, or stop?
 
 Both answers exist, and **your dispatch prompt is the only thing that tells you which one

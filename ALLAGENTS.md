@@ -139,7 +139,14 @@ are not working it — you are supervising, you take no worktree, and
 
     ```bash
     python scripts/bootstrap.py     # ~30s; see Bootstrapping a worktree
+    poetry run agentjobs run register --task task-<nnn> --project agentjobs
     ```
+
+    **Register always** — a dispatched session recognises itself and writes nothing, so
+    there is nothing to judge. Every stall protection is keyed on a run record, and a
+    session with none is polled by nothing: a permission park, an expired login or a
+    silent stall then leaves the task reading `agent`/`work` while your supervisor waits
+    on a process nobody is watching (task-320).
 
     **Your task-record commits go to `main`, not to your branch** — see
     [Task files live on main](ENGINEERING.md#task-files-live-on-main-always). Your branch

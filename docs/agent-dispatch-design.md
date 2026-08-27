@@ -2848,6 +2848,72 @@ this" with "this should be destroyed."
 Sixty minutes was chosen over fifteen (too many false positives when an agent pauses
 mid-work) and over four hours (catches only overnight stalls).
 
+### Every protection above is keyed on a run record (task-320, 2026-08-27)
+
+The park, the auth-expiry check, the staleness settle and the stall report are all
+reached the same way: `poll_live_sessions` iterates `live_runs(home)` and hands each run
+to `poll_session`. **A session with no run directory is never iterated**, so it gets none
+of them, and the task it is working reads `agent`/`work` throughout — which is exactly
+what a supervisor following "the signal is the task record" waits on.
+
+Task-217 is the incident. It sat dead for four hours on 2026-08-23 while `_park_session`
+had been written, correct and deployed for five days; it never ran, because the session
+was hand-spawned by its supervisor rather than dispatched and nothing knew it was there.
+Its two siblings in the same epic have run directories and it has none. Task-296
+established that; this is the other half of it.
+
+**The fix is adoption, not detection.** `agentjobs run register --task <id>` verifies a
+session against the runner's own ledger and writes the run record a dispatch would have
+written. From the next poll the session is followed by the existing code, with no second
+implementation of any judgement — the poller, `_handle_from`, `poll_session` and
+`_finish_session` are untouched.
+
+Four properties, each a refusal in `dispatch/registration.py`:
+
+1.  **A dispatched run registers to nothing.** `AGENTJOBS_RUN_ID` naming a live run for
+    this task answers "already known" and writes nothing, which is what lets ALLAGENTS.md
+    say *register* with no exception for an agent to evaluate. A rule with a condition
+    attached is a rule some fraction of readers gets wrong.
+2.  **An interactive session cannot be registered at all.** A session a person is sitting
+    in is a normal, common state that must never be reported as a fault — and an adopted
+    one would eventually be reported stalled, or `stop`ped by the settle path, while
+    somebody was typing into it. Refusing by construction beats any later heuristic.
+3.  **The claim is verified before anything is written.** The session must be live in the
+    runner's ledger, under this project's root — which is also how the poller looks it up,
+    so a session launched from inside a worktree is refused rather than adopted and then
+    reported gone. A run record naming a session nothing can follow is worse than none: it
+    looks covered.
+4.  **Registration is not a dispatch.** Nobody authorised a run and AgentJobs started no
+    process, so §2's human-clocked chain must not be forged by a command any agent can
+    invoke. The record gets a `note` naming the session, the run and what the adoption
+    buys, and its entry id is what the run's `dispatch_entry_id` points at.
+
+The run lock is taken, so a later dispatch at the same task is refused `live_run_exists`.
+The machine's `max_concurrent_runs` is deliberately **not** applied: the session is
+already running, and refusing would not stop it — it would only keep it invisible, which
+is the whole defect.
+
+**Rejected: making the protocol the fix.** `dispatch walk` already starts children as
+real dispatches, so an epic's children are covered by construction. That closes the gap
+only for epic children; a human or a supervisor can still hand-spawn a session against
+any task, which is precisely what happened to task-217.
+
+**Rejected for now: record-side detection** — flagging a task that is `active`/`agent`/
+`work` with a live run behind it and no log movement. It is runner-agnostic and catches
+causes registration cannot, including a dispatched run whose process died without the
+ledger noticing. It was not built because it cannot currently tell an unattended session
+from an interactive one a person is working in, and both look identical from the record.
+Registration is what changes that: once an unattended session is expected to have a run
+record, *not* having one becomes a signal rather than the norm. Detection is the natural
+follow-up and is a better task after this than before it.
+
+**Recovery is out of scope, argued rather than inherited.** Task-296 left it out for
+stall detection because a stalled session may hold a dirty worktree and restarting risks
+two sessions on one branch. That argument applies here and one stronger one is added:
+AgentJobs never had this session's argv, its environment or its prompt, so it could not
+restart it faithfully even if it wanted to. What it can do it does — say on the record
+that the session is parked, stalled, expired or gone, and leave it attachable.
+
 ---
 
 ## 10. Rejected alternatives
