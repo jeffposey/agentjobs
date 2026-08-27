@@ -2735,3 +2735,119 @@ class TestIdentitySurvivesTheDaemonHop:
 
         meta = RunDirectory(workspace / "home" / "runs" / handle.run_id).read_meta()
         assert meta["daemon_started"] is False
+
+
+SUPERVISOR_HOP_CLI = """
+import json
+import os
+import sys
+
+# The daemon does not merely discard the launcher's environment -- it spawns the worker
+# from *its own*, which carries the identity of whichever run started it. In a walk that
+# is reliably the supervisor, because the supervisor is dispatched first and every child
+# launches into the daemon it started. This is the shape task-302 and task-303 came up
+# in: a real, live, privileged run id belonging to the process one level up.
+os.environ["AGENTJOBS_RUN_ID"] = "run_1132ebf8"
+os.environ["AGENTJOBS_RUN_DIR"] = sys.argv[sys.argv.index("--supervisor-dir") + 1]
+
+argv = sys.argv[1:]
+if "--settings" in argv:
+    value = argv[argv.index("--settings") + 1]
+    if os.path.isfile(value):
+        value = open(value, encoding="utf-8").read()
+    os.environ.update(json.loads(value).get("env", {}))
+
+from agentjobs.dispatch.phases import record_phase_from_env
+
+record_phase_from_env("gate_finished", passed=True, seconds=95.8, scope="full")
+print("backgrounded, b55b35ad")
+"""
+
+
+class TestAWalkStartedChildIsNotGivenItsSupervisorsIdentity:
+    """task-318. The daemon hands the worker a **live** identity, not merely a missing one.
+
+    ``TestIdentitySurvivesTheDaemonHop`` models the daemon as dropping the two variables.
+    That is the half of the hop that loses a measurement. The half that cost two runs
+    their sanctioned merge is the other one: the daemon supplies the identity of whatever
+    started it, so the worker comes up wearing a run id that is real, live, and one level
+    up the tree. ``run_a07731b6`` (task-302) and ``run_ff8c316d`` (task-303) each ran the
+    exact ``agentjobs finish ... --posture-release`` their prompts named and were declined
+    ``locked`` -- for being held by themselves -- because of it.
+
+    The supervisor's run directory here is **live and writable**, so a record landing in
+    it would land rather than be declined by ``phases.current_run``'s staleness check.
+    That check cannot see this case: a supervisor watching its children is running, and
+    the whole of what makes it the wrong directory is that it belongs to another task.
+    So the assertion below is not that a defence caught it -- it is that argv delivered
+    the truth before anything needed defending.
+    """
+
+    def supervisor_run(self, workspace: Path) -> Path:
+        directory = workspace / "home" / "runs" / "run_1132ebf8"
+        directory.mkdir(parents=True)
+        (directory / "meta.yaml").write_text(
+            "run_id: run_1132ebf8\ntask_id: task-269\nstatus: running\n", encoding="utf-8"
+        )
+        return directory
+
+    def start_child(self, workspace: Path, manager: TaskManager, task, tmp_path: Path):
+        supervisor = self.supervisor_run(workspace)
+        launcher = write_script(tmp_path / "supervisor_hop.py", SUPERVISOR_HOP_CLI)
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(
+                [
+                    sys.executable,
+                    str(launcher),
+                    "--bg",
+                    "--supervisor-dir",
+                    str(supervisor),
+                    "{prompt}",
+                ],
+                mode=RunnerMode.SESSION,
+            ),
+        )
+        return runner.start(task, actor="Jeff Posey", caused_by=1), supervisor
+
+    def test_the_childs_gate_record_lands_in_the_childs_own_run(
+        self, workspace: Path, manager: TaskManager, task, tmp_path: Path
+    ) -> None:
+        """ac-4, in the units ``scripts/run_report.py`` reads."""
+        from agentjobs.dispatch.phases import read_phases
+
+        handle, _supervisor = self.start_child(workspace, manager, task, tmp_path)
+
+        (record,) = read_phases(workspace / "home" / "runs" / handle.run_id)
+        assert record["run_id"] == handle.run_id
+        assert record["seconds"] == 95.8
+
+    def test_the_supervisors_run_is_not_billed_for_the_childs_gate(
+        self, workspace: Path, manager: TaskManager, task, tmp_path: Path
+    ) -> None:
+        """The same fact stated from the other side, because it is the one a report gets
+        wrong: the child's cost showing up as the supervisor's is silent, and a
+        supervisor never runs a gate of its own to compare it against."""
+        from agentjobs.dispatch.phases import read_phases
+
+        _handle, supervisor = self.start_child(workspace, manager, task, tmp_path)
+
+        assert read_phases(supervisor) == []
+
+    def test_the_identity_argv_carries_is_the_childs_own(
+        self, workspace: Path, manager: TaskManager, task, tmp_path: Path
+    ) -> None:
+        """ac-3's second half. The two run ids have to actually differ for the assertions
+        above to mean anything, so it is asserted rather than assumed."""
+        handle, _supervisor = self.start_child(workspace, manager, task, tmp_path)
+
+        argv = cast(
+            List[str], RunDirectory(workspace / "home" / "runs" / handle.run_id).read_meta()["argv"]
+        )
+        document = json.loads(argv[argv.index("--settings") + 1])
+        assert document["env"]["AGENTJOBS_RUN_ID"] == handle.run_id
+        assert handle.run_id != "run_1132ebf8"
+        assert document["env"]["AGENTJOBS_RUN_DIR"] == str(
+            workspace / "home" / "runs" / handle.run_id
+        )
