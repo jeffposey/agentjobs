@@ -3,10 +3,11 @@ id: task-223
 title: The rule that serializes every epic has no stated reason, and the doc's own
   reasoning contradicts it
 created: '2026-08-21T15:02:48.895387Z'
-updated: '2026-08-27T10:57:51.847382Z'
-lifecycle: ready
+updated: '2026-08-27T12:54:57.930763Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 queue_position: 25
@@ -19,6 +20,7 @@ tags:
 effort: a decision plus a doc edit; larger only if the supervisor needs to poll several
   children
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: "The parent-task protocol tells a supervisor to run \"exactly one eligible\
@@ -103,26 +105,79 @@ acceptance:
 - id: ac-1
   text: "The protocol states whether a supervisor may run independent eligible children\
     \ concurrently, and gives the reason for whichever answer is chosen \u2014 no\
-    \ bare assertion."
-  status: pending
+    \ bare assertion. [MET: yes, they may. ALLAGENTS.md Parent Task Loop states it;\
+    \ docs/agent-workflow.md 'How many children fly at once' gives the reasons \u2014\
+    \ takeoff and landing are different resources, context cost is a property of one\
+    \ session's transcripts rather than of how many run at once, and the measured\
+    \ cost of the old answer. The design doc carries the rejected alternatives.]"
+  status: met
 - id: ac-2
-  text: 'If concurrency is allowed, the bounds are specified: how overlap is judged,
-    any cap, what happens to merges that land together, and the rule that fan-out
-    stops when a child parks.'
-  status: pending
+  text: "If concurrency is allowed, the bounds are specified: how overlap is judged,\
+    \ any cap, what happens to merges that land together, and the rule that fan-out\
+    \ stops when a child parks. [MET: overlap is judged from the dependency graph,\
+    \ not from deliverables[] \u2014 judging deliverables was rejected as unauditable\
+    \ and as a second definition of 'may run'. Cap: limits.max_concurrent_runs, the\
+    \ one that already exists and already counts children; --max-concurrent only narrows\
+    \ it. Merges: a repo-scoped runway lock held across rebase-gate-merge. Parked\
+    \ child: grounds every further takeoff at once; children already in flight land.]"
+  status: met
 - id: ac-3
-  text: docs/agent-workflow.md line 98 no longer reads as though the session-isolation
+  text: 'docs/agent-workflow.md line 98 no longer reads as though the session-isolation
     argument settles the ordering question; the two rules are separated and each carries
-    its own reason.
-  status: pending
+    its own reason. [MET: ''Why a session, and where the line is'' now opens ''the
+    reason is context, and it says nothing about how many run at once'', states why
+    the argument does not reach that conclusion, and links to the section that answers
+    ordering. The same clause in ALLAGENTS.md is corrected identically.]'
+  status: met
 - id: ac-4
-  text: A supervisor reading only the updated docs, with three eligible non-overlapping
-    children, reaches the intended behaviour without needing this task record.
+  text: "A supervisor reading only the updated docs, with three eligible non-overlapping\
+    \ children, reaches the intended behaviour without needing this task record. [MET:\
+    \ the behaviour is code rather than instruction, which is the strongest form of\
+    \ this \u2014 `dispatch walk` starts all three itself and a supervisor's whole\
+    \ job is to run it. Three places say so: the Parent Task Loop, 'Run the walk',\
+    \ and 'How many children fly at once'. `--dry-run` prints which children would\
+    \ start now, so the answer is checkable before anything is spent.]"
+  status: met
+deliverables:
+- path: src/agentjobs/dispatch/epic.py
+  note: 'The rolling frontier: frontier(), Flight, the concurrent walk loop, _poll_child,
+    WalkSettings.max_concurrent, WalkResult.peak_in_flight.'
   status: pending
-deliverables: []
+- path: src/agentjobs/dispatch/ledger.py
+  note: 'The repo-scoped merge runway: runway_lock_name, acquire_runway_lock, KIND_RUNWAY,
+    and the finish_id guard on RunLock.release.'
+  status: pending
+- path: src/agentjobs/dispatch/finish.py
+  note: Runway held across rebase, gate and merge; a queued finish says so on its
+    own record.
+  status: pending
+- path: src/agentjobs/manager.py
+  note: 'claimable_tasks(): the queue''s answer as a set rather than a single task.
+    get_next_task is now its head.'
+  status: pending
+- path: scripts/run_report.py
+  note: '--epics / --epic: epic wall clock, summed child work, turnaround idle, parallelism,
+    with overnight gaps split out as paused.'
+  status: pending
+- path: docs/agent-workflow.md
+  note: New 'How many children fly at once'; the session-isolation argument no longer
+    reads as settling the ordering question (ac-3).
+  status: pending
+- path: docs/agent-dispatch-design.md
+  note: 'The decision record: the frontier, the ordering rule, the runway, and the
+    rejected alternatives.'
+  status: pending
+- path: docs/performance.md
+  note: The instrument and the serial baseline taken before the change.
+  status: pending
+- path: ALLAGENTS.md
+  note: Parent Task Loop rewritten for the frontier and the runway.
+  status: pending
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-223-parallel-epic-walk
+  status: active
 log:
 - id: 1
   ts: '2026-08-21T15:02:49.155530Z'
@@ -470,3 +525,223 @@ log:
       id: 30098dff-68de-4cd8-8dff-47f9b73efc97
       kind: log_append
       fingerprint: b79b5e897bf0a4b58978ab733a5f10a7
+- id: 12
+  ts: '2026-08-27T12:24:05.552832Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. They chose
+    posture `autonomous` for this run, above this project''s `auto`. No extra instruction
+    was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 13
+  ts: '2026-08-27T12:24:06.049369Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 14
+  ts: '2026-08-27T12:24:08.784265Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_d9aed92f
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: dispatch
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 12
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --settings
+    - '{"env": {"AGENTJOBS_RUN_ID": "run_d9aed92f", "AGENTJOBS_RUN_DIR": "C:\\Users\\jpose\\.agentjobs\\runs\\run_d9aed92f"}}'
+    - 'You are the agent `claude` working task `task-223` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-223-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_d9aed92f. Posture `autonomous` releases the merge gate:
+      this run merges its own work with no human review. Record the evidence on the
+      task first, then run `agentjobs finish task-223 --project agentjobs --posture-release`
+      from C:\projects\agentjobs. That rebases, runs the full gate, and merges only
+      on a green one -- it stops and hands the ball back if anything fails. Do not
+      merge by hand. Never push: this project is configured `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 0661de3
+    session_id: 88a4176f
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 15
+  ts: '2026-08-27T12:53:41.513893Z'
+  actor: claude
+  type: decision
+  body: "**Decided: independent children run concurrently, up to the machine's `limits.max_concurrent_runs`,\
+    \ on a rolling frontier with no barrier \u2014 and the merge is serialised behind\
+    \ a repo-scoped runway lock.** Branch `feat/task-223-parallel-epic-walk`, worktree\
+    \ `../worktrees/agentjobs-223`.\n\nEvery candidate the spec listed was weighed\
+    \ rather than assumed. What follows is what was chosen, what was rejected, and\
+    \ the one fact in this record that turned out to be stale.\n\n## The stale fact,\
+    \ corrected\n\nThis task's second \"what to decide\" bullet, and task-081's brief\
+    \ behind it, say children are **subprocesses not counted against `max_concurrent_runs`**.\
+    \ That stopped being true at task-022: a child is an ordinary dispatch now, so\
+    \ `dispatch_task` counts it in `live_runs` and raises `ConcurrencyLimitError`\
+    \ like anything else. The design doc's own \xA73 already says so.\n\nThat settles\
+    \ the \"relationship between the two caps\" question with a real answer instead\
+    \ of a new number: **there is one cap and it is `limits.max_concurrent_runs`.**\
+    \ `dispatch walk --max-concurrent N` can only narrow it. A walk allowed more would\
+    \ simply be refused a slot.\n\nIt also created a new requirement nobody had listed:\
+    \ **hitting the ceiling mid-walk had to become backpressure rather than a stop.**\
+    \ Before this, any `DispatchRefused` ended the walk. With several children in\
+    \ flight, a full machine is a normal condition and not a fact about this epic,\
+    \ so `ConcurrencyLimitError` now waits and retries. A machine that stays full\
+    \ for the whole per-child ceiling *does* stop the walk, naming `limits.max_concurrent_runs`\
+    \ as the thing to change.\n\n## Rolling frontier, not waves \u2014 implemented\
+    \ as specified in entry 7\n\n- Recomputed from claimability every tick. **No ready-queue\
+    \ that completing children push onto**, which is the implementation entry 7 warned\
+    \ about: the scheduler asks *are all of this child's needs satisfied*, never *did\
+    \ the child that just finished name me*. `TestConcurrentWalk::test_a_diamond_child_waits_for_its_second_parent`\
+    \ is that case, and it fails against the push version.\n- No barrier anywhere.\
+    \ `test_a_freed_child_starts_without_waiting_for_its_siblings` builds the wave-scheduler\
+    \ failure explicitly: a dependent whose gate closes early lands before a slow\
+    \ sibling it never depended on.\n- The invariant is asserted, not asserted-about:\
+    \ *at no point does an eligible, unclaimed child exist while a slot is free.*\n\
+    \n**Ordering: the graph decides eligibility, the queue decides order, out-degree\
+    \ breaks ties the queue does not.** Implemented exactly as entry 7 directs, and\
+    \ worth recording that in practice it is nearly inert: `(band, queue_position)`\
+    \ is already a total order over open work, so the tie-break rarely fires. That\
+    \ is the intended outcome \u2014 sorting the frontier by out-degree outright would\
+    \ quietly overrule every `queue move` a human made \u2014 but a later reader should\
+    \ not expect the heuristic to be doing visible work.\n\n**Stop rule, sharpened\
+    \ rather than weakened.** First child that is not clean grounds every further\
+    \ takeoff; children already in the air are watched down rather than killed, because\
+    \ none of them can depend on the failed one or claimability would not have offered\
+    \ them; anything that needed it never enters the frontier at all. The `walk_epic`\
+    \ docstring's argument survives intact and now says which half it justifies.\n\
+    \n## The runway (the harder half, and it did not exist)\n\nConfirmed by reading\
+    \ the code: **nothing serialised merges.** `acquire_run_lock` is keyed on task\
+    \ id; `record_commit.py` detects losing a race for git's `index.lock` and reports\
+    \ it, which is a symptom handler.\n\n`finish.merge`'s `base_moved` check already\
+    \ refuses a merge whose base moved during the gate \u2014 written for a rare race,\
+    \ and under concurrency it would become the ordinary outcome, escalating into\
+    \ a dispatched run every time. So `acquire_runway_lock` in `ledger.py`: one lock\
+    \ per **resolved, case-folded checkout path** (not per project id \u2014 two projects\
+    \ over one clone share a `main` and must share a runway), reserved `runway-` prefix\
+    \ in the existing locks directory so the existing startup sweep clears a stranded\
+    \ one.\n\nThree decisions inside it:\n\n1. **Held across rebase \u2192 gate \u2192\
+    \ merge, not taken at merge time.** Rejected the late lock: it needs an answer\
+    \ for \"the base moved while I was gating\", and the only correct one is to rebase\
+    \ and re-gate, which spends the gate twice and under contention repeatedly. Honest\
+    \ cost stated rather than hidden \u2014 at the ledger's 4.0m mean finish, a four-child\
+    \ epic spends ~16m on the runway and parallelises the other five-sixths of each\
+    \ run.\n2. **Waits rather than refuses**, one hour, configurable as `finish.runway_timeout_seconds`.\
+    \ Contention on a task lock is an error; contention here is the queue working.\n\
+    3. **A queued finish writes `finish_step: runway_queued` to its own record**,\
+    \ naming the holder. A child third in line is otherwise indistinguishable from\
+    \ one that has stalled.\n\nAlso fixed while there: `RunLock.release()` guarded\
+    \ only on `run_id`, so a runway (which names no run) released unconditionally\
+    \ \u2014 which for a *shared* lock means deleting whatever peer reclaimed it in\
+    \ between. It now guards on `finish_id` too.\n\n## The instrument came first,\
+    \ per entry 11\n\n`scripts/run_report.py --epics` / `--epic <id>` did not exist\
+    \ and the before/after could not have been produced without it. It groups runs\
+    \ and finishes under the parent of their task, read from the project corpus rather\
+    \ than the ledger \u2014 nothing in `meta.yaml` records a parent, so a ledger-only\
+    \ version could not have baselined the epics already recorded, which was the whole\
+    \ point.\n\n**One judgement in it worth challenging.** The first cut reported\
+    \ task-160 as 92% idle, which attributes a person's week to the scheduler. Gaps\
+    \ over `--gap-ceiling` (60m) now end a *sitting* and are reported as `paused`;\
+    \ within a sitting they are turnaround, which is what a scheduler owns. The two\
+    \ kinds do not overlap on any epic recorded so far \u2014 turnaround is a poll\
+    \ plus a dispatch, the other kind is overnight.\n\n**A defect the tests caught\
+    \ in the tool itself:** `peak_concurrency` sorted its sweep events start-before-end\
+    \ at the same instant, so a clean serial handover read as concurrency 2. That\
+    \ would have made the *baseline* look like the improvement. Spans are half-open;\
+    \ ends apply first.\n\n## Baseline, 2026-08-27, this machine's whole ledger, every\
+    \ walk serial by construction\n\n```\n  epic                             kids\
+    \  sit  peak     wall     work     idle   idle%      x\n  task-160-dispatch-phase-two\
+    \         7    5     2   642.8m   535.0m   111.3m   17.3%   0.83\n  task-081-task-selection-ranking\
+    \     3    1     1   167.5m    79.5m    88.0m   52.5%   0.47\n  task-280     \
+    \                       1    1     1    27.9m    21.8m     6.0m   21.6%   0.78\n\
+    \  task-211                            6    5     1   117.3m    37.2m    80.1m\
+    \   68.3%   0.32\n  task-269                            8    5     2   331.1m\
+    \   332.9m    22.2m    6.7%   1.01\n\n  time in sittings 21.4h   turnaround idle\
+    \ 5.1h (24%)   parallelism 0.78x   serial 3 of 5\n```\n\n`x` = summed child work\
+    \ / wall clock; **1.00 is serial**. The `peak 2` rows are a child's scripted finish\
+    \ overlapping another child's run, not a walk running two children.\n\nRecorded\
+    \ in `docs/performance.md` under \"Where epic time goes\", with the correction\
+    \ entry 3 asked for: this task's quoted +9%/+16% contention figures are from the\
+    \ serial-pytest era and are wrong; three concurrent gates now cost ~360s each\
+    \ against 96s solo, and the gate is a sixth of an instrumented run. **The honest\
+    \ expectation is nearer 2x than 4x on a four-wide fan-out**, and that is now written\
+    \ where the next reader will find it rather than left to be rediscovered.\n\n\
+    ## Where the answers live (ac-1, ac-3, ac-4)\n\n- `ALLAGENTS.md` Parent Task Loop\
+    \ \u2014 rewritten, net +675 bytes against 1,443 of headroom in the context budget.\n\
+    - `docs/agent-workflow.md` \u2014 new **\"How many children fly at once\"** with\
+    \ the frontier, the ordering rule, the stop rule and the ceiling; and **line 181\
+    \ is fixed**: \"the reason is context, not parallelism \u2014 the loop is still\
+    \ one child at a time\" now reads as an argument about isolation that is explicitly\
+    \ silent on ordering, with the reason it does not reach that conclusion.\n- `docs/agent-dispatch-design.md`\
+    \ \u2014 the decision record with the measurements and the rejected alternatives.\n\
+    - `ENGINEERING.md` merge gate step 3 \u2014 one sentence, because a person whose\
+    \ approval queues needs to know that is the system working.\n\n## What is deliberately\
+    \ not done\n\nOut of scope per the spec and left alone: agent-started children\
+    \ in the run ledger (they are already there), supervision posture as a setting,\
+    \ and raising `max_concurrent_runs` itself \u2014 this machine's `3` is unchanged,\
+    \ so the first real concurrent walk gets two children in the air beside its supervisor.\n\
+    \nThe **after** half of the pair cannot be produced by this task: it needs a real\
+    \ multi-child epic dispatched after this merges. `run_report.py --epics` is what\
+    \ produces it, `x` is the number to read, and the baseline above is what to compare\
+    \ against."
+  data:
+    operation:
+      id: 6a1d2c74-9f0b-4c31-8e52-0f7b3a91d4c8
+      kind: log_append
+      fingerprint: 2c635ebce8d71a11a705817051119309
+- id: 16
+  ts: '2026-08-27T12:54:26.251756Z'
+  actor: claude
+  type: note
+  body: Updated branches, deliverables.
+  data:
+    fields:
+    - branches
+    - deliverables
+    operation:
+      id: 8b2e5d41-7c93-4a06-b1f8-6d2e04a7c519
+      kind: update_content
+      fingerprint: f19b5e2077a3b8dbffd6213fbc9b6584
+- id: 17
+  ts: '2026-08-27T12:54:57.930508Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: c4f70a92-1d38-4b5e-9a26-3f5c8e21b7d0
+      kind: update_content
+      fingerprint: 9f9f35b75f9c52c3141a9c4b454abd56
