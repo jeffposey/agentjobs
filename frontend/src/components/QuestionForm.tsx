@@ -130,23 +130,31 @@ function Option({
         disabled={disabled}
         aria-pressed={chosen}
         onClick={() => onChange(toggle(draft, option.label, question.multiSelect))}
-        className={`touch-target flex w-full flex-col items-start gap-1 rounded-lg border p-3 text-left disabled:opacity-60 ${
+        className={`touch-target w-full rounded-lg border p-3 text-left disabled:opacity-60 ${
           chosen
             ? "border-emerald-500 bg-emerald-950/40"
             : "border-dark-border bg-dark-bg hover:border-yellow-600/60"
         }`}
       >
-        <span className="flex flex-wrap items-center gap-2">
-          <span className="font-semibold">{option.label}</span>
-          {option.recommended && (
-            <span className="rounded border border-blue-500/60 px-2 py-0.5 text-xs uppercase text-blue-300">
-              Recommended
-            </span>
+        {/* The stack lives in a child rather than on the button, because
+            `.touch-target:not(.block)` sets `display: inline-flex; align-items: center`
+            at a specificity Tailwind's single-class utilities cannot beat -- so
+            `flex-col items-start` on the button itself rendered every option centred.
+            Seen in a browser at the sandbox; no test asked the question, because a
+            test that reads the label does not care where the label is. */}
+        <span className="flex w-full flex-col items-start gap-1">
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold">{option.label}</span>
+            {option.recommended && (
+              <span className="rounded border border-blue-500/60 px-2 py-0.5 text-xs uppercase text-blue-300">
+                Recommended
+              </span>
+            )}
+          </span>
+          {option.description && (
+            <span className="text-sm text-dark-muted">{option.description}</span>
           )}
         </span>
-        {option.description && (
-          <span className="text-sm text-dark-muted">{option.description}</span>
-        )}
       </button>
     </li>
   );
