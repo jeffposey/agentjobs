@@ -3,7 +3,7 @@ id: task-317
 title: The AgentJobs MCP server is declared twice under one name, and the two declarations
   point at different ports
 created: '2026-08-25T10:43:10.073470Z'
-updated: '2026-08-27T11:44:09.141184Z'
+updated: '2026-08-27T11:46:08.225451Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -326,3 +326,66 @@ log:
       id: c41b7e08-92d5-4a3f-8f1c-6e2d5a09b7c3
       kind: update_content
       fingerprint: 7058cf2370af77611d6149c6f90985ce
+- id: 9
+  ts: '2026-08-27T11:46:08.225240Z'
+  actor: claude
+  type: decision
+  body: "**Why the plugin's declaration was kept and de-ported rather than deleted,\
+    \ and what that hands back to Jeff.**\n\nThree options were on the table for \"\
+    make one canonical and remove or align the other\" (spec item 2).\n\n**Rejected:\
+    \ delete `plugins/agentjobs/.mcp.json` and drop `mcpServers` from the plugin manifest.**\
+    \ It is the most literal reading of \"exactly one declaration survives\", and\
+    \ it would have guaranteed one live server here. But the plugin exists to be installed\
+    \ by people who are not Jeff, and its bundled server is most of what it is for\
+    \ \u2014 `docs/mcp-clients.md` and the plugin README both present it as the way\
+    \ a Claude Code or Codex user gets the tools. Deleting it to tidy up one machine's\
+    \ session would break the artefact for everyone else. It also would not have been\
+    \ the \"one declaration\" it looks like: the root `.mcp.json` it defers to is\
+    \ untracked, so the repository would then declare no MCP server at all.\n\n**Rejected:\
+    \ point the plugin at 8876.** That is what the spec literally asks for in item\
+    \ 2 (\"whichever survives must point at 8876\"), and it is wrong for the same\
+    \ reason the current value is wrong \u2014 8876 is *this machine's* port, and\
+    \ a file that ships to strangers would then be confidently wrong about their machine\
+    \ instead of ours. Item 3 anticipates exactly this and asks for resolution from\
+    \ the environment or the registry, which is what was built.\n\n**Chosen: no address\
+    \ in the file, and a resolution chain in the code that already existed elsewhere.**\
+    \ The plugin declaration is the repository's one canonical `agentjobs` MCP entry;\
+    \ it now says only *what to run*, and `McpConfig.resolve` answers *where* from\
+    \ `AGENTJOBS_API_BASE`, then `api_base:` in `~/.agentjobs/dispatch.yaml`, then\
+    \ the CLI's own default. Nothing new was invented \u2014 dispatch and `agentjobs\
+    \ init` both already resolved the address this way, and `McpConfig` was the one\
+    \ caller that did not.\n\n## Two things for Jeff, neither of which this task changed\n\
+    \nThe constraints say machine configuration is his, not the repository's. Both\
+    \ of these are that, so they are raised rather than done.\n\n1.  **You now have\
+    \ two working `agentjobs` MCP servers, where before you had one working and one\
+    \ dead.** That is the direct consequence of this fix: `~/.agentjobs/dispatch.yaml`\
+    \ already declares 8876, so the plugin's server will connect from now on. They\
+    \ do not collide \u2014 Claude Code namespaces them `mcp__agentjobs__*` and `mcp__plugin_agentjobs_agentjobs__*`,\
+    \ and `~/.claude/settings.json` already allow-lists both \u2014 but a session\
+    \ will carry two copies of the tool list and two copies of the instruction block,\
+    \ which is Auditor 8's F11 becoming true for the first time. **Turn one off.**\
+    \ Either drop `\"enabledMcpjsonServers\": [\"agentjobs\"]` from `~/.claude/settings.json`\
+    \ and delete the untracked root `.mcp.json` (keeping the plugin, which also carries\
+    \ the skill and the write guard), or leave the project-scoped entry as the live\
+    \ one and disable the plugin's server while keeping the plugin. The first is tidier:\
+    \ one wiring, and it is the one under version control. `docs/mcp.md` now says\
+    \ this in the \"It is separate from the plugin\" bullet so the next person meets\
+    \ it before paying for it.\n\n2.  **Per-project MCP scoping, unchanged from the\
+    \ spec's own recommendation.** Nine of the ten servers in a session here \u2014\
+    \ Gmail, Slack, Notion, Calendar, Drive, Indeed, Microsoft 365, Chrome, Uber \u2014\
+    \ have nothing to do with this repository and are most of the ~3,795-token MCP\
+    \ block. Scoping them per project would recover the bulk of it. Not touched: that\
+    \ is `~/.claude/settings.json`, which the constraints put out of bounds.\n\n##\
+    \ One scope note\n\nFour places said the server serves \"fifteen tools\"; it serves\
+    \ sixteen (`playbooks_list` was missing from the enumeration, and `docs/mcp.md`\
+    \ already contradicted itself by quoting `Serving 16 tool(s)` twelve lines below\
+    \ one of them). Corrected in the three files this change was already rewriting,\
+    \ and phrased as \"ask the server, it names them at startup\" rather than as a\
+    \ new number \u2014 ENGINEERING.md's rule about quoting a command instead of a\
+    \ bare count. `docs/mcp-integration-design.md` is a dated design record and was\
+    \ left alone."
+  data:
+    operation:
+      id: 2e6d1f94-0a73-4c85-b3d1-9f4e7c2a6081
+      kind: log_append
+      fingerprint: e4d72becb363b8d83b175e56add6b18c
