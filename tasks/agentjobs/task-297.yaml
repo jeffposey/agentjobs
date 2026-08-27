@@ -3,7 +3,7 @@ id: task-297
 title: 'The scripted finish cannot merge under concurrency: base_moved fires on task-record
   commits, and each escalation causes the next'
 created: '2026-08-23T20:57:20.855780Z'
-updated: '2026-08-27T16:27:16.307437Z'
+updated: '2026-08-27T16:27:38.848897Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -481,3 +481,28 @@ log:
     finish_step: started
     branch: fix/task-297-finish-catch-up
     finish_id: fin_281c62e5
+- id: 11
+  ts: '2026-08-27T16:27:38.848621Z'
+  actor: claude
+  type: progress
+  body: "## This entry is the live demonstration, on this repository\n\nWritten and\
+    \ committed to `main` deliberately, **while this task's own scripted finish is\
+    \ mid-gate** \u2014 the finish announced its start at `d85df09` and is now several\
+    \ minutes into `scripts/check.py` in `../worktrees/agentjobs-297`.\n\nThat is\
+    \ the exact situation the task describes: an ordinary agent session, holding no\
+    \ runway, doing what ENGINEERING.md requires \u2014 committing a task record to\
+    \ `main` while a finish's gate is running. Before this change it is the commit\
+    \ that would have escalated the finish with `base_moved` and cost a whole dispatched\
+    \ run.\n\nWhat should happen instead: `catch_up` sees `main` moved, asks `scripts/gate_scope.py`\
+    \ what `tasks/agentjobs/task-297.yaml` can reach, gets `pytest`, rebases the branch\
+    \ onto this commit and re-runs `scripts/check.py --only pytest` \u2014 which contains\
+    \ `TestRealCorpus`, and therefore reads *this very file* \u2014 and then merges.\n\
+    \nThe step table in this task's closing entry is where that either happened or\
+    \ did not. If the entry below this one records a merge with a `catch_up` line\
+    \ in it, sc-1 is discharged on the real repository with the real gate, not only\
+    \ in the harness.\n"
+  data:
+    operation:
+      id: 7f2a1c30-9d41-4b62-8e05-1a2b3c4d5e06
+      kind: log_append
+      fingerprint: af6ef743414c9e684342198146724175
