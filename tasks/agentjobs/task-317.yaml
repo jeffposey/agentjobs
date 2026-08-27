@@ -3,7 +3,7 @@ id: task-317
 title: The AgentJobs MCP server is declared twice under one name, and the two declarations
   point at different ports
 created: '2026-08-25T10:43:10.073470Z'
-updated: '2026-08-27T11:54:12.611344Z'
+updated: '2026-08-27T12:55:26.909781Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -534,3 +534,13 @@ log:
       id: 1d7e9a34-6c02-4b58-8e91-7f30a2c5b6de
       kind: log_append
       fingerprint: bc052884157076f0476c3d793e5e60b3
+- id: 16
+  ts: '2026-08-27T12:55:26.909511Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 6
+  data:
+    run_id: run_41989070
+    outcome: completed
+    duration_seconds: 4974.30613
+    log_path: C:\Users\jpose\.agentjobs\runs\run_41989070
