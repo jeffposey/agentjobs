@@ -246,31 +246,22 @@ does not reach, which is how the suite would otherwise rot.
 
 **Short — and the lever is not the one people reach for.** Every rebase conflict in the
 task-211 epic came from a branch living across another branch's merge; running the work
-in parallel caused none of them.
-
-The obvious conclusion from that is wrong, and it is worth saying why before anybody
-draws it. **Branch lifetime is not task size.** task-217's branch was open about nine
-hours and contained roughly one hour of work; the other eight were *waiting* — for an
-approval, then behind two `base_moved` retries. Shrinking that task would not have taken
-a minute off its branch. Lifetime is driven by **wait**, so wait is the thing to attack:
+in parallel caused none of them. **Branch lifetime is not task size**: task-217's branch
+was open nine hours and contained one hour of work, the rest being wait. So attack wait:
 
 -   **Rebase onto `main` before handing off for review**, not only when the merge gate
-    refuses. A branch that has been open for hours is very likely behind, and rebasing at
-    handoff moves the conflict to a moment when a session is already in context, where it
-    costs minutes. Left until the merge, the same conflict stops a scripted finish and
-    costs a whole cycle.
--   **Do not leave a ready branch sitting.** The two long poles are review latency and
-    merge retries. The half you control is handing off with a complete review request the
-    *first* time — everything a reviewer needs, on the record, so the answer does not
-    need a round trip to ask a question you could have answered.
+    refuses. A branch open for hours is very likely behind, and rebasing at handoff moves
+    the conflict to a moment when a session is already in context, where it costs minutes.
+    Left until the merge, the same conflict stops a scripted finish and costs a cycle.
+-   **Do not leave a ready branch sitting.** The half you control is handing off with a
+    complete review request the *first* time, so the answer does not need a round trip to
+    ask a question you could have answered.
 
 **Bigger tasks are fine, and often better.** Every task boundary pays for a worktree, a
-bootstrap, a full gate, a review round, a merge and a cleanup, and on a small task that
-overhead is most of the total cost. The ceiling on a task is not a size. It is the point
-where one session's context can no longer hold the work, or where the acceptance criteria
-stop being independently verifiable. Below that, prefer more per task rather than less —
-splitting work to keep branches short trades away real overhead for a problem splitting
-does not solve.
+bootstrap, a full gate, a review round, a merge and a cleanup. The ceiling on a task is
+not a size but the point where one session's context can no longer hold the work, or
+where the acceptance criteria stop being independently verifiable. Below that, prefer
+more per task rather than less.
 
 **The parent-task rule is a session boundary, not a size limit**, and the two are
 routinely confused. [ALLAGENTS.md](ALLAGENTS.md#you-do-not-work-the-children) says
@@ -377,28 +368,18 @@ first — there is no separate switch.
 | `autonomous` | `bypassPermissions` | merges its own work | per project |
 
 `auto` and `supervised` are deliberately identical here. They differ in how the process
-is gated *while it runs*, which is a different question from who authorises the merge,
-and giving them different answers to the second would make the choice between them
-silently decide something nobody was choosing.
+is gated *while it runs*, which is a different question from who authorises the merge.
 
 **An autonomous run does not run `git merge`.** It records its evidence on the task and
-then runs the scripted finish with the flag that says which authority it is claiming:
-
-```bash
-poetry run agentjobs finish task-021 --project agentjobs --posture-release
-```
-
-That routes it through exactly the sequence a human approval takes — rebase onto `main`,
-**the full unqualified `scripts/check.py` on the rebased branch**, `--no-ff` merge,
-rebuild, restart, verify, close, remove the worktree, delete the branch — and stops at
-the first step it cannot complete, handing the ball back with what it got done written on the record. The
-posture is re-checked there, in code: `--posture-release` on a project configured `auto`
-declines and touches nothing.
+then runs `agentjobs finish <task> --project <id> --posture-release`, which routes it
+through exactly the sequence a human approval takes and stops at the first step it cannot
+complete. The posture is re-checked there, in code: `--posture-release` on a project
+configured `auto` declines and touches nothing.
 
 **The gate is the point.** "No serious issue detected by the agent" is the agent grading
 its own homework and is the least reliable authority available, so it is not the one that
-merges. `scripts/check.py` exit 0 is, and it is run by the finisher rather than reported
-by the agent. Both have to hold: an agent that finds a serious problem stops and hands
+merges. `scripts/check.py` exit 0 is, and the finisher runs it rather than taking the
+agent's word. Both have to hold: an agent that finds a serious problem stops and hands
 off however green the gate was, and a green agent with a red gate merges nothing.
 
 **Push is not a posture property.** It is per project, it defaults to `false`, and it is
