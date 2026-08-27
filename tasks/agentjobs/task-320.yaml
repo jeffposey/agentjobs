@@ -2,10 +2,11 @@ schema: 2
 id: task-320
 title: A session AgentJobs did not start is invisible to every safety net it has
 created: '2026-08-27T13:52:22.466316Z'
-updated: '2026-08-27T13:54:11.975201Z'
-lifecycle: ready
+updated: '2026-08-27T16:44:20.989265Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 queue_position: 14600
@@ -16,6 +17,7 @@ tags:
 - observability
 - agent-dx
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: A session started outside dispatch has no run record, so the poller never
@@ -146,27 +148,37 @@ acceptance:
   text: The chosen approach is argued on the record with its rejected alternatives,
     including why it does not report a task legitimately claimed by an interactive
     session as a fault.
-  verify: this task's log
-  status: pending
+  verify: 'log entry 7: adoption chosen; both alternatives argued and rejected; an
+    interactive session is refused by construction (session_interactive) so it can
+    never be reported as a fault'
+  status: met
 - id: sc-2
   text: A session working a task without a run record is either impossible, adopted,
     or detected -- and whichever it is, the outcome is visible on the task record
     rather than only in a CLI.
-  verify: the record of a deliberately un-dispatched session
-  status: pending
+  verify: 'adopted: registration writes a note to the task record, and every later
+    poll outcome lands there too. Live in log entry 9; asserted in tests/test_dispatch_registration.py
+    TestAdoption and TestThePollerFollowsARegisteredSession'
+  status: met
 - id: sc-3
   text: 'Demonstrated live, not only in tests: a session is started against a task
     outside dispatch and the system''s response is shown on the record.'
-  verify: live evidence on the record
-  status: pending
+  verify: 'log entry 9: real claude --bg session a75d13f1 on Claude Code 2.1.247.
+    poll_live_sessions returned [] before registering; after registering the poller
+    wrote dispatch_result finished_without_handoff and moved the ball to human/decision'
+  status: met
 - id: sc-4
   text: Whether recovery is in scope is decided explicitly rather than left ambiguous.
-  verify: this task's log
-  status: pending
+  verify: 'log entry 8: out of scope, argued rather than inherited -- task-296''s
+    dirty-worktree reason plus one specific to registration, that AgentJobs never
+    had this session''s argv and so has nothing to restart'
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-320-run-register
+  status: active
 log:
 - id: 1
   ts: '2026-08-27T13:52:23.012516Z'
@@ -191,3 +203,262 @@ log:
       id: a05c3b71-4e2f-49d6-8b10-97cc26e1f5b2
       kind: update_content
       fingerprint: fb640a97936aa4fe480dc093efa81636
+- id: 3
+  ts: '2026-08-27T16:01:58.951117Z'
+  actor: Jeff Posey
+  type: note
+  body: I like idea that sessions can register themselves as working on a task and
+    should know to always do that from the agents md files, and if dispatched then
+    they know they don't need to
+  data: {}
+- id: 4
+  ts: '2026-08-27T16:02:07.868171Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 5
+  ts: '2026-08-27T16:02:08.456672Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 6
+  ts: '2026-08-27T16:02:10.582078Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_e46d7e23
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 4
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"], "env": {"AGENTJOBS_RUN_ID":
+      "run_e46d7e23", "AGENTJOBS_RUN_DIR": "C:\\Users\\jpose\\.agentjobs\\runs\\run_e46d7e23"}}'
+    - 'You are the agent `claude` working task `task-320` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-320-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_e46d7e23. Posture `auto` stops at the merge gate: when
+      the work is done and verified, record the evidence on the task, hand the ball
+      to human/review, and stop. Do not merge. Never push: this project is configured
+      `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 79889e2
+    session_id: 0447d6de
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 7
+  ts: '2026-08-27T16:42:33.971969Z'
+  actor: claude
+  type: decision
+  body: '**Decision: adoption, not detection. `agentjobs run register` is the fix.**
+
+
+    Jeff''s note on this record (entry 3) picked the shape: sessions register themselves,
+    the AGENTS.md files say to always do it, and a dispatched session knows it need
+    not. That is what is built, and here is the argument for it against the two alternatives
+    the spec put up.
+
+
+    **Rejected -- make the protocol the fix (do nothing).** `dispatch walk` already
+    starts epic children as real dispatches, so their coverage is by construction.
+    But that closes the gap only for epic children. A human or a supervisor can still
+    hand-spawn a session at any task, which is exactly what happened to task-217,
+    and nothing would stop or notice it. Rejected as insufficient rather than as wrong.
+
+
+    **Rejected for now -- record-side detection.** Flagging a task that is `active`/`agent`/`work`
+    with no live run behind it and no log movement is runner-agnostic and catches
+    causes registration cannot, including a dispatched run whose process died without
+    the ledger noticing. It was not built because of the constraint on this record:
+    it cannot presently tell an unattended session from an interactive one a person
+    is working in, and both are `active`/`agent`/`work` with no run record. Every
+    interactive session would be a false positive, and a detector that cries wolf
+    on the most common healthy state is worse than none.
+
+
+    **Registration is what makes that detector possible later**, which is the reason
+    to build this one first. Once an unattended session is expected to have a run
+    record, *not* having one stops being the norm and becomes a signal. Detection
+    is the natural follow-up and is a better task after this than before it.
+
+
+    **How the interactive case is handled here: by construction, not by heuristic.**
+    `register` refuses an interactive session outright (`session_interactive`). A
+    session a person is sitting in is never adopted, so it can never be reported stalled,
+    parked, or finished-without-handing-off. The decisive reason is not false positives:
+    `_settle_finished_session` calls `stop_session` on a session it judges finished,
+    and applied to a session somebody was typing into that would end it mid-sentence.
+    Claiming the task remains what records that a person is working it.
+
+
+    Answers **sc-1**.'
+  data:
+    operation:
+      id: 3f1c2a90-77b2-4e21-9f36-1a4c8ad61b01
+      kind: log_append
+      fingerprint: 544cab709f3376f3eda717ea365aa022
+- id: 8
+  ts: '2026-08-27T16:42:52.002376Z'
+  actor: claude
+  type: decision
+  body: '**Decision: recovery is out of scope. Detection and reporting only.**
+
+
+    sc-4 asked for this to be argued rather than inherited from task-296. Task-296''s
+    reason was that a stalled session may hold a dirty worktree, so restarting risks
+    two sessions on one branch. That reason applies here unchanged, and registration
+    adds a second one that is stronger and specific to it:
+
+
+    **AgentJobs never had this session''s argv, environment or prompt.** It did not
+    start the process, so it has nothing to start again. A "restart" would be a cold
+    dispatch wearing the old run''s name, against a task whose worktree and branch
+    the previous session may still hold -- which is the two-sessions-on-one-branch
+    failure, arrived at by a different road.
+
+
+    So a registered session is never killed and never restarted. It stays attachable,
+    and what AgentJobs does is say on the task record which of the four things happened
+    to it: parked on a permission prompt, stopped by an expired login, finished without
+    handing off, or claiming to work while emitting nothing. `agentjobs dispatch cancel
+    <run>` remains available to a human who wants the session stopped.
+
+
+    **Three smaller scope calls, recorded so they are not re-taken:**
+
+
+    - **The machine''s `max_concurrent_runs` is not applied to a registration.** It
+    exists to stop a click starting an agent the machine cannot afford. This session
+    is already running; refusing would not stop it, it would only keep it invisible,
+    which is the whole defect. The registered run does hold a slot from then on, because
+    the machine really is running that agent.
+
+    - **A registration writes a `note`, not a `dispatch` entry.** Nobody authorised
+    a run and AgentJobs started no process, so design section 2''s human-clocked chain
+    must not be forged by a command any agent can invoke. The note''s entry id is
+    what the run''s `dispatch_entry_id` points at, which is all `_ball_moved` and
+    `record_dispatch_result` need.
+
+    - **A session launched from inside a worktree is refused, not adopted.** `runner.ledger()`
+    lists with `--cwd <project root>`, and the poller looks a session up exactly that
+    way -- so adopting one listed elsewhere would produce a run reported `gone` at
+    the next tick. Refusing is the honest answer; relaxing it later means teaching
+    the poller to widen its own lookup, which is a change to the poller and not to
+    this command.
+
+
+    Answers **sc-4**.'
+  data:
+    operation:
+      id: 7b2d4e11-0c93-4a77-b5e2-9d3f61a4c2d8
+      kind: log_append
+      fingerprint: 7eb41b2153df021cdace35fe8de7ecd5
+- id: 9
+  ts: '2026-08-27T16:43:29.299828Z'
+  actor: claude
+  type: progress
+  body: "**Live demonstration, on a real hand-spawned session (sc-3).**\n\nInstrument\
+    \ named, per ENGINEERING.md: a real `claude --bg` session on Claude Code **2.1.247**,\
+    \ a real `poll_live_sessions`, and a real `agentjobs run register` invoked through\
+    \ Typer. Nothing was faked. It ran in an isolated `AGENTJOBS_HOME` with its own\
+    \ registry, dispatch config and scratch project, so the agentjobs backlog and\
+    \ Jeff's real dispatch home were untouched; the sandbox has been removed and the\
+    \ demo session stopped.\n\n**1. The defect, reproduced.** A session was spawned\
+    \ by hand from the project root -- `claude --bg --remote-control ...`, id `a75d13f1`\
+    \ -- against a task that was `active`/`agent`/`work`. It was plainly there (`claude\
+    \ agents --json --cwd <root>` listed it, pid and all). The poller saw nothing:\n\
+    \n```\n=== poll BEFORE registering (the defect) ===\n[]\n```\n\nThat is task-217's\
+    \ four hours, in one line.\n\n**2. Registration.**\n\n```\n$ agentjobs run register\
+    \ --task task-001 --project demo --session a75d13f1\nSession a75d13f1 adopted\
+    \ as run run_64440917. It is now polled like a dispatched run.\n   Run directory:\
+    \ C:\\ai\\scratch\\aj320-demo\\home\\runs\\run_64440917\n   Not a dispatch: nobody\
+    \ authorised a run and none was started, so the task record\n   carries a note\
+    \ rather than a dispatch entry.\n```\n\n**3. The poller then followed it, through\
+    \ unmodified code**, and concluded it onto the task record:\n\n```\npoll 1: [('run_64440917',\
+    \ 'finished', 'finished')]\npoll 2: [('run_64440917', 'finished', 'finished')]\n\
+    poll 3: [('run_64440917', 'finished', 'finished')]\npoll 4: []\n--- after polling\n\
+    \    run run_64440917: status=finished outcome=finished_without_handoff\n    task:\
+    \ ball=human/decision\n    log: [(1,'transition','claude'), (2,'note','claude'),\n\
+    \          (3,'dispatch_result','dispatcher'), (4,'handoff','dispatcher')]\n```\n\
+    \nEntry 3 wrote *\"The session finished its turn and the ball never moved, so\
+    \ it stopped without saying what it needs. It was **not** killed and is still\
+    \ attachable\"*, and entry 4 moved the ball to a human. Before this change none\
+    \ of that could reach a hand-spawned session at all.\n\n**Two live refusals, also\
+    \ against the real ledger** (run from this session, against the real agentjobs\
+    \ project):\n\n```\nRefused (session_unnamed): This session could not name itself,\
+    \ and no --session was\ngiven. ... Find the id with `claude agents` and pass `--session\
+    \ <id>`.\n\nRefused (session_unknown): No live session deadbeef under C:\\projects\\\
+    agentjobs.\nLive there now: 39a62dc4, 6a0beee3, c3d83a32, 4faf6989, f4f337f1,\
+    \ 2dae6662. ...\n```\n\n**And the no-op, live, from this very dispatched run:**\n\
+    \n```\n$ agentjobs run register --task task-320 --project agentjobs\nAlready known:\
+    \ AgentJobs dispatched this session as run run_e46d7e23, so it has a run\nrecord\
+    \ and is polled. Nothing to do.\n```\n\n**What the demonstration did not cover,\
+    \ stated rather than implied.** The stall report (`_check_running_stall`) and\
+    \ the permission park were exercised in tests against the fake session CLI, not\
+    \ live: manufacturing a real session that claims to be working while emitting\
+    \ nothing for the configured window is not something I can do on demand. They\
+    \ reach a registered session by exactly the same route the settle above did --\
+    \ one `RunHandle` rebuilt from the run record -- so the live evidence for that\
+    \ route is what carries them.\n\n**One thing corrected along the way.** All four\
+    \ ball prompts a poll can write began \"Dispatched session\", which is false for\
+    \ an adopted one and is the first thing a person reading the prompt would check.\
+    \ They now read the run's `origin`; the demo's entry 4 says *\"A registered session\
+    \ (a75d13f1) finished without handing off\"*."
+  data:
+    operation:
+      id: c81a5f36-4d20-4b6e-9a15-2e7c0f8b3391
+      kind: log_append
+      fingerprint: 2274c4fb3e9d8091791b6b20482316df
+- id: 10
+  ts: '2026-08-27T16:44:20.989074Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: e05c8d13-62a9-4b1e-9d38-7c1f3a8b52d6
+      kind: update_content
+      fingerprint: 2d2caece518a563ba2642415b79cfe4d
