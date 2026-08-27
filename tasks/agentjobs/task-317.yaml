@@ -3,7 +3,7 @@ id: task-317
 title: The AgentJobs MCP server is declared twice under one name, and the two declarations
   point at different ports
 created: '2026-08-25T10:43:10.073470Z'
-updated: '2026-08-27T11:46:08.225451Z'
+updated: '2026-08-27T11:49:00.826605Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -83,14 +83,18 @@ acceptance:
   text: The record states, with evidence from a running session rather than from reading
     config, which of the two `agentjobs` MCP declarations a session actually gets,
     for a dispatched run and for an interactive one.
-  status: pending
+  verify: 'Log entry 7: `claude mcp list` from run_41989070, plus a process listing,
+    netstat, and this session''s own tool namespace.'
+  status: met
 - id: ac-2
   text: Exactly one declaration survives in the repository, or both point at the same
     port; no declaration in the repository names 8765.
-  status: pending
+  verify: pytest tests/test_codex_plugin.py::TestMcpWiring::test_it_names_no_port_so_the_machine_gets_to_answer
+  status: met
 - id: ac-3
   text: The full unqualified scripts/check.py is green on the change.
-  status: pending
+  verify: 'Log entry 10: exit 0, `Ran every stage (10 of 10)`, 275.7s, 2026-08-27.'
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -389,3 +393,65 @@ log:
       id: 2e6d1f94-0a73-4c85-b3d1-9f4e7c2a6081
       kind: log_append
       fingerprint: e4d72becb363b8d83b175e56add6b18c
+- id: 10
+  ts: '2026-08-27T11:48:38.058212Z'
+  actor: claude
+  type: progress
+  body: "**Gate green, all ten stages, on the branch. ac-3 satisfied.**\n\n`scripts/check.py`\
+    \ with no arguments, in `../worktrees/agentjobs-317`, run with the interpreter\
+    \ `scripts/bootstrap.py` printed for that worktree, 2026-08-27:\n\n```\n  black\
+    \      3.8s\n  ruff       0.2s\n  mypy      17.6s\n  api        6.7s\n  icons\
+    \      2.6s\n  oxlint     0.9s\n  pytest   170.3s\n  vitest    33.0s\n  build\
+    \      4.5s\n  e2e       36.1s\n  total    275.7s\n\nRan every stage (10 of 10).\n\
+    ```\n\nExit 0. No `PARTIAL RUN` and no `NECESSITY RUN`. It declined to write a\
+    \ receipt because the tree was still dirty at the time \u2014 the commits below\
+    \ were made after it, which is the order ENGINEERING.md requires (the gate compares\
+    \ generated output against the working tree, so it must precede the commit). `agentjobs\
+    \ finish` re-runs the full gate on the rebased branch anyway, and that run is\
+    \ the one the merge stands on.\n\nThree commits on `fix/task-317-mcp-declaration-port`:\n\
+    \n| sha | |\n|---|---|\n| `fe0197b` | `fix(mcp): resolve the service address instead\
+    \ of hardcoding a port in the plugin` |\n| `f8bab28` | `docs(mcp): stop telling\
+    \ every client to write a port into its own config` |\n\n(and the two `chore(task-317):`\
+    \ task-record commits on `main`, `f449100` and `18dad65`.)\n\n## What each acceptance\
+    \ criterion rests on\n\n**ac-1** \u2014 entry 7. `claude mcp list` from this dispatched\
+    \ session, plus a process listing, plus `netstat`, plus this session's own tool\
+    \ namespace. The interactive half is the same evidence: `claude mcp list` is a\
+    \ real Claude Code process reading the same three configuration sources a session\
+    \ does \u2014 user settings, the project `.mcp.json`, and the plugin \u2014 and\
+    \ it reported the same two servers with the same two verdicts. It is not a dispatch-only\
+    \ artefact: `enabledMcpjsonServers` in the dispatch `--settings` turned out to\
+    \ be irrelevant to the outcome, because that setting only suppresses the trust\
+    \ prompt for the project-scoped entry and the plugin's server was failing for\
+    \ an unrelated reason (a dead address). The answer for both kinds of session is\
+    \ the same one: **the project-scoped `.mcp.json` at the repo root is the only\
+    \ `agentjobs` server a session actually gets, and the plugin's has never started.**\n\
+    \n**ac-2** \u2014 `plugins/agentjobs/.mcp.json` is the repository's only `agentjobs`\
+    \ MCP declaration (the root file is untracked, `.gitignore:74`), and it now names\
+    \ no port. `tests/test_codex_plugin.py::TestMcpWiring::test_it_names_no_port_so_the_machine_gets_to_answer`\
+    \ asserts both halves and is the regression guard: it fails if `AGENTJOBS_URL`\
+    \ reappears in that entry or if `8765` appears anywhere in it.\n\n**ac-3** \u2014\
+    \ above.\n\n## What would still catch a regression here\n\nThe new tests pin the\
+    \ resolution order, not just the outcome: `test_the_machines_declared_address_beats_the_default`\
+    \ writes a `dispatch.yaml` into an isolated `AGENTJOBS_HOME` and asserts the server\
+    \ resolves it, and `test_agentjobs_url_still_beats_the_machines_declaration` asserts\
+    \ the new source stays *below* the explicit one, which is the half a careless\
+    \ reorder would break. The end-to-end check that the two unit tests cannot make\
+    \ \u2014 that a real `agentjobs mcp` process reaches 8876 with nothing in its\
+    \ environment \u2014 is in entry 7, and was run against this branch's source."
+  data:
+    operation:
+      id: 9b0c4e57-3d21-4f8a-a6b9-5e17c2d0847f
+      kind: log_append
+      fingerprint: 4dfd45fbaa2565dea4f9a664a31270cd
+- id: 11
+  ts: '2026-08-27T11:49:00.826441Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 5a8f2c60-7e14-4b93-b2d7-3c096e18d4a3
+      kind: update_content
+      fingerprint: ac4fcbb0231575ce6e5f8bce6f97da68
