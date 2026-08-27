@@ -296,7 +296,8 @@ projects: {}
 limits:
   max_concurrent_runs: 1
   run_timeout_seconds: 1800      # batch runners only
-  session_stale_seconds: 3600    # sessions: moves the ball, never kills
+  session_stale_seconds: 3600    # a session that ended its turn without handing off
+  session_stall_seconds: 1800    # one still claiming to work, emitting nothing (never kills)
   auto:                          # these bind auto-dispatch only
     per_task_per_day: 3
     per_task_lifetime: 10

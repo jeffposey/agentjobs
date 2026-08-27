@@ -2177,7 +2177,7 @@ class DispatchRunner:
 
         # Before acting, not after: settling a finished session reaps it, and a reaped
         # session has no transcript left to read.
-        self.capture_transcript(handle)
+        transcript = self.capture_transcript(handle)
 
         # Before the phase branches, because it *contradicts* them. A session killed by
         # an expired login reads `idle`/`done`, so `_settle_finished_session` would write
@@ -2195,6 +2195,8 @@ class DispatchRunner:
             self._finish_session(handle, DispatchOutcome.CANCELLED)
         elif phase is SessionPhase.FINISHED:
             self._settle_finished_session(handle)
+        elif phase is SessionPhase.RUNNING:
+            self._check_running_stall(handle, transcript)
         return phase
 
     def _poll_codex_app_server(self, handle: RunHandle) -> SessionPhase:
@@ -2432,6 +2434,108 @@ class DispatchRunner:
         self._commit_record(
             handle.task_id,
             f"park run {handle.run_id} on a permission prompt",
+            directory=handle.directory,
+        )
+
+    def _check_running_stall(self, handle: RunHandle, transcript: str) -> None:
+        """Report a session that claims to be working but has emitted nothing for long.
+
+        ``RUNNING`` was the one phase that wrote nothing to the task and had no time
+        bound of any kind (task-296). Every other phase concludes something: parked and
+        auth-stalled hand to a human, stopped and finished settle the run. A session that
+        merely *says* it is busy could sit for ever, and the task record would read
+        ``agent``/``work`` throughout -- so a supervisor polling the record, which is the
+        rule, correctly waits on a process that is doing nothing.
+
+        **The signal is transcript growth, and it costs nothing new.** ``capture_transcript``
+        already fetches the session's whole log on every poll, so the length of what it
+        returned is a did-something answer that needs no extra subprocess, no new runner
+        call, and nothing the codex driver would have to decline (task-296 decided
+        against a driver ``liveness()`` for that reason).
+
+        This is *not* the thing ENGINEERING.md forbids. That rule is about deriving
+        **counts** by grepping a TTY capture, which repainting makes meaningless. Asking
+        whether the length changed at all is not a count, and a repaint appends bytes, so
+        it stays sound where a count does not.
+
+        **Detection only, and deliberately non-fatal.** The session is not killed and not
+        restarted: it stays attachable, which is what made the original recovery work,
+        and restarting one that may hold a dirty worktree risks two sessions on one
+        branch. Recovery was considered and left out (task-296, sc-4).
+
+        Recoverable rather than sticky, unlike a permission park: if output resumes the
+        status goes back to ``running`` and a later stall is reported again. ``stalled``
+        is not in ``TERMINAL_STATUSES``, so the run stays live and keeps being polled --
+        that is what makes the recovery reachable at all.
+        """
+        # An unreadable transcript is not evidence of silence. `capture_transcript`
+        # returns "" both when the session produced nothing and when the fetch failed,
+        # and starting a stall clock on the second would report healthy sessions.
+        if not transcript:
+            return
+
+        meta = handle.directory.read_meta()
+        size = len(transcript)
+        now = self.clock()
+        previous = meta.get("output_size")
+
+        if not isinstance(previous, int) or size != previous:
+            fields: Dict[str, object] = {
+                "output_size": size,
+                "output_changed_at": now.isoformat(),
+            }
+            # Growth after a stall retracts it, so the next silence is reported afresh.
+            if meta.get("status") == "stalled":
+                fields["status"] = "running"
+            handle.directory.update_meta(**fields)
+            return
+
+        if meta.get("status") == "stalled":
+            return  # already reported; polling is repeated, so this must be idempotent
+
+        raw = meta.get("output_changed_at")
+        if not isinstance(raw, str):
+            handle.directory.update_meta(output_changed_at=now.isoformat())
+            return
+        try:
+            since = datetime.fromisoformat(raw)
+        except ValueError:  # pragma: no cover - written by us, one line above
+            handle.directory.update_meta(output_changed_at=now.isoformat())
+            return
+        if since.tzinfo is None:
+            since = since.replace(tzinfo=timezone.utc)
+
+        quiet = now - since
+        if quiet < timedelta(seconds=self.resolution.limits.session_stall_seconds):
+            return
+
+        if self.manager.get_task(handle.task_id) is None:  # pragma: no cover - deleted
+            return
+
+        minutes = int(quiet.total_seconds() // 60)
+        tail = readable_tail(transcript, OUTPUT_TAIL_LINES)
+        quoted = f"\n\nThe end of its terminal, verbatim:\n\n```\n{tail}\n```" if tail else ""
+        self.manager.handoff(
+            handle.task_id,
+            actor="dispatcher",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.INPUT,
+            ball_prompt=(
+                f"Dispatched session `{handle.session_id}` still reports itself as "
+                f"working but has produced no output for {minutes} minutes, so this task "
+                "has been reading `agent`/`work` while nothing happened. It was **not** "
+                "killed and is still attachable: "
+                f"`{self.display_command()} attach {handle.session_id}`. Attach to see "
+                "what it is doing, or stop it and move this task on yourself."
+                f"{quoted}"
+            ),
+        )
+        handle.directory.update_meta(status="stalled", stalled_at=now.isoformat())
+        # A stalled session is by definition not writing anything, so it will not carry
+        # this handoff to `main` on its way past the way a working one would.
+        self._commit_record(
+            handle.task_id,
+            f"report run {handle.run_id} as stalled",
             directory=handle.directory,
         )
 

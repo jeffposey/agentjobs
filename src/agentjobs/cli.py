@@ -1787,7 +1787,8 @@ def dispatch_show_config(
     typer.echo(
         f"\nLimits:         max_concurrent_runs={limits.max_concurrent_runs}  "
         f"run_timeout_seconds={limits.run_timeout_seconds}  "
-        f"session_stale_seconds={limits.session_stale_seconds}"
+        f"session_stale_seconds={limits.session_stale_seconds}  "
+        f"session_stall_seconds={limits.session_stall_seconds}"
     )
     typer.echo(
         f"Auto-dispatch:  per_task_per_day={limits.auto.per_task_per_day}  "

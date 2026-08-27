@@ -24,7 +24,7 @@ import textwrap
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Callable, Dict, List, Optional, cast
 
 import pytest
 import yaml
@@ -108,6 +108,7 @@ def make_resolution(
     driver: RunnerDriver = RunnerDriver.CLAUDE,
     timeout: int = 1800,
     stale: int = 3600,
+    stall: int = 1800,
     require_clean_tree: bool = False,
     push: bool = False,
     env: Optional[Dict[str, str]] = None,
@@ -122,7 +123,11 @@ def make_resolution(
         posture=posture,
         push=push,
     )
-    limits = DispatchLimits(run_timeout_seconds=timeout, session_stale_seconds=stale)
+    limits = DispatchLimits(
+        run_timeout_seconds=timeout,
+        session_stale_seconds=stale,
+        session_stall_seconds=stall,
+    )
     return DispatchResolution(
         project_id="sandbox",
         runner=runner,
@@ -159,7 +164,13 @@ def task(manager: TaskManager):
     return manager.claim_task(created.id, agent="claude")
 
 
-def build(workspace: Path, manager: TaskManager, resolution: DispatchResolution) -> DispatchRunner:
+def build(
+    workspace: Path,
+    manager: TaskManager,
+    resolution: DispatchResolution,
+    *,
+    clock: Optional[Callable[[], datetime]] = None,
+) -> DispatchRunner:
     return DispatchRunner(
         manager=manager,
         resolution=resolution,
@@ -167,6 +178,7 @@ def build(workspace: Path, manager: TaskManager, resolution: DispatchResolution)
         home=workspace / "home",
         api_base="http://localhost:8899",
         grace_seconds=2.0,
+        **({"clock": clock} if clock is not None else {}),
     )
 
 
@@ -1830,6 +1842,12 @@ if argv and argv[0] == "logs":
     print("[1mClaude needs your permission to run:[m")
     print("  poetry run alembic upgrade head")
     print("╰" + "─" * 40 + "╯")
+    # A real session's log grows as it works. Tests that need that append here; a
+    # missing file leaves the output byte-identical to what it was before, which is
+    # exactly the silence a stalled session produces.
+    extra = pathlib.Path(__file__).with_name("logs.extra")
+    if extra.is_file():
+        print(extra.read_text(encoding="utf-8"))
     raise SystemExit(0)
 
 if argv and argv[0] == "stop":
@@ -2851,3 +2869,180 @@ class TestAWalkStartedChildIsNotGivenItsSupervisorsIdentity:
         assert document["env"]["AGENTJOBS_RUN_DIR"] == str(
             workspace / "home" / "runs" / handle.run_id
         )
+
+
+class TestRunningStallDetection:
+    """A session that says it is working but is not (task-296).
+
+    `RUNNING` was the one phase that concluded nothing and had no time bound, so a task
+    could read `agent`/`work` indefinitely while its session did nothing -- and a
+    supervisor following the rule "the signal is the task record" would wait on it for
+    as long as that lasted. These tests are about the report reaching the record.
+    """
+
+    def _clock(self, start: datetime) -> tuple:
+        """A clock the test advances by hand, and the handle to advance it."""
+        cursor = {"now": start}
+
+        def now() -> datetime:
+            return cursor["now"]
+
+        def advance(delta: timedelta) -> None:
+            cursor["now"] = cursor["now"] + delta
+
+        return now, advance
+
+    def _running(self, fake_cli: Path) -> None:
+        set_ledger(fake_cli, [{"id": "b55b35ad", "status": "busy", "state": "working"}])
+
+    def test_a_session_that_reports_working_but_emits_nothing_is_reported(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """The whole defect: without this the record never moves and nobody is told."""
+        start = datetime(2026, 8, 27, 12, 0, tzinfo=timezone.utc)
+        now, advance = self._clock(start)
+        runner = build(workspace, manager, session_resolution(fake_cli), clock=now)
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        self._running(fake_cli)
+
+        assert runner.poll_session(handle) is SessionPhase.RUNNING
+        before = manager.get_task(task.id)
+        assert before is not None and before.ball is Ball.AGENT
+
+        advance(timedelta(minutes=31))
+        assert runner.poll_session(handle) is SessionPhase.RUNNING
+
+        after = manager.get_task(task.id)
+        assert after is not None
+        assert after.ball is Ball.HUMAN
+        assert after.ball_reason is BallReason.INPUT
+        prompt = after.ball_prompt or ""
+        assert "b55b35ad" in prompt
+        assert "31 minutes" in prompt
+        # It is a report, not an execution: the human is told it is still theirs to attach to.
+        assert "attach" in prompt
+        assert handle.directory.read_meta()["status"] == "stalled"
+
+    def test_a_silence_the_length_of_a_gate_is_not_a_stall(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """The constraint, encoded.
+
+        `scripts/check.py` is the longest legitimately quiet thing a session does, and it
+        has been measured at about six minutes under three-way contention. A threshold
+        that fires on that would report working sessions, and a stall report nobody can
+        trust is worse than none.
+        """
+        start = datetime(2026, 8, 27, 12, 0, tzinfo=timezone.utc)
+        now, advance = self._clock(start)
+        runner = build(workspace, manager, session_resolution(fake_cli), clock=now)
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        self._running(fake_cli)
+
+        runner.poll_session(handle)
+        advance(timedelta(minutes=6))
+        runner.poll_session(handle)
+
+        after = manager.get_task(task.id)
+        assert after is not None
+        assert after.ball is Ball.AGENT, "a session mid-gate was reported as stalled"
+        assert handle.directory.read_meta()["status"] == "running"
+
+    def test_output_growth_retracts_a_reported_stall(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """A stall is a statement about now, not a verdict. A session that speaks again is working.
+
+        Sticky would be wrong here in a way it is not for a permission park: a parked
+        session cannot un-park itself, and a stalled one resumes on its own all the time.
+        """
+        start = datetime(2026, 8, 27, 12, 0, tzinfo=timezone.utc)
+        now, advance = self._clock(start)
+        runner = build(workspace, manager, session_resolution(fake_cli), clock=now)
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        self._running(fake_cli)
+
+        runner.poll_session(handle)
+        advance(timedelta(minutes=31))
+        runner.poll_session(handle)
+        assert handle.directory.read_meta()["status"] == "stalled"
+
+        (fake_cli.parent / "logs.extra").write_text("it woke up and kept going", encoding="utf-8")
+        advance(timedelta(minutes=1))
+        runner.poll_session(handle)
+
+        assert handle.directory.read_meta()["status"] == "running"
+
+    def test_the_report_is_written_once_however_often_it_is_polled(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """Polling is repeated by design, so every action it takes has to be idempotent."""
+        start = datetime(2026, 8, 27, 12, 0, tzinfo=timezone.utc)
+        now, advance = self._clock(start)
+        runner = build(workspace, manager, session_resolution(fake_cli), clock=now)
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        self._running(fake_cli)
+
+        runner.poll_session(handle)
+        advance(timedelta(minutes=31))
+        runner.poll_session(handle)
+        advance(timedelta(minutes=31))
+        runner.poll_session(handle)
+
+        after = manager.get_task(task.id)
+        assert after is not None
+        stalls = [
+            entry
+            for entry in after.log
+            if entry.type is LogEntryType.HANDOFF and "no output for" in (entry.body or "")
+        ]
+        assert len(stalls) == 1
+
+    def test_a_stalled_session_is_never_killed(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """Detection only (task-296, sc-4). It may hold a dirty worktree; it stays attachable."""
+        start = datetime(2026, 8, 27, 12, 0, tzinfo=timezone.utc)
+        now, advance = self._clock(start)
+        runner = build(workspace, manager, session_resolution(fake_cli), clock=now)
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        self._running(fake_cli)
+
+        runner.poll_session(handle)
+        advance(timedelta(minutes=31))
+        runner.poll_session(handle)
+
+        rows = json.loads((fake_cli.parent / "ledger.json").read_text())
+        assert rows, "the stalled session was stopped, which this task decided against"
+        assert not terminal_entries(manager, task.id), "a stall is not a terminal outcome"
+
+    def test_a_stall_report_leaves_the_run_live_so_it_can_be_retracted(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """`stalled` must not read as terminal, or the poller would stop following it."""
+        from agentjobs.dispatch.runner import TERMINAL_STATUSES
+
+        assert "stalled" not in TERMINAL_STATUSES
+
+    def test_an_unreadable_transcript_does_not_start_the_clock(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path, monkeypatch
+    ) -> None:
+        """ "Could not read it" is not evidence the session produced nothing.
+
+        `capture_transcript` returns "" for both, and treating the failure as silence
+        would report healthy sessions as stalled whenever a log fetch happened to fail.
+        """
+        start = datetime(2026, 8, 27, 12, 0, tzinfo=timezone.utc)
+        now, advance = self._clock(start)
+        runner = build(workspace, manager, session_resolution(fake_cli), clock=now)
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        self._running(fake_cli)
+        monkeypatch.setattr(DispatchRunner, "capture_transcript", lambda _self, _handle: "")
+
+        runner.poll_session(handle)
+        advance(timedelta(minutes=31))
+        runner.poll_session(handle)
+
+        after = manager.get_task(task.id)
+        assert after is not None
+        assert after.ball is Ball.AGENT
