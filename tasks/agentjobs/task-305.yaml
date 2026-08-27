@@ -3,14 +3,11 @@ id: task-305
 title: Move rationale, incident narrative and measurement history out of the always-loaded
   bundle, and put what remains under a budget a test asserts
 created: '2026-08-23T21:53:30.307386Z'
-updated: '2026-08-27T10:37:46.182342Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-27T10:38:10.506356Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 1193
 category: documentation
 tags:
 - big-dawg-audit
@@ -19,7 +16,6 @@ tags:
 effort: "one branch over two files plus docs/performance.md, one small CLI change,\
   \ one test \u2014 but the judgement per section is the work"
 assignment:
-  owner: claude
   eligible: []
 parent: task-269
 posture: autonomous
@@ -157,7 +153,8 @@ dependencies:
 links: []
 branches:
 - name: docs/task-305-context-budget-cut
-  status: active
+  status: merged
+  merged_at: '2026-08-27T10:38:10.444602Z'
 log:
 - id: 1
   ts: '2026-08-23T21:53:30.803713Z'
@@ -616,3 +613,26 @@ log:
     merge_commit: f84beb6470005fd4b73d677e642a7303b066feeb
     branch: docs/task-305-context-budget-cut
     base: main
+- id: 17
+  ts: '2026-08-27T10:38:10.506144Z'
+  actor: finisher
+  type: transition
+  body: "Merged `docs/task-305-context-budget-cut` into `main` as `f84beb64` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). No human\
+    \ reviewed this merge: posture `autonomous` (from the epic) releases the merge\
+    \ gate (task-021), and run run_86614592 ran the finish. What authorised it is\
+    \ the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.2s  docs/task-305-context-budget-cut at ee378af0\
+    \ in C:\\projects\\worktrees\\agentjobs-305\n  rebase     ok         0.4s  docs/task-305-context-budget-cut\
+    \ onto main: ee378af0 -> efaea359\n  gate       ok       208.4s  scripts/check.py\
+    \ green\n  merge      ok         0.9s  --no-ff into main as f84beb6470005fd4b73d677e642a7303b066feeb\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         1.3s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving 00610b04, which contains the merge\
+    \ f84beb64, from C:\\projects\\agentjobs (started 2026-08-27T10:37:52.412490+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
