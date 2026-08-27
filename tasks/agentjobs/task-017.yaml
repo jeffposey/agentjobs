@@ -3,10 +3,11 @@ id: task-017
 title: Let an agent ask structured multiple-choice questions the human answers in
   the GUI
 created: '2026-08-18T05:35:45.027948Z'
-updated: '2026-08-21T21:48:32.167684Z'
-lifecycle: ready
+updated: '2026-08-27T21:57:13.411332Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 queue_position: 171
@@ -18,6 +19,7 @@ tags:
 - agent-dx
 effort: a day, plus a schema change
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: When an agent needs a decision, it can only leave prose in `ball_prompt`
@@ -223,3 +225,78 @@ log:
       id: b1d7e582-3c04-4a9e-8f61-2d95c7a30bb8
       kind: queue_move
       fingerprint: 23a68eca4908fee1276c085013b2c286
+- id: 5
+  ts: '2026-08-27T21:57:09.527318Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 6
+  ts: '2026-08-27T21:57:10.036344Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 7
+  ts: '2026-08-27T21:57:13.411182Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_3e24e94e
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 5
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"], "env": {"AGENTJOBS_RUN_ID":
+      "run_3e24e94e", "AGENTJOBS_RUN_DIR": "C:\\Users\\jpose\\.agentjobs\\runs\\run_3e24e94e"}}'
+    - 'You are the agent `claude` working task `task-017` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-017-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_3e24e94e. Posture `auto` stops at the merge gate: when
+      the work is done and verified, record the evidence on the task, hand the ball
+      to human/review, and stop. Do not merge. Never push: this project is configured
+      `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: c7d13e2
+    session_id: d6f53e81
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
