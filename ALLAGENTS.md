@@ -268,54 +268,28 @@ reason an unreviewed merge is acceptable here.
 If you are supervising a parent task, the clause is phrased for you instead: it tells you
 what the children you start will do, and you approve nothing yourself either way.
 
-### The post-approval steps may be done before you wake up
+### If you are woken after an approval, read the record before you act
 
-**Where this machine has the scripted finish switched on, the approval runs them
-itself** — rebase, gate, merge `--no-ff`, rebuild, restart, verify, close, remove the
-worktree, delete the branch — with no agent in the loop at all (task-241). Those are
-[the merge gate's steps 3 to 6](ENGINEERING.md#steps-3-to-6-may-already-have-happened-before-you-read-them),
-which is the only place they are numbered. Most of the time you will simply never be
-dispatched again, and the task will be closed by the time anyone looks.
+An approval may already have merged your branch without any agent: where a project has
+the scripted finish switched on, clicking Approve runs
+[the merge gate's steps 3 to 6](ENGINEERING.md#the-merge-gate) itself (task-241).
+`agentjobs dispatch config --project <id>` says `finish=on` or `finish=off` for that
+project; do not infer it from prose.
 
-You are woken only when it stopped, and then **the record tells you where, and whether
-`main` moved**. Read it before acting on anything you remember:
+So **the record, not your memory, says whether `main` moved** — the finish writes one
+of two sentences onto the task. *"The merge is done: `abc1234`"* means the merge landed
+and only the delivery is missing: do that, close the task, do not merge again. *"Nothing
+was merged"* means the rebase conflicted or the gate went red, and the entry says which.
+`agentjobs finish <task> --project <id>` is the same code by hand, and is how a finish
+that stopped is retried once its cause is fixed.
 
-- **"The merge is done: `abc1234`"** — the merge is in, the task is deliberately still
-  open, and what is missing is the delivery. Do that and close it. Do not merge again.
-- **"Nothing was merged"** — the rebase conflicted or the gate went red, and the entry
-  says which. For a conflict it also says whether your branch was restored to where it
-  was, having read the tip back rather than assumed it.
+None of that changes *who* authorises a merge — see
+[Your prompt says whether you stop here](#your-prompt-says-whether-you-stop-here).
 
-The scripted finish relaxes nothing about *who* authorises a merge; it only removes the
-agent from the commands after the authorisation. At `auto` and `supervised` a person
-still approves, per task, and step 5 above is still where you stop. At `autonomous` the
-authority is the green gate and you invoke the same code yourself with
-`--posture-release`. Either way `agentjobs finish <task>` is that code by hand, and is
-how a finish that escalated is retried once its cause is fixed.
-
-### You may be woken rather than restarted
-
-**A second dispatch of your task may resume the session that worked it, not start a new
-one.** When it does, your first prompt says so explicitly: it names this as the same
-session, carries what the human just wrote, and tells you the run it resumed. Everything
-you established still applies — the worktree you took, the branch you are on, what you
-built and what you verified. Do not start over and do not take a second worktree.
-
-This exists because the post-approval run — rebase, merge `--no-ff`, close, rebuild,
-restart — averaged about eleven minutes, almost none of it those commands. It was a cold
-agent working out which branch it owned. Resuming skips that and nothing else: whatever
-authorises the merge for your posture is exactly what authorised it before — a human in
-the GUI for `auto` and `supervised`, a green gate for `autonomous`.
-
-Two things to do with it:
-
-- **Check before you act on memory.** A resumed conversation is confident by
-  construction. If your worktree is gone, your branch is not where you left it, or your
-  account of the task no longer matches what is on disk, say so on the record and hand
-  the ball back. Do not improvise a recovery.
-- **Do not assume you were resumed.** A cold start is the fallback for every uncertainty
-  and stays the ordinary case for a task's first run. The prompt is what tells you which
-  one you are; if it did not say you were resumed, you were not.
+A second dispatch may also **resume the session that worked the task** rather than start
+a new one, in which case the prompt says so and repeats what still applies. Believe it,
+and if what is on disk no longer matches your account of the task, hand the ball back
+rather than improvising. If the prompt did not say you were resumed, you were not.
 
 ### The Resumption Contract
 

@@ -533,48 +533,20 @@ here: chains of unreviewed merges are recoverable only for as long as nothing is
 
 #### Steps 3 to 6 may already have happened before you read them
 
-**On a machine with `finish.enabled` set for this project, clicking Approve runs steps
-3 to 6 itself, with no agent anywhere in it** (task-241). It rebases, runs the full gate
-in your worktree with your worktree's interpreter, merges `--no-ff`, rebuilds the
-frontend if the merge touched it, restarts the server the way this machine's config says
-it was started, proves the running process is serving the merge, closes the task,
-removes your worktree and deletes your branch. It takes about as long as the gate does.
+**Where a project has `finish.enabled`, clicking Approve runs steps 3 to 6 itself, with
+no agent anywhere in it** (task-241) — rebase, the full gate in the task's own worktree,
+`--no-ff` merge, rebuild, restart, verify, close, remove the worktree, delete the branch.
+It relaxes nothing about who authorises a merge: a person still approves, per task.
+`agentjobs dispatch config --project <id>` reports `finish=on` or `finish=off`, and
+`agentjobs finish <task> --project <id>` is the same code by hand — which is how a finish
+that stopped is retried once its cause is fixed.
 
-Nothing above is relaxed by that: **a person still approves, per task, before anything
-merges**, and the merge is still a `--no-ff` merge commit.
-
-What changes for you is only what to do when you are woken after an approval. Read the
-task record first. It says, unambiguously, whether `main` moved:
-
-- **"The merge is done: `abc1234`"** — the merge is in and the *delivery* is not. The
-  task is deliberately still open, and the prompt names what remains: the bundle was not
-  rebuilt, or the server did not come back, or it came back on the old code. Finish that
-  and close the task. Do not re-merge.
-- **"Nothing was merged"** — the rebase conflicted or the gate went red. The escalation
-  says which, and for a conflict it states whether the branch was restored to the commit
-  it was on, having read it back and compared. Nothing was forced and nothing was
-  guessed at.
-
-You can run the same thing by hand, which is how a finish that escalated is retried once
-its cause is fixed. It knows its own earlier merge and picks up from it rather than
-refusing:
-
-```bash
-poetry run agentjobs finish task-241 --project agentjobs
-```
-
-Exit 0 means merged, closed and verified; 1 means it stopped and the task says where; 2
-means the task was never a candidate and nothing happened. It declines rather than
-guessing whenever the answer is a judgement — no active branch, two of them, a clone
-with something else checked out, a missing or dirty worktree, or a branch somebody
-already merged by hand.
-
-AgentJobs does not yet deliver durable out-of-session notifications. The intended
-extension point is the existing HMAC-signed webhook system in
-`src/agentjobs/webhooks.py`: schema v2 emits `task.handoff` with the new ball holder and
-`ball_prompt` (replacing v1's broader `task.status_changed` event). A future pluggable
-service can subscribe to human-directed handoffs and route email, SMS, mobile push, or
-desktop alerts. Building that service is separate work.
+**If you are woken after an approval, the record says whether `main` moved. Believe it**
+— the finish writes either "The merge is done: `<sha>`" (deliver and close; do not
+re-merge) or "Nothing was merged" (the rebase conflicted or the gate went red, and the
+entry says which). The exit codes, the conditions it declines on rather than guessing,
+and what it records are in
+[the dispatch design](docs/agent-dispatch-design.md#5a-what-ends-a-dispatch-the-scripted-finish-task-241-shipped).
 
 Pushing to the remote is a separate act from merging; do not assume approval to merge
 carries approval to push.
