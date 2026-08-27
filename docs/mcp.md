@@ -45,18 +45,26 @@ variables:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `AGENTJOBS_URL` | `http://127.0.0.1:8765` | The running AgentJobs service. |
+| `AGENTJOBS_URL` | the machine's declared address, else `http://127.0.0.1:8765` | The running AgentJobs service. |
 | `AGENTJOBS_TIMEOUT` | `30` | Request timeout in seconds; maximum 300. |
 
 Both are also available as `--base-url` and `--timeout`.
 
-`8765` is what `agentjobs serve` binds with no arguments, and it is the port the
-bundled plugin and every example on this page assume. **If your service listens
-elsewhere, say so once rather than in each client's config**, in either
-`AGENTJOBS_API_BASE` or `api_base:` in machine-local `~/.agentjobs/dispatch.yaml`.
-Dispatch already reads that value to tell a background agent where to find the service;
-`agentjobs init` reads the same value when it writes a project's `.mcp.json`, so one
-declaration keeps both from naming a dead port.
+`8765` is what `agentjobs serve` binds with no arguments, and it is the last resort
+rather than the first answer. **If your service listens elsewhere, say so once rather
+than in each client's config**, in either `AGENTJOBS_API_BASE` or `api_base:` in
+machine-local `~/.agentjobs/dispatch.yaml`. The server itself reads those two, in that
+order, whenever `AGENTJOBS_URL` is unset — so does dispatch, when it tells a background
+agent where to find the service, and so does `agentjobs init` when it writes a project's
+`.mcp.json`. One declaration keeps all three from naming a dead port.
+
+**Which is why the bundled plugin's own `.mcp.json` sets no address at all** (task-317).
+It used to pin `:8765`, and a port hardcoded in a file that ships to strangers is a
+guess about their machine; on the machine this project is developed on that guess named
+the one port nothing serves, so the plugin's server refused at startup in every session
+and its tools were absent while the plugin looked installed and enabled. `claude mcp
+list` is what says whether a client's server is actually up — it reports each one as
+Connected or Failed to connect, which no amount of reading config will tell you.
 
 ### Every registered project declares the server
 
@@ -103,11 +111,15 @@ Two notes on what the file does and does not do:
   applies regardless of folder trust. An *interactive* session still gets the prompt
   once, which is the right default for a config file that says "run this program" —
   `init` does not write to your client's settings on your behalf.
-- **It is separate from the plugin.** A project with both ends up with two server
-  entries, listed by `claude mcp list` as `agentjobs` and `plugin:agentjobs:agentjobs`.
-  They are independent processes serving the same fifteen tools, not a conflict, and
-  the project-scoped one is the one whose address a machine can correct without editing
-  an installed plugin's cache.
+- **It is separate from the plugin, and you probably want one of them rather than
+  both.** A project with both ends up with two server entries, listed by `claude mcp
+  list` as `agentjobs` and `plugin:agentjobs:agentjobs`. They are independent processes
+  serving the same tools under different prefixes, so they do not collide — but a
+  session that has both pays for two copies of the tool list and two copies of the
+  instruction block, and an agent has to pick between two spellings of every call for no
+  benefit. Turn one off: drop the project-scoped name from `enabledMcpjsonServers`, or
+  keep the plugin for its skill and guard and disable only its server. Neither is
+  "correct"; having both switched on is what to avoid.
 
 ### Codex and Claude Code
 
@@ -128,14 +140,18 @@ Add a STDIO server entry:
   "mcpServers": {
     "agentjobs": {
       "command": "agentjobs",
-      "args": ["mcp"],
-      "env": { "AGENTJOBS_URL": "http://127.0.0.1:8765" }
+      "args": ["mcp"]
     }
   }
 }
 ```
 
-You get the same fifteen tools. You do **not** get a pre-tool hook: the guard ships one
+No `env` block: the server resolves the address from the machine, as above. Add
+`"env": { "AGENTJOBS_URL": "..." }` only when this client should reach a *different*
+service from every other one on the machine.
+
+You get the same tools — `agentjobs mcp` names them on stderr at startup, which is the
+answer that stays true. You do **not** get a pre-tool hook: the guard ships one
 entry point per client protocol, and only Codex's and Claude Code's are written. The
 decision itself is client-agnostic, so a third client needs a third entry point rather
 than a third guard — unbuilt work rather than a platform limit. See
@@ -147,7 +163,9 @@ than a third guard — unbuilt work rather than a platform limit. See
 agentjobs mcp --base-url http://127.0.0.1:8765
 ```
 
-It should sit there speaking nothing on stdout and log `Serving 16 tool(s)` to stderr.
+It should sit there speaking nothing on stdout and log a `Serving N tool(s)` line to
+stderr naming each one, plus the address it resolved and the version it found there.
+Run it with no `--base-url` to see what the machine's own declaration resolves to.
 From a client, `projects_list` should return your projects with their configured
 actors.
 
