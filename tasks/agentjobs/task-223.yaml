@@ -3,7 +3,7 @@ id: task-223
 title: The rule that serializes every epic has no stated reason, and the doc's own
   reasoning contradicts it
 created: '2026-08-21T15:02:48.895387Z'
-updated: '2026-08-27T12:54:57.930763Z'
+updated: '2026-08-27T13:03:55.974040Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -745,3 +745,59 @@ log:
       id: c4f70a92-1d38-4b5e-9a26-3f5c8e21b7d0
       kind: update_content
       fingerprint: 9f9f35b75f9c52c3141a9c4b454abd56
+- id: 18
+  ts: '2026-08-27T13:03:55.973840Z'
+  actor: claude
+  type: progress
+  body: "**Verified, and the gate is green on the branch.** Five commits on `feat/task-223-parallel-epic-walk`,\
+    \ clean tree.\n\n## The gate\n\n`scripts/check.py` unqualified, in the worktree,\
+    \ with the interpreter the bootstrap named: **exit 0, all ten stages, 3474 passed\
+    \ / 1 skipped, 223.3s** (2026-08-27).\n\nAn earlier run failed once at `pytest`\
+    \ on `TestProcessGroup::test_the_timeout_kills_the_grandchild_too` \u2014 *\"\
+    pid 1442300 survived the timeout\"*. That is a known flake documented in the test's\
+    \ own comment, which records it failing task-308's finish from a branch that touched\
+    \ neither the test nor the kill path; this branch touches neither either. It passed\
+    \ alone and passed in the next full run. Not chased further, and said out loud\
+    \ rather than quietly re-run.\n\n## Exercised the way a user would, not only in\
+    \ tests\n\n`dispatch walk --dry-run` against this repository's real corpus, which\
+    \ is the part a test cannot give you \u2014 a real queue, real dependencies, real\
+    \ claimed and parent tasks:\n\n```\nWalking task-160-dispatch-phase-two: ...\n\
+    \  open children: task-023, task-161-project-level-dispatch,\n               \
+    \  task-162-author-the-dispatch-prompt, task-163-role-dispatch,\n            \
+    \     task-178-runner-authoring-in-the-gui, task-309\n  children in flight: 3\
+    \ at once, so independent children fly in parallel and\n                     \
+    \ queue for the merge runway\n  posture children start at: autonomous (inherited\
+    \ from the epic's own dispatch)\n  starting now: task-309, task-161-project-level-dispatch,\
+    \ task-023\n```\n\nThree things checked in that output rather than assumed:\n\n\
+    1. **The slot count came from the machine, not from a constant.** `3` is this\
+    \ machine's `limits.max_concurrent_runs`; nothing in the code hard-codes it.\n\
+    2. **The frontier filtered.** Six children are open, three would start. The other\
+    \ three are blocked, claimed or holding open children of their own \u2014 the\
+    \ same claimability the dashboard applies, because it is literally the same function.\n\
+    3. **Queue order, not id order.** `task-309` first.\n\n`task-120` (one open child)\
+    \ prints one, and a closed epic prints `nothing claimable` rather than an empty\
+    \ success. `--dry-run` started nothing.\n\n## What is asserted, and what would\
+    \ fail without the change\n\n- `TestConcurrentWalk` \u2014 peak in flight reaches\
+    \ 3; the serial walk reports 1. The `--max-concurrent 1` case asserts the old\
+    \ behaviour is still exactly reachable.\n- `test_a_freed_child_starts_without_waiting_for_its_siblings`\
+    \ \u2014 a dependent lands **before** a slow sibling it never depended on. A wave\
+    \ scheduler fails this; so does the serial walk.\n- `test_a_diamond_child_waits_for_its_second_parent`\
+    \ \u2014 the push-on-completion implementation fails this and nothing else does.\n\
+    - `test_a_bad_child_grounds_takeoffs_and_lets_the_others_land` \u2014 two airborne\
+    \ children land, the third never starts. The old rule started only one.\n- `TestBackpressure`\
+    \ \u2014 a `ConcurrencyLimitError` is waited out; a permanently full machine stops\
+    \ the walk naming `max_concurrent_runs`.\n- `TestTheRunway` \u2014 the runway\
+    \ is taken and given back on success **and on escalation**; a held runway makes\
+    \ a second finish queue, say so on its record, and merge nothing; releasing does\
+    \ not delete a runway a peer reclaimed.\n- `tests/test_run_report_epics.py` \u2014\
+    \ the timeline arithmetic, hand-checkable, including the half-open-span fix.\n\
+    \n## One thing this merge does not exercise\n\n`agentjobs finish` runs from the\
+    \ main clone's installed source, so **the merge that lands this is made by the\
+    \ old finisher and takes no runway.** The runway is live from the next restart\
+    \ onward. First real evidence of it will be the first epic walk that lands two\
+    \ children close together."
+  data:
+    operation:
+      id: d5e83b16-2a47-4f90-8c15-91b6207ee3a4
+      kind: log_append
+      fingerprint: 905519b6eadb6dac7034b08e40c26808
