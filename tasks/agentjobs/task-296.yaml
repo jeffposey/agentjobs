@@ -3,13 +3,27 @@ id: task-296
 title: 'A dispatched session that parks is invisible: the task record still reads
   agent/work and nobody is told'
 created: '2026-08-23T20:56:33.153215Z'
-updated: '2026-08-27T13:26:30.684750Z'
+updated: '2026-08-27T13:27:27.894837Z'
 lifecycle: active
 ball: human
-ball_reason: decision
-ball_prompt: Run run_d5cf69fa ended `cancelled` and nobody was told what this task
-  needs. Read the dispatch_result entry, then either dispatch again or take it on
-  yourself.
+ball_reason: input
+ball_prompt: "Dispatched session `2885aa93` stopped on an authentication failure at\
+  \ 2026-08-27T13:27:21.065000+00:00 and will not resume by itself. It said: \"Login\
+  \ expired \xB7 Please run /login\".\n\n**Find out which failure this is before doing\
+  \ anything \u2014 there are two and they look identical from here.** Either the\
+  \ credential store genuinely cannot authenticate, or it can and this session is\
+  \ stuck on a refresh that already failed. Nothing you can see distinguishes them:\
+  \ not this task, not the run ledger, and not `agents --json`. One command does,\
+  \ run as a **fresh process** rather than inside the stalled session:\n\n```\nclaude\
+  \ -p \"Reply with exactly: AUTH_OK\"\n```\n\n**If it answers**, the credential is\
+  \ fine and only the session is stuck. Send it a message to wake it, or attach with\
+  \ `claude attach 2885aa93`. Logging in again changes nothing.\n\n**If it fails to\
+  \ authenticate**, the store is genuinely dead and no restart will clear it. Run\
+  \ `claude auth login` in a terminal on that machine, then wake the session the same\
+  \ way. Answering inside the session cannot work while this is true: the credential\
+  \ is already gone, so anything sent is retried against nothing and fails instantly.\n\
+  \nEither way the session resumes in place -- nothing is lost and this task does\
+  \ not need re-dispatching."
 archived: false
 priority: critical
 queue_position: 293
@@ -346,3 +360,94 @@ log:
   data:
     ball: human
     ball_reason: decision
+- id: 10
+  ts: '2026-08-27T13:27:11.719094Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'New instructions from Jeff Posey:
+
+
+    Had to cancel dispatch from gui. Trying to dispatch again.'
+  data:
+    ball: agent
+    ball_reason: redirect
+- id: 11
+  ts: '2026-08-27T13:27:16.463405Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 12
+  ts: '2026-08-27T13:27:19.535761Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_d5cf69fa` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_d0c9229e
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 11
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"], "env": {"AGENTJOBS_RUN_ID":
+      "run_d0c9229e", "AGENTJOBS_RUN_DIR": "C:\\Users\\jpose\\.agentjobs\\runs\\run_d0c9229e"}}'
+    - --resume
+    - 8e06b149-7f01-4b85-8a7a-03ca9af04850
+    cwd: C:\projects\agentjobs
+    git_head: 6fb6ab7
+    session_id: 2885aa93
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 13
+  ts: '2026-08-27T13:27:27.894662Z'
+  actor: dispatcher
+  type: handoff
+  body: "Dispatched session `2885aa93` stopped on an authentication failure at 2026-08-27T13:27:21.065000+00:00\
+    \ and will not resume by itself. It said: \"Login expired \xB7 Please run /login\"\
+    .\n\n**Find out which failure this is before doing anything \u2014 there are two\
+    \ and they look identical from here.** Either the credential store genuinely cannot\
+    \ authenticate, or it can and this session is stuck on a refresh that already\
+    \ failed. Nothing you can see distinguishes them: not this task, not the run ledger,\
+    \ and not `agents --json`. One command does, run as a **fresh process** rather\
+    \ than inside the stalled session:\n\n```\nclaude -p \"Reply with exactly: AUTH_OK\"\
+    \n```\n\n**If it answers**, the credential is fine and only the session is stuck.\
+    \ Send it a message to wake it, or attach with `claude attach 2885aa93`. Logging\
+    \ in again changes nothing.\n\n**If it fails to authenticate**, the store is genuinely\
+    \ dead and no restart will clear it. Run `claude auth login` in a terminal on\
+    \ that machine, then wake the session the same way. Answering inside the session\
+    \ cannot work while this is true: the credential is already gone, so anything\
+    \ sent is retried against nothing and fails instantly.\n\nEither way the session\
+    \ resumes in place -- nothing is lost and this task does not need re-dispatching."
+  data:
+    ball: human
+    ball_reason: input
