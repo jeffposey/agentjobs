@@ -2,16 +2,11 @@ schema: 2
 id: task-320
 title: A session AgentJobs did not start is invisible to every safety net it has
 created: '2026-08-27T13:52:22.466316Z'
-updated: '2026-08-27T21:55:40.174044Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-27T21:56:07.658770Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 14600
 category: reliability
 tags:
 - dispatch
@@ -19,7 +14,6 @@ tags:
 - observability
 - agent-dx
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: A session started outside dispatch has no run record, so the poller never
@@ -180,7 +174,8 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-320-run-register
-  status: active
+  status: merged
+  merged_at: '2026-08-27T21:56:07.610913Z'
 log:
 - id: 1
   ts: '2026-08-27T13:52:23.012516Z'
@@ -525,3 +520,25 @@ log:
     merge_commit: 5550c896d5dbf4117bb7b88b64a6c0ac894cac7f
     branch: feat/task-320-run-register
     base: main
+- id: 16
+  ts: '2026-08-27T21:56:07.658539Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-320-run-register` into `main` as `5550c896` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). Approved\
+    \ by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         1.1s  feat/task-320-run-register\
+    \ at 2b99bff8 in C:\\projects\\worktrees\\agentjobs-320\n  runway     ok     \
+    \    0.0s  taken immediately\n  rebase     ok         0.5s  feat/task-320-run-register\
+    \ onto main: 2b99bff8 -> 6178f93b\n  gate       ok       224.9s  scripts/check.py\
+    \ green\n  catch_up   skipped    0.0s  main did not move during the gate\n  merge\
+    \      ok         0.2s  --no-ff into main as 5550c896d5dbf4117bb7b88b64a6c0ac894cac7f\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         0.8s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving acf15081, which contains the merge\
+    \ 5550c896, from C:\\projects\\agentjobs (started 2026-08-27T21:55:46.213711+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
