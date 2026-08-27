@@ -111,37 +111,33 @@ source rather than a neighbouring one's.
     call by whoever wants to skip the wait. Do not weaken any of them:
 
     1.  **It rests on a receipt the gate itself wrote, not on your assessment.** A green
-        unqualified run on a clean tree records the commit it verified, in this
-        checkout's git directory. `--since-gate` diffs the working tree against that
-        commit. With no receipt it narrows nothing and runs every stage, saying so.
-    2.  **The classification table is default-deny.** Exactly two families of path map to
-        a reduced set of stages — task records under `tasks/`, and prose. Everything else,
-        including anything nobody has classified yet, selects all ten. An incomplete table
-        therefore costs time, never coverage. The table lives in `scripts/gate_scope.py`
-        and each entry has to name what reads those paths.
+        unqualified run on a clean tree records the commit it verified; `--since-gate`
+        diffs the working tree against that. With no receipt it narrows nothing and runs
+        every stage, saying so.
+    2.  **The classification table is default-deny.** Only task records under `tasks/`
+        and prose map to a reduced set; everything else, including anything nobody has
+        classified yet, selects all ten. An incomplete table costs time, never coverage.
+        It lives in `scripts/gate_scope.py`, and each entry has to name what reads those
+        paths.
     3.  **A stage whose inputs are not bounded by the diff still runs.** "It was only a
         task file" is not a safe skip: `tests/test_validate.py::TestRealCorpus` loads this
-        repository's own records, so a task YAML genuinely can turn the suite red. That is
-        why `tasks/` maps to `pytest` rather than to nothing.
+        repository's own records, so a task YAML genuinely can turn the suite red — which
+        is why `tasks/` maps to `pytest` rather than to nothing.
     4.  **The output is the claim, in full.** A reduced run prints `NECESSITY RUN`, the
-        commit it is diffing against, every changed path with the rule that matched it,
-        and every stage it skipped. It never prints "Ran every stage". An unchanged tree
+        commit it diffed against, every changed path with the rule that matched it, and
+        every stage it skipped. It never prints "Ran every stage". An unchanged tree
         prints `NOTHING CHANGED` and runs nothing.
 
-    A `--since-gate` run that goes green on a clean tree issues its own receipt, recording
-    which receipt it derived from, so a chain of them is auditable. `--only` and `--from`
-    never issue one — a partial green is not the gate's green, which is the same rule
-    `PARTIAL RUN` states.
+    A green `--since-gate` on a clean tree issues its own receipt, naming the receipt it
+    derived from, so a chain of them is auditable. `--only` and `--from` never issue one —
+    a partial green is not the gate's green, which is the same rule `PARTIAL RUN` states.
 -   **The gate runs before the commit, so no stage of it may require one.** The two
     generated checks — `openapi.json` and `src/api/generated/` — compare against **the
     working tree**, never `HEAD`: they ask whether the files on disk match what the
-    application produces. Until task-189 the client half asked instead whether they were
-    committed, and reported the answer as staleness, so a client you had just regenerated
-    failed the gate with a message telling you to regenerate it. That is the contradiction
-    the old check created, and this is the direction it is resolved in: **regenerate, run
-    the gate, then commit.** The `api` stage names `frontend/src/api/generated` when those
-    files are uncommitted, and does not fail — `git add` takes explicit paths here, and
-    generated output is what that habit forgets.
+    application produces (task-189). So: **regenerate, run the gate, then commit.** The
+    `api` stage names `frontend/src/api/generated` when those files are uncommitted, and
+    does not fail — `git add` takes explicit paths here, and generated output is what
+    that habit forgets.
 -   Budget **about a minute and a half when you have the machine to yourself**, and
     **about two and a half when you do not** — several agents work this repository at
     once and this machine allows three dispatched runs, so overlapping gates are the
@@ -174,22 +170,25 @@ source rather than a neighbouring one's.
 
 ### Measuring this file
 
-Every session loads `CLAUDE.md` and the three files it imports before its first thought.
+Every session loads `CLAUDE.md` and the three files it imports before its first thought,
+and **the bundle is capped**: `tests/test_context_budget.py` fails when the four files
+together exceed the budget task-301 measured. Cutting is therefore the normal way to make
+room, and there are two instruments for doing it safely.
+
 `scripts/context_eval.py` measures which of those words change what an agent *does*: it
-runs a scenario twice, once against a copy of the bundle and once against the same copy
-with one section cut out, and scores each run on its action trace -- which ref the commit
-landed on, whether a worktree was taken, what got staged.
+runs a scenario twice, once against a copy of the bundle and once with one section cut
+out, and scores each run on its action trace.
 
 ```bash
 poetry run python scripts/context_eval.py --dry-run    # validate the ablations, run nothing
 poetry run python scripts/context_eval.py --tag quick  # the per-release subset
 ```
 
-**Run it on a new model release**, and before cutting anything from these files. A rule
+**Run it on a new model release, and before cutting anything from these files.** A rule
 that is load-bearing for one generation may be redundant with the next model's defaults,
 which is why a verdict here carries a model id and a date. `evals/context/README.md` has
-the scenarios, the scoring vocabulary, the three limits worth knowing, and
-`evals/context/baselines/` holds one committed report per model to compare against.
+the scenarios, the scoring vocabulary and the limits; `evals/context/baselines/` holds one
+committed report per model.
 
 It is deliberately **not** in `scripts/check.py`: it costs tens of minutes and real money,
 and a gate stage like that gets disabled within a week. The cheap half is in the gate --
@@ -366,11 +365,9 @@ When a branch is complete and verified:
 
 #### Posture decides this, not you
 
-**A dispatched run's posture now carries two things** (task-021): what the process may
-execute, which it always did, and whether the run stops at the gate above, which it did
-not. The second is derived from the first — there is no separate switch, because
-"autonomous execution, but stop for review" is not a state anyone has wanted, and two
-switches would mean nobody had thought about the combinations.
+**A dispatched run's posture carries two things** (task-021): what the process may
+execute, and whether the run stops at the gate above. The second is derived from the
+first — there is no separate switch.
 
 | Posture | Executes | Merge | Push |
 |---|---|---|---|
@@ -405,26 +402,20 @@ by the agent. Both have to hold: an agent that finds a serious problem stops and
 off however green the gate was, and a green agent with a red gate merges nothing.
 
 **Push is not a posture property.** It is per project, it defaults to `false`, and it is
-`false` here. Merging into a local `main` is recoverable by anyone with a reflog;
-publishing is not, and it is the difference that makes an unreviewed merge acceptable in
-this repository at all. Nothing in AgentJobs runs `git push`.
-
-**What happens when an autonomous run merges something bad?** It is caught by whoever
-next reads `main`, and it is reverted, because nothing left this machine. That is the
-whole of the safety argument, and it is why `push: false` matters more here than the
-merge policy does. A project that both releases the merge gate and permits pushing has
-given up the recovery, and should want a much stronger reason than this one.
+`false` here. Nothing in AgentJobs runs `git push`. **That is the whole of the safety
+argument**: a bad autonomous merge is caught by whoever next reads `main` and reverted,
+because nothing left this machine. A project that both releases the merge gate and
+permits pushing has given up that recovery, and should want a much stronger reason than
+this one.
 
 **An epic multiplies this, and the multiplication is the point** (task-022). Dispatching
 a parent at `autonomous` and running `agentjobs dispatch walk` merges *every* child in
-turn, unattended, on one click. The gate above runs per child and is unchanged -- each
-child merges through `agentjobs finish --posture-release`, so each merge still has a
-green unqualified `scripts/check.py` on the exact commit under it -- and the walk stops
-outright on the first child that is not clean rather than skipping it. Retries are
-bounded at two per child per authorisation. Read
+turn, unattended, on one click — each through `agentjobs finish --posture-release`, so
+each merge still has a green unqualified gate on the exact commit under it, and the walk
+stops outright on the first child that is not clean. Read
 [the epic walk](docs/agent-dispatch-design.md#the-epic-walk-one-human-act-many-runs-task-022-2026-08-23)
-before raising a project's posture, and note that the paragraph above gets *stronger*
-here: chains of unreviewed merges are recoverable only for as long as nothing is pushed.
+before raising a project's posture: chains of unreviewed merges are recoverable only for
+as long as nothing is pushed.
 
 #### Steps 3 to 6 may already have happened before you read them
 
@@ -453,20 +444,13 @@ Creating a task, grooming the backlog, claiming, logging progress, handing off, 
 all of it, using a `chore(tasks):` or `chore(task-nnn):` commit. A feature branch carries
 code and docs. It does not touch `tasks/`.
 
-This used to be the opposite: the exception was narrow and explicitly excluded a task's
-own status transitions, on the reasoning that they belonged beside the work they
-described. That reasoning was wrong, and the failure is not subtle.
-
 **The dashboard reads one working tree.** A handoff committed to a branch is invisible
 to the person it is addressed to — they open the React app, see the task still `ready`, and
 conclude nothing is waiting for them. The merge gate depends on a human seeing a review
 request, so recording that request somewhere the human cannot see it defeats the gate
-entirely. Worktrees make it airtight: the shared clone is then *never* on the review
-branch. Observed 2026-08-11, repeatedly, before the cause was understood.
-
-Keeping task files on `main` also removes task-file merge conflicts as a category. Two
-agents on two branches can no longer produce two divergent versions of the same task
-record, because neither branch contains one.
+entirely, and worktrees make it airtight: the shared clone is then *never* on the review
+branch. Observed 2026-08-11, repeatedly, before the cause was understood. It also removes
+task-file merge conflicts as a category, since neither branch contains a task record.
 
 Practically: write task updates through the API or the manager, which resolve the project
 root from the registry and therefore land in the `main` clone's working tree even when
@@ -479,8 +463,7 @@ git -C <path-to-main-clone> commit -m "chore(task-045): hand off for review"
 
 The cost, stated so nobody rediscovers it as a bug: a task's record and the code it
 describes are no longer one atomic commit, and checking out an old revision will not show
-you the task state as it was then. `main`'s history has it. That is a fair trade for a
-review request the reviewer can actually see.
+you the task state as it was then. `main`'s history has it.
 
 ## Safety Rails
 -   **Never** delete user data without explicit confirmation.
@@ -488,27 +471,26 @@ review request the reviewer can actually see.
 -   **Verify** local server startup and the React `/app/` route (`poetry run agentjobs
     open`) after modifying API routes or frontend serving.
 -   **A server that refuses to start because it "imported its own source from the wrong
-    checkout" is telling the truth — do not work around it.** The virtualenv on that
-    interpreter has an editable install pointing at a different checkout, so the process
-    would read the right task files and run a different branch's code. Nothing else shows
-    it: `git log` in the served clone is correct and so are the files on disk. The repair
-    is printed in the error, and it is `poetry install` from the clone that should be
-    running, then a restart. `AGENTJOBS_SKIP_SOURCE_CHECK` exists for an unusual install
-    layout, not for getting past this. Task-194 is the incident; `/api/version` reports
-    `source_root` if you want to ask a running server the same question.
+    checkout" is telling the truth — do not work around it.** That virtualenv has an
+    editable install pointing at a different checkout, so the process would read the right
+    task files and run a different branch's code, and nothing else shows it: `git log` in
+    the served clone is correct and so are the files on disk. The repair is printed in the
+    error — `poetry install` from the clone that should be running, then a restart.
+    `AGENTJOBS_SKIP_SOURCE_CHECK` exists for an unusual install layout, not for getting
+    past this. Task-194 is the incident; `/api/version` reports `source_root`.
 -   **Rebuild the frontend after merging front-end work, then restart.**
     `src/agentjobs/frontend_dist/` is gitignored, so merging a React change to `main`
-    does **not** update the bundle a running server serves. `git pull` and a restart
-    are not enough; the clone that serves the app needs `npm run build` in `frontend/`
-    as well. Observed 2026-08-17: a merged performance fix appeared to have done
-    nothing, because the browser was still being handed the pre-merge bundle.
+    does **not** update the bundle a running server serves; the clone that serves the app
+    needs `npm run build` in `frontend/` as well. Observed 2026-08-17: a merged fix
+    appeared to have done nothing, because the browser was still being handed the
+    pre-merge bundle.
 -   **Restart the server after changing models, storage, or task files.** A running
-    `agentjobs serve` holds the imported code in memory. If the task files change
+    `agentjobs serve` holds the imported code in memory, so when task files change
     underneath it — a schema migration, a checkout, a bulk edit — it reads new data with
-    old code and every file appears corrupt. This is what a stale server looks like:
-    dozens of validation errors naming fields that no longer exist. The application is
-    fine; the process is old. `agentjobs restart` before concluding anything is broken,
-    and never leave a stale server running for someone else to find.
+    old code and every file appears corrupt. Dozens of validation errors naming fields
+    that no longer exist is what a stale server looks like: the application is fine, the
+    process is old. `agentjobs restart` before concluding anything is broken, and never
+    leave a stale server running for someone else to find.
 
 ## Verification
 -   A passing suite is not evidence a feature works. Exercise the change the way a user

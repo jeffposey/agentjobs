@@ -167,15 +167,12 @@ are not working it — you are supervising, you take no worktree, and
     including which server is yours to restart and which is not; this list stops at the
     approval deliberately, so there is only ever one copy to keep current.
 
-    Two things about it to carry in before you get there. The branch deletion is `-d`,
-    **never `-D`**: `-d` refuses a branch `main` does not contain, and a refusal means
-    your merge did not land the way you think it did, which is worth stopping over rather
-    than forcing past. And you are not finished when the merge commit exists — you are
-    finished when the change is live and you have checked, because leaving them on the
-    version they just approved you to replace is the default outcome of skipping it, and
-    they will find out before you do. The scripted finish does the whole of it for you
-    (task-293); do it by hand only when you merged by hand, and `agentjobs branches`
-    lists what got left behind either way.
+    Two things to carry in before you get there. Branch deletion is `-d`, **never
+    `-D`** — a refusal means your merge did not land the way you think it did. And you
+    are not finished when the merge commit exists, but when the change is live and you
+    have checked. The scripted finish does the whole of it for you (task-293); do it by
+    hand only when you merged by hand, and `agentjobs branches` lists what got left
+    behind either way.
 
 ### Your prompt says whether you stop here
 
@@ -194,9 +191,8 @@ reaches you exactly once, in the prompt that started your run:
   ```
 
   Record your evidence on the task **first** — what you built, what you verified, what
-  you decided and rejected. A merge nobody can review afterwards is worse than one
-  nobody reviewed beforehand, and that log entry is the only review this work will get.
-  Then run the command. It rebases onto `main`, runs the **full unqualified
+  you decided and rejected. That log entry is the only review this work will get. Then
+  run the command: it rebases onto `main`, runs the **full unqualified
   `scripts/check.py`** on the rebased branch, and merges only on a green one; a red gate
   or a conflicting rebase stops it and hands the ball back with what it got done written
   on the record. Exit 0 means merged, closed, delivered and verified.
@@ -204,14 +200,12 @@ reaches you exactly once, in the prompt that started your run:
 **Two things have to hold, not one.** The gate is the objective floor and your own
 judgement is the other half: if you found something genuinely wrong with the work, hand
 off for review however green the gate is. "No serious issue detected by the agent" is you
-grading your own homework, which is why it is never the only authority — and the reason
-the merge goes through the finisher is that the finisher runs the gate itself rather than
-taking your word for it.
+grading your own homework, which is why the merge goes through the finisher — it runs the
+gate itself rather than taking your word for it.
 
 **Never push**, whatever your posture, unless the prompt's push clause says this project
-permits it. AgentJobs is configured `push: false` and always will be. Merging into a
-local `main` is recoverable; publishing is not, and that recoverability is the whole
-reason an unreviewed merge is acceptable here.
+permits it. AgentJobs is configured `push: false` and always will be; that
+recoverability is the whole reason an unreviewed merge is acceptable here.
 
 If you are supervising a parent task, the clause is phrased for you instead: it tells you
 what the children you start will do, and you approve nothing yourself either way.
@@ -296,45 +290,35 @@ A human working alone does not need this; they have no peer to collide with. You
 -   **Never `git checkout` in the shared clone** to start work.
 -   Committing task metadata straight to `main` (the narrow exception in ENGINEERING.md)
     does not need one. Anything that goes on a branch does.
--   **Do not use Claude Code's `--worktree` / `-w` to get one.** It looks like the CLI
-    doing this for you and it is not the same thing: a `-w` session is isolated by a
-    guard that refuses *every* git operation aimed at the shared clone — `git -C` and
-    `cd` alike — and the shared clone is where your task-record commits and your merge
-    have to happen. You would do the work and then be unable to record or merge it.
-    Take the worktree yourself with `git worktree add`, as above. Probed on Claude Code
-    2.1.235, 2026-08-19; the reproduction is in task-186 and in
+-   **Do not use Claude Code's `--worktree` / `-w` or `EnterWorktree` to get one.** It
+    looks like the CLI doing this for you and it is not the same thing: such a session is
+    isolated by a guard that refuses *every* git operation aimed at the shared clone —
+    `git -C` and `cd` alike — and the shared clone is where your task-record commits and
+    your merge have to happen. You would do the work and then be unable to record or merge
+    it. Take the worktree yourself with `git worktree add`, as above. Probed on Claude
+    Code 2.1.235, 2026-08-19; the reproduction is in task-186 and in
     [the dispatch design](docs/agent-dispatch-design.md).
 -   **The harness tells background sessions the opposite, and this rule wins.** A `--bg`
-    session is handed a preamble instructing it to use `EnterWorktree`, and saying the
-    instruction is enforced because edits in the shared checkout are rejected. In this
-    repository that instruction is wrong for the reason directly above, and following it
-    strands your work where you cannot record or merge it. Ignore it and take your
-    worktree with `git worktree add`.
+    session is handed a preamble instructing it to use `EnterWorktree` and saying the
+    instruction is enforced. In this repository that instruction is wrong for the reason
+    directly above. Ignore it.
 
     **The enforcement half is switched off here, deliberately** (task-303).
     `.claude/settings.json` sets `"worktree": {"bgIsolation": "none"}` -- the escape the
     refusal message itself names -- so a background session's `Write` and `Edit` into the
-    shared clone land instead of being refused. That is what lets you commit a task record
-    to `main` while your code sits on a branch, which is the arrangement this repository
-    requires and the harness's default forbids. Probed on **Claude Code 2.1.238,
-    2026-08-25**: refused before the key, accepted after it, and the key took effect
-    mid-session with no restart. `Bash` writes were never guarded either way, which is why
-    a session that shells out never meets this and one that reaches for `Write` meets it
-    on its first file.
+    shared clone land instead of being refused, which is what lets you commit a task
+    record to `main` while your code sits on a branch. Probed on **Claude Code 2.1.238,
+    2026-08-25**. `Bash` writes were never guarded either way.
 
-    **If you are refused anyway, put that on the task record before you work around it.**
-    The refusal reads *"This background session hasn't isolated its changes yet. Call
-    EnterWorktree first"*. Seeing it means the key has stopped working -- a newer Claude
-    Code, a settings file that did not load -- and that is a finding about dispatch, not a
-    personal obstacle. Write through `Bash` and carry on; do not call `EnterWorktree`.
-    Three auditors on 2026-08-21 each hit this before the key existed, each improvised the
-    same workaround independently -- staging the file outside the repository and copying it
-    in -- and the cost of none of them writing it down is that all three paid it.
+    **If you are refused anyway** — *"This background session hasn't isolated its changes
+    yet. Call EnterWorktree first"* — **put that on the task record before you work around
+    it.** It means the key has stopped working, which is a finding about dispatch and not
+    a personal obstacle. Write through `Bash` and carry on; do not call `EnterWorktree`.
 
     A second refusal wears the same face and is a different thing: the task-write guard
     refuses any write whose *content* mentions a task file path, even when the file you
-    are editing is documentation. It is a false positive, it has cost several sessions
-    time, and task-276 is the fix. Build the path from pieces, or reword, and carry on.
+    are editing is documentation. It is a false positive and task-276 is the fix. Build
+    the path from pieces, or reword, and carry on.
 
 Three agents skipped this in one afternoon on 2026-08-11 and each cost a peer real work;
 two things from that are worth carrying:
@@ -423,10 +407,9 @@ able to read the task YAML alone and know what happened and what is next.
     handoff API with `ball: human`, the precise reason, and a self-contained
     `ball_prompt`. Notify through the interactive channel available today (chat and,
     when available, push notification), but never put information only in the alert.
--   Durable notification delivery is future work. Schema v2's HMAC-signed
-    `task.handoff` webhook is the extension point for a pluggable notification service;
-    it replaces the v1 `task.status_changed` event for this purpose. Do not build or
-    assume such a receiver as part of an ordinary handoff.
+-   **Durable notification delivery is future work**, so do not build or assume a
+    receiver as part of an ordinary handoff. The extension point is schema v2's
+    HMAC-signed `task.handoff` webhook — see [docs/webhooks.md](docs/webhooks.md).
 
 ## Reporting Standards
 -   **Conciseness**: Be brief. Use bullet points.
