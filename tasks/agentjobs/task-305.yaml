@@ -3,7 +3,7 @@ id: task-305
 title: Move rationale, incident narrative and measurement history out of the always-loaded
   bundle, and put what remains under a budget a test asserts
 created: '2026-08-23T21:53:30.307386Z'
-updated: '2026-08-27T09:49:47.371585Z'
+updated: '2026-08-27T10:33:48.294049Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -110,22 +110,41 @@ acceptance:
 - id: ac-1
   text: ENGINEERING.md and ALLAGENTS.md are under a word budget asserted by a test,
     with the number taken from the measurement child's report.
-  status: pending
+  verify: pytest tests/test_context_budget.py -- caps the four always-loaded files
+    at 60,000 newline-normalised bytes; they are at 58,557. Bytes rather than words
+    is task-301's own choice. See the decision entry for why 60,000 and not its 52,000.
+  status: met
 - id: ac-2
   text: 'No rule was removed: every deleted or moved passage is traceable from the
     commit that removed it to where it now lives.'
-  status: pending
+  verify: git log a7852c5..HEAD -- each doc commit names its destination; the table
+    is in the progress entry. Cross-checked by pytest tests/test_context_eval.py (53
+    passed after every commit) and a link script over every anchor into docs/.
+  status: met
 - id: ac-3
   text: No count appears in either file that is not accompanied by the command and
     date that produced it.
-  status: pending
+  verify: Swept both files for bare numerals. The stage table now names the command
+    as well as the date; the vitest row's unattributed '228 jsdom component tests'
+    is now 'the jsdom component tests'; bootstrap timings carry 'timed 2026-08-19';
+    budget figures point at docs/performance.md. The rule is restated as 'Quote a
+    command and a date, never a bare count.'
+  status: met
 - id: ac-4
   text: '`agentjobs dispatch config` reports whether finish is on or off for a project.'
-  status: pending
+  verify: 'agentjobs dispatch config --project agentjobs -- reports ''finish=on''
+    in the projects listing and on its own line before the permission check. Run against
+    the real ~/.agentjobs/dispatch.yaml: agentjobs on, job-hunting and mastercalls
+    off. Two tests in tests/test_dispatch_cli.py.'
+  status: met
 - id: ac-5
   text: If the measurement showed the repo-controlled share is small, the record carries
     a decision saying how far the cut was scaled back and why.
-  status: pending
+  verify: The share was not small (32.9%) so the deep cut went ahead; the scale-back
+    is the budget number, recorded in the decision entry and in docs/context-budget.md
+    section 8a with the arithmetic showing the residual gap is six days of new rules
+    the anchor predates.
+  status: met
 deliverables: []
 dependencies:
 - task: task-301
@@ -348,3 +367,220 @@ log:
       id: 91df90e1-00fe-4450-a560-faf535fc5414
       kind: log_append
       fingerprint: 283cf38faa27ad1a346e7b4ee49e95f6
+- id: 11
+  ts: '2026-08-27T10:26:10.482076Z'
+  actor: claude
+  type: progress
+  body: "Done and gate-green on `docs/task-305-context-budget-cut` (9 commits, branch\
+    \ point a7852c5). Full unqualified `scripts/check.py`: **exit 0, 10 of 10 stages,\
+    \ 245.4s**, receipt written for 7525c260.\n\n## The result\n\n| | before | after\
+    \ | change |\n|---|---:|---:|---:|\n| bundle bytes (four files, newline-normalised)\
+    \ | 78,055 | **58,557** | **-19,498, -25%** |\n| ENGINEERING.md + ALLAGENTS.md,\
+    \ words | 12,260 | **8,902** | **-3,358** |\n| tokens per session at task-301's\
+    \ 3.0 B/token | ~26,000 | ~19,500 | ~-6,500 |\n\nENGINEERING.md 41,985 -> 30,192\
+    \ B; ALLAGENTS.md 33,850 -> 26,145 B.\n\n## The commits, in the reviewable order\
+    \ the spec asked for\n\n1. `ea681d9` dedupe the scripted-finish and wake sections\
+    \ (deletions of duplicated text first)\n2. `9d2e3c7` `dispatch config` reports\
+    \ `finish=on|off` (the CLI change that makes the dedupe safe)\n3. `77b5c99`-ish\
+    \ move the gate's measurement history to docs/performance.md\n4. point ALLAGENTS\
+    \ at docs/agent-workflow.md for the queue and supervisor mechanics\n5. cut incident\
+    \ reconstruction down to the lesson and the task id\n6. trim the remaining rationale\
+    \ in both files\n7. fold the last duplicated posture and branch-lifetime prose\n\
+    8. `tests/test_context_budget.py` - the cap, going green on the state 1-7 produced\n\
+    9. `tests/test_check_gate.py` - match the task-189 decision on its words, not\
+    \ its line wrap\n\n## Where every removed passage went\n\n| Moved | To |\n|---|---|\n\
+    | task-233's before/after table, the three-consecutive-runs argument, the xdist\
+    \ `frozenset` anecdote, the coverage-cost paragraph, task-189's stage-reordering\
+    \ arithmetic, the serial-era contention figures, the three-concurrent-gates observation,\
+    \ the `--since-gate`-is-worth-less justification | `docs/performance.md#what-the-gate-costs`\
+    \ (new section) |\n| the whole `run_report.py` reference | `docs/performance.md#where-agent-time-goes`\
+    \ (new section) |\n| the finish's exit codes, decline conditions and what it records\
+    \ | `docs/agent-dispatch-design.md#5a`, which already carried all of it |\n| the\
+    \ queue's client/MCP call forms, what `--why` returns, which exception each caller\
+    \ sees | `docs/agent-workflow.md#work-what-the-queue-says-is-next` |\n| \"A move\
+    \ answers back\" - the one paragraph that lived nowhere else | moved *into* `docs/agent-workflow.md`\
+    \ beside the move it describes |\n| the four child states, retry mechanics, `--max-children`,\
+    \ the auth-expiry case | `docs/agent-workflow.md`'s supervisor sections, which\
+    \ carry more than the summary did |\n| the wake section's every sentence | `WAKE_STUB`\
+    \ in `src/agentjobs/dispatch/wake.py`, delivered to the session that is actually\
+    \ woken |\n| incident reconstructions | the task records that found them: 186,\
+    \ 189, 194, 207, 210, 211, 225, 233 |\n\n## Verified\n\n- **`tests/test_context_eval.py`:\
+    \ 53 passed** after every doc commit, not just at the end. That is the instrument\
+    \ the spec suggested: it re-renders all seven ablations against the live bundle,\
+    \ so a renamed heading or a rule restated where the ablation cannot reach fails\
+    \ immediately. It caught one real regression - `ea681d9` introduced \"own worktree\"\
+    \ into ENGINEERING.md, which `worktree-not-checkout` forbids surviving its own\
+    \ ablation and ENGINEERING has no `remove_lines` pattern for. Fixed in the next\
+    \ commit.\n- **All internal links and anchors resolve.** Checked by script across\
+    \ ENGINEERING, ALLAGENTS, AGENTS and the four docs touched - every `](path#anchor)`\
+    \ against the target file's actual headings. Also swept the repository for references\
+    \ to the two headings I renamed; there were none.\n- **The CLI change exercised\
+    \ the way a user would**, against the real `~/.agentjobs/dispatch.yaml` rather\
+    \ than a fixture:\n  ```\n  agentjobs             ... push=False  finish=on  \
+    \ clean_tree=True  auto=False\n  job-hunting           ... push=False  finish=off\
+    \  clean_tree=True  auto=False\n  agentjobs: finish=on\n  agentjobs: permitted\
+    \ - runner 'claude-opus-5' ...\n  ```\n  Two tests cover it, including that finish\
+    \ is reported even when dispatch is refused - the two questions are independent,\
+    \ and an agent woken after an approval needs the first regardless of the second.\n\
+    - **Markdown structure**: no unbalanced fences, empty list items, trailing whitespace\
+    \ or triple blank lines in any edited file.\n\n## The audit claim that had gone\
+    \ stale\n\nThe spec told me to re-check whether the scripted finish was still\
+    \ off before cutting its two sections, and it is **on**: `~/.agentjobs/dispatch.yaml`\
+    \ has `finish: {enabled: true, ...}` for agentjobs, and `~/.agentjobs/finishes/`\
+    \ holds 20+ records. The audit measured it off on 2026-08-21. So this was a deduplication\
+    \ of live content, not the removal of dead prose - both sections keep their operative\
+    \ rules and lose only the second copy. That is also why ac-4 mattered more than\
+    \ it looked: the prose is conditional on a machine-local setting, and now the\
+    \ condition is resolvable by command."
+  data:
+    operation:
+      id: 7c1a4e90-2b63-4f18-a0d5-9e83c1f27b44
+      kind: log_append
+      fingerprint: 424abbfe40bba21ee3e37fb855d63916
+- id: 12
+  ts: '2026-08-27T10:31:52.709231Z'
+  actor: claude
+  type: answer
+  body: "**Measured. The mechanism is real, and the trigger is narrower than the question\
+    \ assumed in a way that matters a great deal here: a nested `CLAUDE.md` loads\
+    \ on `Read` and `Grep`, and does NOT load on a Bash `cat`.**\n\nI missed this\
+    \ question on my first read \u2014 I read the record at 09:47 and it was added\
+    \ at 09:49 \u2014 and found it when logging results. The cut was already gate-green\
+    \ by then. I ran the experiment anyway, because the answer is cheap and permanent\
+    \ whichever way it goes.\n\n## What was run\n\nClaude Code **2.1.238**, 2026-08-27,\
+    \ haiku-4-5, `claude -p --output-format json`. Two scratch trees, identical but\
+    \ for one file: `A/` has a one-line root `CLAUDE.md`; `B/` has the same plus `B/sub/CLAUDE.md`,\
+    \ 8,648 bytes of a distinctive numbered marker rule. Both have `sub/thing.py`\
+    \ defining `widget_alpha`. Prompts asked the model to quote \"nested marker rule\
+    \ number 017\" or reply NOT_LOADED, so the probe reports whether the text reached\
+    \ the model rather than whether a token count moved.\n\n| # | What the session\
+    \ did | Nested file loaded? |\n|---|---|---|\n| 1 | nothing \u2014 just answered\
+    \ | **no** |\n| 2 | `Read sub/thing.py` | **yes** |\n| 3 | `Bash: cat sub/thing.py`\
+    \ | **no** |\n| 4 | `Grep` for a string under `sub/` | **yes** |\n| 5 | `Write\
+    \ sub/scratch.txt` | *inconclusive* \u2014 a permission prompt blocked the tool,\
+    \ so the gesture never landed |\n\nToken accounting agrees with the behavioural\
+    \ probes, using \xA79's instrument (input + cache_creation + cache_read):\n\n\
+    - Probe 1: **A and B both 34,053 tokens, to the token** \u2014 10 + 11,876 + 22,167\
+    \ in each. An 8.6 KB file that loaded at session start could not produce that.\n\
+    - Probe 2 pair: A **68,497**, B **70,059**. **+1,562 tokens** in the tree that\
+    \ has the nested file, for a file whose text is deliberately repetitive and so\
+    \ tokenises well.\n\nProbe 3 was checked against this repository's own rule about\
+    \ automated gestures: the run was re-asked to name the function it saw, answered\
+    \ `widget_alpha`, and *still* answered NOT_LOADED. The `cat` landed and the file\
+    \ did not load. Probe 5 is reported as inconclusive for the same reason in reverse\
+    \ \u2014 the tool never executed, so it proves nothing.\n\n## The three outcomes\
+    \ the question offered, and which one this is\n\nNeither \"it never loads\" nor\
+    \ \"it loads eagerly\". It is the third: **deferred, and therefore a real lever.**\
+    \ But two caveats turn it from \"adopt this\" into \"this needs its own task\"\
+    :\n\n- **The trigger is the native file tools, not the shell.** Dispatched runs\
+    \ in this repository are handed a bypassPermissions preamble that tells them to\
+    \ prefer Bash for reading and editing \u2014 *\"read files with cat, head, or\
+    \ sed -n... make file changes with sed, heredocs, or short scripts, rather than\
+    \ using the dedicated Read, Edit, or Write tools\"*. This very run followed it.\
+    \ So a rule placed in `src/agentjobs/dispatch/CLAUDE.md` would be invisible to\
+    \ precisely the sessions that do most of the work here, unless one happened to\
+    \ `Grep` first. That is not a reason to abandon the idea; it is a reason the idea\
+    \ comes with a second decision about how dispatched sessions read files.\n- **Codex\
+    \ is untested and the question's own warning stands.** Codex reads `AGENTS.md`,\
+    \ not `CLAUDE.md`, and per `docs/context-budget.md` \xA74 it does not auto-load\
+    \ `ENGINEERING.md`/`ALLAGENTS.md` at all \u2014 it reads them as tool results\
+    \ because `AGENTS.md` says to. Whether Codex defers a nested `AGENTS.md` was not\
+    \ measured. A rule moved to a nested file could become invisible to Codex rather\
+    \ than deferred, which is a correctness question rather than a budget one.\n\n\
+    ## Whether it should have changed what this task cut\n\n**No, and I would not\
+    \ redo the cut given the answer.** The distinction is what moved:\n\n- Everything\
+    \ task-305 moved is **rationale, incident narrative, measurement history and duplication**.\
+    \ It went to `docs/`, to a dynamic prompt that already carried it, or to the task\
+    \ record that found it. A nested `CLAUDE.md` is a worse home for all of it than\
+    \ `docs/` is \u2014 `docs/` is reachable by any agent, any tool, and by a person,\
+    \ and none of it is directory-scoped anyway.\n- **Every rule stayed in the always-loaded\
+    \ bundle.** The lever this question identifies is about moving *rules* out \u2014\
+    \ a rule only somebody editing `src/agentjobs/dispatch/` needs. That is a different\
+    \ operation, with the two correctness risks above, and it should be specced and\
+    \ measured rather than folded into a compression pass.\n\nSo the finding is additive\
+    \ to this epic rather than a correction to it, and it is worth its own task under\
+    \ task-269. What it would need to settle: whether dispatched sessions can be made\
+    \ to trigger the load reliably (or told to `Grep` first), whether Codex honours\
+    \ a nested `AGENTS.md`, and which rules are genuinely directory-scoped \u2014\
+    \ my guess is fewer than it feels like, since most of ENGINEERING.md and ALLAGENTS.md\
+    \ is about the workflow rather than about a subsystem.\n\nI have not filed that\
+    \ task: the spec says not to absorb follow-ups without authorisation, and the\
+    \ supervisor holding task-269 is better placed to decide where it sits in that\
+    \ epic. The measurement above is complete enough to file from without re-running\
+    \ anything."
+  re: 10
+  data:
+    operation:
+      id: c58d2f61-9a07-4b3e-8d21-6f4b0e39a512
+      kind: log_append
+      fingerprint: 40c0a568e8486e65829e99bbc6b07f41
+- id: 13
+  ts: '2026-08-27T10:32:55.171777Z'
+  actor: claude
+  type: decision
+  body: "**The cap is 60,000 bytes, not task-301's 52,000, and the cut was stopped\
+    \ at 58,557 deliberately.** This is ac-5's decision entry.\n\n## What was rejected\n\
+    \n**REJECTED: cut to 52,000.** It was reachable \u2014 there is always another\
+    \ paragraph to compress \u2014 but the only material left at 58,557 was rules.\
+    \ Getting the last ~6,500 bytes would have meant shortening the `--since-gate`\
+    \ properties past the point where they say what not to weaken, thinning the merge\
+    \ gate's numbered steps, or moving rules into a `docs/` file a session has to\
+    \ know to open. The spec is unambiguous about that trade: *\"A budget that forces\
+    \ a rule out is a worse outcome than a large file.\"* Task-301 authorised the\
+    \ same escape in its own \xA78: *\"if 52,000 B cannot be reached without dropping\
+    \ a rule that has actually prevented a failure, report that and raise the cap\
+    \ with the reason on the record.\"*\n\n**REJECTED: no cap at all, or a soft one\
+    \ in prose.** Task-301's central finding is that a cut without a ceiling is seasonal\
+    \ \u2014 the two files gained about 1,240 words a day over the window it measured,\
+    \ so a 3,900-word cut is undone in days. A cap nothing enforces is a statement\
+    \ of intent, which is the same argument ENGINEERING.md already makes for putting\
+    \ checks in the gate rather than in a list.\n\n**REJECTED: a generous cap with\
+    \ room to grow into.** 60,000 leaves ~1,450 bytes of slack, which is tight on\
+    \ purpose and mirrors the 800 bytes task-301 proposed on 51,200. Tight is the\
+    \ point: adding a rule then requires either fitting it or raising the cap in a\
+    \ commit that says which rule needed the room. That is the behaviour the cap exists\
+    \ to produce.\n\n## Why the anchor was not reached, in numbers rather than in\
+    \ adjectives\n\nThe word target was substantially met. The byte anchor was not,\
+    \ because the anchor is a snapshot of files that have since grown by rules.\n\n\
+    | | 2026-08-21 (the anchor's day) | before this branch | after |\n|---|---:|---:|---:|\n\
+    | ENGINEERING.md + ALLAGENTS.md, words | 8,717 | 12,260 | **8,902** |\n| four-file\
+    \ bundle, bytes | \u2014 | 78,055 | **58,557** |\n\n- The audit's target was **3,900\
+    \ words** out of the two large files. This removed **3,358**.\n- The two files\
+    \ are now **185 words larger than they were on 2026-08-21** \u2014 while carrying\
+    \ six days of genuinely new rules that arrived in between: task-293's scripted-finish\
+    \ cleanup, task-303's `bgIsolation` finding and its refusal-reporting rule, task-308's\
+    \ posture ceiling, the finish configuration, the queue move notices. None of that\
+    \ is narrative and none of it was cut.\n- So the residual gap to 52,000 is not\
+    \ slack I declined to squeeze. It is six days of rules the anchor predates.\n\n\
+    ## What would actually close it\n\nNot more compression of these two files. Three\
+    \ things, in the order I would rank them:\n\n1. **The nested-`CLAUDE.md` lever**,\
+    \ measured in the answer to entry 10 and recorded in `docs/context-budget.md`\
+    \ \xA78b. It defers real bytes. It also has two open correctness questions and\
+    \ needs its own task.\n2. **Task-301's own ranked list of cheaper levers**, none\
+    \ of which has been touched: the dispatched-session premium over interactive (~4,240\
+    \ tokens, never examined) and per-project MCP scoping (~3,795 tokens, nine of\
+    \ ten servers irrelevant here) are together larger than everything cut in this\
+    \ task.\n3. **`scripts/context_eval.py` on a new model release.** Some of what\
+    \ is currently load-bearing may be redundant with a later model's defaults, and\
+    \ that is the only instrument that can say which \u2014 a verdict there is the\
+    \ honest way to remove a rule rather than compress one.\n\nLowering `BUNDLE_BUDGET_BYTES`\
+    \ is the right instinct and the test's docstring says so; the constraint is that\
+    \ it be lowered by finding more rationale to move, not by grinding a rule until\
+    \ it stops being one."
+  data:
+    operation:
+      id: 2d94f77c-15b8-4c60-9e0a-83f16a2b0d13
+      kind: log_append
+      fingerprint: 92e8f91305f7e3ff01668909f568ddee
+- id: 14
+  ts: '2026-08-27T10:33:48.293792Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 8e2b5f43-71cd-4a09-b6e7-0d5f2a91c374
+      kind: update_content
+      fingerprint: f56bea13f7949b51f52b2b18b1131065
