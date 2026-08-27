@@ -3,7 +3,7 @@ id: task-297
 title: 'The scripted finish cannot merge under concurrency: base_moved fires on task-record
   commits, and each escalation causes the next'
 created: '2026-08-23T20:57:20.855780Z'
-updated: '2026-08-27T17:15:32.077263Z'
+updated: '2026-08-27T17:15:45.800500Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -991,3 +991,17 @@ log:
       id: 7f2a1c30-9d41-4b62-8e05-1a2b3c4d5e09
       kind: log_append
       fingerprint: 7c0fec8f2f22e9efb72f474ae7573e84
+- id: 24
+  ts: '2026-08-27T17:15:45.800256Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-297-finish-catch-up` (1c24a591).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-297.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_f8bffa18\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-297-finish-catch-up
+    finish_id: fin_f8bffa18
