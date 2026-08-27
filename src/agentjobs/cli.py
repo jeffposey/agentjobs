@@ -1303,6 +1303,14 @@ def dispatch_walk(
     max_children: Optional[int] = typer.Option(
         None, "--max-children", help="Stop after starting this many, however many remain."
     ),
+    max_concurrent: Optional[int] = typer.Option(
+        None,
+        "--max-concurrent",
+        help=(
+            "Children in flight at once. Defaults to this machine's "
+            "limits.max_concurrent_runs, and can only narrow it."
+        ),
+    ),
     posture: Optional[str] = typer.Option(
         None,
         "--posture",
@@ -1315,13 +1323,21 @@ def dispatch_walk(
         False, "--dry-run", help="Say what would be walked and in what order; start nothing."
     ),
 ) -> None:
-    """Work an epic's children one at a time, stopping the moment one is not clean.
+    """Fly an epic's independent children in parallel, grounding the fleet on a bad one.
 
-    One child is started, watched to a finish through its own task record, and judged: a
-    child that closed ``completed`` ran its own objective gate and its own merge, so the
-    walk moves to the next one. Anything else stops the walk where it stands -- a child
+    Every child whose dependencies are satisfied and which is not already running is
+    started, up to this machine's concurrent-run ceiling; each is watched to a finish
+    through its own task record and judged. A child that closed ``completed`` ran its own
+    objective gate and its own merge. Anything else stops all further takeoffs -- a child
     is never skipped, because a sibling that depended on it would then be building on a
-    gap with nobody awake to notice.
+    gap with nobody awake to notice -- while children already in flight are watched down
+    rather than killed, none of them being able to depend on the one that failed.
+
+    **Takeoff and landing are different resources.** Children work in parallel because
+    their worktrees are independent, and merge one at a time because ``main`` is not:
+    each queues for the repository's merge runway inside its own finish, so the commit
+    that lands is always the commit its gate verified. ``--max-concurrent`` narrows the
+    fleet; nothing widens it past ``limits.max_concurrent_runs``.
 
     **It never closes the parent.** No open child remaining is not the same as the
     parent's acceptance criteria being met, and that judgement is the one step of this
@@ -1343,8 +1359,8 @@ def dispatch_walk(
         WalkSettings,
         EpicError,
         describe_settings,
+        frontier,
         inherited_posture,
-        next_eligible_child,
         open_children,
         walk_epic,
         walk_handoff_prompt,
@@ -1396,6 +1412,14 @@ def dispatch_walk(
     if child_hours is not None:
         settings.child_timeout_seconds = child_hours * 3600.0
     settings.max_children = max_children
+    # **The machine's ceiling is the default and the maximum, not a second number to keep
+    # in step with** (task-223). A child is an ordinary dispatch and is counted against
+    # `limits.max_concurrent_runs` by `dispatch_task`, so a walk allowed more than that
+    # would simply be refused a slot -- which the walk now treats as backpressure and
+    # waits on, but which would still mean this flag promised something the machine had
+    # already decided against. `--max-concurrent` narrows it and cannot widen it.
+    ceiling = resolution.limits.max_concurrent_runs
+    settings.max_concurrent = min(max_concurrent, ceiling) if max_concurrent else ceiling
 
     remaining = open_children(manager, parent.id)
     typer.echo(f"Walking {parent.id}: {parent.title}")
@@ -1406,11 +1430,14 @@ def dispatch_walk(
         typer.echo(f"  {line}")
 
     if dry_run:
-        # Deliberately only the *first* child. Which one comes second depends on what the
-        # first one does to the dependency graph, and printing a whole running order the
-        # walk has not committed to would be a prediction dressed as a plan.
-        upcoming = next_eligible_child(manager, parent.id)
-        typer.echo(f"  next: {upcoming.id if upcoming else 'nothing claimable'}")
+        # The frontier as it stands *now*, and no further. Which children become eligible
+        # after these land depends on what they do to the dependency graph, so printing a
+        # whole running order the walk has not committed to would be a prediction dressed
+        # as a plan. What is printed is exactly what would take off on the next tick.
+        upcoming = frontier(manager, parent.id)[: settings.max_concurrent]
+        typer.echo(
+            f"  starting now: {', '.join(child.id for child in upcoming) or 'nothing claimable'}"
+        )
         typer.secho("Dry run: nothing was started.", fg=typer.colors.YELLOW)
         return
 

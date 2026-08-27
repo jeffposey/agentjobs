@@ -46,6 +46,7 @@ from agentjobs.dispatch.epic import (
     assert_attempts_remain,
     count_attempts,
     describe_settings,
+    frontier,
     inherited_posture,
     next_eligible_child,
     parent_authorizing_entry,
@@ -1219,3 +1220,286 @@ class TestTheWalkReadsThroughTheSnapshot:
             ChildVerdict.COMPLETED,
         ]
         assert dispatcher.started == [first, second]
+
+
+# ----- the rolling frontier (task-223) ----------------------------------------
+
+
+class TestConcurrentWalk:
+    """Independent children fly together; the graph, not a barrier, decides who flies.
+
+    The invariant every case here is an instance of: **at no point does an eligible,
+    unclaimed child exist while a slot is free.** A walk that satisfied every other
+    assertion in this file and violated that one would be the serial walk with extra
+    machinery bolted to it.
+    """
+
+    def test_every_independent_child_starts_before_any_of_them_finishes(
+        self, manager: TaskManager, project: Project
+    ) -> None:
+        parent_id = make_parent(manager)
+        children = [make_child(manager, parent_id, f"Child {n}") for n in range(3)]
+        dispatcher = Dispatcher(manager)
+        # Each child waits a tick before completing, so a serial walk could not have all
+        # three started at the moment the first one lands.
+        result = drive(
+            manager,
+            project,
+            parent_id,
+            dispatcher=dispatcher,
+            script={child: ["wait", "complete"] for child in children},
+            settings=WalkSettings(poll_seconds=0.0, child_timeout_seconds=1000.0, max_concurrent=3),
+        )
+        assert result.stop is WalkStop.ALL_CHILDREN_DONE
+        assert sorted(dispatcher.started) == sorted(children)
+        assert result.peak_in_flight == 3
+
+    def test_a_slot_count_of_one_is_the_serial_walk_exactly(
+        self, manager: TaskManager, project: Project
+    ) -> None:
+        """The old behaviour is still reachable, and is what an unset setting means."""
+        parent_id = make_parent(manager)
+        children = [make_child(manager, parent_id, f"Child {n}") for n in range(3)]
+        dispatcher = Dispatcher(manager)
+        result = drive(
+            manager,
+            project,
+            parent_id,
+            dispatcher=dispatcher,
+            script={child: ["wait", "complete"] for child in children},
+            settings=WalkSettings(poll_seconds=0.0, child_timeout_seconds=1000.0),
+        )
+        assert result.stop is WalkStop.ALL_CHILDREN_DONE
+        assert dispatcher.started == children
+        assert result.peak_in_flight == 1
+
+    def test_a_freed_child_starts_without_waiting_for_its_siblings(
+        self, manager: TaskManager, project: Project
+    ) -> None:
+        """No barrier: a dependent starts when *its* need closes, not when a wave does.
+
+        The long-running sibling is the point. Under a wave scheduler the dependent would
+        wait for it, because a wave ends when its slowest member does.
+        """
+        parent_id = make_parent(manager)
+        gate = make_child(manager, parent_id, "Gate")
+        slow = make_child(manager, parent_id, "Slow")
+        dependent = make_child(manager, parent_id, "Dependent")
+        manager.update_task(
+            dependent, actor="claude", dependencies=[{"task": gate, "type": "needs"}]
+        )
+        dispatcher = Dispatcher(manager)
+        result = drive(
+            manager,
+            project,
+            parent_id,
+            dispatcher=dispatcher,
+            script={
+                gate: ["complete"],
+                slow: ["wait", "wait", "wait", "wait", "complete"],
+                dependent: ["complete"],
+            },
+            settings=WalkSettings(poll_seconds=0.0, child_timeout_seconds=1000.0, max_concurrent=2),
+        )
+        assert result.stop is WalkStop.ALL_CHILDREN_DONE
+        # Landed order, not start order: the dependent got a slot the moment the gate
+        # closed, and finished long before the slow sibling it never depended on.
+        landed = [attempt.child_id for attempt in result.attempts]
+        assert landed.index(dependent) < landed.index(slow)
+
+    def test_a_diamond_child_waits_for_its_second_parent(
+        self, manager: TaskManager, project: Project
+    ) -> None:
+        """A child unblocked by one parent is not thereby eligible.
+
+        A scheduler that pushed newly-freed dependents onto a ready queue on completion
+        would start ``both`` as soon as ``left`` closed, against an unmet ``right``. This
+        is the case where "X unblocked me" and "I am eligible" differ, and asking
+        claimability afresh is what cannot get it wrong.
+        """
+        parent_id = make_parent(manager)
+        left = make_child(manager, parent_id, "Left")
+        right = make_child(manager, parent_id, "Right")
+        both = make_child(manager, parent_id, "Both")
+        manager.update_task(
+            both,
+            actor="claude",
+            dependencies=[
+                {"task": left, "type": "needs"},
+                {"task": right, "type": "needs"},
+            ],
+        )
+        dispatcher = Dispatcher(manager)
+        result = drive(
+            manager,
+            project,
+            parent_id,
+            dispatcher=dispatcher,
+            script={
+                left: ["complete"],
+                right: ["wait", "wait", "complete"],
+                both: ["complete"],
+            },
+            settings=WalkSettings(poll_seconds=0.0, child_timeout_seconds=1000.0, max_concurrent=3),
+        )
+        assert result.stop is WalkStop.ALL_CHILDREN_DONE
+        # `both` starts last and lands last. Started before `right` closed, it would have
+        # been dispatched against a prerequisite that had not landed.
+        assert dispatcher.started.index(both) > dispatcher.started.index(right)
+        landed = [attempt.child_id for attempt in result.attempts]
+        assert landed.index(both) > landed.index(right)
+
+    def test_a_bad_child_grounds_takeoffs_and_lets_the_others_land(
+        self, manager: TaskManager, project: Project
+    ) -> None:
+        parent_id = make_parent(manager)
+        bad = make_child(manager, parent_id, "Bad")
+        flying = make_child(manager, parent_id, "Flying")
+        waiting = make_child(manager, parent_id, "Waiting")
+        dispatcher = Dispatcher(manager)
+        result = drive(
+            manager,
+            project,
+            parent_id,
+            dispatcher=dispatcher,
+            script={
+                bad: ["park"],
+                flying: ["wait", "wait", "complete"],
+                waiting: ["complete"],
+            },
+            settings=WalkSettings(poll_seconds=0.0, child_timeout_seconds=1000.0, max_concurrent=2),
+        )
+        assert result.stop is WalkStop.CHILD_NEEDS_A_HUMAN
+        # The two that were airborne when the bad one parked both landed; the third never
+        # took off, because a grounded walk starts nothing further.
+        assert sorted(dispatcher.started) == sorted([bad, flying])
+        assert waiting not in dispatcher.started
+        verdicts = {attempt.child_id: attempt.verdict for attempt in result.attempts}
+        assert verdicts[bad] is ChildVerdict.PARKED
+        assert verdicts[flying] is ChildVerdict.COMPLETED
+
+    def test_max_children_still_caps_a_concurrent_walk(
+        self, manager: TaskManager, project: Project
+    ) -> None:
+        parent_id = make_parent(manager)
+        children = [make_child(manager, parent_id, f"Child {n}") for n in range(4)]
+        dispatcher = Dispatcher(manager)
+        result = drive(
+            manager,
+            project,
+            parent_id,
+            dispatcher=dispatcher,
+            script={child: ["complete"] for child in children},
+            settings=WalkSettings(
+                poll_seconds=0.0,
+                child_timeout_seconds=1000.0,
+                max_concurrent=4,
+                max_children=2,
+            ),
+        )
+        assert result.stop is WalkStop.NO_ELIGIBLE_CHILD
+        assert len(dispatcher.started) == 2
+        assert "max-children" in result.detail
+
+
+class TestBackpressure:
+    """A full machine is a queue, not a verdict about this epic."""
+
+    def test_a_concurrency_refusal_is_waited_out_rather_than_stopping_the_walk(
+        self, manager: TaskManager, project: Project
+    ) -> None:
+        from agentjobs.dispatch.guards import ConcurrencyLimitError
+
+        parent_id = make_parent(manager)
+        first = make_child(manager, parent_id, "First")
+        second = make_child(manager, parent_id, "Second")
+
+        class Contended(Dispatcher):
+            """Refuses the second child once, as a busy machine would."""
+
+            def __init__(self, manager: TaskManager) -> None:
+                super().__init__(manager)
+                self.refusals = 0
+
+            def __call__(self, **kwargs):
+                if kwargs["request"].task_id == second and self.refusals == 0:
+                    self.refusals += 1
+                    raise ConcurrencyLimitError("This machine allows 1 concurrent run(s).")
+                return super().__call__(**kwargs)
+
+        dispatcher = Contended(manager)
+        result = drive(
+            manager,
+            project,
+            parent_id,
+            dispatcher=dispatcher,
+            script={first: ["wait", "wait", "complete"], second: ["complete"]},
+            settings=WalkSettings(poll_seconds=0.0, child_timeout_seconds=1000.0, max_concurrent=2),
+        )
+        assert result.stop is WalkStop.ALL_CHILDREN_DONE
+        assert dispatcher.refusals == 1
+        assert sorted(dispatcher.started) == sorted([first, second])
+
+    def test_a_permanently_full_machine_stops_the_walk_rather_than_spinning(
+        self, manager: TaskManager, project: Project
+    ) -> None:
+        from agentjobs.dispatch.guards import ConcurrencyLimitError
+
+        parent_id = make_parent(manager)
+        make_child(manager, parent_id, "Only")
+
+        class AlwaysFull(Dispatcher):
+            def __call__(self, **kwargs):
+                raise ConcurrencyLimitError("This machine allows 1 concurrent run(s).")
+
+        result = drive(
+            manager,
+            project,
+            parent_id,
+            dispatcher=AlwaysFull(manager),
+            script={},
+            settings=WalkSettings(poll_seconds=0.0, child_timeout_seconds=5.0, max_concurrent=2),
+        )
+        assert result.stop is WalkStop.COULD_NOT_START_CHILD
+        assert "max_concurrent_runs" in result.detail
+
+
+class TestFrontierOrder:
+    """The graph decides eligibility, the queue decides order, out-degree breaks ties."""
+
+    def test_the_queue_orders_the_frontier(self, manager: TaskManager) -> None:
+        parent_id = make_parent(manager)
+        first = make_child(manager, parent_id, "First")
+        second = make_child(manager, parent_id, "Second")
+        assert [task.id for task in frontier(manager, parent_id)] == [first, second]
+        manager.move(second, actor="Jeff Posey", top=True)
+        assert [task.id for task in frontier(manager, parent_id)] == [second, first]
+
+    def test_a_blocked_child_is_not_on_the_frontier(self, manager: TaskManager) -> None:
+        parent_id = make_parent(manager)
+        gate = make_child(manager, parent_id, "Gate")
+        blocked = make_child(manager, parent_id, "Blocked")
+        manager.update_task(blocked, actor="claude", dependencies=[{"task": gate, "type": "needs"}])
+        assert [task.id for task in frontier(manager, parent_id)] == [gate]
+
+    def test_a_child_already_in_flight_is_excluded_by_name(self, manager: TaskManager) -> None:
+        parent_id = make_parent(manager)
+        first = make_child(manager, parent_id, "First")
+        second = make_child(manager, parent_id, "Second")
+        assert [task.id for task in frontier(manager, parent_id, exclude=(first,))] == [second]
+
+    def test_a_sibling_outside_this_epic_is_never_on_the_frontier(
+        self, manager: TaskManager
+    ) -> None:
+        parent_id = make_parent(manager)
+        mine = make_child(manager, parent_id, "Mine")
+        other = manager.create_task(
+            title="Unrelated",
+            category="general",
+            summary="Different epic.",
+            description="Nothing to do with this one.",
+            lifecycle=Lifecycle.READY,
+            actor="claude",
+        )
+        manager.move(other.id, actor="Jeff Posey", top=True)
+        assert [task.id for task in frontier(manager, parent_id)] == [mine]
