@@ -3,7 +3,7 @@ id: task-306
 title: 'The dynamic half is drifting too: long summaries, default ball prompts surviving
   on active tasks, and almost no questions ever reaching the record'
 created: '2026-08-23T21:53:59.468926Z'
-updated: '2026-08-27T11:04:10.616987Z'
+updated: '2026-08-27T11:04:20.650310Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -421,3 +421,17 @@ log:
       id: e7c2418a-9b60-4d13-a5f8-06b4e1937c25
       kind: update_content
       fingerprint: cbd41886eaf871826718a47091c7be11
+- id: 13
+  ts: '2026-08-27T11:04:20.650136Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-306-record-quality-warnings` (154e3406).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-306.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_8c385895\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-306-record-quality-warnings
+    finish_id: fin_8c385895
