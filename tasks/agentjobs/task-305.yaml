@@ -3,7 +3,7 @@ id: task-305
 title: Move rationale, incident narrative and measurement history out of the always-loaded
   bundle, and put what remains under a budget a test asserts
 created: '2026-08-23T21:53:30.307386Z'
-updated: '2026-08-27T10:33:48.294049Z'
+updated: '2026-08-27T10:34:16.334506Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -584,3 +584,17 @@ log:
       id: 8e2b5f43-71cd-4a09-b6e7-0d5f2a91c374
       kind: update_content
       fingerprint: f56bea13f7949b51f52b2b18b1131065
+- id: 15
+  ts: '2026-08-27T10:34:16.334322Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `docs/task-305-context-budget-cut` (ee378af0).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-305.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_d1b62907\gate.log.'
+  data:
+    finish_step: started
+    branch: docs/task-305-context-budget-cut
+    finish_id: fin_d1b62907
