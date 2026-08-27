@@ -388,6 +388,58 @@ Ranked by tokens per unit of risk, none of them in this task's scope:
 
 ---
 
+## 8a. What task-305 actually reached (2026-08-27)
+
+The cut landed and the cap is enforced, at **60,000 B rather than 52,000 B**. §8 above
+anticipated this and authorised it -- *"if 52,000 B cannot be reached without dropping a
+rule that has actually prevented a failure, report that and raise the cap with the reason
+on the record"* -- so this is that report.
+
+| | before | after | change |
+|---|---:|---:|---:|
+| bundle bytes, newline-normalised | 78,055 | **58,557** | **−19,498, −25%** |
+| `ENGINEERING.md` + `ALLAGENTS.md`, words | 12,260 | **8,902** | **−3,358** |
+| tokens per session at 3.0 B/token | ~26,000 | ~19,500 | ~−6,500 |
+
+Measured on `docs/task-305-context-budget-cut` against its branch point `a7852c5`, with
+`read_bundle` from `agentjobs.contexteval.bundle` (which normalises CRLF, so a Windows and
+a Linux checkout agree). The cap lives in `tests/test_context_budget.py` and runs in the
+`pytest` stage of the gate.
+
+**Why the number is 60,000 and not 52,000.** The word target was substantially met and the
+byte anchor was not, because the anchor was a snapshot of a file that has since grown by
+rules:
+
+- §8 set the audit's target at **3,900 words** out of the two large files. Task-305
+  removed **3,358**.
+- The two files are now **185 words larger than they were on 2026-08-21**, the day the
+  52,000 B anchor is taken from — while carrying six days of new rules that arrived in
+  between (task-293's scripted-finish cleanup, task-303's `bgIsolation` finding,
+  task-308's posture ceiling, the finish configuration, the queue move notices). None of
+  those is narrative and none was cut.
+- Closing the remaining ~6,500 B would therefore have meant compressing rules rather than
+  moving reasons. §8's own guard says a budget that forces a bad trade should lose the
+  argument.
+
+**What was moved, and where it went**, all of it traceable from the commit that removed
+it:
+
+| Moved | To |
+|---|---|
+| the gate's measurement history — task-233's before/after, the xdist anecdote, the coverage cost, task-189's arithmetic, the contention figures | [performance.md](performance.md#what-the-gate-costs) |
+| the whole `run_report.py` reference | [performance.md](performance.md#where-agent-time-goes) |
+| the scripted finish's exit codes, decline conditions and records | [agent-dispatch-design.md](agent-dispatch-design.md#5a-what-ends-a-dispatch-the-scripted-finish-task-241-shipped) |
+| the queue's call forms and broken-queue exceptions; "a move answers back" | [agent-workflow.md](agent-workflow.md#work-what-the-queue-says-is-next) |
+| the supervisor protocol's four child states, retry mechanics and auth-expiry case | [agent-workflow.md](agent-workflow.md#working-a-parent-task-you-supervise-the-children-you-do-not-work-them) |
+| the wake prompt's contents | `WAKE_STUB`, `src/agentjobs/dispatch/wake.py` — delivered to the session that is woken |
+| incident reconstructions | the task records that found them: 186, 189, 194, 207, 210, 211, 225, 233 |
+
+**The lever nobody has pulled** is still the one §8 ranked first among cheaper levers: the
+dispatched-session premium and the MCP surface together are larger than everything cut
+here, and neither has been examined.
+
+---
+
 ## 9. Reproducing this
 
 Everything above comes from files already on the machine; no session was started to
