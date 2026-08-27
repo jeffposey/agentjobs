@@ -2356,7 +2356,8 @@ class DispatchRunner:
             ball=Ball.HUMAN,
             ball_reason=BallReason.INPUT,
             ball_prompt=(
-                f"Dispatched session `{handle.session_id}` stopped on an authentication "
+                f"{self.session_noun(handle)} session `{handle.session_id}` stopped on an "
+                f"authentication "
                 f"failure at {stall.at.isoformat()} and will not resume by itself."
                 f"{said}\n\n"
                 "**Find out which failure this is before doing anything — there are two "
@@ -2391,6 +2392,19 @@ class DispatchRunner:
             directory=handle.directory,
         )
 
+    def session_noun(self, handle: RunHandle, *, capitalised: bool = True) -> str:
+        """ "Dispatched session" or "Registered session", from what the run says it is.
+
+        Every ball prompt below is read by a person deciding what to do about a session,
+        and "dispatched" is the first thing they would check. It is false for a session
+        AgentJobs adopted rather than started (task-320) -- and the difference is
+        actionable, because a registered session was spawned by somebody who may still
+        be waiting on it.
+        """
+        origin = handle.directory.read_meta().get("origin")
+        word = "Registered" if origin == "registered" else "Dispatched"
+        return word if capitalised else word.lower()
+
     def _park_session(self, handle: RunHandle) -> None:
         """Turn a parked session into a question a human can answer from anywhere.
 
@@ -2423,7 +2437,8 @@ class DispatchRunner:
             ball=Ball.HUMAN,
             ball_reason=BallReason.INPUT,
             ball_prompt=(
-                f"Dispatched session `{handle.session_id}` is parked on a permission "
+                f"{self.session_noun(handle)} session `{handle.session_id}` is parked on a "
+                f"permission "
                 f"prompt and will wait indefinitely. {where} Or attach locally with "
                 f"`{self.display_command()} attach {handle.session_id}`.{quoted}"
             ),
@@ -2521,7 +2536,8 @@ class DispatchRunner:
             ball=Ball.HUMAN,
             ball_reason=BallReason.INPUT,
             ball_prompt=(
-                f"Dispatched session `{handle.session_id}` still reports itself as "
+                f"{self.session_noun(handle)} session `{handle.session_id}` still reports itself "
+                f"as "
                 f"working but has produced no output for {minutes} minutes, so this task "
                 "has been reading `agent`/`work` while nothing happened. It was **not** "
                 "killed and is still attachable: "
@@ -2571,7 +2587,8 @@ class DispatchRunner:
                 f"attachable: `{self.display_command()} attach {handle.session_id}`."
             ),
             hand_to_human=(
-                f"A dispatched session ({handle.session_id}) finished without handing "
+                f"A {self.session_noun(handle, capitalised=False)} session ({handle.session_id}) "
+                f"finished without handing "
                 "off, so nobody was told what it needs. Read what it did, then either "
                 "attach to it or move this task on yourself."
             ),
