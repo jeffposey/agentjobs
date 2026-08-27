@@ -778,6 +778,21 @@ class DispatchLimits:
     max_concurrent_runs: int = 1
     run_timeout_seconds: int = 1800
     session_stale_seconds: int = 3600
+    session_stall_seconds: int = 1800
+    """How long a live session may emit nothing before it is reported as stalled.
+
+    Distinct from ``session_stale_seconds``, which is a different question about a
+    different session. That one asks whether a session that has already *ended its turn*
+    concluded properly; this one asks whether a session still reporting itself as working
+    is actually doing anything.
+
+    Thirty minutes because the longest legitimately quiet thing a session does is run the
+    gate, and the gate is not quiet: pytest streams throughout, and even under three-way
+    contention it has been measured at about six minutes end to end
+    (``docs/performance.md``). Five times that leaves no plausible healthy session
+    inside the window, which is the point -- a stall report that fires on working
+    sessions is one nobody reads.
+    """
     auto: AutoDispatchLimits = field(default_factory=AutoDispatchLimits)
 
 
@@ -1225,6 +1240,12 @@ def _parse_limits(raw: Mapping[str, object], path: Path) -> DispatchLimits:
             "limits.session_stale_seconds",
             path,
             defaults.session_stale_seconds,
+        ),
+        session_stall_seconds=_positive_int(
+            raw.get("session_stall_seconds"),
+            "limits.session_stall_seconds",
+            path,
+            defaults.session_stall_seconds,
         ),
         auto=AutoDispatchLimits(
             per_task_per_day=_positive_int(

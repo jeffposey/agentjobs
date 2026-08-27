@@ -24,7 +24,7 @@ import textwrap
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Callable, Dict, List, Optional, cast
 
 import pytest
 import yaml
@@ -48,6 +48,7 @@ from agentjobs.dispatch.runner import (
     GUIDE_PATH,
     PROMPT_STUB,
     REMOTE_CONTROL_URL,
+    TERMINAL_STATUSES,
     TRANSCRIPT_FILENAME,
     DispatchRunner,
     DispatchRunError,
@@ -85,6 +86,7 @@ from agentjobs.models_v2 import (
     Lifecycle,
     LogEntryType,
     Outcome,
+    utcnow,
 )
 from agentjobs.storage import TaskStorage
 
@@ -108,6 +110,7 @@ def make_resolution(
     driver: RunnerDriver = RunnerDriver.CLAUDE,
     timeout: int = 1800,
     stale: int = 3600,
+    stall: int = 1800,
     require_clean_tree: bool = False,
     push: bool = False,
     env: Optional[Dict[str, str]] = None,
@@ -122,7 +125,11 @@ def make_resolution(
         posture=posture,
         push=push,
     )
-    limits = DispatchLimits(run_timeout_seconds=timeout, session_stale_seconds=stale)
+    limits = DispatchLimits(
+        run_timeout_seconds=timeout,
+        session_stale_seconds=stale,
+        session_stall_seconds=stall,
+    )
     return DispatchResolution(
         project_id="sandbox",
         runner=runner,
@@ -159,7 +166,13 @@ def task(manager: TaskManager):
     return manager.claim_task(created.id, agent="claude")
 
 
-def build(workspace: Path, manager: TaskManager, resolution: DispatchResolution) -> DispatchRunner:
+def build(
+    workspace: Path,
+    manager: TaskManager,
+    resolution: DispatchResolution,
+    *,
+    clock: Callable[[], datetime] = utcnow,
+) -> DispatchRunner:
     return DispatchRunner(
         manager=manager,
         resolution=resolution,
@@ -167,6 +180,7 @@ def build(workspace: Path, manager: TaskManager, resolution: DispatchResolution)
         home=workspace / "home",
         api_base="http://localhost:8899",
         grace_seconds=2.0,
+        clock=clock,
     )
 
 
@@ -1830,6 +1844,12 @@ if argv and argv[0] == "logs":
     print("[1mClaude needs your permission to run:[m")
     print("  poetry run alembic upgrade head")
     print("╰" + "─" * 40 + "╯")
+    # A real session's log grows as it works. Tests that need that append here; a
+    # missing file leaves the output byte-identical to what it was before, which is
+    # exactly the silence a stalled session produces.
+    extra = pathlib.Path(__file__).with_name("logs.extra")
+    if extra.is_file():
+        print(extra.read_text(encoding="utf-8"))
     raise SystemExit(0)
 
 if argv and argv[0] == "stop":
@@ -2851,3 +2871,232 @@ class TestAWalkStartedChildIsNotGivenItsSupervisorsIdentity:
         assert document["env"]["AGENTJOBS_RUN_DIR"] == str(
             workspace / "home" / "runs" / handle.run_id
         )
+
+
+class TestRunningStallDetection:
+    """A session that says it is working but is not (task-296).
+
+    `RUNNING` was the one phase that concluded nothing and had no time bound, so a task
+    could read `agent`/`work` indefinitely while its session did nothing -- and a
+    supervisor following the rule "the signal is the task record" would wait on it for
+    as long as that lasted. These tests are about the report reaching the record.
+
+    **Only the first test starts a session.** The rest reach `poll_session` with the
+    ledger row and the transcript supplied directly, because six more real background
+    processes are six more processes competing with the rest of the suite under
+    `-n auto` -- and `TestProcessGroup` above is a documented casualty of exactly that
+    contention (task-243). Spawning to obtain a handle we then never let run is load
+    bought for nothing; the code path under test is identical either way.
+    """
+
+    def _clock(self, start: datetime) -> tuple:
+        """A clock the test advances by hand, and the handle to advance it."""
+        cursor = {"now": start}
+
+        def now() -> datetime:
+            return cursor["now"]
+
+        def advance(delta: timedelta) -> None:
+            cursor["now"] = cursor["now"] + delta
+
+        return now, advance
+
+    def _handle(self, workspace: Path, task_id: str, entry_id: int) -> RunHandle:
+        """A handle for a live session, built rather than started.
+
+        `runner.start` would give us the same thing and a real OS process with it. The
+        fields below are the ones `poll_session` actually reads.
+        """
+        directory = RunDirectory.create(
+            workspace / "home",
+            "run_stall",
+            {
+                "run_id": "run_stall",
+                "task_id": task_id,
+                "project_id": "sandbox",
+                "mode": "session",
+                "status": "running",
+                "session_id": "b55b35ad",
+                "dispatch_entry_id": entry_id,
+                "started_at": "2026-08-27T12:00:00+00:00",
+            },
+        )
+        return RunHandle(
+            run_id="run_stall",
+            task_id=task_id,
+            mode=DispatchMode.SESSION,
+            directory=directory,
+            pid=4242,
+            session_id="b55b35ad",
+            dispatch_entry_id=entry_id,
+        )
+
+    def _quiet_runner(self, workspace, manager, task, monkeypatch, clock, transcript):
+        """A runner whose session reports `busy`/`working` and emits `transcript`.
+
+        Both stubs replace a subprocess: `_ledger_row` shells out to `agents --json`
+        and `capture_transcript` to `logs`. Neither is what this class is testing.
+        """
+        # A name, never an execution: both subprocess calls are stubbed just below, but
+        # `display_command` reads argv[0] to tell a human what to type to attach.
+        runner = build(
+            workspace, manager, make_resolution(["claude"], mode=RunnerMode.SESSION), clock=clock
+        )
+        monkeypatch.setattr(
+            DispatchRunner,
+            "_ledger_row",
+            lambda _self, _sid: {"status": "busy", "state": "working"},
+        )
+        monkeypatch.setattr(DispatchRunner, "capture_transcript", lambda _self, _h: transcript())
+        return runner
+
+    def test_a_session_that_reports_working_but_emits_nothing_is_reported(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """The whole defect, end to end through a real started session.
+
+        This one pays for a real process on purpose: it is the test that proves the
+        wiring works against a genuine ledger read and a genuine transcript fetch,
+        rather than against two stubs.
+        """
+        start = datetime(2026, 8, 27, 12, 0, tzinfo=timezone.utc)
+        now, advance = self._clock(start)
+        runner = build(workspace, manager, session_resolution(fake_cli), clock=now)
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        set_ledger(fake_cli, [{"id": "b55b35ad", "status": "busy", "state": "working"}])
+
+        assert runner.poll_session(handle) is SessionPhase.RUNNING
+        before = manager.get_task(task.id)
+        assert before is not None and before.ball is Ball.AGENT
+
+        advance(timedelta(minutes=31))
+        assert runner.poll_session(handle) is SessionPhase.RUNNING
+
+        after = manager.get_task(task.id)
+        assert after is not None
+        assert after.ball is Ball.HUMAN
+        assert after.ball_reason is BallReason.INPUT
+        prompt = after.ball_prompt or ""
+        assert "b55b35ad" in prompt
+        assert "31 minutes" in prompt
+        # A report, not an execution: the human is told it is still theirs to attach to.
+        assert "attach" in prompt
+        assert handle.directory.read_meta()["status"] == "stalled"
+
+    def test_a_silence_the_length_of_a_gate_is_not_a_stall(
+        self, workspace: Path, manager: TaskManager, task, monkeypatch
+    ) -> None:
+        """The constraint, encoded.
+
+        `scripts/check.py` is the longest legitimately quiet thing a session does, and it
+        has been measured at about six minutes under three-way contention. A threshold
+        that fires on that would report working sessions, and a stall report nobody can
+        trust is worse than none.
+        """
+        start = datetime(2026, 8, 27, 12, 0, tzinfo=timezone.utc)
+        now, advance = self._clock(start)
+        runner = self._quiet_runner(
+            workspace, manager, task, monkeypatch, now, lambda: "working away"
+        )
+        handle = self._handle(workspace, task.id, 1)
+
+        runner.poll_session(handle)
+        advance(timedelta(minutes=6))
+        runner.poll_session(handle)
+
+        after = manager.get_task(task.id)
+        assert after is not None
+        assert after.ball is Ball.AGENT, "a session mid-gate was reported as stalled"
+        assert handle.directory.read_meta()["status"] == "running"
+
+    def test_output_growth_retracts_a_reported_stall(
+        self, workspace: Path, manager: TaskManager, task, monkeypatch
+    ) -> None:
+        """A stall is a statement about now, not a verdict. A session that speaks again works.
+
+        Sticky would be wrong here in a way it is not for a permission park: a parked
+        session cannot un-park itself, and a stalled one resumes on its own all the time.
+        """
+        start = datetime(2026, 8, 27, 12, 0, tzinfo=timezone.utc)
+        now, advance = self._clock(start)
+        output = {"text": "started"}
+        runner = self._quiet_runner(
+            workspace, manager, task, monkeypatch, now, lambda: output["text"]
+        )
+        handle = self._handle(workspace, task.id, 1)
+
+        runner.poll_session(handle)
+        advance(timedelta(minutes=31))
+        runner.poll_session(handle)
+        assert handle.directory.read_meta()["status"] == "stalled"
+
+        output["text"] = "started, and then it woke up and kept going"
+        advance(timedelta(minutes=1))
+        runner.poll_session(handle)
+
+        assert handle.directory.read_meta()["status"] == "running"
+
+    def test_the_report_is_written_once_however_often_it_is_polled(
+        self, workspace: Path, manager: TaskManager, task, monkeypatch
+    ) -> None:
+        """Polling is repeated by design, so every action it takes has to be idempotent."""
+        start = datetime(2026, 8, 27, 12, 0, tzinfo=timezone.utc)
+        now, advance = self._clock(start)
+        runner = self._quiet_runner(workspace, manager, task, monkeypatch, now, lambda: "quiet")
+        handle = self._handle(workspace, task.id, 1)
+
+        runner.poll_session(handle)
+        advance(timedelta(minutes=31))
+        runner.poll_session(handle)
+        advance(timedelta(minutes=31))
+        runner.poll_session(handle)
+
+        after = manager.get_task(task.id)
+        assert after is not None
+        stalls = [
+            entry
+            for entry in after.log
+            if entry.type is LogEntryType.HANDOFF and "no output for" in (entry.body or "")
+        ]
+        assert len(stalls) == 1
+
+    def test_a_stalled_session_is_never_finished_or_killed(
+        self, workspace: Path, manager: TaskManager, task, monkeypatch
+    ) -> None:
+        """Detection only (task-296, sc-4). It may hold a dirty worktree; it stays attachable."""
+        start = datetime(2026, 8, 27, 12, 0, tzinfo=timezone.utc)
+        now, advance = self._clock(start)
+        runner = self._quiet_runner(workspace, manager, task, monkeypatch, now, lambda: "quiet")
+        handle = self._handle(workspace, task.id, 1)
+
+        runner.poll_session(handle)
+        advance(timedelta(minutes=31))
+        runner.poll_session(handle)
+
+        assert not terminal_entries(manager, task.id), "a stall is not a terminal outcome"
+        assert handle.directory.read_meta().get("finished_at") is None
+
+    def test_a_stall_report_leaves_the_run_live_so_it_can_be_retracted(self) -> None:
+        """`stalled` must not read as terminal, or the poller would stop following it."""
+        assert "stalled" not in TERMINAL_STATUSES
+
+    def test_an_unreadable_transcript_does_not_start_the_clock(
+        self, workspace: Path, manager: TaskManager, task, monkeypatch
+    ) -> None:
+        """ "Could not read it" is not evidence the session produced nothing.
+
+        `capture_transcript` returns "" for both, and treating the failure as silence
+        would report healthy sessions as stalled whenever a log fetch happened to fail.
+        """
+        start = datetime(2026, 8, 27, 12, 0, tzinfo=timezone.utc)
+        now, advance = self._clock(start)
+        runner = self._quiet_runner(workspace, manager, task, monkeypatch, now, lambda: "")
+        handle = self._handle(workspace, task.id, 1)
+
+        runner.poll_session(handle)
+        advance(timedelta(minutes=31))
+        runner.poll_session(handle)
+
+        after = manager.get_task(task.id)
+        assert after is not None
+        assert after.ball is Ball.AGENT

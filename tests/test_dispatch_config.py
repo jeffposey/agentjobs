@@ -176,6 +176,7 @@ class TestLoading:
         assert config.limits.max_concurrent_runs == 1
         assert config.limits.run_timeout_seconds == 1800
         assert config.limits.session_stale_seconds == 3600
+        assert config.limits.session_stall_seconds == 1800
         assert config.limits.auto.per_task_per_day == 3
         assert config.limits.auto.per_task_lifetime == 10
         assert config.limits.auto.cooldown_seconds == 60
