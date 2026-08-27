@@ -3,23 +3,55 @@ id: task-297
 title: 'The scripted finish cannot merge under concurrency: base_moved fires on task-record
   commits, and each escalation causes the next'
 created: '2026-08-23T20:57:20.855780Z'
-updated: '2026-08-27T16:51:52.361303Z'
+updated: '2026-08-27T16:58:12.580378Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: 'The approval ran the scripted finish and it stopped at `merge`. **Nothing
-  was merged.**
-
-
-  main moved from 4dff7535 to af0b1404 while the gate was running, so what was verified
-  is no longer what would be merged. The branch is rebased onto the older base and
-  nothing was merged.
-
-
-  Take it from here by hand. Check the tree against what is written above before acting
-  on anything you remember: if your worktree, your branch or your account of this
-  task no longer matches what is on disk, say so on the record and hand the ball back
-  rather than improvising a recovery.'
+ball_prompt: "The approval ran the scripted finish and it stopped at `catch_up`. **Nothing\
+  \ was merged.**\n\n`scripts/check.py --only pytest` failed on fix/task-297-finish-catch-up\
+  \ after rebasing onto the moved main (159s, exit 1). The full gate had been green;\
+  \ what the base moved under it was not. Nothing was merged. This is the case the\
+  \ catch-up exists to find, so read it before assuming it is noise. Full output:\
+  \ C:\\Users\\jpose\\.agentjobs\\finishes\\fin_61fe41b2\\catch-up-1.log\n\n```\n\
+  \    warnings.warn(\ntests/test_cli.py::test_migrate_command_execution\n  C:\\projects\\\
+  worktrees\\agentjobs-297\\src\\agentjobs\\migration\\reporter.py:40: DeprecationWarning:\
+  \ datetime.datetime.utcnow() is deprecated and scheduled for removal in a future\
+  \ version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n\
+  \    f\"**Generated**: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\\n\"\
+  \ntests/test_loud_load_errors.py::TestApiSurfacesIt::test_reading_the_broken_task_is_a_422_naming_it\n\
+  tests/test_mcp_read_tools.py::TestTaskGet::test_a_broken_file_is_distinct_from_a_missing_task\n\
+  tests/test_mcp_protocol.py::TestAgentEvaluations::test_every_scenario_passes\ntests/test_mcp_protocol.py::TestAgentEvaluations::test_all_ten_accepted_scenarios_ran\n\
+  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_records_traces_and_final_state\n\
+  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_refusal_scenarios_actually_recorded_refusals\n\
+  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
+  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-EUXcVhHG-py3.13\\\
+  Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response = await\
+  \ handler(conn, exc)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
+  \  C:\\projects\\worktrees\\agentjobs-297\\src\\agentjobs\\api\\routes\\web.py:368:\
+  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
+  \ removal in a future version. Use timezone-aware objects to represent datetimes\
+  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
+  tests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
+  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-EUXcVhHG-py3.13\\\
+  Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
+  \ dependant.call(**values)\ntests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
+  \  C:\\projects\\worktrees\\agentjobs-297\\src\\agentjobs\\api\\routes\\web.py:350:\
+  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
+  \ removal in a future version. Use timezone-aware objects to represent datetimes\
+  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
+  -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\e[36m\e\
+  [1m=========================== short test summary info ===========================\e\
+  [0m\n\e[31mFAILED\e[0m tests/test_dispatch_runner.py::\e[1mTestProcessGroup::test_the_timeout_kills_the_grandchild_too\e\
+  [0m - AssertionError: pid 1468464 survived the timeout\n\e[31m===== \e[31m\e[1m1\
+  \ failed\e[0m, \e[32m3497 passed\e[0m, \e[33m1 skipped\e[0m, \e[33m219 warnings\e\
+  [0m\e[31m in 146.78s (0:02:26)\e[0m\e[31m =====\e[0m\n  pytest   158.6s\n  total\
+  \    158.6s\nFailed to deliver webhook wh_78397e02a0: All connection attempts failed\n\
+  Failed at stage 'pytest'.\n```\n\nTake it from here by hand. Check the tree against\
+  \ what is written above before acting on anything you remember: if your worktree,\
+  \ your branch or your account of this task no longer matches what is on disk, say\
+  \ so on the record and hand the ball back rather than improvising a recovery."
 archived: false
 priority: critical
 queue_position: 393
@@ -775,3 +807,118 @@ log:
     finish_step: started
     branch: fix/task-297-finish-catch-up
     finish_id: fin_61fe41b2
+- id: 21
+  ts: '2026-08-27T16:58:12.539537Z'
+  actor: finisher
+  type: progress
+  body: "The scripted finish stopped at `catch_up` (catch_up_gate_failed).\n\n**Nothing\
+    \ was merged.**\n\n`scripts/check.py --only pytest` failed on fix/task-297-finish-catch-up\
+    \ after rebasing onto the moved main (159s, exit 1). The full gate had been green;\
+    \ what the base moved under it was not. Nothing was merged. This is the case the\
+    \ catch-up exists to find, so read it before assuming it is noise. Full output:\
+    \ C:\\Users\\jpose\\.agentjobs\\finishes\\fin_61fe41b2\\catch-up-1.log\n\n```\n\
+    \    warnings.warn(\ntests/test_cli.py::test_migrate_command_execution\n  C:\\\
+    projects\\worktrees\\agentjobs-297\\src\\agentjobs\\migration\\reporter.py:40:\
+    \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
+    \ removal in a future version. Use timezone-aware objects to represent datetimes\
+    \ in UTC: datetime.datetime.now(datetime.UTC).\n    f\"**Generated**: {datetime.utcnow().strftime('%Y-%m-%d\
+    \ %H:%M:%S')} UTC\\n\"\ntests/test_loud_load_errors.py::TestApiSurfacesIt::test_reading_the_broken_task_is_a_422_naming_it\n\
+    tests/test_mcp_read_tools.py::TestTaskGet::test_a_broken_file_is_distinct_from_a_missing_task\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_every_scenario_passes\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_all_ten_accepted_scenarios_ran\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_records_traces_and_final_state\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_refusal_scenarios_actually_recorded_refusals\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
+    \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-EUXcVhHG-py3.13\\\
+    Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+    \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response =\
+    \ await handler(conn, exc)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
+    \  C:\\projects\\worktrees\\agentjobs-297\\src\\agentjobs\\api\\routes\\web.py:368:\
+    \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
+    \ removal in a future version. Use timezone-aware objects to represent datetimes\
+    \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
+    tests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
+    \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-EUXcVhHG-py3.13\\\
+    Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+    \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
+    \ dependant.call(**values)\ntests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
+    \  C:\\projects\\worktrees\\agentjobs-297\\src\\agentjobs\\api\\routes\\web.py:350:\
+    \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
+    \ removal in a future version. Use timezone-aware objects to represent datetimes\
+    \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
+    -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\e[36m\e\
+    [1m=========================== short test summary info ===========================\e\
+    [0m\n\e[31mFAILED\e[0m tests/test_dispatch_runner.py::\e[1mTestProcessGroup::test_the_timeout_kills_the_grandchild_too\e\
+    [0m - AssertionError: pid 1468464 survived the timeout\n\e[31m===== \e[31m\e[1m1\
+    \ failed\e[0m, \e[32m3497 passed\e[0m, \e[33m1 skipped\e[0m, \e[33m219 warnings\e\
+    [0m\e[31m in 146.78s (0:02:26)\e[0m\e[31m =====\e[0m\n  pytest   158.6s\n  total\
+    \    158.6s\nFailed to deliver webhook wh_78397e02a0: All connection attempts\
+    \ failed\nFailed at stage 'pytest'.\n```\n\n```\n  preflight  ok         1.8s\
+    \  fix/task-297-finish-catch-up at ab705439 in C:\\projects\\worktrees\\agentjobs-297\n\
+    \  runway     ok       210.3s  taken after queuing\n  rebase     ok         0.2s\
+    \  fix/task-297-finish-catch-up onto main: ab705439 -> e3be67b3\n  gate      \
+    \ ok       220.5s  scripts/check.py green\n  catch_up   STOPPED    0.0s  `scripts/check.py\
+    \ --only pytest` failed on fix/task-297-finish-catch-up after rebasing onto the\
+    \ moved main (159s, exit 1). The full gate had been green; what the base moved\
+    \ under it was not. Nothing was merged. This is the case the catch-up exists to\
+    \ find, so read it before assuming it is noise. Full output: C:\\Users\\jpose\\\
+    .agentjobs\\finishes\\fin_61fe41b2\\catch-up-1.log\n```"
+  data:
+    finish_step: catch_up
+    finish_reason: catch_up_gate_failed
+    merge_commit: null
+    merged: false
+- id: 22
+  ts: '2026-08-27T16:58:12.580223Z'
+  actor: finisher
+  type: handoff
+  body: "The approval ran the scripted finish and it stopped at `catch_up`. **Nothing\
+    \ was merged.**\n\n`scripts/check.py --only pytest` failed on fix/task-297-finish-catch-up\
+    \ after rebasing onto the moved main (159s, exit 1). The full gate had been green;\
+    \ what the base moved under it was not. Nothing was merged. This is the case the\
+    \ catch-up exists to find, so read it before assuming it is noise. Full output:\
+    \ C:\\Users\\jpose\\.agentjobs\\finishes\\fin_61fe41b2\\catch-up-1.log\n\n```\n\
+    \    warnings.warn(\ntests/test_cli.py::test_migrate_command_execution\n  C:\\\
+    projects\\worktrees\\agentjobs-297\\src\\agentjobs\\migration\\reporter.py:40:\
+    \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
+    \ removal in a future version. Use timezone-aware objects to represent datetimes\
+    \ in UTC: datetime.datetime.now(datetime.UTC).\n    f\"**Generated**: {datetime.utcnow().strftime('%Y-%m-%d\
+    \ %H:%M:%S')} UTC\\n\"\ntests/test_loud_load_errors.py::TestApiSurfacesIt::test_reading_the_broken_task_is_a_422_naming_it\n\
+    tests/test_mcp_read_tools.py::TestTaskGet::test_a_broken_file_is_distinct_from_a_missing_task\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_every_scenario_passes\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_all_ten_accepted_scenarios_ran\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_records_traces_and_final_state\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_refusal_scenarios_actually_recorded_refusals\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
+    \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-EUXcVhHG-py3.13\\\
+    Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+    \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response =\
+    \ await handler(conn, exc)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
+    \  C:\\projects\\worktrees\\agentjobs-297\\src\\agentjobs\\api\\routes\\web.py:368:\
+    \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
+    \ removal in a future version. Use timezone-aware objects to represent datetimes\
+    \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
+    tests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
+    \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-EUXcVhHG-py3.13\\\
+    Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+    \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
+    \ dependant.call(**values)\ntests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
+    \  C:\\projects\\worktrees\\agentjobs-297\\src\\agentjobs\\api\\routes\\web.py:350:\
+    \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
+    \ removal in a future version. Use timezone-aware objects to represent datetimes\
+    \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
+    -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\e[36m\e\
+    [1m=========================== short test summary info ===========================\e\
+    [0m\n\e[31mFAILED\e[0m tests/test_dispatch_runner.py::\e[1mTestProcessGroup::test_the_timeout_kills_the_grandchild_too\e\
+    [0m - AssertionError: pid 1468464 survived the timeout\n\e[31m===== \e[31m\e[1m1\
+    \ failed\e[0m, \e[32m3497 passed\e[0m, \e[33m1 skipped\e[0m, \e[33m219 warnings\e\
+    [0m\e[31m in 146.78s (0:02:26)\e[0m\e[31m =====\e[0m\n  pytest   158.6s\n  total\
+    \    158.6s\nFailed to deliver webhook wh_78397e02a0: All connection attempts\
+    \ failed\nFailed at stage 'pytest'.\n```\n\nTake it from here by hand. Check the\
+    \ tree against what is written above before acting on anything you remember: if\
+    \ your worktree, your branch or your account of this task no longer matches what\
+    \ is on disk, say so on the record and hand the ball back rather than improvising\
+    \ a recovery."
+  data:
+    ball: agent
+    ball_reason: work
