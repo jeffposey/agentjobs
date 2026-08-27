@@ -24,6 +24,7 @@ from agentjobs.__version__ import __version__
 from agentjobs.client import TaskClient
 from agentjobs.mcp import compat, config, errors, instructions, results, server, tools
 from agentjobs.models_v2 import SCHEMA_VERSION
+from agentjobs.projects import HOME_ENV
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -33,9 +34,49 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # ----------------------------------------------------------------------------
 class TestConfig:
     def test_defaults_when_nothing_is_supplied(self):
+        """Nothing supplied *and* nothing declared by the machine -- conftest points
+        AGENTJOBS_HOME at an empty directory, so there is no dispatch config to read."""
         resolved = config.McpConfig.resolve(env={})
         assert resolved.base_url == config.DEFAULT_BASE_URL
         assert resolved.timeout == config.DEFAULT_TIMEOUT
+
+    def test_the_machines_declared_address_beats_the_default(self, tmp_path, monkeypatch):
+        """task-317: what a client config with no port hardcoded in it falls through to.
+
+        ``api_base:`` in the machine's dispatch config is the same value dispatch hands
+        an agent, so a machine on a non-default port says it once and the MCP server
+        stops being wrong along with everything else.
+        """
+        home = tmp_path / "agentjobs-home"
+        home.mkdir()
+        (home / "dispatch.yaml").write_text(
+            "version: 1\napi_base: http://127.0.0.1:8876\n", encoding="utf-8"
+        )
+        monkeypatch.setenv(HOME_ENV, str(home))
+
+        assert config.McpConfig.resolve(env={}).base_url == "http://127.0.0.1:8876"
+
+    def test_the_api_base_variable_is_read_from_the_supplied_environment(self):
+        """``AGENTJOBS_API_BASE`` is resolved out of the environment handed to
+        ``resolve``, not this process's own -- an MCP server is launched with an
+        environment its client chose, and the two are not the same thing."""
+        resolved = config.McpConfig.resolve(env={"AGENTJOBS_API_BASE": "http://declared.test:8876"})
+
+        assert resolved.base_url == "http://declared.test:8876"
+
+    def test_agentjobs_url_still_beats_the_machines_declaration(self, tmp_path, monkeypatch):
+        """The new source sits *below* the explicit one. A client that names a URL is
+        answering the question, and must not be second-guessed by a config file."""
+        home = tmp_path / "agentjobs-home"
+        home.mkdir()
+        (home / "dispatch.yaml").write_text(
+            "version: 1\napi_base: http://127.0.0.1:8876\n", encoding="utf-8"
+        )
+        monkeypatch.setenv(HOME_ENV, str(home))
+
+        resolved = config.McpConfig.resolve(env={config.BASE_URL_ENV: "http://explicit.test:9000"})
+
+        assert resolved.base_url == "http://explicit.test:9000"
 
     def test_environment_supplies_both_settings(self):
         resolved = config.McpConfig.resolve(

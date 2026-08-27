@@ -54,7 +54,7 @@ import urllib.request
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Mapping, Optional
 
 from agentjobs.dispatch.config import DispatchConfigError, load_dispatch_config
 
@@ -122,14 +122,24 @@ def _config_api_base(home: Optional[Path] = None) -> Optional[str]:
     return config.api_base
 
 
-def configured_api_base(home: Optional[Path] = None) -> Optional[str]:
+def configured_api_base(
+    home: Optional[Path] = None,
+    env: Optional[Mapping[str, str]] = None,
+) -> Optional[str]:
     """The address this machine has declared, from the environment or dispatch config.
 
     Sources 2 and 3 only -- what the machine *says*, with no fallback. Callers that
     want the address to actually hand an agent want :func:`resolve_api_base`; this one
     is for the places that need to distinguish "declared" from "assumed".
+
+    ``env`` exists for callers that already hold the environment they are resolving
+    for rather than this process's own -- ``agentjobs mcp`` is handed one by whichever
+    client launched it, and resolves it explicitly so the result can be tested without
+    reaching into ``os.environ``. Omitting it reads this process's environment, which
+    is what every other caller wants.
     """
-    from_env = os.environ.get(API_BASE_ENV)
+    environ = os.environ if env is None else env
+    from_env = environ.get(API_BASE_ENV)
     if from_env and from_env.strip():
         return normalise_api_base(from_env)
     return _config_api_base(home)
