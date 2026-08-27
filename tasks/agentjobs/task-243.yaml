@@ -2,7 +2,7 @@ schema: 2
 id: task-243
 title: The grandchild-kill test asserts on a moment, and loses the race under load
 created: '2026-08-22T04:38:42.531332Z'
-updated: '2026-08-27T14:06:27.374090Z'
+updated: '2026-08-27T17:21:19.694410Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -179,3 +179,30 @@ log:
       id: 9a3f14c8-52d7-4b6e-8e05-3d81f2a70b19
       kind: log_append
       fingerprint: 4898ba6099bdcfd604d90bebdb6f312b
+- id: 4
+  ts: '2026-08-27T17:21:19.694183Z'
+  actor: claude
+  type: note
+  body: "## Three finishes on 2026-08-27, and task-297 just doubled the exposure\n\
+    \nThis flake cost `fix/task-297-finish-catch-up` three attempts in one evening,\
+    \ on a machine running three agent sessions:\n\n- `fin_281c62e5` \u2014 full gate,\
+    \ 222s, `pid 1473084 survived the timeout`.\n- `fin_61fe41b2` \u2014 the catch-up's\
+    \ reduced re-run, 159s, `pid 1468464 survived the timeout`.\n- (A hand-run unqualified\
+    \ gate on the same commits was green twice, 309s and 274s, when the machine was\
+    \ quieter \u2014 which is the load-dependence this task's title already names.)\n\
+    \n**The new fact is the middle one.** Task-297 shipped a `catch_up` step: when\
+    \ the base moves during a finish's gate, the finish rebases onto it and re-runs\
+    \ the stages the moved paths can reach. `tasks/*` maps to `pytest`, and a task\
+    \ record landing mid-gate is the common case \u2014 so **a caught-up finish now\
+    \ runs `pytest` twice**, and a flake in it has two chances per attempt rather\
+    \ than one.\n\nThat is a real cost of task-297's design and not an argument against\
+    \ it (the alternative is the refusal task-297 removed), but it changes the arithmetic\
+    \ here: this test now fails finishes at roughly double the rate it did yesterday,\
+    \ and every failure is a whole dispatched run.\n\nNo opinion offered on the fix\
+    \ \u2014 task-297 held this out of scope deliberately and its spec here already\
+    \ sets out the shape. This is only the cost, measured.\n"
+  data:
+    operation:
+      id: 7f2a1c30-9d41-4b62-8e05-1a2b3c4d5e0a
+      kind: log_append
+      fingerprint: eb58c3e0419cbb1373470e749f10f709
