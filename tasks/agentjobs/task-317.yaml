@@ -3,7 +3,7 @@ id: task-317
 title: The AgentJobs MCP server is declared twice under one name, and the two declarations
   point at different ports
 created: '2026-08-25T10:43:10.073470Z'
-updated: '2026-08-27T11:49:13.515026Z'
+updated: '2026-08-27T11:53:13.287575Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -469,3 +469,21 @@ log:
     finish_step: started
     branch: fix/task-317-mcp-declaration-port
     finish_id: fin_f4e20ea2
+- id: 13
+  ts: '2026-08-27T11:53:13.287415Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-317-mcp-declaration-port` into `main` as `d8e1bb5e`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-317
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    epic) releases the merge gate (task-021), and run run_41989070 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: d8e1bb5edc5bd932b9c0e3195729938a0ae6c5a6
+    branch: fix/task-317-mcp-declaration-port
+    base: main
