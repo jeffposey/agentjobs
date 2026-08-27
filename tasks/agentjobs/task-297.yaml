@@ -3,58 +3,11 @@ id: task-297
 title: 'The scripted finish cannot merge under concurrency: base_moved fires on task-record
   commits, and each escalation causes the next'
 created: '2026-08-23T20:57:20.855780Z'
-updated: '2026-08-27T17:20:07.058099Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: "The approval ran the scripted finish and it stopped at `catch_up`. **Nothing\
-  \ was merged.**\n\n`scripts/check.py --only pytest` failed on fix/task-297-finish-catch-up\
-  \ after rebasing onto the moved main (159s, exit 1). The full gate had been green;\
-  \ what the base moved under it was not. Nothing was merged. This is the case the\
-  \ catch-up exists to find, so read it before assuming it is noise. Full output:\
-  \ C:\\Users\\jpose\\.agentjobs\\finishes\\fin_61fe41b2\\catch-up-1.log\n\n```\n\
-  \    warnings.warn(\ntests/test_cli.py::test_migrate_command_execution\n  C:\\projects\\\
-  worktrees\\agentjobs-297\\src\\agentjobs\\migration\\reporter.py:40: DeprecationWarning:\
-  \ datetime.datetime.utcnow() is deprecated and scheduled for removal in a future\
-  \ version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n\
-  \    f\"**Generated**: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\\n\"\
-  \ntests/test_loud_load_errors.py::TestApiSurfacesIt::test_reading_the_broken_task_is_a_422_naming_it\n\
-  tests/test_mcp_read_tools.py::TestTaskGet::test_a_broken_file_is_distinct_from_a_missing_task\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_every_scenario_passes\ntests/test_mcp_protocol.py::TestAgentEvaluations::test_all_ten_accepted_scenarios_ran\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_records_traces_and_final_state\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_refusal_scenarios_actually_recorded_refusals\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-EUXcVhHG-py3.13\\\
-  Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response = await\
-  \ handler(conn, exc)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
-  \  C:\\projects\\worktrees\\agentjobs-297\\src\\agentjobs\\api\\routes\\web.py:368:\
-  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
-  \ removal in a future version. Use timezone-aware objects to represent datetimes\
-  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
-  tests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-EUXcVhHG-py3.13\\\
-  Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
-  \ dependant.call(**values)\ntests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
-  \  C:\\projects\\worktrees\\agentjobs-297\\src\\agentjobs\\api\\routes\\web.py:350:\
-  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
-  \ removal in a future version. Use timezone-aware objects to represent datetimes\
-  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
-  -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\e[36m\e\
-  [1m=========================== short test summary info ===========================\e\
-  [0m\n\e[31mFAILED\e[0m tests/test_dispatch_runner.py::\e[1mTestProcessGroup::test_the_timeout_kills_the_grandchild_too\e\
-  [0m - AssertionError: pid 1468464 survived the timeout\n\e[31m===== \e[31m\e[1m1\
-  \ failed\e[0m, \e[32m3497 passed\e[0m, \e[33m1 skipped\e[0m, \e[33m219 warnings\e\
-  [0m\e[31m in 146.78s (0:02:26)\e[0m\e[31m =====\e[0m\n  pytest   158.6s\n  total\
-  \    158.6s\nFailed to deliver webhook wh_78397e02a0: All connection attempts failed\n\
-  Failed at stage 'pytest'.\n```\n\nTake it from here by hand. Check the tree against\
-  \ what is written above before acting on anything you remember: if your worktree,\
-  \ your branch or your account of this task no longer matches what is on disk, say\
-  \ so on the record and hand the ball back rather than improvising a recovery."
+updated: '2026-08-27T17:20:33.044993Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 393
 category: reliability
 tags:
 - dispatch
@@ -62,7 +15,6 @@ tags:
 - concurrency
 - reliability
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: The finish refuses to merge if `main` moved during its gate. Every session
@@ -234,7 +186,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-297-finish-catch-up
-  status: active
+  status: merged
+  merged_at: '2026-08-27T17:20:32.946791Z'
 log:
 - id: 1
   ts: '2026-08-23T20:57:21.495177Z'
@@ -1023,3 +976,28 @@ log:
     merge_commit: 6612d893ac54eed9697682516524b399911e88d2
     branch: fix/task-297-finish-catch-up
     base: main
+- id: 26
+  ts: '2026-08-27T17:20:33.044810Z'
+  actor: finisher
+  type: transition
+  body: "Merged `fix/task-297-finish-catch-up` into `main` as `6612d893` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). No human\
+    \ reviewed this merge: posture `autonomous` (from the dispatch) releases the merge\
+    \ gate (task-021), and run run_4e9d1f40 ran the finish. What authorised it is\
+    \ the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.1s  fix/task-297-finish-catch-up at 1c24a591\
+    \ in C:\\projects\\worktrees\\agentjobs-297\n  runway     ok         0.0s  taken\
+    \ immediately\n  rebase     ok         0.2s  fix/task-297-finish-catch-up onto\
+    \ main: 1c24a591 -> 582a2256\n  gate       ok       260.2s  scripts/check.py green\n\
+    \  catch_up   skipped    0.0s  main did not move during the gate\n  merge    \
+    \  ok         0.3s  --no-ff into main as 6612d893ac54eed9697682516524b399911e88d2\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         0.6s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving 27691145, which contains the merge\
+    \ 6612d893, from C:\\projects\\agentjobs (started 2026-08-27T17:20:12.914192+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
