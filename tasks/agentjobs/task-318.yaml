@@ -3,10 +3,11 @@ id: task-318
 title: A child of the epic walk inherits the parent's AGENTJOBS_RUN_ID, so its own
   sanctioned autonomous merge is declined `locked`
 created: '2026-08-25T11:11:28.166849Z'
-updated: '2026-08-27T09:53:41.001013Z'
-lifecycle: ready
+updated: '2026-08-27T11:13:53.574205Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 queue_position: 14700
@@ -19,6 +20,7 @@ effort: "small once located \u2014 the walk's child spawn has to set the child's
   \ run id in the environment it passes down; most of the cost is deciding where the\
   \ parent's value is leaking in"
 assignment:
+  owner: claude
   eligible: []
 parent: task-269
 spec:
@@ -132,7 +134,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: test/task-318-walk-child-run-identity
+  status: active
 log:
 - id: 1
   ts: '2026-08-25T11:11:28.606052Z'
@@ -270,3 +274,167 @@ log:
       id: a9f97b86-a1f0-4866-a05a-ba617677aa2b
       kind: log_append
       fingerprint: 61d1fb165892dd5c941a98b8f0cf3664
+- id: 5
+  ts: '2026-08-27T11:08:26.532773Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of task-269, and this run is attempt 1 of
+    2 at one of its children on that authorisation (entry 16 on task-269). They chose
+    posture `autonomous` for the epic, so this run gets it too. No separate approval
+    of this task was given or is required: the epic is what was authorised.'
+  data:
+    authorizes_dispatch: true
+    surface: the epic walk
+    epic:
+      parent: task-269
+      entry: 16
+      attempt: 1
+      limit: 2
+- id: 6
+  ts: '2026-08-27T11:08:26.983278Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 7
+  ts: '2026-08-27T11:08:29.536394Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_74dfbc1c
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: epic
+    posture_ceiling: autonomous
+    trigger: child
+    caused_by: 5
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --settings
+    - '{"env": {"AGENTJOBS_RUN_ID": "run_74dfbc1c", "AGENTJOBS_RUN_DIR": "C:\\Users\\jpose\\.agentjobs\\runs\\run_74dfbc1c"}}'
+    - 'You are the agent `claude` working task `task-318` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-318-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_74dfbc1c. Posture `autonomous` releases the merge gate:
+      this run merges its own work with no human review. Record the evidence on the
+      task first, then run `agentjobs finish task-318 --project agentjobs --posture-release`
+      from C:\projects\agentjobs. That rebases, runs the full gate, and merges only
+      on a green one -- it stops and hands the ball back if anything fails. Do not
+      merge by hand. Never push: this project is configured `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 2d444c9
+    session_id: 373aa3d4
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 8
+  ts: '2026-08-27T11:13:10.663158Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 3f1c9a52-8e04-4d7b-9a61-2c5b7e04a911
+      kind: update_content
+      fingerprint: aed1dee1cb980560e99b531baad43fda
+- id: 9
+  ts: '2026-08-27T11:13:53.574002Z'
+  actor: claude
+  type: progress
+  body: "**ac-1, settled from inside a live walk-started child: the shell now sees\
+    \ its own run id. The defect is fixed. And the causal story in this task's title\
+    \ is wrong \u2014 worth correcting, because the right one predicts a different\
+    \ blast radius.**\n\nWritten by `run_74dfbc1c`, working task-318, dispatched by\
+    \ the task-269 walk (`trigger: child`, `posture_source: epic`, `caused_by: 5`).\
+    \ Entry 4 asked for exactly one comparison, from a shell inside a dispatched child\
+    \ rather than from dispatch-side records. Here it is.\n\n## The comparison entry\
+    \ 4 asked for\n\n```\n$ echo \"$AGENTJOBS_RUN_ID\"\nrun_74dfbc1c\n$ echo \"$AGENTJOBS_RUN_DIR\"\
+    \nC:\\Users\\jpose\\.agentjobs\\runs\\run_74dfbc1c\n\n$ cat ~/.agentjobs/runs/.locks/task-318.lock\n\
+    pid=1409908 run=run_74dfbc1c kind=dispatch started=2026-08-27T11:08:26+00:00\n\
+    \n$ cat ~/.agentjobs/runs/.locks/task-269.lock          # the supervisor's\npid=959100\
+    \  run=run_1132ebf8 kind=dispatch started=2026-08-27T09:40:12+00:00\n```\n\n**Shell,\
+    \ lock and `meta.yaml` all say `run_74dfbc1c`.** A distinct supervisor run exists\
+    \ and is nameable \u2014 `run_1132ebf8` \u2014 and its id is nowhere in this session's\
+    \ environment. Both of `_own_run_holds_lock`'s conditions therefore hold on their\
+    \ own, with no override, which is precisely what task-302 and task-303 could not\
+    \ get. `meta.yaml` records `session_env: delivered`, so the identity arrived through\
+    \ task-249's `--settings` channel.\n\n(Entry 4's snippet said `~/.agentjobs/runs/<run>/lock`.\
+    \ The locks are per **task**, in a shared `.locks/` directory \u2014 `runs/.locks/<task-id>.lock`\
+    \ \u2014 not per run. Corrected here so the next reader does not `cat` a path\
+    \ that has never existed.)\n\n## Which candidate was real: neither, as written\n\
+    \nac-1 asks which of the spec's two candidates it is. The answer is that the spec's\
+    \ framing does not contain it, and candidate 1 is disprovable by reading nine\
+    \ lines.\n\n**Candidate 1 is false.** `walk_epic.start_child` (`src/agentjobs/dispatch/epic.py`)\
+    \ does not build an environment at all. It constructs a `DispatchRequest` carrying\
+    \ `task_id`, `trigger`, `on_behalf_of_parent` and `posture`, and calls `dispatch_task`.\
+    \ There is no environment in it to leak. Every child gets a freshly created run\
+    \ id and run directory from the dispatcher, which is why `run_a07731b6` and `run_ff8c316d`\
+    \ both had correct directories of their own.\n\n**Candidate 2 is the right family\
+    \ but the wrong mechanism.** It guessed the session \"was started earlier or differently\
+    \ and carries the older value\". The real mechanism, established by task-249 and\
+    \ documented in `dispatch/session_env.py`: `claude --bg` is a **launcher**. It\
+    \ hands the session to a persistent Claude Code daemon and the daemon spawns the\
+    \ worker **from the daemon's own environment**, discarding the launcher's entirely.\
+    \ So the worker inherits the identity of whichever run happened to *start the\
+    \ daemon* \u2014 not of its parent, and not of anything \"older\" in its own lineage.\n\
+    \n**That distinction is not pedantry, and it explains the evidence better than\
+    \ the title does.** A walk supervisor is dispatched first and its launch is typically\
+    \ the one that starts the daemon; every child then launches into that already-running\
+    \ daemon and comes up wearing the supervisor's id. So \"child inherits parent\"\
+    \ is a *consequence* of the walk's ordering, not the rule. The rule is \"everything\
+    \ inherits the daemon-starter\", and it has two corollaries the title would not\
+    \ lead anyone to expect:\n\n- A run with no parent at all is equally exposed.\
+    \ `run_68ea396e` (task-316) came up as `run_12b2675c` from **fourteen hours earlier**\
+    \ \u2014 far too old to be an inheritance from a spawn.\n- A child whose own launch\
+    \ starts the daemon comes up correct. `run_3f8ec46f` did, two and a half minutes\
+    \ after the daemon idle-exited (task-249's log).\n\n## The pid inference in entry\
+    \ 3 was sound reasoning pointed at the wrong target\n\nEntry 3 found task-302's\
+    \ and task-303's locks sharing `pid=1003448` twenty-five minutes apart and read\
+    \ it as evidence for candidate 1. The reading is right that one long-lived process\
+    \ wrote both locks; what it missed is *which* process the pid in a lock file identifies.\
+    \ `acquire_run_lock` runs inside the **dispatcher**, so the pid is the walk's,\
+    \ and a walk starting two children from one process is the expected, correct thing\
+    \ \u2014 not a symptom. This run reproduces the same shape harmlessly: my lock\
+    \ names `pid=1409908`, a live `python` (the dispatcher), while the supervisor's\
+    \ lock names `pid=959100`, which is no longer running at all. Two different pids,\
+    \ no leak. The pid never carried the signal.\n\nRecording it because the inference\
+    \ was explicitly flagged as an inference, and the honest thing is to say where\
+    \ it landed.\n\n## Status\n\n- **ac-1: met.** Answered from a live dispatched\
+    \ child, and the cause named as the daemon-owns-the-environment defect fixed by\
+    \ task-249, not either candidate as the spec worded them.\n- **ac-2: pending the\
+    \ finish.** The command this run was told to use will be run with no environment\
+    \ override; whether it merges is the observation.\n- **ac-3, ac-4** are where\
+    \ the remaining work is. `own_run_id`'s existing tests all exercise a **finished**\
+    \ stale run, and the walk case is a **live** one \u2014 a real hole, since `_run_vouching_for`\
+    \ would still pass every one of those six tests if its task-id comparison were\
+    \ removed. Working branch `test/task-318-walk-child-run-identity`."
+  data:
+    operation:
+      id: 7b2e4f18-3c95-4a06-b8d3-1e5f9a27c604
+      kind: log_append
+      fingerprint: 470f1ce78d4eda2ee32013150fd844ed
