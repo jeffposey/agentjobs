@@ -3,13 +3,13 @@ id: task-223
 title: The rule that serializes every epic has no stated reason, and the doc's own
   reasoning contradicts it
 created: '2026-08-21T15:02:48.895387Z'
-updated: '2026-08-21T16:59:33.024060Z'
+updated: '2026-08-27T10:48:56.108593Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: medium
-queue_position: 3900
+priority: high
+queue_position: 85
 category: developer_experience
 tags:
 - orchestration
@@ -147,3 +147,161 @@ log:
     to: 12
     placement:
       kind: top
+- id: 3
+  ts: '2026-08-27T10:48:45.402813Z'
+  actor: claude
+  type: progress
+  body: "**Jeff asked for this again on 2026-08-26, watching the task-269 epic run\
+    \ its children one at a time. Raising it and bringing it current: this task was\
+    \ written five days ago against a rule in prose, and since then the rule has become\
+    \ code. Two things below change what \"decide it\" now means, and one is a mechanism\
+    \ this task assumed existed and does not.**\n\nRaised by the session supervising\
+    \ task-269 (`run_1132ebf8`). Not made a child of that epic \u2014 it is dispatch\
+    \ mechanics, not context work, and this task predates the epic anyway.\n\n## Jeff's\
+    \ framing, which is the intent of this task stated better than its own intent\
+    \ field\n\n> I see this like air traffic. You don't send one plane from Los Angeles\
+    \ to New York at a time, you fly them all, and yes, you are right, they can't\
+    \ all land at the same time, but waiting to have another take off from Los Angeles\
+    \ until the previous lands in New York is pretty stupid don't you think\n\nThat\
+    \ is exactly the distinction this task's \"What to decide\" list buries in its\
+    \ third bullet. **Takeoff and landing are different resources.** The work is the\
+    \ flight and it parallelises. The merge is the runway and it does not. The current\
+    \ design conflates them and prices everything at the runway.\n\n## What changed\
+    \ since 2026-08-21\n\n**1. The serialization is no longer a sentence in `ALLAGENTS.md`.\
+    \ It is `walk_epic`.** task-022 landed the epic walk as code on 2026-08-23: `src/agentjobs/dispatch/epic.py`\
+    \ starts one eligible child, watches its record to a terminal state, and loops.\
+    \ So this task can no longer be discharged by writing a reason down \u2014 whatever\
+    \ is decided has to be implemented there, and the docstring's stated justification\
+    \ has to change with it or contradict the code.\n\n**And the walk now has a real\
+    \ reason that the prose never gave**, which this task correctly noted was missing.\
+    \ It is in `walk_epic`'s docstring:\n\n> **One bad child stops everything, rather\
+    \ than being skipped.** A sibling that depended on the failed child would now\
+    \ be building on a gap, and the whole premise of this feature is that there is\
+    \ nobody awake to notice.\n\nThat is a genuine argument and it should be engaged\
+    \ with rather than dismissed \u2014 but note what it actually justifies. It justifies\
+    \ **stopping** on a failure. It does not justify **not starting** independent\
+    \ children in the first place. Those are separable: a fan-out that starts every\
+    \ child with no unmet `needs`, and halts further takeoffs the moment one comes\
+    \ back dirty, keeps the whole of that argument. What it gives up is narrower \u2014\
+    \ children already in flight when the bad one lands, which is a bounded and knowable\
+    \ set rather than \"everything after this point\".\n\n**2. `--max-children` now\
+    \ exists** on `dispatch walk`, so a bound on how many a walk may start is already\
+    \ a supported concept. A concurrency cap would sit beside it rather than being\
+    \ a new kind of thing.\n\n**3. `--posture` now exists too**, from task-316. Mentioned\
+    \ because it is evidence about this task's shape: the walk's per-child mechanics\
+    \ have needed three fixes in three days (316, 318, this), all of the same family\
+    \ \u2014 the walk not giving each child something correctly scoped of its own.\n\
+    \n## The mechanism this task assumed and which does not exist\n\nThis task's third\
+    \ bullet says: *\"Merge serialization: N children finishing together each rebase\
+    \ onto a main the others are moving. Git handles it, but the protocol should say\
+    \ whether they queue or race.\"*\n\n**They race, and nothing queues them.** Checked\
+    \ today:\n\n- `acquire_run_lock(home, task_id, ...)` in `src/agentjobs/dispatch/ledger.py`\
+    \ writes `~/.agentjobs/runs/.locks/{task_id}.lock` via `O_CREAT|O_EXCL`. It is\
+    \ keyed on **task id**. It stops two runs contending for *the same task*; it is\
+    \ indifferent to four different tasks merging into the same `main` at once.\n\
+    - The only thing that notices concurrent merges is `src/agentjobs/dispatch/record_commit.py`,\
+    \ which detects having lost a race for git's own `index.lock` and reports it.\
+    \ That is a symptom handler, not a queue.\n\nSo there is **no runway.** A parallel\
+    \ walk implemented without one would have N finishers each doing rebase \u2192\
+    \ full gate \u2192 `--no-ff` merge against a base the others are moving under\
+    \ them. The expensive failure is not the merge collision, which git catches; it\
+    \ is that a child can pass a green gate on a base that has moved by the time it\
+    \ merges, so **the commit that lands is not the commit the gate verified.** That\
+    \ is the one property the merge gate exists to guarantee, and it is the thing\
+    \ to protect.\n\nJeff's instinct on this was that a lock is wanted and he is right,\
+    \ but the naming matters: it is not `{task_id}.lock` again with a different key.\
+    \ It is a **repo-scoped finish lock** \u2014 one runway per repository \u2014\
+    \ held across rebase-gate-merge, so the winner's gate result is still true at\
+    \ the moment it merges and the next in line rebases onto what actually landed.\n\
+    \nWorth weighing when it is built, rather than assumed now:\n\n- **Held across\
+    \ the whole rebase-gate-merge, or taken at merge time only?** Holding across the\
+    \ gate is safe and makes the runway ~2.5 minutes per child, which for a four-child\
+    \ epic is close to serial again. Taking it late is much cheaper and needs an answer\
+    \ for \"the base moved while I was gating\" \u2014 probably re-rebase and re-gate,\
+    \ which is the honest cost of a late lock.\n- **Stale-lock behaviour.** `stale_lock_reason`\
+    \ and `release_stale_locks` already exist for the per-task lock (task-190) and\
+    \ the same reasoning applies; do not invent a second convention.\n- **What a waiting\
+    \ finisher tells its task record**, so a child queued behind three others does\
+    \ not look hung to whoever reads it.\n\n## What this is worth\n\nThis task's own\
+    \ measurement \u2014 task-081, three independent children, ~75 minutes idle \u2014\
+    \ still stands. task-269 is a second instance: of its eight children, **six declared\
+    \ `dependencies: []`** and were run strictly one after another. The contention\
+    \ figures it quotes (+9% at two gates, +16% at four) are from the **serial** pytest\
+    \ era and are now wrong; `ENGINEERING.md` has since measured three concurrent\
+    \ gates at roughly 360s each against 96s solo, because `-n auto` asks for all\
+    \ 32 cores. So the speedup is real but smaller than this task assumes, and the\
+    \ honest estimate for a four-wide fan-out is nearer 2x than 4x. That is still\
+    \ hours per epic, and it is worth saying in the task rather than letting whoever\
+    \ implements it discover the old numbers.\n\n`max_concurrent_runs: 3` in this\
+    \ machine's `dispatch.yaml` is a separate existing cap and the relationship between\
+    \ the two needs stating \u2014 this task's own second bullet already flags that\
+    \ children may not be counted against it.\n"
+  data:
+    operation:
+      id: 47d46e9b-48f9-4ee0-a27f-5241b178d167
+      kind: log_append
+      fingerprint: 22fcab46c667eabfa87d333db6b58f17
+- id: 4
+  ts: '2026-08-27T10:48:51.341740Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the medium band into the bottom of the high band.
+  data:
+    band: high
+    from: 3900
+    to: 14800
+    placement:
+      kind: bottom
+    from_band: medium
+- id: 5
+  ts: '2026-08-27T10:48:51.341756Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: 30902afd-276b-494c-905a-7357ce52eda8
+      kind: update_content
+      fingerprint: f817057ee5472e7cdb5f7031b314a68c
+- id: 6
+  ts: '2026-08-27T10:48:56.108467Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: Moved to the top of the band.
+  data:
+    band: high
+    from: 14800
+    to: 85
+    placement:
+      kind: top
+    warnings:
+    - kind: demoted_blocker
+      message: This pushed task-141-embed-launcher-and-project-link (4 open tasks
+        need it), task-138-embed-distribution-decision (3 open tasks need it), task-140-embed-server-surface
+        (3 open tasks need it), and 16 more down the 'high' band. Other open work
+        is waiting on them.
+      tasks:
+      - task-141-embed-launcher-and-project-link
+      - task-138-embed-distribution-decision
+      - task-140-embed-server-surface
+      - task-168-menu-shell
+      - task-139-reporter-host-agnostic-core
+      - task-144-embed-security-posture
+      - task-149-check-trigger
+      - task-161-project-level-dispatch
+      - task-171-voice-input-decision
+      - task-237
+      - task-126-mcp-in-process-manager
+      - task-143-report-and-dispatch-from-host
+      - task-147-acceptance-check-schema
+      - task-148-check-evaluator
+      - task-172-dictation-control
+      - task-174-model-access-decision
+      - task-236
+      - task-238
+      - task-239
+    undo:
+      kind: after
+      target: task-318
