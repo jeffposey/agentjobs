@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -44,10 +45,12 @@ from agentjobs.dispatch.finish import (
     active_branches,
     delete_branch,
     finish_task,
+    reachable_stages,
     verify_live,
     worktree_paths,
 )
 from agentjobs.dispatch.finish_status import read_finish_status
+from agentjobs.dispatch.ledger import LockHolder
 from agentjobs.dispatch.phases import RUN_ID_ENV
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BranchStatus, DispatchPosture, Lifecycle, Outcome
@@ -172,6 +175,90 @@ def add_served_change(world: Dict[str, Any]) -> None:
     (worktree / "src" / "agentjobs" / "feature.py").write_text("VALUE = 1\n", encoding="utf-8")
     git(worktree, "add", "--", "src/agentjobs/feature.py")
     git(worktree, "commit", "-m", "feat: served code")
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+GATE_THAT_MOVES_THE_BASE = '''\
+"""A stub gate that lands a real commit on the base while it is running."""
+
+import pathlib
+import subprocess
+import sys
+
+CLONE = pathlib.Path("{clone}")
+RELATIVE = "{relative}"
+
+if "--only" in sys.argv:
+    # The catch-up re-run. It must not move the base again, or nothing would ever
+    # converge and the test would be measuring the round limit instead of the feature.
+    sys.exit({reduced_exit})
+
+target = CLONE / RELATIVE
+target.parent.mkdir(parents=True, exist_ok=True)
+target.write_text("landed while the gate was running", encoding="utf-8")
+subprocess.run(["git", "-C", str(CLONE), "add", "--", RELATIVE], check=True)
+subprocess.run(
+    ["git", "-C", str(CLONE), "commit", "-m", "chore: landed mid-gate"],
+    check=True,
+    capture_output=True,
+)
+sys.exit(0)
+'''
+
+
+def gate_that_moves_the_base(world: Dict[str, Any], relative: str, reduced_exit: int = 0) -> None:
+    """Replace the stub gate with one that commits *relative* to main as it runs.
+
+    A real commit at the real moment. Reaching into ``plan`` and rewriting a captured sha
+    would test the comparison and prove nothing about the race, which is the whole
+    subject here.
+    """
+    root = world["root"]
+    (root / "scripts" / "check.py").write_text(
+        GATE_THAT_MOVES_THE_BASE.format(
+            clone=root.as_posix(), relative=relative, reduced_exit=reduced_exit
+        ),
+        encoding="utf-8",
+    )
+    git(root, "add", "--", "scripts/check.py")
+    git(root, "commit", "-m", "chore: a gate that moves the base under itself")
+
+
+def publish_gate_scope(world: Dict[str, Any]) -> None:
+    """Give the test clone this repository's own classification table.
+
+    The real file, copied, rather than a fixture's idea of one: the property under test
+    is that the finish reuses ``--since-gate``'s judgement, and a hand-written table here
+    could agree with the finish while both disagreed with the gate.
+    """
+    root = world["root"]
+    shutil.copyfile(REPO_ROOT / "scripts" / "gate_scope.py", root / "scripts" / "gate_scope.py")
+    git(root, "add", "--", "scripts/gate_scope.py")
+    git(root, "commit", "-m", "chore: publish the gate scope table")
+
+
+@pytest.fixture
+def contended_runway(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """A runway that is busy exactly once, so ``on_wait`` runs and then the lock is given.
+
+    Standing up a second real finish to contend for it would be testing the lock, which
+    ``test_dispatch_ledger`` already does. What is under test here is what the *waiting*
+    finish writes and does not commit.
+    """
+
+    class _Lock:
+        def release(self) -> None:
+            return None
+
+    def busy_once(home: Path, root: Path, **kwargs: Any) -> Any:
+        on_wait = kwargs.get("on_wait")
+        if on_wait is not None:
+            on_wait(LockHolder(pid=1234, kind="runway", finish_id="fin_someoneelse"))
+        return _Lock()
+
+    monkeypatch.setattr("agentjobs.dispatch.finish.acquire_runway_lock", busy_once)
+    yield None
 
 
 def merged_into(root: Path, branch: str, base: str = "main") -> bool:
@@ -626,6 +713,197 @@ class TestBeforeTheMerge:
         assert (world["root"] / "docs" / "feature.md").read_text(
             encoding="utf-8"
         ) == "mine, not committed\n"
+
+
+# ----- a base that moves while the gate runs (task-297) -----------------------
+
+
+class TestCatchingUpWithAMovedBase:
+    """The base moving mid-gate is the normal case here, not the exceptional one.
+
+    Every session commits its task records to the base by design, and a gate takes
+    minutes, so ``base_moved`` fired on nearly every finish on a busy evening -- each
+    refusal costing a whole dispatched run, over other people's bookkeeping.
+
+    **A real commit is landed on the base while the gate is running**, by the stub gate
+    itself, because that is the only arrangement that tests the race rather than a
+    simulation of it. The two tests that matter are the pair: a record commit is caught
+    up with and merged, a source commit is still refused.
+    """
+
+    def test_a_task_record_landing_mid_gate_is_caught_up_with_and_merged(
+        self, world: Dict[str, Any]
+    ) -> None:
+        publish_gate_scope(world)
+        gate_that_moves_the_base(world, "tasks/somebody-elses-record.yaml")
+        result = run(world)
+        assert result.outcome == FINISHED, result.render()
+        assert landed(world["root"], result)
+        # And the record it raced with is still there -- catching up rebases onto it, it
+        # does not step over it.
+        assert (world["root"] / "tasks" / "somebody-elses-record.yaml").is_file()
+
+    def test_a_source_commit_landing_mid_gate_still_refuses(self, world: Dict[str, Any]) -> None:
+        publish_gate_scope(world)
+        gate_that_moves_the_base(world, "src/agentjobs/somebody_elses_code.py")
+        result = run(world)
+        assert result.outcome == ESCALATED
+        assert result.reason == "base_moved"
+        assert merged_into(world["root"], world["branch"]) is False
+        # The escalation names what moved, so the woken session does not have to diff.
+        assert "src/agentjobs/somebody_elses_code.py" in result.detail
+
+    def test_the_step_table_says_it_caught_up_and_with_what(self, world: Dict[str, Any]) -> None:
+        publish_gate_scope(world)
+        gate_that_moves_the_base(world, "tasks/somebody-elses-record.yaml")
+        result = run(world)
+        assert result.outcome == FINISHED, result.render()
+        rendered = "\n".join(step.render() for step in result.steps)
+        assert "catch_up" in rendered
+        assert "pytest" in rendered
+
+    def test_a_quiet_base_still_reports_the_step_as_skipped(self, world: Dict[str, Any]) -> None:
+        """Like a merge that needs no restart, the common case says so rather than vanishing.
+
+        A step that disappears when it does nothing leaves the live view guessing what
+        comes next, and `finish_status` derives "what is running now" from the last step
+        it saw.
+        """
+        publish_gate_scope(world)
+        result = run(world)
+        assert result.outcome == FINISHED, result.render()
+        step = next(step for step in result.steps if step.step == "catch_up")
+        assert step.skipped is True
+        assert "did not move" in step.detail
+
+    def test_an_unabsorbable_move_says_so_before_the_merge_refuses(
+        self, world: Dict[str, Any]
+    ) -> None:
+        """The step table has to explain the refusal that follows it, not just precede it."""
+        publish_gate_scope(world)
+        gate_that_moves_the_base(world, "src/agentjobs/somebody_elses_code.py")
+        result = run(world)
+        assert result.reason == "base_moved"
+        step = next(step for step in result.steps if step.step == "catch_up")
+        assert step.skipped is True
+        assert "not absorbable" in step.detail
+
+    def test_the_live_view_sees_the_catch_up_too(self, world: Dict[str, Any]) -> None:
+        """`list.extend` does not go through `StepLog.append`, and `catch_up` returns a list.
+
+        Without `StepLog.extend`, a caught-up finish would show the step in the table on
+        the task and omit it from the page somebody is watching -- silently, which is the
+        disagreement `StepLog` exists to prevent (task-321).
+        """
+        publish_gate_scope(world)
+        gate_that_moves_the_base(world, "tasks/somebody-elses-record.yaml")
+        result = run(world)
+        assert result.outcome == FINISHED, result.render()
+
+        status = read_finish_status(world["home"], world["task_id"], "demo")
+        assert status is not None
+        assert [step.name for step in status.steps] == [step.step for step in result.steps]
+        assert "catch_up" in [step.name for step in status.steps]
+
+    def test_catching_up_writes_nothing_to_the_task_record(self, world: Dict[str, Any]) -> None:
+        """The one step in this module that must stay silent.
+
+        A progress note would be committed to the base, which would move the base, which
+        is what it is catching up with. The evidence goes in the step table instead.
+        """
+        publish_gate_scope(world)
+        gate_that_moves_the_base(world, "tasks/somebody-elses-record.yaml")
+        result = run(world)
+        assert result.outcome == FINISHED, result.render()
+        task = world["manager"].get_task(world["task_id"])
+        assert [entry for entry in task.log if entry.data.get("finish_step") == "catch_up"] == []
+
+    def test_a_red_re_run_stops_the_merge(self, world: Dict[str, Any]) -> None:
+        """The catch-up is a verification, so it has to be able to say no."""
+        publish_gate_scope(world)
+        gate_that_moves_the_base(world, "tasks/somebody-elses-record.yaml", reduced_exit=1)
+        result = run(world)
+        assert result.outcome == ESCALATED
+        assert result.reason == "catch_up_gate_failed"
+        assert merged_into(world["root"], world["branch"]) is False
+
+    def test_without_a_published_table_the_refusal_is_unconditional(
+        self, world: Dict[str, Any]
+    ) -> None:
+        """The exemption is opt-in by the repository, in a file that goes through review.
+
+        No ``scripts/gate_scope.py`` means nothing classifies anything, so even a
+        task-record move refuses exactly as it did before this existed.
+        """
+        gate_that_moves_the_base(world, "tasks/somebody-elses-record.yaml")
+        result = run(world)
+        assert result.outcome == ESCALATED
+        assert result.reason == "base_moved"
+        assert merged_into(world["root"], world["branch"]) is False
+
+
+class TestWhatAChangedPathCanReach:
+    """``reachable_stages`` delegates the judgement; these check it delegates correctly."""
+
+    def test_a_task_record_reaches_the_python_suite_and_nothing_else(
+        self, world: Dict[str, Any]
+    ) -> None:
+        publish_gate_scope(world)
+        assert reachable_stages(world["root"], ["tasks/agentjobs/task-001.yaml"]) == ["pytest"]
+
+    def test_one_unclassified_path_denies_the_whole_move(self, world: Dict[str, Any]) -> None:
+        publish_gate_scope(world)
+        assert (
+            reachable_stages(
+                world["root"], ["tasks/agentjobs/task-001.yaml", "src/agentjobs/manager.py"]
+            )
+            is None
+        )
+
+    def test_no_table_classifies_nothing(self, world: Dict[str, Any]) -> None:
+        assert reachable_stages(world["root"], ["tasks/agentjobs/task-001.yaml"]) is None
+
+    def test_a_table_that_will_not_import_classifies_nothing(self, world: Dict[str, Any]) -> None:
+        (world["root"] / "scripts" / "gate_scope.py").write_text(
+            "raise RuntimeError('half-written')\n", encoding="utf-8"
+        )
+        assert reachable_stages(world["root"], ["tasks/agentjobs/task-001.yaml"]) is None
+
+    def test_a_base_that_moved_without_changing_a_path_is_not_absorbed(
+        self, world: Dict[str, Any]
+    ) -> None:
+        publish_gate_scope(world)
+        assert reachable_stages(world["root"], []) is None
+
+
+class TestQueuingForTheRunwayIsSilentInGit:
+    """The finisher's own contribution to the feedback loop, removed (task-297).
+
+    ``Runway.take`` announces on the record when the runway is contended -- which is
+    right, a task queued behind three others must not read as hung. What it must not do
+    is *commit* that note: the finish it is queued behind is mid-gate, and a commit to
+    the base is precisely what escalates that finish with ``base_moved``.
+    """
+
+    def test_the_note_is_written(self, world: Dict[str, Any], contended_runway: Any) -> None:
+        result = run(world)
+        assert result.outcome == FINISHED, result.render()
+        task = world["manager"].get_task(world["task_id"])
+        queued = [entry for entry in task.log if entry.data.get("finish_step") == "runway_queued"]
+        assert len(queued) == 1
+        assert "merge runway" in queued[0].body
+
+    def test_but_it_lands_no_commit_of_its_own_on_the_base(
+        self, world: Dict[str, Any], contended_runway: Any
+    ) -> None:
+        before = git(world["root"], "rev-parse", "main").stdout.strip()
+        result = run(world)
+        assert result.outcome == FINISHED, result.render()
+        subjects = git(world["root"], "log", "--format=%s", f"{before}..main").stdout.splitlines()
+        assert [line for line in subjects if "queuing" in line] == [], subjects
+        # And the note is not left dangling either: the next commit on this record --
+        # `announce_start`, a minute later -- carries it.
+        assert any("scripted finish starting" in line for line in subjects), subjects
 
 
 # ----- escalating after the merge: the record must never be ambiguous ---------

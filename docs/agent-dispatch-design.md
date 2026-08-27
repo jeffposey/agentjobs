@@ -856,6 +856,12 @@ Three decisions inside it:
   it across spends the gate once. The honest cost is stated rather than hidden: at the
   ledger's four-minute mean finish, a four-child epic spends about sixteen minutes on the
   runway and parallelises the other five-sixths of each run.
+
+  Task-297 later found the case this reasoning does not cover — the base being moved by
+  sessions that hold no runway at all — and answered it with the *bounded* form of
+  rebase-and-re-gate this bullet rejects: re-running only the stages the move can reach,
+  never the whole gate, and only when the move classifies. See
+  [catching up with a base that moved](#catching-up-with-a-base-that-moved-during-the-gate-task-297-2026-08-27).
 - **Waiting rather than refusing.** Contention on a task lock means two runs want one
   task, which is an error. Contention here means the queue is working. The bound is an
   hour — long enough for a real queue, finite because a wait with no bound is a hang.
@@ -1933,6 +1939,84 @@ have needed `run_command` to stop capturing and the CLI to print per step, and w
 still have shown nothing during the gate, whose own output is buffered until it exits.
 The step table is both live and more legible than the terminal text; the log is shown
 when it exists, which is when the process ends.
+
+### Catching up with a base that moved during the gate (task-297, 2026-08-27)
+
+`finish.merge` refuses to merge when the base moved since the gate started, on the sound
+reasoning that *what was verified is no longer what would be merged*. On a quiet machine
+that check fires almost never. On a busy one it fired almost always, and the reason is
+structural rather than bad luck:
+
+- **ENGINEERING.md requires every session to commit its task records to `main`** — claims,
+  progress, handoffs, decisions — so the base moves every couple of minutes whenever
+  anything is happening. That rule is not negotiable here; a handoff on a branch is
+  invisible to the human it addresses.
+- **A gate takes minutes.** 96 seconds idle, 169–285 seconds measured under load.
+
+Two intervals, one of them minutes long and the other seconds long. Task-224's finish lost
+that race twice in one evening and merged only after a human hand-built a quiet window.
+And the failure fed itself: an escalation writes a record commit, which moves `main`, which
+escalates the next finish mid-gate, which writes another record commit.
+
+**The runway (task-223) closed the self-amplifying half and only that half.** With one lock
+held across rebase, gate and merge, no second finish is ever gating when the first one
+escalates. What it cannot touch is the trigger — ordinary sessions, holding no runway,
+doing exactly what they are told to do. So `base_moved` still fired on other people's
+bookkeeping.
+
+**The fix is to re-verify rather than to declare the bookkeeping inert.** Between the gate
+and the merge there is now a `catch_up` step. When the base has moved, it asks
+`scripts/gate_scope.py` — *the same table `--since-gate` runs on* — what the moved paths
+can affect. If every moved path is classified, it rebases onto the new tip and re-runs
+exactly those stages; then it merges. If any moved path is unclassified, it does nothing
+and `merge` refuses with `base_moved`, the message it always had.
+
+Four properties, none of them politeness:
+
+- **`tasks/` is not treated as inert, because it is not.**
+  `tests/test_validate.py::TestRealCorpus` loads the corpus of *the checkout it runs in*,
+  and the gate ran in the branch's worktree, whose corpus is the pre-move one. The delta
+  really is unverified. So a `tasks/`-only move costs one `pytest` — which contains
+  `TestRealCorpus` — instead of one wasted dispatched run. That is the argument the task's
+  constraints demanded against a blanket exemption, and the reason this is not one.
+- **A code commit still refuses**, unchanged. The narrowing happens before `merge` is
+  called, never inside it, so the refusal is the one it was written for. The escalation now
+  names the paths that moved, so the woken session does not have to diff for them.
+- **Default-deny, from the same table, twice.** `gate_scope.classify` answers `None` for a
+  path nothing claims, and `None` costs a merge here exactly as it costs a minute there.
+  The table is loaded from *the finished repository's own* `scripts/gate_scope.py`: a
+  project that publishes none gets the unconditional refusal, so the exemption is opt-in by
+  the repository, in a file that goes through review.
+- **Bounded, and silent on the record.** At most two rounds; a third move escalates as
+  `base_moves_repeatedly` rather than chasing a machine busier than a finish can follow.
+  And `catch_up` writes nothing to the task while it runs, though every other step does —
+  a progress note would be committed to the base, moving the base it is catching up with.
+  The step table in the closing entry carries it, and the finish directory records each
+  round with the paths and stages.
+- **It always reports itself**, like a merge that needs no restart: a quiet base gets a
+  skipped step saying so, and an unabsorbable move gets one saying that too, before
+  `merge` refuses it. A step that vanished when it did nothing would leave the live view
+  of §5a deriving "what is running now" from a gap.
+
+Two seams with that live view were closed at the same time, both of which would have
+failed silently. `StepLog` recorded a step by overriding `append`, and `list.extend`
+does not go through it — so `catch_up`, which returns a list, would have been on the task
+and absent from the page. And `finish_status.STEP_ORDER`'s duplication check matched step
+names with `[a-z]+`, so the first step name carrying an underscore was invisible to
+exactly the check written to catch a missing one.
+
+**One commit the finisher itself made was removed.** `Runway.take` announces on the record
+when the runway is contended, which is right — a task queued behind three others must not
+read as stalled. It used to *commit* that note, and the finish it is queued behind is
+mid-gate, so the finisher was landing a commit on the base at the one moment guaranteed to
+escalate somebody. The note is still written, which is what the dashboard reads; the commit
+is dropped, because `announce_start` commits the same file a minute later once the runway
+comes free, and the escalation commits it if the wait times out.
+
+The escalation's own record commit was deliberately **not** deferred. That entry is the
+whole explanation of why a merge did not happen, and leaving it uncommitted in a shared
+clone for the next agent to find dirty is the failure `record_commit.py` exists for
+(task-203). With the runway held it can no longer land under another finish's gate anyway.
 
 ---
 

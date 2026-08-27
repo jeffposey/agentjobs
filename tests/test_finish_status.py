@@ -286,8 +286,11 @@ class TestTheStepOrderMatchesTheSequence:
         import re
 
         source = inspect.getsource(finish_module)
-        recorded = set(re.findall(r'StepResult\(\s*"([a-z]+)"', source))
-        recorded |= set(re.findall(r'StepResult\(\s*\n\s*"([a-z]+)"', source))
+        recorded = set(re.findall(r'StepResult\(\s*"([a-z_]+)"', source))
+        recorded |= set(re.findall(r'StepResult\(\s*\n\s*"([a-z_]+)"', source))
+        # `[a-z_]+` rather than `[a-z]+`: a step name carrying an underscore --
+        # `catch_up` is the first -- was invisible to this check, which would have let
+        # through exactly the omission it exists to catch (task-297).
         # Equality rather than a subset, and it is the stronger half that matters: a
         # match that found nothing would pass a subset check while proving nothing.
         assert recorded == set(STEP_ORDER)
