@@ -655,6 +655,15 @@ class FinishSettings:
     restart that has actually failed and the wrong one for a slow boot.
     """
 
+    runway_timeout_seconds: int = 3600
+    """How long to queue for this repository's finish runway before escalating (task-223).
+
+    One repository merges one branch at a time, so a concurrent epic's children queue
+    here. Waiting is correct and a wait is not a fault; this is the runaway guard on it.
+    See ``ledger.acquire_runway_lock`` for why the runway is held across the gate and not
+    only across the merge.
+    """
+
 
 @dataclass(frozen=True)
 class ProjectDispatchSettings:
@@ -1166,6 +1175,12 @@ def _parse_finish(raw: object, where: str, path: Path) -> FinishSettings:
             f"{where}.verify_timeout_seconds",
             path,
             defaults.verify_timeout_seconds,
+        ),
+        runway_timeout_seconds=_positive_int(
+            mapping.get("runway_timeout_seconds"),
+            f"{where}.runway_timeout_seconds",
+            path,
+            defaults.runway_timeout_seconds,
         ),
     )
 

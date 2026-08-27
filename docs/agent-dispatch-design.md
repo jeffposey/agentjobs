@@ -749,10 +749,122 @@ envelope its children will start at before it starts any of them.
 Not skipped — stopped. A sibling that depended on the failed child would be building on a
 gap, and the premise of the whole feature is that nobody is awake to notice. The walk
 hands the parent to `human`/`decision` naming the child and the reason, and exits 1.
+Since task-223 "everything" means every further **takeoff**: children already in flight
+land, because none of them can depend on the failed one. See below.
 
 The cost is real and was chosen: a walk halts at three in the morning on a child a person
 would have waved through. That is the cheaper of the two mistakes and it is the one that
 leaves a record.
+
+#### The walk is a rolling frontier, and the merge is a runway (task-223, 2026-08-27)
+
+**The walk ran one child at a time for its first four days, and no document said why.**
+The instruction predated the code — `ALLAGENTS.md` said "pick exactly one eligible child
+at a time" — and the only justification anywhere near it argued for something else: the
+workflow guide's *"the reason is context, not parallelism"* justifies a **session per
+child**, and context cost is a property of how many transcripts one session accumulates,
+not of how many sessions run at once. A supervisor reads task records and diffs, never a
+child's transcript, so three concurrent children leave its context exactly as small as
+three sequential ones. The argument did not reach the conclusion attached to it.
+
+The cost was measured rather than assumed. `scripts/run_report.py --epics`, which this
+task added because nothing could answer the question before it, on the five epics in this
+machine's ledger on 2026-08-27:
+
+```
+  epic                             kids  sit  peak     wall     work     idle   idle%      x
+  task-160-dispatch-phase-two         7    5     2   642.8m   535.0m   111.3m   17.3%   0.83
+  task-081-task-selection-ranking     3    1     1   167.5m    79.5m    88.0m   52.5%   0.47
+  task-280                            1    1     1    27.9m    21.8m     6.0m   21.6%   0.78
+  task-211                            6    5     1   117.3m    37.2m    80.1m   68.3%   0.32
+  task-269                            8    5     2   331.1m   332.9m    22.2m    6.7%   1.01
+
+  time in sittings      21.4h    turnaround idle 5.1h (24%)    parallelism 0.78x
+```
+
+Six of task-269's eight children declared no dependencies at all and were run strictly one
+after another.
+
+**Takeoff and landing are different resources.** That is the whole design, and it is
+Jeff's framing rather than a metaphor invented afterwards: *"you don't send one plane from
+Los Angeles to New York at a time … waiting to have another take off until the previous
+lands is pretty stupid."* The work parallelises because each child has its own worktree and
+its own session. The merge does not, because `main` is one branch. The previous design
+conflated them and priced everything at the runway.
+
+**A rolling frontier, explicitly not waves.** At every moment, every child whose `needs`
+are satisfied and which is not already running is started, up to the slot count; a child
+completing recomputes eligibility immediately. Waves — start every eligible child, wait for
+all of them, recompute — is the easy loop and is wrong for the same reason the serial walk
+was: it prices a group at its slowest member. There is no barrier anywhere in the loop, and
+the invariant the tests assert is *at no point does an eligible, unclaimed child exist
+while a slot is free.*
+
+The frontier is recomputed from claimability rather than maintained as a ready-queue that
+completing children push onto. That is correctness, not taste: the question is *are all of
+this child's needs satisfied*, never *did the child that just finished name me*, and a
+diamond — two unmet needs, one of which just closed — is where the two answers differ.
+
+**The queue still decides order.** The graph decides eligibility, the queue decides order
+among eligible children, and out-degree breaks the ties the queue does not. Sorting the
+frontier by out-degree outright is the better scheduling heuristic and was rejected: it
+would quietly overrule every `queue move` a human made, and `ALLAGENTS.md` is emphatic
+that the queue is the answer. Since `(band, queue_position)` is already a total order, the
+tie-break rarely fires — which is the intended outcome.
+
+**The stop rule survives intact, and gets sharper.** It justifies *stopping*, which is not
+the same as never having started. No further child takes off; children already in the air
+land, because none of them can depend on the failed child or claimability would not have
+offered them; anything that did need it never enters the frontier, automatically. What is
+given up is exactly the pessimism about siblings that provably do not depend on the
+failure.
+
+**There is one concurrency cap and it is `limits.max_concurrent_runs`.** Task-081's brief
+recorded that agent-started children were subprocesses uncounted against it; task-022
+ended that by making them ordinary dispatches, and this design's own §3 says so. So the
+walk's `--max-concurrent` can only narrow the machine's ceiling, never widen it, and
+hitting that ceiling mid-walk is **backpressure rather than a refusal** — something else on
+the machine holding a slot is a normal condition and not a fact about this epic. The walk
+waits and retries; a machine full for the whole per-child ceiling stops it, saying which.
+
+##### The runway, which is the harder half
+
+Before this, **nothing serialised merges at all**. `acquire_run_lock` is keyed on task id,
+so it stops two runs contending for one task and is indifferent to four tasks merging into
+one `main`; `record_commit.py` detects having lost a race for git's own `index.lock` and
+reports it, which is a symptom handler rather than a queue.
+
+The expensive failure is not the merge collision, which git catches loudly. It is that a
+child can pass a green gate against a base that has moved by the time it merges, so **the
+commit that lands is not the commit the gate verified** — the one property the merge gate
+exists to guarantee. `finish.merge` already refuses that case as `base_moved` and
+escalates into a dispatched run; under concurrency, a check written for a rare race becomes
+the ordinary outcome and costs a run every time.
+
+So a **repo-scoped finish runway**: one lock per checkout, held across rebase, gate and
+merge, so the winner's gate result is still true at the moment it merges and the next in
+line rebases onto what actually landed. Keyed on the resolved, case-folded checkout path
+rather than the project id, because the resource is a git repository — two projects over
+one clone share a `main` and must share a runway.
+
+Three decisions inside it:
+
+- **Held across the gate, not taken at merge time.** Taking it late is much cheaper and
+  needs an answer for "the base moved while I was gating"; the only correct answer is to
+  rebase and re-gate, which spends the gate twice and under contention repeatedly. Holding
+  it across spends the gate once. The honest cost is stated rather than hidden: at the
+  ledger's four-minute mean finish, a four-child epic spends about sixteen minutes on the
+  runway and parallelises the other five-sixths of each run.
+- **Waiting rather than refusing.** Contention on a task lock means two runs want one
+  task, which is an error. Contention here means the queue is working. The bound is an
+  hour — long enough for a real queue, finite because a wait with no bound is a hang.
+- **A queued finish says so on its own record.** A child third in line is otherwise
+  indistinguishable from one that has stalled, which is precisely what a person reading the
+  dashboard has to be able to tell.
+
+It is the same primitive, in the same directory, under a reserved `runway-` prefix, so the
+startup sweep that clears locks whose holders have ended clears these too, and there is no
+second stale-lock convention to learn.
 
 #### What is actually load-bearing now, and it is not much
 

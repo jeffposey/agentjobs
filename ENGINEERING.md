@@ -332,7 +332,10 @@ When a branch is complete and verified:
 2.  Wait for **explicit** human approval. Absence of objection is not approval, and
     neither is your own confidence that the work is good.
 3.  On approval: rebase onto `main`, then merge with `--no-ff` (the merge commit is the
-    reviewable unit of work, so fast-forward is not acceptable).
+    reviewable unit of work, so fast-forward is not acceptable). A scripted finish holds
+    this repository's **merge runway** across rebase, gate and merge, so a second one
+    queues rather than gating against a base the first is moving; a finish that says it
+    is queued is working (task-223).
 4.  Mark the branch `merged` in `branches[]` and set the task `completed`.
 5.  Delete the local branch once merged, and remove the worktree.
 6.  **Put the merged code in front of the human.** Rebuild the frontend if the change

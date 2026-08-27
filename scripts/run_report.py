@@ -16,6 +16,20 @@ script never has to guess.
     python scripts/run_report.py --since 7       # runs started in the last 7 days
     python scripts/run_report.py --task task-233 # one task's runs, listed
     python scripts/run_report.py --per-task      # every task, worst first
+    python scripts/run_report.py --epics         # every epic: wall clock, busy, idle
+    python scripts/run_report.py --epic task-269 # one epic, with a row per child span
+
+``--epics`` is the instrument task-223 needed and this script did not have. Runs and
+finishes were each measured on their own, so **the gap between one child closing and the
+next starting was in no table anywhere** -- which is exactly the quantity a concurrent
+epic walk removes. It groups a run under the parent of its task, reads the parent from
+the project's own corpus rather than from the ledger (nothing in ``meta.yaml`` records
+one, so a ledger-only version could not baseline the serial epics already recorded), and
+reports both the **union** of the child intervals and their **sum**. It needs both: a sum
+stops being a share of a timeline the moment anything overlaps, and a union alone would
+hide the improvement entirely, because running two children at once reduces the union and
+the wall clock together. ``work / wall`` is the parallelism actually achieved, and 1.00 is
+serial however many slots were configured.
 
 ``--split`` is how a cycle-time change is claimed rather than asserted: it prints the
 table twice, either side of a moment, so the moment can be a merge commit's timestamp.
@@ -51,6 +65,17 @@ except ImportError:  # pragma: no cover - the package depends on it
     print("PyYAML is required. Run `python scripts/bootstrap.py`.", file=sys.stderr)
     raise SystemExit(1)
 
+
+DEFAULT_GAP_CEILING_SECONDS = 3600.0
+"""A gap longer than this ends an epic's sitting rather than counting as idle (task-223).
+
+An hour, chosen against what the two kinds of gap actually look like on this machine's
+ledger. Turnaround between children in a live walk is a poll interval plus a dispatch --
+seconds to a couple of minutes. The gaps between sittings are overnight, or a weekend, or
+a review nobody got to: task-160's children span five days. There is nothing in between
+on any epic recorded so far, so the boundary is not a judgement call being smuggled in as
+a constant; ``--gap-ceiling`` moves it when that stops being true.
+"""
 
 HOME_ENV = "AGENTJOBS_HOME"
 GATE_FINISHED = "gate_finished"
@@ -128,6 +153,12 @@ class Run:
     the distinction this field exists to make: a run with no phase records because the
     delivery did not exist yet is a different fact from one that had the delivery and
     ran no gate. See ``dispatch.session_env.Delivery`` for the vocabulary.
+    """
+    project_id: str = ""
+    """Which registered project this run belongs to, or "" for a run that did not say.
+
+    Read only so that a task id can be resolved to a parent in the right corpus
+    (task-223). Two projects may both have a ``task-042``.
     """
     daemon_started: Optional[bool] = None
     """Whether this run's own launch started the Claude Code daemon (task-249).
@@ -226,6 +257,7 @@ def read_run(directory: Path) -> Optional[Run]:
         session_env=(
             str(meta["session_env"]) if isinstance(meta.get("session_env"), str) else None
         ),
+        project_id=str(meta.get("project_id") or ""),
         daemon_started=(
             bool(meta["daemon_started"]) if isinstance(meta.get("daemon_started"), bool) else None
         ),
@@ -251,6 +283,7 @@ class Finish:
     finished_at: Optional[datetime]
     merged: bool
     gates: Sequence[Gate]
+    project_id: str = ""
 
     @property
     def seconds(self) -> Optional[float]:
@@ -283,6 +316,7 @@ def read_finish(directory: Path) -> Optional[Finish]:
         finished_at=as_moment(meta.get("finished_at")),
         merged=bool(meta.get("merge_commit")),
         gates=read_gates(directory),
+        project_id=str(meta.get("project_id") or ""),
     )
 
 
@@ -559,6 +593,288 @@ def _finish_lines(finishes: Sequence[Finish]) -> List[str]:
     return lines
 
 
+# ----- epics: wall clock, and the idle this measurement exists for (task-223) -----
+
+
+@dataclass(frozen=True)
+class Span:
+    """One occupied interval on an epic's timeline: a child run, or a child's finish."""
+
+    task_id: str
+    label: str
+    started_at: datetime
+    finished_at: datetime
+
+    @property
+    def seconds(self) -> float:
+        return (self.finished_at - self.started_at).total_seconds()
+
+
+@dataclass(frozen=True)
+class Epic:
+    """One parent task's children, as intervals on a shared clock.
+
+    **The quantity this exists for is ``idle``**, and until task-223 nothing in this
+    ledger reported it. Runs and finishes were each measured on their own, so the gap
+    between one child closing and the next starting -- the whole of what a serial walk
+    spends and a concurrent one does not -- was in no table anywhere. A cycle-time claim
+    is a before/after or it is an anecdote, and this is the instrument the before half
+    has to come from.
+    """
+
+    parent_id: str
+    spans: Sequence[Span]
+    gap_ceiling_seconds: float = DEFAULT_GAP_CEILING_SECONDS
+
+    @property
+    def started_at(self) -> datetime:
+        return min(span.started_at for span in self.spans)
+
+    @property
+    def finished_at(self) -> datetime:
+        return max(span.finished_at for span in self.spans)
+
+    @property
+    def occupied(self) -> List[List[datetime]]:
+        """The spans merged into non-overlapping intervals, in order.
+
+        The union rather than the sum, because a sum exceeds the wall clock the moment
+        anything runs in parallel -- which is the case this exists to measure, and
+        ``gates_overlapped`` is where this file already learned not to report a sum as a
+        share of a timeline.
+        """
+        merged: List[List[datetime]] = []
+        for span in sorted(self.spans, key=lambda item: item.started_at):
+            if merged and span.started_at <= merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], span.finished_at)
+            else:
+                merged.append([span.started_at, span.finished_at])
+        return merged
+
+    @property
+    def sittings(self) -> List[List[List[datetime]]]:
+        """Occupied intervals grouped into runs of work separated by short gaps.
+
+        **The number a naive wall clock produces is nearly meaningless, and this is why.**
+        An epic dispatched on Monday whose last child merges on Thursday has three days
+        of wall clock, and about six hours of it is anything a scheduler could have
+        affected; the rest is a person asleep, or a review nobody had got to, or the epic
+        simply not being driven. Reporting that as 92% idle -- which the first cut of this
+        did -- attributes a human's week to the walk.
+
+        So a gap longer than ``gap_ceiling_seconds`` ends a sitting. Within a sitting the
+        gaps are turnaround, which is what a concurrent walk removes and what this
+        measurement is for. Between sittings is somebody's life, and it is reported
+        separately rather than folded in or silently dropped.
+        """
+        groups: List[List[List[datetime]]] = []
+        for interval in self.occupied:
+            if groups and (interval[0] - groups[-1][-1][1]).total_seconds() <= (
+                self.gap_ceiling_seconds
+            ):
+                groups[-1].append(interval)
+            else:
+                groups.append([interval])
+        return groups
+
+    @property
+    def wall_seconds(self) -> float:
+        """Time inside a sitting: what somebody watching this epic actually waited."""
+        return sum((group[-1][1] - group[0][0]).total_seconds() for group in self.sittings)
+
+    @property
+    def busy_seconds(self) -> float:
+        """Time inside a sitting with at least one child actually running."""
+        return sum((end - start).total_seconds() for group in self.sittings for start, end in group)
+
+    @property
+    def work_seconds(self) -> float:
+        """The **sum** of the child spans: how long the work took, ignoring overlap.
+
+        The one figure here that is deliberately a sum rather than a union, and the one
+        that makes a concurrency claim checkable. ``work / wall`` is the parallelism the
+        epic actually achieved: 1.0 is serial however many slots were configured, and a
+        four-slot walk of four independent children approaches 4. Reporting only the
+        union would hide exactly the improvement task-223 exists to produce, because
+        running two children at once *reduces* both wall and union together.
+        """
+        return sum(span.seconds for span in self.spans)
+
+    @property
+    def parallelism(self) -> float:
+        return self.work_seconds / self.wall_seconds if self.wall_seconds else 0.0
+
+    @property
+    def paused_seconds(self) -> float:
+        """Time between sittings. Not the scheduler's, and not counted against it."""
+        total = (self.finished_at - self.started_at).total_seconds()
+        return max(0.0, total - self.wall_seconds)
+
+    @property
+    def idle_seconds(self) -> float:
+        """Turnaround: eligible work waiting because the walk was doing one thing.
+
+        This is the quantity task-223 removes, and the only one of the three that a
+        scheduling change can move.
+        """
+        return max(0.0, self.wall_seconds - self.busy_seconds)
+
+    @property
+    def peak_concurrency(self) -> int:
+        """The most spans alive at one instant. 1 means it ran serially.
+
+        Spans are half-open: an end at the same instant as a start is a handover, not an
+        overlap, so ends are applied first. Getting this backwards reports every clean
+        serial handover as concurrency 2 -- which would have made the *baseline* look
+        like the improvement.
+        """
+        events: List[tuple] = []
+        for span in self.spans:
+            events.append((span.started_at, 1))
+            events.append((span.finished_at, -1))
+        events.sort(key=lambda item: (item[0], item[1]))
+        peak = current = 0
+        for _moment, delta in events:
+            current += delta
+            peak = max(peak, current)
+        return peak
+
+    @property
+    def children(self) -> int:
+        return len({span.task_id for span in self.spans})
+
+
+def load_parents(home: Path, project_ids: Iterable[str]) -> Dict[tuple, str]:
+    """``(project_id, task_id) -> parent id`` for every task in the named projects.
+
+    Read from the task corpora rather than from the ledger, deliberately. Nothing in
+    ``meta.yaml`` records a run's parent, so a ledger-only implementation could group
+    only the epics dispatched after it was added -- and the whole point of this is to
+    baseline the serial epics that are **already** in the ledger. Resolving from the
+    corpus works backwards over the entire history.
+
+    The cost is that it reports the graph as it stands *now*: a child re-parented since
+    it ran is grouped where it lives today. That is the right trade for a report and the
+    wrong one for an audit; nothing here claims to be an audit.
+    """
+    import logging  # noqa: PLC0415 - only this mode reads a corpus
+
+    from agentjobs.manager import TaskManager  # noqa: PLC0415 - optional for this mode
+    from agentjobs.projects import ProjectRegistry
+    from agentjobs.storage import TaskStorage
+
+    # A task file this report cannot parse is not this report's business. Task loading
+    # logs one error line per broken file, and a neighbouring project with twenty of them
+    # would bury the table underneath them. Whether they are broken is a question
+    # `agentjobs validate` answers properly.
+    storage_log = logging.getLogger("agentjobs.storage")
+    previous = storage_log.level
+    storage_log.setLevel(logging.CRITICAL)
+    parents: Dict[tuple, str] = {}
+    try:
+        registry = ProjectRegistry()
+        for project_id in sorted({pid for pid in project_ids if pid}):
+            try:
+                project = registry.get(project_id)
+                manager = TaskManager(TaskStorage(project.tasks_dir()))
+                tasks = manager.storage.list_tasks()
+            except Exception:  # noqa: BLE001 - an unreadable project groups nothing
+                continue
+            for task in tasks:
+                if task.parent:
+                    parents[(project_id, task.id)] = task.parent
+    finally:
+        storage_log.setLevel(previous)
+    return parents
+
+
+def build_epics(
+    runs: Sequence[Run],
+    finishes: Sequence[Finish],
+    home: Path,
+    gap_ceiling: float = DEFAULT_GAP_CEILING_SECONDS,
+) -> List[Epic]:
+    """Group every timed run and finish under the epic its task belongs to.
+
+    A parent's *own* runs are excluded, and that exclusion is what makes the number mean
+    anything: a supervising walk spans the entire epic by construction, so counting it as
+    a span would make ``busy`` equal ``wall`` and ``idle`` zero for every epic ever run.
+    What is measured here is the children.
+    """
+    project_ids = [run.project_id for run in runs] + [finish.project_id for finish in finishes]
+    parents = load_parents(home, project_ids)
+    if not parents:
+        return []
+
+    grouped: Dict[str, List[Span]] = {}
+    for run in runs:
+        parent = parents.get((run.project_id, run.task_id))
+        if parent is None or run.started_at is None or run.finished_at is None:
+            continue
+        grouped.setdefault(parent, []).append(
+            Span(run.task_id, run.run_id, run.started_at, run.finished_at)
+        )
+    for finish in finishes:
+        parent = parents.get((finish.project_id, finish.task_id))
+        if parent is None or finish.started_at is None or finish.finished_at is None:
+            continue
+        grouped.setdefault(parent, []).append(
+            Span(finish.task_id, finish.finish_id, finish.started_at, finish.finished_at)
+        )
+
+    epics = [
+        Epic(parent_id=parent, spans=spans, gap_ceiling_seconds=gap_ceiling)
+        for parent, spans in grouped.items()
+    ]
+    return sorted(epics, key=lambda epic: epic.started_at)
+
+
+def epic_report(epics: Sequence[Epic]) -> str:
+    """A row per epic, plus the one line the whole of task-223 is aimed at."""
+    if not epics:
+        return (
+            "  No epic could be reconstructed for this window. Either no run in it\n"
+            "  belongs to a task with a parent, or the project's task corpus could not\n"
+            "  be read from this machine."
+        )
+    width = max(max((len(epic.parent_id) for epic in epics), default=6), 6)
+    lines = [
+        f"  {'epic'.ljust(width)}  kids  sit  peak     wall     work     idle   idle%      x",
+    ]
+    for epic in epics:
+        share = epic.idle_seconds / epic.wall_seconds * 100 if epic.wall_seconds else 0.0
+        lines.append(
+            f"  {epic.parent_id.ljust(width)}  {epic.children:>4}  "
+            f"{len(epic.sittings):>3}  {epic.peak_concurrency:>4}  "
+            f"{minutes(epic.wall_seconds):>7}  {minutes(epic.work_seconds):>7}  "
+            f"{minutes(epic.idle_seconds):>7}  {share:5.1f}%  {epic.parallelism:5.2f}"
+        )
+    wall = sum(epic.wall_seconds for epic in epics)
+    work = sum(epic.work_seconds for epic in epics)
+    idle = sum(epic.idle_seconds for epic in epics)
+    paused = sum(epic.paused_seconds for epic in epics)
+    serial = [epic for epic in epics if epic.peak_concurrency <= 1]
+    lines += [
+        "",
+        f"  epics                 {len(epics)}",
+        f"  time in sittings      {hours(wall)}  (a gap over "
+        f"{epics[0].gap_ceiling_seconds / 60:.0f}m ends one)",
+        f"  child work            {hours(work)} summed, so parallelism "
+        f"{work / wall if wall else 0:.2f}x  <- 1.00 is serial",
+        f"  turnaround idle       {hours(idle)} ({idle / wall * 100 if wall else 0:.0f}% of it)"
+        "  <- a slot free with eligible work waiting",
+        f"  paused between        {hours(paused)}  (overnight, review, nobody driving --"
+        " not the scheduler's)",
+        f"  ran serially          {len(serial)} of {len(epics)} (peak concurrency 1)",
+        "",
+        "  `x` is the number this measures. Wall clock shrinks two ways under a",
+        "  concurrent walk -- turnaround idle disappears, and children overlap -- and",
+        "  only the second shows up here, because overlapping two children reduces the",
+        "  union and the wall clock together.",
+    ]
+    return "\n".join(lines)
+
+
 def per_task(runs: List[Run]) -> str:
     """Every task, most dispatched time first. Finding 2 of task-233 is this table."""
     by_task: Dict[str, List[Run]] = {}
@@ -674,6 +990,21 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument("--per-task", action="store_true", help="a row per task, most time first")
     parser.add_argument("--list", action="store_true", help="a row per run")
+    parser.add_argument(
+        "--epics",
+        action="store_true",
+        help="a row per epic: wall clock, busy time, and the idle between its children",
+    )
+    parser.add_argument(
+        "--epic", metavar="TASK_ID", help="only this epic, with a row per child span"
+    )
+    parser.add_argument(
+        "--gap-ceiling",
+        type=float,
+        default=DEFAULT_GAP_CEILING_SECONDS / 60.0,
+        metavar="MINUTES",
+        help="a gap longer than this ends an epic's sitting instead of counting as idle",
+    )
     return parser.parse_args(argv)
 
 
@@ -693,6 +1024,24 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.task:
         runs = [run for run in runs if run.task_id == args.task]
         finishes = [finish for finish in finishes if finish.task_id == args.task]
+
+    if args.epics or args.epic:
+        # Before the "no runs matched" guard below, because an epic is reconstructed from
+        # the corpus and one selected by `--epic` may legitimately have no run of its own.
+        epics = build_epics(runs, finishes, home, args.gap_ceiling * 60.0)
+        if args.epic:
+            epics = [epic for epic in epics if epic.parent_id == args.epic]
+        print(f"\nEpics reconstructed from {home / 'runs'}\n")
+        print(epic_report(epics))
+        for epic in epics if args.epic else []:
+            print(f"\nSpans of {epic.parent_id}, in start order\n")
+            for span in sorted(epic.spans, key=lambda item: item.started_at):
+                start = span.started_at.astimezone().strftime("%m-%d %H:%M")
+                print(
+                    f"  {span.task_id:<12} {span.label:<16} {start}  " f"{minutes(span.seconds):>7}"
+                )
+        print()
+        return 0
 
     if args.split:
         boundary = as_moment(args.split)

@@ -51,14 +51,20 @@ handoff rules already stored in task records and these process files.
     poetry run agentjobs dispatch walk <parent-id> --project <project>
     ```
 
-    It starts each child as a real dispatch on the authorisation the human gave *this*
-    parent, one at a time, watches each child's **task record** to a terminal state, and
-    **stops the whole walk** on the first child that does not close `completed` — because
-    a sibling that depended on that child would be building on a gap. Retries are bounded
-    at two runs per child per authorisation of the epic, and enforced rather than
-    promised. It **blocks until it is done**, which is the point: a supervisor that ends
-    its turn promising to check back is asleep. `--dry-run` says which child is next and
-    starts nothing.
+    It starts **every** child whose dependencies are satisfied as a real dispatch on the
+    authorisation the human gave *this* parent, up to this machine's
+    `limits.max_concurrent_runs`, and starts each newly-freed child the moment its own
+    needs close rather than at the end of a round. It watches each child's **task
+    record** to a terminal state. The first child that does not close `completed`
+    **grounds every further takeoff** — a sibling that depended on it would be building
+    on a gap — while children already in the air are watched down rather than killed,
+    none of them being able to have depended on it. **Takeoff and landing are different
+    resources**: the work parallelises, the merge does not, so children queue for the
+    repository's one merge runway inside their own finish. Retries are bounded at two
+    runs per child per authorisation of the epic, and enforced rather than promised. It
+    **blocks until it is done**, which is the point: a supervisor that ends its turn
+    promising to check back is asleep. `--dry-run` says what would start now and starts
+    nothing.
 3.  Exit 0 means no open child remains. **That is not the same as the parent being
     done**, and the walk deliberately never closes it: evaluate the parent's own
     acceptance criteria against the children's durable evidence, do any parent-level
@@ -80,10 +86,12 @@ the supervisor.** This binds whether you are an interactive session someone told
 **The threshold is: anything that takes a worktree gets its own session.** A child that
 edits files, runs `scripts/check.py`, or produces a branch is a session. A child that is
 a decision to record, a question to answer or a task to file is not — it takes no
-worktree, and a session for it costs more than it saves. The reason is context, not
-parallelism: a session that works four children carries four children's worth of
-exploration by the fourth, and the transcript a handoff should have replaced is precisely
-what the next session cannot read.
+worktree, and a session for it costs more than it saves. **The reason is context, and it
+decides nothing about ordering**: a session that works four children carries four
+children's worth of exploration by the fourth, and the transcript a handoff should have
+replaced is precisely what the next session cannot read. Three concurrent child sessions
+leave your context exactly as small as three sequential ones — which is why the walk runs
+independent children together (task-223).
 
 **The supervisor is thin, and meant to be.** You read the child's record, its acceptance
 statuses, its branch and its diff — not its transcript. You are checking that the child

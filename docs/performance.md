@@ -237,6 +237,7 @@ how much of each run was the gate and how much of that was gate runs that failed
 poetry run python scripts/run_report.py --per-task     # every task, worst first
 poetry run python scripts/run_report.py --since 7      # the last week
 poetry run python scripts/run_report.py --task task-233
+poetry run python scripts/run_report.py --epics        # per epic: wall, work, idle
 ```
 
 **A cycle-time claim is a before/after or it is an anecdote**, so `--split` prints the
@@ -252,6 +253,71 @@ poetry run python scripts/run_report.py --driver claude --split 2026-08-21T23:24
 Read the **median** task, not the mean. Both are printed, and at these sample sizes one
 feature build moves the mean by a factor and the median not at all — the task-233
 baseline's own mean fell from 56.7m to 40.7m on the removal of a single epic.
+
+### Where epic time goes, and the baseline before concurrent walks (task-223)
+
+Runs and finishes were each measured on their own, so **the gap between one child of an
+epic closing and the next starting was in no table anywhere** — which is exactly the
+quantity a concurrent walk removes. `--epics` groups runs and finishes under the parent of
+their task and reports it.
+
+```bash
+poetry run python scripts/run_report.py --epics
+poetry run python scripts/run_report.py --epic task-269    # one epic, span by span
+```
+
+Four numbers, and the distinction between the last two is the whole honesty of the table:
+
+| Column | What it is |
+|---|---|
+| `wall` | time inside a **sitting** — what somebody watching this epic actually waited |
+| `work` | the **sum** of child spans, ignoring overlap |
+| `idle` | wall with no child running: a slot free with eligible work waiting |
+| `x` | `work / wall`. **1.00 is serial**, whatever the slot count was |
+
+A gap longer than `--gap-ceiling` (default 60m) ends a sitting and is reported as
+`paused` instead of as idle. Without that split the first cut of this read **92% idle**,
+because task-160's children span five days and most of that is a person asleep. The two
+kinds of gap do not overlap on any epic recorded so far: turnaround is a poll interval
+plus a dispatch, and the other kind is overnight.
+
+`work` is the one figure here that is deliberately a sum rather than a union, and it is
+the one that makes a concurrency claim checkable: running two children at once reduces the
+wall clock *and* the union together, so a report of unions alone would hide the whole
+improvement.
+
+**The baseline, 2026-08-27, before any walk ran children concurrently** — this machine's
+entire ledger:
+
+```
+  epic                             kids  sit  peak     wall     work     idle   idle%      x
+  task-160-dispatch-phase-two         7    5     2   642.8m   535.0m   111.3m   17.3%   0.83
+  task-081-task-selection-ranking     3    1     1   167.5m    79.5m    88.0m   52.5%   0.47
+  task-280                            1    1     1    27.9m    21.8m     6.0m   21.6%   0.78
+  task-211                            6    5     1   117.3m    37.2m    80.1m   68.3%   0.32
+  task-269                            8    5     2   331.1m   332.9m    22.2m    6.7%   1.01
+
+  epics                 5
+  time in sittings      21.4h  (a gap over 60m ends one)
+  child work            16.8h summed, so parallelism 0.78x  <- 1.00 is serial
+  turnaround idle       5.1h (24% of it)
+  paused between        167.4h
+  ran serially          3 of 5 (peak concurrency 1)
+```
+
+**Read `x`, not `idle%`, for the after half.** Removing turnaround is the smaller of the
+two savings; the larger is children overlapping, and only `x` shows it. The `peak 2` on
+task-160 and task-269 is a child's scripted finish overlapping another child's run, not a
+walk running two children — every walk in this window was serial by construction.
+
+**The honest expectation is nearer 2x than 4x on a four-wide fan-out**, and it is worth
+writing down so nobody quotes the older figure. Task-223's own brief cited +9% at two
+concurrent gates and +16% at four; those are from the serial-pytest era and are now wrong.
+Since task-233 the gate asks for every core, and [How the gate degrades under
+contention](#how-the-gate-degrades-under-contention) measures three concurrent gates at
+roughly 360s each against 96s solo. The gate is also only about a sixth of an instrumented
+run, so most of what parallelises is the agent session rather than the gate — which is the
+argument for this change and against grinding the gate again.
 
 ### Where the numbers come from
 

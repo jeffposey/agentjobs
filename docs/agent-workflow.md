@@ -143,7 +143,9 @@ a reviewer defensible in the first place.
 
 A task with an open child is an epic. **Whoever holds it starts a separate session per
 child and stays running as the supervisor.** You do not work a child in your own session,
-however small it looks, and you do not work two at once.
+however small it looks, and you do not work two at once. Several children may *run* at
+once — see [how many children fly at once](#how-many-children-fly-at-once) — but none of
+them runs in your session.
 
 Your prompt says which of these you are, because dispatch reads it off the record: a task
 with open children gets the supervisor prompt, and every other task gets the ordinary
@@ -178,13 +180,24 @@ runs, and only for those (task-220).
 
 ### Why a session, and where the line is
 
-The reason is context, not parallelism — the loop is still one child at a time.
+**The reason is context, and it says nothing about how many run at once.**
 
 A session that works four children carries four children's worth of exploration by the
 fourth, and the transcript a handoff was supposed to replace is exactly what the next
 session cannot read. Every child worked in its own session ends with its findings in a
 place the next reader can actually open: the task record. The supervisor's own context
 stays small enough to still be a supervisor at the end of the epic.
+
+**That argument is about isolation, not about ordering, and for a long time this section
+was read as settling both.** It used to open "the reason is context, not parallelism —
+the loop is still one child at a time", which put a claim about ordering in a subordinate
+clause of an argument that does not reach it. Context cost is a property of how many
+transcripts *one* session accumulates. Three concurrent child sessions leave the
+supervisor's context exactly as small as three sequential ones, because the supervisor
+reads task records and diffs and never a child's transcript — which is what the section
+directly below insists on. So this justifies a session per child and is silent on how
+many fly at once; [how many fly at once](#how-many-children-fly-at-once) is its own
+question with its own answer (task-223).
 
 **The threshold is: anything that takes a worktree gets a session.** Two reasons to
 prefer it over a size estimate:
@@ -212,6 +225,117 @@ answer is a handoff back to the child asking it to say so, not archaeology in it
 scrollback. You are checking that the child reported and verified its work — not
 re-verifying the work.
 
+### How many children fly at once
+
+**Every child whose dependencies are satisfied, up to this machine's run ceiling.** The
+walk does this for you; what follows is the rule it implements and the reasons for it,
+because you have to be able to read what it did and say whether it was right.
+
+Until task-223 the answer was "one", and it was stated without a reason anywhere —
+the only nearby justification was the section above, which argues for a session per child
+and is silent on ordering. The cost of the unexamined answer was measurable: of task-269's
+eight children, six declared no dependencies at all and were run strictly one after
+another.
+
+**Takeoff and landing are different resources, and only one of them is serial.** The work
+parallelises, because each child has its own worktree and its own session. The merge does
+not, because `main` is one branch — so each child queues for **this repository's merge
+runway** inside its own `agentjobs finish`, held across rebase, gate and merge. That is
+not fussiness about git, which handles concurrent merges perfectly well and says so when
+it cannot. It is the one property the merge gate exists to guarantee: *the commit that
+lands is the commit the gate verified*. Two finishers gating against a base the other is
+moving cannot both have that.
+
+The runway is the honest cost of this and it is much smaller than the flights: a scripted
+finish on this machine's ledger averages about four minutes, against a run of about
+thirty. A four-child epic spends roughly sixteen minutes queueing and parallelises the
+rest.
+
+#### A rolling frontier, never a wave
+
+At every moment, every child whose `needs` are all satisfied and which is not already
+running is started, up to the slot count. **A child completing recomputes eligibility
+immediately**, not at the end of a round.
+
+The obvious implementation is waves — find every eligible child, start them all, wait for
+all of them, recompute — and it is wrong for the same reason the serial walk was wrong:
+it prices a group at its slowest member. A wave of three where one takes an hour and two
+take ten minutes leaves two slots idle for fifty minutes with eligible work sitting there.
+There is no barrier anywhere in the loop.
+
+Stated as the invariant, which is also what the tests assert: **at no point does an
+eligible, unclaimed child exist while a slot is free.**
+
+**"X unblocked me" is not the same as "I am eligible."** The scheduler asks *are all of
+this child's needs satisfied?* — never *did the child that just finished name me?*. A
+diamond is where those differ: a child with two unmet needs, one of which just closed,
+is still blocked. An implementation that pushed newly-freed dependents onto a ready queue
+on completion would start it against a prerequisite that has not landed.
+
+#### Which child goes first when the frontier is wider than the slots
+
+**The graph decides eligibility, the queue decides order, and out-degree breaks the ties
+the queue does not.**
+
+The queue holds a human's explicit decision about order, and `agentjobs queue move` has to
+keep meaning something. Sorting the frontier by out-degree outright — prefer the child
+with the most work waiting behind it — is a real scheduling heuristic and it would
+quietly overrule every move anybody made, so it is the tie-break rather than the sort. In
+practice `(band, queue_position)` is already a total order over open work, so the
+tie-break rarely fires at all; that is the intended outcome, not a defect in it.
+
+If you think a child that gates three others should go first, **move it in the queue**.
+That is the same answer as everywhere else, and it survives the session.
+
+#### The stop rule, sharpened rather than weakened
+
+The reason a walk stops on a bad child is that a sibling depending on it would be building
+on a gap with nobody awake to notice. That argument survives concurrency intact — but note
+what it justifies. It justifies *stopping*, which is not the same as never having started.
+
+- **No further child takes off.** Immediately, on the first child that does not close
+  `completed`.
+- **Children already in flight land.** They were started against a graph that was valid
+  when they started, and none of them can depend on the failed child or claimability would
+  not have offered them. Killing them throws work away for no safety gain.
+- **Nothing that needed the failed child ever starts.** That is automatic rather than
+  enforced: its needs are unmet and always will be, so it never enters the frontier.
+
+What this gives up against the old rule is exactly the pessimism about siblings that
+provably do not depend on the failure.
+
+#### The ceiling is the machine's, and there is only one
+
+`limits.max_concurrent_runs` in `~/.agentjobs/dispatch.yaml` is the real cap. A child has
+been an ordinary dispatch since task-022, so it is counted against that ceiling like
+anything else — the older claim that children are uncounted subprocesses stopped being
+true then. `dispatch walk --max-concurrent N` can only narrow it.
+
+**Your own supervising run holds one of those slots**, so an epic walk needs at least two
+and gets `ceiling - 1` children in the air. Hitting the ceiling mid-walk is **backpressure,
+not a refusal**: the walk waits and tries again, because something else on the machine
+holding a slot is a normal condition and not a fact about this epic. A machine that stays
+full for the whole per-child ceiling does stop the walk, and says which.
+
+#### What it looks like when it is working
+
+```bash
+poetry run agentjobs dispatch walk <parent-id> --project <project> --dry-run
+```
+
+prints the bounds, the slot count, and exactly which children would take off now. A
+finished walk reports how many were in flight at once, and
+
+```bash
+poetry run python scripts/run_report.py --epics
+poetry run python scripts/run_report.py --epic <parent-id>
+```
+
+reports an epic's wall clock, the summed child work, the turnaround idle and the
+parallelism actually achieved — `1.00x` being serial. A walk that reports one child in
+flight either had a serial graph or never got a second slot, and those are worth telling
+apart before concluding anything.
+
 ### Run the walk; do not drive the loop by hand
 
 ```bash
@@ -219,13 +343,15 @@ poetry run agentjobs dispatch walk <parent-id> --project <project>
 ```
 
 That is the whole of your job between reading the parent and judging its criteria. The
-walk picks the next eligible child from the queue, starts it as a real dispatch, watches
-its task record to a terminal state, and either moves on or stops — and it **blocks**
-until it is done, which is deliberate: a supervisor that ends its turn saying it will
-check back periodically is not supervising, and that is not a hypothetical (see below).
+walk keeps every eligible child flying — see [how many at once](#how-many-children-fly-at-once)
+— starting each as a real dispatch, watching its task record to a terminal state, and
+either topping the fleet back up or grounding it. It **blocks** until it is done, which is
+deliberate: a supervisor that ends its turn saying it will check back periodically is not
+supervising, and that is not a hypothetical (see below).
 
-`--dry-run` prints the bounds and which child is next, and starts nothing. `--max-children
-N` stops after N, for a first run against a wide epic you want to watch.
+`--dry-run` prints the bounds and which children would start now, and starts nothing.
+`--max-children N` stops after N, for a first run against a wide epic you want to watch;
+`--max-concurrent N` narrows the fleet without narrowing the epic.
 
 **Exit 0 means every open child is done. It does not mean the parent is done** — the walk
 never closes a parent, because whether its acceptance criteria are met is the one
@@ -243,7 +369,8 @@ the epic's children were named on its record when they did.
 So each child has a run directory, a row in the run ledger, a `dispatch_result`, and the
 poller settles and reaps it. It also counts against this machine's concurrency ceiling
 alongside your own run, so **an epic walk needs at least two slots** — a machine set to
-one refuses the first child, saying so.
+one refuses the first child, saying so — and that same ceiling is what decides how many
+children fly at once.
 
 **The child claims itself** through the dispatcher, as any dispatched task does. Do not
 claim it on its behalf.
@@ -329,9 +456,12 @@ yours at all:
 
 Either way, **stop starting children**: the next child may depend on the parked one, and
 an unattended run that keeps going past a question is how a wrong answer gets built on.
-The walk does exactly this — it stops on the first child that is not clean and never
-skips one — and it hands the parent to `human`/`decision` with the reason before it
-exits, so the parent record does not read `agent/work` while nothing is happening to it.
+The walk does exactly this — the first child that is not clean grounds every further
+takeoff and none is ever skipped — and it hands the parent to `human`/`decision` with the
+reason before it exits, so the parent record does not read `agent/work` while nothing is
+happening to it. **Children already in flight are watched down rather than killed**: none
+of them can depend on the parked one, or claimability would not have offered them, so
+stopping them would throw away work for no safety gain.
 
 **A parked child is also what an epic walk at posture `auto` or `supervised` is supposed
 to produce.** The first child hands off for review, the walk stops, and a person

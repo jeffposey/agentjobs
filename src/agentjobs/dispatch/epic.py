@@ -87,11 +87,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from agentjobs.actors import Actor
 from agentjobs.dispatch.config import Posture, PostureSource
 from agentjobs.manager import TaskManager
+from agentjobs.queue import order_key
 from agentjobs.projects import Project, default_home
 from agentjobs.models_v2 import (
     Ball,
@@ -524,12 +525,21 @@ class WalkStop(Enum):
 
 @dataclass
 class WalkResult:
-    """Everything the walk did, in the order it did it."""
+    """Everything the walk did, in the order the children *landed*."""
 
     parent_id: str
     stop: WalkStop
     attempts: List[ChildAttempt] = field(default_factory=list)
     detail: str = ""
+    peak_in_flight: int = 0
+    """The most children this walk had running at one moment.
+
+    Recorded because it is the evidence for the whole of task-223 and because it is the
+    one number a reader cannot recover from the attempt list: attempts are ordered by
+    when each child finished, which says nothing about what was running beside it. A
+    walk that reports 1 here either had a serial graph or never got a second slot, and
+    those are worth telling apart.
+    """
 
     @property
     def merged_children(self) -> List[str]:
@@ -541,7 +551,10 @@ class WalkResult:
             lines.append(self.detail)
         if self.attempts:
             lines.append("")
-            lines.append("Children, in the order the walk took them:")
+            concurrency = (
+                f" (up to {self.peak_in_flight} in flight at once)" if self.peak_in_flight else ""
+            )
+            lines.append(f"Children, in the order they landed{concurrency}:")
             lines.extend(f"  {a.describe()}" for a in self.attempts)
         else:
             lines.append("No child was started.")
@@ -562,21 +575,89 @@ class WalkSettings:
     which is already finite; the option exists so a first run against a wide epic can be
     told to stop after two."""
 
+    max_concurrent: int = 1
+    """Children this walk may have **in flight** at once (task-223).
+
+    **There is only one concurrency cap on this machine and it is not this one.** Since
+    task-022 a child is an ordinary dispatch, so it is counted against
+    ``limits.max_concurrent_runs`` in ``~/.agentjobs/dispatch.yaml`` by ``dispatch_task``
+    like anything else -- the sentence in task-081's brief saying children are
+    uncounted subprocesses stopped being true then. This number can only ever narrow
+    that ceiling, and ``agentjobs dispatch walk`` fills it in from the machine's limit
+    so that the default behaviour is the machine's own answer rather than a second
+    number to keep in step.
+
+    The dataclass default is 1 because a ``WalkSettings()`` constructed with no argument
+    is a caller who has not thought about it, and the safe reading of that is the
+    behaviour that existed before this field.
+
+    Hitting the machine ceiling mid-walk is **backpressure, not a refusal**: the walk
+    stops trying for this poll and tries again, because something else on the machine
+    holding a slot is a normal condition and not a fact about this epic.
+    """
+
 
 def next_eligible_child(manager: TaskManager, parent_id: str) -> Optional[Task]:
-    """The child the queue says is next, or ``None`` if none is claimable.
-
-    Delegates to the queue rather than sorting children here. The order of work is a
-    decision the queue owns and records, and a second implementation of it inside the
-    walk is exactly how the dashboard and the walk would come to disagree about what is
-    next -- with the walk winning silently, because it is the one that spends money.
-    """
+    """The child the queue says is next, or ``None`` if none is claimable."""
     return manager.get_next_task(parent=parent_id)
+
+
+def frontier(manager: TaskManager, parent_id: str, *, exclude: Sequence[str] = ()) -> List[Task]:
+    """Every child that could start **right now**, in the order to start them in.
+
+    This is the rolling frontier, and the word doing the work is *now*. It is recomputed
+    from scratch on every pass rather than maintained as a ready-queue that completing
+    children push onto, and that is a correctness choice rather than a stylistic one:
+    the question a scheduler must ask is *"are all of this child's needs satisfied?"*,
+    never *"did the child that just finished name me?"*. A diamond -- a child with two
+    unmet needs, one of which just closed -- is the case where those two differ, and the
+    push-on-completion version starts it against a prerequisite that has not landed.
+    Asking the claimability filter afresh cannot get that wrong, because it is the same
+    filter the queue, the CLI and the dashboard ask.
+
+    **The graph decides eligibility, the queue decides order, and out-degree breaks the
+    ties the queue does not.** ``claimable_tasks`` has already applied the first two.
+    Out-degree -- how many open tasks still ``need`` this one -- is the classic
+    critical-path heuristic, and starting a leaf ahead of a child that gates three others
+    idles three slots later for no gain. It is deliberately last: the queue holds a
+    human's explicit decision about order, and a scheduler that sorted the frontier by
+    out-degree outright would quietly overrule every ``queue move`` anybody made. In
+    practice ``(band, queue_position)`` is already a total order over open work, so this
+    tie-break rarely fires at all -- which is the intended outcome, not a defect in it.
+
+    ``exclude`` is the children already in flight. They are ``active`` and so are
+    filtered out by claimability anyway; naming them closes the window between starting
+    one and its claim being visible on disk.
+    """
+    excluded = set(exclude)
+    candidates = [
+        task for task in manager.claimable_tasks(parent=parent_id) if task.id not in excluded
+    ]
+    if len(candidates) < 2:
+        return candidates
+    facts = manager.dependency_facts()
+
+    def key(task: Task) -> Tuple[Tuple[int, int], int]:
+        fact = facts.get(task.id)
+        return (order_key(task), -(fact.unblocks_count if fact else 0))
+
+    candidates.sort(key=key)
+    return candidates
 
 
 def open_children(manager: TaskManager, parent_id: str) -> List[Task]:
     children = manager.get_subtasks(parent_id)
     return [child for child in children if child.is_open]
+
+
+@dataclass
+class Flight:
+    """One child currently in the air: what was started, and when to give up on it."""
+
+    child_id: str
+    attempt: int
+    run_id: Optional[str]
+    deadline: float
 
 
 def walk_epic(
@@ -595,7 +676,24 @@ def walk_epic(
     now: Callable[[], float] = time.monotonic,
     on_event: Optional[Callable[[str], None]] = None,
 ) -> WalkResult:
-    """Start each eligible child in turn, watch it, and stop the moment one is not clean.
+    """Keep every eligible child flying, watch them all, and stop taking off on a bad one.
+
+    **A rolling frontier, not waves** (task-223). At every moment, every child whose
+    ``needs`` are all satisfied and which is not already running is started, up to the
+    slot count. A child completing recomputes eligibility immediately rather than at the
+    end of a round: there is no barrier anywhere in this loop, because a barrier prices a
+    group at its slowest member, and a wave of three where one takes an hour and two take
+    ten minutes leaves two slots idle for fifty minutes with eligible work sitting there.
+    Stated as the invariant it is, which is also what the tests assert: *at no point does
+    an eligible, unclaimed child exist while a slot is free.*
+
+    **Takeoff and landing are different resources, and only landing is serial.** The work
+    parallelises because each child has its own worktree; the merge does not, because
+    ``main`` is one branch -- so the children queue for the repository's runway inside
+    their own ``agentjobs finish``. See :class:`agentjobs.dispatch.finish.Runway`. That
+    queue is the honest cost of this and it is much smaller than the flights: on this
+    machine's ledger a scripted finish is about four minutes against a run of about
+    thirty.
 
     **It never closes the parent, and that is not an omission.** The task's own
     constraint is that a parent closes only when its acceptance criteria are supported by
@@ -605,11 +703,15 @@ def walk_epic(
     or a person at a shell -- reads its own criteria against that and closes the parent,
     or does not.
 
-    **One bad child stops everything, rather than being skipped.** A sibling that depended
-    on the failed child would now be building on a gap, and the whole premise of this
-    feature is that there is nobody awake to notice. The cost is a walk that halts on a
-    child a person would have waved through; that is the cheaper of the two mistakes, and
-    it is the one that leaves a record.
+    **One bad child stops every further takeoff, and that argument survives concurrency
+    intact -- but only that argument.** A sibling that depended on the failed child would
+    be building on a gap, and nobody is awake to notice. What the rule justifies is
+    *stopping*, and stopping is not the same as never having started: a child already in
+    the air cannot depend on the failed one, or claimability would not have offered it,
+    so it is allowed to land. Killing it would throw work away for no safety gain.
+    Anything that *did* need the failed child never enters the frontier at all, because
+    its needs are unmet and always will be. What this gives up against the old serial
+    rule is exactly the pessimism about siblings that provably do not depend on it.
 
     ``posture`` is a choice made *for this walk*, and it is the only posture input this
     function has (task-316). It is what ``agentjobs dispatch walk --posture`` supplies,
@@ -664,13 +766,167 @@ def walk_epic(
             api_base=api_base,
         )
 
+    from agentjobs.dispatch.guards import ConcurrencyLimitError
+
+    slots = max(1, settings.max_concurrent)
     started = 0
-    retry_of: Optional[str] = None
+    in_flight: Dict[str, Flight] = {}
+    retries: List[str] = []
+    # Set the first time a child lands badly. From then on nothing further takes off, but
+    # whatever is already in the air is watched down before the walk returns.
+    grounded: Optional[Tuple[WalkStop, str]] = None
+    # When the sky is empty and the machine will not give us a slot. Bounded by the
+    # per-child ceiling, because a walk that can never start anything is the same kind of
+    # "something upstream is not settling" that ceiling already exists for.
+    blocked_since: Optional[float] = None
+
+    def ground(stop: WalkStop, detail: str) -> None:
+        nonlocal grounded
+        if grounded is not None:
+            return
+        grounded = (stop, detail)
+        if in_flight:
+            announce(
+                f"No further children will be started. {len(in_flight)} already in "
+                f"flight ({', '.join(sorted(in_flight))}) will be watched down first -- "
+                "none of them can depend on the one that stopped this, or it would not "
+                "have been eligible."
+            )
+
     while True:
+        # **Every run status for this tick is read before the corpus snapshot it will be
+        # judged against, and that ordering is a correctness argument rather than a
+        # style.** A child writes its last word and *then* its process exits, so a record
+        # read after a terminal status is guaranteed to contain that word. Read the other
+        # way round, a child that finished in the millisecond between the two reads looks
+        # dead, and the walk spends its retry re-doing work already on `main`.
+        #
+        # Serial walks got this by reading one status immediately before one refresh.
+        # With several children the same guarantee needs every status taken first --
+        # otherwise the second child's status is read after a snapshot the first child's
+        # refresh took.
+        statuses = {
+            child_id: (status_of(flight.run_id) if flight.run_id else None)
+            for child_id, flight in in_flight.items()
+        }
         # Every fact this loop turns on is written by another process, and the CLI holds
         # one corpus snapshot for a whole invocation. Dropping it here is what makes the
         # walk's reads reads.
         manager.storage.refresh()
+
+        # ----- land whatever has finished -------------------------------------
+        for child_id in list(in_flight):
+            flight = in_flight[child_id]
+            attempt = _poll_child(
+                manager=manager,
+                flight=flight,
+                settings=settings,
+                status=statuses.get(child_id),
+                now=now,
+            )
+            if attempt is None:
+                continue
+            del in_flight[child_id]
+            result.attempts.append(attempt)
+            announce(attempt.describe())
+            if attempt.verdict.is_clean:
+                continue
+            if attempt.verdict.is_retryable and grounded is None:
+                # The retry re-reads the attempt count off the record, so the bound is
+                # enforced by the same code whether the retry happens here or in a walk
+                # somebody starts tomorrow. Nothing is counted in memory.
+                retries.append(child_id)
+                continue
+            ground(
+                {
+                    ChildVerdict.PARKED: WalkStop.CHILD_NEEDS_A_HUMAN,
+                    ChildVerdict.CLOSED_UNRESOLVED: WalkStop.CHILD_CLOSED_UNRESOLVED,
+                    ChildVerdict.TIMED_OUT: WalkStop.CHILD_TIMED_OUT,
+                    ChildVerdict.DIED: WalkStop.CHILD_EXHAUSTED_ATTEMPTS,
+                }[attempt.verdict],
+                attempt.detail,
+            )
+
+        # ----- fill every free slot -------------------------------------------
+        backpressure = False
+        while grounded is None and len(in_flight) < slots:
+            if settings.max_children is not None and started >= settings.max_children:
+                break
+            # A retry goes back to the same child rather than back to the frontier. It
+            # has to: the first attempt claimed it, so it is `active` and claimability --
+            # correctly -- will not offer a claimed task to anybody. Asking the frontier
+            # again would report the epic as deadlocked on the very child about to be
+            # tried again.
+            if retries:
+                candidate = manager.get_task(retries[0])
+                if candidate is None:
+                    retries.pop(0)
+                    continue
+            else:
+                available = frontier(manager, parent_id, exclude=tuple(in_flight))
+                if not available:
+                    break
+                candidate = available[0]
+
+            authorization = resolve_epic_authorization(manager, project_config, candidate)
+            try:
+                assert_attempts_remain(authorization, candidate)
+            except ChildAttemptsExhaustedError as exc:
+                ground(WalkStop.CHILD_EXHAUSTED_ATTEMPTS, str(exc))
+                break
+
+            attempt_number = authorization.attempts_used + 1
+            announce(
+                f"Starting {candidate.id} (attempt {attempt_number} of "
+                f"{CHILD_ATTEMPT_LIMIT}); {len(in_flight) + 1} of {slots} slots in use."
+            )
+            try:
+                handle = start_child(candidate)
+            except ConcurrencyLimitError as exc:
+                # Backpressure, not a refusal about this child. Something else on the
+                # machine holds a slot; that is a normal condition and the walk waits for
+                # it exactly as it waits for a child.
+                backpressure = True
+                announce(f"Waiting for a run slot: {exc}")
+                break
+            except DispatchRefused as exc:
+                ground(
+                    WalkStop.COULD_NOT_START_CHILD,
+                    f"{candidate.id} could not be started "
+                    f"({getattr(exc, 'reason', 'refused')}): {exc}",
+                )
+                result.attempts.append(
+                    ChildAttempt(
+                        child_id=candidate.id,
+                        attempt=attempt_number,
+                        run_id=None,
+                        verdict=ChildVerdict.DIED,
+                        detail=str(exc),
+                    )
+                )
+                break
+
+            if retries:
+                retries.pop(0)
+            started += 1
+            in_flight[candidate.id] = Flight(
+                child_id=candidate.id,
+                attempt=attempt_number,
+                run_id=getattr(handle, "run_id", None),
+                deadline=now() + settings.child_timeout_seconds,
+            )
+            result.peak_in_flight = max(result.peak_in_flight, len(in_flight))
+
+        # ----- is there anything left to do? ----------------------------------
+        if in_flight:
+            blocked_since = None
+            sleep(settings.poll_seconds)
+            continue
+
+        if grounded is not None:
+            result.stop, result.detail = grounded
+            return result
+
         remaining = open_children(manager, parent_id)
         if not remaining:
             result.stop = WalkStop.ALL_CHILDREN_DONE
@@ -690,195 +946,116 @@ def walk_epic(
             )
             return result
 
-        # A retry goes back to the same child rather than back to the queue. It has to:
-        # the first attempt claimed it, so it is `active` and the queue -- correctly --
-        # will not offer a claimed task to anybody. Asking the queue again would report
-        # the epic as deadlocked on the very child the walk is about to try again.
-        child = manager.get_task(retry_of) if retry_of else next_eligible_child(manager, parent_id)
-        retry_of = None
-        if child is None:
-            result.stop = WalkStop.NO_ELIGIBLE_CHILD
-            result.detail = (
-                f"{len(remaining)} open child/children remain and none is claimable: "
-                f"{', '.join(child.id for child in remaining)}. Each is blocked by an "
-                "unmet dependency, already claimed, or holding open children of its own. "
-                "This is not a finished epic and is reported separately from one."
-            )
-            return result
-
-        authorization = resolve_epic_authorization(manager, project_config, child)
-        try:
-            assert_attempts_remain(authorization, child)
-        except ChildAttemptsExhaustedError as exc:
-            result.stop = WalkStop.CHILD_EXHAUSTED_ATTEMPTS
-            result.detail = str(exc)
-            return result
-
-        attempt_number = authorization.attempts_used + 1
-        announce(f"Starting {child.id} (attempt {attempt_number} of {CHILD_ATTEMPT_LIMIT}).")
-        try:
-            handle = start_child(child)
-        except DispatchRefused as exc:
-            result.stop = WalkStop.COULD_NOT_START_CHILD
-            result.detail = (
-                f"{child.id} could not be started ({getattr(exc, 'reason', 'refused')}): " f"{exc}"
-            )
-            result.attempts.append(
-                ChildAttempt(
-                    child_id=child.id,
-                    attempt=attempt_number,
-                    run_id=None,
-                    verdict=ChildVerdict.DIED,
-                    detail=str(exc),
+        if backpressure:
+            if blocked_since is None:
+                blocked_since = now()
+            elif now() - blocked_since >= settings.child_timeout_seconds:
+                result.stop = WalkStop.COULD_NOT_START_CHILD
+                result.detail = (
+                    f"Nothing of {parent_id} has been able to start for "
+                    f"{settings.child_timeout_seconds / 3600:.1f}h: this machine's "
+                    "concurrent-run ceiling has been full the whole time and none of "
+                    "the runs holding it belong to this epic. Raise "
+                    "`limits.max_concurrent_runs`, or cancel whatever is holding the "
+                    "slots, and start the walk again."
                 )
-            )
-            return result
+                return result
+            sleep(settings.poll_seconds)
+            continue
 
-        started += 1
-        run_id = getattr(handle, "run_id", None)
-        attempt = _watch_child(
-            manager=manager,
-            child_id=child.id,
-            attempt_number=attempt_number,
-            run_id=run_id,
-            settings=settings,
-            status_of=status_of,
-            sleep=sleep,
-            now=now,
-            announce=announce,
+        result.stop = WalkStop.NO_ELIGIBLE_CHILD
+        result.detail = (
+            f"{len(remaining)} open child/children remain and none is claimable: "
+            f"{', '.join(child.id for child in remaining)}. Each is blocked by an "
+            "unmet dependency, already claimed, or holding open children of its own. "
+            "This is not a finished epic and is reported separately from one."
         )
-        result.attempts.append(attempt)
-        announce(attempt.describe())
-
-        if attempt.verdict.is_clean:
-            continue
-        if attempt.verdict.is_retryable:
-            # The next pass re-reads the attempt count off the record, so the bound is
-            # enforced by the same code whether the retry happens here or in a walk
-            # somebody starts tomorrow. Nothing is counted in memory.
-            retry_of = child.id
-            continue
-
-        result.stop = {
-            ChildVerdict.PARKED: WalkStop.CHILD_NEEDS_A_HUMAN,
-            ChildVerdict.CLOSED_UNRESOLVED: WalkStop.CHILD_CLOSED_UNRESOLVED,
-            ChildVerdict.TIMED_OUT: WalkStop.CHILD_TIMED_OUT,
-        }[attempt.verdict]
-        result.detail = attempt.detail
         return result
 
 
-def _watch_child(
+def _poll_child(
     *,
     manager: TaskManager,
-    child_id: str,
-    attempt_number: int,
-    run_id: Optional[str],
+    flight: Flight,
     settings: WalkSettings,
-    status_of: Callable[[str], Optional[str]],
-    sleep: Callable[[float], None],
+    status: Optional[str],
     now: Callable[[], float],
-    announce: Callable[[str], None],
-) -> ChildAttempt:
-    """Watch one child to a terminal state, reading the record and not the process.
+) -> Optional[ChildAttempt]:
+    """One look at one child: its verdict, or ``None`` while it is still flying.
 
     ``ball`` is the signal, exactly as the workflow guide says: a child parked on review
     has a live process and is the one state that needs somebody, so a process-liveness
     check would report it as healthy for as long as anybody left it there. The run status
     is consulted for one question only -- *is the session still there* -- and only to
     tell a child that died apart from a child that is still thinking.
+
+    **Non-blocking, because the walk watches several children at once** (task-223). The
+    sleep belongs to the caller's loop rather than to this function; a blocking watcher
+    per child would need a thread per child, and threads that each spawn dispatches and
+    write task records are a much larger change than the scheduling this task is about.
+    One loop, one poll interval, N children looked at per tick.
+
+    ``status`` is this child's run status **as read before the caller's refresh**, and
+    the caller owns that ordering -- see the comment at the top of the walk loop for why
+    reading it here instead would reintroduce a race that has already cost real work.
     """
     from agentjobs.dispatch.guards import TERMINAL_RUN_STATUSES
 
-    deadline = now() + settings.child_timeout_seconds
-    while True:
-        # **Liveness first, then the record, and the order is the whole correctness
-        # argument.** A child writes its last word -- closed, or handed off -- and then
-        # its process exits; only after that does anything mark the run terminal. So a
-        # record read *after* a terminal status is guaranteed to include that last word,
-        # and a record read before it is not.
-        #
-        # Reading them the other way round is a race with a window of milliseconds and it
-        # fires. On the first full walk of the sandbox epic, all three children merged
-        # cleanly and all three were reported dead and re-run: the walk read each record
-        # a moment before the finish closed it, then read a run status that had gone
-        # terminal in between, and concluded the session had gone without finishing. The
-        # damage is not cosmetic -- it spends the child's retry, and the retry re-does
-        # work that is already on `main`.
-        status = status_of(run_id) if run_id else None
-        manager.storage.refresh()
-        child = manager.get_task(child_id)
-        if child is None:
-            return ChildAttempt(
-                child_id=child_id,
-                attempt=attempt_number,
-                run_id=run_id,
-                verdict=ChildVerdict.DIED,
-                detail="The task record disappeared while the walk was watching it.",
-            )
+    child_id = flight.child_id
+    run_id = flight.run_id
 
-        if child.lifecycle is Lifecycle.CLOSED:
-            outcome = child.outcome
-            if outcome is Outcome.COMPLETED:
-                return ChildAttempt(
-                    child_id=child_id,
-                    attempt=attempt_number,
-                    run_id=run_id,
-                    verdict=ChildVerdict.COMPLETED,
-                    detail="closed completed; its own gate ran and its own merge happened",
-                )
-            return ChildAttempt(
-                child_id=child_id,
-                attempt=attempt_number,
-                run_id=run_id,
-                verdict=ChildVerdict.CLOSED_UNRESOLVED,
-                detail=(
-                    f"closed with outcome {outcome.value if outcome else 'none'}, which "
-                    "is a deliberate act by whoever closed it and not something to walk "
-                    "past"
-                ),
-            )
+    def verdict(kind: ChildVerdict, detail: str) -> ChildAttempt:
+        return ChildAttempt(
+            child_id=child_id,
+            attempt=flight.attempt,
+            run_id=run_id,
+            verdict=kind,
+            detail=detail,
+        )
 
-        if child.ball is not Ball.AGENT:
-            reason = child.ball_reason.value if child.ball_reason else "unstated"
-            holder = child.ball.value if child.ball else "nobody"
-            return ChildAttempt(
-                child_id=child_id,
-                attempt=attempt_number,
-                run_id=run_id,
-                verdict=ChildVerdict.PARKED,
-                detail=(
-                    f"ball is {holder}/{reason}: " f"{child.ball_prompt or 'no prompt recorded'}"
-                ),
-            )
+    child = manager.get_task(child_id)
+    if child is None:
+        return verdict(
+            ChildVerdict.DIED, "The task record disappeared while the walk was watching it."
+        )
 
-        if status is not None and status in TERMINAL_RUN_STATUSES:
-            return ChildAttempt(
-                child_id=child_id,
-                attempt=attempt_number,
-                run_id=run_id,
-                verdict=ChildVerdict.DIED,
-                detail=(
-                    f"run ended {status!r} with the child still open and its ball still "
-                    "with the agent, so the session went without finishing"
-                ),
+    if child.lifecycle is Lifecycle.CLOSED:
+        outcome = child.outcome
+        if outcome is Outcome.COMPLETED:
+            return verdict(
+                ChildVerdict.COMPLETED,
+                "closed completed; its own gate ran and its own merge happened",
             )
+        return verdict(
+            ChildVerdict.CLOSED_UNRESOLVED,
+            f"closed with outcome {outcome.value if outcome else 'none'}, which is a "
+            "deliberate act by whoever closed it and not something to walk past",
+        )
 
-        if now() >= deadline:
-            return ChildAttempt(
-                child_id=child_id,
-                attempt=attempt_number,
-                run_id=run_id,
-                verdict=ChildVerdict.TIMED_OUT,
-                detail=(
-                    f"nothing terminal happened in "
-                    f"{settings.child_timeout_seconds / 3600:.1f}h. Something upstream "
-                    "is not settling this run; the walk stops rather than waiting for "
-                    "morning"
-                ),
-            )
+    if child.ball is not Ball.AGENT:
+        reason = child.ball_reason.value if child.ball_reason else "unstated"
+        holder = child.ball.value if child.ball else "nobody"
+        return verdict(
+            ChildVerdict.PARKED,
+            f"ball is {holder}/{reason}: {child.ball_prompt or 'no prompt recorded'}",
+        )
 
-        sleep(settings.poll_seconds)
+    if status is not None and status in TERMINAL_RUN_STATUSES:
+        return verdict(
+            ChildVerdict.DIED,
+            f"run ended {status!r} with the child still open and its ball still with the "
+            "agent, so the session went without finishing",
+        )
+
+    if now() >= flight.deadline:
+        return verdict(
+            ChildVerdict.TIMED_OUT,
+            f"nothing terminal happened in {settings.child_timeout_seconds / 3600:.1f}h. "
+            "Something upstream is not settling this run; the walk stops rather than "
+            "waiting for morning",
+        )
+
+    return None
 
 
 # ----- what the walk writes onto the parent -----------------------------------
@@ -902,10 +1079,12 @@ def walk_report(result: WalkResult, *, started_at: Optional[datetime] = None) ->
     if not result.stop.is_success:
         body += [
             "",
-            "**The walk stops on the first child that is not clean rather than skipping "
-            "it.** A sibling that depended on it would be building on a gap, and nobody "
-            "is awake to notice. Whatever the child's record says it needs is what this "
-            "epic needs next.",
+            "**The first child that is not clean grounds every further takeoff, and no "
+            "child is ever skipped.** A sibling that depended on it would be building on "
+            "a gap, and nobody is awake to notice. Children already in flight were "
+            "watched down rather than killed -- none of them could have depended on this "
+            "one, or they would not have been eligible to start. Whatever the child's "
+            "record says it needs is what this epic needs next.",
         ]
     else:
         body += [
@@ -952,10 +1131,18 @@ def describe_settings(
         envelope = f"{inherited.value} (inherited from the epic's own dispatch)"
     else:
         envelope = "the project default, or each child's own record where it sets one"
+    if settings.max_concurrent > 1:
+        slots = (
+            f"{settings.max_concurrent} at once, so independent children fly in parallel "
+            "and queue for the merge runway"
+        )
+    else:
+        slots = "1 at a time"
     return (
         f"attempts per child: {CHILD_ATTEMPT_LIMIT} (first run plus one retry)",
         f"poll interval: {settings.poll_seconds:.0f}s",
         f"per-child ceiling: {settings.child_timeout_seconds / 3600:.1f}h",
         f"children this walk may start: {settings.max_children or 'every open one'}",
+        f"children in flight: {slots}",
         f"posture children start at: {envelope}",
     )
