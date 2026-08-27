@@ -2,7 +2,7 @@ schema: 2
 id: task-321
 title: She w that task is finishing
 created: '2026-08-27T15:52:20.044498Z'
-updated: '2026-08-27T16:51:51.640618Z'
+updated: '2026-08-27T16:52:14.844375Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -372,3 +372,17 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 14
+  ts: '2026-08-27T16:52:14.844160Z'
+  actor: finisher
+  type: progress
+  body: 'Queued for this repository''s merge runway, held by fin_61fe41b2, pid 1472876
+    started at 11:51:52, 22s ago.
+
+
+    **This is the queue working, not a stall.** Children of an epic fly in parallel
+    and land one at a time, because a gate is only evidence about the base it ran
+    against. Nothing here is rebased, gated or merged until the runway is free.'
+  data:
+    finish_step: runway_queued
+    finish_id: fin_d11a8f5e
