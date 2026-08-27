@@ -22,6 +22,7 @@ from agentjobs.models_v2 import (
     LogEntryType,
     Outcome,
     Priority,
+    QuestionDraft,
     Spec,
     Task,
 )
@@ -773,6 +774,14 @@ class HandoffRequest(RevisionedRequest):
     )
     body: Optional[str] = Field(
         default=None, description="Log entry body; defaults to the ball_prompt."
+    )
+    questions: List[QuestionDraft] = Field(
+        default_factory=list,
+        description=(
+            "Questions to pose alongside this handoff, each optionally offering "
+            "options. Written in the same mutation, so the human never opens a "
+            "half-populated form."
+        ),
     )
 
 

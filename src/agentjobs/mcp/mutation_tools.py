@@ -217,6 +217,75 @@ HANDOFF_TARGET_SCHEMA: Dict[str, Any] = {
     ],
 }
 
+#: Questions posed alongside a handoff (task-017). Options are offered, never imposed:
+#: the GUI puts a free-text box on every question whatever this says, because the session
+#: that motivated the feature had every option on one question rejected in favour of a
+#: typed answer. A question wanting a value rather than a choice sends `placeholder` and
+#: no options at all.
+#:
+#: They ride on the handoff rather than on N `task_log_append` calls so that the human the
+#: handoff wakes cannot open a form with two of four questions in it.
+QUESTIONS_SCHEMA: Dict[str, Any] = {
+    "type": "array",
+    "description": (
+        "Structured questions to ask the human, written atomically with this handoff. "
+        "A free-text box is always offered beside the options, so an option list is "
+        "never a closed set."
+    ),
+    "items": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["body"],
+        "properties": {
+            "body": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The question, addressed to a human.",
+            },
+            "options": {
+                "type": "array",
+                "description": "Offered answers, in display order. May be omitted.",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["label"],
+                    "properties": {
+                        "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "The choice. Short enough to be a button.",
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "What picking this means. Shown under the label.",
+                        },
+                        "recommended": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": (
+                                "Your recommendation. It marks the option and never "
+                                "preselects it."
+                            ),
+                        },
+                    },
+                },
+            },
+            "multi_select": {
+                "type": "boolean",
+                "default": False,
+                "description": "Whether more than one option may be chosen.",
+            },
+            "placeholder": {
+                "type": "string",
+                "description": (
+                    "Hint for the always-present free-text box, e.g. 'a number of "
+                    "minutes'. How a question asks for a value rather than a choice."
+                ),
+            },
+        },
+    },
+}
+
 #: Where a task lands in its band, as a discriminated union for the same reason the
 #: handoff target is one: `before` together with `top` reads fine as separate fields
 #: and means nothing, so it simply does not validate.
@@ -583,6 +652,16 @@ def _build_handoff(client: TaskClient) -> Any:
         task_id = _require(arguments, "task_id")
         operation_id = _require(arguments, "operation_id")
         revision = _require(arguments, "expected_revision")
+        raw_questions = arguments.get("questions") or []
+        if not isinstance(raw_questions, Sequence) or isinstance(raw_questions, (str, bytes)):
+            raise ToolError(
+                code=ErrorCode.INVALID_INPUT,
+                message="questions must be a list.",
+                project_id=project_id,
+                task_id=task_id,
+                field_errors=[FieldError(path="questions", message="Must be a list.")],
+            )
+        questions = [dict(question) for question in raw_questions]
         target = arguments.get("target")
         if not isinstance(target, Mapping):
             raise ToolError(
@@ -602,6 +681,7 @@ def _build_handoff(client: TaskClient) -> Any:
                 ball_reason=str(target.get("reason")),
                 ball_prompt=str(target.get("prompt")),
                 body=arguments.get("body"),
+                questions=questions,
             )
         except TaskClientError as exc:
             raise _service_error(exc, project_id=project_id, task_id=task_id) from exc
@@ -891,11 +971,18 @@ def mutation_tool_definitions(client: TaskClient) -> List[ToolDefinition]:
                 "Move the ball, with the ask that travels with it. The target is a "
                 "discriminated union, so an invalid holder/reason pair such as "
                 "human/work does not validate at all. Requires expected_revision: a "
-                "handoff decided against a stale read is refused."
+                "handoff decided against a stale read is refused. Handing to a human "
+                "for a decision? Send `questions` -- each with options and a "
+                "recommendation -- and they answer by tapping rather than by writing "
+                "you a paragraph per question on a phone."
             ),
             _verb_schema(
                 revision=True,
-                extra={"target": HANDOFF_TARGET_SCHEMA, "body": {"type": "string"}},
+                extra={
+                    "target": HANDOFF_TARGET_SCHEMA,
+                    "body": {"type": "string"},
+                    "questions": QUESTIONS_SCHEMA,
+                },
                 also_required=["target"],
             ),
             _build_handoff(client),
