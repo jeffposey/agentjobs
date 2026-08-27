@@ -1481,6 +1481,98 @@ class TestWhichRunIsCalling:
         )
 
 
+class TestTheLeakedRunIsTheOneRunningOneLevelUp:
+    """task-318: the leaked identity is a **live** run, and every test above uses a dead one.
+
+    The walk case is not the daemon-started-yesterday case. A supervisor dispatches its
+    children and is still running while they work, so the id a child comes up holding
+    names a run that is live, privileged, and legitimately doing something -- it is just
+    not this one. ``run_74dfbc1c`` (task-318) was dispatched by the walk driving
+    ``run_1132ebf8`` (task-269), and that supervisor was live throughout.
+
+    **``_run_vouching_for`` compares task ids on two sides, and the class above exercises
+    only one of them.** In all six of its cases the leaked run is *finished*, so the
+    liveness half alone rejects it and the comparison is never what decides the declared
+    value; only ``test_a_lock_held_for_another_task_is_not_adopted`` makes it load-bearing,
+    and that is the holder side. Here the leaked run is live, so the task id is the sole
+    thing separating the supervisor from the child. Dropping the comparison turns three
+    tests red -- that one and the two below -- rather than one.
+    """
+
+    def test_a_live_supervisors_id_is_replaced_by_the_run_holding_this_tasks_lock(
+        self, tmp_path: Path
+    ) -> None:
+        from agentjobs.dispatch.finish import own_run_id
+
+        # The supervisor: live, and dispatched against the epic rather than this child.
+        write_run_record(tmp_path, "run_1132ebf8", task_id="task-269", live=True)
+        write_run_record(tmp_path, "run_74dfbc1c", task_id="task-318", live=True)
+        hold_lock(tmp_path, "task-318", "run_74dfbc1c")
+
+        assert (
+            own_run_id(tmp_path, "task-318", environ={RUN_ID_ENV: "run_1132ebf8"}) == "run_74dfbc1c"
+        )
+
+    def test_the_child_is_recognised_as_holding_its_own_lock(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The consequence, in the units task-302 and task-303 actually failed in.
+
+        Both got as far as a green gate and were declined ``locked`` by the command
+        their own prompts named. This is that decline, asserted not to happen.
+        """
+        from agentjobs.dispatch.finish import _own_run_holds_lock
+
+        write_run_record(tmp_path, "run_1132ebf8", task_id="task-269", live=True)
+        write_run_record(tmp_path, "run_74dfbc1c", task_id="task-318", live=True)
+        hold_lock(tmp_path, "task-318", "run_74dfbc1c")
+        monkeypatch.setenv(RUN_ID_ENV, "run_1132ebf8")
+
+        assert _own_run_holds_lock(tmp_path, "task-318") is True
+
+    def test_a_supervisor_holding_its_own_lock_is_not_adopted_by_a_child(
+        self, tmp_path: Path
+    ) -> None:
+        """The direction that must not work, so the repair cannot be read as symmetric.
+
+        A run wearing the supervisor's id may borrow the identity of whoever holds *this
+        task's* lock. It may never borrow the supervisor's own authority over the epic:
+        the lock consulted is always the one for the task being finished.
+        """
+        from agentjobs.dispatch.finish import own_run_id
+
+        write_run_record(tmp_path, "run_1132ebf8", task_id="task-269", live=True)
+        hold_lock(tmp_path, "task-269", "run_1132ebf8")
+        # No lock on task-318 at all, and no run dispatched against it.
+
+        assert (
+            own_run_id(tmp_path, "task-318", environ={RUN_ID_ENV: "run_1132ebf8"}) == "run_1132ebf8"
+        )
+
+    def test_an_invented_identity_is_not_a_way_into_the_lock_holders_authority(
+        self, tmp_path: Path
+    ) -> None:
+        """``_own_run_holds_lock``'s docstring promises this, and it is the property
+        task-318's constraint names: *"A process that invents the variable matches no
+        lock and gets the ordinary refusal."*
+
+        The substitution exists to correct a **real** identity that arrived stale, and a
+        leaked one is always real -- it is whichever run started the daemon, and that run
+        has a record. A value naming no run at all is not that signature, so it is left
+        alone and the ordinary refusals stand. Otherwise typing a nonsense value into the
+        environment would buy strictly more than setting nothing does, which is the
+        opposite of what a guard should do.
+        """
+        from agentjobs.dispatch.finish import own_run_id
+
+        write_run_record(tmp_path, "run_74dfbc1c", task_id="task-318", live=True)
+        hold_lock(tmp_path, "task-318", "run_74dfbc1c")
+
+        assert own_run_id(tmp_path, "task-318", environ={RUN_ID_ENV: "run_nonsense"}) == (
+            "run_nonsense"
+        )
+
+
 class TestAStaleIdentityDoesNotStripAuthority:
     """The consequence the repair above exists for, stated in the units that matter."""
 
@@ -1544,6 +1636,10 @@ class TestAStaleIdentityDoesNotStripAuthority:
         from agentjobs.dispatch.config import Posture, ProjectDispatchSettings
         from agentjobs.dispatch.finish import own_run_id, released_posture
 
+        # The leaked identity is a real run, because a leaked one always is -- it is
+        # whichever run started the daemon (task-318). This used to be a bare name with
+        # no record behind it, which is the one shape recovery deliberately ignores.
+        write_run_record(tmp_path, "run_stale", task_id="task-269", live=False)
         write_run_record(
             tmp_path,
             "run_68ea396e",

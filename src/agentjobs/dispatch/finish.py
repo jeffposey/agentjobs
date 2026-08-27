@@ -1475,6 +1475,21 @@ def _run_vouching_for(home: Path, run_id: str, task_id: str) -> bool:
     return record.is_live and bool(record.task_id) and record.task_id == task_id
 
 
+def _is_a_run_at_all(home: Path, run_id: str) -> bool:
+    """Whether the ledger has ever heard of ``run_id``, whatever became of it.
+
+    Deliberately weaker than ``_run_vouching_for``: a leaked identity is a *finished* run
+    against *another* task, so nothing about being current or relevant can be required
+    here. All this asks is whether dispatch created the run, which is the difference
+    between a stale value and an invented one.
+    """
+    try:
+        find_run(home, run_id)
+    except LedgerError:
+        return False
+    return True
+
+
 def own_run_id(home: Path, task_id: str, *, environ: Optional[Mapping[str, str]] = None) -> str:
     """Which run this process actually belongs to, when the environment may be lying.
 
@@ -1498,6 +1513,15 @@ def own_run_id(home: Path, task_id: str, *, environ: Optional[Mapping[str, str]]
     - **It fires only when the variable is set and cannot vouch for this task.** An
       absent variable means nothing dispatched this process -- a person at a shell --
       and their behaviour is unchanged. Only the exact leak signature is treated.
+    - **The declared value has to name a run the ledger has heard of** (task-318). A
+      leaked identity is always a real one: it is whichever run started the daemon, and
+      that run has a directory. A value naming no run is not the leak signature, so it is
+      left alone. Without this, typing a nonsense value bought strictly more than setting
+      nothing did -- the ordinary refusals for an empty variable, skipped -- and
+      ``_own_run_holds_lock`` below could no longer keep the promise it makes in as many
+      words, that *a process that invents the variable matches no lock and gets the
+      ordinary refusal*. Two of the three conditions here were added by task-249 and one
+      by task-318, and no one of them is sufficient alone.
     - **The replacement comes from the task's run lock, not from a search.** The lock
       file was written by the dispatch that started the run and names it; nothing a
       caller controls forges one. Guessing from ``live_runs`` was the original plan and
@@ -1513,6 +1537,8 @@ def own_run_id(home: Path, task_id: str, *, environ: Optional[Mapping[str, str]]
     source = os.environ if environ is None else environ
     declared = (source.get(RUN_ID_ENV) or "").strip()
     if not declared or _run_vouching_for(home, declared, task_id):
+        return declared
+    if not _is_a_run_at_all(home, declared):
         return declared
     holder = read_lock_holder(locks_root(home) / f"{task_id}.lock")
     if holder is None or not _run_vouching_for(home, holder.run_id, task_id):
