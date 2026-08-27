@@ -648,6 +648,40 @@ class TaskManager:
             if self._skip_reason(task, priority, agent, states, open_children) is None
         ]
 
+    def claimable_tasks(
+        self,
+        priority: Optional[Priority] = None,
+        *,
+        agent: Optional[str] = None,
+        parent: Optional[str] = None,
+    ) -> List[Task]:
+        """Every claimable task, in the queue's order. ``get_next_task`` is its head.
+
+        The queue's answer to "what may be worked *now*" is a set, not a single task, and
+        until task-223 nothing could ask for the set. A concurrent epic walk needs it:
+        it starts every eligible child up to its slot count, so asking for the winner and
+        then asking again would either re-offer the child it just claimed or -- because
+        claiming makes a task ``active`` -- report the epic as deadlocked.
+
+        One implementation, two entry points, deliberately. The claimability filter and
+        the queue's order are the two halves nothing else may re-implement; a walk that
+        sorted its own frontier is exactly how the walk and the dashboard would come to
+        disagree about what is next, with the walk winning silently because it is the one
+        that spends money.
+        """
+        tasks = self.storage.list_tasks()
+        if parent is not None:
+            tasks = [task for task in tasks if task.parent == parent]
+        candidates = self._claimable(
+            tasks, priority, agent, self._dependency_states(), self._open_children()
+        )
+        if not candidates:
+            return []
+        winning_rank = min(task.priority_rank() for task in candidates)
+        self.assert_queue_integrity(bands_at_or_above(winning_rank))
+        candidates.sort(key=order_key)
+        return candidates
+
     def get_next_task(
         self,
         priority: Optional[Priority] = None,
@@ -677,18 +711,8 @@ class TaskManager:
         collapsing the two would leave the stored order with no effect on the one
         consumer that spends money acting on it.
         """
-        tasks = self.storage.list_tasks()
-        if parent is not None:
-            tasks = [task for task in tasks if task.parent == parent]
-        candidates = self._claimable(
-            tasks, priority, agent, self._dependency_states(), self._open_children()
-        )
-        if not candidates:
-            return None
-        winning_rank = min(task.priority_rank() for task in candidates)
-        self.assert_queue_integrity(bands_at_or_above(winning_rank))
-        candidates.sort(key=order_key)
-        return candidates[0]
+        candidates = self.claimable_tasks(priority, agent=agent, parent=parent)
+        return candidates[0] if candidates else None
 
     def explain_next(
         self,
