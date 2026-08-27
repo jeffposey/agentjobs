@@ -501,8 +501,13 @@ def main(argv: list[str] | None = None) -> int:
     began = time.perf_counter()
 
     timings: list[tuple[str, float]] = []
-    for stage in selected:
+    for position, stage in enumerate(selected, start=1):
         started = time.perf_counter()
+        # One record per stage, so a watcher can say "pytest, 7 of 10" rather than
+        # "running". The gate is the better part of three minutes of a scripted finish
+        # and was, until task-321, one silent block from the outside: the only records
+        # were the two around the whole of it.
+        record_phase("gate_stage_started", stage=stage.name, index=position, total=len(selected))
         try:
             run(stage.command(npm), cwd=stage.cwd)
         except subprocess.CalledProcessError as exc:
@@ -526,6 +531,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\n{format_timings(timings)}", flush=True)
             return exc.returncode
         timings.append((stage.name, time.perf_counter() - started))
+        record_phase(
+            "gate_stage_finished",
+            stage=stage.name,
+            index=position,
+            total=len(selected),
+            seconds=round(timings[-1][1], 1),
+        )
 
     record_phase(
         "gate_finished",
