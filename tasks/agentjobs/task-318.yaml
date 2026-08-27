@@ -3,7 +3,7 @@ id: task-318
 title: A child of the epic walk inherits the parent's AGENTJOBS_RUN_ID, so its own
   sanctioned autonomous merge is declined `locked`
 created: '2026-08-25T11:11:28.166849Z'
-updated: '2026-08-25T11:26:47.504473Z'
+updated: '2026-08-27T09:53:41.001013Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -202,3 +202,71 @@ log:
       id: b8f31d29-7a04-4c56-91e3-5d2c0f4a8b76
       kind: log_append
       fingerprint: ae9245c4a5679aa904ff5b4488527dc1
+- id: 4
+  ts: '2026-08-27T09:53:41.000866Z'
+  actor: claude
+  type: progress
+  body: "**Start here: this is very likely already fixed. task-249 merged after this\
+    \ task was filed and repairs exactly this defect, twice. Try to reproduce before\
+    \ investigating anything.**\n\nLeft by the session supervising task-269 (`run_1132ebf8`),\
+    \ 2026-08-26, when Jeff asked whether to start this task early. The answer looked\
+    \ like no, and this is why \u2014 recorded so the run that does take it spends\
+    \ ten minutes confirming rather than an hour rediscovering.\n\n## The evidence\n\
+    \n**1. `task-249` merged at 2026-08-25 19:37 local** \u2014 `adde811`, *\"Dispatch:\
+    \ run identity and the runner's env never reach a `--bg` worker in steady state\
+    \ (the daemon owns the environment)\"*. This task was filed at 11:11Z the same\
+    \ day, from an observation on task-302 at ~10:45Z. So the fix postdates the report\
+    \ by about eight hours.\n\n**2. It names this exact incident in its own code.**\
+    \ `own_run_id` in `src/agentjobs/dispatch/finish.py`:\n\n> `run_68ea396e` was\
+    \ dispatched against task-316 at `autonomous` and came up holding `run_12b2675c`\
+    \ \u2014 the task-269 supervisor, fourteen hours earlier. Both consumers below\
+    \ then read the wrong run: `released_posture` \u2026 fell through to the project\
+    \ default, so the run was told a human must review work a human had already released;\
+    \ and the lock check compared against a run that holds no lock, so the next stop\
+    \ would have been `locked`. Two individually correct guards, one wrong input.\n\
+    \nThat is this task's description, independently re-derived and fixed. It also\
+    \ confirms the \"blast radius is wider than the lock\" paragraph above was right:\
+    \ the posture lookup was the second consumer, exactly as predicted.\n\n**3. There\
+    \ are two repairs, not one**, which matters because they cover different populations:\n\
+    \n- `session_env.deliver_identity` delivers the run's identity through `--settings`\
+    \ rather than the environment \u2014 *\"stops that happening for runs dispatched\
+    \ from now on.\"* Prevention.\n- `own_run_id` resolves the true run when the variable\
+    \ is set but cannot vouch for this task \u2014 *\"this is what protects the ones\
+    \ that still arrive wrong.\"* Defence, deliberately narrow: it fires only on the\
+    \ exact leak signature, and an absent variable (a person at a shell) is untouched.\n\
+    \n**4. Observed live, on this epic's current child.** `run_86614592`, working\
+    \ task-305, dispatched by the walk minutes before this entry:\n\n```\nrun_id:\
+    \ run_86614592\ntask_id: task-305\nAGENTJOBS_RUN_ID\": \"run_86614592\"\nsession_env:\
+    \ delivered\nposture_source: epic\n```\n\nIts own id, not the supervisor's, and\
+    \ `session_env: delivered` confirming the task-249 path ran. (`posture_source:\
+    \ epic` is task-316's fix in the same record, incidentally.)\n\n## What that evidence\
+    \ does *not* settle\n\n**It is dispatch-side, and this task's observation was\
+    \ shell-side.** The description says so itself: *\"the observation above is of\
+    \ a shell inside the agent's session, not of the spawned process directly.\"*\
+    \ What I checked is what dispatch wrote into the child's settings and meta. Whether\
+    \ the value the agent's **shell** sees is now correct is a different question,\
+    \ and it is the one that actually decided task-302's failure.\n\nSo do not close\
+    \ this on my note. Settle it with the one command that distinguishes them, from\
+    \ inside a dispatched child session:\n\n```bash\necho \"$AGENTJOBS_RUN_ID\"  \
+    \   # compare against this run's own id\ncat ~/.agentjobs/runs/<this-run>/lock\
+    \ 2>/dev/null   # and against what the lock names\n```\n\nIf the shell now reports\
+    \ its own run id, this task is done and should close `completed` citing task-249,\
+    \ with that comparison as the evidence. If it still reports the supervisor's,\
+    \ then `own_run_id` is the live defence and the remaining question is narrower\
+    \ than the one this task was filed for: not *\"why is the id wrong\"* but *\"\
+    why is it still wrong after `session_env`, and does the defensive path cover every\
+    \ consumer\"* \u2014 `record_phase_from_env` being the one the description flags\
+    \ and which neither repair obviously reaches.\n\n## Two things to check regardless,\
+    \ because they are not covered by either repair\n\n- **`scripts/run_report.py`\
+    \ attribution for the runs that already went wrong.** Children of this walk before\
+    \ 2026-08-25 19:37 wrote their gate phase records into the supervisor's run directory.\
+    \ That is historical data, already wrong, and no code change fixes it retroactively.\
+    \ Worth knowing before anyone quotes a per-task cost from that window.\n- **Whether\
+    \ this and task-316 were one fix or two.** The description asks it. task-316 is\
+    \ closed `completed` and its own fix was posture-specific, so the answer is now\
+    \ knowable from the diff rather than by reasoning.\n"
+  data:
+    operation:
+      id: a9f97b86-a1f0-4866-a05a-ba617677aa2b
+      kind: log_append
+      fingerprint: 61d1fb165892dd5c941a98b8f0cf3664
