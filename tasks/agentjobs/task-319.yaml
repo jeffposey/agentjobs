@@ -1,0 +1,199 @@
+schema: 2
+id: task-319
+title: Retire the root .mcp.json and let the plugin be the only agentjobs MCP server
+  on this machine
+created: '2026-08-27T12:21:24.802911Z'
+updated: '2026-08-27T12:21:37.049661Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: low
+queue_position: 500
+category: infrastructure
+tags:
+- mcp
+- context
+- follow-up
+effort: twenty minutes, mostly waiting on a dispatched run to prove itself
+assignment:
+  eligible: []
+spec:
+  summary: Since task-317 fixed the plugin's dead port, this machine runs two working
+    `agentjobs` MCP servers where one will do. The plugin should be the survivor,
+    but two things have to be checked before the root `.mcp.json` is deleted, and
+    neither has been.
+  intent: One MCP wiring on this machine instead of two, and the one under version
+    control.
+  description: '## Why there are two
+
+
+    Two independent install paths, both switched on in `~/.claude/settings.json`,
+    neither aware of the other:
+
+
+    | | declared in | enabled by | written for |
+
+    |---|---|---|---|
+
+    | `agentjobs` | `.mcp.json` at the repo root, **untracked** (`.gitignore:74`)
+    | `"enabledMcpjsonServers": ["agentjobs"]` | this machine only -- it names an
+    absolute path to a Poetry venv''s `python.exe` |
+
+    | `plugin:agentjobs:agentjobs` | `plugins/agentjobs/.mcp.json`, via `.claude-plugin/marketplace.json`
+    | `"enabledPlugins"` | anyone who installs the plugin -- it uses the `agentjobs`
+    console script |
+
+
+    They do not collide: Claude Code prefixes the plugin''s tools `mcp__plugin_agentjobs_agentjobs__*`.
+    So a session that has both simply carries two copies of the same sixteen tools
+    and two copies of the instruction block, and an agent has two spellings of every
+    call to choose between for no benefit.
+
+
+    **This only became a live cost on 2026-08-27.** Before task-317 the plugin''s
+    server hardcoded `AGENTJOBS_URL=127.0.0.1:8765`, exited at startup, and contributed
+    nothing -- so the duplicate was theoretical. It now connects. Auditor 8''s F11
+    was wrong when it was written and is right now.
+
+
+    ## The plugin should be the survivor
+
+
+    -   Its config is in git, so what runs is reviewable and is covered by `tests/test_codex_plugin.py::TestMcpWiring`.
+
+    -   It launches the `agentjobs` console script rather than an absolute venv interpreter
+    path, which does not survive a rebuilt virtualenv.
+
+    -   It also carries the workflow skill and the task-write guard. The project-scoped
+    entry is a server and nothing else.
+
+
+    ## Two things to establish before deleting anything
+
+
+    Neither was verified by task-317, and each is a reason the deletion could go wrong
+    quietly.
+
+
+    1.  **Does dispatch still work without the root file?** Dispatch reads the server
+    names out of `.mcp.json` and passes them as `enabledMcpjsonServers` in a run''s
+    `--settings`, which is what stops a `--bg` session blocking on a trust prompt
+    nobody can answer (task-019, task-192). With the file gone it passes nothing.
+    That *should* be harmless -- a plugin server is user-scoped and already enabled,
+    so it needs no per-project approval -- but "should" is doing the work in that
+    sentence and a dispatched run is cheap to try.
+
+    2.  **Do the plugin''s hooks and skill load from the repo, or from the install
+    cache?** task-317 established that `plugins/agentjobs/.mcp.json` is read from
+    the working tree, not from `~/.claude/plugins/cache/agentjobs/agentjobs/0.1.0/`
+    -- proved by editing the repo copy and watching `claude mcp list` flip from Failed
+    to Connected. It did **not** establish the same for `hooks/task_write_guard.py`
+    and `skills/agentjobs/SKILL.md`. Auditor 8''s F4 found both cache copies stale:
+    installed at `c30ca8c`, nine commits behind, with a guard that predates `d2ef033`.
+    If the MCP config comes from the repo while the hooks come from the cache, leaning
+    on the plugin means running an old write guard, and the plugin version is pinned
+    `0.1.0` with the cache keyed by version, so no upgrade will ever correct it.
+
+
+    ## How to do it safely
+
+
+    Rename rather than delete, so the rollback is one command:
+
+
+    ```bash
+
+    mv .mcp.json .mcp.json.disabled
+
+    # start a fresh session
+
+    claude mcp list            # plugin Connected; the bare `agentjobs` entry gone
+
+    # then dispatch any small task and confirm the run gets its tools
+
+    ```
+
+
+    If both hold, delete it and drop `enabledMcpjsonServers` from `~/.claude/settings.json`.
+    If either fails, `mv` it back and record which one failed and how -- that answer
+    is worth more than the cleanup.
+
+
+    ## Related
+
+
+    task-266 asks a different question about the same file (whether a repository pre-approving
+    its own MCP servers is a real gate). Retiring this machine''s copy does not answer
+    it and does not depend on it.'
+  constraints: '`~/.claude/settings.json` and the root `.mcp.json` are Jeff''s machine
+    configuration. Confirm with him before deleting either -- the rename step needs
+    no permission, the deletion does. Nothing here changes the repository.'
+  out_of_scope: Per-project MCP scoping for the nine global connectors (Gmail, Slack,
+    Notion, Calendar, Drive, Indeed, Microsoft 365, Chrome, Uber), which are the bulk
+    of the MCP token block. Same settings file, different and larger question. Bumping
+    the plugin version so its cache refreshes (Auditor 8's F4 fix 2).
+  context:
+  - path: plugins/agentjobs/.mcp.json
+    why: The declaration that should survive. Names no address since task-317.
+  - path: src/agentjobs/mcp/config.py
+    why: How the surviving server resolves its address with no port configured.
+  - path: audits/2026-08-21/08-mcp.md
+    why: Auditor 8's F4 (the stale cache) and F11 (the duplicate context cost). F11
+      was false when written and is true now.
+acceptance:
+- id: ac-1
+  text: The record states, from a real dispatched run rather than from reasoning,
+    whether a `--bg` session still gets the agentjobs tools with no root `.mcp.json`
+    present.
+  status: pending
+- id: ac-2
+  text: The record states whether the plugin's hooks and skill load from the working
+    tree or from the install cache, with the evidence that settled it.
+  status: pending
+- id: ac-3
+  text: Exactly one `agentjobs` MCP server is live in a fresh session on this machine
+    -- or the record says which check failed and why the second was kept.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-27T12:21:25.290364Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 6c1a8b40-95e3-4d27-b0f6-2a4d71e93c58
+      kind: create
+      fingerprint: 636dfa247d295af26c5660cf451e0959
+- id: 2
+  ts: '2026-08-27T12:21:37.049540Z'
+  actor: claude
+  type: queue_move
+  body: Filed at the top of its band by default, which overstates it. This is a twenty-minute
+    tidy-up of one machine's configuration, and the cost it removes -- one duplicate
+    tool block in a session -- is small and was only created today. Jeff's words on
+    it were "eventually lol". Bottom of the band, so it does not jump ahead of work
+    that changes what the product does.
+  data:
+    band: low
+    from: 500
+    to: 500
+    placement:
+      kind: bottom
+    warnings:
+    - kind: no_op
+      message: 'Nothing moved: task-319 came out of the ''low'' band in the place
+        it went in, so the queue will hand out exactly what it would have handed out
+        before.'
+      tasks:
+      - task-319
+    operation:
+      id: 8d2f0b17-4a69-4c3e-95b8-6e01f7ca2d34
+      kind: queue_move
+      fingerprint: eca3b733519323d76114835d57985c81
