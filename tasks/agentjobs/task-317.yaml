@@ -3,7 +3,7 @@ id: task-317
 title: The AgentJobs MCP server is declared twice under one name, and the two declarations
   point at different ports
 created: '2026-08-25T10:43:10.073470Z'
-updated: '2026-08-27T11:49:00.826605Z'
+updated: '2026-08-27T11:49:13.515026Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -455,3 +455,17 @@ log:
       id: 5a8f2c60-7e14-4b93-b2d7-3c096e18d4a3
       kind: update_content
       fingerprint: ac4fcbb0231575ce6e5f8bce6f97da68
+- id: 12
+  ts: '2026-08-27T11:49:13.514871Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-317-mcp-declaration-port` (f8bab285).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-317.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_f4e20ea2\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-317-mcp-declaration-port
+    finish_id: fin_f4e20ea2
