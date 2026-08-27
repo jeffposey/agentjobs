@@ -3,11 +3,46 @@ id: task-296
 title: 'A dispatched session that parks is invisible: the task record still reads
   agent/work and nobody is told'
 created: '2026-08-23T20:56:33.153215Z'
-updated: '2026-08-27T14:20:06.984084Z'
+updated: '2026-08-27T14:23:42.463844Z'
 lifecycle: active
-ball: agent
-ball_reason: answer
-ball_prompt: Sigh
+ball: human
+ball_reason: review
+ball_prompt: "Ready for review. Branch `fix/task-296-stall-detection`, 3 commits,\
+  \ rebased onto `main`, no task files on it.\n\n**Two full unqualified gates green\
+  \ back to back** \u2014 `Ran every stage (10 of 10)`, `GATE_EXIT=0`, 209.3s and\
+  \ 199.9s.\n\n**Read entry 21 first \u2014 the task's premise was wrong.** Task-217,\
+  \ the four-hour stall this was filed for, was never dispatched: no run directory,\
+  \ while its siblings from that night have one each, and nothing in the dispatch\
+  \ package deletes them. The poller never saw that session, so none of the existing\
+  \ protections applied. `_park_session` was correct and deployed five days before\
+  \ the incident and simply never ran.\n\n**What I built** is the real residual bug:\
+  \ `SessionPhase.RUNNING` was the only phase that wrote nothing to the task record\
+  \ and had no time bound of any kind, so a session merely claiming to be busy could\
+  \ sit forever with the task reading `agent`/`work`. Detection is transcript growth\
+  \ \u2014 already fetched on every poll, so no new subprocess and nothing the codex\
+  \ driver would have to decline (sc-3 decided against a driver `liveness()`). Threshold\
+  \ 30 min, five times the worst measured gate, and the gate is not even quiet. It\
+  \ reports, never kills, retracts if output resumes, and is idempotent. Detection\
+  \ only; recovery explicitly rejected (sc-4) because a stalled session may hold a\
+  \ dirty worktree.\n\n**Three things to weigh, all of them judgement calls I made:**\n\
+  \n1. **Scope.** I fixed the RUNNING gap and filed the other half as **task-320**\
+  \ rather than bundling it. If you would rather have had one task covering both,\
+  \ that is the call to push back on.\n2. **sc-5 is live but the runner is a stub.**\
+  \ Real poller, real run directory, real live silent process, real ball move \u2014\
+  \ but making the actual Claude CLI wedge on demand is not reproducible, so what\
+  \ it does *not* prove is that the CLI reports `busy`/`working` when it wedges.\n\
+  3. **No sentence added to ALLAGENTS.md**, which the context list suggested. The\
+  \ rule is more true now, not less, and the bundle is at its byte ceiling. Entry\
+  \ 22 argues it.\n\n**One thing I got wrong and corrected, worth knowing before you\
+  \ read the log:** entry 22 claims a green gate; two gates immediately after went\
+  \ red on `TestProcessGroup`, a test this branch does not touch. It looked like the\
+  \ known flake (task-243) and was not \u2014 reverting only `src`/`tests`/`docs`\
+  \ to `main` in the same worktree passed, twice, where the branch failed twice. My\
+  \ six tests were each spawning a real OS process purely to get a handle, and that\
+  \ contention tipped it. Rewritten to build the handle directly; pytest stage 181s\
+  \ -> 155s, and the tests are still load-bearing (verified by disabling the branch).\
+  \ Entry 24 has it in full, and I logged the recurrence on task-243.\n\nNothing merged,\
+  \ nothing pushed. Worktree `../worktrees/agentjobs-296` still in place."
 archived: false
 priority: critical
 queue_position: 293
@@ -909,3 +944,51 @@ log:
       id: 2d517e08-4b39-4c61-9f83-6ea20c3f0b57
       kind: log_append
       fingerprint: 01c1b08ae1bda1848432f5a9e95804dc
+- id: 25
+  ts: '2026-08-27T14:23:42.463618Z'
+  actor: claude
+  type: handoff
+  body: "Ready for review. Branch `fix/task-296-stall-detection`, 3 commits, rebased\
+    \ onto `main`, no task files on it.\n\n**Two full unqualified gates green back\
+    \ to back** \u2014 `Ran every stage (10 of 10)`, `GATE_EXIT=0`, 209.3s and 199.9s.\n\
+    \n**Read entry 21 first \u2014 the task's premise was wrong.** Task-217, the four-hour\
+    \ stall this was filed for, was never dispatched: no run directory, while its\
+    \ siblings from that night have one each, and nothing in the dispatch package\
+    \ deletes them. The poller never saw that session, so none of the existing protections\
+    \ applied. `_park_session` was correct and deployed five days before the incident\
+    \ and simply never ran.\n\n**What I built** is the real residual bug: `SessionPhase.RUNNING`\
+    \ was the only phase that wrote nothing to the task record and had no time bound\
+    \ of any kind, so a session merely claiming to be busy could sit forever with\
+    \ the task reading `agent`/`work`. Detection is transcript growth \u2014 already\
+    \ fetched on every poll, so no new subprocess and nothing the codex driver would\
+    \ have to decline (sc-3 decided against a driver `liveness()`). Threshold 30 min,\
+    \ five times the worst measured gate, and the gate is not even quiet. It reports,\
+    \ never kills, retracts if output resumes, and is idempotent. Detection only;\
+    \ recovery explicitly rejected (sc-4) because a stalled session may hold a dirty\
+    \ worktree.\n\n**Three things to weigh, all of them judgement calls I made:**\n\
+    \n1. **Scope.** I fixed the RUNNING gap and filed the other half as **task-320**\
+    \ rather than bundling it. If you would rather have had one task covering both,\
+    \ that is the call to push back on.\n2. **sc-5 is live but the runner is a stub.**\
+    \ Real poller, real run directory, real live silent process, real ball move \u2014\
+    \ but making the actual Claude CLI wedge on demand is not reproducible, so what\
+    \ it does *not* prove is that the CLI reports `busy`/`working` when it wedges.\n\
+    3. **No sentence added to ALLAGENTS.md**, which the context list suggested. The\
+    \ rule is more true now, not less, and the bundle is at its byte ceiling. Entry\
+    \ 22 argues it.\n\n**One thing I got wrong and corrected, worth knowing before\
+    \ you read the log:** entry 22 claims a green gate; two gates immediately after\
+    \ went red on `TestProcessGroup`, a test this branch does not touch. It looked\
+    \ like the known flake (task-243) and was not \u2014 reverting only `src`/`tests`/`docs`\
+    \ to `main` in the same worktree passed, twice, where the branch failed twice.\
+    \ My six tests were each spawning a real OS process purely to get a handle, and\
+    \ that contention tipped it. Rewritten to build the handle directly; pytest stage\
+    \ 181s -> 155s, and the tests are still load-bearing (verified by disabling the\
+    \ branch). Entry 24 has it in full, and I logged the recurrence on task-243.\n\
+    \nNothing merged, nothing pushed. Worktree `../worktrees/agentjobs-296` still\
+    \ in place."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 8c1e5b70-4a26-4d93-b1f7-05e2a836c9d4
+      kind: handoff
+      fingerprint: 05c1164bcec691c2586a2461cbcc983f
