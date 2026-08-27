@@ -3,7 +3,7 @@ id: task-297
 title: 'The scripted finish cannot merge under concurrency: base_moved fires on task-record
   commits, and each escalation causes the next'
 created: '2026-08-23T20:57:20.855780Z'
-updated: '2026-08-27T16:58:12.580378Z'
+updated: '2026-08-27T17:15:32.077263Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -922,3 +922,72 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 23
+  ts: '2026-08-27T17:15:32.077000Z'
+  actor: claude
+  type: progress
+  body: "## `catch_up` ran on this repository, against a real base move, made by a\
+    \ real concurrent finish\n\n`fin_61fe41b2` \u2014 the branch's own finisher, on\
+    \ the shared clone, with the real ten-stage gate:\n\n```\npreflight  ok      \
+    \   1.8s  fix/task-297-finish-catch-up at ab705439\nrunway     ok       210.3s\
+    \  taken after queuing\nrebase     ok         0.2s  ab705439 -> e3be67b3\ngate\
+    \       ok       220.5s  scripts/check.py green\ncatch_up   STOPPED    0.0s  `scripts/check.py\
+    \ --only pytest` failed after rebasing onto\n                            the moved\
+    \ main (159s, exit 1)\n```\n\n**Nothing about that was arranged.** While it ran,\
+    \ task-321's own finish was live in this repository and task-320's session was\
+    \ working. Three things happened by themselves that the harness had to be built\
+    \ to simulate:\n\n1. **`da8ead4 chore(task-321): note queuing for the merge runway`**\
+    \ landed on `main` while my gate was running. That is the pre-fix finisher's queue\
+    \ note \u2014 the amplifier described in log entry 7, committing to the base at\
+    \ the one moment guaranteed to escalate whoever is mid-gate. It escalated nobody:\
+    \ `catch_up` classified it (`tasks/*` \u2192 `pytest`), rebased `ab705439 \u2192\
+    \ e3be67b3` onto it, and re-ran the reachable stage. **That is sc-1, on the real\
+    \ repository, with the real gate, against a base move this session did not create.**\n\
+    2. **My own finisher's queue note was written and not committed.** `fin_61fe41b2`\
+    \ queued 210 seconds behind task-321's finish and wrote log entry 19 saying so;\
+    \ `git show HEAD:tasks/agentjobs/task-297.yaml | grep -c runway_queued` answered\
+    \ `0` while the working tree carried it. Old code on one side of the runway committing,\
+    \ new code on the other side not \u2014 in the same repository, in the same minute.\
+    \ The two halves of the fix, side by side.\n3. **Two finishes were in flight at\
+    \ once and neither was serialised by a human.** Mine queued, task-321's merged\
+    \ (`95bebc1`), mine took the runway after. That is sc-5's mechanism on the real\
+    \ repository, not the harness.\n\n**The catch-up's re-run went red on task-243\
+    \ again** \u2014 `test_the_timeout_kills_the_grandchild_too`, pid 1468464 survived\
+    \ the timeout. Third time tonight, on a machine running three agent sessions.\
+    \ The step is doing exactly what it was written to do (re-verify, and refuse on\
+    \ a red re-run); what it re-verified was red for a reason that has its own task\
+    \ and its own fix.\n\n**One consequence of this change worth writing down: it\
+    \ doubles a finish's exposure to task-243.** A caught-up finish runs `pytest`\
+    \ twice \u2014 once in the full gate, once in the reduced re-run \u2014 so a flake\
+    \ that costs a finish now has two chances per attempt instead of one. That is\
+    \ a real cost of the design and not an argument against it: the alternative is\
+    \ the refusal this task exists to remove. It does raise how much task-243 is worth,\
+    \ and this is the third finish it has taken tonight.\n\n## Rebased onto task-321,\
+    \ and two silent seams closed\n\ntask-321 landed on `main` mid-flight and touched\
+    \ `finish.py`, `tests/test_dispatch_finish.py` and `docs/agent-dispatch-design.md`.\
+    \ Rebased in context rather than at the merge; two conflicts, both trivial (an\
+    \ import, two adjacent doc sections), both resolved by keeping both sides.\n\n\
+    Integrating with its live finish view found two things that would have failed\
+    \ silently, fixed in `1c24a59`:\n\n- **`StepLog` records a step by overriding\
+    \ `append`, and `list.extend` does not go through it.** `catch_up` returns a list,\
+    \ so without this the step would have been in the table on the task and absent\
+    \ from the page somebody is watching \u2014 which is the precise disagreement\
+    \ `StepLog` was written to prevent. `extend` now delegates to `append`.\n- **`finish_status.STEP_ORDER`\
+    \ needed `catch_up`, and its duplication check could not have said so.** That\
+    \ check reads step names out of `finish.py`'s source with `[a-z]+`, so the first\
+    \ step name carrying an underscore was invisible to the test written to catch\
+    \ a missing one. Widened to `[a-z_]+`; `catch_up` added to `STEP_ORDER` and `STEP_MEANING`.\n\
+    - **`catch_up` now always reports a step**, like a merge that needs no restart:\
+    \ a quiet base gets a skipped step saying so, an unabsorbable move gets one explaining\
+    \ the refusal about to follow it. A step that vanished when it did nothing would\
+    \ leave the live view deriving \"what is running now\" from a gap.\n\nThree new\
+    \ tests cover those, in `TestCatchingUpWithAMovedBase`.\n\n## Where the branch\
+    \ stands\n\n`9d590e1` \u2192 `68c530d` \u2192 `1c24a59`, rebased onto `bde3bc7`.\
+    \ Full unqualified gate on that tip: **green, exit 0, 274.5s, \"Ran every stage\
+    \ (10 of 10)\"**, receipt for `1c24a591`. `tests/test_dispatch_finish.py` and\
+    \ `tests/test_finish_status.py` together: 123 passed.\n"
+  data:
+    operation:
+      id: 7f2a1c30-9d41-4b62-8e05-1a2b3c4d5e09
+      kind: log_append
+      fingerprint: 7c0fec8f2f22e9efb72f474ae7573e84
