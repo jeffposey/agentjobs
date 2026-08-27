@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 import binascii
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
@@ -554,9 +554,7 @@ class AnswerSubmission(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     re: int = Field(..., ge=1, description="Id of the question log entry being answered.")
-    selected: List[str] = Field(
-        default_factory=list, description="Labels of the options tapped."
-    )
+    selected: List[str] = Field(default_factory=list, description="Labels of the options tapped.")
     other: Optional[str] = Field(
         default=None, description="What was typed into the always-present free-text box."
     )
@@ -873,9 +871,10 @@ def _answer_prompt(
     if not drafts:
         return written
     try:
-        bodies = {entry.id: (entry.body or "") for entry in manager.get_task(task_id).log}
+        asked_on = manager.get_task(task_id)
     except Exception:  # noqa: BLE001 - the handoff below reports a missing task properly
-        bodies = {}
+        asked_on = None
+    bodies = {entry.id: (entry.body or "") for entry in (asked_on.log if asked_on else [])}
     lines = []
     for draft in drafts:
         asked = bodies.get(draft.re, f"Question #{draft.re}").strip()

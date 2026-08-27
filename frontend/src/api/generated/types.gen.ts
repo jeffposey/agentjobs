@@ -43,6 +43,74 @@ export type AcceptanceCriterion = {
 export type AcceptanceStatus = 'pending' | 'met' | 'failed' | 'dropped';
 
 /**
+ * AnswerActionRequest
+ *
+ * Answers to the task's open questions, plus optional prose (task-017).
+ *
+ * ``feedback`` is optional **here and nowhere else**, which is the one way this differs
+ * from every other send-back. Requiring it would defeat the point of the task: answering
+ * four questions by tapping four options, on a phone, without typing. Something has to
+ * have been said, though -- a request with neither answers nor prose is refused, because
+ * it would hand the ball back carrying nothing.
+ *
+ * Free text and options are not alternatives. Both can be sent, per question and for the
+ * task as a whole, because the session that motivated this had every option on one
+ * question rejected in favour of a typed reply.
+ */
+export type AnswerActionRequest = {
+    /**
+     * Answers
+     *
+     * One entry per question answered. Written atomically with the handoff.
+     */
+    answers?: Array<AnswerSubmission>;
+    /**
+     * Attachments
+     *
+     * Images evidencing the answer, stored as sidecar files.
+     */
+    attachments?: Array<AttachmentUpload>;
+    /**
+     * Feedback
+     *
+     * Prose to carry alongside the answers. Optional when answers are sent.
+     */
+    feedback?: string | null;
+    /**
+     * User
+     *
+     * User performing the action
+     */
+    user: string;
+};
+
+/**
+ * AnswerSubmission
+ *
+ * One question answered, as the browser sends it (task-017).
+ */
+export type AnswerSubmission = {
+    /**
+     * Other
+     *
+     * What was typed into the always-present free-text box.
+     */
+    other?: string | null;
+    /**
+     * Re
+     *
+     * Id of the question log entry being answered.
+     */
+    re: number;
+    /**
+     * Selected
+     *
+     * Labels of the options tapped.
+     */
+    selected?: Array<string>;
+};
+
+/**
  * Assignment
  *
  * Live ownership and authoring-time eligibility.
@@ -1070,6 +1138,12 @@ export type HandoffRequest = {
      * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
      */
     operation_id?: string | null;
+    /**
+     * Questions
+     *
+     * Questions to pose alongside this handoff, each optionally offering options. Written in the same mutation, so the human never opens a half-populated form.
+     */
+    questions?: Array<QuestionDraft>;
 };
 
 /**
@@ -1928,6 +2002,74 @@ export type PromoteRequest = {
      * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
      */
     operation_id?: string | null;
+};
+
+/**
+ * QuestionDraft
+ *
+ * One question an agent asks, before the manager has made an entry of it.
+ *
+ * Distinct from ``QuestionData`` by exactly one field -- the prose -- because the
+ * entry keeps its question in ``body`` where every other entry keeps its prose, and a
+ * payload model that duplicated it would give a reader two places to look. This is the
+ * argument shape; that is the stored shape.
+ */
+export type QuestionDraft = {
+    /**
+     * Body
+     *
+     * The question, addressed to a human.
+     */
+    body: string;
+    /**
+     * Multi Select
+     *
+     * Whether more than one option may be chosen.
+     */
+    multi_select?: boolean;
+    /**
+     * Options
+     *
+     * Offered answers, in display order.
+     */
+    options?: Array<QuestionOption>;
+    /**
+     * Placeholder
+     *
+     * Hint for the free-text box, e.g. 'a number of minutes'.
+     */
+    placeholder?: string | null;
+};
+
+/**
+ * QuestionOption
+ *
+ * One answer an agent is offering for a ``question`` entry (task-017).
+ *
+ * The label is what the human taps and what an ``answer`` entry records having been
+ * chosen, so it is the identity of the option and not a caption over one. There is
+ * deliberately no separate id: a log is append-only, so a stored label cannot drift
+ * away from the option it names, and an id would only add a second thing to read.
+ */
+export type QuestionOption = {
+    /**
+     * Description
+     *
+     * What picking this means. Shown under the label.
+     */
+    description?: string | null;
+    /**
+     * Label
+     *
+     * The choice itself. Short enough to be a button.
+     */
+    label: string;
+    /**
+     * Recommended
+     *
+     * The agent's own recommendation. Marks the option; it never preselects it, because a prefilled answer is one a tired reader submits without reading.
+     */
+    recommended?: boolean;
 };
 
 /**
@@ -5373,7 +5515,7 @@ export type UpdateTaskApiProjectsProjectIdTasksTaskIdPatchResponses = {
 export type UpdateTaskApiProjectsProjectIdTasksTaskIdPatchResponse = UpdateTaskApiProjectsProjectIdTasksTaskIdPatchResponses[keyof UpdateTaskApiProjectsProjectIdTasksTaskIdPatchResponses];
 
 export type AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostData = {
-    body: SendBackActionRequest;
+    body: AnswerActionRequest;
     path: {
         /**
          * Task Id
@@ -6735,7 +6877,7 @@ export type UpdateTaskApiTasksTaskIdPatchResponses = {
 export type UpdateTaskApiTasksTaskIdPatchResponse = UpdateTaskApiTasksTaskIdPatchResponses[keyof UpdateTaskApiTasksTaskIdPatchResponses];
 
 export type AnswerTaskApiTasksTaskIdAnswerPostData = {
-    body: SendBackActionRequest;
+    body: AnswerActionRequest;
     path: {
         /**
          * Task Id

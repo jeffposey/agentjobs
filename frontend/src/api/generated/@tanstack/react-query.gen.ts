@@ -1106,6 +1106,12 @@ export const updateTaskApiProjectsProjectIdTasksTaskIdPatchMutation = (options?:
  * Not a revision: nothing the agent did was wrong, and a record that says otherwise
  * makes the next reader reconstruct which it was. The answer rides in the ball_prompt
  * and the log verbatim, exactly as requested changes do.
+ *
+ * Since task-017 it may also carry ``answers``, each naming the question entry it
+ * answers. Those become ``answer`` entries threaded by ``re``, written in the same
+ * mutation as the handoff, and the ball_prompt is composed from them when the human
+ * tapped options and typed nothing -- which is the whole point of the feature, and
+ * would otherwise leave the agent a handoff whose ask is blank.
  */
 export const answerTaskApiProjectsProjectIdTasksTaskIdAnswerPostMutation = (options?: Partial<Options<AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostData>>): UseMutationOptions<AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponse, AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostError, Options<AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostData>> => {
     const mutationOptions: UseMutationOptions<AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponse, AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostError, Options<AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostData>> = {
@@ -2008,6 +2014,12 @@ export const updateTaskApiTasksTaskIdPatchMutation = (options?: Partial<Options<
  * Not a revision: nothing the agent did was wrong, and a record that says otherwise
  * makes the next reader reconstruct which it was. The answer rides in the ball_prompt
  * and the log verbatim, exactly as requested changes do.
+ *
+ * Since task-017 it may also carry ``answers``, each naming the question entry it
+ * answers. Those become ``answer`` entries threaded by ``re``, written in the same
+ * mutation as the handoff, and the ball_prompt is composed from them when the human
+ * tapped options and typed nothing -- which is the whole point of the feature, and
+ * would otherwise leave the agent a handoff whose ask is blank.
  */
 export const answerTaskApiTasksTaskIdAnswerPostMutation = (options?: Partial<Options<AnswerTaskApiTasksTaskIdAnswerPostData>>): UseMutationOptions<AnswerTaskApiTasksTaskIdAnswerPostResponse, AnswerTaskApiTasksTaskIdAnswerPostError, Options<AnswerTaskApiTasksTaskIdAnswerPostData>> => {
     const mutationOptions: UseMutationOptions<AnswerTaskApiTasksTaskIdAnswerPostResponse, AnswerTaskApiTasksTaskIdAnswerPostError, Options<AnswerTaskApiTasksTaskIdAnswerPostData>> = {

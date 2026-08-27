@@ -70,7 +70,9 @@ def claimed(client: TestClient) -> str:
     )
     assert response.status_code == 201
     task_id = str(response.json()["id"])
-    assert client.post(f"/api/tasks/{task_id}/claim", json={"agent": "test-agent"}).status_code == 200
+    assert (
+        client.post(f"/api/tasks/{task_id}/claim", json={"agent": "test-agent"}).status_code == 200
+    )
     return task_id
 
 
@@ -148,9 +150,7 @@ def test_the_prompt_stays_prose_beside_the_questions(client: TestClient, claimed
     assert task["ball_reason"] == "decision"
 
 
-def test_questions_thread_to_the_handoff_that_raised_them(
-    client: TestClient, claimed: str
-) -> None:
+def test_questions_thread_to_the_handoff_that_raised_them(client: TestClient, claimed: str) -> None:
     """So a reader can tell which ask a question belongs to without guessing by time."""
     task = ask(client, claimed, [POSTURE, {"body": "And the ceiling?"}])
     handoff = entries(task, "handoff")[-1]
@@ -251,9 +251,7 @@ def test_an_answered_question_stops_being_open(client: TestClient, claimed: str)
     assert still_open == [asked[1]["id"]]
 
 
-def test_answering_moves_the_ball_once_for_the_whole_form(
-    client: TestClient, claimed: str
-) -> None:
+def test_answering_moves_the_ball_once_for_the_whole_form(client: TestClient, claimed: str) -> None:
     """sc-6, as decided: one Submit, one handoff. Not one per question."""
     asked = entries(ask(client, claimed, [POSTURE, {"body": "Second"}]), "question")
     before = len(entries(client.get(f"/api/tasks/{claimed}").json(), "handoff"))
@@ -282,7 +280,9 @@ def test_tapping_options_and_typing_nothing_still_produces_a_real_ask(
     it was told without walking the log.
     """
     asked = entries(ask(client, claimed, [POSTURE]), "question")[-1]
-    task = answer(client, claimed, answers=[{"re": asked["id"], "selected": ["auto"]}]).json()["task"]
+    task = answer(client, claimed, answers=[{"re": asked["id"], "selected": ["auto"]}]).json()[
+        "task"
+    ]
 
     assert POSTURE["body"] in task["ball_prompt"]
     assert "Chose: auto" in task["ball_prompt"]
@@ -294,9 +294,7 @@ def test_free_text_survives_beside_the_options(client: TestClient, claimed: str)
     task = answer(
         client,
         claimed,
-        answers=[
-            {"re": asked["id"], "selected": ["supervised"], "other": "but only on weekdays"}
-        ],
+        answers=[{"re": asked["id"], "selected": ["supervised"], "other": "but only on weekdays"}],
     ).json()["task"]
 
     given = entries(task, "answer")[-1]
@@ -306,9 +304,7 @@ def test_free_text_survives_beside_the_options(client: TestClient, claimed: str)
     assert "but only on weekdays" in given["body"]
 
 
-def test_free_text_alone_answers_a_question_with_options(
-    client: TestClient, claimed: str
-) -> None:
+def test_free_text_alone_answers_a_question_with_options(client: TestClient, claimed: str) -> None:
     """Rejecting every option offered is a first-class answer, not an error."""
     asked = entries(ask(client, claimed, [POSTURE]), "question")[-1]
     task = answer(
@@ -369,9 +365,7 @@ def test_multi_select_accepts_more_than_one_option(client: TestClient, claimed: 
 # --------------------------------------------------------------------------------------
 
 
-def test_an_option_the_question_never_offered_is_refused(
-    client: TestClient, claimed: str
-) -> None:
+def test_an_option_the_question_never_offered_is_refused(client: TestClient, claimed: str) -> None:
     """A stale form or a typo. Either way the human's tap did not mean what this says."""
     asked = entries(ask(client, claimed, [POSTURE]), "question")[-1]
     response = answer(client, claimed, answers=[{"re": asked["id"], "selected": ["autonomous"]}])
@@ -383,7 +377,10 @@ def test_an_option_the_question_never_offered_is_refused(
 def test_answering_the_same_question_twice_is_refused(client: TestClient, claimed: str) -> None:
     """Otherwise `open_questions()` is quietly wrong for the rest of the task's life."""
     asked = entries(ask(client, claimed, [POSTURE]), "question")[-1]
-    assert answer(client, claimed, answers=[{"re": asked["id"], "selected": ["auto"]}]).status_code == 200
+    assert (
+        answer(client, claimed, answers=[{"re": asked["id"], "selected": ["auto"]}]).status_code
+        == 200
+    )
 
     again = answer(client, claimed, answers=[{"re": asked["id"], "selected": ["supervised"]}])
     assert again.status_code == 409

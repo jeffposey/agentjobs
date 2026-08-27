@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
+import type { AnswerSubmission } from "../api/generated";
 import type { AttachmentUpload, TaskDetailResponse, TaskRead } from "../api/types";
 import { TaskDetail } from "./TaskDetail";
 
@@ -63,6 +64,7 @@ function renderDetail(value = detail, extra: { promoteError?: string | null; pro
         _reason: "revise" | "answer" | "redirect" | "hold",
         _feedback: string,
         _attachments: Array<AttachmentUpload>,
+        _answers: Array<AnswerSubmission>,
       ) => undefined,
     ),
     onReject: vi.fn(async () => undefined),
@@ -199,7 +201,7 @@ describe("TaskDetail resumption contract", () => {
     fireEvent.click(screen.getByRole("button", { name: /Request Changes/ }));
     fireEvent.change(screen.getByLabelText("Feedback or questions"), { target: { value: "Tighten the layout." } });
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
-    await waitFor(() => expect(actions.onSendBack).toHaveBeenCalledWith("revise", "Tighten the layout.", []));
+    await waitFor(() => expect(actions.onSendBack).toHaveBeenCalledWith("revise", "Tighten the layout.", [], []));
   });
 
   it("blocks every review action when identity is unclear", () => {
@@ -344,7 +346,7 @@ describe("TaskDetail action panel speaks the phase it is in", () => {
     fireEvent.click(screen.getByRole("button", { name: /Send feedback/ }));
     fireEvent.change(screen.getByLabelText("Feedback on the spec"), { target: { value: "Acceptance is vague." } });
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
-    await waitFor(() => expect(actions.onSendBack).toHaveBeenCalledWith("revise", "Acceptance is vague.", []));
+    await waitFor(() => expect(actions.onSendBack).toHaveBeenCalledWith("revise", "Acceptance is vague.", [], []));
 
     fireEvent.click(screen.getByRole("button", { name: /Reject & Archive/ }));
     fireEvent.change(screen.getByLabelText("Reason for rejection"), { target: { value: "Superseded." } });
@@ -471,11 +473,15 @@ describe("TaskDetail review panel offers only verbs that are true", () => {
     const actions = renderDetail(atReason("decision"));
 
     fireEvent.click(screen.getByRole("button", { name: "✎ Answer Questions" }));
-    fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "Option 2, and skip the third." } });
+    // "Anything else (optional)" rather than "Your answer" since task-017: this
+    // fixture holds an open question, so the composer now leads with that question's
+    // own box and the prose field beneath it is the aside. The verb being recorded --
+    // which is what this test is about -- is unchanged.
+    fireEvent.change(screen.getByLabelText("Anything else (optional)"), { target: { value: "Option 2, and skip the third." } });
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
 
     await waitFor(() =>
-      expect(actions.onSendBack).toHaveBeenCalledWith("answer", "Option 2, and skip the third.", []),
+      expect(actions.onSendBack).toHaveBeenCalledWith("answer", "Option 2, and skip the third.", [], []),
     );
   });
 
@@ -506,7 +512,7 @@ describe("TaskDetail review panel offers only verbs that are true", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
 
     await waitFor(() =>
-      expect(actions.onSendBack).toHaveBeenCalledWith("redirect", "Do the CLI half first.", []),
+      expect(actions.onSendBack).toHaveBeenCalledWith("redirect", "Do the CLI half first.", [], []),
     );
   });
 
@@ -518,7 +524,7 @@ describe("TaskDetail review panel offers only verbs that are true", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
 
     await waitFor(() =>
-      expect(actions.onSendBack).toHaveBeenCalledWith("hold", "Wait for the dispatch fixes.", []),
+      expect(actions.onSendBack).toHaveBeenCalledWith("hold", "Wait for the dispatch fixes.", [], []),
     );
   });
 

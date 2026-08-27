@@ -764,9 +764,7 @@ class AnswerDraft(StrictModel):
     """
 
     re: int = Field(..., ge=1, description="Id of the question entry being answered.")
-    selected: List[str] = Field(
-        default_factory=list, description="Labels of the options chosen."
-    )
+    selected: List[str] = Field(default_factory=list, description="Labels of the options chosen.")
     other: Optional[str] = Field(
         default=None, description="Free text supplied instead of, or alongside, the options."
     )

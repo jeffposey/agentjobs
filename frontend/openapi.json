@@ -50,6 +50,92 @@
         "title": "AcceptanceStatus",
         "type": "string"
       },
+      "AnswerActionRequest": {
+        "description": "Answers to the task's open questions, plus optional prose (task-017).\n\n``feedback`` is optional **here and nowhere else**, which is the one way this differs\nfrom every other send-back. Requiring it would defeat the point of the task: answering\nfour questions by tapping four options, on a phone, without typing. Something has to\nhave been said, though -- a request with neither answers nor prose is refused, because\nit would hand the ball back carrying nothing.\n\nFree text and options are not alternatives. Both can be sent, per question and for the\ntask as a whole, because the session that motivated this had every option on one\nquestion rejected in favour of a typed reply.",
+        "properties": {
+          "answers": {
+            "description": "One entry per question answered. Written atomically with the handoff.",
+            "items": {
+              "$ref": "#/components/schemas/AnswerSubmission"
+            },
+            "title": "Answers",
+            "type": "array"
+          },
+          "attachments": {
+            "description": "Images evidencing the answer, stored as sidecar files.",
+            "items": {
+              "$ref": "#/components/schemas/AttachmentUpload"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Prose to carry alongside the answers. Optional when answers are sent.",
+            "examples": [
+              "Also: do not start this until task-016 merges."
+            ],
+            "title": "Feedback"
+          },
+          "user": {
+            "description": "User performing the action",
+            "examples": [
+              "jeff"
+            ],
+            "title": "User",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "title": "AnswerActionRequest",
+        "type": "object"
+      },
+      "AnswerSubmission": {
+        "additionalProperties": false,
+        "description": "One question answered, as the browser sends it (task-017).",
+        "properties": {
+          "other": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What was typed into the always-present free-text box.",
+            "title": "Other"
+          },
+          "re": {
+            "description": "Id of the question log entry being answered.",
+            "minimum": 1.0,
+            "title": "Re",
+            "type": "integer"
+          },
+          "selected": {
+            "description": "Labels of the options tapped.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Selected",
+            "type": "array"
+          }
+        },
+        "required": [
+          "re"
+        ],
+        "title": "AnswerSubmission",
+        "type": "object"
+      },
       "Assignment": {
         "additionalProperties": false,
         "description": "Live ownership and authoring-time eligibility.\n\nv1's `assigned_to` conflated these: documented as \"currently assigned\" and used as\na static label.",
@@ -1470,6 +1556,14 @@
             ],
             "description": "Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.",
             "title": "Operation Id"
+          },
+          "questions": {
+            "description": "Questions to pose alongside this handoff, each optionally offering options. Written in the same mutation, so the human never opens a half-populated form.",
+            "items": {
+              "$ref": "#/components/schemas/QuestionDraft"
+            },
+            "title": "Questions",
+            "type": "array"
           }
         },
         "required": [
@@ -2737,6 +2831,84 @@
           "actor"
         ],
         "title": "PromoteRequest",
+        "type": "object"
+      },
+      "QuestionDraft": {
+        "additionalProperties": false,
+        "description": "One question an agent asks, before the manager has made an entry of it.\n\nDistinct from ``QuestionData`` by exactly one field -- the prose -- because the\nentry keeps its question in ``body`` where every other entry keeps its prose, and a\npayload model that duplicated it would give a reader two places to look. This is the\nargument shape; that is the stored shape.",
+        "properties": {
+          "body": {
+            "description": "The question, addressed to a human.",
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "multi_select": {
+            "default": false,
+            "description": "Whether more than one option may be chosen.",
+            "title": "Multi Select",
+            "type": "boolean"
+          },
+          "options": {
+            "description": "Offered answers, in display order.",
+            "items": {
+              "$ref": "#/components/schemas/QuestionOption"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "placeholder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hint for the free-text box, e.g. 'a number of minutes'.",
+            "title": "Placeholder"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "title": "QuestionDraft",
+        "type": "object"
+      },
+      "QuestionOption": {
+        "additionalProperties": false,
+        "description": "One answer an agent is offering for a ``question`` entry (task-017).\n\nThe label is what the human taps and what an ``answer`` entry records having been\nchosen, so it is the identity of the option and not a caption over one. There is\ndeliberately no separate id: a log is append-only, so a stored label cannot drift\naway from the option it names, and an id would only add a second thing to read.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What picking this means. Shown under the label.",
+            "title": "Description"
+          },
+          "label": {
+            "description": "The choice itself. Short enough to be a button.",
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "recommended": {
+            "default": false,
+            "description": "The agent's own recommendation. Marks the option; it never preselects it, because a prefilled answer is one a tired reader submits without reading.",
+            "title": "Recommended",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "title": "QuestionOption",
         "type": "object"
       },
       "QueueAssignmentRead": {
@@ -7531,7 +7703,7 @@
     },
     "/api/projects/{project_id}/tasks/{task_id}/answer": {
       "post": {
-        "description": "Supply what the agent was waiting for and hand the ball back (agent/answer).\n\nNot a revision: nothing the agent did was wrong, and a record that says otherwise\nmakes the next reader reconstruct which it was. The answer rides in the ball_prompt\nand the log verbatim, exactly as requested changes do.",
+        "description": "Supply what the agent was waiting for and hand the ball back (agent/answer).\n\nNot a revision: nothing the agent did was wrong, and a record that says otherwise\nmakes the next reader reconstruct which it was. The answer rides in the ball_prompt\nand the log verbatim, exactly as requested changes do.\n\nSince task-017 it may also carry ``answers``, each naming the question entry it\nanswers. Those become ``answer`` entries threaded by ``re``, written in the same\nmutation as the handoff, and the ball_prompt is composed from them when the human\ntapped options and typed nothing -- which is the whole point of the feature, and\nwould otherwise leave the agent a handoff whose ask is blank.",
         "operationId": "answer_task_api_projects__project_id__tasks__task_id__answer_post",
         "parameters": [
           {
@@ -7557,7 +7729,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SendBackActionRequest"
+                "$ref": "#/components/schemas/AnswerActionRequest"
               }
             }
           },
@@ -9939,7 +10111,7 @@
     },
     "/api/tasks/{task_id}/answer": {
       "post": {
-        "description": "Supply what the agent was waiting for and hand the ball back (agent/answer).\n\nNot a revision: nothing the agent did was wrong, and a record that says otherwise\nmakes the next reader reconstruct which it was. The answer rides in the ball_prompt\nand the log verbatim, exactly as requested changes do.",
+        "description": "Supply what the agent was waiting for and hand the ball back (agent/answer).\n\nNot a revision: nothing the agent did was wrong, and a record that says otherwise\nmakes the next reader reconstruct which it was. The answer rides in the ball_prompt\nand the log verbatim, exactly as requested changes do.\n\nSince task-017 it may also carry ``answers``, each naming the question entry it\nanswers. Those become ``answer`` entries threaded by ``re``, written in the same\nmutation as the handoff, and the ball_prompt is composed from them when the human\ntapped options and typed nothing -- which is the whole point of the feature, and\nwould otherwise leave the agent a handoff whose ask is blank.",
         "operationId": "answer_task_api_tasks__task_id__answer_post",
         "parameters": [
           {
@@ -9956,7 +10128,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SendBackActionRequest"
+                "$ref": "#/components/schemas/AnswerActionRequest"
               }
             }
           },

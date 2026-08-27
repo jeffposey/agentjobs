@@ -1,12 +1,23 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-import type { AttachmentUpload, LogEntry, TaskDetailResponse } from "../api/generated";
+import type {
+  AnswerSubmission,
+  AttachmentUpload,
+  LogEntry,
+  TaskDetailResponse,
+} from "../api/generated";
 // `TaskRead` is the app-facing alias for the output shape; `verbsFor` needs the record
 // itself, not just the detail envelope around it. See api/types.ts for why it is aliased.
 import type { TaskFinishView, TaskRead } from "../api/types";
 import { toUploads, type PendingAttachment } from "../report/attachments";
 import { AttachmentPicker } from "./AttachmentPicker";
+import {
+  QuestionForm,
+  openQuestions,
+  submissions,
+  type Draft,
+} from "./QuestionForm";
 import { DependencyGraph } from "./DependencyGraph";
 import { DependencyState } from "./DependencyState";
 import { DispatchPanel, type DispatchPanelProps } from "./DispatchPanel";
@@ -61,6 +72,11 @@ function SpecText({ children, muted = false }: { children: string; muted?: boole
  * splitting that -- so a design gate can be approved without implying merge -- is
  * task-001's question, not this one's. The label matching what the route writes is the
  * property being preserved here.
+ *
+ * task-017 adds one row's worth to that table without changing any of it: a task holding
+ * an open question is answerable whatever its ball_reason, because the same rule makes
+ * the answering verb *true* there. It joins the extras rather than displacing a primary,
+ * so a task at `human`/`review` with a stray question open still offers Approve first.
  */
 type SendBackReason = "revise" | "answer" | "redirect" | "hold";
 
@@ -98,7 +114,7 @@ type PanelVerbs = {
   extras: Array<SendBackVerb>;
 };
 
-function verbsFor(task: TaskRead): PanelVerbs {
+function verbsFor(task: TaskRead, hasOpenQuestions = false): PanelVerbs {
   const planning = task.lifecycle === "draft";
   const guidance =
     "These actions update the task record. Nothing here runs git.";
@@ -136,10 +152,21 @@ function verbsFor(task: TaskRead): PanelVerbs {
     placeholder: "Explain what needs to change...",
     hint: "Recorded as a revision: the agent changes the work and comes back to you for another review.",
   };
-  const extras = [REDIRECT_VERB, HOLD_VERB];
   if (task.ball_reason === "decision" || task.ball_reason === "input") {
-    return { label: "Review actions", heading, guidance, primary: null, secondary: answering, extras };
+    return {
+      label: "Review actions",
+      heading,
+      guidance,
+      primary: null,
+      secondary: answering,
+      extras: [REDIRECT_VERB, HOLD_VERB],
+    };
   }
+  // Answering leads the extras where questions are open, because it is then the thing
+  // most likely to be wanted and a phone shows the first control best (task-017).
+  const extras = hasOpenQuestions
+    ? [answering, REDIRECT_VERB, HOLD_VERB]
+    : [REDIRECT_VERB, HOLD_VERB];
   if (task.ball_reason === "spec") {
     return {
       label: "Review actions",
@@ -242,22 +269,33 @@ function ReviewPanel({
   const [sendVerb, setSendVerb] = useState<SendBackVerb | null>(null);
   const [feedback, setFeedback] = useState("");
   const [attachments, setAttachments] = useState<Array<PendingAttachment>>([]);
+  // Keyed by question entry id rather than by index, so it survives the record gaining
+  // an entry underneath an open composer -- which live updates do routinely.
+  const [drafts, setDrafts] = useState<Record<number, Draft>>({});
   const held = detail.task.ball === "agent" && detail.task.ball_reason === "hold";
+  const questions = openQuestions(detail.task.log ?? []);
   if (detail.task.ball !== "human" && !held) return null;
 
   const working = Boolean(busy) || Boolean(promoteBusy);
-  const verbs = verbsFor(detail.task);
-  const reset = () => { setMode("none"); setSendVerb(null); setFeedback(""); setAttachments([]); };
+  const verbs = verbsFor(detail.task, questions.length > 0);
+  const answers = sendVerb?.reason === "answer" ? submissions(drafts) : [];
+  // The one place free text is not required: tapping four options and typing nothing is
+  // exactly the act this exists to make possible (task-017). Every other send-back still
+  // needs prose, because prose is all it has.
+  const canSubmit = Boolean(feedback.trim()) || answers.length > 0;
+  const reset = () => { setMode("none"); setSendVerb(null); setFeedback(""); setAttachments([]); setDrafts({}); };
   const toggle = (next: "promote" | "approve" | "resume" | "reject") => {
     setSendVerb(null);
     setFeedback("");
     setAttachments([]);
+    setDrafts({});
     setMode(mode === next ? "none" : next);
   };
   const toggleSend = (verb: SendBackVerb) => {
     const same = mode === "send" && sendVerb?.reason === verb.reason;
     setFeedback("");
     setAttachments([]);
+    setDrafts({});
     setSendVerb(same ? null : verb);
     setMode(same ? "none" : "send");
   };
@@ -331,7 +369,7 @@ function ReviewPanel({
               onSubmit={(event) => {
                 event.preventDefault();
                 const value = feedback.trim();
-                if (!value) return;
+                if (!value && answers.length === 0) return;
                 // Close the composer once the write lands, and only then. Every other
                 // send-back moves the ball off the human and takes this whole panel
                 // with it, so nothing had to clean up after itself -- but a hold
@@ -341,25 +379,39 @@ function ReviewPanel({
                 //
                 // On failure the text stays put: the banner above says what went
                 // wrong, and throwing the human's prose away is not a way to report it.
-                void Promise.resolve(onSendBack(sendVerb.reason, value, toUploads(attachments))).then(
-                  reset,
-                  () => undefined,
-                );
+                void Promise.resolve(
+                  onSendBack(sendVerb.reason, value, toUploads(attachments), answers),
+                ).then(reset, () => undefined);
               }}
             >
+              {sendVerb.reason === "answer" && (
+                <QuestionForm
+                  questions={questions}
+                  drafts={drafts}
+                  disabled={working}
+                  onChange={(id, next) => setDrafts((current) => ({ ...current, [id]: next }))}
+                />
+              )}
               <AttachmentPicker
-                label={sendVerb.fieldLabel}
+                label={
+                  // The prose box is the whole form when nothing is asked, and an aside
+                  // beside the questions when something is. Labelling it "Your answer"
+                  // in the second case would make the boxes above it look optional.
+                  sendVerb.reason === "answer" && questions.length > 0
+                    ? "Anything else (optional)"
+                    : sendVerb.fieldLabel
+                }
                 hint={sendVerb.hint}
                 placeholder={sendVerb.placeholder}
                 value={feedback}
                 onChange={setFeedback}
                 attachments={attachments}
                 onAttachmentsChange={setAttachments}
-                required
+                required={questions.length === 0 || sendVerb.reason !== "answer"}
                 textareaClassName="mt-1 min-h-28 w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none"
               />
               <div className="mobile-action-row flex gap-3">
-                <button type="submit" disabled={working || !feedback.trim()} className="touch-target rounded-lg bg-yellow-600 px-4 font-semibold text-white disabled:opacity-60">Submit</button>
+                <button type="submit" disabled={working || !canSubmit} className="touch-target rounded-lg bg-yellow-600 px-4 font-semibold text-white disabled:opacity-60">Submit</button>
                 <button type="button" onClick={reset} className="touch-target rounded-lg border border-dark-border px-4 font-semibold">Cancel</button>
               </div>
             </form>
@@ -534,10 +586,15 @@ export type TaskDetailProps = {
   // One prop rather than four near-identical ones. Every send-back is the same act --
   // a note, and the ball moving to the agent -- and the reason is what differs, so the
   // component's contract mirrors the vocabulary instead of paraphrasing it.
+  // `answers` is populated only for `answer`, and is the one part of a send-back that is
+  // not prose (task-017). It stays on this prop rather than becoming a fifth one because
+  // it is still the same act -- the ball moving, with what the human said attached; the
+  // difference is that some of what they said was a tap.
   onSendBack: (
     reason: SendBackReason,
     feedback: string,
     attachments: Array<AttachmentUpload>,
+    answers: Array<AnswerSubmission>,
   ) => Promise<void> | void;
   onReject: (reason: string) => Promise<void> | void;
   onPromote: (note: string | null) => Promise<void> | void;
