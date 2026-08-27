@@ -778,7 +778,7 @@ def dispatch_task(
     # runner: this proves dispatch was permitted when it was asked, not for the lifetime
     # of the answer.
     resolution = assert_dispatch_permitted(project.id, home, group=request.group)
-    machine_home = _home(home, resolution)
+    machine_home = resolve_machine_home(home, resolution)
 
     # Two ways in, and they differ only in where the authorising entry comes from.
     #
@@ -1048,7 +1048,7 @@ def _claim_or_verify(manager: TaskManager, task: Task, agent: str) -> Task:
     return task
 
 
-def _home(home: Optional[Path], resolution: DispatchResolution) -> Path:
+def resolve_machine_home(home: Optional[Path], resolution: DispatchResolution) -> Path:
     """The AgentJobs home the resolution was read from, so runs land beside it."""
     if home is not None:
         return Path(home)

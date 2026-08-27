@@ -1829,6 +1829,74 @@ def dispatch_show_config(
                         )
 
 
+run_app = typer.Typer(
+    name="run",
+    help="Tell AgentJobs about a session it did not start.",
+)
+app.add_typer(run_app)
+
+
+@run_app.command("register")
+def run_register(
+    task_id: str = typer.Option(..., "--task", help="Task this session is working."),
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Registered project id. Defaults to the one you are in."
+    ),
+    session_id: Optional[str] = typer.Option(
+        None,
+        "--session",
+        help="Session id, when the runner's CLI does not publish one to its own session.",
+    ),
+    actor: Optional[str] = typer.Option(
+        None,
+        "--actor",
+        help="Identity to write the note as. Defaults to the project runner's actor.",
+    ),
+) -> None:
+    """Put this session in the run ledger so the stall protections reach it.
+
+    Every one of them -- the permission park, the auth-expiry handoff, the settle on a
+    session that finished without handing off, the stall report -- is keyed on a run
+    record, and a session nobody dispatched has none. This writes one, and the poller
+    then follows the session exactly as it follows a dispatched run.
+
+    **Safe to run unconditionally**, which is the point: a dispatched session recognises
+    itself from ``AGENTJOBS_RUN_ID``, says it is already known, and writes nothing. So
+    ALLAGENTS.md can say "register" with no exception for an agent to evaluate.
+
+    It refuses rather than guessing when the claim cannot be checked -- an unknown or
+    dead session id, a session listed under a different root, an interactive session a
+    person is sitting in. A run record naming a session nothing can follow is worse than
+    none, because it looks covered.
+    """
+    from .dispatch.registration import Registration, register_session, registration_lines
+
+    registry = ProjectRegistry()
+    try:
+        project = registry.get(project_id) if project_id else registry.resolve_default()
+    except ProjectError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    manager = TaskManager(TaskStorage(project.tasks_dir()))
+    try:
+        result: Registration = register_session(
+            manager=manager,
+            project=project,
+            project_config=project.load_config(),
+            task_id=task_id,
+            session_id=session_id,
+            actor=actor,
+        )
+    except DispatchError as exc:
+        reason = getattr(exc, "reason", "registration_refused")
+        typer.secho(f"Refused ({reason}): {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    for line in registration_lines(result):
+        typer.echo(line)
+
+
 queue_app = typer.Typer(
     name="queue",
     help="Read and change the order work is handed out in.",
