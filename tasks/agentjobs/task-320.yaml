@@ -1,0 +1,193 @@
+schema: 2
+id: task-320
+title: A session AgentJobs did not start is invisible to every safety net it has
+created: '2026-08-27T13:52:22.466316Z'
+updated: '2026-08-27T13:54:11.975201Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 14600
+category: reliability
+tags:
+- dispatch
+- reliability
+- observability
+- agent-dx
+assignment:
+  eligible: []
+spec:
+  summary: A session started outside dispatch has no run record, so the poller never
+    sees it and none of AgentJobs' stall protections apply to it. This is what actually
+    left task-217 dead for four hours on 2026-08-23.
+  intent: Every stall protection AgentJobs has is keyed on a run record. A session
+    with no run record gets none of them, and the task it is working reads `agent`/`work`
+    throughout -- so a supervisor following the rule that the signal is the task record
+    waits on a process nobody is watching. The protections are real and correct; they
+    simply do not apply to a whole class of session, and nothing says so.
+  description: '## Where this came from
+
+
+    Split out of **task-296**, which was filed as "a dispatched session that parks
+    is invisible". Working that task established the session in question **was never
+    dispatched**, which changes the defect entirely. Task-296 kept and fixed the residual
+    bug it did find (`SessionPhase.RUNNING` had no time bound); this task is the other
+    half.
+
+
+    The short version: a session hand-spawned by a supervisor, rather than launched
+    through `agentjobs dispatch`, has no run record. `live_runs()` never yields it,
+    so the poller never polls it, so none of the existing detection applies -- not
+    the permission park, not the auth-expiry check, not the staleness settle.
+
+
+    ## The evidence
+
+
+    There is **no run directory for task-217**. Its siblings in the same epic on the
+    same night have one each -- `run_6fb4f84d` (task-216, 2026-08-23T17:57) and `run_1c20a87b`
+    (task-218, 2026-08-23T19:09), both `completed`.
+
+
+    The absence is proof rather than inference: nothing in `src/agentjobs/dispatch/`
+    deletes a run directory. Every `shutil` reference in the package is `shutil.which`;
+    the only `unlink` is `ledger.py:418`, which removes a `RunLock`. Run directories
+    are present continuously from `2026-08-19T21:24` onward, four days before the
+    incident.
+
+
+    ## Why that is total
+
+
+    `poll_live_sessions` iterates `live_runs(home)`. No run record means no iteration,
+    no `RunHandle`, no `poll_session` call, and therefore none of:
+
+
+    - `_park_session` -- the permission-prompt handoff
+
+    - `_park_auth_stall` -- the auth-expiry handoff (task-224)
+
+    - `_settle_finished_session` -- the `session_stale_seconds` window
+
+    - `_check_running_stall` -- the stall report added by task-296
+
+
+    `_park_session` was written, correct and deployed on 2026-08-18, five days before
+    the incident. It never ran because dispatch did not know the session existed.
+
+
+    ## What to work out
+
+
+    The shape is a genuine design question and should be argued on the record before
+    it is built.
+
+
+    - **Do nothing, and make the protocol the fix.** `agentjobs dispatch walk` (task-022/223)
+    now starts children as real dispatches, which is why 216 and 218 have run records
+    and 217 does not. If every child is dispatched, the gap closes by construction.
+    The counter-argument is that it closes only for children of an epic walk: a human
+    or an agent can still hand-spawn a session against a task, and nothing stops or
+    notices it.
+
+    - **Let a session register itself.** Something like `agentjobs run register --task
+    <id> --session <id>`, creating a run record for a session AgentJobs did not launch,
+    so the poller adopts it. Turns an unenforceable convention into a cheap opt-in.
+    Needs a view on what happens when the claimed session id is wrong or already dead.
+
+    - **Detect it from the record side instead.** A task that is `active`/`agent`/`work`
+    with no live run backing it and no log movement for a long time is unattended,
+    whatever started it. Runner-agnostic and catches every cause, including a dispatched
+    run whose process died without the ledger noticing. The hard part is not screaming
+    about tasks legitimately claimed by an interactive session, which is a normal
+    and common state.
+
+
+    Whichever wins, the detection must reach the **task record**, not just a CLI --
+    a signal only visible somewhere nobody looks repeats the defect in a new place.
+
+
+    ## Deliberately not decided here
+
+
+    Whether recovery (restart, reassign) is in scope. Task-296 decided against it
+    for stall detection, on the grounds that a stalled session may hold a dirty worktree
+    and restarting risks two sessions on one branch. The same argument probably applies,
+    but it should be made rather than inherited.'
+  constraints: '- The detection must be written to the task record, not only to a
+    CLI or a log file.
+
+    - Do not make a task legitimately claimed by an interactive human session look
+    like a fault. That state is normal, common, and has no run record either -- it
+    is the main reason the record-side detection is not trivially correct.
+
+    - Do not couple to one runner''s CLI without going through the driver abstraction.
+
+    - If recovery is included, argue for it explicitly rather than bundling it in.'
+  out_of_scope: The `SessionPhase.RUNNING` stall bound, which task-296 shipped. The
+    auth-expiry case, which task-224 covered. The tool-permission classifier's availability,
+    which is external.
+  context:
+  - path: src/agentjobs/dispatch/poller.py
+    why: Iterates live_runs(); the point at which a session with no run record ceases
+      to exist as far as every protection is concerned.
+  - path: src/agentjobs/dispatch/ledger.py
+    why: live_runs() and the run record format any registration path would have to
+      write.
+  - path: src/agentjobs/dispatch/epic.py
+    why: The epic walk, which starts children as real dispatches and is why some siblings
+      have run records and task-217 does not.
+  - path: tasks/agentjobs/task-296.yaml
+    why: The forensics that established this, and the RUNNING-phase fix that is the
+      other half of it.
+acceptance:
+- id: sc-1
+  text: The chosen approach is argued on the record with its rejected alternatives,
+    including why it does not report a task legitimately claimed by an interactive
+    session as a fault.
+  verify: this task's log
+  status: pending
+- id: sc-2
+  text: A session working a task without a run record is either impossible, adopted,
+    or detected -- and whichever it is, the outcome is visible on the task record
+    rather than only in a CLI.
+  verify: the record of a deliberately un-dispatched session
+  status: pending
+- id: sc-3
+  text: 'Demonstrated live, not only in tests: a session is started against a task
+    outside dispatch and the system''s response is shown on the record.'
+  verify: live evidence on the record
+  status: pending
+- id: sc-4
+  text: Whether recovery is in scope is decided explicitly rather than left ambiguous.
+  verify: this task's log
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-27T13:52:23.012516Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c4a91e57-2b83-4f60-9d1e-6a0b2f39d871
+      kind: create
+      fingerprint: 2554d1f7e9a3dce27cf1dfb73a30426e
+- id: 2
+  ts: '2026-08-27T13:54:11.974835Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: a05c3b71-4e2f-49d6-8b10-97cc26e1f5b2
+      kind: update_content
+      fingerprint: fb640a97936aa4fe480dc093efa81636
