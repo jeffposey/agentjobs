@@ -3,7 +3,7 @@ id: task-297
 title: 'The scripted finish cannot merge under concurrency: base_moved fires on task-record
   commits, and each escalation causes the next'
 created: '2026-08-23T20:57:20.855780Z'
-updated: '2026-08-27T16:40:10.847023Z'
+updated: '2026-08-27T16:41:06.737978Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -697,3 +697,53 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 18
+  ts: '2026-08-27T16:41:06.737783Z'
+  actor: claude
+  type: decision
+  body: "## A finish cannot exercise a fix that is still on the branch it is merging\
+    \ \u2014 so the live run uses the branch's own finisher\n\n`fin_d6067bc2` gated\
+    \ green in 481 seconds and then stopped:\n\n```\ngate       ok       481.1s  scripts/check.py\
+    \ green\nmerge      STOPPED    0.0s  main moved from 4dff7535 to af0b1404 while\
+    \ the gate was\n                            running, so what was verified is no\
+    \ longer what would be merged.\n```\n\n**There is no `catch_up` line in that table,\
+    \ and the message is the old one** \u2014 no \"It moved in N path(s)\". That is\
+    \ not the fix failing. It is the fix not being there: `agentjobs finish` runs\
+    \ `finish.py` from **the shared clone's installed source**, which is `main`, and\
+    \ `catch_up` is on `fix/task-297-finish-catch-up`. A branch's own finish always\
+    \ runs the pre-merge finisher. That is a property of the design, not a defect\
+    \ in it, but it has a consequence worth writing down:\n\n**A change to `finish.py`\
+    \ can never be demonstrated live by the finish that merges it.** The first finish\
+    \ to exercise `catch_up` on this repository will be the next one after this branch\
+    \ lands. Anyone reading this task later, expecting to see the feature working\
+    \ in this task's own closing entry, should know that is structurally impossible.\n\
+    \nIt also explains the second cost. This attempt was killed by the record commit\
+    \ I landed deliberately at `af0b140` \u2014 a commit written to *test* the fix,\
+    \ refused by the code the fix replaces. Two attempts, two escalations, and the\
+    \ second one is a faithful reproduction of the original incident: green gate,\
+    \ task-record-only move, `base_moved`, a whole finish thrown away. The defect\
+    \ is real on `main` as of this moment, which is about as direct a statement of\
+    \ the problem as the record can carry.\n\n### What is done about it\n\n**The branch's\
+    \ own finisher is run instead**, from the worktree's virtualenv:\n\n```\nC:/Users/jpose/AppData/Local/pypoetry/Cache/virtualenvs/agentjobs-EUXcVhHG-py3.13/Scripts/agentjobs.exe\n\
+    \  finish task-297 --project agentjobs --posture-release\n```\n\nThat interpreter's\
+    \ editable install resolves `agentjobs` to `C:/projects/worktrees/agentjobs-297/src/agentjobs`,\
+    \ so the code deciding the merge is this branch's. Everything else is identical\
+    \ and real: the same shared clone, the same `main`, the same registry, the same\
+    \ ten-stage gate in the same worktree, the same `--posture-release` authority\
+    \ check. A record commit will be landed on `main` during its gate, as before.\n\
+    \n**This is not a way around the merge gate and it must not be read as one.**\
+    \ The authority is unchanged \u2014 `--posture-release` is re-checked against\
+    \ the project's machine-local posture by the same code path \u2014 and the gate\
+    \ that authorises the merge is still the full unqualified `scripts/check.py`,\
+    \ run by the finisher, on the rebased branch. The only thing that changes is *which\
+    \ checkout of `finish.py` is the one running*, and it is the checkout that is\
+    \ about to become `main`.\n\n**Rejected: `poetry install` the branch into the\
+    \ main clone's environment.** That is the exact hazard ENGINEERING.md's source\
+    \ check exists for \u2014 it would leave the serving clone importing a worktree's\
+    \ source, invisibly, and outlive this task. Naming the branch's own interpreter\
+    \ for one command touches nothing and leaves nothing behind.\n"
+  data:
+    operation:
+      id: 7f2a1c30-9d41-4b62-8e05-1a2b3c4d5e08
+      kind: log_append
+      fingerprint: 49315010d44e40ae0c23f7cc67086bbe
