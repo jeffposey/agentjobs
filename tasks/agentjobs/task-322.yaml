@@ -1,0 +1,82 @@
+schema: 2
+id: task-322
+title: The finish panel reports only the newest attempt, so a merged branch can read
+  "nothing was merged"
+created: '2026-08-27T17:13:10.651969Z'
+updated: '2026-08-27T17:13:11.218342Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+queue_position: 8500
+category: reliability
+tags: []
+assignment:
+  eligible: []
+spec:
+  summary: "The task page's finish panel shows the most recent finish for a task.\
+    \ When an earlier attempt merged and a later one stopped, its headline says \"\
+    Stopped \u2014 nothing was merged\" about a branch that is in `main`. Carry the\
+    \ earlier merge into the panel so it cannot contradict the record."
+  description: "`read_finish_status` returns the newest finish directory for a task\
+    \ and the panel renders that one. Where a finish merged and a later attempt stopped,\
+    \ the headline reads `Stopped \u2014 nothing was merged` while `main` contains\
+    \ the merge. That is the single sentence on the page a reader must never be told\
+    \ wrongly.\n\nObserved on task-321 itself, whose own record is the reproduction:\
+    \ `fin_d11a8f5e` merged `95bebc1` and was then killed mid-delivery, and the retry\
+    \ `fin_1877b6d6` had nothing left to merge and went red on a flaky test. The panel\
+    \ showed \"nothing was merged\" for a branch already in `main`.\n\nNot a rare\
+    \ shape. The finisher carries `previous_merge_commit` precisely because a finish\
+    \ can merge and then stop before delivering, and every retry after that is an\
+    \ attempt with no merge in it. task-297 is making `base_moved` retries more common,\
+    \ not less.\n\nThe task record is authoritative and says the right thing \u2014\
+    \ the merge entry names the sha \u2014 so this is the panel disagreeing with the\
+    \ record beside it, which is worse than the panel saying nothing.\n\nSuggested\
+    \ shape, not binding: have the reader look back past the newest attempt for a\
+    \ merge belonging to this task's current branch, and carry it on the status as\
+    \ something like `earlier_merge_commit`. The panel then adds a line \u2014 \"\
+    an earlier attempt merged `abc1234`; this one did not\" \u2014 rather than changing\
+    \ the headline, because the headline should still describe the attempt it names.\
+    \ The same fact is already derivable from the task log (`entry.data[\"finish_step\"\
+    ] == \"merge\"`), which `previous_merge_commit` reads, so the cheaper route may\
+    \ be to pass the task in rather than to scan more directories.\n\nWhatever the\
+    \ route, the assertion to write first is the one that fails today: a task with\
+    \ a merged finish and a newer stopped one must not render a sentence saying nothing\
+    \ was merged."
+  constraints: "Do not change what `state` means for the attempt being reported \u2014\
+    \ `escalated` on the newest finish is correct and other readers depend on it.\
+    \ The addition is a second, clearly-labelled fact, not a reinterpretation of the\
+    \ first."
+  out_of_scope: "Anything about why finishes escalate under concurrency \u2014 that\
+    \ is task-297."
+  context:
+  - path: src/agentjobs/dispatch/finish_status.py
+    why: 'The reader: newest_finish_directory picks one attempt, read_finish_status
+      assembles it.'
+  - path: frontend/src/components/FinishPanel.tsx
+    why: finishHeadline is where the contradicting sentence is written.
+  - path: src/agentjobs/dispatch/finish.py
+    why: previous_merge_commit already answers 'did a finish merge this' from the
+      task log.
+acceptance: []
+deliverables: []
+dependencies:
+- task: task-321
+  type: related
+  note: Built the panel; this is the limitation it shipped with, found on its own
+    record.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-27T17:13:11.217120Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 9c3e1a75-4d68-4f02-8b19-2e5d7c604a13
+      kind: create
+      fingerprint: 1f9ef891338baa97c5b2ebea2fb6af35
