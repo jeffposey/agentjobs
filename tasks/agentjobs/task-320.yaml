@@ -2,7 +2,7 @@ schema: 2
 id: task-320
 title: A session AgentJobs did not start is invisible to every safety net it has
 created: '2026-08-27T13:52:22.466316Z'
-updated: '2026-08-27T21:51:54.340860Z'
+updated: '2026-08-27T21:55:40.174044Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -509,3 +509,19 @@ log:
     finish_step: started
     branch: feat/task-320-run-register
     finish_id: fin_2ef99690
+- id: 15
+  ts: '2026-08-27T21:55:40.173896Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-320-run-register` into `main` as `5550c896`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-320
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 5550c896d5dbf4117bb7b88b64a6c0ac894cac7f
+    branch: feat/task-320-run-register
+    base: main
