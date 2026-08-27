@@ -3,7 +3,7 @@ id: task-297
 title: 'The scripted finish cannot merge under concurrency: base_moved fires on task-record
   commits, and each escalation causes the next'
 created: '2026-08-23T20:57:20.855780Z'
-updated: '2026-08-27T17:15:45.800500Z'
+updated: '2026-08-27T17:20:07.058099Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1005,3 +1005,21 @@ log:
     finish_step: started
     branch: fix/task-297-finish-catch-up
     finish_id: fin_f8bffa18
+- id: 25
+  ts: '2026-08-27T17:20:07.057848Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-297-finish-catch-up` into `main` as `6612d893`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-297
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    dispatch) releases the merge gate (task-021), and run run_4e9d1f40 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 6612d893ac54eed9697682516524b399911e88d2
+    branch: fix/task-297-finish-catch-up
+    base: main
