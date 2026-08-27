@@ -3,7 +3,7 @@ id: task-017
 title: Let an agent ask structured multiple-choice questions the human answers in
   the GUI
 created: '2026-08-18T05:35:45.027948Z'
-updated: '2026-08-27T21:57:13.411332Z'
+updated: '2026-08-27T22:00:27.699332Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -135,7 +135,9 @@ dependencies:
   note: Ships first and independently. That fixes the false verb; this adds the answering
     mechanism.
 links: []
-branches: []
+branches:
+- name: feat/task-017-structured-questions
+  status: active
 log:
 - id: 1
   ts: '2026-08-18T05:35:45.027996Z'
@@ -300,3 +302,85 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 8
+  ts: '2026-08-27T22:00:19.246422Z'
+  actor: claude
+  type: decision
+  body: "The four questions the spec said to argue before building, answered. These\
+    \ are binding for this task.\n\n## 1. Typed in the schema, not free-form `data`.\
+    \ (sc-1)\n\n**Chosen: typed.** `QuestionData` and `AnswerData` are Pydantic models\
+    \ registered in the entry-payload registry `LogEntry` already validates against\
+    \ \u2014 the mechanism that exists today for `dispatch` and `dispatch_result`.\
+    \ `DISPATCH_PAYLOADS` is renamed `LOG_PAYLOADS`, because with two non-dispatch\
+    \ members in it the old name is a lie.\n\n**Rejected: leave options untyped in\
+    \ `data`.** It costs no schema change, which is its whole appeal, and the cost\
+    \ is paid by the human: a malformed option list is not detectable until React\
+    \ renders it, in front of the person who is trying to answer four questions on\
+    \ a phone. That is exactly the failure `_check_typed_payload` was written to prevent\
+    \ for dispatch entries (\"a dispatch entry whose payload cannot say what ran is\
+    \ worse than no entry: it looks like evidence\"), and a question entry whose options\
+    \ cannot be rendered is worse than no question for the same reason. The project's\
+    \ stated philosophy is that schema changes are cheap; this one is 40 lines and\
+    \ a doc section.\n\nThe compatibility risk was checked rather than assumed: every\
+    \ `question` and `answer` entry in this repository's corpus carries `data` that\
+    \ is empty or holds only the `operation` marker, which the validator already excludes.\
+    \ All fields on both models default, so existing entries load unchanged.\n\n##\
+    \ 2. Agent-side API: `questions[]` rides on the handoff, atomically. (sc-2)\n\n\
+    **Chosen: `task_handoff` gains an optional `questions[]`**, written inside the\
+    \ same `_mutate` as the handoff entry itself. `manager.handoff(..., questions=[...])`\
+    \ appends one `question` entry per item after the handoff entry.\n\n**Rejected:\
+    \ N separate `task_log_append` calls, and let the GUI tolerate partial state.**\
+    \ The spec named the hazard and it is real \u2014 a human woken by the handoff\
+    \ notification opens the task between call 2 and call 3 and answers a form that\
+    \ is missing a question. Worse, an agent that dies mid-sequence leaves a task\
+    \ at `human/decision` whose prompt promises four questions and whose log holds\
+    \ two, and nothing in the record says which. Atomicity here is free: the manager\
+    \ already applies one mutation per verb.\n\n`task_log_append` keeps working for\
+    \ a single question with options, and gets the same typed validation. It is the\
+    \ right call for a question raised mid-work without moving the ball; the handoff\
+    \ form is for the case that motivated this task.\n\n## 3. An unanswered question\
+    \ outliving its handoff is a backlog, not a leak.\n\n**Chosen: nothing sweeps\
+    \ it.** `open_questions()` keeps returning it, and it stays rendered as an open\
+    \ thread.\n\n**Rejected: auto-close or withdraw open questions when the ball returns\
+    \ to the agent.** That needs a new manager-written event meaning \"this stopped\
+    \ being asked\", in an append-only log, for a state nobody has asked to query.\
+    \ And it destroys the one case that matters: the human answered three of four\
+    \ and moved on, and the fourth is precisely the thing the next session must not\
+    \ lose.\n\nThe escape hatch already exists in the existing verbs: an agent that\
+    \ proceeded without an answer writes its own `answer` entry threaded to the question\
+    \ \u2014 *\"proceeded on the assumption X; revisit if wrong.\"* That is a better\
+    \ record than silence, and it closes the thread through the mechanism that already\
+    \ closes threads.\n\n**Consequence, accepted:** the answering form renders every\
+    \ open question on the task, which on a long-lived task can include an old one.\
+    \ That is the correct behaviour \u2014 it is still open \u2014 and it is visible\
+    \ rather than hidden.\n\n## 4. Answering does NOT move the ball by itself. (sc-6)\n\
+    \n**Chosen: the human answers every question they want to, in one form, and one\
+    \ explicit Submit writes all the `answer` entries and the handoff to `agent/answer`\
+    \ as a single act.** No per-question write, no automatic ball move on the last\
+    \ answer.\n\n**Rejected: each answer posts on selection, and answering the final\
+    \ open question moves the ball automatically.** Three problems. (a) It makes partial\
+    \ answering impossible to express \u2014 tapping the third of four options would\
+    \ fire the handoff the moment an old unrelated question happened to be the fourth.\
+    \ (b) It removes the free-text box's last chance to be used: the session that\
+    \ motivated this task had Jeff *reject every supplied option on one question*\
+    \ and type a better answer, which he did after reading all four. (c) An automatic\
+    \ state change fired by a radio button is not something a phone user can undo.\n\
+    \nOne Submit, one handoff, one operation id. The existing `POST /answer` route\
+    \ already writes that handoff; it gains the answers rather than being replaced."
+  data:
+    operation:
+      id: 4d1a9f22-6c8e-4b31-9a77-0e5d3c81b401
+      kind: log_append
+      fingerprint: 5f0a78c05620a8c46bc5fc3526874aa8
+- id: 9
+  ts: '2026-08-27T22:00:27.699061Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 7c2e4a10-15b8-4f6d-8b22-9ad4e0f37c55
+      kind: update_content
+      fingerprint: c7666caf89189c7c038c31a64bcc6e2f
