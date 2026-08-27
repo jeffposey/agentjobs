@@ -2,87 +2,13 @@ schema: 2
 id: task-320
 title: A session AgentJobs did not start is invisible to every safety net it has
 created: '2026-08-27T13:52:22.466316Z'
-updated: '2026-08-27T16:49:20.557680Z'
+updated: '2026-08-27T21:51:54.340860Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: '**Ready for review: `feat/task-320-run-register`, rebased onto `main`
-  (tip `2b99bff8`), full unqualified `scripts/check.py` green on that exact commit
-  -- exit 0, all ten stages, 400.6s, receipt written.**
-
-
-  **What it does.** `agentjobs run register --task <id> --project <id>` lets a session
-  AgentJobs did not start put itself in the run ledger. From the next poll it is followed
-  by the existing poller, so it gets the permission park, the auth-expiry handoff,
-  the staleness settle and the stall report -- the four things a hand-spawned session
-  got none of, which is what left task-217 dead for four hours. The poller, `_handle_from`,
-  `poll_session` and `_finish_session` are untouched; the run record was the only
-  thing ever missing.
-
-
-  **Your steer is what got built** (your note, entry 3): sessions register themselves,
-  ALLAGENTS.md says to always do it, and a dispatched session recognises itself from
-  `AGENTJOBS_RUN_ID` and writes nothing. That no-op is why the instruction is unconditional
-  -- there is no case for an agent to judge.
-
-
-  **Worth your eye, in this order:**
-
-
-  1. **`ALLAGENTS.md` gained 5 lines and the bundle budget had 533 bytes of headroom.**
-  I paid for most of it by cutting 320 bytes of incident narrative from two ENGINEERING.md
-  passages (the task-166 mypy/Black story, the three-test-totals story) -- both keep
-  their rule and their task reference, only the retelling went. Headroom is now **205
-  bytes**. If you would rather raise `BUNDLE_BUDGET_BYTES` than lose that prose, say
-  so and I will restore it.
-
-  2. **An interactive session is refused outright** (`session_interactive`). That
-  is how the "do not make an attended session look like a fault" constraint is met
-  -- by construction rather than by heuristic. The decisive reason is that `_settle_finished_session`
-  calls `stop_session` on a session it judges finished, which applied to a session
-  you are typing into would end it mid-sentence. Check you agree that is the right
-  side to err on.
-
-  3. **A session launched from inside a worktree cannot register.** `runner.ledger()`
-  lists with `--cwd <project root>` and the poller looks a session up the same way,
-  so adopting one listed elsewhere would produce a run reported `gone` at the next
-  tick. Refusing is honest but it is a real usability edge, and relaxing it means
-  changing the poller, not this command.
-
-  4. **A registration writes a `note`, not a `dispatch` entry** -- nobody authorised
-  a run and none was started, so design section 2''s human-clocked chain is not forged
-  by a command any agent can invoke.
-
-  5. **Four ball prompts changed wording.** They all began "Dispatched session", which
-  is false for an adopted one; they now read the run''s `origin`. This touches dispatched
-  runs'' prompts too (they still say "Dispatched session"), so it is worth a glance.
-
-
-  **Evidence.** Log entry 9 has the live demonstration on a real `claude --bg` session
-  (Claude Code 2.1.247) in an isolated home -- `poll_live_sessions` returned `[]`
-  before registering and wrote `dispatch_result: finished_without_handoff` plus a
-  ball move to `human/decision` after. It also says plainly which protections were
-  tested rather than demonstrated live, and why. Entries 7 and 8 carry the argued
-  decisions (sc-1, sc-4); all four acceptance criteria are `met` with their evidence
-  in `verify`.
-
-
-  **Files:** `src/agentjobs/dispatch/registration.py` (new, the whole feature), `cli.py`
-  (`agentjobs run register`), `runner.py` (the wording), `guards.py` (`_home` renamed
-  to `resolve_machine_home` so registration can share it), `tests/test_dispatch_registration.py`
-  (new, 26 tests), plus ALLAGENTS.md, ENGINEERING.md, `docs/agent-workflow.md` and
-  section 9 of `docs/agent-dispatch-design.md`.
-
-
-  **One thing I did not file, deliberately.** Record-side detection -- flagging an
-  `active`/`agent`/`work` task with no run behind it -- is rejected *for now* in entry
-  7, and registration is the prerequisite that makes it possible (once an unattended
-  session is expected to have a run record, not having one becomes a signal). It is
-  a good next task. Say the word and I will write it; I did not create it unasked.
-
-
-  Nothing merged, nothing pushed. Worktree `../worktrees/agentjobs-320` still in place
-  for the finish.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 queue_position: 14600
@@ -561,3 +487,25 @@ log:
     outcome: completed
     duration_seconds: 2830.823525
     log_path: C:\Users\jpose\.agentjobs\runs\run_e46d7e23
+- id: 13
+  ts: '2026-08-27T21:51:52.647243Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 14
+  ts: '2026-08-27T21:51:54.340679Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-320-run-register` (2b99bff8).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-320.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_2ef99690\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-320-run-register
+    finish_id: fin_2ef99690
