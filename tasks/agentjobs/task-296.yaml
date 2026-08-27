@@ -3,7 +3,7 @@ id: task-296
 title: 'A dispatched session that parks is invisible: the task record still reads
   agent/work and nobody is told'
 created: '2026-08-23T20:56:33.153215Z'
-updated: '2026-08-27T13:40:46.590870Z'
+updated: '2026-08-27T13:43:20.822601Z'
 lifecycle: active
 ball: agent
 ball_reason: answer
@@ -653,3 +653,112 @@ log:
       id: 3f8a1c62-9d47-4b21-8e33-1a5f7c204e11
       kind: log_append
       fingerprint: 66f0b08c994ffb92c4179566ace86006
+- id: 21
+  ts: '2026-08-27T13:43:20.822347Z'
+  actor: claude
+  type: decision
+  body: '## Forensics: this task''s stated premise is wrong, and the real cause is
+    worse
+
+
+    **Task-217 was never dispatched.** There is no run directory for it. Its siblings
+    have one each -- `run_6fb4f84d` (task-216, 2026-08-23T17:57) and `run_1c20a87b`
+    (task-218, 2026-08-23T19:09), both `completed` -- and task-217 has nothing, on
+    the same night, in the same epic.
+
+
+    That absence is **proof rather than inference**: nothing in `src/agentjobs/dispatch/`
+    deletes a run directory. Every `shutil` reference in the package is `shutil.which`;
+    the only `unlink` is `ledger.py:418`, which removes a `RunLock` file. Directories
+    are present continuously from `2026-08-19T21:24` onward, four days before the
+    incident.
+
+
+    So the session working task-217 was **started outside dispatch** -- hand-spawned
+    by the supervisor rather than launched through it. The consequence is total: `live_runs()`
+    never yielded it, `poll_live_sessions` never built a handle for it, `poll_session`
+    was never called, and therefore **none** of the detection existed for it -- not
+    the permission park, not the auth check, not the staleness settle. `_park_session`
+    was written, correct, and deployed on 2026-08-18. It never ran because dispatch
+    did not know the session existed.
+
+
+    The task title says "A dispatched session that parks is invisible". The session
+    was not dispatched, and that is the whole reason it was invisible.
+
+
+    ## This splits into two defects, and only one of them is what was reported
+
+
+    **A -- a session AgentJobs did not start is invisible to every safety net it has.**
+    This is the incident. It is not a stall-detection bug at all; no threshold, heartbeat
+    or runner query would have helped, because the subject of the check was absent
+    from the ledger. Detection cannot be added to a run that does not exist.
+
+
+    **B -- for a genuinely dispatched session, `SessionPhase.RUNNING` is unbounded.**
+    Real, verified in the previous entry, and not the incident cause. Every other
+    phase writes to the record; `RUNNING` writes nothing and no timeout applies to
+    a session-mode run (`run_timeout_seconds` is `process.wait()` in the batch supervisor
+    only).
+
+
+    ## Decisions
+
+
+    **sc-3 -- does AgentJobs ask the runner for liveness? No.** Rejected `liveness()`
+    on the driver abstraction. The ledger''s `status`/`state` pair already *is* the
+    runner''s liveness answer and is already consumed through `classify_session`;
+    a second runner-coupled call would duplicate it, and the constraint permits the
+    codex driver to decline -- which would leave exactly the case being defended against
+    uncovered on that driver. Instead the signal is **transcript growth**, which every
+    driver already produces: `capture_transcript` (`runner.py:2095`) fetches the full
+    session log into the run directory on **every** poll and returns it, so comparing
+    it across polls costs nothing new and needs no new runner call.
+
+
+    *Stated so it is not mistaken for the thing ENGINEERING.md forbids:* the rule
+    against measuring a run by grepping `transcript.log` is about deriving **counts**
+    from a TTY capture full of repaints. "Did its length change at all" is not a count
+    and is not affected by repainting -- a repaint appends bytes, so growth stays
+    a sound did-something signal even though occurrence counts are not.
+
+
+    **Threshold: 30 minutes of zero transcript growth while `RUNNING`.** Argued against
+    the constraint''s four-minute gate case: the gate is the longest legitimately
+    quiet operation, measured at 95.8s solo and about six minutes under three-way
+    contention (`docs/performance.md`), and it is not even quiet -- pytest streams
+    throughout, so the transcript grows continuously during precisely the operation
+    the constraint worries about. 30 minutes is five times the worst measured gate
+    and far beyond any single model turn. It would still have cut a four-hour stall
+    to thirty minutes. The threshold is generous on purpose: the constraint forbids
+    a false-alarm-prone number, and the cost of detecting late is bounded while the
+    cost of crying wolf is that the signal gets ignored.
+
+
+    **sc-4 -- is recovery in scope? No. Detection only, deliberately.** Rejected auto-restart.
+    A stalled session may hold a worktree with uncommitted work and a branch checked
+    out; restarting against the same task risks two sessions on one branch, which
+    is the failure the worktree rule exists to prevent. Detection writes a handoff
+    and **does not kill the session** -- it stays attachable, which is what made the
+    original recovery work. Reporting alone would have saved the four hours, which
+    is the whole justification.
+
+
+    **Scope of this task: B only, plus recording A.** A is a different defect with
+    a different fix -- either the supervisor protocol always dispatching children
+    (which `agentjobs dispatch walk` now does, task-022/223, and which is why 216
+    and 218 have run records) or a way to register an externally-started session.
+    It needs its own task and its own argument; bundling it silently here would be
+    the thing the constraints forbid. I will file it and link it rather than build
+    it.
+
+
+    Next: implement B -- transcript-growth staleness for `RUNNING` in `poll_session`,
+    writing a handoff to the record -- with tests, then demonstrate it on a real stalled
+    session for sc-5.'
+  data:
+    operation:
+      id: 7b2e4d19-6c05-4f73-9a12-8de3105b7c44
+      kind: log_append
+      fingerprint: 745bfef420510a93d2a1b5244ae9c32c
