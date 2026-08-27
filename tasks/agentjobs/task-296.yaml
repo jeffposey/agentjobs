@@ -3,7 +3,7 @@ id: task-296
 title: 'A dispatched session that parks is invisible: the task record still reads
   agent/work and nobody is told'
 created: '2026-08-23T20:56:33.153215Z'
-updated: '2026-08-27T15:47:32.505211Z'
+updated: '2026-08-27T15:50:27.272829Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -991,3 +991,19 @@ log:
     finish_step: started
     branch: fix/task-296-stall-detection
     finish_id: fin_070fa915
+- id: 29
+  ts: '2026-08-27T15:50:27.272618Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-296-stall-detection` into `main` as `7733b2b0`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-296
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 7733b2b08c8138bba3171047fa25c847cf370ad9
+    branch: fix/task-296-stall-detection
+    base: main
