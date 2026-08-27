@@ -1752,6 +1752,7 @@ def dispatch_show_config(
             f"posture={settings.posture.value}  "
             f"max_posture={settings.ceiling.value}  "
             f"merge={settings.posture.merge_policy.value}  push={settings.push}  "
+            f"finish={'on' if settings.finish.enabled else 'off'}  "
             f"clean_tree={settings.require_clean_tree}  auto={settings.auto_dispatch}"
         )
 
@@ -1768,15 +1769,22 @@ def dispatch_show_config(
     )
 
     if project_id:
+        # Reported whether or not dispatch is permitted right now: an agent woken after
+        # an approval needs to know whether the scripted finish already ran the merge,
+        # and that question is independent of whether a new run could start (task-305).
+        named = config.projects.get(project_id)
+        finish_state = "off" if named is None else ("on" if named.finish.enabled else "off")
+        typer.echo(f"\n{project_id}: finish={finish_state}")
+
         try:
             resolution = assert_dispatch_permitted(project_id)
         except DispatchError as exc:
-            typer.secho(f"\n{project_id}: refused ({exc.reason}) - {exc}", fg=typer.colors.YELLOW)
+            typer.secho(f"{project_id}: refused ({exc.reason}) - {exc}", fg=typer.colors.YELLOW)
         else:
             chosen = resolution.selection
             via = f" from group '{chosen.group}' ({chosen.source.value})" if chosen else ""
             typer.echo(
-                f"\n{project_id}: permitted - runner '{resolution.runner.name}'{via} "
+                f"{project_id}: permitted - runner '{resolution.runner.name}'{via} "
                 f"({resolution.runner.mode.value}), posture "
                 f"{resolution.settings.posture.value} (max "
                 f"{resolution.settings.ceiling.value}), merge "

@@ -97,6 +97,46 @@ class TestDispatchCli:
         assert "permitted" in result.output
         assert "posture=auto" in result.output
 
+    def test_config_reports_whether_the_scripted_finish_is_on(self) -> None:
+        """task-305: the bundle's prose about the finish is conditional, and an agent
+        woken after an approval could not cheaply resolve the condition. Now it can."""
+        write_config()
+
+        listing = runner.invoke(app, ["dispatch", "config"])
+        assert "finish=off" in listing.output, listing.output
+
+        write_config(
+            projects={
+                "agentjobs": {
+                    "enabled": True,
+                    "runner": "claude",
+                    "finish": {"enabled": True, "base_branch": "main"},
+                }
+            }
+        )
+        listing = runner.invoke(app, ["dispatch", "config"])
+        assert "finish=on" in listing.output, listing.output
+
+    def test_config_reports_finish_even_when_dispatch_is_refused(self) -> None:
+        """The two questions are independent: whether a *new* run may start says
+        nothing about whether an approval already merged the branch (task-305)."""
+        write_config(
+            enabled=False,
+            projects={
+                "agentjobs": {
+                    "enabled": True,
+                    "runner": "claude",
+                    "finish": {"enabled": True, "base_branch": "main"},
+                }
+            },
+        )
+
+        result = runner.invoke(app, ["dispatch", "config", "--project", "agentjobs"])
+
+        assert result.exit_code == 0, result.output
+        assert "refused (disabled)" in result.output
+        assert "agentjobs: finish=on" in result.output
+
     def test_enable_refuses_an_unregistered_project(self, tmp_path: Path) -> None:
         write_config()
 
