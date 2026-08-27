@@ -3,7 +3,7 @@ id: task-223
 title: The rule that serializes every epic has no stated reason, and the doc's own
   reasoning contradicts it
 created: '2026-08-21T15:02:48.895387Z'
-updated: '2026-08-27T13:03:55.974040Z'
+updated: '2026-08-27T13:04:05.929994Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -801,3 +801,17 @@ log:
       id: d5e83b16-2a47-4f90-8c15-91b6207ee3a4
       kind: log_append
       fingerprint: 905519b6eadb6dac7034b08e40c26808
+- id: 19
+  ts: '2026-08-27T13:04:05.929754Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-223-parallel-epic-walk` (5520900f).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-223.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_eca37a46\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-223-parallel-epic-walk
+    finish_id: fin_eca37a46
