@@ -1,0 +1,159 @@
+schema: 2
+id: task-323
+title: The context budget measures only the repository half of the @-chain, but calls
+  itself the always-loaded bundle
+created: '2026-08-27T22:28:34.671056Z'
+updated: '2026-08-27T22:29:10.700526Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+queue_position: 8600
+category: meta
+tags:
+- context
+- instrumentation
+- documentation
+assignment:
+  eligible: []
+spec:
+  summary: The bundle budget caps four repository files, but a session loads more
+    than that. Decide what the cap should claim to cover, and whether the rest can
+    be measured at all.
+  intent: A ceiling named after the always-loaded bundle should either measure the
+    always-loaded bundle or state plainly what it leaves out and why. Right now the
+    docstring claims the larger thing and the assertion covers the smaller one, so
+    a green test reads as more assurance than it is.
+  description: "Found 2026-08-27 while running a full setup health check against this\
+    \ checkout.\n\n## What is measured versus what is loaded\n\n`tests/test_context_budget.py`\
+    \ sums `CLAUDE.md`, `AGENTS.md`, `ENGINEERING.md` and `ALLAGENTS.md` and asserts\
+    \ the total stays under `BUNDLE_BUDGET_BYTES = 60_000`. On this checkout that\
+    \ is **59,467 bytes, 533 of headroom**.\n\nThe chain a session actually reads\
+    \ is longer. Claude Code loads `CLAUDE.md` from the working directory and **every\
+    \ directory above it**, plus the user-scope `~/.claude/CLAUDE.md`, and expands\
+    \ each `@import` at launch. On the machine this was measured on, that adds two\
+    \ files outside this repository \u2014 one user-scope, one in the parent directory\
+    \ \u2014 totalling **13,292 characters**, roughly **3,300 est. tokens**, about\
+    \ **18% of everything the session reads**. The full chain came to 72,759 characters\
+    \ across eight files, against a cap governing 59,467 across four.\n\nThose sizes\
+    \ are machine-specific and deliberately not recorded further here. What generalises\
+    \ is that the excluded half is not small, and that its size is invisible to the\
+    \ gate.\n\n## Why the exclusion is there\n\n`tests/test_context_budget.py` imports\
+    \ `BUNDLE_FILES` from `src/agentjobs/contexteval/bundle.py`, whose docstring gives\
+    \ the reason: the user half is deliberately absent because it is private, loads\
+    \ in both arms regardless of what the package does, and therefore cannot be ablated.\n\
+    \nThat reasoning is correct **for ablation** and does not transfer to a budget.\
+    \ An ablation experiment has arms, and a constant appearing in both is genuinely\
+    \ uncontrollable. A budget has no arms \u2014 it measures what a session pays,\
+    \ and the user half is part of what a session pays. The budget inherited an exclusion\
+    \ justified for a different purpose, by reusing the constant.\n\n## The genuine\
+    \ tension\n\nThe user half cannot simply be added to the assertion:\n\n- It lives\
+    \ outside the repository, so CI has no copy and the sum would be smaller there\
+    \ than on any developer machine.\n- It differs per contributor, so the same commit\
+    \ would pass for one person and fail for another.\n- It is private, and this repository\
+    \ is public. task-155 already had to take maintainer-machine detail out of test\
+    \ fixtures; nothing here should reintroduce it.\n\nSo the question is not \"raise\
+    \ the number to cover it\" but \"what should a reader of a green gate be entitled\
+    \ to conclude\".\n\n## Options to weigh (none pre-decided)\n\n1. **Documentation\
+    \ only.** Leave the assertion alone; rewrite the `BUNDLE_FILES` and `BUNDLE_BUDGET_BYTES`\
+    \ docstrings so neither claims to cover the whole chain. Cheapest, and it removes\
+    \ the false assurance without adding machinery.\n2. **Measure and report, do not\
+    \ assert.** Print the user half's size when a user-scope file is present and stay\
+    \ silent when it is not. `bundle.py` already reads that file in `global_agents_hits()`\
+    \ \u2014 for the closely related reason that a constant which is not silent changes\
+    \ the inference \u2014 so the capability exists and only the reporting is missing.\n\
+    3. **A separate advisory check** outside the gate, in the same spirit as `scripts/context_eval.py`:\
+    \ costs nothing in CI, gives a developer the real number on demand.\n4. **Widen\
+    \ `BUNDLE_FILES`** and accept that the assertion becomes environment-dependent.\
+    \ Probably wrong, but it should be rejected on the record rather than by omission.\n\
+    \nWhichever is chosen, the decision entry must name the rejected alternatives\
+    \ \u2014 a later reader will otherwise re-derive this from scratch, which is exactly\
+    \ what happened here.\n\n## Related, not duplicated\n\ntask-301 measured the opening\
+    \ prompt and reported the bundle as 32.9% of it; task-305 cut it and set the cap;\
+    \ task-317 fixed a duplicated MCP declaration. None of them asked whether the\
+    \ cap's own scope matched its name."
+  constraints: '- **No assertion may depend on a file outside this repository.** CI
+    has no user-scope memory file and every contributor''s differs; a test that reads
+    one must degrade to silence, never to a failure or to a smaller sum presented
+    as the whole.
+
+    - **No maintainer paths or private content** in committed code, docs, fixtures
+    or task records. This repository is public; task-155 is the precedent.
+
+    - **Do not change `BUNDLE_BUDGET_BYTES`** as part of this task. The number is
+    task-305''s, it was argued on the record, and re-opening it here would confuse
+    a scope question with a size question.
+
+    - `poetry run python scripts/check.py` must be green both with and without a user-scope
+    memory file present on the machine running it.'
+  out_of_scope: "- Cutting anything from the user-scope file itself. It is private,\
+    \ lives outside this repository, and loads in every project rather than only this\
+    \ one.\n- Re-auditing `ENGINEERING.md` or `ALLAGENTS.md` for further cuts. task-305\
+    \ did that on 2026-08-27 and little derivable content remains.\n- Anything about\
+    \ which rules are load-bearing \u2014 that is `scripts/context_eval.py`'s question,\
+    \ answered by task-304."
+  context:
+  - path: tests/test_context_budget.py
+    why: Holds BUNDLE_BUDGET_BYTES and the assertion whose scope is in question; its
+      module docstring is one of the places describing the four files as everything
+      a session loads.
+  - path: src/agentjobs/contexteval/bundle.py
+    why: Defines BUNDLE_FILES and documents why the user half is excluded - the reasoning
+      that is correct for ablation and was inherited by the budget. global_agents_hits()
+      already reads the user-scope file and is the precedent for reading it safely.
+  - path: docs/context-budget.md
+    why: task-301's audit. Section 2 measured the full opening prompt including the
+      user half, so the numbers needed to price any option are already here rather
+      than needing re-derivation.
+  - path: evals/context/README.md
+    why: Explains how the ablation suite treats the user-scope file as a constant
+      of the experiment, which is the distinction this task turns on.
+acceptance:
+- id: ac-1
+  text: The docstrings on BUNDLE_FILES and BUNDLE_BUDGET_BYTES state exactly which
+    files the budget covers and which loaded files it does not, so a reader of a green
+    gate cannot mistake it for a ceiling over everything a session loads.
+  status: pending
+- id: ac-2
+  text: A decision log entry records whether the user-scope half is measured, reported
+    or ignored, with the rejected alternatives and the reasoning for each.
+  status: pending
+- id: ac-3
+  text: If reporting is added, it prints the excluded half's size when a user-scope
+    memory file exists and is silent when none does, proven by a test exercising the
+    absent-file path.
+  status: pending
+- id: ac-4
+  text: poetry run python scripts/check.py is green, and is demonstrated green in
+    an environment with no user-scope memory file present.
+  verify: poetry run python scripts/check.py
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-27T22:28:35.366887Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 83c06775-d404-4c27-ae89-c05004524817
+      kind: create
+      fingerprint: 200c43d76f386d05d306253cfe10b50b
+- id: 2
+  ts: '2026-08-27T22:29:10.700401Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: e3a8087f-6dc8-4ebe-b985-ac0354462c36
+      kind: update_content
+      fingerprint: a8a692d632bcf060b4027b9b5cbff772
