@@ -3,14 +3,11 @@ id: task-223
 title: The rule that serializes every epic has no stated reason, and the doc's own
   reasoning contradicts it
 created: '2026-08-21T15:02:48.895387Z'
-updated: '2026-08-27T13:07:51.889706Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-27T13:08:16.338205Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 25
 category: developer_experience
 tags:
 - orchestration
@@ -20,7 +17,6 @@ tags:
 effort: a decision plus a doc edit; larger only if the supervisor needs to poll several
   children
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "The parent-task protocol tells a supervisor to run \"exactly one eligible\
@@ -177,7 +173,8 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-223-parallel-epic-walk
-  status: active
+  status: merged
+  merged_at: '2026-08-27T13:08:16.266856Z'
 log:
 - id: 1
   ts: '2026-08-21T15:02:49.155530Z'
@@ -833,3 +830,26 @@ log:
     merge_commit: e7b0eb6a945b8a76fcb8f2bde32258a5703034f8
     branch: feat/task-223-parallel-epic-walk
     base: main
+- id: 21
+  ts: '2026-08-27T13:08:16.338011Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-223-parallel-epic-walk` into `main` as `e7b0eb6a` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). No human\
+    \ reviewed this merge: posture `autonomous` (from the dispatch) releases the merge\
+    \ gate (task-021), and run run_d9aed92f ran the finish. What authorised it is\
+    \ the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         0.9s  feat/task-223-parallel-epic-walk at 5520900f\
+    \ in C:\\projects\\worktrees\\agentjobs-223\n  rebase     ok         0.5s  feat/task-223-parallel-epic-walk\
+    \ onto main: 5520900f -> 127d01d6\n  gate       ok       224.8s  scripts/check.py\
+    \ green\n  merge      ok         0.5s  --no-ff into main as e7b0eb6a945b8a76fcb8f2bde32258a5703034f8\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         1.0s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving 48876aeb, which contains the merge\
+    \ e7b0eb6a, from C:\\projects\\agentjobs (started 2026-08-27T13:07:57.685109+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
