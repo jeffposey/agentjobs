@@ -2,7 +2,7 @@ schema: 2
 id: task-320
 title: A session AgentJobs did not start is invisible to every safety net it has
 created: '2026-08-27T13:52:22.466316Z'
-updated: '2026-08-27T16:48:26.548886Z'
+updated: '2026-08-27T16:49:20.557680Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -551,3 +551,13 @@ log:
       id: a17e3b54-9d06-4c82-b1f7-38e5c9d20a4f
       kind: handoff
       fingerprint: 9223b0b4a4ffc166b0c9a8aac9ef6c10
+- id: 12
+  ts: '2026-08-27T16:49:20.557524Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 6
+  data:
+    run_id: run_e46d7e23
+    outcome: completed
+    duration_seconds: 2830.823525
+    log_path: C:\Users\jpose\.agentjobs\runs\run_e46d7e23
