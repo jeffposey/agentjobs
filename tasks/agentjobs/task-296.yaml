@@ -3,13 +3,11 @@ id: task-296
 title: 'A dispatched session that parks is invisible: the task record still reads
   agent/work and nobody is told'
 created: '2026-08-23T20:56:33.153215Z'
-updated: '2026-08-27T13:36:58.520144Z'
+updated: '2026-08-27T13:40:46.590870Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: Run run_d0c9229e ended `cancelled` and nobody was told what this task
-  needs. Read the dispatch_result entry, then either dispatch again or take it on
-  yourself.
+ball: agent
+ball_reason: answer
+ball_prompt: Sigh
 archived: false
 priority: critical
 queue_position: 293
@@ -468,3 +466,190 @@ log:
   data:
     ball: human
     ball_reason: decision
+- id: 17
+  ts: '2026-08-27T13:37:08.599151Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    Sigh'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 18
+  ts: '2026-08-27T13:37:12.562166Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 19
+  ts: '2026-08-27T13:37:15.438188Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_d0c9229e` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_86332602
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 18
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"], "env": {"AGENTJOBS_RUN_ID":
+      "run_86332602", "AGENTJOBS_RUN_DIR": "C:\\Users\\jpose\\.agentjobs\\runs\\run_86332602"}}'
+    - --resume
+    - 2885aa93-1504-441a-b1a5-8f3dd2ae1b10
+    cwd: C:\projects\agentjobs
+    git_head: b1a1fc9
+    session_id: a18caaf6
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 20
+  ts: '2026-08-27T13:40:46.590578Z'
+  actor: claude
+  type: progress
+  body: '## Session state, stated plainly before anything else
+
+
+    Runs `run_d5cf69fa` and `run_d0c9229e` produced **no work at all**. Both died
+    on `Login expired` before their first substantive tool call. There is no branch,
+    no worktree and no commit from either. I verified this rather than assuming it:
+    `git worktree list` showed only the main clone, `git branch --list ''*296*''`
+    was empty, and the tree was clean apart from this task file.
+
+
+    **The `dispatch` log entries for both resumes assert the opposite** -- "so this
+    agent still has the worktree, the branch and the verification it established there".
+    That sentence is template text written at dispatch time, not an observation. It
+    is stated as fact on the record and it was false twice. Worth fixing separately;
+    noted here so a later reader does not trust it.
+
+
+    Fresh start taken this run: worktree `../worktrees/agentjobs-296`, branch `fix/task-296-stall-detection`,
+    bootstrapped (exit 0).
+
+
+    ## What `session_stale_seconds` actually does -- the spec asked, this is the answer
+
+
+    It is **not a heartbeat**, and it could not have fired in the task-217 incident.
+
+
+    It is read in exactly one place: `runner.py:2457`, inside `_settle_finished_session`.
+    That method is reached from exactly one branch of `poll_session` -- `SessionPhase.FINISHED`.
+    Its job is to decide whether a session that **already ended its turn** concluded
+    properly or merely stopped, by asking whether the ball moved; the window exists
+    only so an agent pausing mid-work is not immediately called `finished_without_handoff`.
+
+
+    A session that is still alive never reaches it. In the incident the session was
+    `waiting`/`blocked`, which `classify_session` maps to `PARKED`, so `_settle_finished_session`
+    was never called and the 3600s window was never consulted.
+
+
+    ## The actual hole, and it is narrower and more precise than the spec assumed
+
+
+    Every phase writes something to the task record **except one**:
+
+
+    | Phase | What it writes |
+
+    |---|---|
+
+    | `PARKED` | `_park_session` -> handoff `human/input` + commit |
+
+    | `AUTH_STALLED` | `_park_auth_stall` -> handoff `human/input` |
+
+    | `STOPPED` | `_finish_session(CANCELLED)` |
+
+    | `FINISHED` | `_settle_finished_session` (consults `session_stale_seconds`) |
+
+    | `GONE` | `_finish_session(INTERRUPTED)` |
+
+    | **`RUNNING`** | **nothing, ever, with no time bound of any kind** |
+
+
+    And `RUNNING` is the **default bucket**: `classify_session`''s docstring says
+    "Anything unrecognised is treated as still running rather than as finished", deliberately,
+    because declaring a live run over would write a terminal entry for a session that
+    then keeps working. That default is correct for what it was defending against,
+    but its consequence is that **every novel stall shape lands in the one bucket
+    nothing bounds**.
+
+
+    `run_timeout_seconds` does not cover it either: it is passed to `process.wait()`
+    in the batch supervisor (`runner.py:2678`), and `scaffold.py:298` documents it
+    as "batch runners only". A session-mode run has no timeout at all.
+
+
+    So the residual defect is exactly the sentence in the spec''s description -- *a
+    task can be `agent`/`work` with no agent working it and nothing can tell* -- but
+    the surviving path to it is specifically **a session that reports `busy`/`working`
+    (or anything unrecognised) and is not, in fact, progressing**: a hang, a machine
+    asleep, a wedged subprocess, an infinite loop.
+
+
+    ## What this changes about scope
+
+
+    The two causes the spec named are already covered, and both fixes postdate or
+    accompany it: the permission-park path (`_park_session`, 2026-08-18) and the auth-expiry
+    path (`dispatch.auth`, task-224). **This run is itself evidence the auth path
+    works** -- log entry 13 is a correct, well-written auth handoff produced automatically
+    when this very session died.
+
+
+    So I am not rebuilding those. The work is the unbounded `RUNNING` case.
+
+
+    ## Still open, and I am not asserting an answer yet
+
+
+    `_park_session` existed on 2026-08-23 and the poller was scheduled from the API
+    lifespan (task-157, also 2026-08-18), yet task-217 still sat for four hours on
+    a `waiting`/`blocked` session that should have parked. Something prevented that.
+    Candidates I can see in the code but have **not** verified: `_handle_from` skips
+    any run with no `dispatch_entry_id`; the run may not have been in `live_runs`;
+    or the server holding the poller may not have been up. I will check the run directory
+    from that night before designing, because which one it was changes whether detection
+    alone is sufficient.
+
+
+    Next: that forensic check, then the detection design with its threshold argued
+    against the four-minute gate case (sc-2).'
+  data:
+    operation:
+      id: 3f8a1c62-9d47-4b21-8e33-1a5f7c204e11
+      kind: log_append
+      fingerprint: 66f0b08c994ffb92c4179566ace86006
