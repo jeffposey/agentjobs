@@ -3,7 +3,7 @@ id: task-305
 title: Move rationale, incident narrative and measurement history out of the always-loaded
   bundle, and put what remains under a budget a test asserts
 created: '2026-08-23T21:53:30.307386Z'
-updated: '2026-08-27T09:48:04.887438Z'
+updated: '2026-08-27T09:49:47.371585Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -287,3 +287,64 @@ log:
       id: 3f1b8c22-0a54-4e17-9b3d-7c2e5a1d4f01
       kind: update_content
       fingerprint: b18a558804c25865f871f2552aa6e7fc
+- id: 10
+  ts: '2026-08-27T09:49:47.371379Z'
+  actor: claude
+  type: question
+  body: "**Before you cut prose: this repository uses none of the harness's own static/dynamic\
+    \ mechanism. A subdirectory `CLAUDE.md` may be a way to keep a rule and stop paying\
+    \ for it on every session. Nobody has measured whether it works, and `docs/context-budget.md`\
+    \ does not mention it.**\n\nRaised by the session supervising task-269 (`run_1132ebf8`),\
+    \ 2026-08-26, at Jeff's request. This is a question, not a decision \u2014 it\
+    \ is not binding on you, and \"we tested it and it does not help\" is a perfectly\
+    \ good answer to record.\n\n## The verified half\n\nAn inventory of every agent-context\
+    \ file under `C:/projects`, run today:\n\n- **24 files: 12 `CLAUDE.md` / `AGENTS.md`\
+    \ pairs, one pair per project, all at project roots.**\n- **Zero in any subdirectory.**\
+    \ Nothing nested anywhere, including `personal/`, which has a real `goals/` `findings/`\
+    \ `preferences/` split and still keeps one file at its root.\n- Eleven of the\
+    \ twelve `CLAUDE.md` files are exactly one line, `@AGENTS.md`. This repository's\
+    \ is the exception and deliberately so \u2014 `@AGENTS.md`, `@ENGINEERING.md`,\
+    \ `@ALLAGENTS.md`, because the markdown links inside `AGENTS.md` are links rather\
+    \ than imports and Claude Code expands only `@path`.\n\nSo the structure is already\
+    \ \"one copy, pointed at\" \u2014 the question is not about duplication. It is\
+    \ about *when* the copy loads.\n\n## The unverified half, which is the actual\
+    \ question\n\nClaude Code is understood to load a subdirectory's `CLAUDE.md` when\
+    \ a session touches files in that directory, rather than at session start. **I\
+    \ did not verify that in this session and you should not take it from me** \u2014\
+    \ this repository has a standing rule against exactly that kind of plausible-sounding\
+    \ mechanism asserted as fact, and there is a run on record that was lost to one.\n\
+    \nIf it holds, it is directly the thing task-269 exists for. A rule that only\
+    \ matters to somebody editing the dispatch code could live in `src/agentjobs/dispatch/CLAUDE.md`\
+    \ and cost nothing to the other nine sessions in ten that never go near it. That\
+    \ is strictly better than the two options this task is currently choosing between:\
+    \ it is not deletion, and it is not a `docs/` link that a session has to know\
+    \ to follow.\n\n## How to settle it, cheaply\n\n`docs/context-budget.md` \xA7\
+    9 already has the instrument. Instrument A reads first-request input tokens out\
+    \ of the session transcript, so the experiment is a difference of two numbers:\n\
+    \n1. Put a file of known token cost at `src/agentjobs/dispatch/CLAUDE.md`.\n2.\
+    \ Open a session, do nothing, read its first-request total.\n3. Open a second\
+    \ session, have it read a file in `src/agentjobs/dispatch/`, read the total again.\n\
+    \nThree outcomes and all three are useful: it never loads (the mechanism is not\
+    \ what I described \u2014 record that and move on), it loads at session start\
+    \ (worthless for this purpose, and worth writing down so nobody proposes it again),\
+    \ or it loads only on the second \u2014 which is the lever.\n\nTwo things to check\
+    \ if it does work, before recommending it:\n\n- **Does it reach a `--bg` dispatched\
+    \ session**, which is the shape most of this repository's work runs in? \xA72\
+    \ of the budget doc measures that shape separately for good reason.\n- **Codex\
+    \ does not auto-load `ENGINEERING.md` or `ALLAGENTS.md` at all** (\xA74) \u2014\
+    \ it reads them as tool results because `AGENTS.md` tells it to. A nested `CLAUDE.md`\
+    \ is a Claude-only mechanism by its name; a rule moved there may become invisible\
+    \ to Codex rather than deferred. That is a correctness question, not a budget\
+    \ one, and it is the reason to be careful rather than a reason not to try.\n\n\
+    ## Why it is a question rather than a task\n\nIt might be nothing. If the answer\
+    \ is \"loads eagerly\" or \"Codex never sees it\", the finding is one line in\
+    \ the budget doc and this epic's compression proceeds exactly as specced. Filing\
+    \ a task for that would be filing a task for a measurement that takes ten minutes\
+    \ inside the work you are already doing.\n\nIf it is a real lever, it deserves\
+    \ its own task and probably changes what task-305 should cut \u2014 so it is worth\
+    \ answering **before** the cut, not after.\n"
+  data:
+    operation:
+      id: 91df90e1-00fe-4450-a560-faf535fc5414
+      kind: log_append
+      fingerprint: 283cf38faa27ad1a346e7b4ee49e95f6
