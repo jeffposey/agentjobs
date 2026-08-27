@@ -1,5 +1,18 @@
 # Measuring performance
 
+Three questions, three tools:
+
+| Question | Tool | Where |
+| --- | --- | --- |
+| How long does the product take to answer? | `scripts/bench.py` | [below](#producing-a-beforeafter-pair) |
+| What does the repository gate cost? | `scripts/check.py` | [What the gate costs](#what-the-gate-costs) |
+| Where does dispatched agent time go? | `scripts/run_report.py` | [Where agent time goes](#where-agent-time-goes) |
+
+The rules derived from all three — quote a command and a date rather than a bare count,
+state a before/after pair, prefer parse counts to wall clock — are in
+[ENGINEERING.md](../ENGINEERING.md#testing). This file is the working detail and the
+measurement history behind them.
+
 `scripts/bench.py` measures how long AgentJobs takes to answer, on three surfaces: the
 REST API, the CLI, and the browser interaction of opening a task. It exists so that a
 change which claims to make the product faster can say by how much.
@@ -117,3 +130,145 @@ either kind still prints everything else.
 The benchmark is deliberately **not** part of `scripts/check.py`. It starts servers and
 a browser and takes minutes; the repository gate has to stay fast enough that people
 actually run it.
+
+---
+
+## What the gate costs
+
+The stage table and the rules for running the gate are in
+[ENGINEERING.md §Testing](../ENGINEERING.md#testing). What follows is the measurement
+history behind the numbers quoted there — kept because a performance claim is only
+checkable if the run that produced it is on the record, and moved here because a session
+that is about to commit does not need it.
+
+### The three figures, and which to quote
+
+| Figure | What it is | Measured |
+| --- | --- | --- |
+| **95.8s** | one green `scripts/check.py` on this machine with nothing else competing | 2026-08-21 |
+| **~155s** | the median full passing gate a *dispatched* session actually paid — 125s, 141s, 155s, 157s, 174s, from the phase records | to 2026-08-23 |
+| **342s / 361s / 384s** | three concurrent parallel gates, from `run_4063f1c0` | 2026-08-23 |
+
+95.8s is a quiet-machine best case and 155s is the working figure. Quote whichever the
+question calls for, and say which.
+
+The three-way contention figure was got by accident rather than by a benchmark — one
+session started a gate at 03:27:10, another at 03:27:50 and a third at 03:29:03 with the
+first two still running — so treat it as one observation and not as a curve.
+
+### Why pytest went from 326.5s to 52.1s (task-233)
+
+Two changes, both of them arrangements of how pytest is *invoked* rather than reductions
+in what it checks. The same tests run; the pass/fail counts were compared on the same
+commit before and after.
+
+| Configuration | Wall clock | Result |
+|---|---|---|
+| serial, with coverage — what the gate ran until task-233 | 540.1s | all passed |
+| serial, no coverage | 342.6s | all passed |
+| `-n auto` across 32 cores, no coverage | **42.5s / 45.7s / 43.6s** | all passed |
+| `-n auto --dist loadfile` | 54.9s | 2538 passed |
+
+Three consecutive `-n auto` runs are quoted because one green parallel run proves nothing
+about a suite's parallel-safety. The suite is safe because `tests/conftest.py` already
+gives every test its own project registry and its own Claude home and stubs the
+reachability probe, and because nothing in it binds a fixed port — the four places that
+open a socket ask the kernel for port 0.
+
+One thing had to be fixed: a `parametrize` whose cases came out of a `frozenset`, which
+each xdist worker iterated in its own hash order, so the workers disagreed about what the
+test IDs were and the run aborted during collection.
+
+Coverage is off by default and available with `--coverage`. It cost between 60 and 200
+seconds depending on what else the machine was doing, and wrote an HTML report that
+nothing reads before a commit.
+
+### Why the cheap stages run first
+
+Task-189 moved `api`, `icons` and `oxlint` above `pytest`. Together they cost 8.2s, and a
+session working task-188 paid four and a half minutes twice to reach one of them.
+Everything above the pytest line now costs 9.8s together.
+
+The argument used to be stated as "seconds before minutes", and task-233 took the minutes
+away. The ordering stays regardless: it costs nothing, and the gap it exploits reappears
+the moment a slow stage is added.
+
+### How the gate degrades under contention
+
+| Concurrent gates | Serial suite (historical) | Parallel suite |
+|---|---|---|
+| 1 | 365s | 96s |
+| 2 | 388s | not measured |
+| 3 | not measured | ~360s |
+| 4 | 411s | not measured |
+| 6 | 444s | not measured |
+
+The serial column is kept only as history: it does not describe the gate as it now runs.
+Two conclusions follow from the parallel column:
+
+- **The parallel gate does not degrade as gently as the serial one did**, because
+  `-n auto` asks for all 32 cores and three gates are dividing the same machine. The
+  absolute number is still no worse than the serial gate ever was.
+- **A run's summed gate time can exceed its own duration, and that is not a bug.**
+  `run_report.py` reports what the phase records say; overlapping gates make the
+  percentage a sum, not a share of a timeline. The report flags it when it happens.
+
+### `--since-gate` is kept for the reasoning, not the saving
+
+It was worth much more when task-221 wrote it: the full gate was six minutes then, and a
+rebase that brought in a single task YAML cost all six to re-establish something that
+could not have changed. The gate is now about a minute, so the same case saves under a
+minute.
+
+It stays because the reasoning is the durable part — the gate should be able to say what
+a change cannot reach — and once `pytest` is cheap, the same machinery is what makes it
+safe to add an expensive stage later. Its four properties are rules and live in
+ENGINEERING.md.
+
+---
+
+## Where agent time goes
+
+`scripts/run_report.py` reads the run ledger in `~/.agentjobs/runs/` and prints total
+time, runs per task, the length distribution, and — for runs dispatched since task-233 —
+how much of each run was the gate and how much of that was gate runs that failed.
+
+```bash
+poetry run python scripts/run_report.py --per-task     # every task, worst first
+poetry run python scripts/run_report.py --since 7      # the last week
+poetry run python scripts/run_report.py --task task-233
+```
+
+**A cycle-time claim is a before/after or it is an anecdote**, so `--split` prints the
+table twice either side of a moment — give it the timestamp of the merge whose effect you
+are claiming. Pair it with `--driver`: a window that introduced a second runner is not
+comparable to one that had only the first, and the newcomer's startup failures land as
+very short runs that move every percentile.
+
+```bash
+poetry run python scripts/run_report.py --driver claude --split 2026-08-21T23:24:52+00:00
+```
+
+Read the **median** task, not the mean. Both are printed, and at these sample sizes one
+feature build moves the mean by a factor and the median not at all — the task-233
+baseline's own mean fell from 56.7m to 40.7m on the removal of a single epic.
+
+### Where the numbers come from
+
+The gate reports itself: `scripts/check.py` appends a `gate_started` and a `gate_finished`
+record to `phases.jsonl` in the run directory whenever it runs inside a dispatched run,
+and writes nothing at all when it does not. Dispatch puts `AGENTJOBS_RUN_ID` and
+`AGENTJOBS_RUN_DIR` in the session's environment, so anything downstream of the agent
+inherits them and can add a phase with
+`agentjobs.dispatch.phases.record_phase_from_env`.
+
+It also reads `~/.agentjobs/finishes/`, where a **scripted finish** (task-241) writes
+itself down. A finish is not a run — no agent, no session, no tokens — and it exists to
+remove the follow-on run this report was built to measure, so it is counted in its own
+block rather than folded in. Without that the saving would show up only as runs-per-task
+falling, with nothing to attribute it to.
+
+**Do not measure a run by grepping `transcript.log`.** It is a raw TTY capture, so a line
+appears in it as many times as the terminal repainted it and every count derived from it
+is an artefact of that. Task-233 is the incident; phase records exist so the question does
+not have to be asked that way again.
