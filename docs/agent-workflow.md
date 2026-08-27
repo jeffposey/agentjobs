@@ -505,6 +505,13 @@ every other mutation and accepts a placement — a neighbour or an end of the ba
 rather than a number. Every route appends a `queue_move` log entry, which is the only
 record of *why* the order changed.
 
+**A move answers back.** It always lands — nothing refuses one — but if the order you
+just wrote cannot execute, the reply says so: the task you promoted is one the queue
+will skip, it now stands ahead of something it needs, what it displaced is gating other
+work, the band came out as it went in, or the band is corrupt. Deterministic, immediate,
+and silent on an ordinary move. Read it rather than assuming a clean exit code means a
+useful reorder.
+
 Three things not to do instead:
 
 - **Do not add a `needs` dependency to express order.** Dependencies are prerequisites.

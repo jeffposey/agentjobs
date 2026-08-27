@@ -7,47 +7,34 @@ Shared guidance for all AI agents working in this repository. Universal engineer
 ### Work what the queue says is next
 
 The backlog has a stored order, not a sort over timestamps. `agentjobs next` — or
-`task_next` over MCP — is the answer, and `--why` explains it: the band and position the
-winner stands at, and every open task the queue passed over with the claimability rule
-that excluded each. Read that before concluding the order is wrong; a task missing from
-the answer is usually blocked, claimed, or holding open children rather than mis-placed.
+`task_next` over MCP — is the answer, and `--why` explains it. Read that before
+concluding the order is wrong; a task missing from the answer is usually blocked,
+claimed, or holding open children rather than mis-placed.
 
-**If you think something else should be first, move it.**
-
-```bash
-agentjobs queue list                      # the reviewable order, band by band
-agentjobs queue move task-045 --top       # or --before/--after <id>, or --bottom
-```
-
-Over MCP that is `task_queue_move`, with the `actor` and `operation_id` every mutation
-carries. Either way the move is attributed and appends a `queue_move` entry, so the next
-session inherits the decision instead of re-deriving it.
-
-**A move answers back.** It always lands — nothing here refuses one — but if the order
-you just wrote cannot execute, the reply says so: the task you promoted is one the queue
-will skip, it now stands ahead of something it needs, what it displaced is gating other
-work, the band came out as it went in, or the band is corrupt. Deterministic, immediate,
-and silent on an ordinary move. Read it rather than assuming a clean exit code means a
-useful reorder.
+**If you think something else should be first, move it** — `agentjobs queue move
+task-045 --top`, or `task_queue_move` over MCP — so the next session inherits the
+decision instead of re-deriving it. **Read what the move answers back**; a clean exit
+code does not mean a useful reorder.
 
 Three things not to do instead, each of which has a real cost:
 
 - **Do not add a `needs` dependency to make one task come before another.** Dependencies
-  are prerequisites. A false one is not a strong hint about order — it makes the task
-  unclaimable until the other closes, deadlocks the graph if it ever points both ways,
-  and lies to every reader who takes it at face value.
-- **Do not hand-edit `queue_position`.** There is no `set_queue_position` for the same
-  reason there is no `set_lifecycle`: the number is a consequence of a decision, and the
-  decision is what the record should show. A number written by hand can also collide
-  with another open task in the band, which is corruption the queue refuses to answer
-  over rather than guess past.
+  are prerequisites. A false one makes the task unclaimable until the other closes,
+  deadlocks the graph if it ever points both ways, and lies to every reader who takes it
+  at face value.
+- **Do not hand-edit `queue_position`.** The number is a consequence of a decision, and
+  the decision is what the record should show. A hand-written number can also collide
+  with another open task in the band, which is corruption.
 - **Do not rely on an instruction given in chat to reorder work.** Chat does not survive
   the session. The queue does, and it is what the next agent will read.
 
-If a tool reports `queue_broken` — or the CLI exits non-zero from `agentjobs queue
-check` — the order itself is in doubt, so picking a task by hand is the one response
-that cannot be right. `agentjobs queue repair` states everything it guessed, and what it
-guessed is exactly what a human should look at afterwards.
+If a tool reports `queue_broken` — or `agentjobs queue check` exits non-zero — the order
+itself is in doubt, so picking a task by hand is the one response that cannot be right;
+`agentjobs queue repair` states everything it guessed.
+
+The full mechanics — the client and MCP forms, what `--why` returns, what a move answers
+back, and which exception each caller sees on a broken queue — are in
+[the workflow guide](docs/agent-workflow.md#work-what-the-queue-says-is-next).
 
 ### Parent Task Loop
 
@@ -64,34 +51,20 @@ handoff rules already stored in task records and these process files.
     poetry run agentjobs dispatch walk <parent-id> --project <project>
     ```
 
-    It does steps 3 and 4 below, one child at a time, and it blocks until it is done —
-    which is the point, because a supervisor that ends its turn promising to check back
-    is asleep. `--dry-run` says which child is next and starts nothing.
-3.  Each child gets **its own session and its own worktree**, and the walk starts it as a
-    real dispatch, on the authorisation the human gave *this* parent. You do not work a
-    child yourself — see [You do not work the children](#you-do-not-work-the-children).
-    Never merge a child yourself, and never on your own approval.
-4.  The walk watches each child through its **task record**, and judges it on one thing:
-    did it close `completed`. That means the child's own gate ran and, where its posture
-    released the merge, its own merge happened. Anything else — parked for a human,
-    closed unresolved, or a session that died twice — **stops the whole walk**, because a
-    sibling that depended on that child would be building on a gap.
-
-    **Retries are bounded and the bound is enforced, not promised**: two runs per child
-    per human authorisation of the epic, and only a run that *died* ever spends one. A
-    human who wants a third can authorise the epic again, which starts a fresh budget and
-    records that somebody chose to.
-
-    **At posture `autonomous` there is no review checkpoint in any of this** (task-021):
-    a child merges its own work once its own gate is green. At `auto` and `supervised`
-    the first child hands off for review and the walk stops there — correctly. The gate
-    is standing, not broken.
-5.  Exit 0 means no open child remains. **That is not the same as the parent being
+    It starts each child as a real dispatch on the authorisation the human gave *this*
+    parent, one at a time, watches each child's **task record** to a terminal state, and
+    **stops the whole walk** on the first child that does not close `completed` — because
+    a sibling that depended on that child would be building on a gap. Retries are bounded
+    at two runs per child per authorisation of the epic, and enforced rather than
+    promised. It **blocks until it is done**, which is the point: a supervisor that ends
+    its turn promising to check back is asleep. `--dry-run` says which child is next and
+    starts nothing.
+3.  Exit 0 means no open child remains. **That is not the same as the parent being
     done**, and the walk deliberately never closes it: evaluate the parent's own
     acceptance criteria against the children's durable evidence, do any parent-level
     verification, and close it only where that evidence supports it. Exit 1 means the
     walk stopped for cause; the parent's record says which child and why.
-6.  Stop only for a required review/approval gate, a genuine human decision or external
+4.  Stop only for a required review/approval gate, a genuine human decision or external
     blocker, a clean usage boundary, or completion of the parent.
 
 The task graph defines scope. Do not absorb unrelated follow-ups merely because they
@@ -102,65 +75,40 @@ user authorizes it.
 
 **Whoever holds a parent task starts a separate session per child and stays running as
 the supervisor.** This binds whether you are an interactive session someone told to
-"work task-160" or a dispatched run — a dispatched run is told so in its prompt, because
-dispatch reads it off the record: a task with an open child gets the supervisor prompt
-and every other task gets the ordinary one.
+"work task-160" or a dispatched run.
 
 **The threshold is: anything that takes a worktree gets its own session.** A child that
 edits files, runs `scripts/check.py`, or produces a branch is a session. A child that is
 a decision to record, a question to answer or a task to file is not — it takes no
-worktree, and a session for it costs more than it saves.
-
-That threshold rather than a size estimate, for two reasons. It is checkable: "does this
-write code?" has an answer, where "is this big enough to be worth a session?" is a
-judgement made by the party with an interest in saying no. And the worktree boundary is
-already a session boundary in all but name — [a worktree exists](#why-you-get-your-own-worktree)
-because this clone has one `HEAD`, and one session moving between two of them is exactly
-the interleaving that isolation is for.
-
-The reason is context, not parallelism; the loop is still one child at a time. A session
-that works four children carries four children's worth of exploration by the fourth, and
-the transcript a handoff should have replaced is precisely what the next session cannot
-read. Task-060's own log says it outright: *"the previous conversation was very long and
-is not available."*
+worktree, and a session for it costs more than it saves. The reason is context, not
+parallelism: a session that works four children carries four children's worth of
+exploration by the fourth, and the transcript a handoff should have replaced is precisely
+what the next session cannot read.
 
 **The supervisor is thin, and meant to be.** You read the child's record, its acceptance
 statuses, its branch and its diff — not its transcript. You are checking that the child
-reported and verified its work, not re-verifying it. A supervisor that re-derives each
-child's context is a second agent doing the work, at the context cost this rule exists to
-avoid.
+reported and verified its work, not re-verifying it.
 
-**Thin enough that the loop itself is now a command** (task-022). `agentjobs dispatch
-walk` picks the next eligible child from the queue, starts it, watches its record to a
-terminal state, and stops on the first child that is not clean. Every one of those steps
-is mechanical, and an agent performing them adds no judgement — only the chance of
-getting one wrong at three in the morning with nobody watching. What is left for you is
-the step that *is* judgement and which the walk deliberately does not take: whether this
-parent's own acceptance criteria are met.
+Three things do not change because a child is a session:
 
-Two things do not change because a child is a session. Its **task records still go to
-`main` in this clone**, never to its branch — see
-[Task files live on `main`](ENGINEERING.md#task-files-live-on-main-always). And its
-**merge gate stands or falls on the child's own terms**: a child merges on an explicit
-human approval of *that child*, or — at posture `autonomous` — on its own green gate.
-Never on yours. A supervisor approves nothing under either policy.
+- Its **task records still go to `main` in this clone**, never to its branch — see
+  [Task files live on `main`](ENGINEERING.md#task-files-live-on-main-always).
+- Its **merge gate stands or falls on the child's own terms**: a child merges on an
+  explicit human approval of *that child*, or — at posture `autonomous` — on its own
+  green gate. Never on yours. A supervisor approves nothing under either policy.
+- A fresh worktree has no virtualenv and no `node_modules`, so a child **cannot run
+  `scripts/check.py` until it bootstraps** — `python scripts/bootstrap.py`, about 30
+  seconds, see [Bootstrapping a worktree](#bootstrapping-a-worktree). A child that skips
+  it either cannot verify its own work or borrows the main clone's environment and tests
+  the wrong source.
 
-One thing does change, and it is what would otherwise sink the rule: a fresh worktree has
-no virtualenv and no `node_modules`, so a child session **cannot run `scripts/check.py`
-until it bootstraps** — `python scripts/bootstrap.py`, about 30 seconds, see
-[Bootstrapping a worktree](#bootstrapping-a-worktree). A parent working children inline
-paid this once for itself; a rule that gives every child a worktree pays it per child, so
-it belongs in the child's first three commands rather than in a workaround the supervisor
-performs by hand. A child that skips it either cannot verify its own work or borrows the
-main clone's environment and tests the wrong source.
-
-The full protocol — how to start a child, and what to do when one finishes, parks, dies,
-or leaves you waiting — is in
+The full protocol — how to start a child, the bound and what spends it, and what to do
+when one finishes, parks, dies, or leaves you waiting — is in
 [the workflow guide](docs/agent-workflow.md#working-a-parent-task-you-supervise-the-children-you-do-not-work-them).
 Two rules from it are worth repeating here because both have already been got wrong:
-**watching is a mechanism, not an intention** — a supervisor that ends its turn promising
-to check back is asleep — and **the signal is the task record, not the process**, because
-a child parked on review has a live process and is the one state that needs you.
+**watching is a mechanism, not an intention**, and **the signal is the task record, not
+the process**, because a child parked on review has a live process and is the one state
+that needs you.
 
 ### Task Lifecycle
 
