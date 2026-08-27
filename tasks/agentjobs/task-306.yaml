@@ -3,7 +3,7 @@ id: task-306
 title: 'The dynamic half is drifting too: long summaries, default ball prompts surviving
   on active tasks, and almost no questions ever reaching the record'
 created: '2026-08-23T21:53:59.468926Z'
-updated: '2026-08-27T11:08:21.931399Z'
+updated: '2026-08-27T11:09:07.951511Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -473,3 +473,13 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 16
+  ts: '2026-08-27T11:09:07.951327Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 7
+  data:
+    run_id: run_2e50a39e
+    outcome: completed
+    duration_seconds: 1843.725665
+    log_path: C:\Users\jpose\.agentjobs\runs\run_2e50a39e
