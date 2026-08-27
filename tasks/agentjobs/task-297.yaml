@@ -3,7 +3,7 @@ id: task-297
 title: 'The scripted finish cannot merge under concurrency: base_moved fires on task-record
   commits, and each escalation causes the next'
 created: '2026-08-23T20:57:20.855780Z'
-updated: '2026-08-27T17:20:33.044993Z'
+updated: '2026-08-27T17:21:56.925701Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -1001,3 +1001,13 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 27
+  ts: '2026-08-27T17:21:56.925487Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 5
+  data:
+    run_id: run_4e9d1f40
+    outcome: completed
+    duration_seconds: 5114.408577
+    log_path: C:\Users\jpose\.agentjobs\runs\run_4e9d1f40
