@@ -3,14 +3,11 @@ id: task-306
 title: 'The dynamic half is drifting too: long summaries, default ball prompts surviving
   on active tasks, and almost no questions ever reaching the record'
 created: '2026-08-23T21:53:59.468926Z'
-updated: '2026-08-27T11:07:58.419478Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-27T11:08:21.931399Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 1293
 category: meta
 tags:
 - big-dawg-audit
@@ -19,7 +16,6 @@ tags:
 effort: "small \u2014 three cheap checks, plus one decision about what a warning is\
   \ allowed to say"
 assignment:
-  owner: claude
   eligible: []
 parent: task-269
 posture: autonomous
@@ -125,7 +121,8 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-306-record-quality-warnings
-  status: active
+  status: merged
+  merged_at: '2026-08-27T11:08:21.878585Z'
 log:
 - id: 1
   ts: '2026-08-23T21:54:00.039662Z'
@@ -453,3 +450,26 @@ log:
     merge_commit: 0e79f08583c1f60ed7555c1135dbef6791d5b119
     branch: feat/task-306-record-quality-warnings
     base: main
+- id: 15
+  ts: '2026-08-27T11:08:21.931247Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-306-record-quality-warnings` into `main` as `0e79f085`\
+    \ and verified live. Finished by the scripted path with no agent session (task-241).\
+    \ No human reviewed this merge: posture `autonomous` (from the epic) releases\
+    \ the merge gate (task-021), and run run_2e50a39e ran the finish. What authorised\
+    \ it is the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.0s  feat/task-306-record-quality-warnings at\
+    \ 154e3406 in C:\\projects\\worktrees\\agentjobs-306\n  rebase     ok        \
+    \ 0.2s  feat/task-306-record-quality-warnings onto main: 154e3406 -> 31418861\n\
+    \  gate       ok       217.1s  scripts/check.py green\n  merge      ok       \
+    \  0.2s  --no-ff into main as 0e79f08583c1f60ed7555c1135dbef6791d5b119\n  rebuild\
+    \    skipped    0.0s  the merge touched no frontend/ path\n  restart    ok   \
+    \      0.9s  ran powershell -NoProfile -ExecutionPolicy Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -Force -NoOpen\n  verify     ok         0.0s  http://127.0.0.1:8876 is serving\
+    \ d1330205, which contains the merge 0e79f085, from C:\\projects\\agentjobs (started\
+    \ 2026-08-27T11:08:04.073778+00:00)\n```"
+  data:
+    lifecycle: closed
+    outcome: completed
