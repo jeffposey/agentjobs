@@ -3,7 +3,7 @@ id: task-306
 title: 'The dynamic half is drifting too: long summaries, default ball prompts surviving
   on active tasks, and almost no questions ever reaching the record'
 created: '2026-08-23T21:53:59.468926Z'
-updated: '2026-08-27T11:04:20.650310Z'
+updated: '2026-08-27T11:07:58.419478Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -435,3 +435,21 @@ log:
     finish_step: started
     branch: feat/task-306-record-quality-warnings
     finish_id: fin_8c385895
+- id: 14
+  ts: '2026-08-27T11:07:58.419337Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-306-record-quality-warnings` into `main` as `0e79f085`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-306
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    epic) releases the merge gate (task-021), and run run_2e50a39e ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 0e79f08583c1f60ed7555c1135dbef6791d5b119
+    branch: feat/task-306-record-quality-warnings
+    base: main
