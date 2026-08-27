@@ -246,18 +246,14 @@ does not reach, which is how the suite would otherwise rot.
 ### How long a branch should live
 
 **Short — and the lever is not the one people reach for.** Every rebase conflict in the
-task-211 epic came from a branch living across another branch's merge: task-219 across
-task-214's, task-215 across task-219's, task-217 across task-218's. Five sessions ran
-against one clone for eleven hours and produced exactly three conflicts, all of that
-shape, all in files two branches had both appended to. Running the work in parallel
-caused none of them.
+task-211 epic came from a branch living across another branch's merge; running the work
+in parallel caused none of them.
 
 The obvious conclusion from that is wrong, and it is worth saying why before anybody
 draws it. **Branch lifetime is not task size.** task-217's branch was open about nine
-hours and contained roughly one hour of work; the other eight were *waiting* — parked at
-`human`/`review` for an approval, then behind a `base_moved` retry, then behind a second
-one. Shrinking that task would not have taken a minute off its branch. Lifetime is driven
-by **wait**, so wait is the thing to attack:
+hours and contained roughly one hour of work; the other eight were *waiting* — for an
+approval, then behind two `base_moved` retries. Shrinking that task would not have taken
+a minute off its branch. Lifetime is driven by **wait**, so wait is the thing to attack:
 
 -   **Rebase onto `main` before handing off for review**, not only when the merge gate
     refuses. A branch that has been open for hours is very likely behind, and rebasing at
@@ -297,10 +293,8 @@ cd ../worktrees/agentjobs-045 && python scripts/bootstrap.py   # ~30s; no venv o
 git worktree remove ../worktrees/agentjobs-045      # after the branch merges
 ```
 
-**They go in a `worktrees/` directory beside the clone, not loose beside it.** A worktree
-is transient and there are several at a time, so a listing of the workspace that mixes
-them in with the projects stops being a listing of the projects. `git worktree add`
-creates the directory the first time; nothing else is needed.
+**They go in a `worktrees/` directory beside the clone**, not loose beside it and not
+inside it; `git worktree add` creates that directory the first time.
 
 The bootstrap is not optional politeness: a worktree that skips it cannot run
 `scripts/check.py` at all, and borrowing the main clone's virtualenv to get around that
@@ -311,11 +305,9 @@ Agents in this repository are required to do this — see
 [ALLAGENTS.md](ALLAGENTS.md#task-lifecycle) — because several of them routinely run
 against one clone and none of them can see the others.
 
-One consequence is worth knowing whoever you are, because it looks like a bug and is
-not: **tasks are YAML files in this repository, so whichever branch is checked out
-decides what the dashboard shows.** A task handed to you for review on a branch does not
-exist as far as `main` is concerned. If the React app is missing something you expect, check
-what is checked out before filing anything.
+One consequence looks like a bug and is not: **tasks are YAML files in this repository,
+so whichever branch is checked out decides what the dashboard shows.** If the React app
+is missing something you expect, check what is checked out before filing anything.
 
 ### Commit Hygiene
 -   Stage explicit paths. `git add -A` commits whatever happens to be in the tree, which
@@ -526,39 +518,26 @@ review request the reviewer can actually see.
     filter silently matches nothing. Assert the value a user's browser will act on.
 -   When a check passes, ask what it would have caught. If the answer is "nothing that
     has ever gone wrong here", it is decoration.
--   **Do not set up the state your test is meant to be checking.** task-207 added a
-    keyboard reorder to the task list and covered it in jsdom and in Playwright, both
-    green. Both focused the row's handle before every keypress -- and the defect was that
-    focus did not survive a keypress, because React reorders rows by moving their DOM
-    nodes and a browser drops focus from a node it reinserts. So the feature worked
-    exactly once per click, and the two tests written to prove it worked were the reason
-    nobody could see that. Found by pressing the key twice in a browser.
--   **A Playwright keypress is not a person's keypress.** `page.keyboard.press` goes in
-    through CDP, below the browser's own shortcut handling and below anything a real
-    window does with focus. It is the right tool for driving a page and the wrong
-    evidence for "this key combination works" -- for that, press it yourself.
--   **"I did it and nothing happened" is not a defect until you have proved the gesture
-    reached the page.** It has two explanations -- the feature is broken, or your input
-    never arrived -- and a browser-automation tool reports success either way. task-225
-    is the incident: `mcp__claude-in-chrome`'s `left_click_drag` delivered **no events at
-    all** to the task list, not even `mousedown`, with correct coordinates and a
-    successful-looking tool result. A session read that as "drag-to-reorder does not
-    work", filed it as reproduced fact, and an afternoon went into fixing something that
-    was never broken. A hand on a real mouse moved the row first try.
-
-    The check is one line, and it costs nothing next to what skipping it costs:
+-   **Do not set up the state your test is meant to be checking.** task-207's keyboard
+    reorder was green in jsdom and in Playwright because both focused the row's handle
+    before every keypress — and the defect was that focus did not survive a keypress. The
+    two tests written to prove it worked were the reason nobody could see it did not.
+-   **An automated gesture is not a person's gesture, and "I did it and nothing happened"
+    is not a defect until you have proved the gesture reached the page.** A
+    browser-automation tool reports success whether or not any event arrived: task-225
+    lost an afternoon to `mcp__claude-in-chrome`'s `left_click_drag` delivering **no
+    events at all**, with correct coordinates and a successful-looking result. Playwright
+    is subtler — `page.keyboard.press` goes in below the browser's own shortcut handling,
+    and its drag goes through `Input.setInterceptDrags` rather than the OS drag loop — so
+    it is good evidence that handlers, client call and route work, and no evidence that a
+    *gesture* works. Prove the input landed before filing anything:
 
     ```js
     document.addEventListener("mousedown", (e) => console.log("got", e.target.id), true);
     ```
 
-    Empty means the harness, not the application. Never write *reproduced* into a task
-    record on the strength of an automated gesture alone -- name the instrument, and say
-    whether the gesture landed. The same caution runs the other way: Playwright drives
-    Chromium's drag through `Input.setInterceptDrags` rather than the operating system's
-    drag loop, so it is good evidence that the handlers, the client call and the route
-    work, and it is not a hand on a mouse. When the question is whether a *gesture*
-    works, a person has to make it -- stand up a sandbox and ask, and have the page
-    record what happened rather than expecting them to screenshot a panel before their
-    next click clears it, which is how the first attempt at this lost its evidence.
-    `scripts/review_queue_sandbox.py` is that sandbox and it keeps its traces now.
+    Empty means the harness, not the application. **Never write *reproduced* into a task
+    record on the strength of an automated gesture alone** — name the instrument, and say
+    whether the gesture landed. When the question really is whether a gesture works, a
+    person has to make it: stand up a sandbox that records what happened rather than
+    asking them to screenshot it (`scripts/review_queue_sandbox.py`).

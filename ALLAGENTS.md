@@ -336,18 +336,15 @@ A human working alone does not need this; they have no peer to collide with. You
     are editing is documentation. It is a false positive, it has cost several sessions
     time, and task-276 is the fix. Build the path from pieces, or reword, and carry on.
 
-Three failures on 2026-08-11, all in one afternoon, all from skipping this:
+Three agents skipped this in one afternoon on 2026-08-11 and each cost a peer real work;
+two things from that are worth carrying:
 
-1.  An agent ran `git add -A` and committed a peer's uncommitted, in-flight files.
-    Recovered only because it was noticed within a minute. **Recovery, if it happens to
-    you:** `git reset --soft HEAD~1`, then `git restore --staged` their paths. Never
-    `git checkout --` them — that destroys work you did not write.
-2.  An agent checked out its own branch and replaced the tree under a peer mid-task. The
-    peer's next commit would have gone to the wrong branch.
-3.  An agent finished and left the clone on `main`. The owner opened the React app, did
-    not see a task waiting for review, and reasonably concluded the product was broken.
-    It was not: **tasks are YAML files here, so the checked-out branch decides what the
-    React UI shows.** Before reporting that a task is missing, check what is checked out.
+-   **If you commit a peer's in-flight files** — which is what `git add -A` does here —
+    recover with `git reset --soft HEAD~1`, then `git restore --staged` their paths.
+    Never `git checkout --` them; that destroys work you did not write.
+-   **Tasks are YAML files here, so the checked-out branch decides what the React UI
+    shows.** Before reporting that a task is missing from the dashboard, check what is
+    checked out.
 
 ### Bootstrapping a worktree
 
@@ -361,10 +358,10 @@ python scripts/bootstrap.py
 ```
 
 It runs `poetry install`, `npm ci`, and `playwright install chromium`, then confirms the
-environment imports the worktree's own `src/`. **30 seconds** in a brand-new worktree,
-**13 seconds** to re-run in one that already has both — measured 2026-08-19, 21s of the
-first figure being Poetry. That is not a reason to skip the worktree. It is longer on a
-machine whose Poetry and npm caches are cold, because those caches fill on the way past.
+environment imports the worktree's own `src/`. **About 30 seconds** in a brand-new
+worktree and **13 seconds** to re-run in one that already has both — timed 2026-08-19,
+longer on a machine whose Poetry and npm caches are cold. That is not a reason to skip
+the worktree.
 
 **Do not borrow the main clone's virtualenv instead.** `poetry install` puts the *main
 clone's* `src/` on that environment's path, so `pytest` run from your worktree against it
@@ -385,21 +382,15 @@ activated virtualenv over the one it keys on the project path. So `poetry run` f
 worktree resolves to the main clone's environment however many times you bootstrap, and
 `check.py` correctly refuses each time. The printed path cannot be redirected.
 
-**That is the whole of it: naming the interpreter is the only thing you have to do.**
-You do not need to unset, re-export or otherwise manage `VIRTUAL_ENV` around a gate run.
-The gate disowns a foreign one for every process it spawns, so the nested `poetry run`
-calls inside it — the frontend's OpenAPI and icon checks, and the server Playwright
-starts — resolve to this checkout too. Before task-210 they did not, and a worktree gate
-run went green through Black, Ruff, MyPy, pytest, Vitest and the production build and
-was then refused at the Playwright stage, six minutes in, for pointing at the main
-clone. The hazard above is still real everywhere else; `poetry run` outside the gate
-still prefers whatever your shell activated.
+**Naming the interpreter is the only thing you have to do** — no unsetting or
+re-exporting. Since task-210 the gate disowns a foreign `VIRTUAL_ENV` for every process
+it spawns, so the nested `poetry run` calls inside it resolve to this checkout too. The
+hazard is still real everywhere else: `poetry run` outside the gate still prefers
+whatever your shell activated.
 
-The same preference is why the bootstrap now tells you it is **ignoring** an activated
-virtualenv that belongs to another checkout. Until task-194 it did not: a worktree's
-`poetry install` rewrote the main clone's editable install, and the dashboard on 8876
-began serving that worktree's unmerged branch — from the correct task files, with correct
-`git log` output, saying nothing. It took a forensic session to find. You are not being
+That preference is also why the bootstrap tells you it is **ignoring** an activated
+virtualenv belonging to another checkout. Until task-194 it did not, and a worktree's
+`poetry install` silently rewrote the main clone's editable install. You are not being
 careless if you hit this; following these instructions verbatim is what used to cause it.
 
 ### Logging Work to the Task
