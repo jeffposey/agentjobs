@@ -3,14 +3,11 @@ id: task-317
 title: The AgentJobs MCP server is declared twice under one name, and the two declarations
   point at different ports
 created: '2026-08-25T10:43:10.073470Z'
-updated: '2026-08-27T11:53:13.287575Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-27T11:53:36.609007Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
-queue_position: 8500
 category: meta
 tags:
 - big-dawg-audit
@@ -18,7 +15,6 @@ tags:
 - context
 effort: an hour, mostly deciding which declaration is canonical
 assignment:
-  owner: claude
   eligible: []
 parent: task-269
 spec:
@@ -100,7 +96,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-317-mcp-declaration-port
-  status: active
+  status: merged
+  merged_at: '2026-08-27T11:53:36.558729Z'
 log:
 - id: 1
   ts: '2026-08-25T10:43:10.497096Z'
@@ -487,3 +484,26 @@ log:
     merge_commit: d8e1bb5edc5bd932b9c0e3195729938a0ae6c5a6
     branch: fix/task-317-mcp-declaration-port
     base: main
+- id: 14
+  ts: '2026-08-27T11:53:36.608866Z'
+  actor: finisher
+  type: transition
+  body: "Merged `fix/task-317-mcp-declaration-port` into `main` as `d8e1bb5e` and\
+    \ verified live. Finished by the scripted path with no agent session (task-241).\
+    \ No human reviewed this merge: posture `autonomous` (from the epic) releases\
+    \ the merge gate (task-021), and run run_41989070 ran the finish. What authorised\
+    \ it is the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.6s  fix/task-317-mcp-declaration-port at f8bab285\
+    \ in C:\\projects\\worktrees\\agentjobs-317\n  rebase     ok         0.2s  fix/task-317-mcp-declaration-port\
+    \ onto main: f8bab285 -> 40d85bb8\n  gate       ok       239.2s  scripts/check.py\
+    \ green\n  merge      ok         0.2s  --no-ff into main as d8e1bb5edc5bd932b9c0e3195729938a0ae6c5a6\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         0.6s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving cafeee92, which contains the merge\
+    \ d8e1bb5e, from C:\\projects\\agentjobs (started 2026-08-27T11:53:18.805407+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
