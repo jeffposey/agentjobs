@@ -604,7 +604,13 @@ class TestWhatEngineeringMdMustStillSay:
         assert "PARTIAL RUN" in text
 
     def test_the_gate_before_commit_contradiction_stays_resolved(self) -> None:
-        """task-189 decided which side wins. Losing the sentence loses the decision."""
-        text = self.handbook()
+        """task-189 decided which side wins. Losing the sentence loses the decision.
+
+        Whitespace is collapsed before matching: this asserts the decision, not the
+        column the paragraph happens to wrap at. It used to pin the line break too, and
+        task-305 rewrapped the paragraph without touching a word of the rule -- which
+        failed the gate and said nothing useful about why.
+        """
+        text = " ".join(self.handbook().replace("**", "").split())
         assert "The gate runs before the commit" in text
-        assert "regenerate, run\n    the gate, then commit" in text.replace("**", "")
+        assert "regenerate, run the gate, then commit" in text

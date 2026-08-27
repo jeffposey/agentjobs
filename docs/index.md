@@ -47,8 +47,9 @@ history; new records and integrations must use v2.
 - [React frontend development](https://github.com/jeffposey/agentjobs/blob/main/frontend/README.md)
 - [Webhook integrations](webhooks.md)
 - [Schema migration](migration-guide.md)
-- [Performance](performance.md) — how to measure the API, the CLI and the browser, and
-  what a claim of "faster" has to state.
+- [Performance](performance.md) — how to measure the API, the CLI, the browser, the
+  repository gate and dispatched agent time, what a claim of "faster" has to state, and
+  the measurement history behind the gate's quoted costs.
 - [Codex dispatch rollout](codex-dispatch.md) — batch runners, the MCP requirement, and
   the rollout sequence.
 
