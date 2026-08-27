@@ -3,15 +3,11 @@ id: task-269
 title: 'Static vs dynamic context: get the always-loaded bundle down to the rules
   an agent acts on, and make the split measurable rather than argued'
 created: '2026-08-22T18:59:11.785040Z'
-updated: '2026-08-27T09:42:22.947054Z'
-lifecycle: active
-ball: agent
-ball_reason: answer
-ball_prompt: 304 was marked completed, confirm this, and proceed to walk through remaining
-  subtasks
+updated: '2026-08-27T11:56:28.776406Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 693
 category: meta
 tags:
 - big-dawg-audit
@@ -20,7 +16,6 @@ tags:
 - epic
 effort: six children; measure first, two cheap correctness fixes next, the cut last
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'Auditor 1''s verdict on the Big Dawg question Jeff named first: the static/dynamic
@@ -132,22 +127,22 @@ acceptance:
 - id: ac-1
   text: What a session loads is measured for both Claude and Codex, by source, with
     dates and commands - so the split can be argued from a number instead of an estimate.
-  status: pending
+  status: met
 - id: ac-2
   text: No statement in the always-loaded bundle contradicts the code it describes.
-  status: pending
+  status: met
 - id: ac-3
   text: A background session in this repository can write into the shared checkout
     without fighting its own harness.
-  status: pending
+  status: met
 - id: ac-4
   text: The bundle is under a budget a test asserts, with no rule removed - or the
     record carries a decision explaining why the deep cut was scaled back.
-  status: pending
+  status: met
 - id: ac-5
   text: Which rules are load-bearing is answerable by re-running something, not by
     re-reading the files.
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -601,3 +596,123 @@ log:
       id: 0ac49f20-b691-4ccc-80ec-60dbbe56f30e
       kind: log_append
       fingerprint: 2c01c485f0c1438c848ad73b1f610223
+- id: 19
+  ts: '2026-08-27T11:53:49.344820Z'
+  actor: claude
+  type: progress
+  body: "**Epic walk** -- every open child is done.\n\nStarted 2026-08-27T11:53:49.341352+00:00.\n\
+    \nWalk of task-269: all_children_done.\nNo open child of task-269 remains. The\
+    \ parent is deliberately left open: whether its own acceptance criteria are met\
+    \ is a judgement this walk does not make.\n\nChildren, in the order the walk took\
+    \ them:\n  task-305 attempt 1 (run_86614592): completed -- closed completed; its\
+    \ own gate ran and its own merge happened\n  task-306 attempt 1 (run_2e50a39e):\
+    \ completed -- closed completed; its own gate ran and its own merge happened\n\
+    \  task-318 attempt 1 (run_74dfbc1c): completed -- closed completed; its own gate\
+    \ ran and its own merge happened\n  task-317 attempt 1 (run_41989070): completed\
+    \ -- closed completed; its own gate ran and its own merge happened\n\n**This parent\
+    \ is deliberately still open.** No open child remains, which is not the same as\
+    \ the parent's acceptance criteria being met. Evaluate them against the children's\
+    \ evidence and close it only where that evidence supports it."
+  data: {}
+- id: 20
+  ts: '2026-08-27T11:55:37.077837Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 4a99c565-17d7-4a17-bc41-d366338ac6d2
+      kind: update_content
+      fingerprint: dafd069c148486f4193fdf8561ca629b
+- id: 21
+  ts: '2026-08-27T11:56:28.776186Z'
+  actor: claude
+  type: transition
+  body: "**Closing `completed`. Eight children merged, all five criteria met, each\
+    \ verified here against artifacts rather than against the children's own say-so.**\n\
+    \n`agentjobs dispatch walk` exited 0 \u2014 no open child remains. Every one of\
+    \ the eight closed `completed`, meaning each ran its own full unqualified `scripts/check.py`\
+    \ and merged through `agentjobs finish`, and each has every one of its own acceptance\
+    \ criteria at `met`. That is necessary and not sufficient: a supervisor accepting\
+    \ it as sufficient is the agent grading its own homework at one remove. So each\
+    \ parent criterion was checked against something durable.\n\n## The five, and\
+    \ what was actually checked\n\n**ac-1 \u2014 measured for both Claude and Codex,\
+    \ by source, with dates and commands.** `docs/context-budget.md`, 26,920 bytes\
+    \ on `main`. \xA72 dispatched Claude, \xA73 interactive Claude, \xA74 Codex, \xA7\
+    6 the per-shape table, \xA79 the reproduction commands. Its headline: a dispatched\
+    \ Claude session opens at 75,619 tokens of which this repository controls 24,902\
+    \ \u2014 **32.9%**, against the audit's estimate that the @-chain was the problem.\
+    \ The harness system prompt is 42,876 (56.7%) and is not ours. Codex opens at\
+    \ 19,095 and auto-loads ~334 tokens of this repository, because it does not read\
+    \ `ENGINEERING.md` or `ALLAGENTS.md` at all until told to.\n\n**ac-2 \u2014 no\
+    \ statement in the bundle contradicts the code.** task-302's four fixes, all `met`.\
+    \ Spot-checked the one with the widest blast radius myself rather than trusting\
+    \ the status: `GLOBAL-AGENTS.md:139-140` now reads *\"a parent with an open child\
+    \ is skipped by `agentjobs next`, but it can still be claimed by name \u2014 and\
+    \ claiming one hands you the supervisor's seat, not the children's work.\"* That\
+    \ matches what the code does, and this run is the proof: log entry 7 is `manager.claim`\
+    \ succeeding on this parent while six children were open. Confirmed the file is\
+    \ edited at `C:/ai/shared/` and absent from this repository's history, as the\
+    \ epic's constraints require \u2014 `git log -- \"*GLOBAL-AGENTS*\"` is empty.\n\
+    \n**Stated honestly, because the wording invites more than was delivered:** *\"\
+    no statement\"* is a universal and cannot be proven by fixing four. What was discharged\
+    \ is every contradiction the audit found, each re-verified against the code as\
+    \ it reads today rather than as the eight-day-old audit quoted it. What backs\
+    \ the universal going forward is ac-5's suite, not this closure.\n\n**ac-3 \u2014\
+    \ a background session can write into the shared checkout without fighting its\
+    \ own harness.** Verified by being one. This session is `--bg`; it called the\
+    \ `Write` tool directly against `C:\\projects\\agentjobs\\`, outside any worktree,\
+    \ and the write succeeded with no `EnterWorktree` refusal. `.claude/settings.json`\
+    \ carries `\"worktree\": {\"bgIsolation\": \"none\"}`. That is the criterion exercised\
+    \ the way it will actually be met, not a test asserting it.\n\n**ac-4 \u2014 under\
+    \ a budget a test asserts, no rule removed.** `tests/test_context_budget.py` asserts\
+    \ `BUNDLE_BUDGET_BYTES = 60_000` over the four bundle files, and \u2014 the part\
+    \ that makes it a real test \u2014 also asserts the file *set*, so the budget\
+    \ cannot be passed by a file disappearing. Measured now: `AGENTS.md` 1,468 + `CLAUDE.md`\
+    \ 776 + `ENGINEERING.md` 30,698 + `ALLAGENTS.md` 26,568 = **59,510**. `tests/test_context_budget.py`\
+    \ and `tests/test_context_eval.py` together: **55 passed in 2.41s**.\n\n**Worth\
+    \ knowing and not a defect: the headroom is 490 bytes, 0.8%.** The next paragraph\
+    \ anybody adds to either file turns the gate red. That is what a ceiling is for\
+    \ and it is the behaviour task-305 intended, but nobody should meet it for the\
+    \ first time in a failing gate on unrelated work.\n\n**ac-5 \u2014 load-bearing\
+    \ rules answerable by re-running something.** `scripts/context_eval.py`, `evals/context/README.md`,\
+    \ and four committed baselines under `evals/context/baselines/` \u2014 Opus 5\
+    \ and Haiku 4.5, both dated 2026-08-25, `.json` and `.md` each. The cheap half\
+    \ runs in the gate: `tests/test_context_eval.py` re-renders every ablation against\
+    \ the current bundle and fails when a case's target heading is renamed, which\
+    \ is how the suite would otherwise rot silently.\n\n## What this epic concluded,\
+    \ since it is the answer to the question that started it\n\nThe audit said *\"\
+    the split is right in principle and wrong in proportion\"* and estimated 17,200\
+    \ tokens of @-chain, 36% of it load-bearing. The measurement child was put first\
+    \ precisely because that estimate had no denominator, and the epic's spec said\
+    \ outright that **a finding the deep cut was not worth its risk is an acceptable\
+    \ outcome**.\n\nThe measurement moved the target rather than confirming it. The\
+    \ repository controls a third of a session, the harness owns 57%, and the MCP\
+    \ surface \u2014 which the audit worried might dominate \u2014 is 3,795 tokens,\
+    \ less than a sixth of what `ENGINEERING.md` and `ALLAGENTS.md` cost together.\
+    \ So the cut happened, bounded by a test rather than by judgement, and the larger\
+    \ levers named in `docs/context-budget.md` \xA78 are explicitly outside it and\
+    \ still on the table.\n\n## Two children that are not this epic's work\n\ntask-317\
+    \ (duplicate MCP server declaration) and task-318 (a walk child inheriting the\
+    \ parent's `AGENTJOBS_RUN_ID`) were filed *by* child sessions during the epic\
+    \ and parented here. Both merged clean and both are dispatch infrastructure, not\
+    \ context architecture. They are counted in the eight because they are children;\
+    \ they contributed nothing to the five criteria above, and if anyone audits this\
+    \ epic's scope later, that is the honest accounting.\n\n## Left open elsewhere,\
+    \ deliberately\n\n- **task-223** \u2014 raised to `critical` and moved to the\
+    \ top of the band during this run, on Jeff's instruction, with the rolling-frontier\
+    \ scheduler he specified recorded as an `instruction` entry. This epic ran eight\
+    \ children strictly one at a time, six of which declared `dependencies: []`. That\
+    \ is the largest remaining inefficiency and it is not this parent's to fix.\n\
+    - **task-305's open question** on whether a subdirectory `CLAUDE.md` defers a\
+    \ rule instead of deleting it \u2014 asked during this run, unanswered, and a\
+    \ lever nobody has measured.\n"
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 9f94fa06-7367-4692-9926-2c849817f5b0
+      kind: close
+      fingerprint: 3bd2880034be340c0ad3f6cadd7543b9
