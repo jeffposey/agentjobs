@@ -3,7 +3,7 @@ id: task-269
 title: 'Static vs dynamic context: get the always-loaded bundle down to the rules
   an agent acts on, and make the split measurable rather than argued'
 created: '2026-08-22T18:59:11.785040Z'
-updated: '2026-08-27T11:56:28.776406Z'
+updated: '2026-08-27T11:57:03.170700Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -716,3 +716,13 @@ log:
       id: 9f94fa06-7367-4692-9926-2c849817f5b0
       kind: close
       fingerprint: 3bd2880034be340c0ad3f6cadd7543b9
+- id: 22
+  ts: '2026-08-27T11:57:03.170519Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 17
+  data:
+    run_id: run_1132ebf8
+    outcome: completed
+    duration_seconds: 8208.88202
+    log_path: C:\Users\jpose\.agentjobs\runs\run_1132ebf8
