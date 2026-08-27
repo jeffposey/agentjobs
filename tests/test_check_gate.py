@@ -410,8 +410,20 @@ class TestPhaseRecords:
 
         assert check.main([]) == 0
 
-        kinds = [record["kind"] for record in read_phases(directory)]
-        assert kinds == ["gate_started", "gate_finished"]
+        records = read_phases(directory)
+        kinds = [record["kind"] for record in records]
+        # A start, a finish, and one pair per stage in between (task-321). The pairs are
+        # what lets a watcher say "pytest, 7 of 10" while a scripted finish is in its
+        # gate, which is the better part of three minutes with nothing else to report.
+        assert kinds[0] == "gate_started"
+        assert kinds[-1] == "gate_finished"
+        assert set(kinds[1:-1]) == {"gate_stage_started", "gate_stage_finished"}
+        stages = [record["stage"] for record in records if record["kind"] == "gate_stage_finished"]
+        assert stages == [stage.name for stage in check.stages()]
+        # Every stage says where it is in the run, so a reader never has to count.
+        assert [
+            record["index"] for record in records if record["kind"] == "gate_stage_started"
+        ] == [position for position in range(1, len(stages) + 1)]
 
     def test_the_finish_says_whether_it_passed_and_what_it_cost(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

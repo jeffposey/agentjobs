@@ -224,6 +224,17 @@ export type DispatchPanelProps = {
    */
   recordCanBrief: boolean;
   busy?: boolean;
+  /**
+   * A scripted finish is working on this task's branch right now (task-321).
+   *
+   * Disables the button and says so, rather than leaving it pressable into a refusal.
+   * The server refuses it anyway -- the finish holds the task's run lock, and a dispatch
+   * asking for it is told `live_run_exists` -- so this changes nothing about what can
+   * happen; it changes what the page tells somebody *before* they press. That matters
+   * here more than for most refusals, because the reason the button is unavailable is a
+   * thing they themselves started thirty seconds ago by pressing Approve.
+   */
+  finishLive?: boolean;
   cancellingRunId?: string | null;
   /** The last refusal from pressing Dispatch, which the state endpoint cannot predict. */
   dispatchRefusal?: DispatchRefusal | null;
@@ -270,6 +281,7 @@ export function DispatchPanel({
   identity,
   recordCanBrief,
   busy = false,
+  finishLive = false,
   cancellingRunId = null,
   dispatchRefusal = null,
   onDispatch,
@@ -305,6 +317,9 @@ export function DispatchPanel({
   // the server said so when the button was pressed. Honouring the server's answer as
   // well as the local one means the box still appears if the two ever drift apart.
   const askForBrief = !recordCanBrief || dispatchRefusal?.reason === "insufficient_record";
+  // One name for "the button must not be pressable", so the plain button and the
+  // brief form cannot drift apart on what disables them.
+  const blocked = busy || finishLive;
   /** What this click will send. Omitted keys are the point -- see `DispatchOptions`. */
   const options = (note?: string): DispatchOptions => ({
     ...(group ? { group } : {}),
@@ -347,18 +362,38 @@ export function DispatchPanel({
         </div>
       )}
 
+      {offerButton && finishLive && (
+        // Status rather than alert: this describes the world, not an act the reader
+        // just took. The same distinction `RefusalNote` draws, and for the same reason
+        // -- a screen reader must not interrupt on every poll of a live finish.
+        <div
+          role="status"
+          data-refusal-reason="finish_in_progress"
+          className="rounded-lg border border-indigo-600/50 bg-indigo-950/30 p-3 text-sm text-indigo-100"
+        >
+          <p>
+            A finish is working on this task's branch right now. It holds the task, so
+            an agent cannot be started on it until it ends.
+          </p>
+          <p className="mt-2 text-indigo-200">
+            Watch it above. If it stops without merging, the task record says where, and
+            this button comes back.
+          </p>
+        </div>
+      )}
+
       {offerButton && user && !askForBrief && (
         <div className="mobile-action-row flex flex-wrap items-center gap-3">
           <button
             type="button"
-            disabled={busy}
+            disabled={blocked}
             onClick={() => void onDispatch(options())}
             className="touch-target rounded-lg bg-sky-600 px-4 font-semibold text-white hover:bg-sky-500 disabled:opacity-60"
           >
             ▶ Dispatch — start an agent now
           </button>
-          <DispatchGroupChoice state={state} value={group} busy={busy} onChange={setGroup} />
-          <DispatchPostureChoice state={state} value={posture} busy={busy} onChange={setPosture} />
+          <DispatchGroupChoice state={state} value={group} busy={blocked} onChange={setGroup} />
+          <DispatchPostureChoice state={state} value={posture} busy={blocked} onChange={setPosture} />
           <DispatchRunnerNote state={state} user={user} group={group} posture={posture} />
         </div>
       )}
@@ -408,16 +443,16 @@ export function DispatchPanel({
           <div className="mobile-action-row flex flex-wrap items-center gap-3">
             <button
               type="submit"
-              disabled={busy || !brief.trim()}
+              disabled={blocked || !brief.trim()}
               className="touch-target rounded-lg bg-sky-600 px-4 font-semibold text-white hover:bg-sky-500 disabled:opacity-60"
             >
               ▶ Dispatch — start an agent now
             </button>
-            <DispatchGroupChoice state={state} value={group} busy={busy} onChange={setGroup} />
+            <DispatchGroupChoice state={state} value={group} busy={blocked} onChange={setGroup} />
             <DispatchPostureChoice
               state={state}
               value={posture}
-              busy={busy}
+              busy={blocked}
               onChange={setPosture}
             />
             <DispatchRunnerNote state={state} user={user} group={group} posture={posture} />

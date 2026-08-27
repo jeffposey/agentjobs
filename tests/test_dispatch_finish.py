@@ -47,6 +47,7 @@ from agentjobs.dispatch.finish import (
     verify_live,
     worktree_paths,
 )
+from agentjobs.dispatch.finish_status import read_finish_status
 from agentjobs.dispatch.phases import RUN_ID_ENV
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BranchStatus, DispatchPosture, Lifecycle, Outcome
@@ -951,6 +952,66 @@ class TestTheRecordWhileItRuns:
         for step in ("preflight", "rebase", "gate", "merge", "rebuild", "restart", "verify"):
             assert step in closing.body
         assert "up to and including verification" in closing.body
+
+    def test_a_watcher_can_read_the_whole_step_table_off_the_record(
+        self, world: Dict[str, Any]
+    ) -> None:
+        """Every step a real finish runs reaches the surface a page reads (task-321).
+
+        Against a real repository and a real sequence rather than fabricated phase
+        records, because what is being checked is the wiring: that `StepLog` is what the
+        sequence appends to, that the reader's fixed order matches the order that
+        actually happened, and that a step added to one and not the other shows up as a
+        failure here rather than as a step the task page silently omits.
+        """
+        result = run(world)
+        assert result.finished, result.render()
+
+        status = read_finish_status(world["home"], world["task_id"], "demo")
+
+        assert status is not None
+        assert status.state == "finished"
+        assert status.live is False
+        assert status.merge_commit == result.merge_commit
+        # The same steps, in the same order, as the table the finish wrote onto the task.
+        assert [step.name for step in status.steps] == [step.step for step in result.steps]
+        assert [step.name for step in status.steps][:4] == [
+            "preflight",
+            "runway",
+            "rebase",
+            "gate",
+        ]
+
+    def test_the_steps_are_readable_before_the_finish_has_ended(
+        self, world: Dict[str, Any]
+    ) -> None:
+        """The point of recording each one: they are there while it is still going.
+
+        The sequence is interrupted at the merge, so what this reads is a genuinely
+        partial finish rather than a completed one with some records removed -- the
+        distinction task-207 is the standing warning about.
+        """
+        import agentjobs.dispatch.finish as module
+
+        def refuse(*args: Any, **kwargs: Any) -> str:
+            raise Escalate("merge", "stopped_here", "Stopped on purpose.")
+
+        original, module.merge = module.merge, refuse
+        try:
+            result = run(world)
+        finally:
+            module.merge = original
+        assert result.outcome == "escalated"
+
+        status = read_finish_status(world["home"], world["task_id"], "demo")
+
+        assert status is not None
+        names = [step.name for step in status.steps]
+        assert names[:3] == ["preflight", "runway", "rebase"]
+        # The gate ran and is recorded as having passed; the merge is where it stopped.
+        assert "gate" in names
+        assert status.steps[-1].state == "stopped"
+        assert status.stopped_at == "merge"
 
 
 def write_dispatch_config(

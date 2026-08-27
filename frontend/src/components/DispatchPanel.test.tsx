@@ -113,6 +113,33 @@ describe("the Dispatch action", () => {
     await waitFor(() => expect(onDispatch).toHaveBeenCalledTimes(1));
   });
 
+  it("is unavailable while a finish is working on this task's branch", () => {
+    // The refusal exists server-side either way -- the finish holds the task's run
+    // lock. What this adds is that the page says so *before* the click, because the
+    // reason it is unavailable is a thing the reader started themselves by pressing
+    // Approve thirty seconds ago (task-321).
+    const { onDispatch } = renderPanel({ finishLive: true });
+
+    expect(screen.getByRole("button", { name: /dispatch/i })).toBeDisabled();
+    expect(
+      document.querySelector('[data-refusal-reason="finish_in_progress"]'),
+    ).toHaveTextContent(/cannot be started/i);
+    fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
+    expect(onDispatch).not.toHaveBeenCalled();
+  });
+
+  it("describes a live finish as status, never as an alert", () => {
+    // Polled every two seconds while one runs, so announcing it as an alert would make
+    // a screen reader interrupt on every poll. Same rule `RefusalNote` follows.
+    renderPanel({ finishLive: true });
+
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("status")).toHaveAttribute(
+      "data-refusal-reason",
+      "finish_in_progress",
+    );
+  });
+
   it("is not offered at all when the task's ball is not with an agent", () => {
     renderPanel({ taskIsDispatchable: false });
 

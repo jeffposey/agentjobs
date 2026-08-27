@@ -40,6 +40,11 @@ from agentjobs.dispatch.config import (
     sentinel_path,
     set_project_enabled,
 )
+from agentjobs.dispatch.finish_status import (
+    FinishStatus,
+    finish_output,
+    read_finish_status,
+)
 from agentjobs.dispatch.ledger import (
     DispatchLedger,
     LedgerError,
@@ -258,6 +263,93 @@ class DispatchRunTailView(BaseModel):
     )
 
 
+class FinishStepView(BaseModel):
+    """One step of a scripted finish, as the task page renders it."""
+
+    name: str
+    state: str = Field(
+        ...,
+        description=(
+            "'done', 'skipped', 'stopped' (this is where the finish gave up), or "
+            "'running' (inferred from the fixed order, and true of a finish that is "
+            "between steps as well as one in the middle of this one)."
+        ),
+    )
+    detail: str = ""
+    seconds: float = 0.0
+    meaning: str = Field(
+        default="",
+        description="What this step is, for a reader who has not read ENGINEERING.md.",
+    )
+
+
+class FinishGateView(BaseModel):
+    """How far into the gate a finish is, when the gate is what it is doing."""
+
+    stage: str = Field(default="", description="The stage running now; empty once it ended.")
+    stages_run: int = 0
+    stages_total: int = 0
+    running: bool = False
+    passed: Optional[bool] = Field(
+        default=None, description="Null while the gate is still running."
+    )
+    seconds: float = 0.0
+    failed_stage: str = ""
+
+
+class TaskFinishView(BaseModel):
+    """What is happening to this task's branch right now, or last happened to it.
+
+    The answer to a question the API could not previously be asked. Approving a task on
+    a project with the scripted finish switched on starts a process that takes minutes
+    and, until task-321, said nothing to the page that started it: the ball moved to
+    ``agent``/``work`` and the reader was left to guess whether anything had picked the
+    approval up.
+    """
+
+    task_id: str
+    project_id: str
+    state: str = Field(
+        ...,
+        description=(
+            "'starting' (spawned, nothing written yet), 'running', 'finished', "
+            "'escalated' (it stopped and handed back), 'declined' (never a candidate), "
+            "or 'interrupted' (it wrote no ending and its process is gone)."
+        ),
+    )
+    live: bool = Field(..., description="Something is working on this task's branch now.")
+    finish_id: str = ""
+    started_at: str = ""
+    finished_at: str = ""
+    elapsed_seconds: Optional[float] = Field(
+        default=None,
+        description=(
+            "Seconds since it started while live; the total it took once it ended. "
+            "Computed on the server, because started_at is this machine's clock and "
+            "the phone reading the page is not on it."
+        ),
+    )
+    branch: str = ""
+    worktree: str = ""
+    current_step: str = ""
+    steps: List[FinishStepView] = Field(default_factory=list)
+    gate: Optional[FinishGateView] = None
+    reason: str = ""
+    stopped_at: str = Field(default="", description="Which step an escalation stopped at.")
+    merge_commit: str = ""
+    output_source: str = Field(
+        default="none",
+        description=(
+            "Where the text came from: 'finish-log' (the spawned process's own output, "
+            "which is the whole step table and exists only once it has ended), "
+            "'gate-log' (the gate's output, for a finish run inside a session), or "
+            "'none' -- which is the normal answer while one is still running."
+        ),
+    )
+    output_tail: str = Field(default="", description="The end of that text, bounded.")
+    output_url: str = Field(..., description="Where the whole of it is readable.")
+
+
 class DispatchCancelResult(BaseModel):
     """What cancelling asked for, and whether it happened."""
 
@@ -385,6 +477,61 @@ def _run_output(record: RunRecord) -> Tuple[str, str, Optional[float]]:
     if not sections:
         return "none", "", None
     return "captured-output", "\n\n".join(sections), latest
+
+
+def _finish_view(status: FinishStatus, project: Project) -> TaskFinishView:
+    """Render one finish for the browser, output tail included.
+
+    The tail rides in this response rather than behind a second endpoint, which is the
+    one place this deliberately differs from runs. A run's transcript grows for as long
+    as the session does and has to be paged; a finish's output is a step table of a
+    dozen lines that does not exist at all until the process ends. Splitting it would
+    cost a second poll for a field that is empty for the whole of the time anybody is
+    watching.
+    """
+    source, text, _ = finish_output(_home(), status)
+    return TaskFinishView(
+        task_id=status.task_id,
+        project_id=status.project_id or project.id,
+        state=status.state,
+        live=status.live,
+        finish_id=status.finish_id,
+        started_at=status.started_at,
+        finished_at=status.finished_at,
+        elapsed_seconds=status.elapsed_seconds,
+        branch=status.branch,
+        worktree=status.worktree,
+        current_step=status.current_step,
+        steps=[
+            FinishStepView(
+                name=step.name,
+                state=step.state,
+                detail=step.detail,
+                seconds=step.seconds,
+                meaning=step.meaning,
+            )
+            for step in status.steps
+        ],
+        gate=(
+            FinishGateView(
+                stage=status.gate.stage,
+                stages_run=status.gate.stages_run,
+                stages_total=status.gate.stages_total,
+                running=status.gate.running,
+                passed=status.gate.passed,
+                seconds=status.gate.seconds,
+                failed_stage=status.gate.failed_stage,
+            )
+            if status.gate
+            else None
+        ),
+        reason=status.reason,
+        stopped_at=status.stopped_at,
+        merge_commit=status.merge_commit,
+        output_source=source,
+        output_tail=readable_tail(text, OUTPUT_TAIL_LINES),
+        output_url=(f"/api/projects/{project.id}/dispatch/finishes/{status.task_id}/output"),
+    )
 
 
 def _moment(mtime: Optional[float]) -> Optional[str]:
@@ -628,3 +775,54 @@ async def read_dispatch_run_tail(
         text=readable_tail(text, lines),
         updated_at=_moment(mtime),
     )
+
+
+@router.get("/finishes/{task_id}", response_model=Optional[TaskFinishView])
+async def read_task_finish(
+    task_id: str, project: Project = Depends(request_project)
+) -> Optional[TaskFinishView]:
+    """What is happening to this task's branch, or last happened to it.
+
+    Keyed on the task rather than on a finish id, because the question a page asks is
+    "what is happening to *this*", and the reader pressing Approve has no finish id to
+    ask with -- the finish that answers it does not exist yet at the moment they press.
+
+    ``null`` is the ordinary answer for almost every task, and means no finish has run
+    for it on this machine. The page renders nothing at all for that, which is why it is
+    a null body rather than a 404: an absent finish is not a missing resource, and a
+    task page that logged a 404 every two seconds would teach its reader to ignore them.
+    """
+    status = read_finish_status(_home(), task_id, project.id)
+    if status is None:
+        return None
+    return _finish_view(status, project)
+
+
+@router.get(
+    "/finishes/{task_id}/output",
+    response_class=PlainTextResponse,
+    responses={200: {"content": {"text/plain": {}}}},
+)
+async def read_task_finish_output(
+    task_id: str, project: Project = Depends(request_project)
+) -> PlainTextResponse:
+    """A finish's output in full, as text a browser tab can show.
+
+    Text rather than JSON, for the same reason a run's is: this is read by a person, and
+    a step table wrapped in a JSON string escape is unreadable.
+    """
+    status = read_finish_status(_home(), task_id, project.id)
+    if status is None:
+        return PlainTextResponse(f"No finish has run for {task_id} on this machine.")
+    source, text, _ = finish_output(_home(), status)
+    if not text.strip():
+        body = (
+            f"The finish for {task_id} is {status.state} and has written no output yet. "
+            "A spawned finish writes its step table when the process ends; while it is "
+            "running, the steps on the task page are what is live."
+        )
+    else:
+        body = text
+    if len(body) > OUTPUT_BYTE_LIMIT:
+        body = "(earlier output omitted)\n" + body[-OUTPUT_BYTE_LIMIT:]
+    return PlainTextResponse(body)

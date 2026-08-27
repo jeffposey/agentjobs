@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 from agentjobs.dispatch.config import DispatchError, assert_dispatch_permitted
-from agentjobs.dispatch.ledger import RunLock, RunRecord, live_runs, locks_root
+from agentjobs.dispatch.ledger import RunLock, RunRecord, live_runs, run_lock_path
 from agentjobs.dispatch.runner import (
     DispatchRunError,
     DispatchRunner,
@@ -101,7 +101,7 @@ def _handle_from(home: Path, record: RunRecord) -> Optional[RunHandle]:
         dispatch_entry_id=entry_id,
         lock=RunLock(
             task_id=record.task_id,
-            path=locks_root(home) / f"{record.task_id}.lock",
+            path=run_lock_path(home, record.task_id),
             run_id=record.run_id,
         ),
     )

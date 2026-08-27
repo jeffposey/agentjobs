@@ -90,8 +90,8 @@ from agentjobs.dispatch.ledger import (
     acquire_run_lock,
     acquire_runway_lock,
     find_run,
-    locks_root,
     read_lock_holder,
+    run_lock_path,
 )
 from agentjobs.dispatch.phases import RUN_ID_ENV, record_phase
 from agentjobs.dispatch.record_commit import commit_task_record
@@ -158,6 +158,39 @@ class StepResult:
     def render(self) -> str:
         mark = "skipped" if self.skipped else ("ok" if self.ok else "STOPPED")
         return f"  {self.step:<10} {mark:<8} {self.seconds:5.1f}s  {self.detail}"
+
+
+class StepLog(List[StepResult]):
+    """The steps so far, written to the finish record as each one lands.
+
+    A list, because that is what every caller treats it as and what the two failure
+    paths read back. The addition is that appending also writes a ``finish_step`` phase
+    record -- which is deliberately not a separate call the sequence has to remember to
+    make beside each ``append``. A step recorded in one place and not the other would
+    make the live view disagree with the table on the task, and the sequence is written
+    as one straight line precisely so nothing has to be remembered twice (task-321).
+
+    Before this, the only account of which steps had run was the table written at the
+    end, so a watcher could see that a finish had started and that it had ended, and
+    nothing in between -- which for the three or four minutes of a real finish is
+    everything.
+    """
+
+    def __init__(self, directory: Optional["FinishDirectory"] = None) -> None:
+        super().__init__()
+        self.directory = directory
+
+    def append(self, step: StepResult) -> None:
+        super().append(step)
+        if self.directory is not None:
+            self.directory.record(
+                "finish_step",
+                step=step.step,
+                ok=step.ok,
+                skipped=step.skipped,
+                detail=step.detail,
+                seconds=round(step.seconds, 2),
+            )
 
 
 FINISHED = "finished"
@@ -422,6 +455,50 @@ def touches(paths: Sequence[str], prefixes: Sequence[str]) -> bool:
 
 def finishes_root(home: Path) -> Path:
     return home / FINISHES_DIRNAME
+
+
+SPAWN_DIRNAME = "spawn"
+"""Where a spawned finish's stdout and its start marker go. One pair per task.
+
+Not per finish: the two files answer "what is happening to this task", which is the
+question the task page asks, and the newest spawn is the only one that can be the
+answer. A finish's own directory keeps the per-attempt record.
+"""
+
+
+def spawn_root(home: Path) -> Path:
+    return finishes_root(home) / SPAWN_DIRNAME
+
+
+def spawn_log_path(home: Path, task_id: str) -> Path:
+    """Where a spawned finish's stdout goes -- the step table, once it has ended."""
+    return spawn_root(home) / f"{task_id}.log"
+
+
+def spawn_marker_path(home: Path, task_id: str) -> Path:
+    """Where the fact that a finish was started for this task is written down."""
+    return spawn_root(home) / f"{task_id}.json"
+
+
+def write_spawn_marker(home: Path, task_id: str, *, project_id: str, approver: str) -> None:
+    """Record that a finish is being started for this task, before it is.
+
+    Written by ``spawn_finish`` while the approve request is still open, which is the
+    whole point -- see the ordering note there. Never raises: an approval that has
+    already been recorded must not fail because a convenience could not be written.
+    """
+    payload = {
+        "task_id": task_id,
+        "project_id": project_id,
+        "approver": approver,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        path = spawn_marker_path(home, task_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    except (OSError, TypeError, ValueError):  # pragma: no cover - a marker is optional
+        pass
 
 
 @dataclass
@@ -1449,7 +1526,7 @@ def finish_task(
         # can be told a finish holds the task but not which one (task-298).
         lock.adopt_finish(directory.finish_id)
     started = time.monotonic()
-    steps: List[StepResult] = []
+    steps: List[StepResult] = StepLog(directory)
     runway = Runway(
         home=resolved_home,
         root=project.root,
@@ -1631,7 +1708,7 @@ def own_run_id(home: Path, task_id: str, *, environ: Optional[Mapping[str, str]]
         return declared
     if not _is_a_run_at_all(home, declared):
         return declared
-    holder = read_lock_holder(locks_root(home) / f"{task_id}.lock")
+    holder = read_lock_holder(run_lock_path(home, task_id))
     if holder is None or not _run_vouching_for(home, holder.run_id, task_id):
         return declared
     return holder.run_id
@@ -1663,7 +1740,7 @@ def _own_run_holds_lock(home: Path, task_id: str) -> bool:
     own_run = own_run_id(home, task_id)
     if not own_run:
         return False
-    holder = read_lock_holder(locks_root(home) / f"{task_id}.lock")
+    holder = read_lock_holder(run_lock_path(home, task_id))
     return holder is not None and holder.run_id == own_run
 
 
@@ -1927,17 +2004,26 @@ def spawn_finish(
     Returns the log path it will write, or None if the process could not be started.
     Never raises: an approval that has already been recorded must not fail because a
     convenience did not start.
+
+    **A marker is written before the spawn, and that ordering is the feature** (task-321).
+    The child takes one to two seconds to import Python and create its finish directory,
+    and the approve request answers well inside that window. A page that reloaded on the
+    answer and found nothing would conclude no finish was happening and stop looking --
+    for the whole three minutes of the one it had just started. Writing the marker here,
+    synchronously, makes that impossible: the request cannot return before the evidence
+    exists.
     """
     import sys
 
     resolved_home = home or default_home()
-    log_dir = finishes_root(resolved_home) / "spawn"
+    log_dir = spawn_root(resolved_home)
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
-        log = log_dir / f"{task_id}.log"
+        log = spawn_log_path(resolved_home, task_id)
         handle = log.open("w", encoding="utf-8")
     except OSError:
         return None
+    write_spawn_marker(resolved_home, task_id, project_id=project.id, approver=approver)
 
     argv = [
         sys.executable,

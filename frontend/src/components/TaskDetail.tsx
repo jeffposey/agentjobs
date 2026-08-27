@@ -4,12 +4,13 @@ import { Link } from "react-router-dom";
 import type { AttachmentUpload, LogEntry, TaskDetailResponse } from "../api/generated";
 // `TaskRead` is the app-facing alias for the output shape; `verbsFor` needs the record
 // itself, not just the detail envelope around it. See api/types.ts for why it is aliased.
-import type { TaskRead } from "../api/types";
+import type { TaskFinishView, TaskRead } from "../api/types";
 import { toUploads, type PendingAttachment } from "../report/attachments";
 import { AttachmentPicker } from "./AttachmentPicker";
 import { DependencyGraph } from "./DependencyGraph";
 import { DependencyState } from "./DependencyState";
 import { DispatchPanel, type DispatchPanelProps } from "./DispatchPanel";
+import { FinishPanel } from "./FinishPanel";
 import { NoteComposer } from "./NoteComposer";
 
 const PRIORITY_CLASSES: Record<string, string> = {
@@ -554,6 +555,14 @@ export type TaskDetailProps = {
   // Identity and sufficiency are supplied here rather than in the bundle because both
   // are read straight off the loaded record, which the bundle's hook never sees.
   dispatch?: Omit<DispatchPanelProps, "taskIsDispatchable" | "identity" | "recordCanBrief">;
+  // What is happening to this task's branch right now (task-321). Passed in as data
+  // rather than fetched by the panel, for the same reason the dispatch bundle is: this
+  // component is given everything it renders, so it can be rendered in a test without a
+  // query client answering for a surface the test is not about.
+  //
+  // Null is the ordinary value and means no finish has ever run for this task, which is
+  // true of almost every one. The panel renders nothing for it.
+  finish?: TaskFinishView | null;
 };
 
 export function TaskDetail(props: TaskDetailProps) {
@@ -578,6 +587,10 @@ export function TaskDetail(props: TaskDetailProps) {
 
       <PromoteError {...props} />
       <ReviewPanel {...props} />
+      {/* Between the review verbs and Dispatch, because that is where the eye already
+          is: a finish is what pressing Approve two feet above this starts, and the
+          answer to "did that do anything" has to be where the question was asked. */}
+      <FinishPanel finish={props.finish ?? null} />
       {props.dispatch && (
         <DispatchPanel
           {...props.dispatch}
@@ -589,6 +602,7 @@ export function TaskDetail(props: TaskDetailProps) {
             task.ball === "agent" && task.ball_reason !== "hold" && task.lifecycle !== "closed"
           }
           identity={detail.identity}
+          finishLive={Boolean(props.finish?.live)}
           // The same field the server checks, so the page and the guard agree without a
           // second round trip. `spec.description` is the working specification; an empty
           // one is the only state that means there is nothing here to work from. Notably

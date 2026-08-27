@@ -945,6 +945,78 @@ export type FeedbackActionRequest = {
 };
 
 /**
+ * FinishGateView
+ *
+ * How far into the gate a finish is, when the gate is what it is doing.
+ */
+export type FinishGateView = {
+    /**
+     * Failed Stage
+     */
+    failed_stage?: string;
+    /**
+     * Passed
+     *
+     * Null while the gate is still running.
+     */
+    passed?: boolean | null;
+    /**
+     * Running
+     */
+    running?: boolean;
+    /**
+     * Seconds
+     */
+    seconds?: number;
+    /**
+     * Stage
+     *
+     * The stage running now; empty once it ended.
+     */
+    stage?: string;
+    /**
+     * Stages Run
+     */
+    stages_run?: number;
+    /**
+     * Stages Total
+     */
+    stages_total?: number;
+};
+
+/**
+ * FinishStepView
+ *
+ * One step of a scripted finish, as the task page renders it.
+ */
+export type FinishStepView = {
+    /**
+     * Detail
+     */
+    detail?: string;
+    /**
+     * Meaning
+     *
+     * What this step is, for a reader who has not read ENGINEERING.md.
+     */
+    meaning?: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Seconds
+     */
+    seconds?: number;
+    /**
+     * State
+     *
+     * 'done', 'skipped', 'stopped' (this is where the finish gave up), or 'running' (inferred from the fixed order, and true of a finish that is between steps as well as one in the middle of this one).
+     */
+    state: string;
+};
+
+/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -2899,6 +2971,107 @@ export type TaskDetailResponse = {
 };
 
 /**
+ * TaskFinishView
+ *
+ * What is happening to this task's branch right now, or last happened to it.
+ *
+ * The answer to a question the API could not previously be asked. Approving a task on
+ * a project with the scripted finish switched on starts a process that takes minutes
+ * and, until task-321, said nothing to the page that started it: the ball moved to
+ * ``agent``/``work`` and the reader was left to guess whether anything had picked the
+ * approval up.
+ */
+export type TaskFinishView = {
+    /**
+     * Branch
+     */
+    branch?: string;
+    /**
+     * Current Step
+     */
+    current_step?: string;
+    /**
+     * Elapsed Seconds
+     *
+     * Seconds since it started while live; the total it took once it ended. Computed on the server, because started_at is this machine's clock and the phone reading the page is not on it.
+     */
+    elapsed_seconds?: number | null;
+    /**
+     * Finish Id
+     */
+    finish_id?: string;
+    /**
+     * Finished At
+     */
+    finished_at?: string;
+    gate?: FinishGateView | null;
+    /**
+     * Live
+     *
+     * Something is working on this task's branch now.
+     */
+    live: boolean;
+    /**
+     * Merge Commit
+     */
+    merge_commit?: string;
+    /**
+     * Output Source
+     *
+     * Where the text came from: 'finish-log' (the spawned process's own output, which is the whole step table and exists only once it has ended), 'gate-log' (the gate's output, for a finish run inside a session), or 'none' -- which is the normal answer while one is still running.
+     */
+    output_source?: string;
+    /**
+     * Output Tail
+     *
+     * The end of that text, bounded.
+     */
+    output_tail?: string;
+    /**
+     * Output Url
+     *
+     * Where the whole of it is readable.
+     */
+    output_url: string;
+    /**
+     * Project Id
+     */
+    project_id: string;
+    /**
+     * Reason
+     */
+    reason?: string;
+    /**
+     * Started At
+     */
+    started_at?: string;
+    /**
+     * State
+     *
+     * 'starting' (spawned, nothing written yet), 'running', 'finished', 'escalated' (it stopped and handed back), 'declined' (never a candidate), or 'interrupted' (it wrote no ending and its process is gone).
+     */
+    state: string;
+    /**
+     * Steps
+     */
+    steps?: Array<FinishStepView>;
+    /**
+     * Stopped At
+     *
+     * Which step an escalation stopped at.
+     */
+    stopped_at?: string;
+    /**
+     * Task Id
+     */
+    task_id: string;
+    /**
+     * Worktree
+     */
+    worktree?: string;
+};
+
+/**
  * TaskRead
  *
  * Task plus server-computed dependency state for read surfaces.
@@ -3911,6 +4084,68 @@ export type EnableDispatchApiDispatchEnablePostResponses = {
 
 export type EnableDispatchApiDispatchEnablePostResponse = EnableDispatchApiDispatchEnablePostResponses[keyof EnableDispatchApiDispatchEnablePostResponses];
 
+export type ReadTaskFinishApiDispatchFinishesTaskIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/api/dispatch/finishes/{task_id}';
+};
+
+export type ReadTaskFinishApiDispatchFinishesTaskIdGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadTaskFinishApiDispatchFinishesTaskIdGetError = ReadTaskFinishApiDispatchFinishesTaskIdGetErrors[keyof ReadTaskFinishApiDispatchFinishesTaskIdGetErrors];
+
+export type ReadTaskFinishApiDispatchFinishesTaskIdGetResponses = {
+    /**
+     * Response Read Task Finish Api Dispatch Finishes  Task Id  Get
+     *
+     * Successful Response
+     */
+    200: TaskFinishView | null;
+};
+
+export type ReadTaskFinishApiDispatchFinishesTaskIdGetResponse = ReadTaskFinishApiDispatchFinishesTaskIdGetResponses[keyof ReadTaskFinishApiDispatchFinishesTaskIdGetResponses];
+
+export type ReadTaskFinishOutputApiDispatchFinishesTaskIdOutputGetData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/api/dispatch/finishes/{task_id}/output';
+};
+
+export type ReadTaskFinishOutputApiDispatchFinishesTaskIdOutputGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadTaskFinishOutputApiDispatchFinishesTaskIdOutputGetError = ReadTaskFinishOutputApiDispatchFinishesTaskIdOutputGetErrors[keyof ReadTaskFinishOutputApiDispatchFinishesTaskIdOutputGetErrors];
+
+export type ReadTaskFinishOutputApiDispatchFinishesTaskIdOutputGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: string;
+};
+
+export type ReadTaskFinishOutputApiDispatchFinishesTaskIdOutputGetResponse = ReadTaskFinishOutputApiDispatchFinishesTaskIdOutputGetResponses[keyof ReadTaskFinishOutputApiDispatchFinishesTaskIdOutputGetResponses];
+
 export type ListDispatchRunsApiDispatchRunsGetData = {
     body?: never;
     path?: never;
@@ -4352,6 +4587,76 @@ export type EnableDispatchApiProjectsProjectIdDispatchEnablePostResponses = {
 };
 
 export type EnableDispatchApiProjectsProjectIdDispatchEnablePostResponse = EnableDispatchApiProjectsProjectIdDispatchEnablePostResponses[keyof EnableDispatchApiProjectsProjectIdDispatchEnablePostResponses];
+
+export type ReadTaskFinishApiProjectsProjectIdDispatchFinishesTaskIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/dispatch/finishes/{task_id}';
+};
+
+export type ReadTaskFinishApiProjectsProjectIdDispatchFinishesTaskIdGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadTaskFinishApiProjectsProjectIdDispatchFinishesTaskIdGetError = ReadTaskFinishApiProjectsProjectIdDispatchFinishesTaskIdGetErrors[keyof ReadTaskFinishApiProjectsProjectIdDispatchFinishesTaskIdGetErrors];
+
+export type ReadTaskFinishApiProjectsProjectIdDispatchFinishesTaskIdGetResponses = {
+    /**
+     * Response Read Task Finish Api Projects  Project Id  Dispatch Finishes  Task Id  Get
+     *
+     * Successful Response
+     */
+    200: TaskFinishView | null;
+};
+
+export type ReadTaskFinishApiProjectsProjectIdDispatchFinishesTaskIdGetResponse = ReadTaskFinishApiProjectsProjectIdDispatchFinishesTaskIdGetResponses[keyof ReadTaskFinishApiProjectsProjectIdDispatchFinishesTaskIdGetResponses];
+
+export type ReadTaskFinishOutputApiProjectsProjectIdDispatchFinishesTaskIdOutputGetData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/dispatch/finishes/{task_id}/output';
+};
+
+export type ReadTaskFinishOutputApiProjectsProjectIdDispatchFinishesTaskIdOutputGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadTaskFinishOutputApiProjectsProjectIdDispatchFinishesTaskIdOutputGetError = ReadTaskFinishOutputApiProjectsProjectIdDispatchFinishesTaskIdOutputGetErrors[keyof ReadTaskFinishOutputApiProjectsProjectIdDispatchFinishesTaskIdOutputGetErrors];
+
+export type ReadTaskFinishOutputApiProjectsProjectIdDispatchFinishesTaskIdOutputGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: string;
+};
+
+export type ReadTaskFinishOutputApiProjectsProjectIdDispatchFinishesTaskIdOutputGetResponse = ReadTaskFinishOutputApiProjectsProjectIdDispatchFinishesTaskIdOutputGetResponses[keyof ReadTaskFinishOutputApiProjectsProjectIdDispatchFinishesTaskIdOutputGetResponses];
 
 export type ListDispatchRunsApiProjectsProjectIdDispatchRunsGetData = {
     body?: never;

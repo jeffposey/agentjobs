@@ -122,6 +122,16 @@ def locks_root(home: Path) -> Path:
     return runs_root(home) / LOCKS_DIRNAME
 
 
+def run_lock_path(home: Path, task_id: str) -> Path:
+    """The lock file for one task's run.
+
+    Named rather than spelled out at each caller because five places had built this
+    path from the same two pieces, and a reader of any one of them had no way to know
+    the convention was shared.
+    """
+    return locks_root(home) / f"{task_id}.lock"
+
+
 @dataclass(frozen=True)
 class LockHolder:
     """Who a lock file says is holding it, as far as the file can be read.
@@ -481,9 +491,8 @@ def acquire_run_lock(
     ``stale_lock_reason`` for what counts as evidence, and note the asymmetry -- being
     unable to tell refuses.
     """
-    directory = locks_root(home)
-    directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"{task_id}.lock"
+    locks_root(home).mkdir(parents=True, exist_ok=True)
+    path = run_lock_path(home, task_id)
     deadline = time.monotonic() + timeout
     started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     reclaimed = False
