@@ -69,7 +69,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
 from agentjobs.actors import FINISHER
 from agentjobs.dispatch.config import (
@@ -213,6 +213,17 @@ class StepLog(List[StepResult]):
                 detail=step.detail,
                 seconds=round(step.seconds, 2),
             )
+
+    def extend(self, steps: Iterable[StepResult]) -> None:
+        """Overridden because ``list.extend`` does not go through ``append``.
+
+        A step added by the many-at-once form would otherwise be in the table at the end
+        and absent from the live view, which is the exact disagreement the class exists
+        to prevent -- and it would be silent. ``catch_up`` returns nought, one or two
+        steps, so the plural form is a real caller and not a hypothetical one.
+        """
+        for step in steps:
+            self.append(step)
 
 
 FINISHED = "finished"
@@ -895,6 +906,20 @@ def catch_up(plan: Plan, directory: FinishDirectory, settings: FinishSettings) -
     for round_number in range(1, CATCH_UP_ROUNDS + 1):
         base_now = git_out(plan.root, ["rev-parse", plan.base])
         if base_now == plan.base_head_before:
+            # Reported rather than omitted, like a merge that needs no restart. A step
+            # that vanishes when it does nothing makes the live view guess what is
+            # happening next, and the common case -- a quiet base -- is the one worth
+            # being explicit about.
+            if not steps:
+                steps.append(
+                    StepResult(
+                        "catch_up",
+                        True,
+                        f"{plan.base} did not move during the gate",
+                        0.0,
+                        skipped=True,
+                    )
+                )
             return steps
         moved = changed_between(plan.root, plan.base_head_before, base_now)
         stages = reachable_stages(plan.root, moved)
@@ -904,6 +929,17 @@ def catch_up(plan: Plan, directory: FinishDirectory, settings: FinishSettings) -
                 round=round_number,
                 base=base_now,
                 paths=moved,
+            )
+            steps.append(
+                StepResult(
+                    "catch_up",
+                    True,
+                    f"{plan.base} moved to {base_now[:8]} in {len(moved)} path(s) that "
+                    "nothing classifies as reachable-from, so this is not absorbable "
+                    "and the merge will refuse it",
+                    0.0,
+                    skipped=True,
+                )
             )
             return steps
 

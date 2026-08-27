@@ -1993,6 +1993,17 @@ Four properties, none of them politeness:
   a progress note would be committed to the base, moving the base it is catching up with.
   The step table in the closing entry carries it, and the finish directory records each
   round with the paths and stages.
+- **It always reports itself**, like a merge that needs no restart: a quiet base gets a
+  skipped step saying so, and an unabsorbable move gets one saying that too, before
+  `merge` refuses it. A step that vanished when it did nothing would leave the live view
+  of §5a deriving "what is running now" from a gap.
+
+Two seams with that live view were closed at the same time, both of which would have
+failed silently. `StepLog` recorded a step by overriding `append`, and `list.extend`
+does not go through it — so `catch_up`, which returns a list, would have been on the task
+and absent from the page. And `finish_status.STEP_ORDER`'s duplication check matched step
+names with `[a-z]+`, so the first step name carrying an underscore was invisible to
+exactly the check written to catch a missing one.
 
 **One commit the finisher itself made was removed.** `Runway.take` announces on the record
 when the runway is contended, which is right — a task queued behind three others must not

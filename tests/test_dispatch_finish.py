@@ -762,6 +762,49 @@ class TestCatchingUpWithAMovedBase:
         assert "catch_up" in rendered
         assert "pytest" in rendered
 
+    def test_a_quiet_base_still_reports_the_step_as_skipped(self, world: Dict[str, Any]) -> None:
+        """Like a merge that needs no restart, the common case says so rather than vanishing.
+
+        A step that disappears when it does nothing leaves the live view guessing what
+        comes next, and `finish_status` derives "what is running now" from the last step
+        it saw.
+        """
+        publish_gate_scope(world)
+        result = run(world)
+        assert result.outcome == FINISHED, result.render()
+        step = next(step for step in result.steps if step.step == "catch_up")
+        assert step.skipped is True
+        assert "did not move" in step.detail
+
+    def test_an_unabsorbable_move_says_so_before_the_merge_refuses(
+        self, world: Dict[str, Any]
+    ) -> None:
+        """The step table has to explain the refusal that follows it, not just precede it."""
+        publish_gate_scope(world)
+        gate_that_moves_the_base(world, "src/agentjobs/somebody_elses_code.py")
+        result = run(world)
+        assert result.reason == "base_moved"
+        step = next(step for step in result.steps if step.step == "catch_up")
+        assert step.skipped is True
+        assert "not absorbable" in step.detail
+
+    def test_the_live_view_sees_the_catch_up_too(self, world: Dict[str, Any]) -> None:
+        """`list.extend` does not go through `StepLog.append`, and `catch_up` returns a list.
+
+        Without `StepLog.extend`, a caught-up finish would show the step in the table on
+        the task and omit it from the page somebody is watching -- silently, which is the
+        disagreement `StepLog` exists to prevent (task-321).
+        """
+        publish_gate_scope(world)
+        gate_that_moves_the_base(world, "tasks/somebody-elses-record.yaml")
+        result = run(world)
+        assert result.outcome == FINISHED, result.render()
+
+        status = read_finish_status(world["home"], world["task_id"], "demo")
+        assert status is not None
+        assert [step.name for step in status.steps] == [step.step for step in result.steps]
+        assert "catch_up" in [step.name for step in status.steps]
+
     def test_catching_up_writes_nothing_to_the_task_record(self, world: Dict[str, Any]) -> None:
         """The one step in this module that must stay silent.
 
