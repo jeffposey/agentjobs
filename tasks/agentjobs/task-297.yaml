@@ -3,7 +3,7 @@ id: task-297
 title: 'The scripted finish cannot merge under concurrency: base_moved fires on task-record
   commits, and each escalation causes the next'
 created: '2026-08-23T20:57:20.855780Z'
-updated: '2026-08-27T16:00:11.205906Z'
+updated: '2026-08-27T16:26:53.084900Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -149,30 +149,42 @@ acceptance:
   text: A finish whose gate is interrupted only by task-record commits to main completes
     the merge rather than refusing, or refuses for a reason that is argued and recorded
     as deliberate.
-  verify: the finish's behaviour under a reproduced concurrent case
-  status: pending
+  verify: 'It merges. Live (run-green): two finishes with 21 record commits landing
+    on main throughout, both caught up and merged. The control, identical but with
+    the classification table withheld, escalated base_moved twice and merged nothing.
+    Also test_a_task_record_landing_mid_gate_is_caught_up_with_and_merged.'
+  status: met
 - id: sc-2
   text: A finish whose gate is interrupted by a commit touching code still refuses.
     Proven by a test that lands a source commit mid-gate.
-  verify: finish tests
-  status: pending
+  verify: 'test_a_source_commit_landing_mid_gate_still_refuses: the stub gate commits
+    src/agentjobs/somebody_elses_code.py to main while it runs; the finish escalates
+    base_moved, nothing merges, and the escalation names the path.'
+  status: met
 - id: sc-3
   text: 'The self-amplification is broken: an escalation from one finish no longer
     causes a base_moved escalation in another. Demonstrated with two concurrent finishes,
     one of which escalates.'
-  verify: live, under real concurrency
-  status: pending
+  verify: 'Live in both orderings (run-red, run-red-first): the escalating finish
+    committed its record to main and the other finish merged anyway. Structurally,
+    the runway means no second finish is gating when the first escalates, and the
+    finisher''s one commit made outside the runway -- the queue note -- no longer
+    commits.'
+  status: met
 - id: sc-4
   text: The chosen approach is argued on the record against the alternatives listed
     in the description, including what it does about TestRealCorpus loading real task
     records.
-  verify: this task's log
-  status: pending
+  verify: Log entry 7. All four options addressed; TestRealCorpus is run rather than
+    argued around, which is why a blanket tasks/ exemption was rejected.
+  status: met
 - id: sc-5
   text: Two or more finishes started close together both reach a merge without a human
     serialising them by hand.
-  verify: live, demonstrated not asserted
-  status: pending
+  verify: 'run-green: two finish processes started half a second apart against one
+    shared runway lock, 21 record commits landing on main throughout, both merged
+    (59380c0b, de053944). No human touched it.'
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -363,3 +375,95 @@ log:
       id: 7f2a1c30-9d41-4b62-8e05-1a2b3c4d5e02
       kind: log_append
       fingerprint: 143b90c988b213f30579e068c9dfb848
+- id: 8
+  ts: '2026-08-27T16:26:12.093143Z'
+  actor: claude
+  type: progress
+  body: "## Built and demonstrated. Branch `fix/task-297-finish-catch-up`, two commits.\n\
+    \n`fdf0d97 fix(finish): catch up with a base that moved during the gate`\n`512682e\
+    \ docs(dispatch): record how a moved base is caught up with`\n\nFull unqualified\
+    \ gate on the rebased branch: **green, exit 0, 309s, \"Ran every stage (10 of\
+    \ 10)\"**, receipt written for `512682e4`. Log kept at `~/.agentjobs/runs/run_4e9d1f40/task-297-evidence/gate-full.log`.\n\
+    \n### What changed\n\n- **`catch_up`**, a new step in `_sequence` between the\
+    \ gate and the merge. When the base has moved, `reachable_stages` asks the finished\
+    \ repository's own `scripts/gate_scope.py` what the moved paths can affect. All\
+    \ classified \u2192 rebase onto the new tip, re-run exactly those stages (`scripts/check.py\
+    \ --only \u2026`), then merge. Any path unclassified \u2192 do nothing, and `merge`\
+    \ refuses with `base_moved` unchanged. Bounded at two rounds; a third move escalates\
+    \ as `base_moves_repeatedly`.\n- **`merge`'s `base_moved` escalation now names\
+    \ the paths that moved**, so the woken session does not have to diff for them.\n\
+    - **`Runway.take`'s queue note no longer commits.** It is written (the dashboard\
+    \ reads the working tree) but not committed, because it is the one commit the\
+    \ finisher makes while *another* finish holds the runway and is likely mid-gate.\
+    \ `announce_start` commits the same file a minute later.\n\n### Demonstrated live,\
+    \ under real concurrency\n\nA harness at `~/.agentjobs/runs/run_4e9d1f40/task-297-evidence/harness.py`\
+    \ builds a real git repository with two branches, two worktrees and two task records,\
+    \ then runs **three real OS processes**: two `finish_task` calls started half\
+    \ a second apart against one shared home (so one real file-based runway lock),\
+    \ and a third process committing a task record to `main` **every two seconds throughout**.\
+    \ Twenty-one record commits landed on `main` during each run.\n\n**What is real:**\
+    \ the processes, the repository, the worktrees, the runway lock, the record commits,\
+    \ `finish_task` and every step it runs. **What is stubbed:** `scripts/check.py`\
+    \ sleeps twenty seconds and exits, and `worktree_interpreter` answers with the\
+    \ running interpreter rather than asking Poetry. Neither is the subject \u2014\
+    \ a gate that sleeps for twenty seconds opens exactly the same window as one that\
+    \ runs ten stages for twenty seconds. Said plainly because \"demonstrated, not\
+    \ asserted\" deserves to know what the instrument was.\n\n**Run 1 \u2014 two green\
+    \ finishes (`run-green/`).** Both merged.\n\n```\na: finished  runway  0.0s taken\
+    \ immediately   gate 20.1s  catch_up 0.2s  merge -> 59380c0b\n   catch_up: main\
+    \ moved 1b5cf3df -> 44aa60fb in 10 classified path(s); rebased to ab7a322b and\
+    \ re-ran pytest\nb: finished  runway 22.0s taken after queuing gate 20.0s  catch_up\
+    \ 0.2s  merge -> de053944\n   catch_up: main moved c27e3ecf -> 2a54e075 in  9\
+    \ classified path(s); rebased to 5b165597 and re-ran pytest\n```\n\n**Run 2 \u2014\
+    \ the control (`run-control/`).** Identical harness, identical timings, one difference:\
+    \ `scripts/gate_scope.py` is withheld from the repository, which is the code's\
+    \ own opt-in switch and therefore reproduces the pre-fix behaviour with no code\
+    \ change at all. **Both finishes escalated `base_moved` and nothing merged.**\
+    \ That is the defect, reproduced on demand, and it is the same run that merges\
+    \ twice when the table is present.\n\n**Run 3 \u2014 one finish escalates (`run-red/`,\
+    \ `run-red-first/`).** Run in both orderings, because \"an escalation from one\
+    \ finish causes a `base_moved` in another\" needs the escalation to be able to\
+    \ arrive before *and* after. Escalating finish second: A merged (`6e81c898`),\
+    \ B escalated `gate_failed`. Escalating finish first: A escalated `gate_failed`\
+    \ and committed `chore(task-001): escalate the scripted finish at gate` to `main`,\
+    \ and B still merged (`4853644e`). **In neither ordering did any finish escalate\
+    \ with `base_moved`.**\n\n### Demonstrated in the suite\n\nTwelve new tests in\
+    \ `tests/test_dispatch_finish.py`, all landing a **real commit on the base while\
+    \ the gate is running** \u2014 the stub gate makes the commit itself, because\
+    \ reaching into the plan and rewriting a captured sha would test the comparison\
+    \ and prove nothing about the race.\n\n- `TestCatchingUpWithAMovedBase` \u2014\
+    \ a task record landing mid-gate is caught up with and merged; a **source** commit\
+    \ landing mid-gate still refuses and names the path (sc-2); the step table says\
+    \ what it caught up with; catching up writes nothing to the task record; a red\
+    \ re-run stops the merge; and with no published table the refusal is unconditional.\n\
+    - `TestWhatAChangedPathCanReach` \u2014 the classification is delegated: `tasks/`\
+    \ reaches `pytest` and nothing else, one unclassified path denies the whole move,\
+    \ no table classifies nothing, a table that will not import classifies nothing.\n\
+    - `TestQueuingForTheRunwayIsSilentInGit` \u2014 the queue note is written, and\
+    \ lands no commit of its own on the base, and is not orphaned (`announce_start`'s\
+    \ commit carries it).\n\nThe tests use **this repository's real `scripts/gate_scope.py`**,\
+    \ copied into the fixture, rather than a hand-written table: a fixture table could\
+    \ agree with the finish while both disagreed with the gate.\n\n### One thing deliberately\
+    \ not done\n\nNothing was added to `ENGINEERING.md` or `ALLAGENTS.md`. The always-loaded\
+    \ bundle has 533 bytes of headroom against `tests/test_context_budget.py`'s 60,000,\
+    \ and there is nothing here an agent has to *do* differently: the finish handles\
+    \ it, and an escalation that does reach a session explains itself in its own message.\
+    \ The full account is in `docs/agent-dispatch-design.md` \xA75a, which the bundle\
+    \ already points at for the scripted finish.\n"
+  data:
+    operation:
+      id: 7f2a1c30-9d41-4b62-8e05-1a2b3c4d5e03
+      kind: log_append
+      fingerprint: c0f7607a3ded771b2865e778b832ba1c
+- id: 9
+  ts: '2026-08-27T16:26:53.084628Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 7f2a1c30-9d41-4b62-8e05-1a2b3c4d5e05
+      kind: update_content
+      fingerprint: cda393423a91a4db5edc454d67d37e95
