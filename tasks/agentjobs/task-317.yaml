@@ -3,7 +3,7 @@ id: task-317
 title: The AgentJobs MCP server is declared twice under one name, and the two declarations
   point at different ports
 created: '2026-08-25T10:43:10.073470Z'
-updated: '2026-08-27T11:53:36.609007Z'
+updated: '2026-08-27T11:54:12.611344Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -507,3 +507,30 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 15
+  ts: '2026-08-27T11:54:12.611115Z'
+  actor: claude
+  type: progress
+  body: "**Confirmed live on `main` after the merge. The plugin's MCP server connects\
+    \ for the first time.**\n\n`agentjobs finish task-317 --project agentjobs --posture-release`\
+    \ exit 0: rebased `f8bab28 -> 40d85bb`, full gate green (239.2s), `--no-ff` merged\
+    \ as `d8e1bb5`, restarted the server through `C:/ai/shared/launchers/open-agentjobs.ps1`\
+    \ (its own launcher, not `agentjobs restart`), verified 8876 is serving `cafeee9`\
+    \ which contains the merge, closed the task, removed the worktree, deleted the\
+    \ branch.\n\nThen, from a real client against merged `main`:\n\n```\n$ claude\
+    \ mcp list\nplugin:agentjobs:agentjobs: agentjobs mcp - OK Connected\nagentjobs:\
+    \ C:/.../python.exe -m agentjobs.cli mcp - OK Connected\n```\n\nBoth Connected.\
+    \ Before this change the first line read `Failed to connect - CONNECTION_CLOSED`,\
+    \ and had in every session since the plugin was created. Nothing in the repository\
+    \ names a port now; the plugin's server found 8876 through `api_base:` in `~/.agentjobs/dispatch.yaml`.\n\
+    \n**That output is also the state entry 9 warns about**: two live `agentjobs`\
+    \ servers where there was one. That is a machine-configuration choice, deliberately\
+    \ left to Jeff, and entry 9 names both ways to reduce it to one.\n\nThe untracked\
+    \ root `.mcp.json` was left exactly as found \u2014 it was edited briefly during\
+    \ the F4 probe (entry 7) and restored byte-for-byte before anything else happened;\
+    \ verified again after the merge."
+  data:
+    operation:
+      id: 1d7e9a34-6c02-4b58-8e91-7f30a2c5b6de
+      kind: log_append
+      fingerprint: bc052884157076f0476c3d793e5e60b3
