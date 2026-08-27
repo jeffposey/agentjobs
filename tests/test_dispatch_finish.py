@@ -22,11 +22,12 @@ The two failures these are really guarding are worth naming, because both are si
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 import pytest
 import yaml
@@ -1662,3 +1663,123 @@ class TestAStaleIdentityDoesNotStripAuthority:
 
         assert resolved.posture is Posture.SUPERVISED
         assert resolved.requested is Posture.AUTONOMOUS
+
+
+# ----- the repository's one runway (task-223) ---------------------------------
+
+
+class TestTheRunway:
+    """One repository merges one branch at a time, and a finish holds the strip.
+
+    **The property being protected is not "git can merge two branches".** It is that the
+    commit which lands is the commit the gate verified. Without a runway, N concurrent
+    finishers each rebase, gate and merge against a base the others are moving, and
+    ``merge``'s ``base_moved`` check -- written for a rare race -- becomes the ordinary
+    outcome, costing a dispatched run every time it fires.
+    """
+
+    def test_a_finish_takes_the_runway_and_gives_it_back(self, world: Dict[str, Any]) -> None:
+        from agentjobs.dispatch.ledger import locks_root, runway_lock_name
+
+        result = run(world)
+        assert result.outcome == "finished", result.render()
+        steps = {step.step: step for step in result.steps}
+        assert "runway" in steps and steps["runway"].ok
+        lock = locks_root(world["home"]) / f"{runway_lock_name(world['root'])}.lock"
+        assert not lock.exists(), "a finished finish left the runway held"
+
+    def test_the_runway_is_released_when_the_finish_stops(self, world: Dict[str, Any]) -> None:
+        """An escalation must not strand the strip -- every other child would queue on it."""
+        from agentjobs.dispatch.ledger import locks_root, runway_lock_name
+
+        (world["worktree"] / "scripts" / "check.py").write_text(RED_GATE, encoding="utf-8")
+        git(world["worktree"], "commit", "-am", "break the gate")
+
+        result = run(world)
+        assert result.outcome == "escalated", result.render()
+        lock = locks_root(world["home"]) / f"{runway_lock_name(world['root'])}.lock"
+        assert not lock.exists()
+
+    def test_a_held_runway_makes_a_second_finish_queue_and_say_so(
+        self, world: Dict[str, Any]
+    ) -> None:
+        """The queued finish writes to its own record rather than looking hung.
+
+        A child third in line is otherwise indistinguishable from one that has stalled,
+        which is the thing a person reading the dashboard has to be able to tell.
+        """
+        from agentjobs.dispatch.ledger import acquire_runway_lock
+
+        held = acquire_runway_lock(world["home"], world["root"], finish_id="fin_held")
+        try:
+            result = run(world, runway_timeout_seconds=1)
+        finally:
+            held.release()
+
+        assert result.outcome == "escalated"
+        assert result.reason == "runway_busy"
+        assert not merged_into(world["root"], world["branch"]), "it merged while queued"
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        queued = [entry for entry in task.log if entry.data.get("finish_step") == "runway_queued"]
+        assert queued, "a finish that queued said nothing about it on the record"
+        assert "fin_held" in queued[-1].body
+
+    def test_the_runway_is_keyed_on_the_checkout_not_the_project(self, tmp_path: Path) -> None:
+        """Two projects over one clone share a ``main``, so they share a runway."""
+        from agentjobs.dispatch.ledger import runway_lock_name
+
+        root = tmp_path / "clone"
+        root.mkdir()
+        other = tmp_path / "elsewhere"
+        other.mkdir()
+        assert runway_lock_name(root) == runway_lock_name(root)
+        assert runway_lock_name(root) != runway_lock_name(other)
+        # And one checkout spelled two ways is one runway, which on Windows includes case.
+        assert runway_lock_name(root) == runway_lock_name(Path(str(root) + os.sep + "."))
+
+    def test_a_second_claimant_waits_rather_than_being_refused(self, tmp_path: Path) -> None:
+        """Contention on the runway means the queue is working, not that something is wrong.
+
+        The opposite of the per-task lock, whose contention means two runs want one task.
+        """
+        from agentjobs.dispatch.ledger import RunLockTimeout, acquire_runway_lock
+
+        home = tmp_path / "home"
+        home.mkdir()
+        root = tmp_path / "repo"
+        root.mkdir()
+        first = acquire_runway_lock(home, root, finish_id="fin_a")
+        seen: List[Any] = []
+        with pytest.raises(RunLockTimeout) as refused:
+            acquire_runway_lock(
+                home, root, finish_id="fin_b", timeout=0.2, poll=0.05, on_wait=seen.append
+            )
+        assert seen and seen[0].finish_id == "fin_a"
+        assert "runway" in str(refused.value)
+        first.release()
+        # And once it is free the next claimant takes it immediately.
+        acquire_runway_lock(home, root, finish_id="fin_b", timeout=0.2).release()
+
+    def test_releasing_does_not_delete_a_runway_somebody_else_reclaimed(
+        self, tmp_path: Path
+    ) -> None:
+        """A shared lock released blind would let a third finish in beside the second."""
+        from agentjobs.dispatch.ledger import (
+            acquire_runway_lock,
+            locks_root,
+            read_lock_holder,
+            runway_lock_name,
+        )
+
+        home = tmp_path / "home"
+        home.mkdir()
+        root = tmp_path / "repo"
+        root.mkdir()
+        mine = acquire_runway_lock(home, root, finish_id="fin_a")
+        path = locks_root(home) / f"{runway_lock_name(root)}.lock"
+        # Somebody judged it stale and took it for themselves while we still held it.
+        path.write_text("pid=1 run= kind=runway finish=fin_b", encoding="ascii")
+        mine.release()
+        holder = read_lock_holder(path)
+        assert holder is not None and holder.finish_id == "fin_b"

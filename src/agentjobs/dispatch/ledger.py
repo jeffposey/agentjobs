@@ -27,13 +27,14 @@ The two modes diverge here more than anywhere else, and the divergence is delibe
 from __future__ import annotations
 
 import errno
+import hashlib
 import os
 import subprocess
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Callable, Dict, List, Optional, Set
 
 import yaml
 
@@ -57,12 +58,33 @@ LOCKS_DIRNAME = ".locks"
 LOCK_TIMEOUT_SECONDS = 10.0
 LOCK_POLL_SECONDS = 0.01
 
+RUNWAY_PREFIX = "runway-"
+"""Reserved lock-name prefix for the repo-scoped finish runway (task-223).
+
+Runway locks share the directory with per-task locks because they are the same
+primitive with the same stale-lock rules, and a second locks directory would be a
+second set of failure modes to learn. They cannot collide with a task's lock: a task id
+that began ``runway-`` would have to be a task literally named for this, and the
+prefix is reserved here so nobody creates one by accident."""
+
+RUNWAY_TIMEOUT_SECONDS = 3600.0
+"""How long a finish waits for the runway before giving up.
+
+Ten seconds is right for the per-task lock, whose contention means *somebody else is
+already doing this task* and is therefore a refusal. Runway contention means the
+opposite -- the queue is working -- so waiting is the correct behaviour and the bound
+has to cover a real queue: three children each rebasing, gating and merging at the
+measured ~4 minutes of a scripted finish, plus the outlier gate under three-way
+contention that ENGINEERING.md records at about six. An hour is well clear of that and
+still finite, because a wait with no bound is a hang."""
+
 KIND_DISPATCH = "dispatch"
 KIND_FINISH = "finish"
-"""What kind of thing holds a run lock.
+KIND_RUNWAY = "runway"
+"""What kind of thing holds a lock in this directory.
 
-Two things take it and they are opposites, which is why the lock has to say which
-(task-298). A **dispatch** starts a session that outlives the process that started it,
+Two of them take a *task's* lock and they are opposites, which is why the lock has to say
+which (task-298). A **dispatch** starts a session that outlives the process that started it,
 so its pid is expected to die while the work goes on and the run record is the only
 authority on whether it is over. A **finish** is the process: it holds the lock for one
 attempt, in the foreground of its own detached invocation, and it never becomes a run --
@@ -75,7 +97,13 @@ offered a server restart, which mid-merge is the most harmful thing available. O
 twice on 2026-08-23 and read, reasonably, as the product being broken.
 
 An empty kind means a lock file written before this existed; it is treated as a
-dispatch, which is what every such file was."""
+dispatch, which is what every such file was.
+
+A **runway** is the third and is not keyed on a task at all: one per repository, held by
+whichever finish is currently rebasing, gating and merging there (task-223). It shares
+this directory and these stale-lock rules because it is the same primitive; it behaves
+like a finish in every respect except its key, which is why ``stale_lock_reason`` reaches
+the same conclusion about both from the pid."""
 
 
 class RunLockTimeout(Exception):
@@ -139,6 +167,11 @@ class LockHolder:
             started_at=fields.get("started", ""),
             text=text.strip(),
         )
+
+    @property
+    def is_runway(self) -> bool:
+        """Whether this lock is the repo-scoped finish runway (task-223)."""
+        return self.kind == KIND_RUNWAY
 
     @property
     def is_finish(self) -> bool:
@@ -276,8 +309,13 @@ def stale_lock_reason(home: Path, holder: LockHolder) -> Optional[str]:
                 return None
             return f"its run {holder.run_id} is {record.outcome or record.status}"
     if holder.pid is not None and not process_alive(holder.pid):
+        named = f" {holder.finish_id}" if holder.finish_id else ""
+        if holder.is_runway:
+            return (
+                f"the finish{named} holding the runway (pid {holder.pid}) is gone, so "
+                "nothing is merging in that repository"
+            )
         if holder.is_finish:
-            named = f" {holder.finish_id}" if holder.finish_id else ""
             return f"the scripted finish{named} that took it (pid {holder.pid}) is gone"
         missing = (
             f"and there is no record of run {holder.run_id}"
@@ -363,6 +401,18 @@ class RunLock:
         """
         holder = read_lock_holder(self.path)
         if holder is not None and self.run_id and holder.run_id and holder.run_id != self.run_id:
+            return
+        # The same rule for a holder identified by finish id rather than run id, which
+        # is every scripted finish and every runway (task-223). A runway names no run at
+        # all, so without this its release was unconditional -- and an unconditional
+        # release of a *shared* lock deletes whatever peer reclaimed it in between and
+        # lets a third finish in beside them.
+        if (
+            holder is not None
+            and self.finish_id
+            and holder.finish_id
+            and holder.finish_id != self.finish_id
+        ):
             return
         try:
             self.path.unlink()
@@ -470,6 +520,100 @@ def acquire_run_lock(
         if time.monotonic() >= deadline:
             raise RunLockTimeout(_lock_refusal(home, task_id, path, holder))
         time.sleep(LOCK_POLL_SECONDS)
+
+
+# ----- the repo-scoped finish runway (task-223) --------------------------------
+
+
+def runway_lock_name(root: Path) -> str:
+    """The lock name for one repository's finish runway.
+
+    Keyed on the **resolved checkout path**, not on the project id, because the resource
+    being protected is a git repository: two registered projects pointing at one clone
+    share a ``main`` and must share a runway, and one project reachable under two spellings
+    of its path must not get two. ``os.path.normcase`` folds the case and the separators,
+    which is what makes ``C:/projects/agentjobs`` and ``C:\\Projects\\AgentJobs`` the same
+    runway on Windows.
+
+    Hashed rather than sanitised so the name has a fixed length and no path separators in
+    it; the digest is not a secret and truncation to 12 hex characters is ample for the
+    handful of checkouts one machine has.
+    """
+    key = os.path.normcase(str(Path(root).resolve()))
+    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+    return f"{RUNWAY_PREFIX}{digest}"
+
+
+def acquire_runway_lock(
+    home: Path,
+    root: Path,
+    *,
+    finish_id: str = "",
+    timeout: float = RUNWAY_TIMEOUT_SECONDS,
+    poll: float = 1.0,
+    on_wait: Optional[Callable[[LockHolder], None]] = None,
+) -> RunLock:
+    """Take the one runway this repository has, waiting for it rather than refusing.
+
+    **The runway is the sequential half of a parallel epic** (task-223). Children fly in
+    parallel and land one at a time, and the reason is not that git cannot merge two
+    branches -- it can, and it says so loudly when it cannot. The reason is that a
+    finish's guarantee is *the commit that landed is the commit the gate verified*, and
+    that guarantee is only true if nothing moves the base between the gate and the merge.
+    Held across rebase, gate and merge, this makes that true by construction. Without it,
+    N concurrent finishers all pass their gates against a base the others are moving, and
+    ``merge``'s ``base_moved`` check -- written for a rare race -- becomes the normal
+    outcome, costing a dispatched run each time.
+
+    **Taken at merge time only was the rejected alternative**, and it is cheaper: the
+    runway would then be seconds rather than the whole gate. It was rejected because it
+    needs an answer for "the base moved while I was gating", and the only correct answer
+    is to rebase and re-gate -- which spends the gate twice and, under real contention,
+    can spend it repeatedly. Holding the runway across the gate spends it once, and the
+    honest cost is stated rather than hidden: with a four-minute finish and four
+    children, roughly sixteen minutes of the epic is runway. The flights are what
+    parallelise, and they are five-sixths of a run.
+
+    **Waiting rather than refusing** is the other half of the difference from
+    :func:`acquire_run_lock`. Contention on a task lock means somebody else is already
+    doing this task, which is an error. Contention here means the queue is working.
+    ``on_wait`` is called at most once, with the holder found the first time the runway
+    was busy, so a caller can say on its own record that it is queued rather than hung.
+    """
+    deadline = time.monotonic() + timeout
+    announced = False
+    while True:
+        try:
+            lock = acquire_run_lock(
+                home,
+                runway_lock_name(root),
+                kind=KIND_RUNWAY,
+                timeout=0.0,
+            )
+        except RunLockTimeout:
+            pass
+        else:
+            if finish_id:
+                lock.adopt_finish(finish_id)
+            return lock
+
+        if not announced and on_wait is not None:
+            holder = read_lock_holder(locks_root(home) / f"{runway_lock_name(root)}.lock")
+            announced = True
+            if holder is not None:
+                on_wait(holder)
+
+        if time.monotonic() >= deadline:
+            holder = read_lock_holder(locks_root(home) / f"{runway_lock_name(root)}.lock")
+            described = holder.describe() if holder is not None else "an unreadable lock"
+            raise RunLockTimeout(
+                f"Waited {timeout / 60:.0f} minutes for the finish runway on {root} and "
+                f"it is still held by {described}. One repository merges one branch at a "
+                "time on purpose, so this is a queue rather than a fault -- but an hour "
+                "of it means the holder is not progressing. Look at what is merging "
+                "there; restarting AgentJobs clears a runway whose holder has ended."
+            )
+        time.sleep(poll)
 
 
 def _lock_refusal(home: Path, task_id: str, path: Path, holder: Optional[LockHolder]) -> str:

@@ -84,9 +84,11 @@ from agentjobs.dispatch.config import (
 from agentjobs.dispatch.ledger import (
     KIND_FINISH,
     LedgerError,
+    LockHolder,
     RunLock,
     RunLockTimeout,
     acquire_run_lock,
+    acquire_runway_lock,
     find_run,
     locks_root,
     read_lock_holder,
@@ -1052,6 +1054,83 @@ def mark_branch_merged(manager: TaskManager, task_id: str, branch: str) -> None:
     manager.update_task(task_id, actor=FINISHER, branches=branches)
 
 
+@dataclass
+class Runway:
+    """This repository's one landing strip, held across rebase, gate and merge.
+
+    **Takeoff and landing are different resources** (task-223). An epic's children work in
+    parallel because their worktrees are independent; they merge one at a time because
+    ``main`` is not. Without this, N concurrent finishers each rebase, gate and merge
+    against a base the others are moving, and the property the merge gate exists to
+    guarantee -- *the commit that landed is the commit the gate verified* -- stops
+    holding. ``merge``'s ``base_moved`` check is what catches that, and it costs a whole
+    dispatched run each time it fires; under concurrency it would fire routinely.
+
+    Held from just after preflight until the finish is over, which is longer than the
+    merge and deliberately so. See :func:`agentjobs.dispatch.ledger.acquire_runway_lock`
+    for the arithmetic and for why taking it at merge time only was rejected.
+
+    A finish that never gets as far as preflight -- no branch, a branch that does not
+    exist -- never takes it. Declining is not landing.
+    """
+
+    home: Path
+    root: Path
+    finish_id: str
+    timeout: float
+    lock: Optional[RunLock] = None
+    waited_seconds: float = 0.0
+
+    def take(self, manager: TaskManager, task_id: str) -> StepResult:
+        """Queue for the runway, saying so on the record if the queue is real."""
+        began = time.monotonic()
+
+        def announce(holder: LockHolder) -> None:
+            # Only when it is actually contended, and only once. A note on every finish
+            # would be noise; a task that sits for ten minutes with no explanation is the
+            # thing this prevents -- a child queued behind three others must not read as
+            # hung to whoever opens it.
+            manager.add_log_entry(
+                task_id,
+                actor=FINISHER,
+                type=LogEntryType.PROGRESS,
+                body=(
+                    f"Queued for this repository's merge runway, held by "
+                    f"{holder.describe()}{holder.since_phrase()}.\n\n"
+                    "**This is the queue working, not a stall.** Children of an epic fly "
+                    "in parallel and land one at a time, because a gate is only evidence "
+                    "about the base it ran against. Nothing here is rebased, gated or "
+                    "merged until the runway is free."
+                ),
+                data={"finish_step": "runway_queued", "finish_id": self.finish_id},
+            )
+            commit_task_record(
+                manager,
+                task_id,
+                subject="note queuing for the merge runway",
+                actor=FINISHER,
+            )
+
+        try:
+            self.lock = acquire_runway_lock(
+                self.home,
+                self.root,
+                finish_id=self.finish_id,
+                timeout=self.timeout,
+                on_wait=announce,
+            )
+        except RunLockTimeout as exc:
+            raise Escalate("runway", "runway_busy", str(exc)) from exc
+        self.waited_seconds = time.monotonic() - began
+        held = "taken immediately" if self.waited_seconds < 1.0 else "taken after queuing"
+        return StepResult("runway", True, held, self.waited_seconds)
+
+    def release(self) -> None:
+        if self.lock is not None:
+            self.lock.release()
+            self.lock = None
+
+
 def announce_start(
     manager: TaskManager, task_id: str, plan: Plan, directory: FinishDirectory
 ) -> None:
@@ -1371,6 +1450,12 @@ def finish_task(
         lock.adopt_finish(directory.finish_id)
     started = time.monotonic()
     steps: List[StepResult] = []
+    runway = Runway(
+        home=resolved_home,
+        root=project.root,
+        finish_id=directory.finish_id,
+        timeout=float(settings.runway_timeout_seconds),
+    )
     try:
         result = _guarded_sequence(
             manager=manager,
@@ -1381,6 +1466,7 @@ def finish_task(
             api_base=api_base,
             directory=directory,
             steps=steps,
+            runway=runway,
         )
         directory.write_meta(
             outcome=FINISHED,
@@ -1434,6 +1520,10 @@ def finish_task(
         # to: the run asking is still alive and holds the ball.
         if lock is not None:
             lock.release()
+        # And the runway, for the same reason and one more: a session dispatched to fix
+        # whatever stopped this finish will want to merge, and holding the strip while
+        # asking somebody to land on it is a deadlock with a one-hour timeout on it.
+        runway.release()
         run_id = dispatch_after_escalation(
             manager=manager,
             project=project,
@@ -1455,6 +1545,7 @@ def finish_task(
             dispatched_run_id=run_id,
         )
     finally:
+        runway.release()
         if lock is not None:
             lock.release()
 
@@ -1618,6 +1709,7 @@ def _sequence(
     api_base: Optional[str],
     directory: FinishDirectory,
     steps: List[StepResult],
+    runway: Runway,
 ) -> FinishResult:
     """The sequence itself, with every stop expressed as an exception.
 
@@ -1636,6 +1728,12 @@ def _sequence(
         )
     )
     directory.record("finish_preflight", branch=plan.branch, worktree=str(plan.worktree))
+    # After preflight so a decline never queues, and before everything else so that the
+    # base this rebases onto, gates against and merges into is one that cannot move
+    # underneath it (task-223). Everything from here to the end of the finish is inside
+    # the runway.
+    steps.append(runway.take(manager, task.id))
+    directory.record("finish_runway", seconds=round(runway.waited_seconds, 2))
     announce_start(manager, task.id, plan, directory)
 
     # Re-read the base *after* the announcement, because the announcement commits a task
