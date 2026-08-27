@@ -2,7 +2,7 @@ schema: 2
 id: task-321
 title: She w that task is finishing
 created: '2026-08-27T15:52:20.044498Z'
-updated: '2026-08-27T15:59:46.250981Z'
+updated: '2026-08-27T16:40:42.315829Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -37,7 +37,9 @@ dependencies:
   type: related
   note: Reported while viewing this task.
 links: []
-branches: []
+branches:
+- name: feat/task-321-finish-feedback
+  status: active
 log:
 - id: 1
   ts: '2026-08-27T15:52:20.488631Z'
@@ -174,3 +176,81 @@ log:
       id: 7a1c9f2e-3b44-4d0a-9c11-8f6b2e5d1a01
       kind: log_append
       fingerprint: ad528a1e9abe02aaac7188513c2612d4
+- id: 7
+  ts: '2026-08-27T16:40:31.495455Z'
+  actor: claude
+  type: progress
+  body: "Built on `feat/task-321-finish-feedback`, five commits, gate green on all\
+    \ ten stages.\n\n**What was wrong.** Clicking Approve on a project with `finish.enabled`\
+    \ starts three or four minutes of work on one click, and the page said nothing\
+    \ about any of it. The ball moved to `agent`/`work` carrying the approval's own\
+    \ prompt, the Dispatch button stayed live, and pressing it produced a run-lock\
+    \ refusal rather than an explanation. `announce_start` did write a `progress`\
+    \ entry \u2014 but only after preflight and the runway wait, and only for a reader\
+    \ who thought to reload.\n\n**What was already on disk, and what was not.** `meta.yaml`,\
+    \ `phases.jsonl`, `gate.log` and the spawned process's stdout under `finishes/spawn/`\
+    \ all existed and nothing assembled them. Two things genuinely were not recorded,\
+    \ and both are now:\n\n- **Each step as it lands.** `StepLog` writes a `finish_step`\
+    \ phase on every `append`, so the sequence records a step at the moment it happens\
+    \ rather than only into the table it prints at the end. It rides on `append` rather\
+    \ than being a second call beside each one because a step that reached the final\
+    \ table and not the live view is exactly the drift that arrangement prevents \u2014\
+    \ and `_sequence` is written as one straight line on purpose.\n- **Each gate stage.**\
+    \ `scripts/check.py` writes `gate_stage_started` / `gate_stage_finished`. The\
+    \ gate is ~85% of a finish's wall clock (173.3s of 203.1s on task-296's own finish)\
+    \ and was one silent block between two records; this is the difference between\
+    \ \"running\" and \"pytest, 7 of 10\".\n\n**What was added.**\n\n- `src/agentjobs/dispatch/finish_status.py`\
+    \ \u2014 the reading half, and only that half: starts nothing, holds no lock,\
+    \ waits for nothing. Liveness is delegated to `ledger.stale_lock_reason` rather\
+    \ than re-derived from a clock, so it agrees with the refusal a dispatch would\
+    \ get by construction, and covers both shapes a finish comes in (its own detached\
+    \ process, whose pid decides; a dispatched run finishing itself, where the lock\
+    \ names the run and the run record decides). The visible consequence: a finish\
+    \ whose machine rebooted mid-gate reads `interrupted` rather than as a spinner\
+    \ nothing ever stops.\n- `spawn_finish` writes a marker **before** `Popen`. The\
+    \ child spends one to two seconds importing Python and the approve request answers\
+    \ well inside that; without it a page reloading on the answer would find nothing,\
+    \ conclude nothing was happening, and stop looking for the following three minutes.\
+    \ A test asserts the *ordering*, not merely that the file exists \u2014 a marker\
+    \ written after the spawn would pass every state test and still fail the one moment\
+    \ it exists for.\n- `GET /api/projects/{id}/dispatch/finishes/{task_id}` and `/output`.\
+    \ Keyed on the task, not a finish id: the reader pressing Approve has no finish\
+    \ id to ask with. A task no finish has run for answers `null` with a `200` \u2014\
+    \ an absent finish is not a missing resource, and a page polling every two seconds\
+    \ would teach its reader to ignore 404s.\n- `FinishPanel`, between the review\
+    \ verbs and Dispatch. Live step table, the step in flight, the gate's position,\
+    \ and a headline that names the consequence for the branch rather than the enum:\
+    \ a merge names its commit, a red gate says nothing was merged. Its badge says\
+    \ `Stopped` / `Interrupted` rather than `Done`, because that word is the first\
+    \ thing read on the card.\n- Dispatch disabled while a finish is live, with a\
+    \ `role=\"status\"` note saying why (`status`, not `alert`: it is polled every\
+    \ two seconds and would otherwise interrupt a screen reader on every poll). The\
+    \ server refused it before and still does; what changed is that the page says\
+    \ so before the click.\n\n**Deliberately not done: streaming the finish's stdout.**\
+    \ It would need `run_command` to tee rather than capture and the CLI to print\
+    \ per step, and it would still show nothing during the gate, whose output is buffered\
+    \ until it exits. The step table is live and more legible than the terminal text;\
+    \ the log is shown when it exists.\n\n**Verification.**\n\n- `scripts/check.py`,\
+    \ unqualified, all ten stages, exit 0 in 503s. Three drift tests caught real gaps\
+    \ rather than passing quietly: `test_check_gate` (the new stage records), `test_api_reference_coverage`\
+    \ (four undocumented operations), and `LiveUpdates.drift` (which forced the two\
+    \ new queries to be classified as non-task data, with the reason).\n- 24 new tests\
+    \ in `tests/test_finish_status.py`, covering each state including `starting` and\
+    \ `interrupted`, plus two in `tests/test_dispatch_finish.py` that run a **real\
+    \ finish against a real repository** and read the step table back \u2014 one on\
+    \ the successful path, one interrupted at the merge so the partial table is genuinely\
+    \ partial rather than a completed one with records removed.\n- **In a browser**,\
+    \ against a server run from this worktree on port 8907 with all three states seeded\
+    \ \u2014 a finish mid-gate, one that merged, one that stopped at a red gate. The\
+    \ live card showed `gate \u25B8 Running the full gate on the rebased branch \u2014\
+    \ Gate: pytest \u2014 6 of 10` with the elapsed counter moving, Dispatch greyed\
+    \ with the explanation; the merged card showed all eleven steps and expanded to\
+    \ the finish log; the stopped card showed `\u2715 gate` with \"a red gate never\
+    \ merges\" and Dispatch available again. Sandbox and its server were torn down\
+    \ afterwards.\n\nMerging through `agentjobs finish --posture-release` next, per\
+    \ this run's posture."
+  data:
+    operation:
+      id: 4d2f8c61-9e07-4a3b-b5d2-1c7e0a934f22
+      kind: log_append
+      fingerprint: cef8d4e9297279e24125bd15a86cd79c
