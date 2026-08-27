@@ -3,10 +3,11 @@ id: task-305
 title: Move rationale, incident narrative and measurement history out of the always-loaded
   bundle, and put what remains under a budget a test asserts
 created: '2026-08-23T21:53:30.307386Z'
-updated: '2026-08-25T10:12:05.711376Z'
-lifecycle: ready
+updated: '2026-08-27T09:41:50.015835Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 queue_position: 1193
@@ -18,6 +19,7 @@ tags:
 effort: "one branch over two files plus docs/performance.md, one small CLI change,\
   \ one test \u2014 but the judgement per section is the work"
 assignment:
+  owner: claude
   eligible: []
 parent: task-269
 posture: autonomous
@@ -195,3 +197,79 @@ log:
       id: a5118097-f454-4510-8c25-4b1290a5e70b
       kind: update_content
       fingerprint: 8ae847a02f53a9f968f9010cf8390fb6
+- id: 6
+  ts: '2026-08-27T09:41:47.555922Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of task-269, and this run is attempt 1 of
+    2 at one of its children on that authorisation (entry 16 on task-269). They chose
+    posture `autonomous` for the epic, so this run gets it too. No separate approval
+    of this task was given or is required: the epic is what was authorised.'
+  data:
+    authorizes_dispatch: true
+    surface: the epic walk
+    epic:
+      parent: task-269
+      entry: 16
+      attempt: 1
+      limit: 2
+- id: 7
+  ts: '2026-08-27T09:41:48.047787Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 8
+  ts: '2026-08-27T09:41:50.015669Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_86614592
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: epic
+    posture_ceiling: autonomous
+    trigger: child
+    caused_by: 6
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --settings
+    - '{"env": {"AGENTJOBS_RUN_ID": "run_86614592", "AGENTJOBS_RUN_DIR": "C:\\Users\\jpose\\.agentjobs\\runs\\run_86614592"}}'
+    - 'You are the agent `claude` working task `task-305` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-305-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_86614592. Posture `autonomous` releases the merge gate:
+      this run merges its own work with no human review. Record the evidence on the
+      task first, then run `agentjobs finish task-305 --project agentjobs --posture-release`
+      from C:\projects\agentjobs. That rebases, runs the full gate, and merges only
+      on a green one -- it stops and hands the ball back if anything fails. Do not
+      merge by hand. Never push: this project is configured `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: c4fddcc
+    session_id: e46480b5
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
