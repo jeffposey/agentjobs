@@ -3,7 +3,7 @@ id: task-296
 title: 'A dispatched session that parks is invisible: the task record still reads
   agent/work and nobody is told'
 created: '2026-08-23T20:56:33.153215Z'
-updated: '2026-08-27T13:43:20.822601Z'
+updated: '2026-08-27T14:01:38.211329Z'
 lifecycle: active
 ball: agent
 ball_reason: answer
@@ -762,3 +762,82 @@ log:
       id: 7b2e4d19-6c05-4f73-9a12-8de3105b7c44
       kind: log_append
       fingerprint: 745bfef420510a93d2a1b5244ae9c32c
+- id: 22
+  ts: '2026-08-27T14:01:38.210824Z'
+  actor: claude
+  type: progress
+  body: "## Built\n\nBranch `fix/task-296-stall-detection`, two commits, rebased onto\
+    \ `main`.\n\n**`_check_running_stall`** in `runner.py`, called from the `RUNNING`\
+    \ branch of `poll_session` \u2014 the branch that previously did nothing. On every\
+    \ poll it compares the length of what `capture_transcript` just returned against\
+    \ what the run's `meta.yaml` recorded. Different, and it stamps the new length\
+    \ and time. Identical for longer than `session_stall_seconds`, and it hands the\
+    \ ball to `human`/`input` with a prompt naming the session, how long it has been\
+    \ silent, the attach command, and the tail of its terminal \u2014 then commits\
+    \ that to `main` itself, because a stalled session is by definition not going\
+    \ to carry the handoff there on its way past.\n\n**`session_stall_seconds`, default\
+    \ 1800**, new in `DispatchLimits` alongside the existing `session_stale_seconds`,\
+    \ which it is deliberately *not*: that one asks whether a session that already\
+    \ ended its turn concluded properly; this one asks whether a session still claiming\
+    \ to work is doing anything. Documented in `scaffold.py`, `docs/agent-dispatch-design.md`,\
+    \ and `agentjobs dispatch config` output.\n\nThree properties worth stating because\
+    \ each was a choice:\n\n- **Never kills.** The session stays attachable. `stalled`\
+    \ is not in `TERMINAL_STATUSES`, so the run stays live and keeps being polled.\n\
+    - **Retractable.** If output resumes, the status goes back to `running` and a\
+    \ later silence is reported afresh. A permission park is sticky because a parked\
+    \ session cannot un-park itself; a stalled one resumes on its own all the time.\n\
+    - **Idempotent.** Polling is repeated by design, so the report is written once\
+    \ however many times it fires.\n\n## Verified\n\n**Full unqualified gate, green**,\
+    \ on the exact code being handed over: `Ran every stage (10 of 10)`, `GATE_EXIT=0`,\
+    \ 274.7s. Re-running post-rebase; the rebase brought only task YAML.\n\n**Seven\
+    \ tests**, and I checked they are load-bearing rather than decorative. With the\
+    \ `RUNNING` branch disabled, the three positive tests fail (`assert Ball.AGENT\
+    \ is Ball.HUMAN`, `'running' == 'stalled'`, `0 == 1`) and the four false-alarm\
+    \ guards still pass \u2014 which is correct, since those exist to prove nothing\
+    \ fires when it should not. One of them encodes the constraint directly: a six-minute\
+    \ silence, the worst measured gate under three-way contention, is asserted **not**\
+    \ to be a stall.\n\n**sc-5, live, not only in tests.** A sandbox drives the real\
+    \ `poll_live_sessions` against a real run directory whose `pid` is a real, genuinely-alive\
+    \ OS process that emits nothing. Production code throughout: config resolution,\
+    \ `live_runs`, `_handle_from`, `poll_session`, `classify_session`, `_check_running_stall`,\
+    \ `manager.handoff`, the YAML writer. **Naming the instrument, per the repo's\
+    \ own rule:** the runner executable is a stub, because making the real Claude\
+    \ CLI wedge on demand is not reproducible; it answers `agents --json` with `busy`/`working`\
+    \ and returns byte-identical `logs`. What that does *not* prove is that the Claude\
+    \ CLI produces that pair when it wedges. What it does prove is the whole AgentJobs\
+    \ path from a silent session to a moved ball.\n\n```\npoll 1:  phase=RUNNING \
+    \  task: ball=agent/work    meta: status=running output_size=38\n         (three\
+    \ minutes of silence)\npoll 2:  phase=RUNNING   task: ball=human/input   meta:\
+    \ status=stalled\npoll 3:  stall reports on the record: 1\n         the process\
+    \ was NOT killed: True\n```\n\nThe prompt it wrote:\n\n> Dispatched session `sess_demo`\
+    \ still reports itself as working but has produced no output for 3 minutes, so\
+    \ this task has been reading `agent`/`work` while nothing happened. It was **not**\
+    \ killed and is still attachable: `... attach sess_demo`. Attach to see what it\
+    \ is doing, or stop it and move this task on yourself.\n\n**The first version\
+    \ of that sandbox reported nothing, and the reason is worth keeping.** I had written\
+    \ the task to `root/tasks/demo`; `Project.tasks_dir()` resolves to `root/tasks`,\
+    \ so the poller's own manager found no task and the stall check returned silently.\
+    \ My sandbox's bug, not the implementation's \u2014 but it is exactly the class\
+    \ of thing the unit tests cannot see, because they hand the runner a manager directly.\
+    \ It is the reason sc-5 asks for a live demonstration.\n\n## Decided against:\
+    \ amending ALLAGENTS.md\n\nThe task's context list suggested the \"the signal\
+    \ is the task record, not the process\" rule \"may need a sentence\". I am not\
+    \ adding one, for two reasons.\n\nThe rule is now **more** true, not less: the\
+    \ case it did not cover was a record that never moves, and this change makes it\
+    \ move. Nothing about the rule needs qualifying for a dispatched session.\n\n\
+    And the bundle has no room. `CLAUDE.md` plus its three imports measure 60,455\
+    \ bytes against a 60,000-byte budget by a plain byte count -- `tests/test_context_budget.py`\
+    \ passes, so its own measure is under, but the headroom is thin enough that prose\
+    \ should be earning its place rather than added for completeness. The residual\
+    \ exception -- a session AgentJobs never started -- belongs to **task-320** and\
+    \ should be documented when that fix lands, in one place rather than two.\n\n\
+    ## Filed\n\n**task-320**, \"A session AgentJobs did not start is invisible to\
+    \ every safety net it has\" \u2014 the other half of the forensics, with the evidence,\
+    \ the three candidate approaches and their trade-offs, and the constraint that\
+    \ it must not report a task legitimately claimed by an interactive session as\
+    \ a fault. Not bundled in here, which the constraints forbid."
+  data:
+    operation:
+      id: bd7c8a35-1f92-4e07-b6a4-2c0913e8fd66
+      kind: log_append
+      fingerprint: 6b697ba753da60cbcb7c530fc5d83c0a
