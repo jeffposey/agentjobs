@@ -3,14 +3,11 @@ id: task-318
 title: A child of the epic walk inherits the parent's AGENTJOBS_RUN_ID, so its own
   sanctioned autonomous merge is declined `locked`
 created: '2026-08-25T11:11:28.166849Z'
-updated: '2026-08-27T11:32:05.798315Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-27T11:32:28.183151Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 14700
 category: infrastructure
 tags:
 - dispatch
@@ -20,7 +17,6 @@ effort: "small once located \u2014 the walk's child spawn has to set the child's
   \ run id in the environment it passes down; most of the cost is deciding where the\
   \ parent's value is leaking in"
 assignment:
-  owner: claude
   eligible: []
 parent: task-269
 spec:
@@ -136,7 +132,8 @@ dependencies: []
 links: []
 branches:
 - name: test/task-318-walk-child-run-identity
-  status: active
+  status: merged
+  merged_at: '2026-08-27T11:32:28.136930Z'
 log:
 - id: 1
   ts: '2026-08-25T11:11:28.606052Z'
@@ -594,3 +591,26 @@ log:
     merge_commit: 0413e98e936c015ccc09cc21521373ed3da795e6
     branch: test/task-318-walk-child-run-identity
     base: main
+- id: 14
+  ts: '2026-08-27T11:32:28.182957Z'
+  actor: finisher
+  type: transition
+  body: "Merged `test/task-318-walk-child-run-identity` into `main` as `0413e98e`\
+    \ and verified live. Finished by the scripted path with no agent session (task-241).\
+    \ No human reviewed this merge: posture `autonomous` (from the epic) releases\
+    \ the merge gate (task-021), and run run_74dfbc1c ran the finish. What authorised\
+    \ it is the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.2s  test/task-318-walk-child-run-identity at\
+    \ 8e9f810b in C:\\projects\\worktrees\\agentjobs-318\n  rebase     ok        \
+    \ 0.2s  test/task-318-walk-child-run-identity onto main: 8e9f810b -> dba0d8e0\n\
+    \  gate       ok       199.3s  scripts/check.py green\n  merge      ok       \
+    \  0.3s  --no-ff into main as 0413e98e936c015ccc09cc21521373ed3da795e6\n  rebuild\
+    \    skipped    0.0s  the merge touched no frontend/ path\n  restart    ok   \
+    \      0.6s  ran powershell -NoProfile -ExecutionPolicy Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -Force -NoOpen\n  verify     ok         0.0s  http://127.0.0.1:8876 is serving\
+    \ bd16cfc4, which contains the merge 0413e98e, from C:\\projects\\agentjobs (started\
+    \ 2026-08-27T11:32:10.704751+00:00)\n```"
+  data:
+    lifecycle: closed
+    outcome: completed
