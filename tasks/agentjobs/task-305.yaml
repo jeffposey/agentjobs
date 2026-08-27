@@ -3,7 +3,7 @@ id: task-305
 title: Move rationale, incident narrative and measurement history out of the always-loaded
   bundle, and put what remains under a budget a test asserts
 created: '2026-08-23T21:53:30.307386Z'
-updated: '2026-08-27T10:38:10.506356Z'
+updated: '2026-08-27T10:38:55.687400Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -636,3 +636,13 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 18
+  ts: '2026-08-27T10:38:55.687247Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 8
+  data:
+    run_id: run_86614592
+    outcome: completed
+    duration_seconds: 3426.502475
+    log_path: C:\Users\jpose\.agentjobs\runs\run_86614592
