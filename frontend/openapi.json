@@ -1306,6 +1306,92 @@
         "title": "FeedbackActionRequest",
         "type": "object"
       },
+      "FinishGateView": {
+        "description": "How far into the gate a finish is, when the gate is what it is doing.",
+        "properties": {
+          "failed_stage": {
+            "default": "",
+            "title": "Failed Stage",
+            "type": "string"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null while the gate is still running.",
+            "title": "Passed"
+          },
+          "running": {
+            "default": false,
+            "title": "Running",
+            "type": "boolean"
+          },
+          "seconds": {
+            "default": 0.0,
+            "title": "Seconds",
+            "type": "number"
+          },
+          "stage": {
+            "default": "",
+            "description": "The stage running now; empty once it ended.",
+            "title": "Stage",
+            "type": "string"
+          },
+          "stages_run": {
+            "default": 0,
+            "title": "Stages Run",
+            "type": "integer"
+          },
+          "stages_total": {
+            "default": 0,
+            "title": "Stages Total",
+            "type": "integer"
+          }
+        },
+        "title": "FinishGateView",
+        "type": "object"
+      },
+      "FinishStepView": {
+        "description": "One step of a scripted finish, as the task page renders it.",
+        "properties": {
+          "detail": {
+            "default": "",
+            "title": "Detail",
+            "type": "string"
+          },
+          "meaning": {
+            "default": "",
+            "description": "What this step is, for a reader who has not read ENGINEERING.md.",
+            "title": "Meaning",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "seconds": {
+            "default": 0.0,
+            "title": "Seconds",
+            "type": "number"
+          },
+          "state": {
+            "description": "'done', 'skipped', 'stopped' (this is where the finish gave up), or 'running' (inferred from the fixed order, and true of a finish that is between steps as well as one in the middle of this one).",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "state"
+        ],
+        "title": "FinishStepView",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -4128,6 +4214,130 @@
         "title": "TaskDetailResponse",
         "type": "object"
       },
+      "TaskFinishView": {
+        "description": "What is happening to this task's branch right now, or last happened to it.\n\nThe answer to a question the API could not previously be asked. Approving a task on\na project with the scripted finish switched on starts a process that takes minutes\nand, until task-321, said nothing to the page that started it: the ball moved to\n``agent``/``work`` and the reader was left to guess whether anything had picked the\napproval up.",
+        "properties": {
+          "branch": {
+            "default": "",
+            "title": "Branch",
+            "type": "string"
+          },
+          "current_step": {
+            "default": "",
+            "title": "Current Step",
+            "type": "string"
+          },
+          "elapsed_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Seconds since it started while live; the total it took once it ended. Computed on the server, because started_at is this machine's clock and the phone reading the page is not on it.",
+            "title": "Elapsed Seconds"
+          },
+          "finish_id": {
+            "default": "",
+            "title": "Finish Id",
+            "type": "string"
+          },
+          "finished_at": {
+            "default": "",
+            "title": "Finished At",
+            "type": "string"
+          },
+          "gate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FinishGateView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "live": {
+            "description": "Something is working on this task's branch now.",
+            "title": "Live",
+            "type": "boolean"
+          },
+          "merge_commit": {
+            "default": "",
+            "title": "Merge Commit",
+            "type": "string"
+          },
+          "output_source": {
+            "default": "none",
+            "description": "Where the text came from: 'finish-log' (the spawned process's own output, which is the whole step table and exists only once it has ended), 'gate-log' (the gate's output, for a finish run inside a session), or 'none' -- which is the normal answer while one is still running.",
+            "title": "Output Source",
+            "type": "string"
+          },
+          "output_tail": {
+            "default": "",
+            "description": "The end of that text, bounded.",
+            "title": "Output Tail",
+            "type": "string"
+          },
+          "output_url": {
+            "description": "Where the whole of it is readable.",
+            "title": "Output Url",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "started_at": {
+            "default": "",
+            "title": "Started At",
+            "type": "string"
+          },
+          "state": {
+            "description": "'starting' (spawned, nothing written yet), 'running', 'finished', 'escalated' (it stopped and handed back), 'declined' (never a candidate), or 'interrupted' (it wrote no ending and its process is gone).",
+            "title": "State",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/FinishStepView"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "stopped_at": {
+            "default": "",
+            "description": "Which step an escalation stopped at.",
+            "title": "Stopped At",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "worktree": {
+            "default": "",
+            "title": "Worktree",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "project_id",
+          "state",
+          "live",
+          "output_url"
+        ],
+        "title": "TaskFinishView",
+        "type": "object"
+      },
       "TaskRead-Input": {
         "additionalProperties": false,
         "description": "Task plus server-computed dependency state for read surfaces.",
@@ -5211,6 +5421,100 @@
         ]
       }
     },
+    "/api/dispatch/finishes/{task_id}": {
+      "get": {
+        "description": "What is happening to this task's branch, or last happened to it.\n\nKeyed on the task rather than on a finish id, because the question a page asks is\n\"what is happening to *this*\", and the reader pressing Approve has no finish id to\nask with -- the finish that answers it does not exist yet at the moment they press.\n\n``null`` is the ordinary answer for almost every task, and means no finish has run\nfor it on this machine. The page renders nothing at all for that, which is why it is\na null body rather than a 404: an absent finish is not a missing resource, and a\ntask page that logged a 404 every two seconds would teach its reader to ignore them.",
+        "operationId": "read_task_finish_api_dispatch_finishes__task_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TaskFinishView"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Read Task Finish Api Dispatch Finishes  Task Id  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Task Finish",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/dispatch/finishes/{task_id}/output": {
+      "get": {
+        "description": "A finish's output in full, as text a browser tab can show.\n\nText rather than JSON, for the same reason a run's is: this is read by a person, and\na step table wrapped in a JSON string escape is unreadable.",
+        "operationId": "read_task_finish_output_api_dispatch_finishes__task_id__output_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Task Finish Output",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
     "/api/dispatch/runs": {
       "get": {
         "description": "Runs belonging to this project, newest first.\n\nFiltered by project rather than returning the machine's whole ledger: a run\ndirectory records which project it belongs to, and a page about one project has no\nbusiness showing another's.",
@@ -5891,6 +6195,118 @@
           }
         },
         "summary": "Enable Dispatch",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/dispatch/finishes/{task_id}": {
+      "get": {
+        "description": "What is happening to this task's branch, or last happened to it.\n\nKeyed on the task rather than on a finish id, because the question a page asks is\n\"what is happening to *this*\", and the reader pressing Approve has no finish id to\nask with -- the finish that answers it does not exist yet at the moment they press.\n\n``null`` is the ordinary answer for almost every task, and means no finish has run\nfor it on this machine. The page renders nothing at all for that, which is why it is\na null body rather than a 404: an absent finish is not a missing resource, and a\ntask page that logged a 404 every two seconds would teach its reader to ignore them.",
+        "operationId": "read_task_finish_api_projects__project_id__dispatch_finishes__task_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TaskFinishView"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Read Task Finish Api Projects  Project Id  Dispatch Finishes  Task Id  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Task Finish",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/dispatch/finishes/{task_id}/output": {
+      "get": {
+        "description": "A finish's output in full, as text a browser tab can show.\n\nText rather than JSON, for the same reason a run's is: this is read by a person, and\na step table wrapped in a JSON string escape is unreadable.",
+        "operationId": "read_task_finish_output_api_projects__project_id__dispatch_finishes__task_id__output_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Task Finish Output",
         "tags": [
           "dispatch"
         ]
