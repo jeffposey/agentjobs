@@ -22,6 +22,7 @@ import {
   promoteTaskApiProjectsProjectIdTasksTaskIdPromotePostMutation,
   queueKeepTaskApiProjectsProjectIdTasksTaskIdQueueKeepPostMutation,
   queueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostMutation,
+  readTaskFinishApiProjectsProjectIdDispatchFinishesTaskIdGetOptions,
   rejectTaskApiProjectsProjectIdTasksTaskIdRejectPostMutation,
   reprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostMutation,
   answerTaskApiProjectsProjectIdTasksTaskIdAnswerPostMutation,
@@ -46,6 +47,7 @@ import {
   type DispatchRefusal,
 } from "./components/DispatchPanel";
 import { DispatchRunOutput } from "./components/DispatchOutput";
+import { finishPollInterval } from "./components/FinishPanel";
 import { TaskList, type ReorderHandlers } from "./components/TaskList";
 import { TaskDetail } from "./components/TaskDetail";
 import { TaskCreate } from "./components/TaskCreate";
@@ -349,6 +351,29 @@ function useTaskDispatch(projectId: string, taskId: string, user: string | null)
   };
 }
 
+/**
+ * What is happening to this task's branch, polled while it is happening (task-321).
+ *
+ * Its own query rather than a field on the task detail, because the two move on
+ * completely different clocks: a task record changes when somebody writes to it, and a
+ * finish changes every few seconds for three minutes. Folding this into the detail query
+ * would mean either re-reading the whole task record every two seconds or watching a
+ * finish that updates on the detail's clock, which is to say not at all.
+ *
+ * The page's own post-approve `invalidateQueries` is what starts this: `spawn_finish`
+ * writes its marker before it spawns anything, so the refetch that follows an approval
+ * cannot answer "nothing is happening" about a finish that request just started.
+ */
+function useTaskFinish(projectId: string, taskId: string) {
+  const query = useQuery({
+    ...readTaskFinishApiProjectsProjectIdDispatchFinishesTaskIdGetOptions({
+      path: { project_id: projectId, task_id: taskId },
+    }),
+    refetchInterval: (state) => finishPollInterval(state.state.data ?? null),
+  });
+  return query.data ?? null;
+}
+
 function DispatchSettingsPage({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -416,6 +441,7 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
   // so the explanation has to outlive the mutation that produced it.
   const [promoteError, setPromoteError] = useState<string | null>(null);
   const dispatch = useTaskDispatch(projectId, taskId, detailQuery.data?.identity.user ?? null);
+  const finish = useTaskFinish(projectId, taskId);
 
   if (detailQuery.error instanceof UnsupportedTaskSchemaError) return <StatusCard title="Unsupported task schema">{detailQuery.error.message}</StatusCard>;
   if (detailQuery.isPending) return <StatusCard title="Opening task...">Loading the complete task record.</StatusCard>;
@@ -441,6 +467,7 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
       promoteBusy={promote.isPending}
       promoteError={promoteError}
       dispatch={dispatch}
+      finish={finish}
       onApprove={async (note) => { if (!user) return; await approve.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, note } }); await refresh(); }}
       onResume={async (note) => { if (!user) return; await resume.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, note } }); await refresh(); }}
       onSendBack={async (reason, feedback, attachments) => {

@@ -87,6 +87,20 @@ export const NON_TASK_PROJECT_QUERY_IDS = new Map([
     "Same as the playbook list: one repository file, changed by a commit rather than "
       + "by a task write.",
   ],
+  [
+    "readTaskFinishApiProjectsProjectIdDispatchFinishesTaskIdGet",
+    "What a scripted finish is doing right now, read out of ~/.agentjobs/finishes. It "
+      + "moves every few seconds for three minutes and a task write is neither "
+      + "necessary nor sufficient for that -- most of a finish's steps write nothing to "
+      + "the record at all. The panel polls it on its own two-second clock while one is "
+      + "live, which is the signal that actually tracks it.",
+  ],
+  [
+    "readTaskFinishOutputApiProjectsProjectIdDispatchFinishesTaskIdOutputGet",
+    "A finish's output in full, opened in its own tab as text rather than fetched "
+      + "through the query client. Written when the process ends, not when a task "
+      + "file changes.",
+  ],
 ]);
 
 type GeneratedQueryKey = {
