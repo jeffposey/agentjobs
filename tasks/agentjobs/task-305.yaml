@@ -3,7 +3,7 @@ id: task-305
 title: Move rationale, incident narrative and measurement history out of the always-loaded
   bundle, and put what remains under a budget a test asserts
 created: '2026-08-23T21:53:30.307386Z'
-updated: '2026-08-27T10:34:16.334506Z'
+updated: '2026-08-27T10:37:46.182342Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -598,3 +598,21 @@ log:
     finish_step: started
     branch: docs/task-305-context-budget-cut
     finish_id: fin_d1b62907
+- id: 16
+  ts: '2026-08-27T10:37:46.182181Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `docs/task-305-context-budget-cut` into `main` as `f84beb64`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-305
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    epic) releases the merge gate (task-021), and run run_86614592 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: f84beb6470005fd4b73d677e642a7303b066feeb
+    branch: docs/task-305-context-budget-cut
+    base: main
