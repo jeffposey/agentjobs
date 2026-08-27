@@ -3,7 +3,7 @@ id: task-305
 title: Move rationale, incident narrative and measurement history out of the always-loaded
   bundle, and put what remains under a budget a test asserts
 created: '2026-08-23T21:53:30.307386Z'
-updated: '2026-08-27T09:41:50.015835Z'
+updated: '2026-08-27T09:48:04.887438Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -136,7 +136,9 @@ dependencies:
   note: The eval suite is the only instrument that would catch a cut that changed
     behaviour; use it if it exists
 links: []
-branches: []
+branches:
+- name: docs/task-305-context-budget-cut
+  status: active
 log:
 - id: 1
   ts: '2026-08-23T21:53:30.803713Z'
@@ -273,3 +275,15 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 9
+  ts: '2026-08-27T09:48:04.887204Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 3f1b8c22-0a54-4e17-9b3d-7c2e5a1d4f01
+      kind: update_content
+      fingerprint: b18a558804c25865f871f2552aa6e7fc
