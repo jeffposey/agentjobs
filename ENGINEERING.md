@@ -62,10 +62,9 @@ source rather than a neighbouring one's.
     poetry run python scripts/check.py --serial     # one process, for readable output
     ```
 
-    **Quote a command and a date, never a bare count.** Three different test totals for
-    the same suite were in this file and `scripts/check.py` at once, and two of the three
-    were wrong the day they were written, because a suite grows every week and a number
-    in prose does not. The gate prints what it ran; ask it, or ask
+    **Quote a command and a date, never a bare count.** A suite grows every week and a
+    number in prose does not; three totals for this one sat in this file at once and two
+    were wrong the day they were written. The gate prints what it ran; ask it, or ask
     `pytest --collect-only -q`.
 
     Use focused pytest or npm commands while iterating, but do not substitute them for
@@ -79,9 +78,8 @@ source rather than a neighbouring one's.
     and the gap it exploits reappears the moment a slow stage is added (task-189,
     task-233).
 -   The checks are *in* the gate rather than only in the pre-commit list below because a
-    list nothing enforces is a statement of intent. Task-166 found `poetry run mypy .`
-    had been aborting on a module-name collision before it checked a single file, and a
-    Black drift sitting on `main`, both surviving for exactly that reason.
+    list nothing enforces is a statement of intent. Task-166 is the incident: a `mypy`
+    that aborted before checking a file, and a Black drift on `main`, both long-lived.
 -   Two orderings are real dependencies rather than preferences, and stay: `build` writes
     the bundle `e2e` drives, and `api` exports the OpenAPI document before anything
     compares a generated client against it. Every other stage's position is purely a
