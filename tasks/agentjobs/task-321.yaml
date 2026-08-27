@@ -2,7 +2,7 @@ schema: 2
 id: task-321
 title: She w that task is finishing
 created: '2026-08-27T15:52:20.044498Z'
-updated: '2026-08-27T16:58:13.585710Z'
+updated: '2026-08-27T17:02:00.669374Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -400,3 +400,21 @@ log:
     finish_step: started
     branch: feat/task-321-finish-feedback
     finish_id: fin_d11a8f5e
+- id: 16
+  ts: '2026-08-27T17:02:00.669221Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-321-finish-feedback` into `main` as `95bebc12`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-321
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    dispatch) releases the merge gate (task-021), and run run_5553fdf3 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 95bebc124227f8e8aa8ca0946087ba8225bed42e
+    branch: feat/task-321-finish-feedback
+    base: main
