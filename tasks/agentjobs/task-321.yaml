@@ -2,7 +2,7 @@ schema: 2
 id: task-321
 title: She w that task is finishing
 created: '2026-08-27T15:52:20.044498Z'
-updated: '2026-08-27T16:47:58.582185Z'
+updated: '2026-08-27T16:51:51.640618Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -10,7 +10,7 @@ ball_prompt: 'The approval ran the scripted finish and it stopped at `merge`. **
   was merged.**
 
 
-  main moved from 6f9e4813 to baaab5f6 while the gate was running, so what was verified
+  main moved from 730f4664 to 31800d3f while the gate was running, so what was verified
   is no longer what would be merged. The branch is rebased onto the older base and
   nothing was merged.
 
@@ -333,3 +333,42 @@ log:
     finish_step: started
     branch: feat/task-321-finish-feedback
     finish_id: fin_392ce6db
+- id: 12
+  ts: '2026-08-27T16:51:51.614967Z'
+  actor: finisher
+  type: progress
+  body: "The scripted finish stopped at `merge` (base_moved).\n\n**Nothing was merged.**\n\
+    \nmain moved from 730f4664 to 31800d3f while the gate was running, so what was\
+    \ verified is no longer what would be merged. The branch is rebased onto the older\
+    \ base and nothing was merged.\n\n```\n  preflight  ok         1.3s  feat/task-321-finish-feedback\
+    \ at 1972bb3a in C:\\projects\\worktrees\\agentjobs-321\n  runway     ok     \
+    \    0.0s  taken immediately\n  rebase     ok         0.3s  feat/task-321-finish-feedback\
+    \ onto main: 1972bb3a -> b9b3dea0\n  gate       ok       232.5s  scripts/check.py\
+    \ green\n  merge      STOPPED    0.0s  main moved from 730f4664 to 31800d3f while\
+    \ the gate was running, so what was verified is no longer what would be merged.\
+    \ The branch is rebased onto the older base and nothing was merged.\n```"
+  data:
+    finish_step: merge
+    finish_reason: base_moved
+    merge_commit: null
+    merged: false
+- id: 13
+  ts: '2026-08-27T16:51:51.640443Z'
+  actor: finisher
+  type: handoff
+  body: 'The approval ran the scripted finish and it stopped at `merge`. **Nothing
+    was merged.**
+
+
+    main moved from 730f4664 to 31800d3f while the gate was running, so what was verified
+    is no longer what would be merged. The branch is rebased onto the older base and
+    nothing was merged.
+
+
+    Take it from here by hand. Check the tree against what is written above before
+    acting on anything you remember: if your worktree, your branch or your account
+    of this task no longer matches what is on disk, say so on the record and hand
+    the ball back rather than improvising a recovery.'
+  data:
+    ball: agent
+    ball_reason: work
