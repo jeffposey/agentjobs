@@ -56,10 +56,12 @@ of the two authorities it ran under.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import shutil
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -140,6 +142,26 @@ case where finishing without a restart is honest.
 """
 
 FRONTEND_PREFIX = "frontend/"
+
+CATCH_UP_ROUNDS = 2
+"""How many times a finish will rebase onto a moved base and re-verify before refusing.
+
+Bounded rather than "until it stops moving", because the thing moving the base is other
+sessions committing task records and there is no moment at which they are guaranteed to
+stop. Two is enough for the observed case -- a record commit or three landing during one
+gate -- and a third move means the machine is busier than a finish can usefully chase, at
+which point saying so and waking somebody beats spinning.
+"""
+
+GATE_SCOPE_RELATIVE = ("scripts", "gate_scope.py")
+"""Where a repository publishes what a changed path can reach, if it publishes it at all.
+
+Read from *the repository being finished*, never from this package. Two consequences,
+both wanted. A project with no such file gets the unconditional refusal this module has
+always made -- the exemption is opt-in by the repository, in a file that goes through
+review like any other. And the table cannot drift away from the one ``--since-gate``
+uses, because it is the same file.
+"""
 
 
 # ----- what happened ----------------------------------------------------------
@@ -450,6 +472,78 @@ def touches(paths: Sequence[str], prefixes: Sequence[str]) -> bool:
     return any(path.startswith(prefix) for path in paths for prefix in prefixes)
 
 
+def gate_scope_module(root: Path) -> Optional[Any]:
+    """The repository's own ``scripts/gate_scope.py``, imported, or ``None``.
+
+    Loaded by path rather than imported by name: it deliberately does not live in any
+    package (``scripts/check.py`` says why), and the copy that matters is the one on the
+    base being merged into, not whatever happens to be importable in this process.
+
+    Every failure answers ``None``, and every caller treats ``None`` as "classify
+    nothing". So a repository without the file, with an unreadable one, or with one that
+    raises on import gets exactly the behaviour this module had before catching up
+    existed.
+    """
+    path = root.joinpath(*GATE_SCOPE_RELATIVE)
+    if not path.is_file():
+        return None
+    # A name of its own per call. It has to be in ``sys.modules`` while the body runs --
+    # a module using ``from __future__ import annotations`` and ``@dataclass`` resolves
+    # its own annotations through ``sys.modules`` and raises without it -- and it must not
+    # still be there afterwards, because several projects can be finished in one process
+    # and each is entitled to its own table.
+    name = f"agentjobs_finish_gate_scope_{uuid.uuid4().hex}"
+    try:
+        spec = importlib.util.spec_from_file_location(name, path)
+        if spec is None or spec.loader is None:
+            return None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        try:
+            spec.loader.exec_module(module)
+        finally:
+            sys.modules.pop(name, None)
+    except Exception:
+        return None
+    return module if callable(getattr(module, "classify", None)) else None
+
+
+def reachable_stages(root: Path, paths: Sequence[str]) -> Optional[List[str]]:
+    """Which gate stages these changed paths can affect, or ``None`` for "all of them".
+
+    The whole judgement in :func:`catch_up`, and none of it is made here -- it is
+    delegated to the table ``--since-gate`` already runs on, for the reason task-297's
+    constraints give: a second notion of what a path can reach would be a second thing to
+    keep true, and the first one is already argued and audited in ``scripts/gate_scope``.
+
+    ``None`` means *default-deny*, and it is returned for three situations that all
+    deserve the same answer: no table, a base that moved without changing a single path
+    (strange enough to be worth a person's eye rather than a rule), and -- the important
+    one -- a path the table does not claim. ``gate_scope.classify`` returns ``None`` for
+    an unclassified path precisely because an incomplete table must cost time rather than
+    coverage; here that same ``None`` costs a merge rather than coverage, which is the
+    same trade in the same direction.
+
+    An empty *list* is a different answer and a legitimate one: paths that are all
+    classified, to classes that reach no stage at all. No such class exists today, and
+    the caller handles it rather than conflating it with the refusal.
+    """
+    if not paths:
+        return None
+    module = gate_scope_module(root)
+    if module is None:
+        return None
+    stages: List[str] = []
+    for path in paths:
+        matched = module.classify(path)
+        if matched is None:
+            return None
+        for name in matched.stages:
+            if name not in stages:
+                stages.append(name)
+    return stages
+
+
 # ----- the finish record ------------------------------------------------------
 
 
@@ -726,6 +820,137 @@ def run_gate(plan: Plan, directory: FinishDirectory, settings: FinishSettings) -
     return seconds
 
 
+def run_reduced_gate(
+    plan: Plan,
+    directory: FinishDirectory,
+    settings: FinishSettings,
+    stages: Sequence[str],
+    round_number: int,
+) -> float:
+    """``scripts/check.py --only <stages>`` on the re-rebased branch. Not the gate.
+
+    Deliberately the partial form ``run_gate``'s docstring forbids, and the distinction
+    is worth stating rather than looking like an inconsistency. ``run_gate`` runs the
+    unqualified gate because *nothing else has verified this branch*: a merge made on a
+    partial run would be reporting a green the gate never gave. This runs after that, and
+    the question it asks is much smaller -- **what did the base's own movement change,
+    and can that reach anything?** The full gate's green still stands for the branch; the
+    only thing without a green is the delta, and the delta is exactly what this runs.
+    """
+    started = time.monotonic()
+    log = directory.path / f"catch-up-{round_number}.log"
+    result = run_command(
+        [str(plan.interpreter), "scripts/check.py", "--only", ",".join(stages)],
+        cwd=plan.worktree,
+        timeout=settings.gate_timeout_seconds,
+        env=detached_environment(
+            {"AGENTJOBS_RUN_ID": directory.finish_id, "AGENTJOBS_RUN_DIR": str(directory.path)}
+        ),
+        log=log,
+    )
+    seconds = time.monotonic() - started
+    if result.returncode != 0:
+        raise Escalate(
+            "catch_up",
+            "catch_up_gate_failed",
+            f"`scripts/check.py --only {','.join(stages)}` failed on {plan.branch} after "
+            f"rebasing onto the moved {plan.base} ({seconds:.0f}s, exit "
+            f"{result.returncode}). The full gate had been green; what the base moved "
+            "under it was not. Nothing was merged. This is the case the catch-up exists "
+            f"to find, so read it before assuming it is noise. Full output: {log}\n\n"
+            f"```\n{tail(result.stdout + result.stderr, 30)}\n```",
+        )
+    return seconds
+
+
+def catch_up(plan: Plan, directory: FinishDirectory, settings: FinishSettings) -> List[StepResult]:
+    """Absorb a base that moved during the gate, when what moved it can be re-verified.
+
+    **The problem this solves is structural, not incidental** (task-297). ENGINEERING.md
+    requires every session to commit its task records to the base branch, so the base
+    moves every couple of minutes whenever anything is happening; a full gate takes
+    minutes. Under load ``merge``'s ``base_moved`` check therefore fired on almost every
+    finish, each refusal costing a whole dispatched run, and the refusals were of commits
+    that were nothing but other people's bookkeeping.
+
+    **The answer is not to declare that bookkeeping inert.** ``tasks/`` genuinely can turn
+    the suite red -- ``tests/test_validate.py::TestRealCorpus`` reads the corpus of the
+    checkout it runs in, and the gate ran in the branch's worktree, whose corpus is the
+    pre-move one. So the delta really is unverified, and this verifies it: rebase onto
+    the new tip and re-run precisely the stages :func:`reachable_stages` says the moved
+    paths can affect. A ``tasks/``-only move costs one ``pytest`` instead of one wasted
+    run, and ``TestRealCorpus`` is in it.
+
+    **A code commit still refuses**, with the message it always had. This returns having
+    done nothing when the move cannot be classified, and ``merge`` -- which re-reads the
+    base itself -- raises ``base_moved`` a moment later. The refusal is not weakened; it
+    is narrowed to the case it was written for.
+
+    Nothing here writes to the task record, though every other step in this module does.
+    A progress note would be committed to the base, which would move the base, which is
+    the very thing being caught up with. The step table in the closing entry carries it,
+    and so does the finish directory.
+    """
+    steps: List[StepResult] = []
+    for round_number in range(1, CATCH_UP_ROUNDS + 1):
+        base_now = git_out(plan.root, ["rev-parse", plan.base])
+        if base_now == plan.base_head_before:
+            return steps
+        moved = changed_between(plan.root, plan.base_head_before, base_now)
+        stages = reachable_stages(plan.root, moved)
+        if stages is None:
+            directory.record(
+                "finish_catch_up_declined",
+                round=round_number,
+                base=base_now,
+                paths=moved,
+            )
+            return steps
+
+        began = time.monotonic()
+        from_base = plan.base_head_before
+        plan.base_head_before = base_now
+        # Re-read before rebasing, so a conflict reports whether *this* rebase left the
+        # branch where it found it rather than comparing against preflight's reading.
+        plan.branch_head_before = git_out(plan.root, ["rev-parse", plan.branch])
+        rebased = rebase(plan)
+        seconds = (
+            run_reduced_gate(plan, directory, settings, stages, round_number) if stages else 0.0
+        )
+        directory.record(
+            "finish_catch_up",
+            round=round_number,
+            base_from=from_base,
+            base_to=base_now,
+            paths=moved,
+            stages=list(stages),
+            seconds=round(seconds, 2),
+        )
+        steps.append(
+            StepResult(
+                "catch_up",
+                True,
+                f"{plan.base} moved {from_base[:8]} -> {base_now[:8]} in "
+                f"{len(moved)} classified path(s); rebased to {rebased[:8]} and re-ran "
+                f"{', '.join(stages) if stages else 'nothing those paths can reach'}",
+                time.monotonic() - began,
+            )
+        )
+
+    base_now = git_out(plan.root, ["rev-parse", plan.base])
+    if base_now != plan.base_head_before:
+        raise Escalate(
+            "catch_up",
+            "base_moves_repeatedly",
+            f"{plan.base} moved again after {CATCH_UP_ROUNDS} catch-up rounds (now "
+            f"{base_now[:8]}). Each round rebased and re-verified what the move could "
+            "reach, and each time something else landed before the merge. Nothing was "
+            "merged. The machine is busier than a finish can chase: retry it when the "
+            "base is quieter, or find out what is committing to it every few seconds.",
+        )
+    return steps
+
+
 def previous_merge_commit(task: Task) -> Optional[str]:
     """The merge this task's own record says a finish already made, if any.
 
@@ -751,6 +976,13 @@ def merge(plan: Plan, task: Task, authorisation: str) -> str:
     somebody else merging between the gate and this -- and the answer to it is to
     escalate, not to rebase again in a loop.
 
+    Since task-297 the second check is *narrower than it looks*, and the narrowing happens
+    before this is called rather than here. :func:`catch_up` has already rebased onto the
+    moved base and re-verified it if what moved it was classifiable -- other sessions'
+    task records, prose -- updating ``plan.base_head_before`` when it did. So a base that
+    is still wrong by the time this reads it moved in a way nothing could re-verify
+    cheaply, which is what this refusal was always for.
+
     A merge that moves nothing is the third case, and it is not a success. ``git merge
     --no-ff`` of a branch already contained in the base prints "Already up to date" and
     exits **zero**, so taking the exit code at face value would close a task on the
@@ -759,12 +991,19 @@ def merge(plan: Plan, task: Task, authorisation: str) -> str:
     """
     base_now = git_out(plan.root, ["rev-parse", plan.base])
     if base_now != plan.base_head_before:
+        moved = changed_between(plan.root, plan.base_head_before, base_now)
+        listed = ", ".join(moved[:6]) + (" and more" if len(moved) > 6 else "")
         raise Escalate(
             "merge",
             "base_moved",
             f"{plan.base} moved from {plan.base_head_before[:8]} to {base_now[:8]} while "
             f"the gate was running, so what was verified is no longer what would be "
-            "merged. The branch is rebased onto the older base and nothing was merged.",
+            "merged. The branch is rebased onto the older base and nothing was merged.\n\n"
+            f"It moved in {len(moved)} path(s): {listed or '(none reported)'}. The "
+            "catch-up step re-verifies a move it can classify and rebases onto it, so "
+            "reaching this means at least one of those paths could affect any stage of "
+            "the gate -- code, in other words, and this refusal is the one it was "
+            "written for. Rerun the finish; it will gate against the new base.",
         )
 
     incoming = changed_between(plan.root, plan.base, plan.branch)
@@ -1181,12 +1420,14 @@ class Runway:
                 ),
                 data={"finish_step": "runway_queued", "finish_id": self.finish_id},
             )
-            commit_task_record(
-                manager,
-                task_id,
-                subject="note queuing for the merge runway",
-                actor=FINISHER,
-            )
+            # Written, and deliberately **not committed** (task-297). This is the one
+            # thing the finisher does while *another* finish holds the runway -- and that
+            # other finish is very likely mid-gate, where a commit to the base is what
+            # escalates it with `base_moved`. The note is on disk, which is what the
+            # dashboard reads; the commit it would have made lands a minute later anyway,
+            # from `announce_start` on this same file once the runway comes free, or from
+            # the escalation if the wait times out. `commit_task_record` commits one path,
+            # and that path is this record, so nothing is orphaned by dropping this call.
 
         try:
             self.lock = acquire_runway_lock(
@@ -1833,6 +2074,11 @@ def _sequence(
 
     gate_seconds = run_gate(plan, directory, settings)
     steps.append(StepResult("gate", True, "scripts/check.py green", gate_seconds))
+
+    # The gate takes minutes and the base moves every couple of them, so by here it very
+    # often has. This absorbs the moves it can re-verify and leaves the rest to `merge`,
+    # which refuses them exactly as it always did (task-297).
+    steps.extend(catch_up(plan, directory, settings))
 
     began = time.monotonic()
     merge_commit = merge(plan, task, authorisation)
