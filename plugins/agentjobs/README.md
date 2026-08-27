@@ -6,7 +6,7 @@ Packages the AgentJobs MCP server, a workflow skill, and a direct-write guard fo
 standalone integration are the same server and cannot drift apart.
 
 Other MCP clients — Gemini, IDEs — install the standalone server instead and get the
-same fifteen tools, without the skill or the guard. See
+same tools, without the skill or the guard. See
 [docs/mcp-clients.md](../../docs/mcp-clients.md).
 
 ## What is in it
@@ -165,14 +165,26 @@ invocation that works.
 
 ## Verify
 
-In a new session, confirm the tools are present:
+**Ask the client whether the server is up before anything else.** A server that
+cannot reach the service exits at startup, and every client renders that as its own
+kind of failure rather than as a bad address — in Claude Code the plugin's entry simply
+reads `Failed to connect`, and a session gets no tools from it while the plugin still
+lists as installed and enabled. That is how a wrong port survived here unnoticed
+(task-317).
+
+```bash
+claude mcp list        # plugin:agentjobs:agentjobs should read Connected
+```
+
+Then, in a new session, confirm the tools are present:
 
 - `projects_list` should return your projects with their configured actors.
-- The tool list should hold fifteen `agentjobs` tools: five read
-  (`projects_list`, `tasks_list`, `task_get`, `tasks_search`, `task_next`) and ten
+- The tool list should hold the `agentjobs` tools: six read (`projects_list`,
+  `tasks_list`, `task_get`, `tasks_search`, `task_next`, `playbooks_list`) and ten
   mutation (`task_create_draft`, `task_create_ready`, `task_promote`, `task_claim`,
   `task_release`, `task_handoff`, `task_close`, `task_log_append`,
-  `task_update_content`, `task_queue_move`).
+  `task_update_content`, `task_queue_move`). The server's own startup line on stderr
+  names them, and is the answer that cannot go stale.
 - Asking "what should I work on in <project>?" should trigger the AgentJobs skill.
 - Asking your client to edit a task YAML file directly should be refused, with a message
   naming the file and the tools to use instead.
@@ -183,14 +195,37 @@ installed package and the running service (upgrade the older one and restart it)
 
 ## Configure
 
-`.mcp.json` sets `AGENTJOBS_URL` to `http://127.0.0.1:8765`, the default service
-address. A client that installs only the standalone server can override that variable
-in its MCP configuration.
+**`.mcp.json` names no address, deliberately** (task-317). It used to pin
+`AGENTJOBS_URL` to `http://127.0.0.1:8765`, and a port in a file that ships to
+strangers is a guess about their machine: on the machine this plugin is developed on
+that guess was the one port documented as serving nothing, so the bundled server
+refused at startup in every session and its tools were quietly absent while the plugin
+looked installed and enabled.
+
+With nothing set, the server resolves the address itself, in this order:
+
+| # | Source | For |
+|---|---|---|
+| 1 | `AGENTJOBS_URL` in the server's environment | a client that wants to say it per server |
+| 2 | `AGENTJOBS_API_BASE` in the environment | a shell that already knows |
+| 3 | `api_base:` in `~/.agentjobs/dispatch.yaml` | **the machine's standing answer** |
+| 4 | `http://127.0.0.1:8765` | a machine that has said nothing and runs `agentjobs serve` with no arguments |
+
+Source 3 is the one to use. It is the same value AgentJobs' own dispatch resolves the
+address it hands an agent from, so a machine serving on a non-default port states it
+once and both stop being wrong:
+
+```yaml
+# ~/.agentjobs/dispatch.yaml
+version: 1
+api_base: http://127.0.0.1:8876
+```
 
 Codex deliberately does not let user configuration replace the command or environment
-of a plugin-provided MCP server. If AgentJobs listens on another port, keep the plugin
-enabled for its skill and guard, disable only its bundled server, and add a standalone
-server entry in `~/.codex/config.toml`:
+of a plugin-provided MCP server, which is what made the old hardcoded value awkward to
+work around there. It no longer needs working around; if you would rather override it
+per client anyway, keep the plugin enabled for its skill and guard, disable only its
+bundled server, and add a standalone server entry in `~/.codex/config.toml`:
 
 ```toml
 [plugins."agentjobs@agentjobs-local".mcp_servers.agentjobs]

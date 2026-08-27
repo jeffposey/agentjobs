@@ -1,13 +1,27 @@
 # Connecting a client
 
 Per-client setup for the [AgentJobs MCP server](mcp.md). Every client gets the same
-fifteen tools; they differ in packaging and in which extra protections apply.
+tools; they differ in packaging and in which extra protections apply.
 
 All of them need a running service first:
 
 ```bash
 agentjobs serve
 ```
+
+**If it is not on `127.0.0.1:8765`, say so once here rather than in each entry below**
+(task-317):
+
+```yaml
+# ~/.agentjobs/dispatch.yaml
+version: 1
+api_base: http://127.0.0.1:8876
+```
+
+Every `env` block on this page is then optional: the server reads `AGENTJOBS_URL`
+first, that declaration second, and `127.0.0.1:8765` only if neither exists. A port
+written into a client config is correct for one machine and silently wrong on the next,
+which is the failure that produced this paragraph.
 
 ## Developing from a clone
 
@@ -26,8 +40,7 @@ let it find the module:
   "mcpServers": {
     "agentjobs": {
       "command": "C:/path/to/virtualenvs/agentjobs-XXXXXXXX-py3.13/Scripts/python.exe",
-      "args": ["-m", "agentjobs.cli", "mcp"],
-      "env": { "AGENTJOBS_URL": "http://127.0.0.1:8765" }
+      "args": ["-m", "agentjobs.cli", "mcp"]
     }
   }
 }
@@ -152,8 +165,7 @@ it ever did in Codex.
   "mcpServers": {
     "agentjobs": {
       "command": "agentjobs",
-      "args": ["mcp"],
-      "env": { "AGENTJOBS_URL": "http://127.0.0.1:8765" }
+      "args": ["mcp"]
     }
   }
 }
@@ -182,8 +194,9 @@ out of one module, so a third would be a third entry point, not a third guard.
 ## Any other MCP client
 
 The server is a plain STDIO MCP server with no client-specific behaviour. Point your
-client at `agentjobs mcp`, set `AGENTJOBS_URL` if the service is not on the default
-port, and start a new session.
+client at `agentjobs mcp` and start a new session. Set `AGENTJOBS_URL` only when this
+one client should reach a different service from the rest of the machine; otherwise
+declare the address once, as at the top of this page.
 
 If your client cannot pass environment variables, use the flags instead:
 
@@ -221,8 +234,14 @@ per distinct operation:
 
 ## Troubleshooting
 
-**"is not reachable"** — the service is not running, or `AGENTJOBS_URL` points
-somewhere else. Start `agentjobs serve`. The MCP server will not start one for you.
+**"is not reachable"** — the service is not running, or the address resolved to
+somewhere else. The message names the address it tried; if that is not where you are
+serving, the culprit is `AGENTJOBS_URL` in this client's entry, `AGENTJOBS_API_BASE` in
+the environment, or `api_base:` in `~/.agentjobs/dispatch.yaml`, in that order of
+precedence. Otherwise start `agentjobs serve`. The MCP server will not start one for
+you — **it exits instead**, which a client reports as a server that failed to connect
+rather than as a bad address, so ask the client which of its servers are up (`claude
+mcp list`, or your client's equivalent) before believing a config file.
 
 **"predates the /api/version endpoint"** — the service is running but is an older
 AgentJobs. Upgrade it and restart it; a stale `serve` process holds the old code in

@@ -2,10 +2,7 @@
   "mcpServers": {
     "agentjobs": {
       "command": "agentjobs",
-      "args": ["mcp"],
-      "env": {
-        "AGENTJOBS_URL": "http://127.0.0.1:8765"
-      }
+      "args": ["mcp"]
     }
   }
 }

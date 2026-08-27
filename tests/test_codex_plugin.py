@@ -123,10 +123,25 @@ class TestMcpWiring:
         assert server["args"] == ["mcp"]
         assert "python" not in json.dumps(server).lower()
 
-    def test_the_configured_url_is_the_documented_default(self):
-        assert MCP_CONFIG["mcpServers"]["agentjobs"]["env"]["AGENTJOBS_URL"] == (
-            "http://127.0.0.1:8765"
-        )
+    def test_it_names_no_port_so_the_machine_gets_to_answer(self):
+        """This file used to pin ``AGENTJOBS_URL`` to ``:8765`` (task-317).
+
+        A plugin ships to whoever installs it, so a port in here is a guess about a
+        stranger's machine -- and on the machine this repository is developed on it was
+        the specific port documented as serving nothing, so the plugin's server refused
+        at startup in every session and its tools were silently absent. Claude Code does
+        read this file and does honour this block, both established by flipping the
+        value and watching ``claude mcp list`` go from Failed to Connected, so the entry
+        was doing real damage rather than being inert.
+
+        With no ``env`` the process resolves the address itself: ``AGENTJOBS_API_BASE``,
+        then ``api_base:`` in ``~/.agentjobs/dispatch.yaml``, then the CLI's own default.
+        See ``agentjobs.mcp.config``.
+        """
+        server = MCP_CONFIG["mcpServers"]["agentjobs"]
+
+        assert "AGENTJOBS_URL" not in server.get("env", {})
+        assert "8765" not in json.dumps(server)
 
 
 class TestNoSecretsOrMachinePaths:
