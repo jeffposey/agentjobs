@@ -3,7 +3,7 @@ id: task-296
 title: 'A dispatched session that parks is invisible: the task record still reads
   agent/work and nobody is told'
 created: '2026-08-23T20:56:33.153215Z'
-updated: '2026-08-27T14:23:42.463844Z'
+updated: '2026-08-27T14:24:08.911780Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -992,3 +992,13 @@ log:
       id: 8c1e5b70-4a26-4d93-b1f7-05e2a836c9d4
       kind: handoff
       fingerprint: 05c1164bcec691c2586a2461cbcc983f
+- id: 26
+  ts: '2026-08-27T14:24:08.911561Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 19
+  data:
+    run_id: run_86332602
+    outcome: completed
+    duration_seconds: 2815.153378
+    log_path: C:\Users\jpose\.agentjobs\runs\run_86332602
