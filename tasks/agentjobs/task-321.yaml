@@ -2,7 +2,7 @@ schema: 2
 id: task-321
 title: She w that task is finishing
 created: '2026-08-27T15:52:20.044498Z'
-updated: '2026-08-27T16:40:42.315829Z'
+updated: '2026-08-27T16:40:53.889667Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -254,3 +254,17 @@ log:
       id: 4d2f8c61-9e07-4a3b-b5d2-1c7e0a934f22
       kind: log_append
       fingerprint: cef8d4e9297279e24125bd15a86cd79c
+- id: 8
+  ts: '2026-08-27T16:40:53.889509Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-321-finish-feedback` (7801abaf).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-321.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_1b27576d\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-321-finish-feedback
+    finish_id: fin_1b27576d
