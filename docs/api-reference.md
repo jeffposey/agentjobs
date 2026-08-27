@@ -228,9 +228,44 @@ the second switch and can never define what runs. See
 | `POST` | `/api/dispatch/runs/{run_id}/cancel` | Cancel one live run |
 | `GET` | `/api/dispatch/runs/{run_id}/output` | The run's captured transcript |
 | `GET` | `/api/dispatch/runs/{run_id}/tail` | The tail of it, for a live view |
+| `GET` | `/api/dispatch/finishes/{task_id}` | What a scripted finish is doing to this task's branch, or last did |
+| `GET` | `/api/dispatch/finishes/{task_id}/output` | That finish's output in full, as text |
 
 `transcript.log` is a raw TTY capture, so a line appears in it once per terminal
 repaint. Link to it and read it; never compute a count from it.
+
+### Watching a finish
+
+The finish routes are keyed on the **task**, not on a finish id, because the question a
+page asks is "what is happening to this one" -- and the reader who pressed Approve has
+no finish id to ask with: the finish that answers them does not exist yet at the moment
+they press.
+
+`GET /api/dispatch/finishes/{task_id}` answers `null`, with a `200`, for a task no
+finish has ever run for. That is the ordinary case for almost every task and is not a
+`404`: an absent finish is not a missing resource, and a page polling every two seconds
+would otherwise teach its reader to ignore them.
+
+Otherwise it answers a `TaskFinishView`, whose `state` is one of:
+
+| State | Means |
+| --- | --- |
+| `starting` | Spawned; it has not written anything yet. Covers the second or two of process start-up |
+| `running` | Working. `steps[]` holds what has landed, plus the one in flight; `gate` holds how far into the gate it is |
+| `finished` | Merged, delivered and verified. `merge_commit` names the merge |
+| `escalated` | It stopped and handed back. `stopped_at` names the step and `reason` says why |
+| `declined` | It was never a finish candidate, so the approval behaved as it always did |
+| `interrupted` | It wrote no ending and its process is gone -- a reboot, or something killed it |
+
+`live` is derived from the task's run lock rather than from a clock: a finish holds it
+for its whole attempt, so a holder that can be shown to be gone is what makes the
+difference between `running` and `interrupted`. `elapsed_seconds` is computed on the
+server, because `started_at` is that machine's clock and the phone reading the page is
+not on it.
+
+`output_tail` is empty for the whole of a running finish, and that is correct rather
+than missing: a spawned finish writes its step table when the process *ends*. What is
+live is `steps[]`.
 
 ## Playbooks
 

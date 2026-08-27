@@ -1892,6 +1892,48 @@ is the agent between the approval and the merge, not the approval.
   whether the branch was restored to the commit it was on, having read the tip back and
   compared.
 
+#### Watching one happen (task-321, 2026-08-27)
+
+Everything above is what a finish *does*. For its first six weeks none of it was visible
+while it was doing it: the ball moved to `agent`/`work` carrying the approval's own
+prompt, and for the three or four minutes the sequence takes the page said nothing at
+all. Reported by Jeff from the task page -- *"when I click approve and it auto finishes,
+there is no feedback really"* -- and the honest reading is that a click with a
+three-minute silent consequence is indistinguishable, to the person who made it, from a
+click that did nothing.
+
+It was almost entirely a reading problem. The records already existed and nothing
+assembled them.
+
+- **`dispatch/finish_status.py` is the reading half**, and only that half: it starts
+  nothing, holds no lock and waits for nothing. `GET /api/dispatch/finishes/{task_id}`
+  and its `/output` sibling serve it; the task page polls the first every two seconds
+  while something is live and renders it beside the review verbs.
+- **Liveness is the run lock's answer, through `stale_lock_reason`** -- not a heartbeat
+  and not a timeout. A second staleness rule would disagree with the first the moment
+  somebody killed a gate, and reusing this one means a finish whose machine rebooted
+  mid-gate reads as `interrupted` rather than as a spinner nothing ever stops.
+- **`spawn_finish` writes a marker before it spawns.** The child spends a second or two
+  importing Python before it creates anything, and the approve request answers well
+  inside that window; a page that reloaded on the answer and found nothing would
+  conclude nothing was happening and stop looking. The ordering is the feature, so it is
+  the ordering a test asserts.
+- **Two things now record progress they always could have.** Each step writes itself as
+  it lands rather than only into the table at the end (`StepLog`), and `scripts/check.py`
+  writes a record per stage -- so the gate, which is around 85% of a finish's wall clock
+  and was one silent block, reports "pytest, 7 of 10".
+- **The Dispatch button is disabled while a finish is live**, saying why. The server
+  refused it before and still does -- the finish holds the task's run lock -- so nothing
+  about what can happen changed. What changed is that the page says so *before* the
+  click, which matters more here than for most refusals because the reason is something
+  the reader started themselves thirty seconds earlier by pressing Approve.
+
+What is deliberately absent is a stream. Teeing the finish's stdout to the browser would
+have needed `run_command` to stop capturing and the CLI to print per step, and would
+still have shown nothing during the gate, whose own output is buffered until it exits.
+The step table is both live and more legible than the terminal text; the log is shown
+when it exists, which is when the process ends.
+
 ---
 
 ## 6. Safety
