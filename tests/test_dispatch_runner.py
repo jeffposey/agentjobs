@@ -85,6 +85,7 @@ from agentjobs.models_v2 import (
     Lifecycle,
     LogEntryType,
     Outcome,
+    utcnow,
 )
 from agentjobs.storage import TaskStorage
 
@@ -169,7 +170,7 @@ def build(
     manager: TaskManager,
     resolution: DispatchResolution,
     *,
-    clock: Optional[Callable[[], datetime]] = None,
+    clock: Callable[[], datetime] = utcnow,
 ) -> DispatchRunner:
     return DispatchRunner(
         manager=manager,
@@ -178,7 +179,7 @@ def build(
         home=workspace / "home",
         api_base="http://localhost:8899",
         grace_seconds=2.0,
-        **({"clock": clock} if clock is not None else {}),
+        clock=clock,
     )
 
 
