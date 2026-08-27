@@ -3,13 +3,13 @@ id: task-223
 title: The rule that serializes every epic has no stated reason, and the doc's own
   reasoning contradicts it
 created: '2026-08-21T15:02:48.895387Z'
-updated: '2026-08-27T10:50:34.866927Z'
+updated: '2026-08-27T10:57:51.847382Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: high
-queue_position: 85
+priority: critical
+queue_position: 25
 category: developer_experience
 tags:
 - orchestration
@@ -381,3 +381,92 @@ log:
       id: 571936f8-10c9-40d3-a61d-9d9c4f2bed3e
       kind: log_append
       fingerprint: f20629e1e35f15725732b71c31f5f77a
+- id: 8
+  ts: '2026-08-27T10:57:19.153316Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: Moved from the high band into the bottom of the critical band.
+  data:
+    band: critical
+    from: 85
+    to: 1393
+    placement:
+      kind: bottom
+    from_band: high
+- id: 9
+  ts: '2026-08-27T10:57:19.153334Z'
+  actor: Jeff Posey
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: f64a3ef5-f034-4971-b6fa-6f5415437ecd
+      kind: update_content
+      fingerprint: 6bc867db7efae818c23f58513b8140c5
+- id: 10
+  ts: '2026-08-27T10:57:22.361571Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: Moved to the top of the band.
+  data:
+    band: critical
+    from: 1393
+    to: 25
+    placement:
+      kind: top
+- id: 11
+  ts: '2026-08-27T10:57:51.847070Z'
+  actor: claude
+  type: progress
+  body: "**Raised to `critical` (now critical/25, top of the band) by Jeff, 2026-08-26.\
+    \ And a warning for whoever takes it: the instrument that would prove this task\
+    \ worked does not exist yet, so building it is part of the task rather than a\
+    \ follow-up.**\n\n## The measurement gap\n\n`ENGINEERING.md` is unambiguous \u2014\
+    \ *\"a cycle-time claim is a before/after or it is an anecdote\"* \u2014 and `scripts/run_report.py`\
+    \ is the tool it names. That tool measures **runs and tasks**. It has no concept\
+    \ of an epic:\n\n- No parent grouping. `--per-task` gives a row per task; nothing\
+    \ sums an epic or reports its wall clock.\n- **No idle measure.** The gap between\
+    \ one child closing and the next starting \u2014 which is the entire quantity\
+    \ this task removes \u2014 is not recorded anywhere.\n- No cross-run concurrency.\
+    \ `gates_overlapped` detects two gates overlapping *inside one run*; nothing reports\
+    \ two runs overlapping.\n\nSo today the honest before/after for this task cannot\
+    \ be produced. Whoever implements it should add epic wall-clock and idle time\
+    \ to `run_report.py` **first**, take a baseline from the serial epics already\
+    \ in the ledger (task-081, task-269), and only then change the scheduler. Doing\
+    \ it the other way round leaves the improvement unprovable and the task closes\
+    \ on an anecdote.\n\n## The baseline that does exist, and one number that redirects\
+    \ the effort\n\nFrom `poetry run python scripts/run_report.py --since 2 --per-task`,\
+    \ 2026-08-26, covering the task-269 epic and its neighbours:\n\n```\n  runs  \
+    \                12          total run time  5.5h\n  time per task         mean\
+    \ 66.3m, median 57.1m\n  gate runs             7 across 2 instrumented runs\n\
+    \  gate time             0.3h (5% of all run time, 17% of instrumented)\n  follow-on\
+    \ runs        5\n    cold start          3, mean 29.0m\n    resumed session  \
+    \   2, mean 2.6m\n  scripted finishes     11: finished 7, mean 4.0m  <- follow-on\
+    \ runs that never happened\n                            escalated 4, mean 3.2m\n\
+    ```\n\n**The gate is 17% of an instrumented run.** That is the number to carry\
+    \ into any conversation about making the gate faster: task-233 already took it\
+    \ from 326s to 52s, and what is left is a sixth of a run. The other five sixths\
+    \ are the agent session. Further gate optimisation is a small lever now; **wall-clock\
+    \ idle between children is a large one**, which is the argument for this task\
+    \ and against grinding the gate again.\n\nTwo other figures worth keeping because\
+    \ they are evidence the cheap structural fixes work, and this task is the same\
+    \ kind of fix:\n\n- **Resumed session 2.6m against cold start 29.0m.** An order\
+    \ of magnitude, from not making a fresh agent rediscover which branch it owns.\n\
+    - **Scripted finish: 7 follow-on runs that never happened**, at 4.0m each instead\
+    \ of a whole dispatched run. Also worth noting 4 of 11 escalated at the gate or\
+    \ the merge \u2014 the escalation path is exercised, not theoretical.\n\n## Consequences\
+    \ for this task's acceptance\n\nNot edited into `acceptance[]` here, because the\
+    \ implementer should decide the wording \u2014 but the criteria should cover:\n\
+    \n- Epic wall clock and inter-child idle are reported by `run_report.py`, with\
+    \ a baseline taken from existing serial epics *before* the scheduler changes.\n\
+    - A before/after pair from that tool, on comparable epics, stated with the driver\
+    \ and the window \u2014 `--split` and `--driver` exist for exactly this.\n- The\
+    \ repo-scoped finish lock from the earlier entry, since concurrency makes merge\
+    \ contention worse and without it a child can merge a commit its gate never verified.\n"
+  data:
+    operation:
+      id: 30098dff-68de-4cd8-8dff-47f9b73efc97
+      kind: log_append
+      fingerprint: b79b5e897bf0a4b58978ab733a5f10a7
