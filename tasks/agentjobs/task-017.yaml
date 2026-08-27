@@ -3,11 +3,43 @@ id: task-017
 title: Let an agent ask structured multiple-choice questions the human answers in
   the GUI
 created: '2026-08-18T05:35:45.027948Z'
-updated: '2026-08-27T22:00:27.699332Z'
+updated: '2026-08-27T22:42:56.003257Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Ready for review. Branch `feat/task-017-structured-questions`, four\
+  \ commits, rebased onto `main` at e797a74, full unqualified `scripts/check.py` green\
+  \ on the rebased head with a gate receipt for 1349779. Not merged: posture `auto`.\n\
+  \n**The one thing only you can do: open the sandbox on your phone.** It is running\
+  \ at http://127.0.0.1:8898/app/ with throwaway data on its own port \u2014 nothing\
+  \ touching the live corpus or the 8876 dashboard. Start `task-201`, which is task-077's\
+  \ handoff verbatim: four questions, recommendations marked, and question 3 wanting\
+  \ a number none of the options offer. Answer it the way you actually did on 2026-08-18\
+  \ \u2014 three taps and `60 minutes` typed \u2014 and see whether it takes seconds.\n\
+  \nThat is sc-5, and it is the only acceptance criterion still pending. The Playwright\
+  \ suite answers three questions at 390x844 against a live server and passes, but\
+  \ that is Playwright's phone, not yours; `mcp__claude-in-chrome` refused to shrink\
+  \ its pane below ~1278px, so my own browser check ran at desktop width. Everything\
+  \ else is met \u2014 the evidence per criterion is in entry 10.\n\nThe five seeded\
+  \ states are in entry 10's table; `task-205` is the no-questions case, so you can\
+  \ see nothing regressed for a decision with only prose. Stop the sandbox with Ctrl-C,\
+  \ or restart it with `poetry run python scripts/answer_questions_sandbox.py 8898`\
+  \ from `C:/projects/worktrees/agentjobs-017`.\n\n**Three things worth your eye in\
+  \ the diff.**\n\n1. **`DISPATCH_PAYLOADS` is renamed `LOG_PAYLOADS`.** Two of its\
+  \ four members are now nothing to do with dispatch. Two call sites, both in `models_v2.py`.\n\
+  2. **One addition beyond the letter of the spec**, which I made rather than asked\
+  \ about because task-231's own rule decides it: a task holding an open question\
+  \ offers the answering verb whatever its `ball_reason`, joining the extras rather\
+  \ than displacing a primary. So a `human`/`review` task with a stray question keeps\
+  \ Approve first and gains \"Answer Questions\" beside it \u2014 that is `task-204`\
+  \ in the sandbox. Say if you would rather answering were confined to `decision`/`input`.\n\
+  3. **`feedback` is now optional on `POST /answer`, and only there.** Requiring prose\
+  \ would defeat the feature; a request carrying neither answers nor prose is still\
+  \ refused.\n\nThe four questions the spec told me to argue are answered in entry\
+  \ 8 with their rejected alternatives \u2014 typed rather than free-form `data`;\
+  \ questions ride the handoff atomically; an unanswered question is a backlog rather\
+  \ than a leak; and answering never moves the ball on its own.\n\nThe worktree is\
+  \ at `C:/projects/worktrees/agentjobs-017`."
 archived: false
 priority: high
 queue_position: 171
@@ -100,35 +132,65 @@ acceptance:
   text: A decision entry records whether structured options are typed in the schema
     or carried untyped in a question entry's `data`, with the rejected option and
     its reasoning
-  status: pending
+  verify: log entry 8, section 1
+  status: met
 - id: sc-2
   text: An agent can pose one or more questions with options and a recommended flag,
     and they appear on the task record
-  status: pending
+  verify: tests/test_structured_questions.py -k 'handoff_can_carry or arrive_together'
+  status: met
 - id: sc-3
   text: The GUI renders open questions as selectable options with a free-text alternative
     always present, and answering writes an `answer` entry threaded by `re` to its
     question
-  status: pending
+  verify: frontend/src/components/QuestionForm.test.tsx; tests/test_structured_questions.py
+    -k threaded
+  status: met
 - id: sc-4
   text: The four questions from task-077's handoff are reproducible as a worked example
     and answerable end to end
-  status: pending
+  verify: tests/test_structured_questions.py::test_the_task_077_handoff_is_answerable_end_to_end;
+    scripts/answer_questions_sandbox.py task-201
+  status: met
 - id: sc-5
   text: Verified on a phone-width viewport against a running server, since answering
     on a phone is the reason this exists
+  verify: frontend/e2e/answer-questions.spec.ts at 390x844 passes; a person's eyes
+    on a real phone are still outstanding -- scripts/answer_questions_sandbox.py 8898
   status: pending
 - id: sc-6
   text: Whether answering the final open question moves the ball is decided explicitly
     and recorded, not left implicit
-  status: pending
+  verify: log entry 8, section 4
+  status: met
 deliverables:
-- path: docs/task-schema.md
-  note: Structured question options, if typed
-  status: pending
-- path: frontend/src/components/TaskDetail.tsx
+- path: src/agentjobs/models_v2.py
+  note: QuestionOption, QuestionData, AnswerData and the drafts, in LOG_PAYLOADS
+  status: done
+- path: src/agentjobs/manager.py
+  note: handoff(questions=..., answers=...) writes both in the ball move's own mutation
+  status: done
+- path: src/agentjobs/api/routes/tasks.py
+  note: POST /answer takes answers[]; composes the ball_prompt when nothing was typed
+  status: done
+- path: src/agentjobs/mcp/mutation_tools.py
+  note: task_handoff takes questions[]
+  status: done
+- path: frontend/src/components/QuestionForm.tsx
   note: Question rendering and answering
-  status: pending
+  status: done
+- path: frontend/e2e/answer-questions.spec.ts
+  note: Answered at 390x844 against a live server
+  status: done
+- path: scripts/answer_questions_sandbox.py
+  note: Five states on port 8898, throwaway, for review on a phone
+  status: done
+- path: docs/task-schema.md
+  note: The question/answer section
+  status: done
+- path: docs/agent-workflow.md
+  note: Ask in options, not in paragraphs
+  status: done
 dependencies:
 - task: task-016
   type: related
@@ -384,3 +446,148 @@ log:
       id: 7c2e4a10-15b8-4f6d-8b22-9ad4e0f37c55
       kind: update_content
       fingerprint: c7666caf89189c7c038c31a64bcc6e2f
+- id: 10
+  ts: '2026-08-27T22:42:22.325638Z'
+  actor: claude
+  type: progress
+  body: "Built and verified. Branch `feat/task-017-structured-questions`, four commits,\
+    \ rebased onto `main` at e797a74. Full unqualified `scripts/check.py` green on\
+    \ the rebased head \u2014 10 of 10 stages, 235s, gate receipt written for 1349779.\n\
+    \n## What was built\n\n**Schema.** `QuestionOption`, `QuestionData` and `AnswerData`\
+    \ in `models_v2.py`, registered in `LOG_PAYLOADS` \u2014 the renamed `DISPATCH_PAYLOADS`,\
+    \ which now holds four entry types, two of which have nothing to do with running\
+    \ a process. `LogEntry`'s existing `_check_typed_payload` validates them, so a\
+    \ malformed option list is refused at the write. Every field defaults, so the\
+    \ prose-only question this corpus is full of loads unchanged; `tests/test_validate.py::TestRealCorpus`\
+    \ confirms that against the real records.\n\nA question carries `options[]` (each\
+    \ `label`, optional `description`, `recommended`), `multi_select`, and `placeholder`\
+    \ \u2014 the last being how a question asks for a value rather than a choice,\
+    \ which is what task-077's third question needed. An answer carries `selected[]`\
+    \ (option labels) and `other` (free text); its `body` is composed from them so\
+    \ the prose in the record cannot disagree with the payload beside it.\n\n**Agent\
+    \ side.** `manager.handoff(..., questions=[...])` writes one `question` entry\
+    \ per item inside the same mutation as the handoff, each threaded `re` to it.\
+    \ Reaches agents through `POST /tasks/{id}/handoff`, `client.operations.handoff(questions=...)`\
+    \ and the MCP `task_handoff` tool, whose schema and description now say to use\
+    \ it.\n\n**Human side.** `POST /tasks/{id}/answer` gains `answers[]`, written\
+    \ in the same mutation as the ball move. `feedback` becomes optional there and\
+    \ nowhere else \u2014 requiring it would defeat the point. Where the human tapped\
+    \ and typed nothing, the `ball_prompt` is composed from the questions and their\
+    \ answers, so the agent resuming reads what it asked and what it was told without\
+    \ walking the log.\n\n**Refusals**, all 409 via a new `AnswerError`: answering\
+    \ a non-question, answering one that is already answered, naming an option the\
+    \ question never offered, sending several options to a single-select question,\
+    \ and an empty answer. Every answer in a batch is checked before anything is written,\
+    \ so one bad answer writes none of them.\n\n**GUI.** `frontend/src/components/QuestionForm.tsx`.\
+    \ Every open question renders with its options as buttons, the recommendation\
+    \ marked but never preselected, and a free-text box under all of them unconditionally.\
+    \ One Submit writes every answer and moves the ball once. A single-select option\
+    \ can be tapped again to clear it \u2014 without that a phone user who mis-taps\
+    \ has only a page reload.\n\nOne addition beyond the letter of the spec, argued\
+    \ rather than assumed: **a task holding an open question offers the answering\
+    \ verb whatever its `ball_reason`**, joining the extras rather than displacing\
+    \ a primary. task-231's rule is that a control appears where its verb is true,\
+    \ and answering is true of a `human`/`review` task with a question still open.\
+    \ Approve stays first there.\n\n## What was verified, and how\n\n*   **`scripts/check.py`,\
+    \ unqualified, green on 1349779** (the rebased head, clean tree). Two earlier\
+    \ full greens on dirty trees during the work.\n*   **24 backend tests** in `tests/test_structured_questions.py`,\
+    \ including the full task-077 handoff answered end to end \u2014 four questions,\
+    \ one numeric, one where every option was rejected \u2014 asserting the `answer`\
+    \ entries are threaded by `re` and carry the right labels.\n*   **15 jsdom tests**\
+    \ in `frontend/src/components/QuestionForm.test.tsx`, driving the real panel rather\
+    \ than the form in isolation, asserting on rendered option text and on what `onSendBack`\
+    \ received.\n*   **3 Playwright tests** in `frontend/e2e/answer-questions.spec.ts`,\
+    \ **at 390x844**, against a live server: three questions answered with three taps\
+    \ and one typed number, then the answers read back out of the API. Also asserts\
+    \ 44px touch targets and zero horizontal overflow, which is how a form this size\
+    \ usually goes wrong on a phone.\n*   **A real Chrome round trip** against the\
+    \ sandbox on 8898. One option tapped with a real mouse, `60 minutes` typed into\
+    \ question 3's box, Submit clicked. Result on the record: one handoff, `answer`\
+    \ #9 `re=4` `selected: [Session mode primary, batch retained]`, `answer` #10 `re=6`\
+    \ `other: 60 minutes`, ball at `agent`/`answer`, and a `ball_prompt` restating\
+    \ both questions with the answers under them. The two questions nobody answered\
+    \ stayed open, which is decision 3 working.\n\n**The browser found a defect the\
+    \ tests could not.** `.touch-target:not(.block)` in `styles.css` sets `display:\
+    \ inline-flex; align-items: center` at a specificity Tailwind's single-class utilities\
+    \ cannot beat, so `flex-col items-start` on the option button rendered every label\
+    \ centred. Fixed by moving the stack into a child span. No test asked the question,\
+    \ because a test that reads a label does not care where the label is \u2014 this\
+    \ is exactly the case the standing rule about standing up a review server exists\
+    \ for.\n\n**One thing verified only by Playwright, stated plainly:** the phone-width\
+    \ run is Playwright's, not a person's on a real handset. `mcp__claude-in-chrome`\
+    \ would not resize its pane below ~1278px, so my own browser check ran at desktop\
+    \ width. sc-5 wants your eyes on a phone; the sandbox below is for that.\n\n##\
+    \ Sandbox for review\n\nRunning now at **http://127.0.0.1:8898/app/** \u2014 throwaway\
+    \ data, its own port, nothing touching the live corpus or the 8876 dashboard.\
+    \ Both sides of every state that changed are seeded:\n\n| | |\n|---|---|\n| `task-201`\
+    \ | the task-077 handoff verbatim: four questions, one wanting a number |\n| `task-202`\
+    \ | one question, no options \u2014 the prose question this corpus is full of\
+    \ |\n| `task-203` | three questions, two already answered: what a partly-answered\
+    \ task looks like |\n| `task-204` | `human`/`review` with a question still open,\
+    \ so answering sits beside Approve |\n| `task-205` | `human`/`decision` with no\
+    \ questions: the prose box, exactly as before |\n\nOpen it on the phone \u2014\
+    \ that is the screen this exists for. Start it again yourself with `poetry run\
+    \ python scripts/answer_questions_sandbox.py 8898` from the worktree; stop it\
+    \ with Ctrl-C, and the temporary data goes with the process."
+  data:
+    operation:
+      id: 8b3f6d90-2a41-4e7c-b5d8-1c96af02e733
+      kind: log_append
+      fingerprint: 7f00fc2ba3c6c6d37171da92ddb6a34e
+- id: 11
+  ts: '2026-08-27T22:42:38.407569Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, deliverables.
+  data:
+    fields:
+    - acceptance
+    - deliverables
+    operation:
+      id: 9e5c1b74-3d08-4a92-8f16-2b7d40e5c9aa
+      kind: update_content
+      fingerprint: 0957a200c8c7b6763de0ed2fd4bf9999
+- id: 12
+  ts: '2026-08-27T22:42:56.003066Z'
+  actor: claude
+  type: handoff
+  body: "Ready for review. Branch `feat/task-017-structured-questions`, four commits,\
+    \ rebased onto `main` at e797a74, full unqualified `scripts/check.py` green on\
+    \ the rebased head with a gate receipt for 1349779. Not merged: posture `auto`.\n\
+    \n**The one thing only you can do: open the sandbox on your phone.** It is running\
+    \ at http://127.0.0.1:8898/app/ with throwaway data on its own port \u2014 nothing\
+    \ touching the live corpus or the 8876 dashboard. Start `task-201`, which is task-077's\
+    \ handoff verbatim: four questions, recommendations marked, and question 3 wanting\
+    \ a number none of the options offer. Answer it the way you actually did on 2026-08-18\
+    \ \u2014 three taps and `60 minutes` typed \u2014 and see whether it takes seconds.\n\
+    \nThat is sc-5, and it is the only acceptance criterion still pending. The Playwright\
+    \ suite answers three questions at 390x844 against a live server and passes, but\
+    \ that is Playwright's phone, not yours; `mcp__claude-in-chrome` refused to shrink\
+    \ its pane below ~1278px, so my own browser check ran at desktop width. Everything\
+    \ else is met \u2014 the evidence per criterion is in entry 10.\n\nThe five seeded\
+    \ states are in entry 10's table; `task-205` is the no-questions case, so you\
+    \ can see nothing regressed for a decision with only prose. Stop the sandbox with\
+    \ Ctrl-C, or restart it with `poetry run python scripts/answer_questions_sandbox.py\
+    \ 8898` from `C:/projects/worktrees/agentjobs-017`.\n\n**Three things worth your\
+    \ eye in the diff.**\n\n1. **`DISPATCH_PAYLOADS` is renamed `LOG_PAYLOADS`.**\
+    \ Two of its four members are now nothing to do with dispatch. Two call sites,\
+    \ both in `models_v2.py`.\n2. **One addition beyond the letter of the spec**,\
+    \ which I made rather than asked about because task-231's own rule decides it:\
+    \ a task holding an open question offers the answering verb whatever its `ball_reason`,\
+    \ joining the extras rather than displacing a primary. So a `human`/`review` task\
+    \ with a stray question keeps Approve first and gains \"Answer Questions\" beside\
+    \ it \u2014 that is `task-204` in the sandbox. Say if you would rather answering\
+    \ were confined to `decision`/`input`.\n3. **`feedback` is now optional on `POST\
+    \ /answer`, and only there.** Requiring prose would defeat the feature; a request\
+    \ carrying neither answers nor prose is still refused.\n\nThe four questions the\
+    \ spec told me to argue are answered in entry 8 with their rejected alternatives\
+    \ \u2014 typed rather than free-form `data`; questions ride the handoff atomically;\
+    \ an unanswered question is a backlog rather than a leak; and answering never\
+    \ moves the ball on its own.\n\nThe worktree is at `C:/projects/worktrees/agentjobs-017`."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: c40a71e8-9b25-4d63-a1f7-53e8b6c2704d
+      kind: handoff
+      fingerprint: a1a9c2009382b0c40f11260ff989d24a
