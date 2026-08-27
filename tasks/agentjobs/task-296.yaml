@@ -3,7 +3,7 @@ id: task-296
 title: 'A dispatched session that parks is invisible: the task record still reads
   agent/work and nobody is told'
 created: '2026-08-23T20:56:33.153215Z'
-updated: '2026-08-27T14:02:48.803637Z'
+updated: '2026-08-27T14:20:06.984084Z'
 lifecycle: active
 ball: agent
 ball_reason: answer
@@ -856,3 +856,56 @@ log:
       id: f60b2a94-8d31-4c07-b52e-7139aa6c0d18
       kind: update_content
       fingerprint: 257e7e6c3c13bfcdfc15eba54577d534
+- id: 24
+  ts: '2026-08-27T14:20:06.983800Z'
+  actor: claude
+  type: progress
+  body: "## Correcting the gate claim in entry 22, and what it turned into\n\nEntry\
+    \ 22 says \"Full unqualified gate, green ... 274.7s\". **That run was green and\
+    \ that sentence was true of it, but it was not the whole story and should not\
+    \ be read as the verification of this branch.** Two full gates immediately afterwards\
+    \ went red, both on `TestProcessGroup::test_the_timeout_kills_the_grandchild_too`,\
+    \ a test this branch does not touch. The final state is green and the reason it\
+    \ is green is a real change, described below.\n\n## The failure was mine, and\
+    \ not in the way it first looked\n\nThe test passes in isolation (`1 passed in\
+    \ 4.73s`) and `TestRunningStallDetection` is nowhere near the batch-timeout path\
+    \ it exercises, so the first reading was \"known flake, not mine\" -- **task-243**\
+    \ tracks it, and its own in-file comment records it failing task-308's finish\
+    \ on an unrelated branch.\n\nThat reading was too comfortable, and one measurement\
+    \ settled it. Reverting **only** `src`, `tests` and `docs` to `main` inside this\
+    \ same worktree, on this same machine, and running the same pytest stage:\n\n\
+    | Source | Result |\n|---|---|\n| `main` | **3476 passed, 1 skipped, 0 failed**\
+    \ \u2014 `BASELINE_EXIT=0` |\n| this branch | `1 failed, 3482 passed` \u2014 twice\
+    \ in a row, same test |\n\nSo the branch was the trigger. Not through the product\
+    \ code, which that test never reaches, but through **the tests**: six of the seven\
+    \ called `runner.start` purely to obtain a handle, each spawning a real OS process\
+    \ that was then never allowed to do anything. Under `-n auto` on 32 cores that\
+    \ is six processes of pure contention added beside a test documented as losing\
+    \ a race under exactly that.\n\n## Fixed by not buying the load\n\nThe handle\
+    \ is now built directly with `RunDirectory.create` and the two subprocess calls\
+    \ -- `_ledger_row` (`agents --json`) and `capture_transcript` (`logs`) -- are\
+    \ stubbed. Same code path through `poll_session`, `classify_session` and `_check_running_stall`;\
+    \ no processes.\n\n**One test still starts a real session on purpose**, because\
+    \ something has to prove the wiring works against a genuine ledger read and a\
+    \ genuine transcript fetch rather than against two stubs. Stubbing all seven would\
+    \ have made the suite fast and the coverage hollow.\n\n- Class runtime: **4.82s\
+    \ -> 1.29s**. Full pytest stage: **181.2s -> 154.9s**.\n- Still load-bearing:\
+    \ with the `RUNNING` branch disabled the same three positive tests fail (`Ball.AGENT\
+    \ is Ball.HUMAN`, `'running' == 'stalled'`, `0 == 1`) and the four false-alarm\
+    \ guards still pass, which is what they are for.\n\n## Gate\n\n**`Ran every stage\
+    \ (10 of 10)`, `GATE_EXIT=0`, 209.3s**, on the branch as it now stands. A second\
+    \ confirmation run is going as I write this, because one green after two reds\
+    \ is not yet evidence and I would rather say so than round it up.\n\n## Worth\
+    \ keeping, because it nearly went the other way\n\n\"Known flake, not my branch\"\
+    \ was true of every fact I had and still wrong. The cheap experiment -- revert\
+    \ the source in place, same machine, same minute, run the same stage -- cost three\
+    \ minutes and turned an assumption into a measurement. **A test that adds load\
+    \ is a test that changes behaviour**, and a suite run with `-n auto` on a machine\
+    \ several agents share has no spare headroom to lend. Recorded on task-243 as\
+    \ well, since a recurrence at the already-widened 30-second budget is data that\
+    \ task wants."
+  data:
+    operation:
+      id: 2d517e08-4b39-4c61-9f83-6ea20c3f0b57
+      kind: log_append
+      fingerprint: 01c1b08ae1bda1848432f5a9e95804dc
