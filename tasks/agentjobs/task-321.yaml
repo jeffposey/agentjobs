@@ -1,0 +1,176 @@
+schema: 2
+id: task-321
+title: She w that task is finishing
+created: '2026-08-27T15:52:20.044498Z'
+updated: '2026-08-27T15:59:46.250981Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
+archived: false
+priority: medium
+queue_position: 8500
+category: general
+tags:
+- reported-issue
+assignment:
+  owner: claude
+  eligible: []
+spec:
+  summary: She w that task is finishing
+  description: 'when I click approve and it auto finishes, there is no feedback really,
+    it should show the session output if there is any, if there isn''t cuz it''s just
+    a script run, you could show that output, or at least make it clear, and turn
+    off dispatch button during that
+
+
+    ---
+
+    Reported from the AgentJobs UI by Jeff Posey, at `/p/agentjobs/tasks/task-296`.
+
+    Noticed while viewing `task-296`.'
+  context: []
+acceptance: []
+deliverables: []
+dependencies:
+- task: task-296
+  type: related
+  note: Reported while viewing this task.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-27T15:52:20.488631Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created ready by Jeff Posey.
+  data:
+    lifecycle: ready
+    operation:
+      id: 0c2cdd40-46f0-4b6e-b1a1-a156fee48916
+      kind: create
+      fingerprint: f8ee4f063bd42a0d5987d3a8b22c4678
+- id: 2
+  ts: '2026-08-27T15:53:11.459738Z'
+  actor: Jeff Posey
+  type: note
+  body: Rename to Show that a task is finishing
+  data: {}
+- id: 3
+  ts: '2026-08-27T15:53:14.353943Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. They chose
+    posture `autonomous` for this run, above this project''s `auto`. No extra instruction
+    was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 4
+  ts: '2026-08-27T15:53:14.843477Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 5
+  ts: '2026-08-27T15:53:18.584647Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_5553fdf3
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: dispatch
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 3
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --settings
+    - '{"env": {"AGENTJOBS_RUN_ID": "run_5553fdf3", "AGENTJOBS_RUN_DIR": "C:\\Users\\jpose\\.agentjobs\\runs\\run_5553fdf3"}}'
+    - 'You are the agent `claude` working task `task-321` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-321-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_5553fdf3. Posture `autonomous` releases the merge gate:
+      this run merges its own work with no human review. Record the evidence on the
+      task first, then run `agentjobs finish task-321 --project agentjobs --posture-release`
+      from C:\projects\agentjobs. That rebases, runs the full gate, and merges only
+      on a green one -- it stops and hands the ball back if anything fails. Do not
+      merge by hand. Never push: this project is configured `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: b043f9c
+    session_id: 2dae6662
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 6
+  ts: '2026-08-27T15:59:46.250810Z'
+  actor: claude
+  type: decision
+  body: "Plan, after reading the whole approve \u2192 finish path.\n\n**What the reader\
+    \ sees today.** `approve_task` calls `spawn_finish`, which starts a detached `agentjobs\
+    \ finish` and returns the path of a log it will write. Nothing else happens: the\
+    \ browser gets the task back, the ball reads `agent`/`work` with the approval's\
+    \ own prompt, and for the two to four minutes the finish takes there is no signal\
+    \ at all. `announce_start` writes a `progress` entry \u2014 but only after preflight\
+    \ and the runway wait, and only if the reader reloads. The Dispatch button stays\
+    \ live the whole time, and pressing it produces a refusal from the run lock rather\
+    \ than an explanation.\n\n**What is already on disk and unread.** A finish writes\
+    \ `~/.agentjobs/finishes/<fin_id>/` \u2014 `meta.yaml` (task, project, outcome,\
+    \ started_at, merge_commit), `phases.jsonl` (`finish_preflight`, `finish_runway`,\
+    \ `gate_started`, `gate_finished`), `gate.log`, `restart.log` \u2014 and the spawned\
+    \ process's stdout lands in `finishes/spawn/<task-id>.log`, which ends up holding\
+    \ the whole step table. `scripts/run_report.py` reads that directory; the API\
+    \ never has. So this is mostly a reading problem, not a recording one.\n\n**Decision:\
+    \ make a finish readable the way a run already is, rather than streaming a process.**\n\
+    \n1. `spawn_finish` writes a marker beside the log *before* `Popen`, so the approve\
+    \ response cannot return before the page can tell a finish is starting. That closes\
+    \ the one-to-two-second window between the click and the finish directory existing.\n\
+    2. Steps are recorded as they land, not only in the final table: a `StepLog` that\
+    \ writes a `finish_step` phase on every append. Plus per-stage gate records from\
+    \ `scripts/check.py` (`gate_stage_started` / `gate_stage_finished`), because the\
+    \ gate is ~85% of a finish's wall clock and is currently one silent block.\n3.\
+    \ A reader module assembles those into a status \u2014 state, live, elapsed, the\
+    \ step table, gate progress, the log tail \u2014 with liveness taken from the\
+    \ per-task run lock through the existing `stale_lock_reason`, so a finish whose\
+    \ process died reads as interrupted rather than as a spinner forever.\n4. Two\
+    \ endpoints under the dispatch surface, mirroring runs: a polled JSON view and\
+    \ a plain-text `/output`.\n5. The task page grows a Finish panel between the review\
+    \ verbs and Dispatch, and Dispatch's button is disabled while a finish is live,\
+    \ saying why.\n\n**Rejected: streaming the finish's stdout to the browser.** It\
+    \ would need `run_command` to tee rather than capture, and the CLI to print each\
+    \ step, and it would still show nothing during the gate \u2014 the gate's own\
+    \ output is buffered until it exits. The step table plus per-stage gate progress\
+    \ is more legible than the terminal text would have been and costs no change to\
+    \ how a finish executes.\n\n**Rejected: putting the finish state on the approve\
+    \ response.** Additive to `HumanActionResponse`, which six routes share, to save\
+    \ one refetch that the page's own post-approve invalidation already makes. The\
+    \ marker in (1) is what makes that refetch reliable."
+  data:
+    operation:
+      id: 7a1c9f2e-3b44-4d0a-9c11-8f6b2e5d1a01
+      kind: log_append
+      fingerprint: ad528a1e9abe02aaac7188513c2612d4
