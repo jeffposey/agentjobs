@@ -3,7 +3,7 @@ id: task-223
 title: The rule that serializes every epic has no stated reason, and the doc's own
   reasoning contradicts it
 created: '2026-08-21T15:02:48.895387Z'
-updated: '2026-08-27T13:04:05.929994Z'
+updated: '2026-08-27T13:07:51.889706Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -815,3 +815,21 @@ log:
     finish_step: started
     branch: feat/task-223-parallel-epic-walk
     finish_id: fin_eca37a46
+- id: 20
+  ts: '2026-08-27T13:07:51.889532Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-223-parallel-epic-walk` into `main` as `e7b0eb6a`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-223
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    dispatch) releases the merge gate (task-021), and run run_d9aed92f ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: e7b0eb6a945b8a76fcb8f2bde32258a5703034f8
+    branch: feat/task-223-parallel-epic-walk
+    base: main
