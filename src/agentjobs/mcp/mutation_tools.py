@@ -15,13 +15,15 @@ is a wall.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 from mcp import types
 
 from ..client import MutationResult, TaskClient, TaskClientError
-from ..models_v2 import MANAGER_WRITTEN_LOG_TYPES, LogEntryType
+from ..models_v2 import MANAGER_WRITTEN_LOG_TYPES, LogEntryType, Task
 from ..queue_check import WARNING_KINDS
+from ..record_check import WARNING_KINDS as RECORD_WARNING_KINDS
+from ..record_check import check_record, warning_dicts
 from .errors import ErrorCode, FieldError, ToolError
 from .results import ToolOutput, mutation_annotations, success
 from .routing import (
@@ -109,6 +111,24 @@ MUTATION_RESULT_SCHEMA: Dict[str, Any] = {
             "description": (
                 "The placement that puts the task back where the move took it from. "
                 "Offered only alongside a queue warning, and only for a single move."
+            ),
+        },
+        "record_warnings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["kind", "message"],
+                "properties": {
+                    "kind": {"type": "string", "enum": list(RECORD_WARNING_KINDS)},
+                    "message": {"type": "string"},
+                },
+            },
+            "description": (
+                "Ways this write left the record less useful as working memory than "
+                "the Resumption Contract asks. Present only on the tools that could "
+                "have caused one -- the two creates, task_update_content and "
+                "task_log_append -- empty on almost every call, and never a refusal."
             ),
         },
     },
@@ -384,6 +404,29 @@ def _result_payload(result: MutationResult, project_id: str) -> Dict[str, Any]:
     }
 
 
+def _add_record_warnings(
+    payload: Dict[str, Any], summary: str, task: Task, verb: str
+) -> Tuple[Dict[str, Any], str]:
+    """Attach the record-quality check's findings to one tool result.
+
+    Computed here, from the task the response already carries, rather than sent over
+    the wire from the service: a record warning is a pure function of one record, so a
+    new API field would cost an OpenAPI change and a client regeneration to deliver
+    something every caller can already derive. A queue warning is the opposite -- it
+    depends on the state of a whole band at the instant of the move, which only the
+    service saw -- which is why that one does travel.
+
+    The findings go in the summary sentence as well as the payload, for the same reason
+    the queue check's do: a client that renders only the text is otherwise the one
+    surface where a write that damaged the record looks identical to one that did not.
+    """
+    warnings = check_record(task, verb=verb)
+    payload["record_warnings"] = warning_dicts(warnings)
+    if warnings:
+        summary = " ".join([summary, *(warning.message for warning in warnings)])
+    return payload, summary
+
+
 def _mutation_summary(result: MutationResult, verb: str) -> str:
     """One sentence for a client that does not read structured results."""
     prefix = "Already applied" if result.replayed else verb
@@ -462,7 +505,10 @@ def _build_create(client: TaskClient, *, ready: bool) -> Any:
             "warnings": [],
         }
         state = "ready for an agent to claim" if ready else "draft, awaiting its spec"
-        return success(payload, f"Created {task.id} ({state}).")
+        payload, summary = _add_record_warnings(
+            payload, f"Created {task.id} ({state}).", task, "create"
+        )
+        return success(payload, summary)
 
     return handler
 
@@ -620,14 +666,17 @@ def _build_log_append(client: TaskClient) -> Any:
             )
         except TaskClientError as exc:
             raise _service_error(exc, project_id=project_id, task_id=task_id) from exc
-        return success(
+        payload, summary = _add_record_warnings(
             _result_payload(result, project_id),
             (
                 "Already applied"
                 if result.replayed
                 else f"Appended a {entry_type} entry to {task_id}."
             ),
+            result.task,
+            "log_append",
         )
+        return success(payload, summary)
 
     return handler
 
@@ -666,7 +715,10 @@ def _build_update_content(client: TaskClient) -> Any:
             "task": task_document(task.model_dump(mode="json", by_alias=True, exclude_none=True)),
             "warnings": [],
         }
-        return success(payload, f"Updated {', '.join(sorted(patch))} on {task_id}.")
+        payload, summary = _add_record_warnings(
+            payload, f"Updated {', '.join(sorted(patch))} on {task_id}.", task, "update_content"
+        )
+        return success(payload, summary)
 
     return handler
 

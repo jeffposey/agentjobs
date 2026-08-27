@@ -98,7 +98,7 @@ is how this project has lost the most time, so the status word comes first.
 
 | Document | Date |
 | --- | --- |
-| [Task corpus audit](task-corpus-audit.md) | 2026-08-13 |
+| [Task corpus audit](task-corpus-audit.md) | 2026-08-13 structural audit, plus a 2026-08-27 record-quality baseline — summary lengths by era and how often a `question` entry ever reaches a record. Regenerate that half with `scripts/corpus_stats.py`. |
 | [MCP release evidence](integration/mcp-release-evidence.md) | 2026-08-17. Its counts — "fourteen tools", "1089 tests" — were right that day and are not now. |
 | [The context budget](context-budget.md) | 2026-08-25. What a session loads before its first thought, per runner, with the instrument behind every figure. The totals move with each harness release and each commit to the always-loaded bundle; the methods and the proposed cap do not. |
 

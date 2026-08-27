@@ -27,8 +27,9 @@ from agentjobs.mcp import mutation_tools
 from agentjobs.mcp.errors import ErrorCode, ToolError
 from agentjobs.mcp.inventory import build_registry
 from agentjobs.mcp.tools import ToolRegistry
-from agentjobs.models_v2 import Lifecycle
+from agentjobs.models_v2 import Ball, BallReason, Lifecycle
 from agentjobs.projects import ProjectRegistry
+from agentjobs.record_check import DEFAULT_BALL_PROMPT, LONG_SUMMARY, SUMMARY_WORD_CEILING
 from agentjobs.storage import TaskStorage
 
 ACTORS = [
@@ -1014,6 +1015,171 @@ class TestQueueMove:
         text = anyio.run(run)
         assert text.startswith(f"Moved {second.id} to ")
         assert "is now" not in text
+
+
+# ---------------------------------------------------------------------------
+# The record-quality check on the write path (task-306)
+# ---------------------------------------------------------------------------
+class TestRecordWarnings:
+    """What ``record_check`` says reaches the agent, and only where it was earned.
+
+    The design decision on task-306 is that these fire at the moment a write could have
+    caused them and nowhere else, so the tests that matter most here are the silent
+    ones: a claim of somebody else's long summary, and every verb that carries no
+    ``record_warnings`` key at all.
+    """
+
+    def long_summary(self) -> str:
+        """A summary one word past the ceiling, built from the constant."""
+        return " ".join(["word"] * (SUMMARY_WORD_CEILING + 1))
+
+    def test_a_create_with_a_long_summary_warns_in_payload_and_sentence(self, service):
+        registry, _, _ = service
+
+        payload = call(
+            registry,
+            "task_create_ready",
+            {
+                "project_id": "solo",
+                "actor": "bot",
+                "operation_id": op(),
+                "title": "Long",
+                "summary": self.long_summary(),
+                "description": "The working spec.",
+            },
+        )
+
+        assert [item["kind"] for item in payload["record_warnings"]] == [LONG_SUMMARY]
+        assert f"{SUMMARY_WORD_CEILING + 1} words" in payload["record_warnings"][0]["message"]
+
+    def test_the_warning_is_in_the_text_a_client_without_structured_results_reads(self, service):
+        registry, _, _ = service
+
+        async def run():
+            definition = registry.get("task_create_ready")
+            content, _ = await definition.handler(
+                {
+                    "project_id": "solo",
+                    "actor": "bot",
+                    "operation_id": op(),
+                    "title": "Long",
+                    "summary": self.long_summary(),
+                    "description": "The working spec.",
+                }
+            )
+            return content[0].text
+
+        text = anyio.run(run)
+
+        assert "Created" in text
+        assert "spec.summary is" in text
+
+    def test_an_ordinary_create_is_silent(self, service):
+        registry, _, _ = service
+
+        payload = call(
+            registry,
+            "task_create_ready",
+            {
+                "project_id": "solo",
+                "actor": "bot",
+                "operation_id": op(),
+                "title": "Short",
+                "summary": "One sentence that orients a reader.",
+                "description": "The working spec.",
+            },
+        )
+
+        assert payload["record_warnings"] == []
+
+    def test_claiming_somebody_elses_long_summary_carries_no_warning_at_all(self, service):
+        registry, manager, _ = service
+        manager.create_task(
+            id="task-001-work",
+            title="Long",
+            description="D",
+            summary=self.long_summary(),
+            lifecycle=Lifecycle.READY,
+        )
+
+        payload = call(registry, "task_claim", base())
+
+        assert "record_warnings" not in payload
+
+    def test_logging_against_a_worked_task_reports_the_default_prompt(self, service):
+        registry, manager, _ = service
+        ready_task(manager)
+        call(registry, "task_claim", base())
+
+        payload = call(
+            registry,
+            "task_log_append",
+            base(type="progress", body="Started on it."),
+        )
+
+        assert [item["kind"] for item in payload["record_warnings"]] == [DEFAULT_BALL_PROMPT]
+
+    def test_a_second_entry_after_a_stated_prompt_is_silent(self, service):
+        registry, manager, _ = service
+        task = ready_task(manager)
+        call(registry, "task_claim", base())
+        stated = manager.handoff(
+            task.id,
+            actor="bot",
+            ball=Ball.AGENT,
+            ball_reason=BallReason.WORK,
+            ball_prompt="Rebase, then re-run the e2e stage.",
+        )
+
+        payload = call(
+            registry,
+            "task_log_append",
+            base(type="progress", body="Rebased.", task_id=stated.id),
+        )
+
+        assert payload["record_warnings"] == []
+
+    def test_only_the_authoring_tools_carry_the_key_at_all(self, service):
+        """Every other tool omits it, rather than sending an always-empty list.
+
+        An always-empty list would read as "checked, nothing found" on verbs that
+        cannot produce either condition, which is a claim the tool has not made. The
+        key is optional in the shared output schema for exactly that reason.
+        """
+        registry, manager, _ = service
+        ready_task(manager)
+
+        carries = {
+            "task_create_ready": call(
+                registry,
+                "task_create_ready",
+                {
+                    "project_id": "solo",
+                    "actor": "bot",
+                    "operation_id": op(),
+                    "title": "T",
+                    "summary": "Short.",
+                    "description": "D",
+                },
+            ),
+            "task_claim": call(registry, "task_claim", base()),
+            "task_log_append": call(registry, "task_log_append", base(body="On it.")),
+            "task_update_content": call(
+                registry,
+                "task_update_content",
+                base(
+                    expected_revision=manager.get_task("task-001-work").updated.isoformat(),
+                    patch={"spec": {"summary": "Short.", "description": "D"}},
+                ),
+            ),
+        }
+
+        assert {name for name, payload in carries.items() if "record_warnings" in payload} == {
+            "task_create_ready",
+            "task_log_append",
+            "task_update_content",
+        }
+        assert "record_warnings" not in registry.get("task_claim").output_schema["required"]
 
 
 # ---------------------------------------------------------------------------
