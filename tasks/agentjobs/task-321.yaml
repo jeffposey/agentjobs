@@ -2,7 +2,7 @@ schema: 2
 id: task-321
 title: She w that task is finishing
 created: '2026-08-27T15:52:20.044498Z'
-updated: '2026-08-27T17:11:58.389413Z'
+updated: '2026-08-27T17:13:43.947672Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -566,3 +566,13 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 21
+  ts: '2026-08-27T17:13:43.947438Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 5
+  data:
+    run_id: run_5553fdf3
+    outcome: completed
+    duration_seconds: 4826.992436
+    log_path: C:\Users\jpose\.agentjobs\runs\run_5553fdf3
