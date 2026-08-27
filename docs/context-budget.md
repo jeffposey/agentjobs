@@ -440,6 +440,50 @@ here, and neither has been examined.
 
 ---
 
+## 8b. A subdirectory `CLAUDE.md` is deferred — but only the native file tools trigger it
+
+Measured 2026-08-27 on **Claude Code 2.1.238**, because §6 lists what this repository
+controls and this is a mechanism it controls and does not use: all 24 agent-context files
+under `C:/projects` sit at project roots, none nested.
+
+Two scratch trees, identical but for one file. `A/` has a one-line root `CLAUDE.md`; `B/`
+has the same plus `B/sub/CLAUDE.md`, 8,648 bytes of a distinctively numbered marker rule.
+Each was asked to quote "nested marker rule number 017" or reply NOT_LOADED, so the probe
+reports whether the text reached the model rather than whether a number moved.
+
+| What the session did | Nested file loaded? |
+|---|---|
+| nothing — answered from the prompt | **no** |
+| `Read sub/thing.py` | **yes** |
+| `Bash: cat sub/thing.py` | **no** |
+| `Grep` under `sub/` | **yes** |
+| `Write sub/scratch.txt` | inconclusive — a permission prompt blocked the tool |
+
+Instrument A agrees. Doing nothing, both trees cost **34,053 tokens** (10 input + 11,876
+cache creation + 22,167 cache read) — identical to the token, which an 8.6 KB file loaded
+at session start could not produce. After the `Read`, `A` cost 68,497 and `B` 70,059:
+**+1,562 tokens**, appearing only once the directory was touched.
+
+The Bash result was checked rather than assumed, per ENGINEERING.md's rule about automated
+gestures: the run was re-asked to name the function it had seen, answered `widget_alpha`,
+and still answered NOT_LOADED. The read landed; the nested file did not load.
+
+**So it is a real lever and it is not free to adopt.** Two things stand between it and a
+recommendation, and both are about who would stop seeing the rule:
+
+- Dispatched runs here are handed a preamble telling them to prefer Bash over `Read` and
+  `Edit`. A rule in `src/agentjobs/dispatch/CLAUDE.md` would be invisible to exactly the
+  sessions that do most of the work in this repository.
+- Codex reads `AGENTS.md`, not `CLAUDE.md` (§4). Whether it defers a nested `AGENTS.md`
+  is untested. A rule moved to a nested file could become invisible to Codex rather than
+  deferred, which is a correctness question and not a budget one.
+
+Neither is a reason to drop the idea. Both are reasons it needs its own task rather than
+being folded into a compression pass — and neither changes what task-305 cut, which was
+rationale and history rather than rules.
+
+---
+
 ## 9. Reproducing this
 
 Everything above comes from files already on the machine; no session was started to
