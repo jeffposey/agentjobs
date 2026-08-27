@@ -3,7 +3,7 @@ id: task-297
 title: 'The scripted finish cannot merge under concurrency: base_moved fires on task-record
   commits, and each escalation causes the next'
 created: '2026-08-23T20:57:20.855780Z'
-updated: '2026-08-27T16:32:02.521686Z'
+updated: '2026-08-27T16:32:22.992323Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -653,3 +653,33 @@ log:
     finish_step: started
     branch: fix/task-297-finish-catch-up
     finish_id: fin_d6067bc2
+- id: 15
+  ts: '2026-08-27T16:32:22.991912Z'
+  actor: claude
+  type: progress
+  body: "## The first finish attempt was killed by task-243, not by anything here\
+    \ \u2014 and this entry is the second live attempt\n\n`fin_281c62e5` stopped at\
+    \ `gate` after 222 seconds:\n\n```\nFAILED tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too\n\
+    \       AssertionError: pid 1473084 survived the timeout\n1 failed, 3497 passed,\
+    \ 1 skipped in 200.59s\n```\n\nThat is **task-243** verbatim \u2014 *\"The grandchild-kill\
+    \ test asserts on a moment, and loses the race under load\"* \u2014 which this\
+    \ task's own description names as the flake that supplied step 2 of the original\
+    \ incident, and its `out_of_scope` puts beyond this branch. The same unqualified\
+    \ gate on the same commits had been green twenty minutes earlier (309s, ten of\
+    \ ten stages). Nothing in this branch touches process groups or timeouts.\n\n\
+    **It is worth noting what it cost, because that is now twice.** The escalation\
+    \ wrote `e313267 chore(task-297): escalate the scripted finish at gate` to `main`\
+    \ \u2014 exactly the amplifier this task is about \u2014 and consumed a whole\
+    \ finish. Task-243 is not this defect's cause, but it is reliably its trigger,\
+    \ and it is still open.\n\nIt also meant the mid-gate record commit `796c2fd`\
+    \ never reached `catch_up`: the gate failed before the step ran, so `main` moving\
+    \ was never the question.\n\n**So this entry is the second attempt at the live\
+    \ demonstration**, written and committed to `main` while `fix/task-297-finish-catch-up`'s\
+    \ retry is mid-gate (announced at `4dff753`). If the closing entry below carries\
+    \ a `catch_up` line, sc-1 is discharged on this repository with the real ten-stage\
+    \ gate, and not only in the harness.\n"
+  data:
+    operation:
+      id: 7f2a1c30-9d41-4b62-8e05-1a2b3c4d5e07
+      kind: log_append
+      fingerprint: e5fd38b6890f9af1742a62559469a90f
