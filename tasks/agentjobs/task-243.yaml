@@ -2,7 +2,7 @@ schema: 2
 id: task-243
 title: The grandchild-kill test asserts on a moment, and loses the race under load
 created: '2026-08-22T04:38:42.531332Z'
-updated: '2026-08-23T05:16:18.670070Z'
+updated: '2026-08-27T14:06:27.374090Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -149,3 +149,33 @@ log:
       id: a1b2c3d4-0008-4000-8000-000000000008
       kind: queue_move
       fingerprint: 524fad1c7aee98d781b0c24998fe10cf
+- id: 3
+  ts: '2026-08-27T14:06:27.373858Z'
+  actor: claude
+  type: note
+  body: "## Recurred today, 2026-08-27, **at the widened 30-second budget**\n\nSeen\
+    \ from task-296's branch (`fix/task-296-stall-detection`), which touches neither\
+    \ this test nor the kill path \u2014 it adds a stall check to `poll_session`'s\
+    \ `RUNNING` branch.\n\n```\nFAILED tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too\n\
+    \  AssertionError: pid 1448696 survived the timeout\n1 failed, 3482 passed, 1\
+    \ skipped in 184.30s\n```\n\n**What makes this a useful data point rather than\
+    \ another sighting:** the same branch, same code, passed a full unqualified gate\
+    \ half an hour earlier, and the test passed in isolation immediately afterwards\
+    \ (`1 passed in 4.73s`). So the mitigation already applied \u2014 polling `_dies_within`\
+    \ for 30 seconds instead of asserting on the instant \u2014 **is not sufficient**.\
+    \ The in-file comment says the widening was measured against six runs on 2026-08-25\
+    \ with one late exit; today's machine was loaded enough to exhaust the full 30\
+    \ seconds, or the grandchild genuinely outlived it.\n\nThat distinction is the\
+    \ open question, and this run cannot settle it: `_dies_within` returning False\
+    \ means \"still listed after 30s\", and nothing recorded whether it died at 31\
+    \ seconds or never. **Worth having the fix record which**, because \"the budget\
+    \ is too small\" and \"the group kill sometimes misses the grandchild\" want different\
+    \ fixes, and only the second is a real defect in the product.\n\nTwo things this\
+    \ cost, both of which the task already predicts: a full gate cycle, and \u2014\
+    \ because it is in the scripted finish's path \u2014 it would have blocked a merge\
+    \ on a branch with nothing wrong with it."
+  data:
+    operation:
+      id: 9a3f14c8-52d7-4b6e-8e05-3d81f2a70b19
+      kind: log_append
+      fingerprint: 4898ba6099bdcfd604d90bebdb6f312b
