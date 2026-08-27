@@ -3,12 +3,12 @@ id: task-296
 title: 'A dispatched session that parks is invisible: the task record still reads
   agent/work and nobody is told'
 created: '2026-08-23T20:56:33.153215Z'
-updated: '2026-08-27T13:21:04.296034Z'
+updated: '2026-08-27T13:22:48.120455Z'
 lifecycle: active
 ball: human
 ball_reason: input
 ball_prompt: "Dispatched session `8e06b149` stopped on an authentication failure at\
-  \ 2026-08-27T13:20:58.238000+00:00 and will not resume by itself. It said: \"Login\
+  \ 2026-08-27T13:22:46.343000+00:00 and will not resume by itself. It said: \"Login\
   \ expired \xB7 Please run /login\".\n\n**Find out which failure this is before doing\
   \ anything \u2014 there are two and they look identical from here.** Either the\
   \ credential store genuinely cannot authenticate, or it can and this session is\
@@ -288,6 +288,29 @@ log:
   actor: dispatcher
   type: handoff
   body: "Dispatched session `8e06b149` stopped on an authentication failure at 2026-08-27T13:20:58.238000+00:00\
+    \ and will not resume by itself. It said: \"Login expired \xB7 Please run /login\"\
+    .\n\n**Find out which failure this is before doing anything \u2014 there are two\
+    \ and they look identical from here.** Either the credential store genuinely cannot\
+    \ authenticate, or it can and this session is stuck on a refresh that already\
+    \ failed. Nothing you can see distinguishes them: not this task, not the run ledger,\
+    \ and not `agents --json`. One command does, run as a **fresh process** rather\
+    \ than inside the stalled session:\n\n```\nclaude -p \"Reply with exactly: AUTH_OK\"\
+    \n```\n\n**If it answers**, the credential is fine and only the session is stuck.\
+    \ Send it a message to wake it, or attach with `claude attach 8e06b149`. Logging\
+    \ in again changes nothing.\n\n**If it fails to authenticate**, the store is genuinely\
+    \ dead and no restart will clear it. Run `claude auth login` in a terminal on\
+    \ that machine, then wake the session the same way. Answering inside the session\
+    \ cannot work while this is true: the credential is already gone, so anything\
+    \ sent is retried against nothing and fails instantly.\n\nEither way the session\
+    \ resumes in place -- nothing is lost and this task does not need re-dispatching."
+  data:
+    ball: human
+    ball_reason: input
+- id: 6
+  ts: '2026-08-27T13:22:48.120340Z'
+  actor: dispatcher
+  type: handoff
+  body: "Dispatched session `8e06b149` stopped on an authentication failure at 2026-08-27T13:22:46.343000+00:00\
     \ and will not resume by itself. It said: \"Login expired \xB7 Please run /login\"\
     .\n\n**Find out which failure this is before doing anything \u2014 there are two\
     \ and they look identical from here.** Either the credential store genuinely cannot\
