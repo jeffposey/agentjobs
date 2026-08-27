@@ -10,14 +10,10 @@ This handbook is the canonical source for universal engineering practices across
     `/app/` on a running `agentjobs serve`).
 
 ## Tech Stack
--   **Language**: Python 3.11+
--   **Web Framework**: FastAPI
--   **CLI Framework**: Typer
--   **Data Validation**: Pydantic v2
--   **Web application**: React 19, TypeScript, Vite, Tailwind CSS, TanStack Query
--   **Compatibility surface**: Jinja2 remains only for legacy server-rendered routes;
-    it is not the primary or recommended UI.
--   **Package Manager**: Poetry
+
+`pyproject.toml` and `frontend/package.json` are the list; Poetry and npm are how you
+reach them. One thing neither manifest can tell you: **Jinja2 remains only for legacy
+server-rendered routes, and is not the primary or recommended UI.**
 
 ## Development Workflow
 
@@ -152,47 +148,33 @@ source rather than a neighbouring one's.
 ### Measuring performance
 -   Two tools, both documented in [docs/performance.md](docs/performance.md):
     `scripts/bench.py` times the API, the CLI and the browser's open-a-task interaction;
-    `scripts/run_report.py` reads the run ledger and says where dispatched agent time
-    goes, including how much of each run was the gate.
+    `scripts/run_report.py` says where dispatched agent time goes.
 -   **A change that claims to be faster states a before/after pair from one of them**,
     and **a cycle-time claim is a before/after or it is an anecdote**. Prefer asserting
     on task files parsed rather than on wall-clock time: the parse count means the same
-    thing on every machine, and a timing threshold does not. Every API response carries
-    `X-Response-Time-Ms` and `X-Task-Parses`, so a slow request can be attributed
-    without a profiler.
+    thing on every machine, and a timing threshold does not.
 -   **Do not measure a run by grepping `transcript.log`.** It is a raw TTY capture, so a
     line appears in it as many times as the terminal repainted it and every count derived
-    from it is an artefact of that. Task-233 is the incident; the phase records
-    `scripts/check.py` writes exist so the question does not have to be asked that way
-    again.
+    from it is an artefact of that (task-233).
 
 ### Measuring this file
 
 Every session loads `CLAUDE.md` and the three files it imports before its first thought,
 and **the bundle is capped**: `tests/test_context_budget.py` fails when the four files
 together exceed the budget task-301 measured. Cutting is therefore the normal way to make
-room, and there are two instruments for doing it safely.
+room.
 
-`scripts/context_eval.py` measures which of those words change what an agent *does*: it
-runs a scenario twice, once against a copy of the bundle and once with one section cut
-out, and scores each run on its action trace.
-
-```bash
-poetry run python scripts/context_eval.py --dry-run    # validate the ablations, run nothing
-poetry run python scripts/context_eval.py --tag quick  # the per-release subset
-```
-
-**Run it on a new model release, and before cutting anything from these files.** A rule
+**Before cutting anything from these files, run the ablation suite** —
+`scripts/context_eval.py`, documented in [evals/context/README.md](evals/context/README.md).
+It measures which of these words change what an agent *does*, by running a scenario twice
+with one section cut out of the second arm. **Run it on a new model release too**: a rule
 that is load-bearing for one generation may be redundant with the next model's defaults,
-which is why a verdict here carries a model id and a date. `evals/context/README.md` has
-the scenarios, the scoring vocabulary and the limits; `evals/context/baselines/` holds one
-committed report per model.
+which is why a verdict here carries a model id and a date.
 
-It is deliberately **not** in `scripts/check.py`: it costs tens of minutes and real money,
-and a gate stage like that gets disabled within a week. The cheap half is in the gate --
-`tests/test_context_eval.py` re-renders every ablation against the current bundle and fails
-when a case's target heading has been renamed or its rule restated somewhere the ablation
-does not reach, which is how the suite would otherwise rot.
+It is deliberately **not** in `scripts/check.py` — it costs tens of minutes and real money,
+and a gate stage like that gets disabled within a week. Its cheap half is: `tests/test_context_eval.py`
+fails when a case's target heading has been renamed or its rule restated somewhere the
+ablation does not reach, which is how the suite would otherwise rot.
 
 ### Code Style
 -   **Formatter**: Black
