@@ -3,7 +3,7 @@ id: task-223
 title: The rule that serializes every epic has no stated reason, and the doc's own
   reasoning contradicts it
 created: '2026-08-21T15:02:48.895387Z'
-updated: '2026-08-27T10:48:56.108593Z'
+updated: '2026-08-27T10:50:34.866927Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -305,3 +305,79 @@ log:
     undo:
       kind: after
       target: task-318
+- id: 7
+  ts: '2026-08-27T10:50:34.866731Z'
+  actor: Jeff Posey
+  type: instruction
+  body: "**Jeff, 2026-08-26, specifying the scheduler he wants. This is binding on\
+    \ whoever implements this task and it is narrower than \"start the eligible children\"\
+    \ \u2014 the difference is a barrier, and the barrier is the thing to not build.**\n\
+    \n> it should follow the graph, finish first child that unblocks 3 others, do\
+    \ those 3 in parallel, then one unblocks another and can't start it immediately\
+    \ etc\n\n## What that rules out\n\nThe obvious implementation of this task is\
+    \ **waves**: find every child with no unmet `needs`, start them all, wait for\
+    \ all of them, recompute, repeat. It is the easy loop and it is wrong, for the\
+    \ same reason the serial walk is wrong \u2014 it prices a group at its slowest\
+    \ member. A wave of three where one takes an hour and two take ten minutes leaves\
+    \ two runners idle for fifty minutes with eligible work sitting there.\n\n**What\
+    \ is wanted is a rolling frontier**: at every moment, every child whose `needs`\
+    \ are all satisfied and which is not already running is started, up to the concurrency\
+    \ cap. A child completing is an event that recomputes eligibility immediately\
+    \ \u2014 not at the end of a round. There is no barrier anywhere in the loop.\n\
+    \nStated as an invariant, which is also the test: *at no point does an eligible,\
+    \ unclaimed child exist while a runner slot is free.*\n\n## The second half of\
+    \ what he said\n\n> then one unblocks another and can't start it immediately\n\
+    \nTwo readings, and the design is the same under both, which is why this is not\
+    \ being sent back as a question:\n\n1. *A child completes and the thing it unblocked\
+    \ starts immediately.* The rolling frontier above.\n2. *A child completes and\
+    \ the thing it \"unblocked\" still cannot start* \u2014 because it had **two**\
+    \ unmet needs and only one of them just closed.\n\nReading 2 is the real subtlety\
+    \ and the scheduler must handle it whether or not it is what he meant. **\"X unblocked\
+    \ me\" is not the same as \"I am eligible.\"** A dependent may sit behind a second\
+    \ edge. So the scheduler asks *\"are all of this child's needs satisfied?\"* \u2014\
+    \ never *\"did the child that just finished name me?\"*. An implementation that\
+    \ pushes newly-freed dependents onto a ready-queue on completion gets this wrong\
+    \ in exactly the case that matters: a diamond, where the second parent has not\
+    \ landed yet, and the child starts against an unmet prerequisite.\n\n## The first\
+    \ half is a priority rule, and it is separate\n\n> finish first child that unblocks\
+    \ 3 others\n\nThis is not about eligibility. It is about **which to start first\
+    \ when the frontier is wider than the cap**, and it is a real scheduling heuristic\
+    \ rather than a preference: prefer the child with the most work waiting behind\
+    \ it. Classic critical-path scheduling \u2014 the frontier is not a set of equals,\
+    \ and starting a leaf ahead of a task that gates three others idles three runners\
+    \ later for no gain.\n\nThe cheap version is out-degree: count open children that\
+    \ `need` this one, start highest first. The better version is longest downstream\
+    \ chain, since one dependent that gates four more matters more than three leaves.\
+    \ **Start with out-degree** \u2014 it is computable from `dependencies[]`, which\
+    \ is already on every record, and the difference only shows up on graphs deeper\
+    \ than this repository's epics have been.\n\nThis interacts with the queue and\
+    \ the interaction needs a stated answer rather than an accident: `agentjobs queue`\
+    \ already holds a human-decided order, and `ALLAGENTS.md` is emphatic that the\
+    \ queue is the answer and that dependencies must never be used to express ordering.\
+    \ So the rule should be: **the graph decides eligibility, the queue decides order\
+    \ among eligible children, and out-degree breaks ties the queue does not.** That\
+    \ keeps a human's explicit `queue move` authoritative and stops the scheduler\
+    \ quietly overriding it \u2014 which is the failure mode of letting out-degree\
+    \ sort the frontier outright.\n\n## What this does to the stop rule\n\n`walk_epic`'s\
+    \ reason for stopping the whole walk survives, and gets sharper. With a rolling\
+    \ frontier the response to a dirty child is:\n\n- **Start no further children.**\
+    \ Takeoffs stop at once.\n- **Let the ones already in flight land.** They were\
+    \ started against a graph that was valid when they started, and killing them throws\
+    \ away work for no safety gain \u2014 none of them depends on the failed child,\
+    \ or they would not have been eligible.\n- **Never start anything that needed\
+    \ the failed child.** That is automatic: its `needs` are not satisfied and never\
+    \ will be, so it cannot enter the frontier.\n\nThat preserves the whole of the\
+    \ argument in the docstring \u2014 *\"a sibling that depended on that child would\
+    \ be building on a gap\"* \u2014 while giving up only the pessimism about siblings\
+    \ that provably do not depend on it.\n\n## The runway is unchanged by any of this\n\
+    \nEverything above is about takeoff. The repo-scoped finish lock in the previous\
+    \ entry is still required and is still the harder half: N children finishing concurrently\
+    \ must not each merge against a base the others are moving, or a child merges\
+    \ a commit its gate never verified. Scheduling more takeoffs makes the runway\
+    \ *more* contended, not less \u2014 so the lock is a prerequisite for this, not\
+    \ a follow-up to it.\n"
+  data:
+    operation:
+      id: 571936f8-10c9-40d3-a61d-9d9c4f2bed3e
+      kind: log_append
+      fingerprint: f20629e1e35f15725732b71c31f5f77a
