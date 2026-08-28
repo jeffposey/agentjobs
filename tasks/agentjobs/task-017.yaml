@@ -3,16 +3,11 @@ id: task-017
 title: Let an agent ask structured multiple-choice questions the human answers in
   the GUI
 created: '2026-08-18T05:35:45.027948Z'
-updated: '2026-08-28T01:43:47.039207Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-28T01:44:25.396245Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 171
 category: ux
 tags:
 - frontend
@@ -21,7 +16,6 @@ tags:
 - agent-dx
 effort: a day, plus a schema change
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: When an agent needs a decision, it can only leave prose in `ball_prompt`
@@ -169,7 +163,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-017-structured-questions
-  status: active
+  status: merged
+  merged_at: '2026-08-28T01:44:25.313177Z'
 log:
 - id: 1
   ts: '2026-08-18T05:35:45.027996Z'
@@ -789,3 +784,25 @@ log:
     merge_commit: 04c09e85b0c532f831d0cea33a475eb4c3c85ad6
     branch: feat/task-017-structured-questions
     base: main
+- id: 23
+  ts: '2026-08-28T01:44:25.395977Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-017-structured-questions` into `main` as `04c09e85` and\
+    \ verified live. Finished by the scripted path with no agent session (task-241).\
+    \ Approved by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         1.1s  feat/task-017-structured-questions\
+    \ at 0788cc68 in C:\\projects\\worktrees\\agentjobs-017\n  runway     ok     \
+    \    0.0s  taken immediately\n  rebase     ok         0.3s  feat/task-017-structured-questions\
+    \ onto main: 0788cc68 -> db34e0ed\n  gate       ok       190.8s  scripts/check.py\
+    \ green\n  catch_up   skipped    0.0s  main did not move during the gate\n  merge\
+    \      ok         0.3s  --no-ff into main as 04c09e85b0c532f831d0cea33a475eb4c3c85ad6\n\
+    \  rebuild    ok         7.3s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         0.7s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     ok         0.0s  http://127.0.0.1:8876 is serving 614d6e22, which contains\
+    \ the merge 04c09e85, from C:\\projects\\agentjobs (started 2026-08-28T01:44:01.386381+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
