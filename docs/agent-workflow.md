@@ -841,8 +841,9 @@ client.handoff_task(
 )
 ```
 
-The GUI renders each as buttons with a free-text box always beside them, and one Submit
-writes an `answer` entry per question threaded by `re`. **This is the difference between
+The GUI renders each as buttons with a free-text box always beside them, **on the task
+page by default with nothing to click open**, and one Submit writes an `answer` entry
+per question threaded by `re`. **This is the difference between
 a decision answered in seconds on a phone and one that waits a day**, which is what the
 same four questions cost on task-077 as prose. Two things follow from it:
 

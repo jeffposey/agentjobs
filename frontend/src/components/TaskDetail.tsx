@@ -17,6 +17,7 @@ import {
   openQuestions,
   submissions,
   type Draft,
+  type OpenQuestion,
 } from "./QuestionForm";
 import { DependencyGraph } from "./DependencyGraph";
 import { DependencyState } from "./DependencyState";
@@ -109,7 +110,14 @@ type PanelVerbs = {
   heading: string;
   guidance: string;
   primary: { kind: "approve" | "promote"; text: string } | null;
-  secondary: SendBackVerb;
+  /**
+   * The send-back this phase leads with, or null where the phase has none.
+   *
+   * Null only where the questions are already on the page (task-017): a button that
+   * opens a copy of a form the reader is looking at is not a second verb, it is the
+   * same one twice.
+   */
+  secondary: SendBackVerb | null;
   /** Re-brief and stop. Offered only where work is underway; see verbsFor. */
   extras: Array<SendBackVerb>;
 };
@@ -152,21 +160,20 @@ function verbsFor(task: TaskRead, hasOpenQuestions = false): PanelVerbs {
     placeholder: "Explain what needs to change...",
     hint: "Recorded as a revision: the agent changes the work and comes back to you for another review.",
   };
+  const extras = [REDIRECT_VERB, HOLD_VERB];
   if (task.ball_reason === "decision" || task.ball_reason === "input") {
+    // Where questions are open the form is already rendered above these buttons, with
+    // its own free-text box and its own Submit, so there is nothing left for an
+    // "Answer Questions" button to open.
     return {
       label: "Review actions",
       heading,
       guidance,
       primary: null,
-      secondary: answering,
-      extras: [REDIRECT_VERB, HOLD_VERB],
+      secondary: hasOpenQuestions ? null : answering,
+      extras,
     };
   }
-  // Answering leads the extras where questions are open, because it is then the thing
-  // most likely to be wanted and a phone shows the first control best (task-017).
-  const extras = hasOpenQuestions
-    ? [answering, REDIRECT_VERB, HOLD_VERB]
-    : [REDIRECT_VERB, HOLD_VERB];
   if (task.ball_reason === "spec") {
     return {
       label: "Review actions",
@@ -235,6 +242,89 @@ function NoteForm({
 }
 
 /**
+ * The questions, on the page, without being asked for (task-017).
+ *
+ * They were behind the "✎ Answer Questions" button for one release, and Jeff's verdict
+ * on that was immediate: *"It should not require pressing answer questions button to get
+ * the multiple choice question prompt, that should be in default view."* He is right,
+ * and the reason is the one this whole task exists for. The agent has already said, in
+ * the handoff, that it is waiting on four specific decisions; a button that reveals them
+ * asks the reader to request the thing they came to do. On a phone that is a tap, a
+ * scroll and a reorientation before the first option is even visible.
+ *
+ * So: open questions render whenever the panel does, with their own Submit. The panel's
+ * other verbs sit below, unchanged.
+ *
+ * **Except on a held task**, which is why this is rendered by the caller rather than
+ * unconditionally. Answering hands the ball back to `agent`/`answer`, which would lift
+ * a hold — a control that quietly undoes the control next to it.
+ */
+function AnswerSection({
+  questions,
+  working,
+  onSendBack,
+}: {
+  questions: Array<OpenQuestion>;
+  working: boolean;
+  onSendBack: TaskDetailProps["onSendBack"];
+}) {
+  const [drafts, setDrafts] = useState<Record<number, Draft>>({});
+  const [note, setNote] = useState("");
+  const [attachments, setAttachments] = useState<Array<PendingAttachment>>([]);
+  const answers = submissions(drafts);
+  // Free text is not required here and is required everywhere else: tapping four
+  // options and typing nothing is precisely the act this exists to make possible.
+  const canSubmit = answers.length > 0 || Boolean(note.trim());
+  return (
+    <form
+      className="space-y-3 rounded-lg border border-yellow-600/40 bg-dark-bg/40 p-3"
+      aria-label="Open questions"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!canSubmit) return;
+        // Cleared only once the write lands. On failure the taps and the prose stay
+        // put, because the banner above says what went wrong and throwing a phone
+        // user's answers away is not a way to report it.
+        void Promise.resolve(onSendBack("answer", note.trim(), toUploads(attachments), answers)).then(
+          () => {
+            setDrafts({});
+            setNote("");
+            setAttachments([]);
+          },
+          () => undefined,
+        );
+      }}
+    >
+      <QuestionForm
+        questions={questions}
+        drafts={drafts}
+        disabled={working}
+        onChange={(id, next) => setDrafts((current) => ({ ...current, [id]: next }))}
+      />
+      <AttachmentPicker
+        label="Anything else (optional)"
+        hint="Recorded as an answer, not a revision: nothing done so far is being rejected."
+        placeholder="Anything the answers above do not cover..."
+        value={note}
+        onChange={setNote}
+        attachments={attachments}
+        onAttachmentsChange={setAttachments}
+        textareaClassName="mt-1 min-h-20 w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none"
+      />
+      <div className="mobile-action-row flex gap-3">
+        <button
+          type="submit"
+          disabled={working || !canSubmit}
+          className="touch-target rounded-lg bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+        >
+          ✓ Send answers
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/**
  * The one box a human acts through, wearing the vocabulary of the phase the task
  * is in.
  *
@@ -269,33 +359,25 @@ function ReviewPanel({
   const [sendVerb, setSendVerb] = useState<SendBackVerb | null>(null);
   const [feedback, setFeedback] = useState("");
   const [attachments, setAttachments] = useState<Array<PendingAttachment>>([]);
-  // Keyed by question entry id rather than by index, so it survives the record gaining
-  // an entry underneath an open composer -- which live updates do routinely.
-  const [drafts, setDrafts] = useState<Record<number, Draft>>({});
   const held = detail.task.ball === "agent" && detail.task.ball_reason === "hold";
-  const questions = openQuestions(detail.task.log ?? []);
+  // Answering hands the ball back, which would lift a hold, so a held task is not
+  // offered the questions however many are open on it.
+  const questions = held ? [] : openQuestions(detail.task.log ?? []);
   if (detail.task.ball !== "human" && !held) return null;
 
   const working = Boolean(busy) || Boolean(promoteBusy);
   const verbs = verbsFor(detail.task, questions.length > 0);
-  const answers = sendVerb?.reason === "answer" ? submissions(drafts) : [];
-  // The one place free text is not required: tapping four options and typing nothing is
-  // exactly the act this exists to make possible (task-017). Every other send-back still
-  // needs prose, because prose is all it has.
-  const canSubmit = Boolean(feedback.trim()) || answers.length > 0;
-  const reset = () => { setMode("none"); setSendVerb(null); setFeedback(""); setAttachments([]); setDrafts({}); };
+  const reset = () => { setMode("none"); setSendVerb(null); setFeedback(""); setAttachments([]); };
   const toggle = (next: "promote" | "approve" | "resume" | "reject") => {
     setSendVerb(null);
     setFeedback("");
     setAttachments([]);
-    setDrafts({});
     setMode(mode === next ? "none" : next);
   };
   const toggleSend = (verb: SendBackVerb) => {
     const same = mode === "send" && sendVerb?.reason === verb.reason;
     setFeedback("");
     setAttachments([]);
-    setDrafts({});
     setSendVerb(same ? null : verb);
     setMode(same ? "none" : "send");
   };
@@ -308,6 +390,12 @@ function ReviewPanel({
       {detail.identity.ok && detail.identity.user ? (
         <>
           <p className="text-sm text-dark-muted">Acting as <strong className="text-dark-text">{detail.identity.user}</strong>. {held ? "Releasing puts the task back to work; nothing here runs git." : verbs.guidance}</p>
+          {/* Above the verb row, not below it: the questions are what the agent said it
+              was waiting for, so they are the likely act and a phone shows the first
+              thing best. The other verbs keep their order underneath. */}
+          {questions.length > 0 && (
+            <AnswerSection questions={questions} working={working} onSendBack={onSendBack} />
+          )}
           <div className="mobile-action-row flex flex-wrap gap-3">
             {held ? (
               <button type="button" disabled={working} onClick={() => toggle("resume")} className="touch-target rounded-lg bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">▶ Resume — release the hold</button>
@@ -316,7 +404,9 @@ function ReviewPanel({
                 {verbs.primary && (
                   <button type="button" disabled={working} onClick={() => toggle(verbs.primary?.kind === "promote" ? "promote" : "approve")} className="touch-target rounded-lg bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">{verbs.primary.text}</button>
                 )}
-                <button type="button" disabled={working} onClick={() => toggleSend(verbs.secondary)} className="touch-target rounded-lg bg-yellow-600 px-4 font-semibold text-white hover:bg-yellow-700 disabled:opacity-60">{verbs.secondary.text}</button>
+                {verbs.secondary && (
+                  <button type="button" disabled={working} onClick={() => toggleSend(verbs.secondary!)} className="touch-target rounded-lg bg-yellow-600 px-4 font-semibold text-white hover:bg-yellow-700 disabled:opacity-60">{verbs.secondary.text}</button>
+                )}
                 {verbs.extras.map((verb) => (
                   <button key={verb.reason} type="button" disabled={working} onClick={() => toggleSend(verb)} className="touch-target rounded-lg border border-yellow-600/60 px-4 font-semibold text-yellow-200 hover:bg-yellow-900/40 disabled:opacity-60">{verb.text}</button>
                 ))}
@@ -369,7 +459,7 @@ function ReviewPanel({
               onSubmit={(event) => {
                 event.preventDefault();
                 const value = feedback.trim();
-                if (!value && answers.length === 0) return;
+                if (!value) return;
                 // Close the composer once the write lands, and only then. Every other
                 // send-back moves the ball off the human and takes this whole panel
                 // with it, so nothing had to clean up after itself -- but a hold
@@ -379,39 +469,27 @@ function ReviewPanel({
                 //
                 // On failure the text stays put: the banner above says what went
                 // wrong, and throwing the human's prose away is not a way to report it.
+                // Answers never ride this form: where any are open they are rendered
+                // above it with a Submit of their own (task-017), and where none are
+                // this composer is the prose box it always was.
                 void Promise.resolve(
-                  onSendBack(sendVerb.reason, value, toUploads(attachments), answers),
+                  onSendBack(sendVerb.reason, value, toUploads(attachments), []),
                 ).then(reset, () => undefined);
               }}
             >
-              {sendVerb.reason === "answer" && (
-                <QuestionForm
-                  questions={questions}
-                  drafts={drafts}
-                  disabled={working}
-                  onChange={(id, next) => setDrafts((current) => ({ ...current, [id]: next }))}
-                />
-              )}
               <AttachmentPicker
-                label={
-                  // The prose box is the whole form when nothing is asked, and an aside
-                  // beside the questions when something is. Labelling it "Your answer"
-                  // in the second case would make the boxes above it look optional.
-                  sendVerb.reason === "answer" && questions.length > 0
-                    ? "Anything else (optional)"
-                    : sendVerb.fieldLabel
-                }
+                label={sendVerb.fieldLabel}
                 hint={sendVerb.hint}
                 placeholder={sendVerb.placeholder}
                 value={feedback}
                 onChange={setFeedback}
                 attachments={attachments}
                 onAttachmentsChange={setAttachments}
-                required={questions.length === 0 || sendVerb.reason !== "answer"}
+                required
                 textareaClassName="mt-1 min-h-28 w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none"
               />
               <div className="mobile-action-row flex gap-3">
-                <button type="submit" disabled={working || !canSubmit} className="touch-target rounded-lg bg-yellow-600 px-4 font-semibold text-white disabled:opacity-60">Submit</button>
+                <button type="submit" disabled={working || !feedback.trim()} className="touch-target rounded-lg bg-yellow-600 px-4 font-semibold text-white disabled:opacity-60">Submit</button>
                 <button type="button" onClick={reset} className="touch-target rounded-lg border border-dark-border px-4 font-semibold">Cancel</button>
               </div>
             </form>

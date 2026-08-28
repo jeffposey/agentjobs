@@ -25,6 +25,9 @@ serves stale code from a process nobody restarts.
 
 What to look for, since "it renders" is not the property under review:
 
+  * **The questions are on the page when it opens.** No button reveals them, which is
+    the change this second pass makes. On `task-205`, where nothing is asked, the
+    prose composer is still behind "Answer Questions" exactly as before.
   * **On a phone.** The whole justification is thumb reach. Are the option buttons big
     enough to hit without aiming, and does the page scroll only downwards?
   * **task-201 answered entirely by tapping**, except question 3, which wants a number
@@ -35,7 +38,7 @@ What to look for, since "it renders" is not the property under review:
   * **Nothing is preselected**, including the option marked Recommended. A recommendation
     that arrived pre-ticked is one you would submit without reading.
   * **Selecting does not submit.** Tap options, then Back out and return: nothing should
-    have been recorded until you pressed Submit.
+    have been recorded until you pressed "Send answers".
   * **task-203** shows only the question nobody has answered. The two with answers
     threaded to them are in the log, not in the form.
   * After submitting, read the log: one handoff, one `answer` entry per question, each

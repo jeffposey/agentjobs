@@ -344,7 +344,8 @@ costs the person trying to answer:
     otherwise `open_questions()` is quietly wrong for the rest of the task's life.
 
 `task_handoff` takes an optional `questions[]` and writes them in the same mutation as
-the handoff, so a human woken by it cannot open a form holding two of four. The GUI's
+the handoff, so a human woken by it cannot open a form holding two of four. They render
+on the task page by default, not behind a control that offers to show them. The GUI's
 answer route does the same in reverse: every answer plus the ball move to `agent`/
 `answer` is one act, one write. Selecting an option does **not** move the ball on its
 own — that would make partial answering impossible to express and would fire an

@@ -464,7 +464,10 @@ describe("TaskDetail review panel offers only verbs that are true", () => {
       // merge" over four numbered questions, and there was no branch to merge.
       expect(within(panel).queryByRole("button", { name: /Approve/ })).not.toBeInTheDocument();
       expect(within(panel).queryByText(/merge/i)).not.toBeInTheDocument();
-      expect(within(panel).getByRole("button", { name: "✎ Answer Questions" })).toBeVisible();
+      // The way to answer, which since task-017 is the form itself rather than a button
+      // that opens one: this fixture carries an open question, so it renders by default.
+      expect(within(panel).getByText("1. Still unanswered?")).toBeVisible();
+      expect(within(panel).getByRole("button", { name: "✓ Send answers" })).toBeVisible();
       expect(within(panel).getByRole("button", { name: "✕ Reject & Archive" })).toBeVisible();
     },
   );
@@ -472,13 +475,12 @@ describe("TaskDetail review panel offers only verbs that are true", () => {
   it("records an answer as an answer, not as a revision", async () => {
     const actions = renderDetail(atReason("decision"));
 
-    fireEvent.click(screen.getByRole("button", { name: "✎ Answer Questions" }));
-    // "Anything else (optional)" rather than "Your answer" since task-017: this
-    // fixture holds an open question, so the composer now leads with that question's
-    // own box and the prose field beneath it is the aside. The verb being recorded --
-    // which is what this test is about -- is unchanged.
+    // No gesture to open anything, and "Anything else (optional)" rather than "Your
+    // answer": this fixture holds an open question, so since task-017 the form is
+    // already on the page and the prose field is the aside beside it. The verb being
+    // recorded -- which is what this test is about -- is unchanged.
     fireEvent.change(screen.getByLabelText("Anything else (optional)"), { target: { value: "Option 2, and skip the third." } });
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(screen.getByRole("button", { name: "✓ Send answers" }));
 
     await waitFor(() =>
       expect(actions.onSendBack).toHaveBeenCalledWith("answer", "Option 2, and skip the third.", [], []),

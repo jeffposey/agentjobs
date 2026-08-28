@@ -10,6 +10,12 @@ import { expect, test, type APIRequestContext } from "@playwright/test";
  * with the keyboard used exactly once, for the question that wants a number nobody
  * offered.
  *
+ * **No gesture opens the form.** It was behind an "Answer Questions" button for one
+ * release; Jeff: *"It should not require pressing answer questions button to get the
+ * multiple choice question prompt, that should be in default view."* So the first thing
+ * every test below does after `goto` is assert on an option, with nothing in between --
+ * a click there would hide the regression it is meant to catch.
+ *
  * It runs against the real server, so one pass covers the typed payload, the handoff
  * route, the generated client and the rendered page together. The answers are then read
  * back out of the API rather than off the screen: what matters is what the record holds.
@@ -120,8 +126,9 @@ test("answers three questions from a phone, with one tap each and one number typ
   // task-231's rule still holds underneath this one: there is no branch here and
   // nothing to merge, so nothing offers to merge.
   await expect(panel.getByRole("button", { name: /Approve/ })).toHaveCount(0);
-
-  await panel.getByRole("button", { name: "✎ Answer Questions" }).click();
+  // Nothing opens it: the questions are there on arrival, and the button that used to
+  // reveal them is gone because it would open what is already open.
+  await expect(panel.getByRole("button", { name: "✎ Answer Questions" })).toHaveCount(0);
 
   // Every question is on the page, in order, with the recommendation marked and
   // nothing chosen for the reader.
@@ -132,7 +139,7 @@ test("answers three questions from a phone, with one tap each and one number typ
   await expect(panel.locator("button[aria-pressed='true']")).toHaveCount(0);
 
   // Nothing has been said yet, so there is nothing to submit.
-  const submit = panel.getByRole("button", { name: "Submit" });
+  const submit = panel.getByRole("button", { name: "✓ Send answers" });
   await expect(submit).toBeDisabled();
 
   // Three taps and one number. No other typing anywhere on this page.
@@ -143,7 +150,7 @@ test("answers three questions from a phone, with one tap each and one number typ
 
   // Every control a thumb has to hit is at least 44px tall, which is what the
   // `touch-target` class is for; a phone-width run is where that is worth asserting.
-  for (const label of ["Session mode primary", "Rescope task-070", "Submit"]) {
+  for (const label of ["Session mode primary", "Rescope task-070", "Send answers"]) {
     const box = await panel.getByRole("button", { name: new RegExp(label) }).boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
   }
@@ -193,8 +200,6 @@ test("keeps the prose box on every question, and takes an answer that rejects ev
   await page.goto(`/app/p/_local/tasks/${taskId}`);
 
   const panel = page.getByRole("region", { name: "Review actions" });
-  await panel.getByRole("button", { name: "✎ Answer Questions" }).click();
-
   // One per question, unconditionally -- not only where the agent supplied no options.
   await expect(panel.getByLabel("Something else")).toHaveCount(3);
 
@@ -202,7 +207,7 @@ test("keeps the prose box on every question, and takes an answer that rejects ev
     .getByLabel("Something else")
     .first()
     .fill("None of these. Run it under a supervisor we already have.");
-  await panel.getByRole("button", { name: "Submit" }).click();
+  await panel.getByRole("button", { name: "✓ Send answers" }).click();
   await expect(panel).toBeHidden();
 
   const given = (await logOf(request, taskId)).filter((entry) => entry.type === "answer");
@@ -217,9 +222,8 @@ test("leaves an unanswered question open and answerable next time", async ({ pag
   await page.goto(`/app/p/_local/tasks/${taskId}`);
 
   const panel = page.getByRole("region", { name: "Review actions" });
-  await panel.getByRole("button", { name: "✎ Answer Questions" }).click();
   await panel.getByRole("button", { name: /Batch-only/ }).click();
-  await panel.getByRole("button", { name: "Submit" }).click();
+  await panel.getByRole("button", { name: "✓ Send answers" }).click();
   await expect(panel).toBeHidden();
 
   // Hand it back and the two questions nobody answered are still there, still open.
@@ -235,7 +239,6 @@ test("leaves an unanswered question open and answerable next time", async ({ pag
   expect(handed.ok()).toBeTruthy();
 
   await page.reload();
-  await panel.getByRole("button", { name: "✎ Answer Questions" }).click();
   await expect(panel.getByText("2 open questions", { exact: false })).toBeVisible();
   await expect(panel.getByPlaceholder("a number of minutes")).toBeVisible();
   await expect(panel.getByText(/Session mode, or supervise/)).toHaveCount(0);

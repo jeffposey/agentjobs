@@ -154,8 +154,16 @@ function renderPanel(value: TaskRead = task()) {
   return actions;
 }
 
-function openComposer() {
-  fireEvent.click(screen.getByRole("button", { name: "✎ Answer Questions" }));
+/**
+ * There is nothing to open (task-017, second pass).
+ *
+ * The questions were behind an "Answer Questions" button for one release. Jeff:
+ * *"It should not require pressing answer questions button to get the multiple choice
+ * question prompt, that should be in default view."* Every test below therefore renders
+ * and asserts, with no gesture in between -- which is the property, not a convenience.
+ */
+function submit() {
+  return screen.getByRole("button", { name: "✓ Send answers" });
 }
 
 /** The one call the panel made, so a test can read back what it sent rather than that it sent. */
@@ -172,7 +180,6 @@ function answersFrom(actions: ReturnType<typeof renderPanel>): Array<AnswerSubmi
 describe("answering structured questions", () => {
   it("renders every open question with its options and the agent's recommendation", () => {
     renderPanel();
-    openComposer();
 
     for (const question of QUESTIONS) {
       expect(screen.getByText(`${QUESTIONS.indexOf(question) + 1}. ${question.body}`)).toBeVisible();
@@ -187,7 +194,6 @@ describe("answering structured questions", () => {
 
   it("puts a free-text box on every question, options or not", () => {
     renderPanel();
-    openComposer();
 
     // Four questions, all of which offer options, and all of which can still be
     // answered in words. This is the constraint task-017 is most insistent about.
@@ -198,11 +204,10 @@ describe("answering structured questions", () => {
 
   it("sends the tapped options as answers threaded to their questions", async () => {
     const actions = renderPanel();
-    openComposer();
 
     fireEvent.click(screen.getByRole("button", { name: /Session mode primary/ }));
     fireEvent.click(screen.getByRole("button", { name: /No -- re-attach/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(submit());
 
     await waitFor(() => expect(actions.onSendBack).toHaveBeenCalled());
     expect(sent(actions).reason).toBe("answer");
@@ -214,12 +219,11 @@ describe("answering structured questions", () => {
 
   it("can be submitted with nothing typed at all", async () => {
     const actions = renderPanel();
-    openComposer();
 
     // The whole point: four taps on a phone, no keyboard. Submit is live once one
     // option is chosen, and the prose field stays empty.
     fireEvent.click(screen.getByRole("button", { name: /Batch-only/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(submit());
 
     await waitFor(() => expect(actions.onSendBack).toHaveBeenCalled());
     expect(sent(actions).feedback).toBe("");
@@ -228,23 +232,21 @@ describe("answering structured questions", () => {
 
   it("refuses to submit until something has been said", () => {
     renderPanel();
-    openComposer();
 
-    expect(screen.getByRole("button", { name: "Submit" })).toBeDisabled();
+    expect(submit()).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: /4 hours/ }));
-    expect(screen.getByRole("button", { name: "Submit" })).toBeEnabled();
+    expect(submit()).toBeEnabled();
   });
 
   it("carries free text that rejects every option offered", async () => {
     const actions = renderPanel();
-    openComposer();
 
     // Jeff's actual answer to question 3 on 2026-08-18: none of 15 minutes, 4 hours or
     // the hard kill. A form that could not capture this would be worse than a prose box.
     fireEvent.change(screen.getByPlaceholderText("a number of minutes"), {
       target: { value: "60 minutes" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(submit());
 
     await waitFor(() => expect(actions.onSendBack).toHaveBeenCalled());
     expect(answersFrom(actions)).toEqual([{ re: 12, selected: [], other: "60 minutes" }]);
@@ -252,13 +254,12 @@ describe("answering structured questions", () => {
 
   it("carries an option and free text together", async () => {
     const actions = renderPanel();
-    openComposer();
 
     fireEvent.click(screen.getByRole("button", { name: /Keep the rule/ }));
     fireEvent.change(within(screen.getByText("2. Kill runs when the supervisor restarts?").closest("fieldset")!).getByLabelText("Something else"), {
       target: { value: "but log it loudly" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(submit());
 
     await waitFor(() => expect(actions.onSendBack).toHaveBeenCalled());
     expect(answersFrom(actions)).toEqual([
@@ -268,7 +269,6 @@ describe("answering structured questions", () => {
 
   it("takes several options only where the question said it could", async () => {
     const actions = renderPanel();
-    openComposer();
 
     fireEvent.click(screen.getByRole("button", { name: /Rescope task-070/ }));
     fireEvent.click(screen.getByRole("button", { name: /Rescope task-072/ }));
@@ -276,7 +276,7 @@ describe("answering structured questions", () => {
     // question 1 leaves one answer, not two.
     fireEvent.click(screen.getByRole("button", { name: /Session-only/ }));
     fireEvent.click(screen.getByRole("button", { name: /Batch-only/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(submit());
 
     await waitFor(() => expect(actions.onSendBack).toHaveBeenCalled());
     expect(answersFrom(actions)).toEqual([
@@ -291,19 +291,17 @@ describe("answering structured questions", () => {
 
   it("lets a single-select answer be taken back", () => {
     renderPanel();
-    openComposer();
 
     const option = screen.getByRole("button", { name: /Batch-only/ });
     fireEvent.click(option);
     expect(option).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(option);
     expect(option).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: "Submit" })).toBeDisabled();
+    expect(submit()).toBeDisabled();
   });
 
   it("answers all four of task-077's questions in one submit", async () => {
     const actions = renderPanel();
-    openComposer();
 
     fireEvent.click(screen.getByRole("button", { name: /Session mode primary/ }));
     fireEvent.click(screen.getByRole("button", { name: /No -- re-attach/ }));
@@ -312,7 +310,7 @@ describe("answering structured questions", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /Rescope task-070/ }));
     fireEvent.click(screen.getByRole("button", { name: /Rescope task-072/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(submit());
 
     await waitFor(() => expect(actions.onSendBack).toHaveBeenCalledTimes(1));
     expect(answersFrom(actions).map((answer) => answer.re)).toEqual([10, 11, 12, 13]);
@@ -327,41 +325,51 @@ describe("answering structured questions", () => {
         ],
       }),
     );
-    openComposer();
 
     expect(screen.queryByPlaceholderText("a number of minutes")).not.toBeInTheDocument();
     expect(screen.getAllByLabelText("Something else")).toHaveLength(3);
   });
 
-  it("falls back to prose when the task has no open questions", () => {
-    renderPanel(task({ log: [{ id: 9, ts: "2026-08-18T05:11:00Z", actor: "claude", type: "handoff", body: "Decide." }] }));
-    openComposer();
+  it("does not offer to open what is already open", () => {
+    renderPanel();
 
-    expect(screen.queryByText("Something else")).not.toBeInTheDocument();
-    // The prose box keeps its own label and stays required, exactly as before task-017.
+    const panel = screen.getByRole("region", { name: "Review actions" });
+    // A button that reveals the form the reader is looking at is the same verb twice.
+    expect(within(panel).queryByRole("button", { name: "✎ Answer Questions" })).not.toBeInTheDocument();
+    // The verbs that are still distinct acts stay exactly where they were.
+    expect(within(panel).getByRole("button", { name: "↪ New Instructions" })).toBeVisible();
+    expect(within(panel).getByRole("button", { name: "⏸ Hold" })).toBeVisible();
+  });
+
+  it("falls back to the prose composer when the task has no open questions", () => {
+    renderPanel(task({ log: [{ id: 9, ts: "2026-08-18T05:11:00Z", actor: "claude", type: "handoff", body: "Decide." }] }));
+
+    // Nothing is asked, so nothing renders by itself and the button is the way in --
+    // exactly the behaviour task-231 shipped, unchanged.
+    expect(screen.queryByRole("button", { name: "✓ Send answers" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "✎ Answer Questions" }));
     expect(screen.getByLabelText("Your answer")).toBeRequired();
   });
 
-  it("offers answering on a task waiting on review that still has a question open", () => {
+  it("renders the questions on a review task without disturbing Approve", () => {
     renderPanel(task({ ball_reason: "review", display_status: "Waiting for review" }));
 
     const panel = screen.getByRole("region", { name: "Review actions" });
-    // Approve stays first, because reviewing is still what the task is for.
+    // Approve stays, because reviewing is still what the task is for, and the questions
+    // are answerable without choosing between the two.
     expect(within(panel).getByRole("button", { name: /Approve/ })).toBeVisible();
-    expect(within(panel).getByRole("button", { name: "✎ Answer Questions" })).toBeVisible();
+    expect(within(panel).getByRole("button", { name: "✎ Request Changes" })).toBeVisible();
+    expect(within(panel).getAllByLabelText("Something else")).toHaveLength(4);
   });
 
-  it("shows no answering verb on a review task with nothing open", () => {
-    renderPanel(
-      task({
-        ball_reason: "review",
-        display_status: "Waiting for review",
-        log: [{ id: 9, ts: "2026-08-18T05:11:00Z", actor: "claude", type: "handoff", body: "Review it." }],
-      }),
-    );
+  it("leaves a held task alone, questions or not", () => {
+    // Answering hands the ball back, which would lift the hold -- a control that
+    // quietly undoes the control beside it.
+    renderPanel(task({ ball: "agent", ball_reason: "hold", display_status: "On hold" }));
 
-    const panel = screen.getByRole("region", { name: "Review actions" });
-    expect(within(panel).queryByRole("button", { name: "✎ Answer Questions" })).not.toBeInTheDocument();
+    const panel = screen.getByRole("region", { name: "Hold actions" });
+    expect(within(panel).getByRole("button", { name: /Resume/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "✓ Send answers" })).not.toBeInTheDocument();
   });
 
   it("renders a question written before options existed as a plain one", () => {
@@ -375,10 +383,10 @@ describe("answering structured questions", () => {
         ],
       }),
     );
-    openComposer();
 
     expect(screen.getByText("1. Is 3.13-only acceptable?")).toBeVisible();
     expect(screen.getByLabelText("Your answer")).toBeVisible();
+    expect(submit()).toBeDisabled();
   });
 });
 
