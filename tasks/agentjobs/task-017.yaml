@@ -3,43 +3,42 @@ id: task-017
 title: Let an agent ask structured multiple-choice questions the human answers in
   the GUI
 created: '2026-08-18T05:35:45.027948Z'
-updated: '2026-08-27T22:43:32.696900Z'
+updated: '2026-08-28T00:18:52.321806Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: "Ready for review. Branch `feat/task-017-structured-questions`, four\
-  \ commits, rebased onto `main` at e797a74, full unqualified `scripts/check.py` green\
-  \ on the rebased head with a gate receipt for 1349779. Not merged: posture `auto`.\n\
-  \n**The one thing only you can do: open the sandbox on your phone.** It is running\
-  \ at http://127.0.0.1:8898/app/ with throwaway data on its own port \u2014 nothing\
-  \ touching the live corpus or the 8876 dashboard. Start `task-201`, which is task-077's\
-  \ handoff verbatim: four questions, recommendations marked, and question 3 wanting\
-  \ a number none of the options offer. Answer it the way you actually did on 2026-08-18\
-  \ \u2014 three taps and `60 minutes` typed \u2014 and see whether it takes seconds.\n\
-  \nThat is sc-5, and it is the only acceptance criterion still pending. The Playwright\
-  \ suite answers three questions at 390x844 against a live server and passes, but\
-  \ that is Playwright's phone, not yours; `mcp__claude-in-chrome` refused to shrink\
-  \ its pane below ~1278px, so my own browser check ran at desktop width. Everything\
-  \ else is met \u2014 the evidence per criterion is in entry 10.\n\nThe five seeded\
-  \ states are in entry 10's table; `task-205` is the no-questions case, so you can\
-  \ see nothing regressed for a decision with only prose. Stop the sandbox with Ctrl-C,\
-  \ or restart it with `poetry run python scripts/answer_questions_sandbox.py 8898`\
-  \ from `C:/projects/worktrees/agentjobs-017`.\n\n**Three things worth your eye in\
-  \ the diff.**\n\n1. **`DISPATCH_PAYLOADS` is renamed `LOG_PAYLOADS`.** Two of its\
-  \ four members are now nothing to do with dispatch. Two call sites, both in `models_v2.py`.\n\
-  2. **One addition beyond the letter of the spec**, which I made rather than asked\
-  \ about because task-231's own rule decides it: a task holding an open question\
-  \ offers the answering verb whatever its `ball_reason`, joining the extras rather\
-  \ than displacing a primary. So a `human`/`review` task with a stray question keeps\
-  \ Approve first and gains \"Answer Questions\" beside it \u2014 that is `task-204`\
-  \ in the sandbox. Say if you would rather answering were confined to `decision`/`input`.\n\
-  3. **`feedback` is now optional on `POST /answer`, and only there.** Requiring prose\
-  \ would defeat the feature; a request carrying neither answers nor prose is still\
-  \ refused.\n\nThe four questions the spec told me to argue are answered in entry\
-  \ 8 with their rejected alternatives \u2014 typed rather than free-form `data`;\
-  \ questions ride the handoff atomically; an unanswered question is a backlog rather\
-  \ than a leak; and answering never moves the ball on its own.\n\nThe worktree is\
-  \ at `C:/projects/worktrees/agentjobs-017`."
+ball_prompt: "Done \u2014 the questions are in the default view. Branch `feat/task-017-structured-questions`,\
+  \ now five commits, rebased onto `main` at 63b2cc4, full unqualified `scripts/check.py`\
+  \ green on the rebased head with a gate receipt for 0788cc6. Not merged: posture\
+  \ `auto`.\n\n**The sandbox is running again at http://127.0.0.1:8898/app/, reseeded.**\
+  \ Open `task-201` \u2014 the four questions are on the page the moment it loads.\
+  \ There is no \"Answer Questions\" button on it any more, because a button that\
+  \ opens the form you are looking at is the same verb twice. `task-205` is the control:\
+  \ nothing is asked there, so the prose composer is still behind the button exactly\
+  \ as before.\n\nEntry 17 has what changed and what was checked. The short of it:\
+  \ the form moved out of the composer into its own section between \"Acting as ...\"\
+  \ and the verb row, with its own **\u2713 Send answers** button. `PanelVerbs.secondary`\
+  \ became nullable to do it \u2014 the same rule task-231 already applies to `primary`,\
+  \ extended one field. A held task is deliberately not offered its questions, since\
+  \ answering would lift the hold. **No backend change at all this pass**: schema,\
+  \ routes, manager and MCP tool are untouched.\n\nVerified in Chrome against the\
+  \ sandbox with no gesture before the assertion: 4 questions and 4 free-text boxes\
+  \ on arrival, Send disabled until something is said, and two real mouse clicks produced\
+  \ a correctly threaded `answer` entry. The Playwright tests at 390x844 lost their\
+  \ opening click, so the first thing they touch after `goto` is an option \u2014\
+  \ a click there would hide the regression they exist to catch.\n\n**sc-5 is still\
+  \ the only pending criterion, and still needs your eyes on a phone.** That has not\
+  \ changed and I cannot close it for you.\n\nTwo things to say yes or no to when\
+  \ you look:\n\n1. **Order.** The questions sit above Reject & Archive, so on a phone\
+  \ you scroll past four questions to reach it. That is deliberate \u2014 answering\
+  \ is the likely act \u2014 but it is a judgement call and easy to flip.\n2. **The\
+  \ point I raised last time still stands**: a `human`/`review` task with a stray\
+  \ open question now shows the form *and* Approve (`task-204`). Say if you would\
+  \ rather questions only appeared at `decision`/`input`.\n\nOne unrelated thing seen\
+  \ in passing, recorded in entry 17 and not acted on: `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`\
+  \ failed once under a full gate and passed immediately in isolation \u2014 a timing\
+  \ race under xdist contention, not a defect here. Say the word and I will file it.\n\
+  \nThe worktree is at `C:/projects/worktrees/agentjobs-017`."
 archived: false
 priority: high
 queue_position: 171
@@ -601,3 +600,173 @@ log:
     outcome: completed
     duration_seconds: 2781.171332
     log_path: C:\Users\jpose\.agentjobs\runs\run_3e24e94e
+- id: 14
+  ts: '2026-08-27T23:04:52.355633Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by Jeff Posey:
+
+
+    It should not require pressing answer questions button to get the multiple choice
+    question prompt, that should be in default view'
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 15
+  ts: '2026-08-27T23:55:30.526731Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 16
+  ts: '2026-08-27T23:55:33.770728Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_3e24e94e` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_f5a39dbe
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 15
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"], "env": {"AGENTJOBS_RUN_ID":
+      "run_f5a39dbe", "AGENTJOBS_RUN_DIR": "C:\\Users\\jpose\\.agentjobs\\runs\\run_f5a39dbe"}}'
+    - --resume
+    - d6f53e81-5759-41fb-b474-b5c75898d8be
+    cwd: C:\projects\agentjobs
+    git_head: 63b2cc4
+    session_id: da48cba4
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 17
+  ts: '2026-08-28T00:18:35.006988Z'
+  actor: claude
+  type: progress
+  body: "Second pass, on Jeff's review: *\"It should not require pressing answer questions\
+    \ button to get the multiple choice question prompt, that should be in default\
+    \ view.\"*\n\nHe is right, and the reason is the one this task exists for. The\
+    \ agent has already said, in its handoff, that it is waiting on four specific\
+    \ decisions. A button that reveals them asks the reader to request the thing they\
+    \ came to do \u2014 and on a phone it costs a tap, a scroll and a reorientation\
+    \ before the first option is even on screen. Behind a control was the wrong side\
+    \ of the disclosure.\n\n## What changed\n\n**Open questions render whenever the\
+    \ panel does.** They sit in their own section between the \"Acting as ...\" line\
+    \ and the verb row, with a free-text box per question, an \"Anything else (optional)\"\
+    \ prose field, and a **\u2713 Send answers** button of their own. Nothing is clicked\
+    \ to get there.\n\n**The \"\u270E Answer Questions\" verb disappears where questions\
+    \ are open.** A button that opens the form the reader is looking at is not a second\
+    \ verb, it is the same one twice. Where a task has *no* open questions it is unchanged\
+    \ \u2014 the prose composer is still behind it, which is exactly what task-231\
+    \ shipped.\n\nThat made `PanelVerbs.secondary` nullable. It is the rule task-231\
+    \ already applies to `primary`, extended one field: a control appears only where\
+    \ its verb is true.\n\n**A held task is not offered its questions at all**, however\
+    \ many are open on it. Answering hands the ball back to `agent`/`answer`, which\
+    \ would lift the hold \u2014 a control that quietly undoes the control beside\
+    \ it. Covered by a test.\n\nThe gated composer is now prose-only again: it passes\
+    \ an empty `answers` array and requires its text, exactly as it did before this\
+    \ task existed. No backend change of any kind \u2014 the schema, the routes, the\
+    \ manager and the MCP tool are untouched by this pass.\n\n## Verified\n\n*   **`scripts/check.py`,\
+    \ unqualified, green on the rebased head \u2014 gate receipt written for 0788cc6.**\
+    \ Branch rebased onto `main` at 63b2cc4; five commits.\n*   **16 jsdom tests**\
+    \ (one more than before). Three were rewritten rather than adjusted, because their\
+    \ subject changed: the two that asserted the \"Answer Questions\" button now assert\
+    \ the form is on the page, and a new one asserts the button is *absent* where\
+    \ questions are open. Two more added: the fallback path where nothing is asked,\
+    \ and the held task.\n*   **task-231's own tests still pass**, including \"offers\
+    \ no Approve on a task waiting on decision\" \u2014 its fixture carries an open\
+    \ question, so it now reads the inline form instead of the button.\n*   **3 Playwright\
+    \ tests at 390x844**, with the opening click deleted. The first assertion after\
+    \ `goto` is now on an option, with nothing in between; a click there would hide\
+    \ the very regression the test exists to catch. It also asserts the \"Answer Questions\"\
+    \ button has count 0.\n*   **In Chrome against the sandbox.** `task-201` on arrival:\
+    \ 4 questions, 4 free-text boxes, 12 option buttons, no \"Answer Questions\" anywhere,\
+    \ Send disabled until something is said. Two real mouse clicks \u2014 one option,\
+    \ then Send \u2014 produced `answer` #9 `re=4` `selected: [Session mode primary,\
+    \ batch retained]`, ball `agent`/`answer`, no gesture in between. `task-205` (nothing\
+    \ asked) still shows \"\u270E Answer Questions\" and no form. `task-204` (`human`/`review`,\
+    \ one question open) shows the form *and* Approve, and no horizontal overflow.\n\
+    \n## One thing seen in passing, not mine\n\n`tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`\
+    \ failed once under a full-gate run and passed in isolation immediately after.\
+    \ Its own assertion message says why \u2014 *\"the grandchild never started, so\
+    \ this proves nothing\"* \u2014 so it is a timing race that loses under xdist\
+    \ contention rather than a defect in anything here. Nothing was changed for it.\
+    \ Worth a task if it recurs; say the word and I will file one."
+  data:
+    operation:
+      id: 2f8b0c56-71ad-4e39-9c04-8ba6d1372e91
+      kind: log_append
+      fingerprint: a369f8e2a6865842975b190336a139cd
+- id: 18
+  ts: '2026-08-28T00:18:52.321508Z'
+  actor: claude
+  type: handoff
+  body: "Done \u2014 the questions are in the default view. Branch `feat/task-017-structured-questions`,\
+    \ now five commits, rebased onto `main` at 63b2cc4, full unqualified `scripts/check.py`\
+    \ green on the rebased head with a gate receipt for 0788cc6. Not merged: posture\
+    \ `auto`.\n\n**The sandbox is running again at http://127.0.0.1:8898/app/, reseeded.**\
+    \ Open `task-201` \u2014 the four questions are on the page the moment it loads.\
+    \ There is no \"Answer Questions\" button on it any more, because a button that\
+    \ opens the form you are looking at is the same verb twice. `task-205` is the\
+    \ control: nothing is asked there, so the prose composer is still behind the button\
+    \ exactly as before.\n\nEntry 17 has what changed and what was checked. The short\
+    \ of it: the form moved out of the composer into its own section between \"Acting\
+    \ as ...\" and the verb row, with its own **\u2713 Send answers** button. `PanelVerbs.secondary`\
+    \ became nullable to do it \u2014 the same rule task-231 already applies to `primary`,\
+    \ extended one field. A held task is deliberately not offered its questions, since\
+    \ answering would lift the hold. **No backend change at all this pass**: schema,\
+    \ routes, manager and MCP tool are untouched.\n\nVerified in Chrome against the\
+    \ sandbox with no gesture before the assertion: 4 questions and 4 free-text boxes\
+    \ on arrival, Send disabled until something is said, and two real mouse clicks\
+    \ produced a correctly threaded `answer` entry. The Playwright tests at 390x844\
+    \ lost their opening click, so the first thing they touch after `goto` is an option\
+    \ \u2014 a click there would hide the regression they exist to catch.\n\n**sc-5\
+    \ is still the only pending criterion, and still needs your eyes on a phone.**\
+    \ That has not changed and I cannot close it for you.\n\nTwo things to say yes\
+    \ or no to when you look:\n\n1. **Order.** The questions sit above Reject & Archive,\
+    \ so on a phone you scroll past four questions to reach it. That is deliberate\
+    \ \u2014 answering is the likely act \u2014 but it is a judgement call and easy\
+    \ to flip.\n2. **The point I raised last time still stands**: a `human`/`review`\
+    \ task with a stray open question now shows the form *and* Approve (`task-204`).\
+    \ Say if you would rather questions only appeared at `decision`/`input`.\n\nOne\
+    \ unrelated thing seen in passing, recorded in entry 17 and not acted on: `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`\
+    \ failed once under a full gate and passed immediately in isolation \u2014 a timing\
+    \ race under xdist contention, not a defect here. Say the word and I will file\
+    \ it.\n\nThe worktree is at `C:/projects/worktrees/agentjobs-017`."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 6ad3f019-84c2-4e7b-91b5-c7f0a2e58d34
+      kind: handoff
+      fingerprint: 84664df788c9513a070b203f3ed59407
