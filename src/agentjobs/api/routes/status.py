@@ -331,6 +331,7 @@ async def handoff_task(
             ball_reason=payload.ball_reason,
             ball_prompt=payload.ball_prompt,
             body=payload.body,
+            questions=payload.questions,
             operation_id=payload.operation_id,
             expected_revision=payload.expected_revision,
         ),

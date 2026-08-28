@@ -470,13 +470,15 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
       finish={finish}
       onApprove={async (note) => { if (!user) return; await approve.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, note } }); await refresh(); }}
       onResume={async (note) => { if (!user) return; await resume.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, note } }); await refresh(); }}
-      onSendBack={async (reason, feedback, attachments) => {
+      onSendBack={async (reason, feedback, attachments, answers) => {
         if (!user) return;
         // One route per act, chosen here rather than by a discriminator in the body,
         // so what happened is legible in a network log and in the server's own logs.
         const path = { project_id: projectId, task_id: taskId };
         const body = { user, feedback, attachments };
-        if (reason === "answer") await answer.mutateAsync({ path, body });
+        // Answers ride with the ball move rather than on writes of their own, so the
+        // agent never sees two of four questions answered (task-017).
+        if (reason === "answer") await answer.mutateAsync({ path, body: { ...body, answers } });
         else if (reason === "redirect") await redirect.mutateAsync({ path, body });
         else if (reason === "hold") await hold.mutateAsync({ path, body });
         else await changes.mutateAsync({ path, body });

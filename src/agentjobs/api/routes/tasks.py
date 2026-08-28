@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import base64
 import binascii
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agentjobs.actors import UnknownActorError, validate_actor
 from agentjobs.attachments import AttachmentError, AttachmentPayload
@@ -17,9 +17,10 @@ from agentjobs.dispatch.finish import finish_is_offered, spawn_finish
 from agentjobs.operations import OperationConflictError, RevisionConflictError
 from agentjobs.projects import Project
 from agentjobs.queue import QueueCorruptionError
-from agentjobs.manager import TaskManager, TaskNotFoundError
+from agentjobs.manager import AnswerError, TaskManager, TaskNotFoundError
 from agentjobs.storage import TaskStorage
 from agentjobs.models_v2 import (
+    AnswerDraft,
     Ball,
     BallReason,
     DependencyType,
@@ -503,6 +504,9 @@ async def mark_deliverable(
 
 # Human action endpoints for the review loop
 
+NL = "\n"
+"""One newline, named so a composed prompt reads as prose rather than as escapes."""
+
 NL2 = "\n\n"
 """A blank line between a sentence AgentJobs wrote and one a human did.
 
@@ -542,6 +546,53 @@ class SendBackActionRequest(FeedbackActionRequest):
     /request-changes and /reject already do, and it is what makes a network log or a
     server log readable without cross-referencing a body.
     """
+
+
+class AnswerSubmission(BaseModel):
+    """One question answered, as the browser sends it (task-017)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    re: int = Field(..., ge=1, description="Id of the question log entry being answered.")
+    selected: List[str] = Field(default_factory=list, description="Labels of the options tapped.")
+    other: Optional[str] = Field(
+        default=None, description="What was typed into the always-present free-text box."
+    )
+
+
+class AnswerActionRequest(HumanActionRequest):
+    """Answers to the task's open questions, plus optional prose (task-017).
+
+    ``feedback`` is optional **here and nowhere else**, which is the one way this differs
+    from every other send-back. Requiring it would defeat the point of the task: answering
+    four questions by tapping four options, on a phone, without typing. Something has to
+    have been said, though -- a request with neither answers nor prose is refused, because
+    it would hand the ball back carrying nothing.
+
+    Free text and options are not alternatives. Both can be sent, per question and for the
+    task as a whole, because the session that motivated this had every option on one
+    question rejected in favour of a typed reply.
+    """
+
+    feedback: Optional[str] = Field(
+        default=None,
+        description="Prose to carry alongside the answers. Optional when answers are sent.",
+        examples=["Also: do not start this until task-016 merges."],
+    )
+    answers: List[AnswerSubmission] = Field(
+        default_factory=list,
+        description="One entry per question answered. Written atomically with the handoff.",
+    )
+    attachments: List[AttachmentUpload] = Field(
+        default_factory=list,
+        description="Images evidencing the answer, stored as sidecar files.",
+    )
+
+    @model_validator(mode="after")
+    def _says_something(self) -> "AnswerActionRequest":
+        if not self.answers and not (self.feedback or "").strip():
+            raise ValueError("Answer at least one question, or write something.")
+        return self
 
 
 class NoteActionRequest(HumanActionRequest):
@@ -745,13 +796,14 @@ def _send_back(
     *,
     task_id: str,
     request: Request,
-    payload: SendBackActionRequest,
+    payload: Union[SendBackActionRequest, AnswerActionRequest],
     manager: TaskManager,
     project: Any,
     user: str,
     ball_reason: BallReason,
     prompt: str,
     body: str,
+    answers: Optional[Sequence[AnswerDraft]] = None,
     dispatchable: bool = True,
 ) -> HumanActionResponse:
     """The shared body of every send-it-back-to-the-agent route.
@@ -765,6 +817,9 @@ def _send_back(
     braces: that function refuses `agent/hold` on its own, and this route does not ask
     it in the first place. Starting a run off the click that said stop is the failure
     worth two independent guards.
+
+    ``answers`` is supplied only by /answer, and rides into the same ``handoff`` call so
+    that the ball moving and the questions being answered are one write (task-017).
     """
     attachments = decoded_attachments(payload.attachments)
     try:
@@ -776,9 +831,15 @@ def _send_back(
             ball_prompt=prompt,
             body=body,
             attachments=attachments,
+            answers=answers,
         )
     except AttachmentError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except AnswerError as exc:
+        # 409, not 404: the task is there and the request is well formed -- the record
+        # moved under an open page. Reloading is the fix, and a 404 would send the
+        # human looking for a task that has not gone anywhere.
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     if not dispatchable:
@@ -786,11 +847,47 @@ def _send_back(
     return HumanActionResponse(task=after_human_handoff(manager, project, task, request))
 
 
+def _answer_prompt(
+    manager: TaskManager,
+    task_id: str,
+    feedback: Optional[str],
+    drafts: Sequence[AnswerDraft],
+) -> str:
+    """The ``ball_prompt`` an answered handoff carries (task-017).
+
+    A handoff's prompt is what the next holder reads first, and the schema requires one.
+    Tapping four options and typing nothing has to produce a real ask, so the prompt is
+    composed: each question restated with the answer under it, then whatever prose the
+    human wrote. An agent resuming therefore learns what it asked and what it was told
+    without walking the log, which is what the Resumption Contract wants of a prompt.
+
+    The questions are read before the write rather than inside it, so a question answered
+    by somebody else in the intervening moment could be quoted here. It could not be
+    *written*: the manager re-checks every answer under the lock and refuses. A prompt is
+    prose; a stale line in it is a cosmetic loss, and holding the record open across an
+    HTTP handler to avoid one is not a trade worth making.
+    """
+    written = (feedback or "").strip()
+    if not drafts:
+        return written
+    try:
+        asked_on = manager.get_task(task_id)
+    except Exception:  # noqa: BLE001 - the handoff below reports a missing task properly
+        asked_on = None
+    bodies = {entry.id: (entry.body or "") for entry in (asked_on.log if asked_on else [])}
+    lines = []
+    for draft in drafts:
+        asked = bodies.get(draft.re, f"Question #{draft.re}").strip()
+        lines.append(f"{asked}{NL}-> {draft.rendered()}")
+    answered = NL2.join(lines)
+    return f"{answered}{NL2}{written}" if written else answered
+
+
 @router.post("/{task_id}/answer", response_model=HumanActionResponse)
 async def answer_task(
     task_id: str,
     request: Request,
-    payload: SendBackActionRequest,
+    payload: AnswerActionRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Any = Depends(get_project),
 ) -> HumanActionResponse:
@@ -799,8 +896,19 @@ async def answer_task(
     Not a revision: nothing the agent did was wrong, and a record that says otherwise
     makes the next reader reconstruct which it was. The answer rides in the ball_prompt
     and the log verbatim, exactly as requested changes do.
+
+    Since task-017 it may also carry ``answers``, each naming the question entry it
+    answers. Those become ``answer`` entries threaded by ``re``, written in the same
+    mutation as the handoff, and the ball_prompt is composed from them when the human
+    tapped options and typed nothing -- which is the whole point of the feature, and
+    would otherwise leave the agent a handoff whose ask is blank.
     """
     user = acting_user(project, payload.user)
+    drafts = [
+        AnswerDraft(re=item.re, selected=list(item.selected), other=item.other)
+        for item in payload.answers
+    ]
+    prompt = _answer_prompt(manager, task_id, payload.feedback, drafts)
     return _send_back(
         task_id=task_id,
         request=request,
@@ -809,8 +917,9 @@ async def answer_task(
         project=project,
         user=user,
         ball_reason=BallReason.ANSWER,
-        prompt=payload.feedback,
-        body=f"Answered by {user}:" + NL2 + payload.feedback,
+        prompt=prompt,
+        body=f"Answered by {user}:" + NL2 + prompt,
+        answers=drafts,
     )
 
 

@@ -816,6 +816,44 @@ At any human-decision point:
    signal; all substance belongs in the task record.
 5. Stop. Do not merge or make the decision on the human's behalf.
 
+**Ask in options, not in paragraphs** (task-017). A handoff may carry `questions[]`,
+each a question with the answers you are offering and which one you recommend, written
+in the same mutation as the handoff:
+
+```python
+client.handoff_task(
+    task_id,
+    actor="claude",
+    ball="human",
+    ball_reason="decision",
+    ball_prompt="Four decisions before I can carry on; each recommendation is marked.",
+    questions=[
+        {
+            "body": "How long before an idle session counts as stalled?",
+            "placeholder": "a number of minutes",     # for a value rather than a choice
+            "options": [
+                {"label": "15 minutes", "description": "More false positives."},
+                {"label": "4 hours", "description": "Only catches overnight stalls.",
+                 "recommended": True},
+            ],
+        },
+    ],
+)
+```
+
+The GUI renders each as buttons with a free-text box always beside them, **on the task
+page by default with nothing to click open**, and one Submit writes an `answer` entry
+per question threaded by `re`. **This is the difference between
+a decision answered in seconds on a phone and one that waits a day**, which is what the
+same four questions cost on task-077 as prose. Two things follow from it:
+
+* **Offer options wherever you honestly can**, including for a number — supply a
+  `placeholder` and let the free-text box take it. An option list is never closed, so
+  offering three is not a claim there is no fourth.
+* **A question you never got an answer to stays open**, and stays in the human's form
+  next time. If you carried on without it, close the thread yourself with an `answer`
+  entry saying what you assumed — silence is the one outcome that helps nobody.
+
 The React UI records what the human actually did, and each control writes the reason
 that matches its label.
 

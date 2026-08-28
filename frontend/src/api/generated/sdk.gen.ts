@@ -593,6 +593,12 @@ export const updateTaskApiProjectsProjectIdTasksTaskIdPatch = <ThrowOnError exte
  * Not a revision: nothing the agent did was wrong, and a record that says otherwise
  * makes the next reader reconstruct which it was. The answer rides in the ball_prompt
  * and the log verbatim, exactly as requested changes do.
+ *
+ * Since task-017 it may also carry ``answers``, each naming the question entry it
+ * answers. Those become ``answer`` entries threaded by ``re``, written in the same
+ * mutation as the handoff, and the ball_prompt is composed from them when the human
+ * tapped options and typed nothing -- which is the whole point of the feature, and
+ * would otherwise leave the agent a handoff whose ask is blank.
  */
 export const answerTaskApiProjectsProjectIdTasksTaskIdAnswerPost = <ThrowOnError extends boolean = false>(options: Options<AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostData, ThrowOnError>) => (options.client ?? client).post<AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponses, AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostErrors, ThrowOnError>({
     url: '/api/projects/{project_id}/tasks/{task_id}/answer',
@@ -1176,6 +1182,12 @@ export const updateTaskApiTasksTaskIdPatch = <ThrowOnError extends boolean = fal
  * Not a revision: nothing the agent did was wrong, and a record that says otherwise
  * makes the next reader reconstruct which it was. The answer rides in the ball_prompt
  * and the log verbatim, exactly as requested changes do.
+ *
+ * Since task-017 it may also carry ``answers``, each naming the question entry it
+ * answers. Those become ``answer`` entries threaded by ``re``, written in the same
+ * mutation as the handoff, and the ball_prompt is composed from them when the human
+ * tapped options and typed nothing -- which is the whole point of the feature, and
+ * would otherwise leave the agent a handoff whose ask is blank.
  */
 export const answerTaskApiTasksTaskIdAnswerPost = <ThrowOnError extends boolean = false>(options: Options<AnswerTaskApiTasksTaskIdAnswerPostData, ThrowOnError>) => (options.client ?? client).post<AnswerTaskApiTasksTaskIdAnswerPostResponses, AnswerTaskApiTasksTaskIdAnswerPostErrors, ThrowOnError>({
     url: '/api/tasks/{task_id}/answer',

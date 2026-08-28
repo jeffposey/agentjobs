@@ -7,7 +7,7 @@ import logging
 from datetime import datetime
 from enum import Enum
 from types import TracebackType
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from urllib.parse import quote
 
@@ -813,8 +813,13 @@ class TaskOperations:
         ball_reason: BallReason | str,
         ball_prompt: str,
         body: Optional[str] = None,
+        questions: Optional[Sequence[Mapping[str, Any]]] = None,
     ) -> MutationResult:
-        """Move the ball, refusing a decision made against a stale read."""
+        """Move the ball, refusing a decision made against a stale read.
+
+        ``questions`` pose structured asks in the same write as the handoff (task-017),
+        so a human woken by this handoff cannot open a form missing half of them.
+        """
         return self._client._mutation(
             f"/tasks/{task_id}/handoff",
             {
@@ -823,6 +828,7 @@ class TaskOperations:
                 "ball_reason": self._client._enum_to_str(ball_reason),
                 "ball_prompt": ball_prompt,
                 "body": body,
+                "questions": [dict(question) for question in questions or []],
             },
             operation_id=operation_id,
             expected_revision=expected_revision,

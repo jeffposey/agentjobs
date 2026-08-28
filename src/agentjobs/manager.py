@@ -39,6 +39,7 @@ from .attachments import AttachmentPayload
 from .models_v2 import (
     MANAGER_WRITTEN_LOG_TYPES,
     PRIORITY_RANK,
+    AnswerDraft,
     Attachment,
     Ball,
     BallReason,
@@ -56,6 +57,8 @@ from .models_v2 import (
     LogEntryType,
     Outcome,
     Priority,
+    QuestionData,
+    QuestionDraft,
     Task,
     utcnow,
 )
@@ -99,6 +102,59 @@ from .storage import TaskLoadError, TaskStorage, load_yaml
 
 if TYPE_CHECKING:
     from .webhooks import WebhookManager
+
+
+class AnswerError(ValueError):
+    """An answer the record cannot support (task-017).
+
+    A ``ValueError`` subclass so that callers written before answers existed keep
+    catching it, and its own type so the API can tell "this question is not open" -- a
+    conflict a reload fixes -- from "no such task", which the same base class would
+    otherwise flatten into one 404.
+    """
+
+
+def _checked_answer(task: Task, reply: AnswerDraft) -> AnswerDraft:
+    """Refuse an answer the record cannot support, before anything is written.
+
+    Three ways an answer is wrong, and each is a mistake the writer can fix rather than
+    a state the log should be made to hold (task-017):
+
+    *   It threads to something that is not an open question. Answering an entry that
+        was never asked, or was answered already, would close a thread that is not this
+        answer's, and ``open_questions()`` would then be quietly wrong for the rest of
+        the task's life.
+    *   It names an option the question did not offer. That is either a stale form or a
+        typo, and both mean the human's tap did not mean what the record would say.
+    *   It says nothing at all. An empty answer closes a thread while recording nothing,
+        which is strictly worse than leaving the question open -- the state decision 3 on
+        this task chose deliberately.
+    """
+    question = next((entry for entry in task.log if entry.id == reply.re), None)
+    if question is None or question.type is not LogEntryType.QUESTION:
+        raise AnswerError(f"Log entry {reply.re} on '{task.id}' is not a question.")
+    if question.id not in {entry.id for entry in task.open_questions()}:
+        raise AnswerError(f"Question {reply.re} on '{task.id}' has already been answered.")
+    if not reply.selected and not (reply.other or "").strip():
+        raise AnswerError(
+            f"The answer to question {reply.re} on '{task.id}' is empty; "
+            "choose an option or write one."
+        )
+    offered = {
+        option.label
+        for option in QuestionData.model_validate(
+            {key: value for key, value in question.data.items() if key != "operation"}
+        ).options
+    }
+    unknown = [label for label in reply.selected if label not in offered]
+    if unknown:
+        raise AnswerError(
+            f"Question {reply.re} on '{task.id}' does not offer {unknown[0]!r}. "
+            "Supply free text instead of an option it never listed."
+        )
+    if len(reply.selected) > 1 and not question.data.get("multi_select", False):
+        raise AnswerError(f"Question {reply.re} on '{task.id}' takes one option, not several.")
+    return reply
 
 
 @dataclass(frozen=True)
@@ -1387,13 +1443,27 @@ class TaskManager:
         operation_id: Optional[str] = None,
         expected_revision: Optional[Union[datetime, str]] = None,
         attachments: Optional[Sequence[AttachmentPayload]] = None,
+        questions: Optional[Sequence[QuestionDraft]] = None,
+        answers: Optional[Sequence[AnswerDraft]] = None,
     ) -> Task:
         """Move the ball. The ask travels with it, by schema requirement.
 
         ``attachments`` are images evidencing this handoff -- a screenshot of the thing
         being objected to. They are written inside the mutation, so a stored file
         without an entry referencing it is not a state this verb can produce.
+
+        ``questions`` and ``answers`` are the two halves of a structured round trip
+        (task-017), and both ride here rather than on separate calls for the same reason
+        the attachments do: **one act, one mutation.** N questions posted one at a time
+        can be read half-written by the human the handoff just woke, who then answers a
+        form missing the question that mattered; N answers posted one at a time can hand
+        the ball back with two of four recorded. Neither state is reachable from here.
+
+        A question threads to this handoff entry, so the record says which ask raised it.
+        An answer threads to the question it names, which is what makes it an answer.
         """
+        drafted = [QuestionDraft.model_validate(q) for q in questions or []]
+        replies = [AnswerDraft.model_validate(a) for a in answers or []]
         operation = self._operation(
             operation_id,
             "handoff",
@@ -1403,6 +1473,8 @@ class TaskManager:
                 "ball_reason": BallReason(ball_reason).value,
                 "ball_prompt": ball_prompt,
                 "body": body,
+                "questions": [q.model_dump(mode="json") for q in drafted],
+                "answers": [a.model_dump(mode="json") for a in replies],
             },
         )
 
@@ -1412,10 +1484,14 @@ class TaskManager:
             check_revision(task, expected_revision)
             if not task.is_open:
                 raise ValueError(f"Task '{task_id}' is closed; the ball cannot move.")
+            # Every answer is checked against the record before anything is written, so a
+            # handoff carrying one bad answer writes no entries at all rather than the
+            # three that happened to come before it.
+            checked = [_checked_answer(task, reply) for reply in replies]
             task.ball = Ball(ball)
             task.ball_reason = BallReason(ball_reason)
             task.ball_prompt = ball_prompt
-            self._append_entry(
+            handoff_entry = self._append_entry(
                 task,
                 actor=actor,
                 type=LogEntryType.HANDOFF,
@@ -1424,6 +1500,24 @@ class TaskManager:
                 operation=operation,
                 attachments=self._store_attachments(task.id, attachments),
             )
+            for reply in checked:
+                self._append_entry(
+                    task,
+                    actor=actor,
+                    type=LogEntryType.ANSWER,
+                    body=reply.rendered(),
+                    re=reply.re,
+                    data={"selected": list(reply.selected), "other": reply.other},
+                )
+            for draft in drafted:
+                self._append_entry(
+                    task,
+                    actor=actor,
+                    type=LogEntryType.QUESTION,
+                    body=draft.body,
+                    re=handoff_entry.id,
+                    data=draft.payload().model_dump(mode="json"),
+                )
             return task
 
         task = self._mutate(task_id, apply)

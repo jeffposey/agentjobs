@@ -292,6 +292,70 @@ that does not accompany a real event is a lie in an append-only record. They are
 model's `MANAGER_WRITTEN_LOG_TYPES`, and every write path consults that set rather than
 listing types of its own.
 
+### `question` and `answer`
+
+A question may offer options, and the answer records which were taken (task-017). The
+reason is the phone: task-076 and task-077 each arrived at `human`/`decision` with four
+substantive questions in the `ball_prompt`, and answering them meant typing four
+paragraphs with a thumb. Put as choices with a recommendation marked, the same four took
+seconds.
+
+```yaml
+- id: 10
+  actor: claude
+  type: question
+  re: 9                        # the handoff that raised it
+  body: How long before an idle session counts as stalled?
+  data:
+    options:
+      - label: 15 minutes
+        description: More false positives if an agent pauses mid-work.
+      - label: 4 hours
+        description: Only catches overnight stalls.
+        recommended: true      # a mark, never a preselection
+    multi_select: false
+    placeholder: a number of minutes   # hint for the free-text box
+- id: 11
+  actor: Jeff Posey
+  type: answer
+  re: 10                       # the question, which is what makes it an answer
+  body: 60 minutes
+  data:
+    selected: []               # option labels, from the question's own list
+    other: 60 minutes
+```
+
+**Every field of both payloads defaults**, so the prose-only question — which is every
+question this repository held before task-017 — is unchanged and still valid.
+
+Three properties are enforced rather than documented, each because getting it wrong
+costs the person trying to answer:
+
+*   **The payloads are typed** (`QuestionData`, `AnswerData` in `LOG_PAYLOADS`), so an
+    option list that cannot be rendered is refused at the write, where the agent that
+    wrote it is still around to be told. Untyped, it would fail in the browser of the
+    person who opened the task to answer it.
+*   **Free text is unconditional and is not a field here.** The GUI puts a box on every
+    question whatever the payload says, so `options` can never be a closed set. The
+    example above is the real one: Jeff took none of the three offered and typed a
+    number. `selected` is empty and `other` carries the answer; both may be present.
+*   **An answer names a question that is open**, and every label in `selected` is one
+    that question offered. Answering a non-question, or answering twice, is refused —
+    otherwise `open_questions()` is quietly wrong for the rest of the task's life.
+
+`task_handoff` takes an optional `questions[]` and writes them in the same mutation as
+the handoff, so a human woken by it cannot open a form holding two of four. They render
+on the task page by default, not behind a control that offers to show them. The GUI's
+answer route does the same in reverse: every answer plus the ball move to `agent`/
+`answer` is one act, one write. Selecting an option does **not** move the ball on its
+own — that would make partial answering impossible to express and would fire an
+unrecoverable state change off a radio button.
+
+An unanswered question outliving its handoff is a **backlog, not a leak**: nothing
+sweeps it, and it stays answerable. An agent that carried on without it should close the
+thread the ordinary way — an `answer` entry saying *"proceeded assuming X; revisit if
+wrong"* — which is a better record than silence.
+
 ### `queue_move`
 
 Somebody decided where this task stands in its band. Written by `move`, by

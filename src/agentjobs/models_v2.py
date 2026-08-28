@@ -648,14 +648,159 @@ class DispatchResultData(StrictModel):
     )
 
 
-DISPATCH_PAYLOADS: Dict[LogEntryType, type[StrictModel]] = {
+class QuestionOption(StrictModel):
+    """One answer an agent is offering for a ``question`` entry (task-017).
+
+    The label is what the human taps and what an ``answer`` entry records having been
+    chosen, so it is the identity of the option and not a caption over one. There is
+    deliberately no separate id: a log is append-only, so a stored label cannot drift
+    away from the option it names, and an id would only add a second thing to read.
+    """
+
+    label: str = Field(
+        ..., min_length=1, description="The choice itself. Short enough to be a button."
+    )
+    description: Optional[str] = Field(
+        default=None, description="What picking this means. Shown under the label."
+    )
+    recommended: bool = Field(
+        default=False,
+        description=(
+            "The agent's own recommendation. Marks the option; it never preselects it, "
+            "because a prefilled answer is one a tired reader submits without reading."
+        ),
+    )
+
+
+class QuestionData(StrictModel):
+    """Payload of a ``question`` entry: the options, where the agent offered any.
+
+    Every field defaults, so a plain prose question -- which is every question this
+    repository's corpus held before task-017 -- validates with an empty payload and is
+    rendered as free text alone.
+
+    **Free text is not a field here, and that is the point.** It is unconditional: the
+    GUI offers it on every question whatever this payload says, because the session that
+    motivated this task had every supplied option rejected in favour of a typed answer.
+    An `options` list can therefore never be a closed set, and nothing here can make it
+    one.
+    """
+
+    options: List[QuestionOption] = Field(
+        default_factory=list,
+        description="Offered answers, in the order they should be shown. May be empty.",
+    )
+    multi_select: bool = Field(
+        default=False, description="Whether more than one option may be chosen."
+    )
+    placeholder: Optional[str] = Field(
+        default=None,
+        description=(
+            "Hint for the always-present free-text box, e.g. 'a number of minutes'. "
+            "This is how a question wanting a value rather than a choice asks for one."
+        ),
+    )
+
+
+class AnswerData(StrictModel):
+    """Payload of an ``answer`` entry: what was chosen, machine-readably.
+
+    The entry's ``body`` stays the human-readable rendering and remains the thing a
+    reader of the YAML sees. This exists so the agent that asked does not have to parse
+    its own question back out of prose, which is the half of the round trip that
+    structured options would otherwise leave undone.
+
+    ``selected`` holds option labels, and the manager checks each one against the
+    question it threads to -- that check needs both entries, so it cannot live here.
+    """
+
+    selected: List[str] = Field(
+        default_factory=list,
+        description="Labels of the options chosen, from the question's own list.",
+    )
+    other: Optional[str] = Field(
+        default=None,
+        description=(
+            "Free text the human supplied instead of, or alongside, the options. "
+            "Present whenever they typed something; never suppressed by a selection."
+        ),
+    )
+
+
+class QuestionDraft(StrictModel):
+    """One question an agent asks, before the manager has made an entry of it.
+
+    Distinct from ``QuestionData`` by exactly one field -- the prose -- because the
+    entry keeps its question in ``body`` where every other entry keeps its prose, and a
+    payload model that duplicated it would give a reader two places to look. This is the
+    argument shape; that is the stored shape.
+    """
+
+    body: str = Field(..., min_length=1, description="The question, addressed to a human.")
+    options: List[QuestionOption] = Field(
+        default_factory=list, description="Offered answers, in display order."
+    )
+    multi_select: bool = Field(
+        default=False, description="Whether more than one option may be chosen."
+    )
+    placeholder: Optional[str] = Field(
+        default=None, description="Hint for the free-text box, e.g. 'a number of minutes'."
+    )
+
+    def payload(self) -> QuestionData:
+        """The stored payload this draft becomes."""
+        return QuestionData(
+            options=list(self.options),
+            multi_select=self.multi_select,
+            placeholder=self.placeholder,
+        )
+
+
+class AnswerDraft(StrictModel):
+    """One answer a human gives, before the manager has made an entry of it.
+
+    ``re`` names the question entry being answered and is required: an answer that does
+    not say what it answers is the prose box this task exists to replace.
+    """
+
+    re: int = Field(..., ge=1, description="Id of the question entry being answered.")
+    selected: List[str] = Field(default_factory=list, description="Labels of the options chosen.")
+    other: Optional[str] = Field(
+        default=None, description="Free text supplied instead of, or alongside, the options."
+    )
+
+    def rendered(self) -> str:
+        """The entry body: what a human reading the YAML should see.
+
+        Composed rather than asked for, so the prose in the record cannot disagree with
+        the payload beside it. A caller wanting to say more says it in the handoff.
+        """
+        typed = (self.other or "").strip()
+        if not self.selected:
+            return typed
+        chose = "Chose: " + ", ".join(self.selected)
+        return f"{chose}\n\n{typed}" if typed else chose
+
+
+LOG_PAYLOADS: Dict[LogEntryType, type[StrictModel]] = {
     LogEntryType.DISPATCH: DispatchData,
     LogEntryType.DISPATCH_RESULT: DispatchResultData,
+    LogEntryType.QUESTION: QuestionData,
+    LogEntryType.ANSWER: AnswerData,
 }
 """Typed ``data`` payloads, enforced on the entry rather than only at the write path.
 
 v2's tenet is that semantics are enforced, not documented. A dispatch entry whose payload
 cannot say what ran is worse than no entry: it looks like evidence.
+
+The same argument put `question` and `answer` here (task-017). A question carrying a
+malformed option list is not detectable until React renders it, in front of the person
+who opened the task to answer it -- so it is refused at the write, where the agent that
+wrote it is still around to be told.
+
+Named for the log rather than for dispatch since task-017: with four members, two of
+which are nothing to do with running a process, the old name described the contents
+instead of the mechanism.
 """
 
 
@@ -690,13 +835,13 @@ class LogEntry(StrictModel):
     def _check_typed_payload(self) -> "LogEntry":
         """Validate ``data`` against the payload model its type declares, where one exists.
 
-        Only the dispatch types have one so far. The alternative -- validating in the
-        manager method that writes them -- was rejected because it leaves a hand-edited
-        or hand-migrated file free to carry a dispatch entry with nothing in it, and the
-        one thing this entry exists to do is be trustworthy after the machine-local run
-        directory is gone.
+        The alternative -- validating in the manager method that writes them -- was
+        rejected because it leaves a hand-edited or hand-migrated file free to carry a
+        dispatch entry with nothing in it, and the one thing this entry exists to do is
+        be trustworthy after the machine-local run directory is gone. The same reasoning
+        covers `question` and `answer` since task-017; see ``LOG_PAYLOADS``.
         """
-        payload_model = DISPATCH_PAYLOADS.get(self.type)
+        payload_model = LOG_PAYLOADS.get(self.type)
         if payload_model is not None:
             # The idempotency marker rides in `data` on every manager-written entry. It
             # is infrastructure, not part of any entry's payload, so it is excluded here
