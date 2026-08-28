@@ -3,42 +3,13 @@ id: task-017
 title: Let an agent ask structured multiple-choice questions the human answers in
   the GUI
 created: '2026-08-18T05:35:45.027948Z'
-updated: '2026-08-28T00:19:23.700518Z'
+updated: '2026-08-28T01:40:35.353288Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Done \u2014 the questions are in the default view. Branch `feat/task-017-structured-questions`,\
-  \ now five commits, rebased onto `main` at 63b2cc4, full unqualified `scripts/check.py`\
-  \ green on the rebased head with a gate receipt for 0788cc6. Not merged: posture\
-  \ `auto`.\n\n**The sandbox is running again at http://127.0.0.1:8898/app/, reseeded.**\
-  \ Open `task-201` \u2014 the four questions are on the page the moment it loads.\
-  \ There is no \"Answer Questions\" button on it any more, because a button that\
-  \ opens the form you are looking at is the same verb twice. `task-205` is the control:\
-  \ nothing is asked there, so the prose composer is still behind the button exactly\
-  \ as before.\n\nEntry 17 has what changed and what was checked. The short of it:\
-  \ the form moved out of the composer into its own section between \"Acting as ...\"\
-  \ and the verb row, with its own **\u2713 Send answers** button. `PanelVerbs.secondary`\
-  \ became nullable to do it \u2014 the same rule task-231 already applies to `primary`,\
-  \ extended one field. A held task is deliberately not offered its questions, since\
-  \ answering would lift the hold. **No backend change at all this pass**: schema,\
-  \ routes, manager and MCP tool are untouched.\n\nVerified in Chrome against the\
-  \ sandbox with no gesture before the assertion: 4 questions and 4 free-text boxes\
-  \ on arrival, Send disabled until something is said, and two real mouse clicks produced\
-  \ a correctly threaded `answer` entry. The Playwright tests at 390x844 lost their\
-  \ opening click, so the first thing they touch after `goto` is an option \u2014\
-  \ a click there would hide the regression they exist to catch.\n\n**sc-5 is still\
-  \ the only pending criterion, and still needs your eyes on a phone.** That has not\
-  \ changed and I cannot close it for you.\n\nTwo things to say yes or no to when\
-  \ you look:\n\n1. **Order.** The questions sit above Reject & Archive, so on a phone\
-  \ you scroll past four questions to reach it. That is deliberate \u2014 answering\
-  \ is the likely act \u2014 but it is a judgement call and easy to flip.\n2. **The\
-  \ point I raised last time still stands**: a `human`/`review` task with a stray\
-  \ open question now shows the form *and* Approve (`task-204`). Say if you would\
-  \ rather questions only appeared at `decision`/`input`.\n\nOne unrelated thing seen\
-  \ in passing, recorded in entry 17 and not acted on: `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`\
-  \ failed once under a full gate and passed immediately in isolation \u2014 a timing\
-  \ race under xdist contention, not a defect here. Say the word and I will file it.\n\
-  \nThe worktree is at `C:/projects/worktrees/agentjobs-017`."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 queue_position: 171
@@ -780,3 +751,25 @@ log:
     outcome: completed
     duration_seconds: 1431.785771
     log_path: C:\Users\jpose\.agentjobs\runs\run_f5a39dbe
+- id: 20
+  ts: '2026-08-28T01:40:33.580380Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 21
+  ts: '2026-08-28T01:40:35.353060Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-017-structured-questions` (0788cc68).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-017.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_ce3d9ea6\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-017-structured-questions
+    finish_id: fin_ce3d9ea6
