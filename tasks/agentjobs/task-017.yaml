@@ -3,7 +3,7 @@ id: task-017
 title: Let an agent ask structured multiple-choice questions the human answers in
   the GUI
 created: '2026-08-18T05:35:45.027948Z'
-updated: '2026-08-28T01:40:35.353288Z'
+updated: '2026-08-28T01:43:47.039207Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -773,3 +773,19 @@ log:
     finish_step: started
     branch: feat/task-017-structured-questions
     finish_id: fin_ce3d9ea6
+- id: 22
+  ts: '2026-08-28T01:43:47.039009Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-017-structured-questions` into `main` as `04c09e85`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-017
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 04c09e85b0c532f831d0cea33a475eb4c3c85ad6
+    branch: feat/task-017-structured-questions
+    base: main
