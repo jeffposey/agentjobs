@@ -3,10 +3,44 @@ id: task-023
 title: Dispatch output is a raw terminal dump; render the session's structured transcript
   instead
 created: '2026-08-19T22:31:46.196691Z'
-updated: '2026-08-21T16:58:00.307796Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-29T18:30:26.267052Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: "Ready for review on `feat/task-023-structured-transcript` (rebased onto\
+  \ `main` at acb0e9a; HEAD f9ad2db). All six acceptance criteria met, each with its\
+  \ evidence in the record. `scripts/check.py` unqualified: exit 0, ten of ten stages,\
+  \ receipt written.\n\n**Look at it before reading the diff \u2014 a sandbox is already\
+  \ running:**\n\n    http://127.0.0.1:8903/app/p/sandbox-output/tasks/task-201\n\n\
+  Three runs, throwaway data, every control safe to press:\n\n- **task-201** \u2014\
+  \ this dispatch's *own* transcript, read through the panel. Click **Output**. Narration\
+  \ reads as sentences; runs of calls collapse to lines like `Edited transcript.py\
+  \  +555 -0` that open to the command and what it returned.\n- **task-202** \u2014\
+  \ a session with no structured transcript. The note, and under it the raw capture,\
+  \ which still reads `NewMCPserverfoundinthisproject:agentjobs`. That is the before,\
+  \ next to the after.\n- **task-203** \u2014 a run whose commands failed. `2 failed`\
+  \ on the summary, `failed` on each call, error text under it.\n\nStop it with `taskkill\
+  \ /PID <pid> /F`, or ask me and I will. To bring it back later: `python scripts/dispatch_output_sandbox.py\
+  \ 8903` from the worktree (its default 8899 was already bound by another agent's\
+  \ sandbox). It redirects its own `~` into a temp directory, so it cannot touch your\
+  \ real transcript store or the 8876 dashboard.\n\n**What I would look at hardest,\
+  \ in order:**\n\n1. **Group boundaries.** A run of calls is closed by a paragraph\
+  \ of narration, so a stretch where the agent does not narrate becomes one large\
+  \ group \u2014 on task-201 there is a real `Edited peek.py and 2 more files, ran\
+  \ 30 commands`. That is honest but coarse. If you want a cap (\"split every N calls\"\
+  ) say so; I did not add one because an arbitrary split is a worse lie than a long\
+  \ true group.\n2. **The summary phrasing.** `Edited a.ts and 2 more files, ran 4\
+  \ commands, ran 2 searches`. Twelve phrasings are pinned in `TestSummarize`, so\
+  \ changing your mind here is cheap and the tests will tell you what moved.\n3. **The\
+  \ prompt entry.** The dispatch prompt is clipped to 800 characters and labelled\
+  \ ASKED. It is long and you have read it before; it may deserve to be collapsed\
+  \ by default rather than clipped.\n\n**One thing to know before you run the gate\
+  \ yourself:** `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`\
+  \ is flaky under parallel load on this machine \u2014 it failed 3 of my 6 gate runs.\
+  \ It is **not** this branch: I reproduced it on unmodified `main` in the main clone.\
+  \ If your gate goes red on that one test, re-run rather than reading it as a regression.\
+  \ I have not filed a task for it; say the word.\n\nNothing merged, nothing pushed.\
+  \ Posture `auto`, so the merge is yours."
 archived: false
 priority: high
 queue_position: 10100
@@ -17,6 +51,7 @@ tags:
 - ux
 effort: half a day
 assignment:
+  owner: claude
   eligible: []
 parent: task-160-dispatch-phase-two
 spec:
@@ -101,29 +136,56 @@ acceptance:
 - id: ac-1
   text: 'words and line breaks survive: a rendered approval dialog reads as sentences,
     not as one run-together string'
-  status: pending
+  verify: 'tests/test_dispatch_transcript.py::TestEntries::test_narration_survives_as_sentences
+    and the API and vitest cases of the same name, all three using the real dialog
+    text. Seen in the browser: sandbox task-202''s raw view still reads NewMCPserverfoundinthisproject:agentjobs
+    while task-201''s readable view renders full sentences.'
+  status: met
 - id: ac-2
   text: the panel distinguishes assistant narration, tool invocations, and their results
-  status: pending
+  verify: Three entry kinds -- prompt, narration, tools -- with results attached to
+    the call they answer. tests/test_dispatch_transcript.py::TestEntries::test_narration_tools_and_prompt_are_separate_entries;
+    DispatchOutput.test.tsx 'separates what the agent said from what it did'.
+  status: met
 - id: ac-3
   text: consecutive tool calls are summarized rather than dumped, with the detail
     available on demand
-  status: pending
+  verify: A run of calls collapses to one line ('Edited DependencyState.tsx, ran 4
+    commands'), collapsed by default, opening to each call's command and output. TestSummarize
+    covers 12 phrasings; DispatchOutput.test.tsx 'summarizes a run of calls, with
+    the detail available on demand' asserts the detail is absent until the disclosure
+    is clicked.
+  status: met
 - id: ac-4
   text: a failed command is visibly distinguishable from a successful one
-  status: pending
+  verify: '''2 failed'' on the summary and ''failed'' on the call, in words rather
+    than colour alone. TestFailure::test_a_failed_call_is_flagged_on_the_call_and_counted_on_the_group;
+    DispatchOutput.test.tsx ''says in words that a call failed''. Seen in the browser
+    on sandbox task-203.'
+  status: met
 - id: ac-5
   text: a session whose transcript is missing or unparseable still renders something
     useful
-  status: pending
+  verify: 'Every failure path returns source ''none'' with a note saying which, and
+    the panel then shows the note plus the raw capture. TestDegradation (4 cases:
+    no path, missing file, no turns yet, wholly unparseable) and TestTolerance (unknown
+    event types, unparseable lines, sidechains, orphan results). Seen in the browser
+    on sandbox task-202.'
+  status: met
 - id: ac-6
   text: tests assert on rendered text, and one real dispatched run is read end to
     end through the panel
-  status: pending
+  verify: Every assertion is on a rendered string, never on markup. This run's own
+    transcript (553f321b-...jsonl) was read end to end through the panel in Chrome
+    via scripts/dispatch_output_sandbox.py; the rendering is quoted verbatim in log
+    entry 7.
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-023-structured-transcript
+  status: active
 log:
 - id: 1
   ts: '2026-08-19T22:31:46.196746Z'
@@ -175,3 +237,247 @@ log:
       id: c81d4a67-2f93-4b05-8e71-9d3c60a4f2b8
       kind: log_append
       fingerprint: 0c30d8cd30689c9939a5c32d3eb59d68
+- id: 4
+  ts: '2026-08-29T17:26:07.106096Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 5
+  ts: '2026-08-29T17:26:08.224039Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 6
+  ts: '2026-08-29T17:26:11.930428Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_5fb17eb0
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 4
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"], "env": {"AGENTJOBS_RUN_ID":
+      "run_5fb17eb0", "AGENTJOBS_RUN_DIR": "C:\\Users\\jpose\\.agentjobs\\runs\\run_5fb17eb0"}}'
+    - 'You are the agent `claude` working task `task-023` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-023-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_5fb17eb0. Posture `auto` stops at the merge gate: when
+      the work is done and verified, record the evidence on the task, hand the ball
+      to human/review, and stop. Do not merge. Never push: this project is configured
+      `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 20630c8
+    session_id: 553f321b
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 7
+  ts: '2026-08-29T18:29:29.614312Z'
+  actor: claude
+  type: progress
+  body: "Built on `feat/task-023-structured-transcript`, rebased onto `main` at acb0e9a.\
+    \ Two commits: 12751f8 (server) and f9ad2db (frontend, docs, sandbox).\n\n## What\
+    \ was built\n\n**`src/agentjobs/dispatch/transcript.py`** \u2014 locates and parses\
+    \ the session's own JSONL.\n\n- Locating it: a run's recorded `session_id` is\
+    \ the first segment of the transcript's UUID filename (`553f321b` \u2192 `553f321b-aefe-....jsonl`),\
+    \ so the match is on prefix. Three attempts, narrowest first: the store for the\
+    \ project root, then stores whose name *begins* with that slug (a session that\
+    \ relocated into a worktree), then every store. The newest match wins. A driver\
+    \ that keeps no such file simply never matches, so nothing needs a list of which\
+    \ drivers those are.\n- Parsing it: `assistant` events' `text` blocks become narration\
+    \ entries; `tool_use` blocks accumulate into a group that a paragraph of narration\
+    \ closes; `user` events carry either a prompt (string content) or `tool_result`\
+    \ blocks, which are matched back to their call by id and supply `is_error` and\
+    \ the output. `toolUseResult.structuredPatch` gives the diff counts, and `type:\
+    \ \"create\"` counts its whole content as additions.\n- Bounded: only the last\
+    \ 2 MB of the file is read (the first, partial line is dropped) and only the last\
+    \ N entries are returned, so a poll's cost does not grow with the length of the\
+    \ run. What was left off is stated, never hidden.\n\n**`GET /api/projects/{id}/dispatch/runs/{run_id}/transcript`**\
+    \ \u2014 the entries, polled on the same clock as `/tail`. It does not replace\
+    \ `/tail`.\n\n**`DispatchOutput.tsx`** \u2014 the readable view leads, the raw\
+    \ terminal is behind a *Show raw terminal* toggle, and the panel degrades to the\
+    \ raw capture automatically whenever there is nothing structured.\n\n**`scripts/dispatch_output_sandbox.py`**\
+    \ \u2014 three seeded runs on port 8899 (its default; I ran it on 8903 because\
+    \ 8898 and 8899 were both already bound by other agents' sandboxes). It redirects\
+    \ its own `~` into a temp directory so seeded transcripts cannot land in the real\
+    \ store.\n\n## Verification\n\n`poetry run python scripts/check.py`, unqualified,\
+    \ on the rebased branch: **exit 0, all ten stages, receipt written for f9ad2dbb**\
+    \ (gate7, 248.5s). New tests: 40 in `tests/test_dispatch_transcript.py`, 8 in\
+    \ `tests/test_dispatch_api.py::TestRunStructuredTranscript`, 18 in `DispatchOutput.test.tsx`\
+    \ (up from 8).\n\nRead end to end in a browser against the sandbox, not only in\
+    \ tests. The real transcript used was this run's own \u2014 `553f321b-aefe-48c0-9a50-64886c6f19e1.jsonl`,\
+    \ 15 entries at the time. What the panel rendered, verbatim:\n\n    ASKED   You\
+    \ are the agent `claude` working task `task-023`\u2026\n    I'll start by reading\
+    \ the task record.\n    \u25B8 Ran 3 commands\n    Task read. Let me set up the\
+    \ worktree and explore the current implementation in parallel.\n    \u25B8 Edited\
+    \ peek.py and 2 more files, ran 30 commands   +101 -0\n    Now I'll write the\
+    \ server-side transcript module.\n    \u25BE Edited transcript.py   +555 -0\n\
+    \        Write  transcript.py  +555 -0\n        C:/projects/worktrees/agentjobs-023/src/agentjobs/dispatch/transcript.py\n\
+    \nThat is the spec's \"what good looks like\", against a real run rather than\
+    \ a fixture.\n\nThe failure state (sandbox task-203) renders `Edited types.ts,\
+    \ ran 2 commands  +1 -1  [2 failed]`, and opening it marks each failing call `failed`\
+    \ with its error text in red. The degraded state (task-202) shows the note and,\
+    \ under it, the raw capture \u2014 which still reads `NewMCPserverfoundinthisproject:agentjobs`,\
+    \ so the before and after are visible in the same sandbox.\n\n## Two things the\
+    \ gate caught that I had missed\n\nBoth were real, and both are fixed in f9ad2db:\
+    \ the new operation was undocumented in `docs/api-reference.md`, and the new query\
+    \ was unclassified in `LiveUpdates.tsx`'s live-update coverage map (it belongs\
+    \ in `NON_TASK_PROJECT_QUERY_IDS` \u2014 a session writing is not a task write).\n\
+    \n## A pre-existing flake, not mine\n\n`tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`\
+    \ failed in 3 of my 6 full gate runs, with two different messages (\"pid N survived\
+    \ the timeout\" and \"the grandchild never started, so this proves nothing\").\
+    \ It passes in isolation. I confirmed it is pre-existing rather than caused by\
+    \ this branch by running the whole suite in the **main clone, on unmodified `main`**:\
+    \ `pytest -q -n auto` there failed the same test the same way (1 failed, 3593\
+    \ passed). It is load-sensitive, and this machine has several agents on it. Not\
+    \ filed as a task \u2014 say the word and I will."
+  data:
+    operation:
+      id: 2b1c9f4e-7a56-4d33-9e18-5c0f2a71d901
+      kind: log_append
+      fingerprint: c2d226a7ee449776f945b245f066075b
+- id: 8
+  ts: '2026-08-29T18:29:49.545022Z'
+  actor: claude
+  type: decision
+  body: "The four questions the spec left open, answered, with what was rejected.\n\
+    \n**1. Poll, don't push.** A new `GET .../transcript`, polled by the panel on\
+    \ the same 10s clock as `/tail`. Rejected server-push and a faster clock: nothing\
+    \ here is a subprocess (unlike `/tail`, whose bytes come from a poller that shells\
+    \ out), but a second interval would be a second thing to reason about for a panel\
+    \ a human reads at human speed. Cost is bounded instead, by reading only the last\
+    \ 2 MB of the file.\n\n**2. Last N *entries*, not turns.** \"Turns\" does not\
+    \ work: a dispatched run has exactly one user prompt and hundreds of assistant\
+    \ turns, so bounding by turn is bounding by nothing. An entry is one thing the\
+    \ agent did \u2014 a paragraph of prose, or a run of consecutive calls \u2014\
+    \ and 40 of them is the default. The count omitted is rendered (\"Showing the\
+    \ last 1 of 137 steps\"), never silently dropped.\n\n**3. The raw view is not\
+    \ a fallback nobody reaches.** It is both a deliberate toggle *and* what the panel\
+    \ degrades to automatically whenever `source` comes back `none`, with the server's\
+    \ note saying which case it is. Rejected the spec's suggested `pyte`/xterm.js\
+    \ screen-buffer replay: it is a second renderer to maintain for the case where\
+    \ the structured one has already failed, and the reason to want the raw bytes\
+    \ at all is that they are unprocessed. Reopen if a real session dies in a way\
+    \ where the unreplayed capture turns out to be unreadable \u2014 I did not hit\
+    \ one.\n\n**4. Failure is stated in words, not signalled by colour.** \"2 failed\"\
+    \ on the summary, \"failed\" on the call. Colour is there too, but a reader scanning\
+    \ for trouble should find it by reading.\n\n**Two further decisions the spec did\
+    \ not ask for.**\n\n**Sidechain events are dropped.** A subagent's turns are a\
+    \ separate conversation; interleaved into the main one, nothing follows from what\
+    \ precedes it. The `Agent` call that started it is in the main chain and stands\
+    \ for it.\n\n**Escape sequences *are* removed from a command's output** \u2014\
+    \ which is not the constraint's forbidden move. The constraint is about a *repaint*,\
+    \ which encodes its spacing in cursor movements, so stripping destroys the text.\
+    \ A program's own stdout encodes nothing in them but colour. Found on this run:\
+    \ a pytest result reached the panel as `\\x1b[32m.\\x1b[0m` forty times over,\
+    \ and no readable count.\n\n**Not done, deliberately: no Playwright spec.** The\
+    \ vitest suite asserts on rendered text for every state including the failure\
+    \ and degraded ones, the API suite covers the server end, and ac-6's \"one real\
+    \ dispatched run read end to end\" was satisfied in a browser against a real transcript.\
+    \ An e2e spec would need the e2e server to redirect `HOME` to reach a seeded transcript\
+    \ store, which is machinery in the harness rather than coverage of the change.\
+    \ Say so if you want it and I will add it."
+  data:
+    operation:
+      id: 7d40e8ab-19c6-4f22-8b53-3e6a0d4c11f7
+      kind: log_append
+      fingerprint: 3b9b502903c03068eef7021802900449
+- id: 9
+  ts: '2026-08-29T18:30:05.925004Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 9e21c503-64ad-4b7f-b0aa-1d8f6e2c4a55
+      kind: update_content
+      fingerprint: a544ca550fb8bc98fc2c6e27faea3e07
+- id: 10
+  ts: '2026-08-29T18:30:26.266868Z'
+  actor: claude
+  type: handoff
+  body: "Ready for review on `feat/task-023-structured-transcript` (rebased onto `main`\
+    \ at acb0e9a; HEAD f9ad2db). All six acceptance criteria met, each with its evidence\
+    \ in the record. `scripts/check.py` unqualified: exit 0, ten of ten stages, receipt\
+    \ written.\n\n**Look at it before reading the diff \u2014 a sandbox is already\
+    \ running:**\n\n    http://127.0.0.1:8903/app/p/sandbox-output/tasks/task-201\n\
+    \nThree runs, throwaway data, every control safe to press:\n\n- **task-201** \u2014\
+    \ this dispatch's *own* transcript, read through the panel. Click **Output**.\
+    \ Narration reads as sentences; runs of calls collapse to lines like `Edited transcript.py\
+    \  +555 -0` that open to the command and what it returned.\n- **task-202** \u2014\
+    \ a session with no structured transcript. The note, and under it the raw capture,\
+    \ which still reads `NewMCPserverfoundinthisproject:agentjobs`. That is the before,\
+    \ next to the after.\n- **task-203** \u2014 a run whose commands failed. `2 failed`\
+    \ on the summary, `failed` on each call, error text under it.\n\nStop it with\
+    \ `taskkill /PID <pid> /F`, or ask me and I will. To bring it back later: `python\
+    \ scripts/dispatch_output_sandbox.py 8903` from the worktree (its default 8899\
+    \ was already bound by another agent's sandbox). It redirects its own `~` into\
+    \ a temp directory, so it cannot touch your real transcript store or the 8876\
+    \ dashboard.\n\n**What I would look at hardest, in order:**\n\n1. **Group boundaries.**\
+    \ A run of calls is closed by a paragraph of narration, so a stretch where the\
+    \ agent does not narrate becomes one large group \u2014 on task-201 there is a\
+    \ real `Edited peek.py and 2 more files, ran 30 commands`. That is honest but\
+    \ coarse. If you want a cap (\"split every N calls\") say so; I did not add one\
+    \ because an arbitrary split is a worse lie than a long true group.\n2. **The\
+    \ summary phrasing.** `Edited a.ts and 2 more files, ran 4 commands, ran 2 searches`.\
+    \ Twelve phrasings are pinned in `TestSummarize`, so changing your mind here is\
+    \ cheap and the tests will tell you what moved.\n3. **The prompt entry.** The\
+    \ dispatch prompt is clipped to 800 characters and labelled ASKED. It is long\
+    \ and you have read it before; it may deserve to be collapsed by default rather\
+    \ than clipped.\n\n**One thing to know before you run the gate yourself:** `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`\
+    \ is flaky under parallel load on this machine \u2014 it failed 3 of my 6 gate\
+    \ runs. It is **not** this branch: I reproduced it on unmodified `main` in the\
+    \ main clone. If your gate goes red on that one test, re-run rather than reading\
+    \ it as a regression. I have not filed a task for it; say the word.\n\nNothing\
+    \ merged, nothing pushed. Posture `auto`, so the merge is yours."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: c8f5b213-40e7-4a91-9d6c-77ba2e0f8813
+      kind: handoff
+      fingerprint: 19e1e3785a39bb01548dd50370aea60a
