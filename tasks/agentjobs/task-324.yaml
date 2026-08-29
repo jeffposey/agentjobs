@@ -1,0 +1,178 @@
+schema: 2
+id: task-324
+title: Dispatch does not name the sessions it starts, so no session picker or peer
+  channel can say which run is which
+created: '2026-08-29T17:33:06.379566Z'
+updated: '2026-08-29T17:33:17.832015Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 25
+category: dispatch
+tags:
+- dispatch
+- observability
+- sessions
+effort: small
+assignment:
+  eligible: []
+spec:
+  summary: Every dispatched Claude session is launched with no display name, so the
+    session picker, the terminal title and the Remote Control peer channel all show
+    a model-derived summary of the prompt instead of the task. Splice a name built
+    from the run's own identity into the composed argv. This has reportedly been attempted
+    before and no record of that attempt survives, so treat prior art as unavailable
+    and re-derive it.
+  intent: Make a dispatched run identifiable by the task it is working, from outside
+    AgentJobs, at the moment you are looking at a list of sessions.
+  description: "## What is wrong\n\nThe scaffolded Claude runner argv is:\n\n```yaml\n\
+    argv: [\"claude\", \"--bg\", \"--remote-control\", \"{prompt}\"]\n```\n\n(`src/agentjobs/dispatch/scaffold.py:95`,\
+    \ and the two variants at `:100` and `:105`.)\n\nNothing anywhere under `src/agentjobs/dispatch/`\
+    \ passes a name \u2014 a grep for `--name` over the package returns only a `git\
+    \ diff --name-only` in `finish.py`. So the display name of every dispatched session\
+    \ is whatever Claude Code derives from the prompt text.\n\nWhat that looks like\
+    \ in practice is recorded in task-234's log, from a real `ListAgents` sweep of\
+    \ this machine: `task record reading`, `started without me knowing`, `queue position\
+    \ schema`, `done but issues`. Those are summaries of prompt prose. None of them\
+    \ names a task, none is stable, and two runs on the same task are indistinguishable.\n\
+    \n## Why it is worth a task\n\nThree separate things read that name, and all three\
+    \ are currently degraded:\n\n1. **The session picker and terminal title** \u2014\
+    \ the human-facing question \"which of these nine sessions is task-231?\" has\
+    \ no answer today short of opening each one.\n2. **The Remote Control peer channel**\
+    \ \u2014 task-234 established that the addressing scheme on that channel *is the\
+    \ session name*, and that dispatched runs are visible on it because dispatch already\
+    \ passes `--remote-control`. A name derived from prompt prose is therefore also\
+    \ an unstable address.\n3. **Reconciliation and stall detection** \u2014 task-296\
+    \ and task-320 both turn on being able to match a live session to a task record.\
+    \ Names are not the mechanism there (session ids are), but a human debugging either\
+    \ one is reading the names.\n\n## The flag exists\n\n`claude --help` on this machine\
+    \ reports:\n\n```\n-n, --name <name>                     Set a display name for\
+    \ this session\n                                      (shown in the session picker,\
+    \ and terminal title)\n--remote-control [name]               Start an interactive\
+    \ session with Remote\n                                      Control enabled (optionally\
+    \ named)\n--remote-control-session-name-prefix <prefix>\n                    \
+    \                  Prefix for auto-generated Remote Control session names (default:\
+    \ hostname)\n```\n\nSo there are two naming surfaces, not one, and they may or\
+    \ may not be the same string. Establish which one the session picker reads and\
+    \ which one the peer channel addresses **before** choosing where to put the value\
+    \ \u2014 do not assume `--name` covers both because the help text does not say\
+    \ so.\n\n## Where the change goes\n\n`compose_argv` in `src/agentjobs/dispatch/config.py`\
+    \ is where posture flags are already spliced into a rendered runner template;\
+    \ a name is the same kind of AgentJobs-owned argv element, and the file's own\
+    \ comment at `config.py:521` (\"AgentJobs owns these, not the operator\") is the\
+    \ precedent. `build_argv_and_prompt` (`config.py:1261`) is where the task id and\
+    \ run id are both already in hand.\n\nOpen questions for whoever works it \u2014\
+    \ these are the design, not incidental detail:\n\n- **What goes in the name.**\
+    \ Task id is mandatory. Title is useful and long. Run id disambiguates two runs\
+    \ on one task. Length limits of the picker are unknown and should be measured,\
+    \ not guessed.\n- **Whether the name is a runner-template concern or a dispatcher\
+    \ concern.** Splicing it means an operator's custom runner gets it for free and\
+    \ cannot opt out; putting it in the template means every runner has to remember\
+    \ it. The posture flags chose splicing.\n- **Non-Claude runners.** The Codex App\
+    \ Server runner (task-279, task-280) has its own session concept and may name\
+    \ differently or not at all. Decide whether this is a Claude-only feature with\
+    \ a clean no-op elsewhere, or a runner capability.\n\n## Prior art is missing,\
+    \ deliberately noted\n\nJeff reports this was attempted before. Nothing survives\
+    \ it: no task, no commit (`git log -S '\"--name\"' -- src/agentjobs` finds only\
+    \ an unrelated registry commit), no log entry in any dispatch task. **Do not spend\
+    \ the session hunting for it.** Assume it failed for a reason nobody wrote down,\
+    \ and make this task the record \u2014 if you hit a wall, the wall goes in the\
+    \ log as a `decision` or `question` entry so the third attempt starts ahead of\
+    \ this one."
+  constraints: "- Verify the naming behaviour against a real dispatched run, not against\
+    \ `--help`. The gesture that matters is: start a run, then list sessions from\
+    \ a separate process and read the name back.\n- Do not break an operator's custom\
+    \ runner argv. Whatever is spliced must compose with a template that already names\
+    \ its own flags.\n- A name is derived from the run, never supplied by the caller\
+    \ of the API \u2014 otherwise it is another string a dispatch request can inject\
+    \ into argv, which `validate_argv` exists to prevent.\n- Task records to `main`,\
+    \ code to the branch, as always."
+  out_of_scope: "- Surfacing the name back inside the AgentJobs UI. The run record\
+    \ already carries the task id; the point of this task is what shows up *outside*\
+    \ AgentJobs.\n- Anything about resuming, attaching or messaging a session \u2014\
+    \ that is task-234's settled ground and task-312's open ground.\n- Scraping the\
+    \ Remote Control URL out of `claude logs` (task-077 recorded that as fragile and\
+    \ unverified; it is a different problem)."
+  context:
+  - path: src/agentjobs/dispatch/scaffold.py
+    why: Lines 95-105 are the three scaffolded Claude runner argv templates, none
+      of which names the session.
+  - path: src/agentjobs/dispatch/config.py
+    why: compose_argv (1337) and build_argv_and_prompt (1261) are where posture flags
+      are already spliced and where task id and run id are both in hand.
+  - path: tasks/agentjobs/task-234.yaml
+    why: Records the real ListAgents output showing what dispatched sessions are currently
+      called, and establishes that the peer channel addresses sessions by name.
+  - path: tasks/agentjobs/task-077-dispatch-session-launcher.yaml
+    why: The decision to launch remote-controllable sessions at all, and the recorded
+      fragility of recovering session identity after the fact.
+acceptance:
+- id: sc-1
+  text: A dispatched Claude run appears in a session listing taken from a separate
+    process under a name containing its task id, and that listing output is quoted
+    in the task log as evidence.
+  verify: Dispatch a real run; from another session or process, list sessions and
+    read the name back. Quote it.
+  status: pending
+- id: sc-2
+  text: Two concurrent runs on the same task are distinguishable from each other by
+    name alone.
+  verify: Two runs, one task, one listing showing both.
+  status: pending
+- id: sc-3
+  text: The name is produced by the dispatcher from run identity, never taken from
+    a caller-supplied field, and a test asserts that.
+  verify: A unit test over the composed argv.
+  status: pending
+- id: sc-4
+  text: A custom runner template that already carries its own flags still composes,
+    and the Codex runner is either named too or explicitly and deliberately left unaffected.
+  verify: Test over compose_argv with a non-default template; a decision log entry
+    for the Codex runner either way.
+  status: pending
+- id: sc-5
+  text: The relationship between --name, --remote-control [name] and the peer channel's
+    addressing is established by observation and written down.
+  verify: A decision log entry naming what was observed and how it was observed.
+  status: pending
+- id: sc-6
+  text: poetry run python scripts/check.py is green, unqualified.
+  verify: Gate output.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-29T17:33:06.872219Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c3f8a260-51bb-4e97-b0d2-4e6c9a3f8815
+      kind: create
+      fingerprint: 3c4a5c6c8fc2bf6854be408300498f8f
+- id: 2
+  ts: '2026-08-29T17:33:17.831850Z'
+  actor: claude
+  type: queue_move
+  body: 'Jeff asked for this as critical and said he intends to start it soon, so
+    it goes to the head of the band rather than sitting behind the rest of it. The
+    cost of leaving it is paid on every dispatch: a listing of live sessions cannot
+    say which run is which, which is felt most while debugging the very things that
+    make dispatch worth having.'
+  data:
+    band: critical
+    from: 193
+    to: 25
+    placement:
+      kind: top
+    operation:
+      id: 9e0a51d7-2c44-4b1a-9f63-08d7c2e6b430
+      kind: queue_move
+      fingerprint: 8b9aadb29a0cee7502ac53ea1ca327d3
