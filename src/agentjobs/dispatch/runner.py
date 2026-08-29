@@ -638,6 +638,105 @@ def codex_posture_flags(posture: Posture) -> List[str]:
     ]
 
 
+SESSION_NAME_FLAG = "--name"
+"""The Claude Code flag that sets a session's display name.
+
+Established by observation on Claude Code 2.1.247, 2026-08-29, not from ``--help``:
+
+* ``--name`` is written into the session ledger at launch (``~/.claude/sessions/<pid>.json``,
+  ``nameSince`` equal to ``startedAt`` within milliseconds) and is **not** overwritten by
+  the rename Claude Code otherwise performs from the prompt a few seconds into the first
+  turn. Without it a dispatched run ends up called something like ``git worktree task
+  setup`` -- a summary of the prompt prose, which names no task and is not stable.
+* That ledger name is what ``claude agents --json`` reports and what the Remote Control
+  peer channel uses as a session's address.
+* ``--remote-control [name]`` is a **different** surface and does not touch it. A session
+  started ``--remote-control "task-999 probe-beta-rc"`` appeared under the prompt text,
+  not under that name, and no peer row carried the name at all.
+
+The full probe log is on task-324.
+"""
+
+_NAME_FLAGS = frozenset({"--name", "-n"})
+"""Every spelling of the flag above, so an operator who set one is not given a second."""
+
+
+def session_name(project_id: str, task_id: str, run_id: str) -> str:
+    """The display name AgentJobs gives a session it starts.
+
+    ``agentjobs/task-324@11085a50``: the project, the task, and the run that is working
+    it. Three ids and nothing else, because this string is read in two places that want
+    different things and the ids are what both of them want.
+
+    * A **picker** listing every session on the machine is *scanned*, so the task id goes
+      where the eye lands and a name stays short enough that the rest of the row survives.
+      There is no length cap to respect -- a 127-character name came back from ``claude
+      agents --json`` verbatim -- so brevity here is a choice, not a constraint.
+    * The **peer channel** addresses a session *by this name*, so it is typed, and it has
+      to distinguish two runs of one task. The run id is what does that; the task id
+      alone cannot.
+
+    The project is included because both surfaces are machine-wide while a task id is
+    only unique within its project: ``task-042`` names a different piece of work in every
+    project on this machine.
+
+    **The title is deliberately absent.** It is the one candidate that reads well and it
+    was rejected on two grounds. A title is editable, so two runs of one task could be
+    named after two different descriptions of it, which is the instability this task
+    exists to remove. And truncating one rarely distinguishes: the tasks that need
+    telling apart are neighbours in the same area, whose titles share a prefix -- this
+    task and task-296 both begin "Dispatch does not". The id is the key every other
+    surface already uses, and it is the key here.
+
+    The name is built from the dispatcher's own identity -- resolved project, claimed
+    task, freshly minted run id -- and there is no parameter through which a dispatch
+    request could supply any part of it. That is the same rule ``validate_argv`` enforces
+    for the template: nothing a caller sends becomes an argv element.
+    """
+    return f"{project_id}/{task_id}@{short_run_id(run_id)}"
+
+
+def short_run_id(run_id: str) -> str:
+    """A run id with its ``run_`` prefix off, for places where the prefix is noise."""
+    return run_id[len("run_") :] if run_id.startswith("run_") else run_id
+
+
+def session_name_flags(
+    template: Sequence[str],
+    *,
+    driver: RunnerDriver,
+    project_id: str,
+    task_id: str,
+    run_id: str,
+) -> List[str]:
+    """``--name <name>``, or nothing when it would be wrong to add it.
+
+    Spliced by the dispatcher rather than written into a runner template, for the same
+    reason the posture flags are: an operator's custom runner then gets an identifiable
+    session without having to remember to ask for one, and a template copied from the
+    scaffold example does not silently lose the naming when it is edited. It is accepted
+    in both modes -- a ``-p`` batch run takes ``--name`` and exits 0 with it.
+
+    Two cases return nothing.
+
+    **A template that already names its session keeps its own name.** Splicing a second
+    ``--name`` would leave the CLI to pick between them, and an operator who wrote one
+    meant it. This is the only opt-out, and it is an explicit act.
+
+    **Codex is left unnamed, deliberately.** Its session concept is an App Server thread
+    with no display name and no equivalent flag; ``codex exec --name`` is not a thing to
+    pass through. There is nothing to degrade -- a Codex thread was never in the Claude
+    session picker or on the peer channel -- so this is Claude-only with a clean no-op
+    rather than a runner capability that one driver fails to implement. Revisit if the
+    Codex App Server grows a name the picker can read.
+    """
+    if driver is not RunnerDriver.CLAUDE:
+        return []
+    if any(element in _NAME_FLAGS for element in template):
+        return []
+    return [SESSION_NAME_FLAG, session_name(project_id, task_id, run_id)]
+
+
 def compose_argv(
     template: Sequence[str], values: Dict[str, str], flags: Sequence[str]
 ) -> List[str]:
@@ -1286,6 +1385,19 @@ class DispatchRunner:
             supervisor=bool(children),
             driver=self.runner.driver,
         )
+        # The session name is AgentJobs the same way the posture flags are, and rides
+        # the same splice: both are things an operator template must not have to
+        # remember, and must not be able to get wrong.
+        flags = [
+            *flags,
+            *session_name_flags(
+                self.runner.argv,
+                driver=self.runner.driver,
+                project_id=self.resolution.project_id,
+                task_id=task_id,
+                run_id=run_id,
+            ),
+        ]
         argv = compose_argv(self.runner.argv, values, flags)
         # Resolved before it is recorded, because the dispatch entry claims to say what
         # actually ran.

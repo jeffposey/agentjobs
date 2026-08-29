@@ -24,7 +24,7 @@ import textwrap
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, cast
+from typing import Any, Callable, Dict, List, Optional, Sequence, cast
 
 import pytest
 import yaml
@@ -48,6 +48,7 @@ from agentjobs.dispatch.runner import (
     GUIDE_PATH,
     PROMPT_STUB,
     REMOTE_CONTROL_URL,
+    SESSION_NAME_FLAG,
     TERMINAL_STATUSES,
     TRANSCRIPT_FILENAME,
     DispatchRunner,
@@ -66,6 +67,8 @@ from agentjobs.dispatch.runner import (
     readable_tail,
     codex_desktop_executable,
     resolve_executable,
+    session_name,
+    session_name_flags,
     settings_json,
     strip_ansi,
     supervisor_allow_rules,
@@ -100,6 +103,18 @@ def write_script(path: Path, source: str) -> Path:
     """Write a Python script and return it."""
     path.write_text(textwrap.dedent(source), encoding="utf-8")
     return path
+
+
+def without_session_name(argv: Sequence[str]) -> List[str]:
+    """*argv* with the dispatcher's spliced --name <name> pair taken out.
+
+    Every assertion that uses this is about the **posture** flags, which are spliced
+    into the same place as the session name (task-324). Restating the name in each of
+    them would make each fail for a second, unrelated reason the next time the naming
+    changes; TestSessionName is where the name itself is asserted.
+    """
+    index = list(argv).index(SESSION_NAME_FLAG)
+    return [*argv[:index], *argv[index + 2 :]]
 
 
 def make_resolution(
@@ -373,7 +388,7 @@ class TestPosture:
             argv = runner.build_argv("task-070-example", "run_abcd1234")
 
             assert argv[:3] == [resolve_executable("claude"), "--bg", "--remote-control"]
-            assert argv[3:-1] == flags, posture
+            assert without_session_name(argv)[3:-1] == flags, posture
             assert argv[-1] == runner.build_prompt("task-070-example", "run_abcd1234")
 
     def test_the_config_and_schema_posture_enums_stay_in_step(self) -> None:
@@ -512,7 +527,7 @@ class TestMcpApproval:
 
         argv = runner.build_argv("task-019-example", "run_abcd1234")
 
-        assert argv[1:-1] == [
+        assert without_session_name(argv)[1:-1] == [
             "--bg",
             "--tools",
             "Read,Glob,Grep,WebFetch",
@@ -538,7 +553,11 @@ class TestMcpApproval:
 
         argv = runner.build_argv("task-019-example", "run_abcd1234")
 
-        assert argv[1:-1] == ["--bg", "--permission-mode", "bypassPermissions"]
+        assert without_session_name(argv)[1:-1] == [
+            "--bg",
+            "--permission-mode",
+            "bypassPermissions",
+        ]
 
     @pytest.mark.parametrize("posture", list(Posture))
     def test_a_project_with_no_mcp_json_gets_todays_argv_unchanged(
@@ -574,7 +593,161 @@ class TestMcpApproval:
 
         argv = runner.build_argv("task-019-example", "run_abcd1234")
 
-        assert argv[2:-1] == today[posture], posture
+        assert without_session_name(argv)[2:-1] == today[posture], posture
+
+
+class TestSessionName:
+    """task-324: a dispatched session says which run it is, from outside AgentJobs.
+
+    The observed behaviour these tests stand on is recorded on ``SESSION_NAME_FLAG``:
+    ``--name`` is the flag the session picker and the peer channel both read, and it
+    survives the rename Claude Code otherwise performs from the prompt.
+    """
+
+    def test_the_name_is_the_project_the_task_and_the_run(self) -> None:
+        assert session_name("agentjobs", "task-324", "run_11085a50") == (
+            "agentjobs/task-324@11085a50"
+        )
+
+    def test_a_run_id_without_the_prefix_is_left_alone(self) -> None:
+        assert session_name("agentjobs", "task-324", "11085a50") == ("agentjobs/task-324@11085a50")
+
+    def test_two_runs_on_one_task_are_told_apart_by_the_name_alone(
+        self, workspace: Path, manager: TaskManager
+    ) -> None:
+        """ac sc-2, in the unit. The live half is quoted in the task log."""
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(["claude", "--bg", "--remote-control", "{prompt}"]),
+        )
+
+        first = runner.build_argv("task-324-example", "run_aaaa1111")
+        second = runner.build_argv("task-324-example", "run_bbbb2222")
+
+        names = [argv[argv.index(SESSION_NAME_FLAG) + 1] for argv in (first, second)]
+        assert names == ["sandbox/task-324-example@aaaa1111", "sandbox/task-324-example@bbbb2222"]
+        assert names[0] != names[1]
+
+    def test_the_name_lands_before_the_prompt(self, workspace: Path, manager: TaskManager) -> None:
+        """Beside the posture flags, where a CLI expects options.
+
+        ``--remote-control [name]`` takes an optional value, so a bare string sitting
+        after it is swallowed as *that* name rather than reaching the session picker --
+        which is exactly what a run started ``--remote-control "task-999 probe-beta-rc"``
+        did on 2026-08-29. A flag is not swallowed, so ``--name`` after it is safe; the
+        prompt stays the last element either way.
+        """
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(
+                ["claude", "--bg", "--remote-control", "{prompt}"], posture=Posture.AUTONOMOUS
+            ),
+        )
+
+        argv = runner.build_argv("task-324-example", "run_aaaa1111")
+
+        assert argv[1:] == [
+            "--bg",
+            "--remote-control",
+            "--permission-mode",
+            "bypassPermissions",
+            SESSION_NAME_FLAG,
+            "sandbox/task-324-example@aaaa1111",
+            runner.build_prompt("task-324-example", "run_aaaa1111"),
+        ]
+
+    def test_a_custom_template_carrying_its_own_flags_still_composes(
+        self, workspace: Path, manager: TaskManager
+    ) -> None:
+        """ac sc-4. An operator's own flags keep their order and their place."""
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(
+                ["claude", "--bg", "--remote-control", "--model", "haiku", "{prompt}"],
+                posture=Posture.AUTONOMOUS,
+            ),
+        )
+
+        argv = runner.build_argv("task-324-example", "run_aaaa1111")
+
+        assert argv[1:5] == ["--bg", "--remote-control", "--model", "haiku"]
+        assert argv[-3:-1] == [SESSION_NAME_FLAG, "sandbox/task-324-example@aaaa1111"]
+
+    @pytest.mark.parametrize("flag", ["--name", "-n"])
+    def test_a_template_that_names_itself_is_not_given_a_second_name(self, flag: str) -> None:
+        """The one opt-out, and it has to be an explicit act by the operator.
+
+        Two ``--name`` elements would leave the CLI to pick between them, and an
+        operator who wrote one meant it.
+        """
+        assert (
+            session_name_flags(
+                ["claude", "--bg", flag, "release-run", "{prompt}"],
+                driver=RunnerDriver.CLAUDE,
+                project_id="agentjobs",
+                task_id="task-324",
+                run_id="run_11085a50",
+            )
+            == []
+        )
+
+    def test_a_codex_runner_is_deliberately_left_unnamed(self) -> None:
+        """ac sc-4's other half, decided rather than overlooked.
+
+        A Codex App Server thread has no display name and no flag that sets one, so
+        there is nothing here to degrade: it was never in the Claude session picker or
+        on the peer channel. Claude-only with a clean no-op, not a runner capability
+        one driver silently fails.
+        """
+        assert (
+            session_name_flags(
+                ["codex", "exec", "--json", "{prompt}"],
+                driver=RunnerDriver.CODEX,
+                project_id="agentjobs",
+                task_id="task-324",
+                run_id="run_11085a50",
+            )
+            == []
+        )
+
+    def test_nothing_a_caller_supplies_reaches_the_name(
+        self, workspace: Path, manager: TaskManager
+    ) -> None:
+        """ac sc-3. The name is the dispatcher's three ids and nothing else.
+
+        ``validate_argv`` exists to stop a dispatch request putting a string into argv.
+        A name assembled from anything a request could set would be a hole in exactly
+        that: so two resolutions that differ in every operator-owned field a caller
+        could plausibly influence must still produce the same name.
+        """
+        plain = build(
+            workspace,
+            manager,
+            make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.AUTONOMOUS),
+        )
+        hostile = build(
+            workspace,
+            manager,
+            make_resolution(
+                ["claude", "--bg", "--model", "--injected --name pwned", "{prompt}"],
+                posture=Posture.AUTONOMOUS,
+                env={"AGENT_NAME": "pwned"},
+            ),
+        )
+
+        names = [
+            argv[argv.index(SESSION_NAME_FLAG) + 1]
+            for argv in (
+                plain.build_argv("task-324-example", "run_aaaa1111"),
+                hostile.build_argv("task-324-example", "run_aaaa1111"),
+            )
+        ]
+
+        assert names == ["sandbox/task-324-example@aaaa1111"] * 2
+        assert "pwned" not in names[0]
 
 
 class TestArgvComposition:

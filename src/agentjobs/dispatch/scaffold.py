@@ -77,6 +77,12 @@ enabled: false
 # the project's posture in front of the prompt itself, and that is where
 # `--permission-mode` and `--tools` come from.
 #
+# `--name` is not yours either, and you do not need it: AgentJobs splices a session name
+# built from the project, the task and the run -- `agentjobs/task-324@11085a50` -- so the
+# session picker, the terminal title and the peer channel all say which run is which. It
+# is the one spliced flag you can override, by writing your own `--name` here; do that
+# only if you have a name better than the task the run is working.
+#
 # `-w` is nobody's -- do not write it here either. A worktree-isolated session refuses
 # every git operation aimed at the shared checkout, which is where task records are
 # committed and where a merge happens, so `-w` produces a run that can do its work and

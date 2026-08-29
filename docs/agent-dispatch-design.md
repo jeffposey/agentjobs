@@ -929,6 +929,66 @@ every outcome we need to distinguish.
 Note what (c) *is not*: it is not a shell command string. Argv is a list, substitution
 is per element, and nothing is interpolated into a shell. See §10.
 
+### The session is named after the run (task-324, 2026-08-29)
+
+A dispatched session used to be launched with no display name, so Claude Code named it
+for itself: a few seconds into the first turn it renames a `--bg` session after the
+prompt, which yielded `task record reading`, `started without me knowing`, `queue
+position schema`, and — from the run that fixed this — `git worktree task setup`. Those
+are summaries of prompt prose. None of them names a task, none is stable across two runs
+of the same task, and a second run started minutes later on a *different* task was
+called `git worktree setup`, one word away from the first.
+
+That name is not decoration. Three surfaces read it, and the second is load-bearing:
+
+1. The **session picker** and the terminal title — "which of these nine sessions is
+   task-231?" had no answer short of opening each one.
+2. The **Remote Control peer channel**, which addresses a session *by name* (task-234).
+   A name derived from prose is an unstable address.
+3. A human debugging **reconciliation or stall detection** (task-296, task-320) is
+   reading these names, even though the mechanism there is session ids.
+
+AgentJobs now splices `--name <project>/<task>@<short run id>` — `agentjobs/task-324@11085a50`
+— into the argv, at the same insertion point and for the same reason as the posture
+flags: it is AgentJobs' business, not the operator's, and a template copied from the
+scaffold must not be able to lose it by being edited. `session_name_flags` in
+`dispatch/runner.py` is the whole of it.
+
+**Which flag, established by observation on Claude Code 2.1.247 rather than from
+`--help`.** The help text advertises two naming surfaces and does not say whether they
+are the same one. They are not:
+
+- `--name` is written into the session ledger (`~/.claude/sessions/<pid>.json`) at launch
+  and is **not** overwritten by the prompt-derived rename. It is what `claude agents
+  --json` reports and what the peer channel lists.
+- `--remote-control [name]` is a different surface. A session started `--remote-control
+  "task-999 probe-beta-rc"` appeared under the prompt text instead, and no peer row
+  carried that name at all.
+
+There is no length cap to design around — a 127-character name came back from `claude
+agents --json` verbatim — so the name is short by choice. A picker holding two hundred
+rows is scanned, not read.
+
+**Why three ids and no title.** The title is the one candidate that reads well, and it
+was rejected: it is editable, so two runs of one task could be named after two
+descriptions of it, which is the instability this change exists to remove; and
+truncating one rarely distinguishes, because the tasks that need telling apart are
+neighbours whose titles share a prefix. The project is included because both surfaces
+are machine-wide while a task id is only unique within its project.
+
+**Two deliberate no-ops.** A template that already carries its own `--name` or `-n` keeps
+it — the single opt-out, and an explicit act. And a **Codex** runner is left unnamed:
+its session concept is an App Server thread with no display name and no flag that sets
+one, so there is nothing to degrade, and this stays a Claude-only splice rather than a
+runner capability one driver silently fails. Revisit if the App Server grows a name the
+picker can read.
+
+**Prior art.** Jeff reported an earlier attempt at this; nothing survived it — no task,
+no commit, no log entry. The session that did the work above did not go looking, and the
+plausible wall is written down here so a third attempt starts ahead: the auto-rename is
+the thing that would defeat a naive fix, and `--name` beats it. If this regresses, that
+is where to look first.
+
 ### Dispatch is a session launcher, not a batch runner (decided 2026-08-18)
 
 This design assumed the only headless option was `claude -p` — fire and forget, no way
