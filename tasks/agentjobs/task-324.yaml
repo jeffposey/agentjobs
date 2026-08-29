@@ -3,7 +3,7 @@ id: task-324
 title: Dispatch does not name the sessions it starts, so no session picker or peer
   channel can say which run is which
 created: '2026-08-29T17:33:06.379566Z'
-updated: '2026-08-29T18:06:09.126138Z'
+updated: '2026-08-29T18:07:04.385424Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -585,3 +585,17 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 14
+  ts: '2026-08-29T18:07:04.385211Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-324-session-naming` (fbd9ab2a).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-324.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_d1ac3261\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-324-session-naming
+    finish_id: fin_d1ac3261
