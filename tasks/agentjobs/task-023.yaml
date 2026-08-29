@@ -3,44 +3,145 @@ id: task-023
 title: Dispatch output is a raw terminal dump; render the session's structured transcript
   instead
 created: '2026-08-19T22:31:46.196691Z'
-updated: '2026-08-29T18:30:26.267052Z'
+updated: '2026-08-29T19:01:17.084732Z'
 lifecycle: active
 ball: human
-ball_reason: review
-ball_prompt: "Ready for review on `feat/task-023-structured-transcript` (rebased onto\
-  \ `main` at acb0e9a; HEAD f9ad2db). All six acceptance criteria met, each with its\
-  \ evidence in the record. `scripts/check.py` unqualified: exit 0, ten of ten stages,\
-  \ receipt written.\n\n**Look at it before reading the diff \u2014 a sandbox is already\
-  \ running:**\n\n    http://127.0.0.1:8903/app/p/sandbox-output/tasks/task-201\n\n\
-  Three runs, throwaway data, every control safe to press:\n\n- **task-201** \u2014\
-  \ this dispatch's *own* transcript, read through the panel. Click **Output**. Narration\
-  \ reads as sentences; runs of calls collapse to lines like `Edited transcript.py\
-  \  +555 -0` that open to the command and what it returned.\n- **task-202** \u2014\
-  \ a session with no structured transcript. The note, and under it the raw capture,\
-  \ which still reads `NewMCPserverfoundinthisproject:agentjobs`. That is the before,\
-  \ next to the after.\n- **task-203** \u2014 a run whose commands failed. `2 failed`\
-  \ on the summary, `failed` on each call, error text under it.\n\nStop it with `taskkill\
-  \ /PID <pid> /F`, or ask me and I will. To bring it back later: `python scripts/dispatch_output_sandbox.py\
-  \ 8903` from the worktree (its default 8899 was already bound by another agent's\
-  \ sandbox). It redirects its own `~` into a temp directory, so it cannot touch your\
-  \ real transcript store or the 8876 dashboard.\n\n**What I would look at hardest,\
-  \ in order:**\n\n1. **Group boundaries.** A run of calls is closed by a paragraph\
-  \ of narration, so a stretch where the agent does not narrate becomes one large\
-  \ group \u2014 on task-201 there is a real `Edited peek.py and 2 more files, ran\
-  \ 30 commands`. That is honest but coarse. If you want a cap (\"split every N calls\"\
-  ) say so; I did not add one because an arbitrary split is a worse lie than a long\
-  \ true group.\n2. **The summary phrasing.** `Edited a.ts and 2 more files, ran 4\
-  \ commands, ran 2 searches`. Twelve phrasings are pinned in `TestSummarize`, so\
-  \ changing your mind here is cheap and the tests will tell you what moved.\n3. **The\
-  \ prompt entry.** The dispatch prompt is clipped to 800 characters and labelled\
-  \ ASKED. It is long and you have read it before; it may deserve to be collapsed\
-  \ by default rather than clipped.\n\n**One thing to know before you run the gate\
-  \ yourself:** `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`\
-  \ is flaky under parallel load on this machine \u2014 it failed 3 of my 6 gate runs.\
-  \ It is **not** this branch: I reproduced it on unmodified `main` in the main clone.\
-  \ If your gate goes red on that one test, re-run rather than reading it as a regression.\
-  \ I have not filed a task for it; say the word.\n\nNothing merged, nothing pushed.\
-  \ Posture `auto`, so the merge is yours."
+ball_reason: input
+ball_prompt: "Dispatched session `553f321b` still reports itself as working but has\
+  \ produced no output for 30 minutes, so this task has been reading `agent`/`work`\
+  \ while nothing happened. It was **not** killed and is still attachable: `claude\
+  \ attach 553f321b`. Attach to see what it is doing, or stop it and move this task\
+  \ on yourself.\n\nThe end of its terminal, verbatim:\n\n```\n  Look at it \u2014\
+  \ the sandbox is already up\n  http://127.0.0.1:8903/app/p/sandbox-output/tasks/task-201\
+  \ (click Output)\n  That one is reading this dispatch's own transcript. task-202\
+  \ is the degraded path, with the old mangled text still visible under it \u2014\
+  \ the before and after side by side. task-203 is a run whose\n  commands failed\
+  \ (2 failed on the summary, in words rather than colour). Throwaway data, every\
+  \ control safe to press. Stop it with taskkill /PID 1895228 /F, or say the word.\n\
+  \  Verification\n  scripts/check.py unqualified on the rebased branch: exit 0, ten\
+  \ of ten stages, receipt written. It caught two real gaps I'd missed \u2014 an undocumented\
+  \ operation in docs/api-reference.md and an\n  unclassified query in LiveUpdates.tsx\
+  \ \u2014 both fixed. 66 new tests, all asserting on rendered text.\n  Two things\
+  \ worth your eye, both in the handoff prompt: a stretch where the agent doesn't\
+  \ narrate becomes one large group (ran 30 commands \u2014 honest but coarse), and\
+  \ the dispatch prompt is clipped\n  rather than collapsed.\n  One caveat: test_the_timeout_kills_the_grandchild_too\
+  \ is flaky under parallel load \u2014 it failed 3 of my 6 gate runs. It isn't this\
+  \ branch; I reproduced it on unmodified main. If your gate goes red\n  there, re-run.\
+  \ Not filed as a task unless you want it.\n  Branch feat/task-023-structured-transcript\
+  \ at f9ad2db, rebased onto main. Nothing merged, nothing pushed.\n\u273B Worked\
+  \ for 1h 4m 43s \xB7 done 1:30 PM \xB7 1 shell still running\n\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 git worktree setup \u2500\u276F\
+  \n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\u2588\
+  \u2591\u2591\u2591\u2591\u2591\u2591\u2591 32% ctx (325k/1.00M) \xB7 $22.42/rc\n\
+  \  \u23F5\u23F5 auto mode on \xB7 \u2190 5 agents \xB7 1 shell\n  Called agentjobs,\
+  \ ran 1 shell command\n\u25CF Now committing the task record to main in the shared\
+  \ clone (task files never live on a branch).                                   \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                    Ran 2 shell commands                      \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                            \u25CF Done. The ball is with you on\
+  \ task-023.                                                                    \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                           What changed       \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                     The Output\
+  \ panel read transcript.log, which is a pty repaint \u2014 a TUI draws a space by\
+  \ emitting ESC[1C, so removing the escape sequences deletes every space. That's\
+  \ why an approval dialog rendered as  NewMCPserverfoundinthisproject:agentjobs,\
+  \ and why no regex could have fixed it.\n  It now reads the structured JSONL the\
+  \ session writes about itself, and renders entries: the agent's prose, and runs\
+  \ of consecutive tool calls collapsed to Edited transcript.py  +555 -0 with each\n\
+  \  call's command and output behind a disclosure. The raw terminal is one click\
+  \ away and is also what the panel falls back to automatically when there's no structured\
+  \ transcript.\n  - src/agentjobs/dispatch/transcript.py \u2014 finds the file by\
+  \ session-id prefix, parses it tolerantly\n  - GET .../dispatch/runs/{run_id}/transcript\
+  \ \u2014 polled on the same clock as /tail, doesn't replace it\n  - DispatchOutput.tsx\
+  \ \u2014 readable view leads, raw behind a toggle\n  - scripts/dispatch_output_sandbox.py\
+  \ \u2014 three states seeded on their own port\n  Look at it \u2014 the sandbox\
+  \ is already up\n  http://127.0.0.1:8903/app/p/sandbox-output/tasks/task-201 (click\
+  \ Output)\n  That one is reading this dispatch's own transcript. task-202 is the\
+  \ degraded path, with the old mangled text still visible under it \u2014 the before\
+  \ and after side by side. task-203 is a run whose\n  commands failed (2 failed on\
+  \ the summary, in words rather than colour). Throwaway data, every control safe\
+  \ to press. Stop it with taskkill /PID 1895228 /F, or say the word.\n  Verification\n\
+  \  scripts/check.py unqualified on the rebased branch: exit 0, ten of ten stages,\
+  \ receipt written. It caught two real gaps I'd missed \u2014 an undocumented operation\
+  \ in docs/api-reference.md and an\n  unclassified query in LiveUpdates.tsx \u2014\
+  \ both fixed. 66 new tests, all asserting on rendered text.\n  Two things worth\
+  \ your eye, both in the handoff prompt: a stretch where the agent doesn't narrate\
+  \ becomes one large group (ran 30 commands \u2014 honest but coarse), and the dispatch\
+  \ prompt is clipped\n  rather than collapsed.\n  One caveat: test_the_timeout_kills_the_grandchild_too\
+  \ is flaky under parallel load \u2014 it failed 3 of my 6 gate runs. It isn't this\
+  \ branch; I reproduced it on unmodified main. If your gate goes red\n  there, re-run.\
+  \ Not filed as a task unless you want it.\n  Branch feat/task-023-structured-transcript\
+  \ at f9ad2db, rebased onto main. Nothing merged, nothing pushed.\n\u273B Worked\
+  \ for 1h 4m 43s \xB7 done 1:30 PM \xB7 1 shell still running\n\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 git worktree setup \u2500\u276F\
+  \n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\u2588\
+  \u2591\u2591\u2591\u2591\u2591\u2591\u2591 32% ctx (325k/1.00M) \xB7 $22.42/rc\n\
+  \  \u23F5\u23F5 auto mode on \xB7 \u2190 5 agents \xB7 1 shell\n```"
 archived: false
 priority: high
 queue_position: 10100
@@ -481,3 +582,150 @@ log:
       id: c8f5b213-40e7-4a91-9d6c-77ba2e0f8813
       kind: handoff
       fingerprint: 19e1e3785a39bb01548dd50370aea60a
+- id: 11
+  ts: '2026-08-29T19:01:17.084588Z'
+  actor: dispatcher
+  type: handoff
+  body: "Dispatched session `553f321b` still reports itself as working but has produced\
+    \ no output for 30 minutes, so this task has been reading `agent`/`work` while\
+    \ nothing happened. It was **not** killed and is still attachable: `claude attach\
+    \ 553f321b`. Attach to see what it is doing, or stop it and move this task on\
+    \ yourself.\n\nThe end of its terminal, verbatim:\n\n```\n  Look at it \u2014\
+    \ the sandbox is already up\n  http://127.0.0.1:8903/app/p/sandbox-output/tasks/task-201\
+    \ (click Output)\n  That one is reading this dispatch's own transcript. task-202\
+    \ is the degraded path, with the old mangled text still visible under it \u2014\
+    \ the before and after side by side. task-203 is a run whose\n  commands failed\
+    \ (2 failed on the summary, in words rather than colour). Throwaway data, every\
+    \ control safe to press. Stop it with taskkill /PID 1895228 /F, or say the word.\n\
+    \  Verification\n  scripts/check.py unqualified on the rebased branch: exit 0,\
+    \ ten of ten stages, receipt written. It caught two real gaps I'd missed \u2014\
+    \ an undocumented operation in docs/api-reference.md and an\n  unclassified query\
+    \ in LiveUpdates.tsx \u2014 both fixed. 66 new tests, all asserting on rendered\
+    \ text.\n  Two things worth your eye, both in the handoff prompt: a stretch where\
+    \ the agent doesn't narrate becomes one large group (ran 30 commands \u2014 honest\
+    \ but coarse), and the dispatch prompt is clipped\n  rather than collapsed.\n\
+    \  One caveat: test_the_timeout_kills_the_grandchild_too is flaky under parallel\
+    \ load \u2014 it failed 3 of my 6 gate runs. It isn't this branch; I reproduced\
+    \ it on unmodified main. If your gate goes red\n  there, re-run. Not filed as\
+    \ a task unless you want it.\n  Branch feat/task-023-structured-transcript at\
+    \ f9ad2db, rebased onto main. Nothing merged, nothing pushed.\n\u273B Worked for\
+    \ 1h 4m 43s \xB7 done 1:30 PM \xB7 1 shell still running\n\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500 git worktree setup \u2500\u276F\n\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\u2588\u2591\u2591\
+    \u2591\u2591\u2591\u2591\u2591 32% ctx (325k/1.00M) \xB7 $22.42/rc\n  \u23F5\u23F5\
+    \ auto mode on \xB7 \u2190 5 agents \xB7 1 shell\n  Called agentjobs, ran 1 shell\
+    \ command\n\u25CF Now committing the task record to main in the shared clone (task\
+    \ files never live on a branch).                                             \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                Ran 2 shell commands                        \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                  \u25CF Done. The ball is with\
+    \ you on task-023.                                                           \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                          What\
+    \ changed                                                                    \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                The Output panel read transcript.log, which is a pty repaint\
+    \ \u2014 a TUI draws a space by emitting ESC[1C, so removing the escape sequences\
+    \ deletes every space. That's why an approval dialog rendered as  NewMCPserverfoundinthisproject:agentjobs,\
+    \ and why no regex could have fixed it.\n  It now reads the structured JSONL the\
+    \ session writes about itself, and renders entries: the agent's prose, and runs\
+    \ of consecutive tool calls collapsed to Edited transcript.py  +555 -0 with each\n\
+    \  call's command and output behind a disclosure. The raw terminal is one click\
+    \ away and is also what the panel falls back to automatically when there's no\
+    \ structured transcript.\n  - src/agentjobs/dispatch/transcript.py \u2014 finds\
+    \ the file by session-id prefix, parses it tolerantly\n  - GET .../dispatch/runs/{run_id}/transcript\
+    \ \u2014 polled on the same clock as /tail, doesn't replace it\n  - DispatchOutput.tsx\
+    \ \u2014 readable view leads, raw behind a toggle\n  - scripts/dispatch_output_sandbox.py\
+    \ \u2014 three states seeded on their own port\n  Look at it \u2014 the sandbox\
+    \ is already up\n  http://127.0.0.1:8903/app/p/sandbox-output/tasks/task-201 (click\
+    \ Output)\n  That one is reading this dispatch's own transcript. task-202 is the\
+    \ degraded path, with the old mangled text still visible under it \u2014 the before\
+    \ and after side by side. task-203 is a run whose\n  commands failed (2 failed\
+    \ on the summary, in words rather than colour). Throwaway data, every control\
+    \ safe to press. Stop it with taskkill /PID 1895228 /F, or say the word.\n  Verification\n\
+    \  scripts/check.py unqualified on the rebased branch: exit 0, ten of ten stages,\
+    \ receipt written. It caught two real gaps I'd missed \u2014 an undocumented operation\
+    \ in docs/api-reference.md and an\n  unclassified query in LiveUpdates.tsx \u2014\
+    \ both fixed. 66 new tests, all asserting on rendered text.\n  Two things worth\
+    \ your eye, both in the handoff prompt: a stretch where the agent doesn't narrate\
+    \ becomes one large group (ran 30 commands \u2014 honest but coarse), and the\
+    \ dispatch prompt is clipped\n  rather than collapsed.\n  One caveat: test_the_timeout_kills_the_grandchild_too\
+    \ is flaky under parallel load \u2014 it failed 3 of my 6 gate runs. It isn't\
+    \ this branch; I reproduced it on unmodified main. If your gate goes red\n  there,\
+    \ re-run. Not filed as a task unless you want it.\n  Branch feat/task-023-structured-transcript\
+    \ at f9ad2db, rebased onto main. Nothing merged, nothing pushed.\n\u273B Worked\
+    \ for 1h 4m 43s \xB7 done 1:30 PM \xB7 1 shell still running\n\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500 git worktree setup \u2500\u276F\n\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\u2588\u2591\
+    \u2591\u2591\u2591\u2591\u2591\u2591 32% ctx (325k/1.00M) \xB7 $22.42/rc\n  \u23F5\
+    \u23F5 auto mode on \xB7 \u2190 5 agents \xB7 1 shell\n```"
+  data:
+    ball: human
+    ball_reason: input
