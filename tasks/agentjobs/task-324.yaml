@@ -3,10 +3,11 @@ id: task-324
 title: Dispatch does not name the sessions it starts, so no session picker or peer
   channel can say which run is which
 created: '2026-08-29T17:33:06.379566Z'
-updated: '2026-08-29T17:33:17.832015Z'
-lifecycle: ready
+updated: '2026-08-29T18:01:49.006351Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 queue_position: 25
@@ -17,6 +18,7 @@ tags:
 - sessions
 effort: small
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: Every dispatched Claude session is launched with no display name, so the
@@ -115,36 +117,38 @@ acceptance:
     in the task log as evidence.
   verify: Dispatch a real run; from another session or process, list sessions and
     read the name back. Quote it.
-  status: pending
+  status: met
 - id: sc-2
   text: Two concurrent runs on the same task are distinguishable from each other by
     name alone.
   verify: Two runs, one task, one listing showing both.
-  status: pending
+  status: met
 - id: sc-3
   text: The name is produced by the dispatcher from run identity, never taken from
     a caller-supplied field, and a test asserts that.
   verify: A unit test over the composed argv.
-  status: pending
+  status: met
 - id: sc-4
   text: A custom runner template that already carries its own flags still composes,
     and the Codex runner is either named too or explicitly and deliberately left unaffected.
   verify: Test over compose_argv with a non-default template; a decision log entry
     for the Codex runner either way.
-  status: pending
+  status: met
 - id: sc-5
   text: The relationship between --name, --remote-control [name] and the peer channel's
     addressing is established by observation and written down.
   verify: A decision log entry naming what was observed and how it was observed.
-  status: pending
+  status: met
 - id: sc-6
   text: poetry run python scripts/check.py is green, unqualified.
   verify: Gate output.
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-324-session-naming
+  status: active
 log:
 - id: 1
   ts: '2026-08-29T17:33:06.872219Z'
@@ -176,3 +180,261 @@ log:
       id: 9e0a51d7-2c44-4b1a-9f63-08d7c2e6b430
       kind: queue_move
       fingerprint: 8b9aadb29a0cee7502ac53ea1ca327d3
+- id: 3
+  ts: '2026-08-29T17:35:07.422894Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. They chose
+    posture `autonomous` for this run, above this project''s `auto`. No extra instruction
+    was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 4
+  ts: '2026-08-29T17:35:07.976654Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 5
+  ts: '2026-08-29T17:35:10.638329Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_11085a50
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: dispatch
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 3
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --settings
+    - '{"env": {"AGENTJOBS_RUN_ID": "run_11085a50", "AGENTJOBS_RUN_DIR": "C:\\Users\\jpose\\.agentjobs\\runs\\run_11085a50"}}'
+    - 'You are the agent `claude` working task `task-324` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-324-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_11085a50. Posture `autonomous` releases the merge gate:
+      this run merges its own work with no human review. Record the evidence on the
+      task first, then run `agentjobs finish task-324 --project agentjobs --posture-release`
+      from C:\projects\agentjobs. That rebases, runs the full gate, and merges only
+      on a green one -- it stops and hands the ball back if anything fails. Do not
+      merge by hand. Never push: this project is configured `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 798e73d
+    session_id: 2a08d201
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 6
+  ts: '2026-08-29T18:00:41.879319Z'
+  actor: claude
+  type: decision
+  body: "sc-5. `--name` is the flag; `--remote-control [name]` is a different surface\
+    \ and does not touch the session name. Established by observation on Claude Code\
+    \ 2.1.247, 2026-08-29, not from `--help`.\n\n**The instrument.** Four throwaway\
+    \ `--bg --remote-control` sessions, each given a harmless one-line prompt and\
+    \ stopped afterwards. Read back two ways: `claude agents --json`, run from a separate\
+    \ process, and this session's own `ListAgents` peer listing. The on-disk ledger\
+    \ `~/.claude/sessions/<pid>.json` was read directly as a third check.\n\n**Probe\
+    \ A \u2014 `--name \"task-999 probe-alpha\"`.** Launch echoed the name. After\
+    \ a full turn (`state: done`), `claude agents --json` still reported `\"name\"\
+    : \"task-999 probe-alpha\"`, and the ledger showed `nameSince` 12 ms after `startedAt`.\n\
+    \n**The thing that would have defeated a naive fix.** Claude Code renames a `--bg`\
+    \ session from the prompt a few seconds into the first turn. This very run is\
+    \ the control: its ledger entry reads `\"name\":\"git worktree task setup\"` with\
+    \ `nameSince` **5254 ms** after `startedAt`, and the concurrent run on task-023\
+    \ reads `git worktree setup` \u2014 one word apart, neither naming a task. `--name`\
+    \ is not overwritten by that rename. It is set at launch and stays.\n\n**Probe\
+    \ B \u2014 `--remote-control \"task-999 probe-beta-rc\"`, no `--name`.** The session\
+    \ came up called `Reply with the single word OK and nothing else.` \u2014 the\
+    \ prompt. No peer row anywhere carried `probe-beta-rc`. So the two flags are not\
+    \ the same string, and `--remote-control`'s optional value does not reach the\
+    \ picker or the peer channel. (It also *consumes* a bare argument that follows\
+    \ it, which is why the spliced name is a flag pair and lands after it, never a\
+    \ bare string.)\n\n**Probe C \u2014 `-p --name ...`.** Exit 0, output `OK`. Accepted\
+    \ in batch mode, so splicing it does not break a `mode: batch` runner.\n\n**Probe\
+    \ D \u2014 a 127-character name.** Returned verbatim from `claude agents --json`,\
+    \ untruncated. There is no length cap to design around, so brevity in the format\
+    \ below is a choice and not a constraint.\n\n**Which surface the peer channel\
+    \ addresses.** `ListAgents` lists sessions by this same name and appends a `[ref]`\
+    \ suffix only when a bare name is ambiguous. Every pre-existing row carries one.\
+    \ The two rows named by this change do not \u2014 see the progress entry's listing\
+    \ \u2014 so a run named this way is addressable by its name alone."
+  data:
+    operation:
+      id: 4f2a7c31-9b64-4d1e-8a52-16c0f3b7d9a1
+      kind: log_append
+      fingerprint: 60d687d051e13e52d93f21919c26ad74
+- id: 7
+  ts: '2026-08-29T18:00:56.443534Z'
+  actor: claude
+  type: decision
+  body: "The name is `<project>/<task>@<short run id>` \u2014 `agentjobs/task-324@11085a50`\
+    \ \u2014 and the title is deliberately not in it.\n\n**What the spec left open,\
+    \ answered.** Task id is mandatory and leads, because the picker is scanned and\
+    \ that is where the eye lands. The run id, with its `run_` prefix stripped as\
+    \ noise, is what distinguishes two runs of one task (sc-2); the task id alone\
+    \ cannot. The project is included because both surfaces are machine-wide \u2014\
+    \ two hundred sessions across five projects on this machine right now \u2014 while\
+    \ a task id is only unique within its project.\n\n**Rejected: putting the title\
+    \ in.** It is the one candidate that reads well, and it loses on two grounds.\
+    \ A title is editable, so two runs of one task could end up named after two different\
+    \ descriptions of it, which is precisely the instability this task exists to remove.\
+    \ And truncating one rarely distinguishes, because the tasks that need telling\
+    \ apart are neighbours in the same area whose titles share a prefix \u2014 this\
+    \ task and task-296 both open \"Dispatch does not\". The id is the key every other\
+    \ surface already uses. Probe D established there is no length cap forcing this,\
+    \ so it is a judgement and can be revisited: if the id-only form turns out to\
+    \ be unreadable in practice, a truncated title is a one-line change to `session_name`.\n\
+    \n**Rejected: writing it into the runner templates.** The scaffold has three Claude\
+    \ templates and an operator may write more; every one of them would have to remember\
+    \ the name, and an operator editing a copied template would silently lose it.\
+    \ Splicing follows the posture flags' precedent \u2014 AgentJobs owns this argv\
+    \ element, not the operator \u2014 and gives a custom runner an identifiable session\
+    \ for free.\n\n**Rejected: `--remote-control <name>` as the carrier.** Probe B\
+    \ (previous entry) shows it does not reach the picker or the peer channel at all."
+  data:
+    operation:
+      id: 7d1e5b02-3a48-4c96-b7f1-2e5a90c4d8b3
+      kind: log_append
+      fingerprint: c1f683eac424ff7feadb4ad438196ac9
+- id: 8
+  ts: '2026-08-29T18:01:06.902737Z'
+  actor: claude
+  type: decision
+  body: "sc-4, the Codex half: a Codex runner is left unnamed, deliberately, and this\
+    \ stays a Claude-only splice.\n\n`session_name_flags` returns `[]` for `driver:\
+    \ codex`. A Codex App Server thread has no display name and `codex exec` has no\
+    \ flag that sets one, so there is nothing here to degrade \u2014 a Codex thread\
+    \ was never in the Claude session picker and was never addressable on the peer\
+    \ channel. Making this a \"runner capability\" would mean declaring an interface\
+    \ one of two drivers cannot implement, which is a worse record than a no-op with\
+    \ a reason. Revisit if the App Server grows a name a picker can read; `test_a_codex_runner_is_deliberately_left_unnamed`\
+    \ is where that would be noticed.\n\nThe other half of sc-4 \u2014 an operator's\
+    \ own flags \u2014 is covered two ways. A custom template's flags keep their order\
+    \ and their place (`test_a_custom_template_carrying_its_own_flags_still_composes`),\
+    \ and a template that already writes its **own** `--name` or `-n` is not given\
+    \ a second one (`test_a_template_that_names_itself_is_not_given_a_second_name`).\
+    \ That opt-out is the only one, and it requires the operator to write the flag\
+    \ as its own argv element \u2014 a `--name` buried inside a longer string does\
+    \ not count, which is what stops it from being an injection route."
+  data:
+    operation:
+      id: b8c3f0a7-25d9-4e13-9f6a-71b48d2e5c60
+      kind: log_append
+      fingerprint: 98ed999b5d8244b91d0a5964ef66de19
+- id: 9
+  ts: '2026-08-29T18:01:38.478849Z'
+  actor: claude
+  type: progress
+  body: "Done and verified. Branch `feat/task-324-session-naming`, commit `ac58ccc`.\n\
+    \n## What changed\n\n- `src/agentjobs/dispatch/runner.py` \u2014 `SESSION_NAME_FLAG`,\
+    \ `session_name`, `short_run_id`, `session_name_flags`, and three lines in `build_argv_and_prompt`\
+    \ that append the name flags to the same list the posture flags ride. (Note for\
+    \ the record: the spec placed `compose_argv` and `build_argv_and_prompt` in `config.py`;\
+    \ they are in `runner.py`. `config.py` holds `substitute_argv` and `validate_argv_template`.)\n\
+    - `src/agentjobs/dispatch/scaffold.py` \u2014 the commented example now says `--name`\
+    \ is AgentJobs', that an operator does not need it, and that writing one is the\
+    \ way to override it.\n- `docs/agent-dispatch-design.md` \u2014 new \xA74 subsection\
+    \ \"The session is named after the run (task-324)\", carrying the observations,\
+    \ the format argument and the two no-ops.\n- `tests/test_dispatch_runner.py` \u2014\
+    \ `TestSessionName` (8 tests), plus a `without_session_name` helper so the four\
+    \ pre-existing posture-argv assertions keep testing posture and nothing else.\n\
+    \n## sc-1 and sc-2: the live evidence\n\nThe argv was composed by the branch's\
+    \ own `DispatchRunner.build_argv` against this machine's real dispatch configuration\
+    \ and the real `agentjobs` project, for `task-324` with two run ids. Two sessions\
+    \ were launched from that argv **with only the last element \u2014 the prompt\
+    \ \u2014 replaced** by `Reply with the single word OK and nothing else.`, so two\
+    \ throwaway sessions would not go and work the task. Everything else was byte-identical\
+    \ to a real dispatch: executable, `--bg --remote-control`, `--model claude-opus-5`,\
+    \ the posture flags, and the spliced name. Both ran a full turn to `state: done`\
+    \ and were stopped afterwards.\n\nThe composed pair:\n\n```\n[\"--name\", \"agentjobs/task-324@aa11aa11\"\
+    ]   (prompt is element 11 of 12)\n[\"--name\", \"agentjobs/task-324@bb22bb22\"\
+    ]\n```\n\n`claude agents --json`, run from a **separate process**:\n\n```json\n\
+    { \"pid\": 1896236, \"id\": \"687a1beb\", \"cwd\": \"C:\\\\projects\\\\agentjobs\"\
+    , \"kind\": \"background\",\n  \"sessionId\": \"687a1beb-e9a4-4cdc-b9b8-068f3f5da0d7\"\
+    ,\n  \"name\": \"agentjobs/task-324@aa11aa11\", \"status\": \"idle\", \"state\"\
+    : \"done\" },\n{ \"pid\": 1898656, \"id\": \"815637b2\", \"cwd\": \"C:\\\\projects\\\
+    \\agentjobs\", \"kind\": \"background\",\n  \"sessionId\": \"815637b2-374d-4163-891b-4a3843f22587\"\
+    ,\n  \"name\": \"agentjobs/task-324@bb22bb22\", \"status\": \"idle\", \"state\"\
+    : \"done\" }\n```\n\nThe Remote Control peer listing at the same moment, which\
+    \ is the surface that matters most \u2014 note that the two named rows are the\
+    \ only ones on the machine that need no `[ref]` suffix to be addressable, and\
+    \ note what this run and the concurrent task-023 run are still called:\n\n```\n\
+    Peer sessions (200):\n  job-hunting-48 [d08473]  \xB7  interactive  \xB7  started\
+    \ 1d ago\n  projects-5c [de3b2f]  \xB7  interactive  \xB7  started 1h ago\n  agentjobs-87\
+    \ [0ebff5]  \xB7  interactive  \xB7  started 31m ago\n  git worktree setup [5d435d]\
+    \  \xB7  bg  \xB7  busy  \xB7  started 33m ago\n  agentjobs/task-324@aa11aa11\
+    \  \xB7  bg  \xB7  idle  \xB7  started 33s ago\n  agentjobs/task-999@11085a50\
+    \  \xB7  bg  \xB7  idle  \xB7  started 20m ago\n  agentjobs/task-324@bb22bb22\
+    \  \xB7  bg  \xB7  idle  \xB7  started 31s ago\n```\n\n`git worktree setup` is\
+    \ task-023's dispatched run. This run is `git worktree task setup`. That pair\
+    \ is the whole problem in two lines.\n\n**What this evidence does and does not\
+    \ cover.** It exercises the composed argv end to end through `build_argv` and\
+    \ a real launch. It does not exercise `DispatchRunner.start`'s own bookkeeping,\
+    \ because a genuine `dispatch run` would have needed a human's authorising log\
+    \ entry, and forging one to make a test pass is not something to do. The gap is\
+    \ narrow and covered by unit tests: `start` launches exactly the argv `build_argv_and_prompt`\
+    \ returns, and the prompt is the only element these launches differed in \u2014\
+    \ which cannot affect the name, since `--name` is what beats the prompt-derived\
+    \ rename in the first place.\n\n## sc-3\n\n`test_nothing_a_caller_supplies_reaches_the_name`:\
+    \ two resolutions differing in every operator-owned field a request could plausibly\
+    \ influence \u2014 including a template element containing the literal text `--injected\
+    \ --name pwned` and an env var `AGENT_NAME=pwned` \u2014 produce the identical\
+    \ name `sandbox/task-324-example@aaaa1111`, and `pwned` appears nowhere in it.\
+    \ The name is a pure function of the resolved project id, the claimed task id\
+    \ and the freshly minted run id. There is no parameter through which anything\
+    \ else could reach it.\n\n## sc-6\n\n`scripts/check.py`, unqualified, in the worktree,\
+    \ exit 0 \u2014 all ten stages, 396.6s:\n\n```\nRan every stage (10 of 10).\n\
+    black 1.8s \xB7 ruff 0.4s \xB7 mypy 13.5s \xB7 api 24.4s \xB7 icons 9.8s \xB7\
+    \ oxlint 3.6s \xB7\npytest 247.0s \xB7 vitest 33.9s \xB7 build 5.4s \xB7 e2e 56.7s\
+    \ \xB7 total 396.6s\n```\n\nAn earlier attempt failed one test \u2014 `TestProcessGroup::test_the_timeout_kills_the_grandchild_too`,\
+    \ \"pid 1893332 survived the timeout\". That is the flake the test's own comment\
+    \ documents from task-308: the kill is asynchronous and the assertion is not,\
+    \ and the 30-second budget was exhausted under three-way contention (this run,\
+    \ the task-023 run, and a concurrent gate). It passed alone in 5.4s and passed\
+    \ in the clean full run above, and this branch touches neither that test nor the\
+    \ kill path."
+  data:
+    operation:
+      id: e6a94b58-0c72-41f7-b3d5-8a12f7c6e094
+      kind: log_append
+      fingerprint: fabe0c8c07d09869b00dd3fa97201228
+- id: 10
+  ts: '2026-08-29T18:01:49.005930Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 3c72e9d4-6b18-4a05-8e97-c40f2b1a7d38
+      kind: update_content
+      fingerprint: 5942667dad2ac0720df68d3c7610dd62
