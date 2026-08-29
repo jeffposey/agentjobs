@@ -228,11 +228,33 @@ the second switch and can never define what runs. See
 | `POST` | `/api/dispatch/runs/{run_id}/cancel` | Cancel one live run |
 | `GET` | `/api/dispatch/runs/{run_id}/output` | The run's captured transcript |
 | `GET` | `/api/dispatch/runs/{run_id}/tail` | The tail of it, for a live view |
+| `GET` | `/api/dispatch/runs/{run_id}/transcript` | The same run as structured entries, for a panel that renders rather than dumps |
 | `GET` | `/api/dispatch/finishes/{task_id}` | What a scripted finish is doing to this task's branch, or last did |
 | `GET` | `/api/dispatch/finishes/{task_id}/output` | That finish's output in full, as text |
 
 `transcript.log` is a raw TTY capture, so a line appears in it once per terminal
 repaint. Link to it and read it; never compute a count from it.
+
+### The two readings of one run
+
+`/output` and `/tail` serve `transcript.log`. `/transcript` serves a different file: the
+JSONL the runner writes about the session, one event per line. They are not two formats
+of the same thing, and neither replaces the other.
+
+The distinction matters because the TTY capture cannot be made readable by cleaning it
+up. It is a **repaint**: a TUI draws a space by emitting `ESC[1C` and a line break by
+emitting an absolute cursor position, so anything that removes the escape sequences and
+keeps the rest deletes every space in it. That is how an approval dialog came to render
+as `NewMCPserverfoundinthisproject:agentjobs` (task-023). `/transcript` reads what the
+session recorded about itself instead -- its prose, each tool call with its input,
+whether the call failed, and the patch an edit applied -- and returns those as entries,
+with runs of consecutive calls summarized into one.
+
+`source: "none"` is an ordinary answer rather than an error, and `note` says which case
+it is: a batch run has no session, a session that has just started has not reported its
+id, and a driver that keeps no such file never will. A caller that gets it falls back to
+`/tail` -- which is also the right view when a session dies in a way no renderer models,
+the unparsed bytes being the only evidence there is.
 
 ### Watching a finish
 

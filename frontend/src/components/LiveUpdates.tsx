@@ -72,6 +72,12 @@ export const NON_TASK_PROJECT_QUERY_IDS = new Map([
       + "same bytes back sooner and more often for nothing.",
   ],
   [
+    "readDispatchRunTranscriptApiProjectsProjectIdDispatchRunsRunIdTranscriptGet",
+    "The same run as structured entries, and exempt for exactly the reason the tail is: "
+      + "it tracks what the session records about itself, which is not a task write, and "
+      + "the same panel polls it on the same clock.",
+  ],
+  [
     "readDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGet",
     "A run's captured transcript, opened in its own tab as text rather than fetched "
       + "through the query client. It grows with the process, not with task writes.",
