@@ -3,7 +3,7 @@ id: task-324
 title: Dispatch does not name the sessions it starts, so no session picker or peer
   channel can say which run is which
 created: '2026-08-29T17:33:06.379566Z'
-updated: '2026-08-29T18:14:29.267628Z'
+updated: '2026-08-29T18:16:07.023114Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -602,3 +602,13 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 17
+  ts: '2026-08-29T18:16:07.022619Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 5
+  data:
+    run_id: run_11085a50
+    outcome: completed
+    duration_seconds: 2457.335576
+    log_path: C:\Users\jpose\.agentjobs\runs\run_11085a50
