@@ -3,7 +3,7 @@ id: task-023
 title: Dispatch output is a raw terminal dump; render the session's structured transcript
   instead
 created: '2026-08-19T22:31:46.196691Z'
-updated: '2026-08-29T23:56:29.866702Z'
+updated: '2026-08-30T02:31:15.275099Z'
 lifecycle: active
 ball: human
 ball_reason: input
@@ -1023,3 +1023,15 @@ log:
   data:
     ball: human
     ball_reason: input
+- id: 14
+  ts: '2026-08-30T02:31:15.274937Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: The session is no longer in the ledger, so it cannot be followed or resumed.
+    Whatever it did is in its own transcript, not here.
+  re: 6
+  data:
+    run_id: run_5fb17eb0
+    outcome: interrupted
+    duration_seconds: 32705.401509
+    log_path: C:\Users\jpose\.agentjobs\runs\run_5fb17eb0
