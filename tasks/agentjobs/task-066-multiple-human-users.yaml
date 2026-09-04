@@ -2,13 +2,15 @@ schema: 2
 id: task-066-multiple-human-users
 title: 'Account system: principals, attribution, and the network boundary'
 created: '2026-08-10T23:20:39.069637Z'
-updated: '2026-09-04T03:35:32.642741Z'
+updated: '2026-09-04T04:09:58.945162Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: 'Supervise this epic: start a separate session for one eligible child
-  at a time, watch its record, and do not work a child yourself. Open now: task-244,
-  task-329, task-330, task-331, task-332, task-333, task-334.'
+ball_prompt: Supervising. task-329 and task-334 are in flight as live dispatched runs
+  (run_43c2a909, run_b6998ff8) and need nothing from a human; entry 15 explains why
+  the walk reported otherwise. Hold the watch on those two, then relaunch the detached
+  walk once 330/331 become claimable, and repeat until no open child remains. Then
+  judge ac-1..ac-7 against what the children recorded and close this parent.
 archived: false
 priority: critical
 queue_position: 12
@@ -568,3 +570,110 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 13
+  ts: '2026-09-04T04:08:19.892625Z'
+  actor: claude
+  type: progress
+  body: '**Epic walk** -- stopped: no_eligible_child.
+
+
+    Started 2026-09-04T04:08:19.889278+00:00.
+
+
+    Walk of task-066-multiple-human-users: no_eligible_child.
+
+    7 open child/children remain and none is claimable: task-244, task-329, task-330,
+    task-331, task-332, task-333, task-334. Each is blocked by an unmet dependency,
+    already claimed, or holding open children of its own. This is not a finished epic
+    and is reported separately from one.
+
+    No child was started.
+
+
+    **The first child that is not clean grounds every further takeoff, and no child
+    is ever skipped.** A sibling that depended on it would be building on a gap, and
+    nobody is awake to notice. Children already in flight were watched down rather
+    than killed -- none of them could have depended on this one, or they would not
+    have been eligible to start. Whatever the child''s record says it needs is what
+    this epic needs next.'
+  data: {}
+- id: 14
+  ts: '2026-09-04T04:08:19.930794Z'
+  actor: claude
+  type: handoff
+  body: 'The epic walk stopped on no child: 7 open child/children remain and none
+    is claimable: task-244, task-329, task-330, task-331, task-332, task-333, task-334.
+    Each is blocked by an unmet dependency, already claimed, or holding open children
+    of its own. This is not a finished epic and is reported separately from one. 0
+    child/children completed before it (none). Read that child''s record, decide what
+    it needs, and restart the walk when it is resolved -- it re-reads the attempt
+    count off each child''s log, so nothing is double-spent.'
+  data:
+    ball: human
+    ball_reason: decision
+- id: 15
+  ts: '2026-09-04T04:09:50.135486Z'
+  actor: claude
+  type: progress
+  body: '**The first walk was killed by the harness, not by a child. The second walk
+    then bailed for a reason that is a real gap in `dispatch walk`.** Recording both,
+    because the second is a finding about dispatch rather than about this epic.
+
+
+    **What happened.** The supervisor (run_b1c2d736) started `agentjobs dispatch walk`
+    as a Claude Code background task at 03:37. It started task-329, then task-334,
+    and then printed nothing for 29 minutes -- correctly, since it only prints on
+    a state change and its poll is silent. At about 30 minutes the harness reported
+    it `killed`. Nothing in the walk failed and no child failed; the watcher process
+    was reaped while idle.
+
+
+    **The children were unaffected.** They are separate dispatched sessions, not subprocesses
+    of the walk. `dispatch status` at 04:08 showed run_43c2a909 (task-329) and run_b6998ff8
+    (task-334) both `running` at ~1,835s. task-329 had by then built `feat/task-329-principal-resolution`,
+    run a scripted finish, and had the ball handed back at a red `pytest` stage, which
+    its session is working.
+
+
+    **The gap: a restarted walk cannot adopt children already in flight.** Relaunching
+    the walk -- this time detached from the harness, so an idle stretch cannot reap
+    it -- exited 1 immediately with "7 open children remain and none is claimable".
+    That is accurate but misleading as a conclusion: 329 and 334 are unclaimable precisely
+    *because they are running*, and the remaining five are blocked on 329. The walk
+    watches only children it started itself, so with nothing of its own in the air
+    it had nothing to wait for and reported the epic stopped. It also moved this parent''s
+    ball to `human`/`decision`, asking a person to resolve a child that does not need
+    resolving.
+
+
+    So a walk is not resumable across the loss of its own process, and its failure
+    mode when restarted mid-flight is to report a healthy epic as stopped and wake
+    a human. Worth a task; not this one''s scope, and I am not filing it from inside
+    this run without checking the backlog first.
+
+
+    **What I am doing instead.** I hold the watch myself until 329 and 334 reach a
+    terminal state, then relaunch the detached walk at a moment when the next layer
+    (330, 331) is genuinely claimable, so the new walk has children of its own to
+    watch and lives to the end of the epic. Attempt counts are read off each child''s
+    log, so nothing is double-spent by the restart. Ball back to `agent`/`work`: the
+    epic is flying and no human decision is outstanding.'
+  data:
+    operation:
+      id: 3f8c1a52-9d47-4e61-b2a3-7c5e0f118801
+      kind: log_append
+      fingerprint: 5f65748661e95da89ceb0d9c85374bab
+- id: 16
+  ts: '2026-09-04T04:09:58.944884Z'
+  actor: claude
+  type: handoff
+  body: 'Ball back to the agent. The `human`/`decision` the walk set at entry 14 was
+    an artefact of a watcher that lost its process, not a decision anyone needs to
+    make: both children it named as unclaimable are running normally.'
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 3f8c1a52-9d47-4e61-b2a3-7c5e0f118802
+      kind: handoff
+      fingerprint: 14162656fc4562755cd7f07b1a8c7dc5
