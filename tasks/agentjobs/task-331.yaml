@@ -2,7 +2,7 @@ schema: 2
 id: task-331
 title: 'Run principals: a dispatched agent identifies as its run, never as a person'
 created: '2026-09-04T03:27:26.962795Z'
-updated: '2026-09-04T05:18:42.580141Z'
+updated: '2026-09-04T05:29:56.832125Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -543,3 +543,38 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 13
+  ts: '2026-09-04T05:29:56.831941Z'
+  actor: claude
+  type: progress
+  body: "The finish stopped on task-325's flake, not on this branch. Measured rather\
+    \ than assumed, then retried.\n\n`fin_f37553a5` went red on one test \u2014 `TestProcessGroup::test_the_timeout_kills_the_grandchild_too`,\
+    \ failing at *\"the grandchild never started, so this proves nothing\"*. That\
+    \ is **task-325**, whose summary already reads \"has now failed three unrelated\
+    \ gates by timing out rather than by finding a bug\"; **task-243** is the same\
+    \ race from the other side. This is the fourth. No new task filed \u2014 searched\
+    \ first, and it is filed twice already.\n\nI had called it a flake earlier on\
+    \ one data point, which was not good enough for a branch that touches the dispatch\
+    \ spawn path. The evidence now:\n\n- **Interleaved, matched load, 12 pairs**:\
+    \ branch 0 failures, main 1. Combined with an earlier isolated round (branch 1/8,\
+    \ main 0/8): **1 failure in 20 on each arm.** Identical rates, and the flake reproduced\
+    \ on `main` in the controlled round.\n- **Two green full gates on exactly this\
+    \ code** \u2014 `scripts/check.py` unqualified in the worktree (470s, 10/10) and\
+    \ the first finisher's post-rebase gate (467.7s, 10/10).\n- **No mechanism.**\
+    \ What this branch adds to that path is one ~1ms digest write before `Popen`,\
+    \ plus a `dict.pop`. The failing assertion is that two nested Python interpreters\
+    \ cold-start inside the test's **3-second** run timeout; the failing runs take\
+    \ ~54s against ~10s for passes, which is machine load on a box running three concurrent\
+    \ gates. `revoke_run_credential` on the timeout path runs *after* the kill and\
+    \ cannot affect whether the grandchild started.\n\nNot fixed here, deliberately:\
+    \ it is a test defect in task-325's scope, and widening a security change to carry\
+    \ it would make the flake this merge's problem permanently. Retrying the finish\
+    \ is the honest move rather than a workaround \u2014 the gate has passed twice\
+    \ on this code, and a red gate still refuses to merge if anything real is wrong.\n\
+    \nState on disk at this point: branch `feat/task-331-run-credential` rebased onto\
+    \ `main` at `3ed7c28c`, tree clean, 3 commits ahead, 0 behind, **nothing merged**."
+  data:
+    operation:
+      id: 3f1a5c62-7b40-4e19-9c11-0d8a4e331006
+      kind: log_append
+      fingerprint: 8338929c0c1061716cfdbedd4e92e768
