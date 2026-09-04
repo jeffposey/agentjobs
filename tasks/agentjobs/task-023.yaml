@@ -3,145 +3,14 @@ id: task-023
 title: Dispatch output is a raw terminal dump; render the session's structured transcript
   instead
 created: '2026-08-19T22:31:46.196691Z'
-updated: '2026-08-30T02:31:15.275099Z'
+updated: '2026-09-04T01:03:59.929561Z'
 lifecycle: active
-ball: human
-ball_reason: input
-ball_prompt: "Dispatched session `553f321b` still reports itself as working but has\
-  \ produced no output for 30 minutes, so this task has been reading `agent`/`work`\
-  \ while nothing happened. It was **not** killed and is still attachable: `claude\
-  \ attach 553f321b`. Attach to see what it is doing, or stop it and move this task\
-  \ on yourself.\n\nThe end of its terminal, verbatim:\n\n```\n  That one is reading\
-  \ this dispatch's own transcript. task-202 is the degraded path, with the old mangled\
-  \ text still visible under it \u2014 the before and after side by side. task-203\
-  \ is a run whose\n  commands failed (2 failed on the summary, in words rather than\
-  \ colour). Throwaway data, every control safe to press. Stop it with taskkill /PID\
-  \ 1895228 /F, or say the word.\n  Verification\n  scripts/check.py unqualified on\
-  \ the rebased branch: exit 0, ten of ten stages, receipt written. It caught two\
-  \ real gaps I'd missed \u2014 an undocumented operation in docs/api-reference.md\
-  \ and an\n  unclassified query in LiveUpdates.tsx \u2014 both fixed. 66 new tests,\
-  \ all asserting on rendered text.\n  Two things worth your eye, both in the handoff\
-  \ prompt: a stretch where the agent doesn't narrate becomes one large group (ran\
-  \ 30 commands \u2014 honest but coarse), and the dispatch prompt is clipped\n  rather\
-  \ than collapsed.\n  One caveat: test_the_timeout_kills_the_grandchild_too is flaky\
-  \ under parallel load \u2014 it failed 3 of my 6 gate runs. It isn't this branch;\
-  \ I reproduced it on unmodified main. If your gate goes red\n  there, re-run. Not\
-  \ filed as a task unless you want it.\n  Branch feat/task-023-structured-transcript\
-  \ at f9ad2db, rebased onto main. Nothing merged, nothing pushed.\n\u273B Worked\
-  \ for 1h 4m 43s \xB7 done 1:30 PM \xB7 1 shell still running\nnew task? /clear to\
-  \ save 325.1k tokens\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500 git worktree setup \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7\
-  \ agentjobs:main \xB7 \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\
-  \ 32% ctx (325k/1.00M) \xB7 $22.42/rc\n  \u23F5\u23F5 auto mode on \xB7 \u2190 5\
-  \ agents \xB7 1 shell\n  Called agentjobs, ran 1 shell command\n\u25CF Now committing\
-  \ the task record to main in the shared clone (task files never live on a branch).\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                       Ran 2 shell\
-  \ commands                                                                     \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                           \u25CF\
-  \ Done. The ball is with you on task-023.                                      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \           What changed                                                       \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                     The Output panel read transcript.log, which is a pty repaint\
-  \ \u2014 a TUI draws a space by emitting ESC[1C, so removing the escape sequences\
-  \ deletes every space. That's why an approval dialog rendered as  NewMCPserverfoundinthisproject:agentjobs,\
-  \ and why no regex could have fixed it.\n  It now reads the structured JSONL the\
-  \ session writes about itself, and renders entries: the agent's prose, and runs\
-  \ of consecutive tool calls collapsed to Edited transcript.py  +555 -0 with each\n\
-  \  call's command and output behind a disclosure. The raw terminal is one click\
-  \ away and is also what the panel falls back to automatically when there's no structured\
-  \ transcript.\n  - src/agentjobs/dispatch/transcript.py \u2014 finds the file by\
-  \ session-id prefix, parses it tolerantly\n  - GET .../dispatch/runs/{run_id}/transcript\
-  \ \u2014 polled on the same clock as /tail, doesn't replace it\n  - DispatchOutput.tsx\
-  \ \u2014 readable view leads, raw behind a toggle\n  - scripts/dispatch_output_sandbox.py\
-  \ \u2014 three states seeded on their own port\n  Look at it \u2014 the sandbox\
-  \ is already up\n  http://127.0.0.1:8903/app/p/sandbox-output/tasks/task-201 (click\
-  \ Output)\n  That one is reading this dispatch's own transcript. task-202 is the\
-  \ degraded path, with the old mangled text still visible under it \u2014 the before\
-  \ and after side by side. task-203 is a run whose\n  commands failed (2 failed on\
-  \ the summary, in words rather than colour). Throwaway data, every control safe\
-  \ to press. Stop it with taskkill /PID 1895228 /F, or say the word.\n  Verification\n\
-  \  scripts/check.py unqualified on the rebased branch: exit 0, ten of ten stages,\
-  \ receipt written. It caught two real gaps I'd missed \u2014 an undocumented operation\
-  \ in docs/api-reference.md and an\n  unclassified query in LiveUpdates.tsx \u2014\
-  \ both fixed. 66 new tests, all asserting on rendered text.\n  Two things worth\
-  \ your eye, both in the handoff prompt: a stretch where the agent doesn't narrate\
-  \ becomes one large group (ran 30 commands \u2014 honest but coarse), and the dispatch\
-  \ prompt is clipped\n  rather than collapsed.\n  One caveat: test_the_timeout_kills_the_grandchild_too\
-  \ is flaky under parallel load \u2014 it failed 3 of my 6 gate runs. It isn't this\
-  \ branch; I reproduced it on unmodified main. If your gate goes red\n  there, re-run.\
-  \ Not filed as a task unless you want it.\n  Branch feat/task-023-structured-transcript\
-  \ at f9ad2db, rebased onto main. Nothing merged, nothing pushed.\n\u273B Worked\
-  \ for 1h 4m 43s \xB7 done 1:30 PM \xB7 1 shell still running\nnew task? /clear to\
-  \ save 325.1k tokens\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500 git worktree setup \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7\
-  \ agentjobs:main \xB7 \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\
-  \ 32% ctx (325k/1.00M) \xB7 $22.42/rc\n  \u23F5\u23F5 auto mode on \xB7 \u2190 5\
-  \ agents \xB7 1 shell\n```"
+ball: agent
+ball_reason: answer
+ball_prompt: The output in the sandbox looks much better. Approved to merge this.
+  File a task for making this waiting on human state not be "Answer Questions" and
+  instead have a very clear UI with link to open the sandbox link for review. The
+  button state should probably be in state for approve or request changes.
 archived: false
 priority: high
 queue_position: 10100
@@ -1035,3 +904,81 @@ log:
     outcome: interrupted
     duration_seconds: 32705.401509
     log_path: C:\Users\jpose\.agentjobs\runs\run_5fb17eb0
+- id: 15
+  ts: '2026-09-04T01:03:29.262611Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    The output in the sandbox looks much better. Approved to merge this. File a task
+    for making this waiting on human state not be "Answer Questions" and instead have
+    a very clear UI with link to open the sandbox link for review. The button state
+    should probably be in state for approve or request changes.'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 16
+  ts: '2026-09-04T01:03:46.043970Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. They chose
+    posture `autonomous` for this run, above this project''s `auto`. No extra instruction
+    was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 17
+  ts: '2026-09-04T01:03:49.935913Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_5fb17eb0` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_79dc23dd
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: dispatch
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 16
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --name
+    - agentjobs/task-023@79dc23dd
+    - --settings
+    - '{"env": {"AGENTJOBS_RUN_ID": "run_79dc23dd", "AGENTJOBS_RUN_DIR": "C:\\Users\\jpose\\.agentjobs\\runs\\run_79dc23dd"}}'
+    - --resume
+    - 553f321b-aefe-48c0-9a50-64886c6f19e1
+    cwd: C:\projects\agentjobs
+    git_head: d89c681
+    session_id: 79dc23dd
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 18
+  ts: '2026-09-04T01:03:59.929374Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: The session is no longer in the ledger, so it cannot be followed or resumed.
+    Whatever it did is in its own transcript, not here.
+  re: 17
+  data:
+    run_id: run_79dc23dd
+    outcome: interrupted
+    duration_seconds: 12.222908
+    log_path: C:\Users\jpose\.agentjobs\runs\run_79dc23dd
