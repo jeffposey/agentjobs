@@ -3,7 +3,7 @@ id: task-023
 title: Dispatch output is a raw terminal dump; render the session's structured transcript
   instead
 created: '2026-08-19T22:31:46.196691Z'
-updated: '2026-09-04T01:17:41.392758Z'
+updated: '2026-09-04T01:17:53.680067Z'
 lifecycle: active
 ball: agent
 ball_reason: answer
@@ -1171,3 +1171,17 @@ log:
       id: 7c1f2a90-4b3d-4e61-9a72-0d5c8e3f1a48
       kind: log_append
       fingerprint: 782f1c2c722618357c537ed8e47dee34
+- id: 26
+  ts: '2026-09-04T01:17:53.679797Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-023-structured-transcript` (f9ad2dbb).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-023.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_55355e72\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-023-structured-transcript
+    finish_id: fin_55355e72
