@@ -3,7 +3,7 @@ id: task-325
 title: test_the_timeout_kills_the_grandchild_too flakes often enough to stop a scripted
   finish, and its 30-second budget rests on a premise that is no longer true
 created: '2026-08-29T18:15:38.550550Z'
-updated: '2026-08-29T18:15:39.075274Z'
+updated: '2026-09-04T08:34:07.736195Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -122,3 +122,36 @@ log:
       id: a2f47b9c-8d31-4e06-b5a2-9c7e10f38d54
       kind: create
       fingerprint: a691d7f40c84cf1b25b29e9630382de5
+- id: 2
+  ts: '2026-09-04T08:34:07.735997Z'
+  actor: claude
+  type: note
+  body: 'A fix for this landed on main as ef1b880 (part of task-333''s branch), 2026-09-04.
+    Not claiming this task and not closing it -- read it and decide.
+
+
+    The diagnosis, measured rather than guessed: the setup wait spawned a whole CPython
+    per poll (`subprocess.run` of a script whose entire body was `time.sleep(0.2)`),
+    which cost 0.4s an iteration on an IDLE machine -- half of it interpreter startup.
+    So the wait competed for the machine with the process tree it was waiting for,
+    against a 3-second runner timeout. Under `-n auto` the parent and the grandchild
+    could not always both start before the runner killed the group, and the test then
+    failed at its own setup assertion, whose message says in as many words that it
+    proved nothing.
+
+
+    The change: `time.sleep(0.05)` in the wait -- what `_dies_within` two functions
+    below already uses -- and the runner timeout raised from 3s to 20s. The timeout
+    raise costs nothing in strength: the parent sleeps for 600, so every timeout under
+    that fires, and the assertion is still that the whole process GROUP dies with
+    it.
+
+
+    It was blocking, not theoretical: this test failed two of three full gates on
+    task-333''s branch, which touched neither it nor the kill path, and its own comments
+    record it failing task-308''s finish the same way on 2026-08-25.
+
+
+    These two tasks (task-243 and task-325) describe the same test, so whoever picks
+    one up should look at the other.'
+  data: {}

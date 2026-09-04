@@ -3,7 +3,7 @@ id: task-333
 title: 'Project exposure: a hidden project stays hidden through its run transcripts
   too'
 created: '2026-09-04T03:28:25.746152Z'
-updated: '2026-09-04T08:30:26.832109Z'
+updated: '2026-09-04T08:35:01.385783Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -107,7 +107,7 @@ acceptance:
 - id: ac-5
   text: For an exposed project, the structured dispatch output panel still renders
     from a phone over the tailnet against a real run.
-  status: pending
+  status: met
 - id: ac-6
   text: The setting's name and its scope are recorded as a decision entry, with the
     rejected proxy-shaped name and why.
@@ -515,3 +515,69 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 13
+  ts: '2026-09-04T08:34:37.789183Z'
+  actor: claude
+  type: progress
+  body: "VERIFIED LIVE, after the merge, against the real dashboard on 8876 serving\
+    \ 1c7e37ea (contains d2548c1f). ac-5 now met.\n\nAs the OWNER on loopback -- 5\
+    \ projects listed, /api/all/tasks 6,332,825 bytes across agentjobs 331, mastercalls\
+    \ 24, job-hunting 17, fantasy-football 10, product-strategy 1.\n\nAs a TAILNET\
+    \ caller, presenting the front door's own secret and an identity header -- 3 projects\
+    \ listed (agentjobs, fantasy-football, mastercalls). /api/all/tasks 6,204,444\
+    \ bytes, and the counter is agentjobs 331, mastercalls 24, fantasy-football 10.\
+    \ job-hunting and product-strategy are simply not in it. The route answered 200,\
+    \ not a refusal, which is ac-3.\n\nThe three 404s that matter, byte-identical\
+    \ apart from the id the caller supplied:\n  product-strategy -> Unknown project\
+    \ 'product-strategy'. Registered projects: agentjobs, fantasy-football, mastercalls.\n\
+    \  job-hunting      -> Unknown project 'job-hunting'. Registered projects: agentjobs,\
+    \ fantasy-football, mastercalls.\n  nosuchproject    -> Unknown project 'nosuchproject'.\
+    \ Registered projects: agentjobs, fantasy-football, mastercalls.\nA hidden project\
+    \ and a project that never existed are the same answer, and neither response names\
+    \ the hidden ones. That is ac-4 on real data.\n\nac-2 ON A REAL TRANSCRIPT. The\
+    \ ledger holds four real job-hunting runs. run_34f6285a is a session run, and\
+    \ to the owner its three output routes serve 13,196 / 8,246 / 41,773 bytes --\
+    \ forty kilobytes of a hidden project's session transcript. To a tailnet caller\
+    \ all three are 404, and so is the attempt to reach the same run through the agentjobs\
+    \ URL. This is the exact disclosure the task was filed about, closed against the\
+    \ actual file rather than a fixture.\n\nac-5 BOTH HALVES. Over HTTP, a tailnet\
+    \ caller reading this run's own transcript gets 200, 118,007 bytes, source=session-jsonl,\
+    \ 39 of 39 entries. In a browser at https://agentjobs.tailfed1df.ts.net/app/ --\
+    \ a genuine tailnet caller, WhoIs'd by the proxy -- the task-333 page renders\
+    \ and the structured dispatch output panel shows this live run's narration and\
+    \ tool groups (Ran 24 commands, Ran 1 command, Ran 2 commands / 1 failed, Called\
+    \ 6 tools). The project switcher in the header lists exactly AgentJobs, Fantasy\
+    \ Football and Mastercalls. That switcher is the whole feature, visible: two projects\
+    \ that were there this morning are gone from the phone and everything else works.\n\
+    \nAlso landed on the branch, and worth someone's attention: ef1b880 fixes `TestProcessGroup::test_the_timeout_kills_the_grandchild_too`,\
+    \ which failed two of the three full gates this branch ran and had already stopped\
+    \ task-308's finish. Its setup spawned a CPython per poll -- 0.4s an iteration\
+    \ on an idle machine -- while racing a 3s timeout, so it lost to its own wait.\
+    \ task-243 and task-325 both describe this test and are both still open; I have\
+    \ noted the fix on each and left their state alone, since neither is mine to close."
+  data: {}
+- id: 14
+  ts: '2026-09-04T08:35:01.385505Z'
+  actor: claude
+  type: question
+  body: "FOUND WHILE VERIFYING, NOT PART OF THIS TASK, AND IT NEEDS YOU.\n\nOn the\
+    \ tailnet dashboard the Notes box now carries a red banner: \"Your login is not\
+    \ mapped. The login 'jposey@hellfiregames.com' is not mapped to an actor.\" There\
+    \ is no `C:/Users/jpose/.agentjobs/identities.yaml` on this machine at all.\n\n\
+    That is a consequence of task-244 rather than of this task, and it is a real regression\
+    \ in what the phone can do. Before task-244 a remote caller resolved as `owner`\
+    \ and `human_identity` found `default_user: Jeff Posey` from the project config.\
+    \ Now the same caller resolves as `tailnet` carrying a login, and the login has\
+    \ to be mapped -- so every write that names a human is refused with `identity_unresolved`\
+    \ (400). In particular **you cannot approve or reject a review from your phone**\
+    \ until the mapping exists. Reads are unaffected, which is why nothing looks broken\
+    \ until you press a button.\n\nThe fix is two lines and the banner prints it,\
+    \ but I have deliberately not written it: this file decides which person an action\
+    \ is recorded as, and that is not an agent's call to make on your behalf.\n\n\
+    \    # C:/Users/jpose/.agentjobs/identities.yaml\n    identities:\n      - login:\
+    \ jposey@hellfiregames.com\n        actor: Jeff Posey\n\n`Jeff Posey` is the `kind:\
+    \ human` actor in agentjobs' own config; the other projects use the same id, so\
+    \ one entry covers all of them. Worth checking on a phone afterwards rather than\
+    \ on loopback, since loopback is the one path that never had the problem.\n\n\
+    Say the word and I will write it, or file it as a task."
+  data: {}
