@@ -1,114 +1,213 @@
 schema: 2
 id: task-066-multiple-human-users
-title: Support more than one human user (account management)
+title: 'Account system: principals, attribution, and the network boundary'
 created: '2026-08-10T23:20:39.069637Z'
-updated: '2026-08-21T16:59:32.992471Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Choose the identity model before any code is written -- session-less
-  picker, real authentication, trusted proxy header, or a combination -- and record
-  the choice with its reasoning. The rest of the task is mechanical once that is settled.
+updated: '2026-09-04T03:31:11.055910Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
-priority: medium
-queue_position: 4300
+priority: critical
+queue_position: 12
 category: architecture
 tags:
 - gui
-- provenance
 - architecture
+- security
+- epic
 effort: 1 session for the design pass, more to build
 assignment:
   eligible: []
 spec:
-  summary: AgentJobs supports exactly one configured human. Decide and build an identity
-    model that lets several people act and be attributed correctly.
-  intent: 'Task-064 gave AgentJobs one human identity, read from config, so review
-    actions name a person instead of the literal string ''human''. It deliberately
-    supports exactly one: a config naming several people is refused, because the server
-    has no way to tell which of them is at the keyboard and guessing would reintroduce
-    the defect 064 existed to fix -- an action attributed to the wrong person is worse
-    than one attributed to nobody.
+  summary: AgentJobs has no notion of who is asking. Identity is a body field the
+    API itself discloses, so any tailnet peer -- and any agent running on this machine
+    -- can act as any configured human. Build the principal model that makes identity
+    a fact.
+  intent: 'task-064 gave AgentJobs one human identity read from config, and deliberately
+    refused a config naming several, because the server had no way to tell which person
+    was at the keyboard and an action attributed to the wrong person is worse than
+    one attributed to nobody. This task was filed to lift that limit and has waited
+    since 2026-08-10 on a single decision: which identity model.
 
 
-    That refusal is a placeholder for this task. The moment a second person needs
-    to review anything -- a collaborator, a contractor, an interviewer given a look
-    -- AgentJobs is unusable for them, and the failure is a yellow box telling them
-    to edit YAML.'
-  description: 'The hard part is not a user list; 064 already has one. It is establishing
-    who is acting, per request, without turning a local single-binary tool into something
-    that needs a login server.
+    The Big Dawg audit of 2026-08-21 found the same gap from the other side and made
+    it urgent. The whole REST API -- 99 operations, 61 of them mutating -- is anonymous
+    at https://agentjobs.tailfed1df.ts.net, and `GET /api/projects` hands out the
+    exact string a caller needs in order to be believed. Review endpoints compare
+    `user == default_user`; that check is ''send back the value we just told you''.
 
 
-    **Decide the identity model first, and record it.** The options differ enough
-    that building before choosing would waste the work:
+    The decision is now made and recorded on this task. It is the combination 066
+    guessed at -- a trusted front door for remote callers, the machine''s owner on
+    loopback -- plus one kind no prior spec contemplated: a distinct principal for
+    dispatched runs. That third kind is what makes the loopback boundary real. Without
+    it an agent running on this machine curls past every control in the epic, which
+    is the audit''s P1-2 finding and is not fixed by anything at the proxy.
 
 
-    - *Session-less selection.* A ''acting as'' picker in the header, stored in a
-    cookie or localStorage. Honest about what it is -- attribution, not authentication
-    -- and cheap. Anyone can claim to be anyone, which is fine for a trusted local
-    tool and not fine the moment the port is reachable.
-
-    - *Real authentication.* Passwords or an identity provider, sessions, logout.
-    Correct for a shared or exposed instance, and a large step for a tool whose selling
-    point is that it is a directory of YAML files with no infrastructure.
-
-    - *Delegate to the front door.* Take the user from a reverse proxy''s header,
-    so deployment decides the auth story and AgentJobs stays out of it. Strong fit
-    for the packaged-product goal; useless for someone running it locally.
+    This is the account system, not a security patch bolted to the side of one. Every
+    later question -- more than one person, attribution in the log, what an agent
+    may do to its own task, what is safe to expose on a network -- is the same question
+    about principals, and answering it once is why these children belong under one
+    parent.'
+  description: '## The model
 
 
-    The third plus the first is probably the answer -- picker locally, trusted header
-    when deployed -- but decide it explicitly.
+    Every request resolves to exactly one **principal** before any handler runs. A
+    principal is one of three kinds:
 
 
-    **Then the mechanics**, whichever is chosen: several `kind: human` entries accepted
-    rather than refused; the acting user resolved per request instead of per project;
-    `human_identity`''s MULTIPLE branch replaced; the review panel showing who you
-    are acting as with a way to change it; and the API keeping its explicit `user`
-    field, since agents and scripts post directly and have no session.
+    - **`tailnet`** -- a remote caller whose identity the front door proved. The tsnet
+    proxy calls `WhoIs(remoteAddr)` and sets an identity header; the app maps the
+    login to a configured human actor.
+
+    - **`owner`** -- a caller arriving on loopback with no run credential. The person
+    at the machine. Maps to the configured human.
+
+    - **`run`** -- a dispatched agent, holding a run-scoped credential minted at dispatch.
+    Names its run and its task, and is never a human.
 
 
-    **Worth deciding at the same time:** whether an actor id can be retired. People
-    leave, and the log is append-only, so their past entries must keep resolving after
-    they can no longer act.'
+    ## What follows from it
+
+
+    1. **Attribution stops being a claim.** The API keeps accepting an explicit `user`/`actor`
+    -- agents and scripts post directly and hold no session, which is 066''s original
+    constraint -- but a value that *disagrees* with the resolved principal is refused
+    rather than preferred.
+
+    2. **Several humans become possible.** `human_identity`''s MULTIPLE refusal is
+    replaced by a per-request answer, which is the thing 064 could not do and explicitly
+    deferred to here.
+
+    3. **Capability differs by kind.** A `run` may log, hand off, and close its own
+    task. It may never approve a review, dispatch, enable dispatch, create a project,
+    or repair the queue. That closes the self-approval chain: today a dispatched agent
+    can `POST /tasks/{id}/dispatch` with `{"user": "Jeff Posey"}` and be believed.
+
+    4. **The network boundary shrinks to what identity cannot cover** -- the three
+    routes that let the API point at a new directory on the filesystem.
+
+
+    ## Scope change from the original 066
+
+
+    This task previously put per-user permissions and roles out of scope: *''This
+    is about knowing who acted, not restricting what they may do.''* Point 3 brings
+    a **minimal** capability model in scope -- a fixed set per principal *kind*, not
+    roles and not per-person grants. The reason is that the audit finding cannot be
+    closed without it: knowing that a caller is an agent is useless if an agent may
+    still do everything a human may do. Per-person permissions stay out of scope.
+
+
+    ## The children
+
+
+    One keystone, then two independent branches, then enforcement, then the two boundary
+    tasks. The dependency order is real -- every child needs the principal seam --
+    but the branches genuinely parallelise.
+
+
+    1. **task-329** -- principal resolution (the seam everything hangs off). No dependencies.
+
+    2. **task-330** -- identity registry: several humans, login mapping, retirement.
+    Needs 329.
+
+    3. **task-331** -- run principals: the loopback split. Needs 329.
+
+    4. **task-332** -- authorization: capabilities per principal kind. Needs 329,
+    330, 331.
+
+    5. **task-244** -- the proxy proves identity; project creation stays off the network.
+    Needs 329, 332.
+
+    6. **task-333** -- project exposure, honoured through tasks and run transcripts
+    alike. Needs 329, 332.
+
+    7. **task-334** -- dispatch caps bind every trigger, and the design stops overclaiming.
+    No dependencies; can run first or alongside anything.
+
+
+    ## What must not regress
+
+
+    The dashboard is used from a phone over the tailnet, and the audit''s proposed
+    fix would have dark-screened a working surface to close a hole identity closes
+    better. The structured dispatch output panel is the canary for the whole epic:
+    if a child makes it stop rendering, that child is wrong, not the panel.'
   constraints: '- The log stays append-only. Retiring a person never rewrites their
     history.
 
-    - The API keeps accepting an explicit actor: agents post directly and cannot hold
-    a session.
+    - The API keeps accepting an explicit actor: agents and scripts post directly
+    and cannot hold a session. It must *agree* with the resolved principal rather
+    than replace it.
 
-    - Do not weaken validation. An unknown actor stays refused (D2).
+    - No silent fallback to a default identity when the acting caller is unclear.
+    That is the exact failure 064 removed.
 
-    - No silent fallback to a default identity when the acting user is unclear. That
-    is the exact failure 064 removed.'
-  out_of_scope: Per-user permissions and roles. This is about knowing who acted, not
-    restricting what they may do -- worth a separate task if it is ever wanted.
+    - Do not weaken validation. An unknown actor stays refused.
+
+    - An identity header is believed only when it arrives by the path the front door
+    controls. A header on any other route is ignored, never trusted.
+
+    - Nothing in this epic may make the dashboard worse on a phone. Denying a route
+    is a last resort, used only where identity cannot do the job.
+
+    - `push: false` stays. The recoverability argument for unattended merges depends
+    on it.'
+  out_of_scope: 'Per-person permissions and roles -- capability is per principal *kind*
+    only. Passwords, sessions, logout, or an identity provider: the front door does
+    authentication and AgentJobs stays out of it. Multi-tenant hosting. Any change
+    to what a human may do; owners keep every capability they have today.'
   context:
+  - path: audits/2026-08-21/12-security.md
+    why: 'Findings S-1, S-6 and S-8: the threat model and the exact anonymous requests
+      that work today'
+  - path: audits/2026-08-21/10-dispatch.md
+    why: 'P1-2: the same door seen from inside a dispatched run, which is what the
+      run principal kind closes'
   - path: src/agentjobs/actors.py
-    why: human_identity and its MULTIPLE branch are what this replaces.
-  - path: tests/test_actors.py
-    why: TestExactlyOneHumanIsSupported encodes the limit being lifted.
-  - path: frontend/src/components/TaskDetail.tsx
-    why: The current React review panel, which must show and let you change who you
-      are.
+    why: human_identity and its MULTIPLE branch are what task-330 replaces
+  - path: src/agentjobs/api/routes/tasks.py
+    why: 'Lines 96-118: the `user == default_user` review gate that task-332 replaces'
+  - path: src/agentjobs/api/routes/dispatch.py
+    why: _owned_run at line 478 is the predicate task-333 extends; the run output
+      routes at 795-882 are the panel that must not regress
+  - path: scripts/tailscale-service-host/main.go
+    why: 'The proxy task-244 rewrites: currently NewSingleHostReverseProxy with no
+      identity and no filter'
 acceptance:
 - id: ac-1
-  text: the identity model is chosen and recorded as a decision, with the rejected
-    alternatives
+  text: Every API request resolves to exactly one principal of kind tailnet, owner
+    or run before any handler runs, and the record of an action names which kind acted
+    and how the identity was established.
   status: pending
 - id: ac-2
-  text: 'several kind: human actors are accepted rather than refused'
+  text: A body user/actor that disagrees with the resolved principal is refused on
+    every mutating route, rather than being preferred over it.
   status: pending
 - id: ac-3
-  text: the acting user is resolved per request, and the GUI shows who that is
+  text: A dispatched agent cannot approve a review, dispatch a task, enable dispatch,
+    or create a project. Proven by a test that calls the API using a real run's credential,
+    not by inspection.
   status: pending
 - id: ac-4
-  text: an action is never attributed to a default when the acting user is unclear
+  text: Several human actors can be configured, each is attributed correctly per request,
+    and a retired actor cannot act while their past log entries still resolve.
   status: pending
 - id: ac-5
-  text: whether an actor id can be retired is decided, and past log entries by a retired
-    actor still resolve
+  text: The structured dispatch output panel -- /runs/*/tail and /runs/*/transcript,
+    rendered by DispatchOutput.tsx -- still works from a phone over the tailnet, verified
+    against a real run rather than a mock. Any child that dark-screens it has failed.
+  status: pending
+- id: ac-6
+  text: Project creation routes (POST /api/projects/init, POST /api/projects, /api/projects/inspect)
+    are unreachable through the proxy and reachable on loopback. No other route is
+    denied by path.
+  status: pending
+- id: ac-7
+  text: A project marked not exposed serves neither its tasks nor its run transcripts
+    to a remote principal, and both to the owner.
   status: pending
 deliverables: []
 dependencies:
@@ -156,3 +255,238 @@ log:
     with the packaged React component or shared Python logic that owns the current
     product surface. Historical design context remains unchanged.'
   data: {}
+- id: 3
+  ts: '2026-09-04T03:25:24.960446Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the medium band into the bottom of the critical band.
+  data:
+    band: critical
+    from: 4300
+    to: 193
+    placement:
+      kind: bottom
+    from_band: medium
+- id: 4
+  ts: '2026-09-04T03:25:24.960474Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, category, posture, priority, spec, tags, title.
+  data:
+    fields:
+    - acceptance
+    - category
+    - posture
+    - priority
+    - spec
+    - tags
+    - title
+    operation:
+      id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110001
+      kind: update_content
+      fingerprint: 65b710affe86fe0485837b31eb51e3de
+- id: 5
+  ts: '2026-09-04T03:25:47.976716Z'
+  actor: claude
+  type: decision
+  body: '**The identity model, decided 2026-09-03 with Jeff.** This is the design
+    call this task has been parked on since 2026-08-10, and it is binding for every
+    child.
+
+
+    **Chosen: a trusted front door for remote callers, the machine''s owner on loopback,
+    and a third principal kind for dispatched runs.**
+
+
+    The first two are the combination this task''s own description guessed at ("the
+    third plus the first is probably the answer -- picker locally, trusted header
+    when deployed"). The refinement is that the local half is *not* a picker. A picker
+    is self-asserted attribution, and on this machine the self-asserting party would
+    frequently be a dispatched agent rather than a person, which is the failure the
+    whole epic exists to close.
+
+
+    **The third kind is the load-bearing part, and no prior spec had it.** The Big
+    Dawg audit proposed identity at the proxy plus a path deny-list. Both are proxy-side,
+    and a dispatched agent does not go through the proxy -- it is already on loopback.
+    So if loopback is a blanket-trusted tier so that the desktop dashboard keeps working,
+    the agent-impersonation chain (auditor 10''s P1-2) survives the entire fix. Splitting
+    loopback into `owner` (no credential) and `run` (a run-scoped credential minted
+    at dispatch) is what makes the boundary real rather than decorative.
+
+
+    **Rejected alternatives.**
+
+
+    - *Session-less "acting as" picker, locally.* Honest about being attribution rather
+    than authentication, and cheap. Rejected because the population of local callers
+    is not just Jeff -- it includes every agent this machine dispatches, and they
+    can pick too.
+
+    - *Real authentication: passwords, sessions, an identity provider.* Correct for
+    a shared or exposed instance. Rejected as disproportionate for a tool whose selling
+    point is a directory of YAML files with no infrastructure, and because the tailnet
+    already performs the authentication; re-doing it in the app adds a login server
+    and buys nothing here.
+
+    - *The audit''s original path deny-list.* It denied `/api/all/tasks`, `dispatch/enable|disable`,
+    `queue/repair`, `webhooks`, `/docs`, and the run output/tail/transcript routes,
+    in addition to the creation routes. Rejected as over-broad: it was written to
+    be useful *without* identity ("either layer alone is a large improvement"), and
+    with identity in place most of it protects nothing that identity does not protect
+    better. Verified by grep on 2026-09-03 that the React app calls every one of those
+    routes zero times **except** the run output routes, which it uses for the structured
+    dispatch output panel -- so the deny-list''s only real effect on the product would
+    have been to break a working feature. What survives is three routes: `POST /api/projects/init`,
+    `POST /api/projects`, `/api/projects/inspect`. They stay denied because they are
+    the only rung that turns the API into arbitrary code execution on the box (init
+    any directory -> enable dispatch -> dispatch a session with that cwd), and because
+    nobody performs them from a phone.
+
+    - *Denying `dispatch/enable|disable`.* Rejected. `enable` acts only against an
+    already-defined runner, so its danger is entirely parasitic on being able to create
+    a project pointing at an arbitrary directory; control `init` and `enable` stops
+    being interesting. `disable` is the brake, and it is wanted *most* from a phone,
+    away from the desk.
+
+
+    **Consequence accepted:** this task''s former `out_of_scope` line -- "per-user
+    permissions and roles... worth a separate task if it is ever wanted" -- is narrowed
+    rather than kept. A fixed capability set per principal *kind* comes in scope,
+    because knowing a caller is an agent buys nothing if an agent may still do everything
+    a human may. Per-*person* permissions remain out of scope.'
+  data:
+    operation:
+      id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110002
+      kind: log_append
+      fingerprint: 4d1e299b94358b90755958037d00d255
+- id: 6
+  ts: '2026-09-04T03:29:43.285806Z'
+  actor: claude
+  type: transition
+  body: 'Unparked. The 2026-08-11 grooming note said exactly how to do this -- "answer
+    the design question, record it as a decision entry, then promote" -- and that
+    is what happened: the identity model was decided with Jeff on 2026-09-03 and is
+    recorded as entry 5, binding on every child.
+
+
+    Promoted as an epic with seven children (task-329 through task-334, plus the respecced
+    task-244). A parent holding open children is skipped by `agentjobs next` and is
+    claimed by name, which is correct here: whoever holds this supervises, and does
+    not work the children themselves.'
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110a66
+      kind: promote
+      fingerprint: b90443223079bd54e943882016cdfe51
+- id: 7
+  ts: '2026-09-04T03:29:54.428362Z'
+  actor: claude
+  type: queue_move
+  body: 'To the top of CRITICAL, ahead of task-244, which it now parents.
+
+
+    task-244 held this position since 2026-08-23 on the reasoning that the unauthenticated
+    API is the widest exposure in the corpus and "the door that task-245 and task-249
+    describe walking through". That reasoning is unchanged and is why the epic inherits
+    the slot: 244 is now one child of it, and it turned out that the proxy is not
+    where the door actually is. A dispatched agent never passes through the proxy,
+    so the same door stays open on loopback until task-331 lands. The epic is the
+    smallest unit that closes it.
+
+
+    This also lifts the task out of the medium band, where it had sat at position
+    4300 since 2026-08-10 waiting on a design decision that is now recorded.'
+  data:
+    band: critical
+    from: 193
+    to: 12
+    placement:
+      kind: top
+    moved_with:
+    - task-244
+    - task-329
+    - task-331
+    - task-332
+    warnings:
+    - kind: promoted_unclaimable
+      message: 'task-066-multiple-human-users cannot be claimed where you have just
+        put it: has 7 open children. The queue will skip past it.'
+      tasks:
+      - task-066-multiple-human-users
+    operation:
+      id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110b66
+      kind: queue_move
+      fingerprint: c125058208e29b534a27e873f99b7099
+- id: 8
+  ts: '2026-09-04T03:30:47.102681Z'
+  actor: claude
+  type: note
+  body: Updated posture, spec.
+  data:
+    fields:
+    - posture
+    - spec
+    operation:
+      id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110c66
+      kind: update_content
+      fingerprint: 0eab4b212f3bbdac58e2a5951974221e
+- id: 9
+  ts: '2026-09-04T03:31:11.055758Z'
+  actor: claude
+  type: note
+  body: '**How to launch this epic, and why a `posture:` field on this record will
+    not do it.**
+
+
+    I briefly set `posture: autonomous` on this task and then removed it, because
+    it does not do what it appears to do and would have been a trap for whoever launched
+    the epic.
+
+
+    `INHERITABLE_POSTURE_SOURCES` in `src/agentjobs/dispatch/epic.py` is `{DISPATCH,
+    EPIC}`. `TASK` -- this record''s own `posture:` field -- is deliberately excluded
+    (task-316), on the reasoning that it is "a git-tracked value any agent that can
+    write the repository can set, and letting it cross would mean one agent editing
+    one field on its own parent widens *every* child in the epic at once."
+
+
+    That is exactly the shape of what I was doing: an agent writing a field on a parent
+    record to widen a dozen children''s runs. The exclusion is right and the field
+    stays off.
+
+
+    **So the posture has to be chosen by a person at the moment of dispatch** -- source
+    `DISPATCH`, which is the click. With no posture named at dispatch, every child
+    falls through to the project default, which is `auto` on this project, and all
+    seven would stop at the merge gate waiting for review. That is a safe failure,
+    but it is not an overnight run.
+
+
+    Machine state as of 2026-09-03, for whoever picks this up:
+
+
+    - `posture=auto`, `max_posture=autonomous` for this project, so `autonomous` is
+    permitted but must be asked for.
+
+    - `finish=on`, so an approval runs rebase, gate, merge, rebuild, restart and close
+    by itself.
+
+    - `max_concurrent_runs=3`; `run_timeout_seconds` raised from 1800 to 5400 by Jeff
+    on 2026-09-03, because 30 minutes is short for children this size.
+
+    - `push=false`, and it stays false. That is the whole recoverability argument
+    for letting children merge unreviewed.
+
+
+    The dependency graph is four layers deep (329 -> 330/331 -> 332 -> 244/333), with
+    334 free to run alongside any of it. Three concurrent runs and a single merge
+    runway mean the wall-clock floor is roughly the depth, not the count.'
+  data:
+    operation:
+      id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110d66
+      kind: log_append
+      fingerprint: 8add54c061aab05a7ca54a2ca04901f4

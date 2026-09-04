@@ -1,93 +1,164 @@
 schema: 2
 id: task-244
-title: 'Tailnet proxy: identity header and path allow-list; stop serving local-only
-  projects and run transcripts to every peer'
+title: 'Tailnet proxy: prove identity at the front door, and keep project creation
+  off the network'
 created: '2026-08-22T18:50:12.663333Z'
-updated: '2026-08-23T05:15:01.029686Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Finish specifying this task.
+updated: '2026-09-04T03:29:54.389256Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: critical
-queue_position: 50
-category: infrastructure
+queue_position: 24
+category: security
 tags:
 - big-dawg-audit
 - security
+- epic-066
 assignment:
   eligible: []
+parent: task-066-multiple-human-users
 spec:
-  summary: "Big Dawg Audit P1 (auditor 12 S-1/S-6/S-8, corroborated by auditor 10\
-    \ P1-2 and auditor 7). The whole REST API \u2014 99 operations, 61 mutating \u2014\
-    \ is reachable at https://agentjobs.tailfed1df.ts.net with no authentication;\
-    \ identity is a body field that GET /api/projects discloses. Put identity and\
-    \ a path allow-list in the tsnet proxy and keep onboarding/dispatch-enable/webhook/init\
-    \ routes loopback-only."
-  description: "## What was found\n\n- No auth dependency, middleware or token anywhere\
-    \ in `src/agentjobs` (grep for APIKey/HTTPBearer/Authorization/TrustedHost hits\
-    \ only the CORS block at `api/main.py:202-218`).\n- Review endpoints require `user\
-    \ == default_user` (`api/routes/tasks.py:96-118`) and `GET /api/projects` hands\
-    \ out `default_user` for every project (`api/routes/projects.py:88-94`). Agent\
-    \ verbs accept any configured actor id (`api/routes/status.py:182-205`) \u2014\
-    \ the same GET lists them.\n- `POST /tasks/{id}/dispatch` with `{\"user\": \"\
-    Jeff Posey\"}` writes a human note and dispatches on it (`status.py:583-665`,\
-    \ `guards.py:693-704, 759-775`); `POST /dispatch/enable` flips per-project enablement\
-    \ over HTTP. A dispatched agent inside a run can do the same with one curl \u2014\
-    \ the design's \"structurally impossible\" claim (`docs/agent-dispatch-design.md:87-101`)\
-    \ is not enforced (auditor 10 P1-2).\n- The proxy (`scripts/tailscale-service-host/main.go:56-63`)\
-    \ is `NewSingleHostReverseProxy` with no path filter, no WhoIs, no identity header.\
-    \ Verified live: `/api/all/tasks` returned 3.9 MB \u2014 every task of every project\
-    \ including `product-strategy` and `job-hunting`, whose standing rule is \"local\
-    \ only, never push\" \u2014 to the tailnet hostname. `/dispatch/runs/{id}/output`\
-    \ serves up to 512 KB of any session transcript (61 run dirs).\n- `POST /api/projects/init`\
-    \ writes `.agentjobs/config.yaml`, a tasks dir and `.mcp.json` into any existing\
-    \ directory, with the caller-supplied user as the human actor (`projects.py:221-246`,\
-    \ `project_setup.py:54-58, 108-113`); `/api/projects/inspect` is a filesystem\
-    \ existence oracle. Chain: init any dir \u2192 enable dispatch \u2192 create task\
-    \ \u2192 dispatch as \"Jeff\" \u2192 Claude session with that cwd.\n\n## Fix (two\
-    \ layers; either alone is a large improvement)\n\n1. **Identity at the proxy.**\
-    \ `server.LocalClient().WhoIs(remoteAddr)` \u2192 set `X-Tailscale-User`; the\
-    \ app trusts the header only on requests arriving from the proxy on loopback,\
-    \ maps it to a configured actor, and refuses a `user`/`actor` body field that\
-    \ does not match.\n2. **Path allow-list at the proxy.** The phone needs `/app/*`,\
-    \ project reads, and the review mutations. Deny `/api/projects/init`, `/api/projects`\
-    \ POST, `/inspect`, `/dispatch/enable|disable`, `/webhooks*`, `/queue/repair`,\
-    \ `/docs`, `/redoc`, `/dispatch/runs/*/output|tail`, and `/api/all/tasks` at the\
-    \ proxy; they stay reachable on loopback.\n3. Per-project `expose_on_proxy: false`\
-    \ honoured by the allow-list, defaulting `product-strategy` and `job-hunting`\
-    \ to off. Server-side, restrict `init`/register roots to an allow-listed parent\
-    \ declared in `~/.agentjobs/`.\n4. Until then: `DISPATCH_DISABLED` sentinel when\
-    \ the phone is not in use; keep `auto_dispatch` off (it is).\n\nAlso bind the\
-    \ per-task and a machine-wide dispatches-per-hour cap to **every** trigger, not\
-    \ only AUTO (`auto.py:114-163` binds AUTO only), and rewrite the design's \xA7\
-    2 and `guards.py` docstring to say the loop is bounded by caps, not impossible\
-    \ (auditor 10's recommendation).\n\n## Open item the audit could not answer\n\
-    The tailnet ACL contents \u2014 whether `svc:agentjobs` is reachable by all four\
-    \ peers (2 Windows, 2 Android) or a subset. Read it before sizing this."
+  summary: The tsnet proxy forwards every request with no identity and no filter.
+    Make it prove who is calling and hand that proof to the app, and deny only the
+    three routes that let the API point at a new directory.
+  intent: 'This was filed as the whole fix and is now one child of task-066, because
+    the audit''s own framing -- ''two layers; either alone is a large improvement''
+    -- was written for a world with no identity model. With one, the proxy''s job
+    shrinks to the half only it can do: it is the only thing that can call `WhoIs`
+    on a tailnet connection, so it is where identity is established. Deciding what
+    a caller may do once identified belongs to task-332, and keeping local-only projects
+    off the network belongs to task-333.
+
+
+    Read task-066''s decision entry first. It is binding and it explains, with the
+    grep that produced it, why this task''s deny-list is three routes rather than
+    the audit''s ten.'
+  description: '## Layer 1: prove identity
+
+
+    `server.LocalClient().WhoIs(remoteAddr)` on each request, and set the identity
+    header the app reads. The proxy is currently `NewSingleHostReverseProxy` with
+    nothing in front of it (`main.go:56-63`).
+
+
+    The app''s side of this contract is task-329''s: **the header is believed only
+    when the request arrives by the path the front door controls.** Get the two halves
+    consistent, and do not let this task''s convenience widen that rule -- a header
+    trusted from anywhere is a body field with better clothes.
+
+
+    A connection `WhoIs` cannot identify is not forwarded as anonymous. It is refused,
+    and the refusal says why. There is no unauthenticated remote caller in the finished
+    design.
+
+
+    ## Layer 2: deny exactly three routes
+
+
+    `POST /api/projects/init`, `POST /api/projects`, `/api/projects/inspect`.
+
+
+    They are the only rung that turns the API into arbitrary code execution on this
+    machine -- init any existing directory, enable dispatch on it, create a task,
+    dispatch a session with that cwd -- and `/inspect` is the filesystem existence
+    oracle that makes the first step aimable. Nobody performs any of them from a phone.
+    They stay fully reachable on loopback.
+
+
+    ## Explicitly not denied, and why
+
+
+    The audit''s list also denied `/api/all/tasks`, `dispatch/enable|disable`, `/queue/repair`,
+    `/webhooks*`, `/docs`, `/redoc`, and the run output/tail/transcript routes. Verified
+    by grep on 2026-09-03: **the React app calls every one of those zero times except
+    the run output routes**, which it uses for the structured dispatch output panel.
+    So that half of the deny-list would have protected nothing the rest of this epic
+    does not protect better, while breaking the one surface it touched.
+
+
+    - **Run output, tail and transcript** -- identity-gated instead. This is the panel;
+    breaking it is the failure mode this whole epic is shaped to avoid.
+
+    - **`dispatch/enable` and `disable`** -- `enable` acts only against an already-defined
+    runner, so its danger is parasitic on `init`, which is denied. `disable` is the
+    brake and is wanted most from a phone.
+
+    - **`/api/all/tasks`** -- filtered by task-333 rather than denied, which stays
+    correct when there is a second front door.
+
+    - **Dispatching a task** -- ordinary workflow. It was never on the audit''s list
+    and must not acquire a ban here.
+
+
+    ## The open item the audit could not answer
+
+
+    Nobody has read the tailnet ACL: whether `svc:agentjobs` is reachable by all four
+    peers or a subset. Read it, and record what it says on this task. It does not
+    change the design -- identity is per-connection either way -- but it sizes what
+    is exposed today.'
+  constraints: '- The identity header must be believed by the app only on the path
+    this proxy controls. Coordinate with task-329 rather than inventing a second contract.
+
+    - An unidentifiable connection is refused, never forwarded as anonymous.
+
+    - Deny three routes. Adding a fourth is a decision to record with its reasoning,
+    not a judgement call made while editing.
+
+    - Do not break the structured dispatch output panel. It is the acceptance criterion
+    the epic is measured on.
+
+    - The proxy stays a proxy: no authorization logic, no project knowledge, no policy.
+    It establishes identity and forwards.'
+  out_of_scope: Authorization and capabilities (task-332). Project exposure and /api/all/tasks
+    filtering (task-333). Anything about what a dispatched run may do (task-331).
   context:
-  - path: audits/2026-08-21/12-security.md
-    why: Findings S-1, S-6, S-8 and the threat model; names the exact requests that
-      work
-  - path: audits/2026-08-21/10-dispatch.md
-    why: 'P1-2: the same door seen from inside a dispatched run; the caps recommendation'
   - path: scripts/tailscale-service-host/main.go
-    why: The proxy that forwards everything
+    why: 'The proxy this task rewrites: NewSingleHostReverseProxy at 56-63, no WhoIs,
+      no filter'
+  - path: audits/2026-08-21/12-security.md
+    why: 'S-1, S-6 and S-8: the threat model and the exact anonymous requests verified
+      against the tailnet hostname'
+  - path: frontend/src/components/DispatchOutput.tsx
+    why: 'Lines 201-220: the panel that must keep working, and the reason the run
+      output routes are not denied'
 acceptance:
 - id: ac-1
-  text: A request through the tailnet hostname carries a proxy-set identity the app
-    maps to a configured actor; a body user/actor that disagrees is refused.
+  text: A request through the tailnet hostname carries a proxy-established identity
+    that the app maps to a configured actor, verified against a real connection rather
+    than a synthesised header.
   status: pending
 - id: ac-2
-  text: Onboarding, dispatch-enable, webhook, queue-repair, transcript and /api/all/tasks
-    routes return 403/404 through the proxy and 200 on loopback.
+  text: A connection WhoIs cannot identify is refused with a reason, not forwarded
+    as anonymous.
   status: pending
 - id: ac-3
-  text: product-strategy and job-hunting tasks are not served through the proxy unless
-    explicitly exposed.
+  text: An identity header arriving by any path other than this proxy is not believed
+    by the app. Tested from outside the proxy.
+  status: pending
+- id: ac-4
+  text: POST /api/projects/init, POST /api/projects and /api/projects/inspect return
+    403 or 404 through the proxy and 200 on loopback. No fourth route is denied.
+  status: pending
+- id: ac-5
+  text: The structured dispatch output panel renders on a phone over the tailnet against
+    a real run, after this change. Dispatching a task and disabling dispatch also
+    still work from the phone.
+  status: pending
+- id: ac-6
+  text: The tailnet ACL's reach for svc:agentjobs is read and recorded on this task.
   status: pending
 deliverables: []
-dependencies: []
+dependencies:
+- task: task-329
+  type: needs
+  note: Defines the header contract and the rule for when it is believed. Two halves
+    of one control.
+- task: task-332
+  type: needs
+  note: Identity is only useful once something acts on it; without the capability
+    layer this proxy proves who is calling and nothing changes.
 links: []
 branches: []
 log:
@@ -123,3 +194,40 @@ log:
       id: a1b2c3d4-0001-4000-8000-000000000001
       kind: queue_move
       fingerprint: 22d9d6608926a949808dd56355d35fb7
+- id: 3
+  ts: '2026-09-04T03:29:27.764695Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, category, dependencies, parent, priority, spec, tags,
+    title.
+  data:
+    fields:
+    - acceptance
+    - category
+    - dependencies
+    - parent
+    - priority
+    - spec
+    - tags
+    - title
+    operation:
+      id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110244
+      kind: update_content
+      fingerprint: cc357b9df802e7d0e03e1d8607af4dd8
+- id: 4
+  ts: '2026-09-04T03:29:36.547698Z'
+  actor: claude
+  type: transition
+  body: Spec rewritten and scoped as a child of task-066. The design question this
+    was parked on -- what the proxy should deny -- is answered by task-066's binding
+    decision entry, so there is nothing left for a human to specify. Its dependencies
+    (task-329, task-332) keep it unclaimable until the identity and capability layers
+    exist.
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110a44
+      kind: promote
+      fingerprint: a7016ce0ab6a423d3811cb029bb6a4e1

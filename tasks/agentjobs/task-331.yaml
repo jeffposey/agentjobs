@@ -1,0 +1,146 @@
+schema: 2
+id: task-331
+title: 'Run principals: a dispatched agent identifies as its run, never as a person'
+created: '2026-09-04T03:27:26.962795Z'
+updated: '2026-09-04T03:29:54.409536Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 48
+category: security
+tags:
+- security
+- dispatch
+- epic-066
+assignment:
+  eligible: []
+parent: task-066-multiple-human-users
+spec:
+  summary: Mint a run-scoped credential at dispatch and have the API recognise it,
+    so loopback splits into 'the owner at the machine' and 'this specific run'. This
+    is the piece that closes the self-approval chain, and no proxy change can substitute
+    for it.
+  intent: 'The Big Dawg audit proposed identity at the proxy plus a path deny-list.
+    Both are proxy-side, and **a dispatched agent never goes through the proxy** --
+    it is already on loopback, on this machine. So if loopback is trusted wholesale
+    in order to keep the desktop dashboard working, auditor 10''s P1-2 finding survives
+    the entire epic: an agent inside a run curls `POST /tasks/{id}/dispatch` with
+    a human''s name in the body and is believed.
+
+
+    This task is the reason the epic is an account system rather than a proxy hardening.
+    It is also why `docs/agent-dispatch-design.md` currently overclaims: it says a
+    self-dispatch loop is structurally impossible, and it is not.'
+  description: '## What to build
+
+
+    1. **Mint at dispatch.** When the ledger starts a run, it creates a credential
+    scoped to that run -- this run id, its task, its project -- and puts it in the
+    child process environment.
+
+    2. **Recognise at the API.** A request carrying the credential resolves to task-329''s
+    `run` principal, naming `run_id` and `task_id`.
+
+    3. **The split.** Loopback *without* a credential is `owner`. Loopback *with*
+    one is that run. That is the whole boundary, and it is why task-329 puts the credential
+    first in its resolution order.
+
+    4. **Expiry.** The credential dies with the run. A finished, cancelled, or timed-out
+    run''s credential is refused, and the refusal says so rather than falling through
+    to `owner`.
+
+
+    ## Record this honest limit as a decision entry
+
+
+    A run can read its own credential out of its own environment, and nothing stops
+    it passing that credential elsewhere. **The property this buys is ''an agent cannot
+    claim to be a person'', not ''an agent cannot misbehave as itself''.** A run credential
+    is strictly less capable than an owner, so there is no escalation path -- but
+    it is not a secret from the agent holding it, and any documentation that implies
+    otherwise repeats the mistake task-334 is cleaning up.
+
+
+    Write that plainly on the record. A later reader who assumes the credential is
+    a secret will build something unsound on top of it.
+
+
+    ## Where the existing design is wrong
+
+
+    `docs/agent-dispatch-design.md` lines 87-101 and the `guards.py` docstring both
+    claim the dispatch loop is structurally impossible. It is bounded, not impossible,
+    and task-334 corrects the prose. Do not repeat the claim in anything this task
+    writes.'
+  constraints: '- The credential must not appear in a task record, a log entry, a
+    run transcript, or any API response. It goes into the process environment and
+    nowhere else.
+
+    - A finished run''s credential is refused rather than downgraded to owner. Falling
+    through to a *more* capable principal on expiry would invert the whole control.
+
+    - Do not break existing dispatch. A run that predates this change, or a driver
+    that cannot carry the credential, must still work -- decide and record what principal
+    such a run gets, and prefer the narrower answer.
+
+    - Enforcement of what a run may do belongs to task-332. This task establishes
+    the identity, not the policy.'
+  out_of_scope: The capability table (task-332). Proxy changes (task-244). Dispatch
+    caps (task-334).
+  context:
+  - path: src/agentjobs/api/routes/dispatch.py
+    why: The ledger and run records this credential is scoped to; _owned_run at 478
+      shows the existing ownership predicate
+  - path: docs/agent-dispatch-design.md
+    why: Lines 87-101 contain the 'structurally impossible' claim this task disproves
+      in practice
+  - path: audits/2026-08-21/10-dispatch.md
+    why: 'P1-2: the finding this task closes, with the exact request that works today'
+acceptance:
+- id: ac-1
+  text: A dispatched run's API requests resolve to kind run, naming the correct run_id
+    and task_id. Verified against a real dispatched run, not a synthesised header.
+  status: pending
+- id: ac-2
+  text: Loopback without a credential resolves to owner; loopback with one resolves
+    to that run. Both tested.
+  status: pending
+- id: ac-3
+  text: A finished or cancelled run's credential is refused, and does not fall through
+    to owner. Tested.
+  status: pending
+- id: ac-4
+  text: The credential appears in no task record, log entry, run transcript, or API
+    response. Asserted by a test that greps the artefacts a run produces.
+  status: pending
+- id: ac-5
+  text: The limit -- that the credential is not a secret from the agent holding it,
+    and buys 'cannot claim to be a person' rather than 'cannot misbehave' -- is recorded
+    as a decision entry.
+  status: pending
+- id: ac-6
+  text: Existing dispatch still works, including any driver that cannot carry the
+    credential; what principal such a run receives is recorded as a decision.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-329
+  type: needs
+  note: Resolves the credential into a principal; this task mints it and defines its
+    lifetime.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-04T03:27:27.625120Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110331
+      kind: create
+      fingerprint: 100b4f499528605d7035a490576d5b23

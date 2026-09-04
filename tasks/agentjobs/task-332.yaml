@@ -1,0 +1,160 @@
+schema: 2
+id: task-332
+title: 'Authorization: what each kind of principal may do'
+created: '2026-09-04T03:27:57.244568Z'
+updated: '2026-09-04T03:29:54.417759Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 60
+category: security
+tags:
+- security
+- architecture
+- epic-066
+assignment:
+  eligible: []
+parent: task-066-multiple-human-users
+spec:
+  summary: Replace the `user == default_user` string comparison with a capability
+    check against the resolved principal, and refuse a body actor that disagrees with
+    it.
+  intent: 'This is where the epic stops being plumbing. The three preceding children
+    establish who is asking; this one makes it matter.
+
+
+    The check it replaces is not a weak check, it is a circular one: review endpoints
+    compare `user == default_user`, and `GET /api/projects` publishes `default_user`
+    for every project. The API tells you the password and then asks for it.'
+  description: '## The capability table
+
+
+    Keyed by principal **kind**, not by person. A fixed set, not roles.
+
+
+    - **`owner` and `tailnet`** (both human) -- the full workflow set. Everything
+    a human can do today, unchanged. Nobody loses a capability they currently have.
+
+    - **`run`** -- may append to its own task''s log (progress, decision, question),
+    hand off its own task, and close its own task. **May not**: approve a review,
+    dispatch any task, enable or disable dispatch, create or init a project, repair
+    the queue, or act on a task other than its own.
+
+
+    That last clause matters as much as the list: a run''s capabilities are scoped
+    to *its* task, not merely to a verb set. A run that may close any task can still
+    close somebody else''s.
+
+
+    ## The body field
+
+
+    The API keeps accepting an explicit `user`/`actor` -- task-066''s standing constraint,
+    because agents and scripts post directly and hold no session. But it must **agree**
+    with the resolved principal. Disagreement is a refusal, not a preference and not
+    a warning.
+
+
+    The refusal message should say what was claimed and what was resolved, because
+    the most likely cause is a misconfigured mapping rather than an attack, and a
+    message that says only ''forbidden'' turns a five-second config fix into a debugging
+    session.
+
+
+    ## What to replace
+
+
+    - `api/routes/tasks.py:96-118` -- the review gate.
+
+    - `api/routes/status.py:182-205` -- accepts any configured actor id, from a list
+    the API publishes.
+
+    - `api/routes/status.py:583-665` and `guards.py:693-704, 759-775` -- the dispatch
+    path that writes a human note on a caller-supplied name.
+
+
+    ## Prove it the way the audit did
+
+
+    Not by inspection. Write the test that takes a real run''s credential and attempts
+    each forbidden action, asserting each refusal. The audit found this by making
+    the requests; the regression test should work the same way.'
+  constraints: '- Humans lose nothing. An owner can do everything they can do today;
+    if a capability check would deny something the dashboard currently does, the table
+    is wrong, not the dashboard.
+
+    - The explicit actor field survives. It must agree, not be removed.
+
+    - Capability is per principal kind only. Per-person permissions are out of scope
+    for the whole epic; if this task starts wanting them, stop and file a separate
+    task.
+
+    - No route may be left un-checked by oversight. Enumerate the mutating routes
+    and account for each, rather than checking the ones that came to mind.
+
+    - The dashboard must be exercised as a user after this lands, not merely tested.
+    A passing suite is not evidence the review buttons still work.'
+  out_of_scope: Per-person permissions and roles. Proxy changes (task-244). Project
+    exposure (task-333).
+  context:
+  - path: src/agentjobs/api/routes/tasks.py
+    why: 'Lines 96-118: the circular review gate this replaces'
+  - path: src/agentjobs/api/routes/status.py
+    why: Lines 182-205 accept any published actor; 583-665 is the dispatch path that
+      trusts a body name
+  - path: src/agentjobs/dispatch/guards.py
+    why: 'Lines 693-704 and 759-775: the human-note path a run can currently drive'
+  - path: audits/2026-08-21/12-security.md
+    why: 'S-1: the exact requests that work today, which the regression tests should
+      mirror'
+acceptance:
+- id: ac-1
+  text: A capability table keyed by principal kind is enforced on every mutating route;
+    the enumeration of routes and their required capability is written down, not implicit.
+  status: pending
+- id: ac-2
+  text: A body user/actor that disagrees with the resolved principal is refused, with
+    a message naming both the claimed and the resolved identity.
+  status: pending
+- id: ac-3
+  text: Using a real run's credential, a test attempts to approve a review, dispatch
+    a task, enable dispatch, create a project, and act on another task -- and asserts
+    a refusal for each.
+  status: pending
+- id: ac-4
+  text: An owner retains every capability they have today, verified by exercising
+    the dashboard's review, queue and dispatch actions as a user against a running
+    server.
+  status: pending
+- id: ac-5
+  text: The structured dispatch output panel still renders; the run output routes
+    are identity-gated rather than denied.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-329
+  type: needs
+  note: Supplies the resolved principal every check is made against.
+- task: task-330
+  type: needs
+  note: Supplies the actor a human principal maps to.
+- task: task-331
+  type: needs
+  note: Supplies the run principal, without which the run row of the table cannot
+    be enforced.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-04T03:27:57.786180Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110332
+      kind: create
+      fingerprint: e0a5df803e18872b2b60fe4f005fbf7d

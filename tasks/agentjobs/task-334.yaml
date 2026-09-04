@@ -1,0 +1,120 @@
+schema: 2
+id: task-334
+title: Dispatch caps bind every trigger, and the design stops claiming the loop is
+  impossible
+created: '2026-09-04T03:28:51.073210Z'
+updated: '2026-09-04T03:28:51.601455Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 15000
+category: dispatch
+tags:
+- security
+- dispatch
+- epic-066
+assignment:
+  eligible: []
+parent: task-066-multiple-human-users
+spec:
+  summary: The per-task dispatch caps bind AUTO only. Bind them to every trigger,
+    add a machine-wide hourly cap, and correct the two places that call a self-dispatch
+    loop structurally impossible when it is merely bounded.
+  intent: 'Auditor 10''s second recommendation, and the only child of this epic with
+    no dependency on the principal work -- it can run first, in parallel with everything.
+
+
+    It belongs to this epic rather than standing alone because it is the same mistake
+    in a different register. The principal work fixes a control that was claimed and
+    absent; this fixes a claim that outruns its control. `guards.py` and the dispatch
+    design both tell a reader that a runaway dispatch loop cannot happen, and what
+    actually prevents one is a cap that binds a single trigger.'
+  description: '## What to build
+
+
+    1. **Bind the caps to every trigger.** `auto.py:114-163` applies the per-task-per-day
+    and per-task-lifetime budgets to AUTO dispatches only. Manual dispatch, epic-child
+    dispatch, and any future trigger currently pass uncapped. Bind them all.
+
+
+    2. **A machine-wide dispatches-per-hour cap.** The existing budgets are per task,
+    so N tasks each dispatching at their own limit has no ceiling at all. Add one,
+    and put it beside the other limits in `dispatch.yaml`.
+
+
+    3. **Correct the prose.** `docs/agent-dispatch-design.md` section 2 and the `guards.py`
+    docstring claim a self-dispatch loop is structurally impossible. It is not: a
+    dispatched agent can reach the API, and until task-332 lands it can do so as a
+    human. Say what is true -- the loop is bounded by caps, and the caps are what
+    to check when reasoning about it.
+
+
+    ## Why the prose matters as much as the code
+
+
+    The audit found the exposure *because* an auditor tested the claim rather than
+    believing it. The next reader may believe it. A document that overstates a guarantee
+    is worse than one that states none, because it stops people looking.
+
+
+    Keep the correction factual and short. This is not an occasion for a retrospective
+    in a design doc.'
+  constraints: '- Do not lower any existing cap as part of this; binding them more
+    widely is the change, and a tighter number is a separate decision. Note the machine''s
+    current values (max_concurrent_runs=3, run_timeout_seconds=5400) rather than adjusting
+    them.
+
+    - The new hourly cap must not break the epic walk, which legitimately starts several
+    children in sequence. Pick the number with that in mind and say what you assumed.
+
+    - A cap that fires must say so on the task record, not only in a log line.'
+  out_of_scope: Principals, authorization, the proxy. This task is deliberately independent
+    of the rest of the epic.
+  context:
+  - path: src/agentjobs/dispatch/auto.py
+    why: 'Lines 114-163: where the budgets are applied to AUTO only'
+  - path: src/agentjobs/dispatch/guards.py
+    why: The docstring making the 'structurally impossible' claim
+  - path: docs/agent-dispatch-design.md
+    why: 'Section 2, lines 87-101: the same claim in the design'
+  - path: audits/2026-08-21/10-dispatch.md
+    why: P1-2 and the caps recommendation this task implements
+acceptance:
+- id: ac-1
+  text: The per-task caps bind manual and epic-child dispatch as well as AUTO, with
+    a test per trigger.
+  status: pending
+- id: ac-2
+  text: A machine-wide dispatches-per-hour cap exists, is configurable beside the
+    other limits, and is tested.
+  status: pending
+- id: ac-3
+  text: An epic walk of the size this repository actually runs is not blocked by the
+    new cap; the assumed number is stated on the record.
+  status: pending
+- id: ac-4
+  text: A cap that refuses a dispatch records the refusal and its reason on the task,
+    not only in a log line.
+  status: pending
+- id: ac-5
+  text: The 'structurally impossible' claim is corrected in both docs/agent-dispatch-design.md
+    and the guards.py docstring, and no new claim of impossibility replaces it.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-04T03:28:51.600608Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110334
+      kind: create
+      fingerprint: 14de5266371808d95c381e7f178d21c5

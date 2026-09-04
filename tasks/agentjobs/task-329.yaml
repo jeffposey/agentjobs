@@ -1,0 +1,134 @@
+schema: 2
+id: task-329
+title: 'Principals: resolve who is asking, per request, before any handler runs'
+created: '2026-09-04T03:26:29.534859Z'
+updated: '2026-09-04T03:29:54.401500Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 36
+category: architecture
+tags:
+- security
+- architecture
+- epic-066
+assignment:
+  eligible: []
+parent: task-066-multiple-human-users
+spec:
+  summary: 'Add a Principal type and the request dependency that resolves exactly
+    one for every API call -- kind tailnet, owner, or run -- recording how the identity
+    was established. Plumbing and tests only: no route changes behaviour in this task.'
+  intent: 'This is the seam every other child of task-066 hangs off, and it is deliberately
+    inert. Landing resolution separately from enforcement means the risky part (what
+    callers may do) arrives on a foundation that is already tested, and a mistake
+    here shows up as a wrong principal in a test rather than as a locked-out dashboard.
+
+
+    Read task-066''s decision entry before starting. It is binding, and it explains
+    why loopback is split into two kinds rather than trusted wholesale -- that split
+    is the entire reason this task exists in this shape.'
+  description: '## What to build
+
+
+    A `Principal` value and a FastAPI dependency that produces one for every request.
+
+
+    The value carries: `kind` (`tailnet` | `owner` | `run`), `actor_id` (nullable
+    -- mapping arrives in task-330), `source` (how the identity was established, for
+    the audit trail), and `run_id`/`task_id` where the kind is `run`.
+
+
+    ## Resolution order, and why it is this order
+
+
+    1. **Run credential** -- if the request carries one, the caller is that run. First,
+    because a dispatched agent arrives on loopback and would otherwise be indistinguishable
+    from the person at the machine. The credential itself is minted in task-331; this
+    task defines the slot and the precedence, and resolves `run` when one is present.
+
+    2. **Proven identity header** -- the front door''s `X-Tailscale-User`, giving
+    kind `tailnet`.
+
+    3. **Loopback, no credential** -- kind `owner`. The person at the machine.
+
+    4. **Anything else** -- no principal. This task does not refuse it; task-332 decides
+    what refusal means. Resolution reports the absence rather than inventing a default.
+
+
+    ## The trust rule, which is the part worth testing hardest
+
+
+    **The identity header is believed only when the request arrives by the path the
+    front door controls** -- on loopback, from the proxy. A header arriving any other
+    way is ignored, not trusted, and not logged as an identity.
+
+
+    Write the test that proves it: a request carrying `X-Tailscale-User` from a non-proxy
+    origin must resolve to whatever it would have resolved to without the header.
+    A header that is trusted unconditionally is worse than no header at all, because
+    it converts a body field anyone could set into a header field anyone can set while
+    looking authoritative.
+
+
+    ## Deliberately not in this task
+
+
+    No authorization, no capability checks, no changes to `human_identity`, no route
+    behaviour changes. If a route behaves differently after this lands, something
+    is wrong. The gate must be green with every existing test unmodified.'
+  constraints: '- No behaviour change to any existing route. Existing tests pass unmodified;
+    if one needs editing, stop and say why on the record rather than editing it.
+
+    - Do not invent a default principal when none resolves. Report the absence. A
+    silent default is the defect task-064 removed.
+
+    - Expose the resolved principal where the log and the audit trail can name it,
+    since ac-1 of the parent depends on an action''s record naming which kind acted.'
+  out_of_scope: Authorization and capabilities (task-332). Minting the run credential
+    (task-331). Mapping a login to an actor (task-330). Any proxy change (task-244).
+  context:
+  - path: src/agentjobs/api/main.py
+    why: Where the dependency is wired in; the CORS block at 202-218 is currently
+      the only thing resembling a request-level policy
+  - path: src/agentjobs/api/routes/tasks.py
+    why: 'Lines 96-118: the review gate that task-332 will convert to a principal
+      check. Read it to shape the Principal, but do not change it here'
+  - path: src/agentjobs/actors.py
+    why: The existing actor vocabulary a principal will eventually map to
+acceptance:
+- id: ac-1
+  text: A request from each of the three origins -- run credential present, proven
+    header via the proxy path, bare loopback -- resolves to the expected principal
+    kind, with a test per origin.
+  status: pending
+- id: ac-2
+  text: A request carrying an identity header by any path other than the front door's
+    resolves as if the header were absent. Tested explicitly.
+  status: pending
+- id: ac-3
+  text: When no principal resolves, the absence is reported rather than defaulted,
+    and a test asserts no default identity is substituted.
+  status: pending
+- id: ac-4
+  text: 'No existing route changes behaviour: the full unqualified scripts/check.py
+    is green with every pre-existing test unmodified.'
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-04T03:26:30.185514Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110329
+      kind: create
+      fingerprint: becd15d282278d349d3873b8485408c9

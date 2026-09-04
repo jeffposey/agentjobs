@@ -1,0 +1,139 @@
+schema: 2
+id: task-333
+title: 'Project exposure: a hidden project stays hidden through its run transcripts
+  too'
+created: '2026-09-04T03:28:25.746152Z'
+updated: '2026-09-04T03:28:26.368615Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 14900
+category: security
+tags:
+- security
+- epic-066
+assignment:
+  eligible: []
+parent: task-066-multiple-human-users
+spec:
+  summary: Honour per-project exposure by principal, for tasks and for runs alike,
+    so a project marked local-only is not served to a remote caller through the side
+    door of a session transcript.
+  intent: 'Two projects served by this machine carry a standing ''local only, never
+    push'' rule -- product-strategy and job-hunting. The audit verified that `/api/all/tasks`
+    returns all of them, 3.9 MB, to the tailnet hostname.
+
+
+    The interesting half is the one identity does not fix. `/runs/{id}/transcript`
+    reads `~/.claude/projects/...` through `find_session_transcript`, which is a file
+    AgentJobs does not own and whose contents are whatever that session happened to
+    look at. A run that read a hidden project has that material in its transcript.
+    So exposure has to be a property of the data, enforced on the runs as well as
+    on the tasks -- knowing who is asking does not tell you that this transcript contains
+    a project they should not be reading.'
+  description: '## What to build
+
+
+    1. **A per-project exposure setting.** Whether a project is served to remote principals.
+    Default it off for projects carrying a local-only rule; the two on this machine
+    are product-strategy and job-hunting. Name it well -- the audit called it `expose_on_proxy`,
+    but the control is about which principals may read the project, not about the
+    proxy, and a proxy-shaped name will read as wrong the moment there is a second
+    front door. Decide the name and record it.
+
+
+    2. **Honour it for tasks.** A hidden project''s tasks are not served to a `tailnet`
+    principal, and are served normally to an `owner`.
+
+
+    3. **Honour it for runs.** `_owned_run` at `dispatch.py:478` already refuses a
+    run belonging to another project, and does it as *absent* rather than *forbidden*
+    -- deliberately, so the answer does not disclose that other runs exist. Extend
+    that same predicate with exposure, using the same 404 reasoning. It is the natural
+    home for this and the docstring already explains why.
+
+
+    4. **Filter rather than deny `/api/all/tasks`.** It becomes ''every task you may
+    see'' rather than an unreachable route. The audit proposed denying it at the proxy;
+    filtering is strictly better because it stays correct when there is a second reader.
+
+
+    ## The line to hold
+
+
+    The exposed projects keep working from a phone, transcripts included. This task
+    removes hidden projects from remote view; it does not remove a feature from the
+    ones that remain.'
+  constraints: '- Use the existing 404-not-403 convention for hidden things, matching
+    `_owned_run`''s reasoning: a refusal that distinguishes ''forbidden'' from ''absent''
+    tells a remote caller that the hidden project exists.
+
+    - An owner loses nothing. Every project stays fully readable on loopback.
+
+    - The structured dispatch output panel must keep working for exposed projects,
+    from a phone, against a real run.
+
+    - Default deny for the two local-only projects, but the setting is explicit in
+    config rather than a hardcoded list of names.'
+  out_of_scope: Per-person visibility -- exposure is per project and per principal
+    kind, not per person. The proxy's own configuration (task-244).
+  context:
+  - path: src/agentjobs/api/routes/dispatch.py
+    why: _owned_run at 478 is the predicate to extend, and its docstring explains
+      the 404-not-403 convention to follow
+  - path: src/agentjobs/api/routes/projects.py
+    why: Where project config is read and served; lines 88-94 currently publish default_user
+      for every project
+  - path: audits/2026-08-21/12-security.md
+    why: 'S-6: the verified 3.9 MB /api/all/tasks response that motivates this'
+acceptance:
+- id: ac-1
+  text: A project marked not exposed serves neither its tasks nor its runs to a tailnet
+    principal, and serves both to an owner.
+  status: pending
+- id: ac-2
+  text: A run transcript belonging to a hidden project is not served to a remote principal,
+    tested directly against the transcript route rather than inferred from the task
+    route.
+  status: pending
+- id: ac-3
+  text: /api/all/tasks is filtered by exposure rather than denied, and returns only
+    what the asking principal may see.
+  status: pending
+- id: ac-4
+  text: Hidden projects answer as absent rather than forbidden, matching _owned_run's
+    existing convention.
+  status: pending
+- id: ac-5
+  text: For an exposed project, the structured dispatch output panel still renders
+    from a phone over the tailnet against a real run.
+  status: pending
+- id: ac-6
+  text: The setting's name and its scope are recorded as a decision entry, with the
+    rejected proxy-shaped name and why.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-329
+  type: needs
+  note: Exposure is evaluated against the resolved principal.
+- task: task-332
+  type: needs
+  note: Builds on the capability layer rather than adding a second, parallel policy
+    mechanism.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-04T03:28:26.367778Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110333
+      kind: create
+      fingerprint: 89023193b86f894fcc51f17dab4844e5

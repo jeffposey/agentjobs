@@ -1,0 +1,137 @@
+schema: 2
+id: task-330
+title: 'Identity registry: several human actors, login mapping, and retirement'
+created: '2026-09-04T03:26:56.564971Z'
+updated: '2026-09-04T03:26:57.252818Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 14800
+category: architecture
+tags:
+- security
+- architecture
+- epic-066
+assignment:
+  eligible: []
+parent: task-066-multiple-human-users
+spec:
+  summary: Replace human_identity's MULTIPLE refusal with a registry that maps a proven
+    identity to a configured human actor, accepts more than one person, and lets an
+    actor be retired without rewriting their history.
+  intent: 'This is the original ask of task-066, now buildable because the identity
+    model is decided. Today a config naming two people is refused outright, and the
+    failure a second person meets is a yellow box telling them to edit YAML. task-064
+    chose that refusal deliberately -- attributing an action to the wrong person is
+    worse than attributing it to nobody -- and deferred the fix to here.
+
+
+    The dependency on task-329 is real: a registry that maps identities is useless
+    until something establishes an identity to map.'
+  description: '## What to build
+
+
+    1. **Several `kind: human` entries accepted** in project config, replacing the
+    MULTIPLE branch in `actors.py`.
+
+    2. **A mapping from proven identity to actor id.** The tailnet login (the `LoginName`
+    WhoIs returns) is the key; a configured actor id is the value.
+
+    3. **Retirement.** An actor may stop being able to act while every past log entry
+    naming them still resolves and still renders.
+
+
+    ## Decide and record: where the mapping lives
+
+
+    It is a genuine fork, so make the call explicitly and write it as a `decision`
+    entry with the rejected option:
+
+
+    - **Machine-level** (`~/.agentjobs/`), on the grounds that the tailnet is a property
+    of the machine, not of a project, and the same person has one login across every
+    project served here.
+
+    - **Per-project** (`.agentjobs/config.yaml`), on the grounds that the actor vocabulary
+    already lives there and splitting identity across two files makes both harder
+    to reason about.
+
+
+    The machine-level option is probably right for the login-to-actor mapping specifically,
+    with the actor vocabulary staying per project, but decide it rather than inheriting
+    this sentence.
+
+
+    ## Refusal, not fallback
+
+
+    An identity that maps to nothing is **refused**, with a message that says how
+    to map it. It never falls back to `default_user`. That fallback is precisely the
+    defect task-064 existed to remove, and reintroducing it here would undo that task
+    while appearing to extend it.
+
+
+    The refusal message is the whole onboarding experience for a second person, so
+    write it as such: name the login that was not recognised, name the file to add
+    it to, and show the shape of the entry.'
+  constraints: '- The log stays append-only. Retiring a person never rewrites their
+    history, and their past entries must keep resolving to a displayable name.
+
+    - No silent fallback to a default identity. An unmapped login is refused.
+
+    - Do not weaken validation: an unknown actor stays refused.
+
+    - Existing single-human configs keep working untouched. Nobody has to edit YAML
+    because this landed.'
+  out_of_scope: 'Per-person permissions -- capability is per principal kind and belongs
+    to task-332. Any UI for managing people; config is the interface for now. Authentication
+    itself: the front door proves identity, this only maps it.'
+  context:
+  - path: src/agentjobs/actors.py
+    why: 'human_identity and its MULTIPLE branch: the thing this replaces'
+  - path: tests/test_actors.py
+    why: The existing behaviour, including the deliberate refusal this task lifts
+  - path: tasks/agentjobs/task-064-human-actor-identity.yaml
+    why: Why the single-human limit was chosen and what it was protecting; do not
+      undo its reasoning
+acceptance:
+- id: ac-1
+  text: A config naming several human actors is accepted, and each is attributed correctly
+    per request rather than per project.
+  status: pending
+- id: ac-2
+  text: A proven login maps to exactly one actor id; the location of that mapping
+    is recorded as a decision entry with the rejected alternative.
+  status: pending
+- id: ac-3
+  text: An unmapped login is refused with a message naming the login, the file, and
+    the shape of the entry to add. No fallback to default_user, asserted by test.
+  status: pending
+- id: ac-4
+  text: A retired actor cannot act, and their past log entries still resolve and render.
+    Tested against a log written before the retirement.
+  status: pending
+- id: ac-5
+  text: An existing single-human config works unmodified.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-329
+  type: needs
+  note: A registry maps a proven identity; task-329 is what establishes one.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-04T03:26:57.251879Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110330
+      kind: create
+      fingerprint: abd099460179e683ff1c483a76a177cb
