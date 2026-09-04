@@ -3,7 +3,7 @@ id: task-334
 title: Dispatch caps bind every trigger, and the design stops claiming the loop is
   impossible
 created: '2026-09-04T03:28:51.073210Z'
-updated: '2026-09-04T04:28:04.374461Z'
+updated: '2026-09-04T04:33:37.136827Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -370,3 +370,21 @@ log:
     finish_step: started
     branch: feat/task-334-dispatch-caps
     finish_id: fin_c6a82580
+- id: 9
+  ts: '2026-09-04T04:33:37.136696Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-334-dispatch-caps` into `main` as `cc9d7a63`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-334
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    epic) releases the merge gate (task-021), and run run_b6998ff8 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: cc9d7a635d95bc4f8b6797508c9e70c411a0770b
+    branch: feat/task-334-dispatch-caps
+    base: main
