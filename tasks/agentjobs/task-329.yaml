@@ -2,7 +2,7 @@ schema: 2
 id: task-329
 title: 'Principals: resolve who is asking, per request, before any handler runs'
 created: '2026-09-04T03:26:29.534859Z'
-updated: '2026-09-04T04:01:05.026940Z'
+updated: '2026-09-04T04:09:50.300248Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -566,3 +566,21 @@ log:
     finish_step: started
     branch: feat/task-329-principal-resolution
     finish_id: fin_2f382546
+- id: 13
+  ts: '2026-09-04T04:09:50.299878Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-329-principal-resolution` into `main` as `e26a460b`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-329
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    epic) releases the merge gate (task-021), and run run_43c2a909 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: e26a460be6eb17424996c6feedd4894b86ddcaab
+    branch: feat/task-329-principal-resolution
+    base: main
