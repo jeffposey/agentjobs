@@ -2,21 +2,17 @@ schema: 2
 id: task-332
 title: 'Authorization: what each kind of principal may do'
 created: '2026-09-04T03:27:57.244568Z'
-updated: '2026-09-04T07:06:22.232490Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-09-04T07:06:47.156430Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 60
 category: security
 tags:
 - security
 - architecture
 - epic-066
 assignment:
-  owner: claude
   eligible: []
 parent: task-066-multiple-human-users
 spec:
@@ -149,7 +145,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-332-capability-authorization
-  status: active
+  status: merged
+  merged_at: '2026-09-04T07:06:47.121222Z'
 log:
 - id: 1
   ts: '2026-09-04T03:27:57.786180Z'
@@ -449,3 +446,28 @@ log:
     merge_commit: 7b2f645da1042b77611ae612d9334e7b1c15ecf9
     branch: feat/task-332-capability-authorization
     base: main
+- id: 10
+  ts: '2026-09-04T07:06:47.156172Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-332-capability-authorization` into `main` as `7b2f645d`\
+    \ and verified live. Finished by the scripted path with no agent session (task-241).\
+    \ No human reviewed this merge: posture `autonomous` (from the epic) releases\
+    \ the merge gate (task-021), and run run_630ec919 ran the finish. What authorised\
+    \ it is the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         2.8s  feat/task-332-capability-authorization at\
+    \ b757d245 in C:\\projects\\worktrees\\agentjobs-332\n  runway     ok        \
+    \ 0.0s  taken immediately\n  rebase     ok         0.2s  feat/task-332-capability-authorization\
+    \ onto main: b757d245 -> 9cc96895\n  gate       ok       318.5s  scripts/check.py\
+    \ green\n  catch_up   skipped    0.0s  main did not move during the gate\n  merge\
+    \      ok         0.9s  --no-ff into main as 7b2f645da1042b77611ae612d9334e7b1c15ecf9\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         1.0s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving 10f3f15b, which contains the merge\
+    \ 7b2f645d, from C:\\projects\\agentjobs (started 2026-09-04T07:06:33.808721+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
