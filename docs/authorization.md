@@ -45,7 +45,7 @@ human is asking, this stops being a table and becomes a role system.
 | `project.admin` | project register / init / inspect | ✓ | ✓ | — |
 | `queue.admin` | queue repair / compact | ✓ | ✓ | — |
 | `webhook.admin` | webhook create / delete / test | ✓ | ✓ | — |
-| `run.output` | run and finish output | ✓ | ✓ | own run |
+| `run.output` | run and finish output, tail, transcript | ✓ | ✓ | own run |
 
 **The two human kinds are identical, deliberately.** `owner` and `tailnet` differ in how
 identity was established, not in what they may do. Narrowing `tailnet` would be an
@@ -136,9 +136,12 @@ Four limits, stated because the natural next assumption is wrong in each case.
     proxy, every such caller resolves as `owner` or as nothing at all. This closes the
     *agent* half of audit S-1 and the impersonation half of the human one; the network
     half is still tailnet membership.
-2.  **Reads are almost entirely untouched.** The only reads in the table are the run and
-    finish output routes. What the API exposes to a reader is task-333's question, and
-    answering it here would have smuggled a second change into this one.
+2.  **Reads are almost entirely untouched, and the reader's question is answered
+    elsewhere.** The only reads in this table are the run-output routes. What the API
+    exposes to a *reader* was task-333's question and is now
+    [Exposure](exposure.md): a capability is a property of the caller, while whether a
+    project may be read at all is a property of the data, and the two needed different
+    machinery. Answering it here would have smuggled a second change into this one.
 3.  **An uncredentialed run is still the owner.** A run dispatched before task-331, or
     one whose settings document could not be written, presents no credential and
     therefore resolves as `owner` — and now holds everything an owner does. That is the

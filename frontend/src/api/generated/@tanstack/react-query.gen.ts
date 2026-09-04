@@ -44,7 +44,7 @@ export const getAllTasksApiAllTasksGetQueryKey = (options?: Options<GetAllTasksA
 /**
  * Get All Tasks
  *
- * Every task across every project, each tagged with the project it belongs to.
+ * Every task this caller may see, each tagged with the project it belongs to.
  *
  * Mounted at ``/api/all/tasks`` rather than as a magic id under ``/api/tasks/``,
  * because ``/api/tasks/all`` would be indistinguishable from a task whose id is
@@ -52,6 +52,12 @@ export const getAllTasksApiAllTasksGetQueryKey = (options?: Options<GetAllTasksA
  *
  * Read-only by design. Writes always address one project explicitly, so there stays
  * exactly one code path that mutates a file.
+ *
+ * **Filtered by exposure, not denied** (task-333). The audit that found this route
+ * returning 3.9 MB of every project's tasks to the tailnet proposed blocking it at the
+ * proxy; filtering is strictly better, because the route keeps working for the
+ * projects a phone is meant to see and stays correct the day there is a second front
+ * door -- a proxy rule protects only the door it is written on.
  */
 export const getAllTasksApiAllTasksGetOptions = (options?: Options<GetAllTasksApiAllTasksGetData>) => queryOptions<GetAllTasksApiAllTasksGetResponse, GetAllTasksApiAllTasksGetError, GetAllTasksApiAllTasksGetResponse, ReturnType<typeof getAllTasksApiAllTasksGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -432,11 +438,17 @@ export const getProjectsApiProjectsGetQueryKey = (options?: Options<GetProjectsA
 /**
  * Get Projects
  *
- * List every project this server can serve, with task counts.
+ * List every project this server can serve *this caller*, with task counts.
  *
  * A project whose directory has gone missing is reported with a null task_count
  * rather than failing the whole listing -- the registry is machine-local and a
  * checkout can legitimately disappear.
+ *
+ * A project marked ``visibility: local`` is simply not in the list for a remote
+ * caller (task-333). Omitted rather than returned with a flag, because a flag would
+ * disclose the name and the root path of the thing being hidden, and because a client
+ * that has to know about a hidden-project state is a client that will one day render
+ * one.
  */
 export const getProjectsApiProjectsGetOptions = (options?: Options<GetProjectsApiProjectsGetData>) => queryOptions<GetProjectsApiProjectsGetResponse, DefaultError, GetProjectsApiProjectsGetResponse, ReturnType<typeof getProjectsApiProjectsGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -1872,11 +1884,19 @@ export const listLiveRunsApiRunsLiveGetQueryKey = (options?: Options<ListLiveRun
 /**
  * List Live Runs
  *
- * Every run happening on this machine, with what is left of its capacity.
+ * Every run this caller may see, with what is left of the machine's capacity.
  *
  * One request answers both surfaces task-328 ships -- the Runs tab and the Dashboard's
  * capacity row -- which is why the ceiling and the occupied count are in the body
  * rather than left to a second call.
+ *
+ * **``occupied`` counts every run, including the ones not listed** (task-333). The two
+ * numbers answer different questions and only one of them is about exposure: the rows
+ * are "what may I read", while the capacity is "why can I not dispatch", and a machine
+ * that is full because of a hidden project's run is still full. Subtracting the hidden
+ * rows from the count would make this surface disagree with ``dispatch/guards.py``
+ * about whether there is a slot, which is the one thing its docstring says it must
+ * never do.
  */
 export const listLiveRunsApiRunsLiveGetOptions = (options?: Options<ListLiveRunsApiRunsLiveGetData>) => queryOptions<ListLiveRunsApiRunsLiveGetResponse, DefaultError, ListLiveRunsApiRunsLiveGetResponse, ReturnType<typeof listLiveRunsApiRunsLiveGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

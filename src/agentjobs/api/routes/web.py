@@ -19,11 +19,12 @@ from ..dependencies import (
     current_identity,
     get_project,
     get_task_manager,
+    get_principal,
     get_templates,
-    list_projects,
     request_identity,
     storage_for as _storage_for_picker,
     try_resolve_default_project,
+    visible_projects,
 )
 
 router = APIRouter(default_response_class=HTMLResponse, include_in_schema=False)
@@ -54,7 +55,10 @@ def _context_base(
         "waiting_count": waiting_count,
         "project": project,
         "base": f"/p/{project.id}",
-        "all_projects": list_projects(),
+        # The project switcher in the chrome of every page. Filtered by exposure
+        # (task-333): a local-only project must not be offered to a remote caller in
+        # a menu, which would name it and then 404 when clicked.
+        "all_projects": visible_projects(get_principal(request) if request else None),
         "broken_files": broken_files or [],
         # Who the review buttons act as, and why not when they cannot. The template
         # surfaces the reason rather than silently falling back to an anonymous id.
@@ -299,14 +303,17 @@ async def task_detail(
 # canonical URL per page.
 
 
-def _redirect_to_default(path: str) -> RedirectResponse:
+def _redirect_to_default(path: str, request: Request) -> RedirectResponse:
     """Redirect an unscoped path into the default project, or to the picker.
 
     307 rather than 302: the redirect target is resolved per request from the working
     directory and the registry, so it is not a permanent property of the URL and must
     not be cached by the browser.
+
+    The request is here for its principal: a caller who may not see the default project
+    is sent to the picker instead of into a page that would 404 (task-333).
     """
-    project = try_resolve_default_project()
+    project = try_resolve_default_project(get_principal(request))
     if project is None:
         return RedirectResponse(url="/projects", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
     return RedirectResponse(
@@ -315,22 +322,22 @@ def _redirect_to_default(path: str) -> RedirectResponse:
 
 
 @legacy_router.get("/", name="legacy_dashboard")
-async def legacy_dashboard() -> RedirectResponse:
+async def legacy_dashboard(request: Request) -> RedirectResponse:
     """Redirect the bare root into the default project."""
-    return _redirect_to_default("")
+    return _redirect_to_default("", request)
 
 
 @legacy_router.get("/tasks", name="legacy_task_list")
 async def legacy_task_list(request: Request) -> RedirectResponse:
     """Redirect the unscoped task list, preserving any query string."""
     suffix = f"?{request.url.query}" if request.url.query else ""
-    return _redirect_to_default(f"/tasks{suffix}")
+    return _redirect_to_default(f"/tasks{suffix}", request)
 
 
 @legacy_router.get("/tasks/{task_id}", name="legacy_task_detail")
-async def legacy_task_detail(task_id: str) -> RedirectResponse:
+async def legacy_task_detail(task_id: str, request: Request) -> RedirectResponse:
     """Redirect an unscoped task link into the default project."""
-    return _redirect_to_default(f"/tasks/{task_id}")
+    return _redirect_to_default(f"/tasks/{task_id}", request)
 
 
 @legacy_router.get("/projects", name="project_picker")
@@ -344,7 +351,7 @@ async def project_picker(
     working directory is inside none of them. Guessing would mean silently showing
     someone another project's work, so this asks instead.
     """
-    projects = list_projects()
+    projects = visible_projects(get_principal(request))
     summaries = []
     for project in projects:
         try:
@@ -375,12 +382,13 @@ async def project_onboarding(
     templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the deliberately small inspect-and-confirm onboarding form."""
-    projects = list_projects()
+    principal = get_principal(request)
+    projects = visible_projects(principal)
     context = {
         "request": request,
         "current_year": datetime.utcnow().year,
         "waiting_count": 0,
-        "project": try_resolve_default_project(),
+        "project": try_resolve_default_project(principal),
         "base": "",
         "all_projects": projects,
     }

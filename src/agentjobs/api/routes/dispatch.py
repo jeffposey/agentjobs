@@ -69,9 +69,15 @@ from agentjobs.dispatch.transcript import (
     read_structured_transcript,
 )
 from agentjobs.manager import TaskManager
+from agentjobs.principals import Principal
 from agentjobs.projects import Project, default_home
 
-from ..dependencies import get_task_manager, request_project
+from ..dependencies import (
+    get_principal,
+    get_task_manager,
+    project_visible_to,
+    request_project,
+)
 from ..models import ErrorBody
 from .status import MutationError
 
@@ -475,22 +481,39 @@ def _run_view(record: RunRecord, project: Project) -> DispatchRunView:
     )
 
 
-def _owned_run(run_id: str, project: Project) -> RunRecord:
-    """One run of this project, or a 404 that does not admit runs of another exist.
+def _owned_run(run_id: str, project: Project, principal: Optional[Principal] = None) -> RunRecord:
+    """One run of this project that this caller may read, or a 404 admitting nothing.
 
     A run belonging to a different project is reported as absent rather than forbidden:
     the page asking is scoped to one project, and "you may not read that one" would tell
     it about runs it has no business knowing are there.
+
+    **A run of a project this caller may not see is absent too** (task-333), and the
+    check is stated here rather than left to the fact that ``request_project`` already
+    made it. The ownership test above happens to imply the exposure one today, because
+    the addressed project had to resolve for this handler to run at all -- but that is a
+    coincidence of two rules agreeing, not a guarantee, and the cost of writing it down
+    is one line.
+
+    This is the predicate every run route goes through, transcripts included, and that is
+    why it is the right home for it. A run's structured transcript is read out of the
+    runner's own store under ``~/.claude/projects/`` -- a file AgentJobs does not own,
+    whose contents are whatever that session happened to look at. A run that read a
+    local-only project has that project's material in there. Knowing *who* is asking
+    cannot tell you that; only the project the run belongs to can.
     """
     try:
         record = find_run(_home(), run_id)
     except LedgerError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    absent = HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Run {run_id!r} does not belong to project {project.id!r}.",
+    )
     if record.project_id and record.project_id != project.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Run {run_id!r} does not belong to project {project.id!r}.",
-        )
+        raise absent
+    if not project_visible_to(project, principal):
+        raise absent
     return record
 
 
@@ -770,6 +793,7 @@ async def cancel_dispatch_run(
     run_id: str,
     manager: TaskManager = Depends(get_task_manager),
     project: Project = Depends(request_project),
+    principal: Optional[Principal] = Depends(get_principal),
 ) -> DispatchCancelResult:
     """Stop one run and write its cancellation to the task record."""
     home = _home()
@@ -778,7 +802,7 @@ async def cancel_dispatch_run(
     # registry entry -- would otherwise stop the run and have nowhere to write what
     # happened to it.
     ledger = DispatchLedger(home, managers={project.id: manager})
-    _owned_run(run_id, project)
+    _owned_run(run_id, project, principal)
     try:
         result = ledger.cancel(run_id)
     except LedgerError as exc:
@@ -797,14 +821,16 @@ async def cancel_dispatch_run(
     responses={200: {"content": {"text/plain": {}}}},
 )
 async def read_dispatch_run_output(
-    run_id: str, project: Project = Depends(request_project)
+    run_id: str,
+    project: Project = Depends(request_project),
+    principal: Optional[Principal] = Depends(get_principal),
 ) -> PlainTextResponse:
     """A run's output in full, as text a browser tab can show.
 
     Text rather than JSON because this is the one dispatch response a human reads
     directly, and a transcript wrapped in a JSON string escape is unreadable.
     """
-    record = _owned_run(run_id, project)
+    record = _owned_run(run_id, project, principal)
     _, text, _ = _run_output(record)
     body = text or f"No output captured for run {run_id}."
     if len(body) > OUTPUT_BYTE_LIMIT:
@@ -817,6 +843,7 @@ async def read_dispatch_run_tail(
     run_id: str,
     lines: int = Query(default=OUTPUT_TAIL_LINES, ge=1, le=200),
     project: Project = Depends(request_project),
+    principal: Optional[Principal] = Depends(get_principal),
 ) -> DispatchRunTailView:
     """The end of a run's output, for a page watching it while it happens.
 
@@ -830,7 +857,7 @@ async def read_dispatch_run_tail(
     than nobody watching it -- and the tail can never be fresher than the poller's own
     interval, which is the point rather than a limitation.
     """
-    record = _owned_run(run_id, project)
+    record = _owned_run(run_id, project, principal)
     source, text, mtime = _run_output(record)
     return DispatchRunTailView(
         run_id=record.run_id,
@@ -884,6 +911,7 @@ async def read_dispatch_run_transcript(
     run_id: str,
     entries: int = Query(default=DEFAULT_ENTRY_LIMIT, ge=1, le=MAX_ENTRY_LIMIT),
     project: Project = Depends(request_project),
+    principal: Optional[Principal] = Depends(get_principal),
 ) -> DispatchRunTranscriptView:
     """What the session recorded about itself, as entries rather than as a screen.
 
@@ -897,7 +925,7 @@ async def read_dispatch_run_transcript(
     has not reported its id yet, and a driver that keeps no such file all reach it. The
     ``note`` says which, and the caller falls back to the tail.
     """
-    record = _owned_run(run_id, project)
+    record = _owned_run(run_id, project, principal)
     result = _structured_transcript(record, project, entries)
     return DispatchRunTranscriptView(
         run_id=record.run_id,

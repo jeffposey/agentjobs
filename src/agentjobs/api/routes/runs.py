@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from agentjobs.dispatch.config import DispatchError, load_dispatch_config
@@ -40,9 +40,11 @@ from agentjobs.dispatch.ledger import (
     run_health,
     runway_lock_name,
 )
+from agentjobs.exposure import Visibility, readable_by
+from agentjobs.principals import Principal
 from agentjobs.projects import Project, default_home
 
-from ..dependencies import list_projects, storage_for
+from ..dependencies import get_principal, storage_for, visible_projects
 
 router = APIRouter(prefix="/api/runs", tags=["dispatch"])
 
@@ -171,9 +173,16 @@ def _ceiling() -> tuple[int, bool]:
     return config.limits.max_concurrent_runs, True
 
 
-def _projects_by_id() -> Dict[str, Project]:
-    """Every project this server can serve, keyed by id."""
-    return {project.id: project for project in list_projects()}
+def _projects_by_id(principal: Optional[Principal]) -> Dict[str, Project]:
+    """Every project this caller may see, keyed by id.
+
+    Filtered rather than complete (task-333), and this map is then what decides which
+    rows exist at all: a run belonging to a project outside it is dropped. That is the
+    stronger reading of "keyed by id" and the one this surface needs -- a row here
+    carries a task title, a project name and a link, so a run of a hidden project would
+    disclose three things about it even without its output.
+    """
+    return {project.id: project for project in visible_projects(principal)}
 
 
 def _task_title(project: Optional[Project], task_id: str) -> str:
@@ -207,6 +216,21 @@ def _project_owning(task_id: str, projects: Dict[str, Project]) -> str:
         except Exception:  # pragma: no cover - a status page never fails over a lookup
             continue
     return ""
+
+
+def _may_see(project_id: str, projects: Dict[str, Project], principal: Optional[Principal]) -> bool:
+    """Whether this caller may be shown a row belonging to ``project_id``.
+
+    A row naming a project is shown when that project is in the caller's visible set.
+    A row naming **no** project -- a run whose ledger entry predates the field, a runway
+    lock on a checkout that is not registered here -- cannot be attributed, so there is
+    nothing to check its exposure against. Those are treated as if they were local-only,
+    which shows them to the machine's own callers and withholds them from a remote one:
+    the one answer that cannot accidentally publish a hidden project's work.
+    """
+    if project_id:
+        return project_id in projects
+    return readable_by(Visibility.LOCAL, principal)
 
 
 def _task_url(project_id: str, task_id: str) -> str:
@@ -331,16 +355,27 @@ def _holder_view(
 
 
 @router.get("/live", response_model=LiveRunsView)
-async def list_live_runs() -> LiveRunsView:
-    """Every run happening on this machine, with what is left of its capacity.
+async def list_live_runs(
+    principal: Optional[Principal] = Depends(get_principal),
+) -> LiveRunsView:
+    """Every run this caller may see, with what is left of the machine's capacity.
 
     One request answers both surfaces task-328 ships -- the Runs tab and the Dashboard's
     capacity row -- which is why the ceiling and the occupied count are in the body
     rather than left to a second call.
+
+    **``occupied`` counts every run, including the ones not listed** (task-333). The two
+    numbers answer different questions and only one of them is about exposure: the rows
+    are "what may I read", while the capacity is "why can I not dispatch", and a machine
+    that is full because of a hidden project's run is still full. Subtracting the hidden
+    rows from the count would make this surface disagree with ``dispatch/guards.py``
+    about whether there is a slot, which is the one thing its docstring says it must
+    never do.
     """
     home = _home()
-    projects = _projects_by_id()
-    records = live_runs(home)
+    projects = _projects_by_id(principal)
+    occupied = live_runs(home)
+    records = [record for record in occupied if _may_see(record.project_id, projects, principal)]
     ceiling, configured = _ceiling()
 
     runways = _runway_owners(projects)
@@ -354,9 +389,10 @@ async def list_live_runs() -> LiveRunsView:
         # and a row that appears for that long is noise rather than information.
         if holder.is_runway or holder.is_finish
     ]
+    holders = [holder for holder in holders if _may_see(holder.project_id, projects, principal)]
 
     return LiveRunsView(
-        occupied=len(records),
+        occupied=len(occupied),
         max_concurrent_runs=ceiling,
         dispatch_configured=configured,
         runs=[_run_view(record, projects) for record in records],
