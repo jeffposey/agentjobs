@@ -23,6 +23,7 @@ import { DependencyGraph } from "./DependencyGraph";
 import { DependencyState } from "./DependencyState";
 import { DispatchPanel, type DispatchPanelProps } from "./DispatchPanel";
 import { FinishPanel } from "./FinishPanel";
+import { identityHeadline } from "./identityProblem";
 import { NoteComposer } from "./NoteComposer";
 
 const PRIORITY_CLASSES: Record<string, string> = {
@@ -515,7 +516,7 @@ function ReviewPanel({
         </>
       ) : (
         <div className="rounded-lg border border-yellow-600/50 bg-dark-bg p-4 text-sm">
-          <strong className="text-yellow-300">{detail.identity.problem === "multiple" ? "Multiple users configured. " : "No user configured. "}</strong>
+          <strong className="text-yellow-300">{identityHeadline(detail.identity.problem)}</strong>
           <span className="text-dark-muted">{detail.identity.detail}</span>
         </div>
       )}

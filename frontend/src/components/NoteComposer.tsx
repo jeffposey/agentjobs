@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import type { ReviewIdentity } from "../api/generated";
+import { identityHeadline } from "./identityProblem";
 
 /**
  * Write a note to the task's log, as yourself, from the page you are already on.
@@ -64,7 +65,7 @@ export function NoteComposer({ identity, busy = false, error = null, onAddNote }
         // silently omits the control named by a refusal is the defect this closes.
         <div className="rounded-lg border border-dark-border bg-dark-bg p-4 text-sm">
           <strong className="text-yellow-300">
-            {identity.problem === "multiple" ? "Multiple users configured. " : "No user configured. "}
+            {identityHeadline(identity.problem)}
           </strong>
           <span className="text-dark-muted">{identity.detail}</span>
         </div>
