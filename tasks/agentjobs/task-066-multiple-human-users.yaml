@@ -2,7 +2,7 @@ schema: 2
 id: task-066-multiple-human-users
 title: 'Account system: principals, attribution, and the network boundary'
 created: '2026-08-10T23:20:39.069637Z'
-updated: '2026-09-04T06:13:15.728497Z'
+updated: '2026-09-04T06:48:27.330361Z'
 lifecycle: active
 ball: human
 ball_reason: input
@@ -10,52 +10,29 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \ produced no output for 30 minutes, so this task has been reading `agent`/`work`\
   \ while nothing happened. It was **not** killed and is still attachable: `claude\
   \ attach 160808d3`. Attach to see what it is doing, or stop it and move this task\
-  \ on yourself.\n\nThe end of its terminal, verbatim:\n\n```\n                  \
-  \                                                                              \
-  \                                                                              \
-  \                          \u25CF task-331 merged (3 of 7 done). But task-330's\
-  \ finish escalated at rebase, and its worktree is sitting in detached HEAD \u2014\
-  \ that's a conflicted rebase. Reading its record:                              \
-  \                                                                              \
-  \                                                                              \
-  \                                              Ran 3 shell commands\n          \
-  \                                                                              \
-  \                                                                              \
-  \                                  \u25CF task-330's session is alive and mid-rebase\
-  \ with two conflicted docs files \u2014 that's the child's own work to resolve,\
-  \ so I won't touch it. But task-331's session is lingering again at 4,733s with\
-  \ its   task already closed, holding the slot 332 will need. Checking whether it's\
-  \ idle or still delivering:                                                    \
+  \ on yourself.\n\nThe end of its terminal, verbatim:\n\n```\n  task already closed,\
+  \ holding the slot 332 will need. Checking whether it's idle or still delivering:\
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \              Read 1 file, ran 1 shell command                                \
+  \                                                                  Read 1 file,\
+  \ ran 1 shell command                                                          \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \                                                                              \
-  \                      \u25CF Idle at a prompt, no active shell, task closed and\
-  \ merged. Reclaiming that slot so 332 isn't blocked when 330 lands:            \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                      Ran 2 shell commands                    \
+  \                                                                          \u25CF\
+  \ Idle at a prompt, no active shell, task closed and merged. Reclaiming that slot\
+  \ so 332 isn't blocked when 330 lands:                                         \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \                                                                              \
-  \                                              \u25CF It had concluded on its own\
-  \ in the interval \u2014 the slot is free, no action needed. Confirming the walk\
-  \ is still alive to carry 332 when 330 lands:                                  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                 Ran 1 shell command\
+  \         Ran 2 shell commands\n\u25CF It had concluded on its own in the interval\
+  \ \u2014 the slot is free, no action needed. Confirming the walk is still alive\
+  \ to carry 332 when 330 lands:                                                 \
   \                                                                              \
   \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                   \u25CF 3 of\
-  \ 7 complete, all merged to main: 329 (principal resolution), 331 (run credential),\
+  \                                                  Ran 1 shell command\n\u25CF 3\
+  \ of 7 complete, all merged to main: 329 (principal resolution), 331 (run credential),\
   \ 334 (dispatch caps).                                                         \
   \                                                                              \
   \                                                                              \
@@ -65,17 +42,55 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \ warns about: a branch     living across another branch's merge. The scripted finish\
   \ stopped correctly and merged nothing; its worktree is mid-rebase with two UU files\
   \ and its session is alive working them. That's the child's  job, not mine \u2014\
-  \ I'm leaving it alone.\n                                                      \
+  \ I'm leaving it alone.                                                        \
   \                                                                              \
-  \                                                                      The 331 session\
-  \ concluded itself before my cancel landed, so the slot freed without intervention.\
+  \                                                                              \
+  \                                                                              \
+  \                                                                         The 331\
+  \ session concluded itself before my cancel landed, so the slot freed without intervention.\
   \ The walk process is alive and will start 332 once 330 closes.                \
   \                                                                              \
   \                                                                              \
   \                                                                     Nothing needs\
-  \ Jeff. Watching.\n\u273D Befuddling\u2026 (1m 3s \xB7 \u2193 3.1k tokens)\n  \u23BF\
-  \ \_Tip: Use /btw to ask a quick side question without interrupting Claude's current\
-  \ work\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \ Jeff. Watching.                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                         \u273B\
+  \ Saut\xE9ed for 1m 3s \xB7 done 12:43 AM \xB7 1 monitor still running         \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                  \u25CF Monitor event: \"task-066 epic: child lifecycle changes,\
+  \ reclaimable run slots, walk exit\"                                           \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                \u25CF task-330 closed and 332 already took off.\
+  \ Verifying 330 resolved its conflict and actually merged:                     \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                               Ran 1 shell command            \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                       \u25CF 4 of 7 complete.\
+  \ task-330 resolved its own rebase conflict and merged cleanly (4d6c85c), worktree\
+  \ and branch gone \u2014 no leftovers anywhere.                                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                          That\
+  \ closes the whole second layer. task-332 (authorization \u2014 capabilities per\
+  \ principal kind) is now in flight, and it's the one ac-3 hangs on. After it, 244\
+  \ and 333 unblock and can run together.                                        \
+  \                                                                              \
+  \                                                                              \
+  \        The walk is handling it.\n* Meandering\u2026 (10s \xB7 \u2193 369 tokens)\n\
+  \  \u23BF \_Tip: Use Plan Mode to prepare for a complex request before making changes.\
+  \ Press shift+tab twice to enable.\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
@@ -85,8 +100,8 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
-  \ \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500 agentjobs/task-066-multiple-human-users@b1c2d736 \u2500\u276F\n\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
@@ -100,52 +115,23 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\
-  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (180k/1.00M) \xB7\
-  \ $9.77/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\u2591\u2591\u2591\u2591\
+  \u2591\u2591\u2591\u2591 18% ctx (181k/1.00M) \xB7 $9.97/rc\n  \u23F5\u23F5 bypass\
+  \ permissions on \xB7 \u2190 7 agents \xB7 1 monitor                           \
   \                                                                              \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \                                                                              \
-  \          \u273B Saut\xE9ed for 22s \xB7 done 11:34 PM \xB7 1 monitor still running\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                             \u25CF Monitor event: \"task-066 epic: child lifecycle\
-  \ changes, reclaimable run slots, walk exit\"\n\u25CF Confirms 330 active alongside\
-  \ 331. Waiting.                                                                \
+  \                                                             \u25CF task-331 merged\
+  \ (3 of 7 done). But task-330's finish escalated at rebase, and its worktree is\
+  \ sitting in detached HEAD \u2014 that's a conflicted rebase. Reading its record:\
   \                                                                              \
   \                                                                              \
-  \                                                                              \
-  \                                                         \u273B Cogitated for 1s\
-  \ \xB7 done 11:35 PM \xB7 1 monitor still running                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                            \u25CF\
-  \ Monitor event: \"task-066 epic: child lifecycle changes, reclaimable run slots,\
-  \ walk exit\"                                                                  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \         \u25CF task-331 closed. Verifying:\n  Ran 2 shell commands           \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                       \u25CF task-331 merged (3\
-  \ of 7 done). But task-330's finish escalated at rebase, and its worktree is sitting\
-  \ in detached HEAD \u2014 that's a conflicted rebase. Reading its record:\n  Ran\
-  \ 3 shell commands                                                             \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \     \u25CF task-330's session is alive and mid-rebase with two conflicted docs\
-  \ files \u2014 that's the child's own work to resolve, so I won't touch it. But\
-  \ task-331's session is lingering again at 4,733s with its   task already closed,\
+  \                                                                            Ran\
+  \ 3 shell commands\n\u25CF task-330's session is alive and mid-rebase with two conflicted\
+  \ docs files \u2014 that's the child's own work to resolve, so I won't touch it.\
+  \ But task-331's session is lingering again at 4,733s with its   task already closed,\
   \ holding the slot 332 will need. Checking whether it's idle or still delivering:\
   \                                                                              \
   \                                                                              \
@@ -161,29 +147,24 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \         Ran 2 shell commands                                                 \
+  \         Ran 2 shell commands\n                                               \
+  \                                                                              \
+  \                                                                           \u25CF\
+  \ It had concluded on its own in the interval \u2014 the slot is free, no action\
+  \ needed. Confirming the walk is still alive to carry 332 when 330 lands:      \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \                                                                              \
-  \                 \u25CF It had concluded on its own in the interval \u2014 the\
-  \ slot is free, no action needed. Confirming the walk is still alive to carry 332\
-  \ when 330 lands:                                                              \
+  \               Ran 1 shell command\n                                          \
   \                                                                              \
   \                                                                              \
-  \                                     Ran 1 shell command                      \
+  \  \u25CF 3 of 7 complete, all merged to main: 329 (principal resolution), 331 (run\
+  \ credential), 334 (dispatch caps).                                            \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \                                                                              \
-  \                                             \u25CF 3 of 7 complete, all merged\
-  \ to main: 329 (principal resolution), 331 (run credential), 334 (dispatch caps).\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                           task-330 hit a real\
-  \ rebase conflict \u2014 docs/index.md and docs/principals-design.md, against what\
-  \ 331 landed while 330 was in the air. That's exactly the hazard ENGINEERING.md\
+  \               task-330 hit a real rebase conflict \u2014 docs/index.md and docs/principals-design.md,\
+  \ against what 331 landed while 330 was in the air. That's exactly the hazard ENGINEERING.md\
   \ warns about: a branch     living across another branch's merge. The scripted finish\
   \ stopped correctly and merged nothing; its worktree is mid-rebase with two UU files\
   \ and its session is alive working them. That's the child's  job, not mine \u2014\
@@ -193,9 +174,45 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \                                                                              \
   \                                                                         The 331\
   \ session concluded itself before my cancel landed, so the slot freed without intervention.\
-  \ The walk process is alive and will start 332 once 330 closes.\n  Nothing needs\
-  \ Jeff. Watching.\n\u273B Saut\xE9ed for 1m 3s \xB7 done 12:43 AM \xB7 1 monitor\
-  \ still running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \ The walk process is alive and will start 332 once 330 closes.                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                     Nothing needs\
+  \ Jeff. Watching.                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                         \u273B\
+  \ Saut\xE9ed for 1m 3s \xB7 done 12:43 AM \xB7 1 monitor still running         \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                  \u25CF Monitor event: \"task-066 epic: child lifecycle changes,\
+  \ reclaimable run slots, walk exit\"                                           \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                \u25CF task-330 closed and 332 already took off.\
+  \ Verifying 330 resolved its conflict and actually merged:                     \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                               Ran 1 shell command            \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                       \u25CF 4 of 7 complete.\
+  \ task-330 resolved its own rebase conflict and merged cleanly (4d6c85c), worktree\
+  \ and branch gone \u2014 no leftovers anywhere.                                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                          That\
+  \ closes the whole second layer. task-332 (authorization \u2014 capabilities per\
+  \ principal kind) is now in flight, and it's the one ac-3 hangs on. After it, 244\
+  \ and 333 unblock and can run together.\n  The walk is handling it.\n\u273B Saut\xE9\
+  ed for 10s \xB7 done 1:18 AM \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
@@ -205,7 +222,8 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
   \ \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
@@ -221,90 +239,56 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\
-  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (180k/1.00M) \xB7\
-  \ $9.77/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\
+  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (181k/1.00M) \xB7\
+  \ $9.97/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\
   \                                                                              \
   \                                                                              \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \          \u273B Saut\xE9ed for 22s \xB7 done 11:34 PM \xB7 1 monitor still running\
+  \          \u25CF task-331 merged (3 of 7 done). But task-330's finish escalated\
+  \ at rebase, and its worktree is sitting in detached HEAD \u2014 that's a conflicted\
+  \ rebase. Reading its record:                                                  \
+  \                                                                              \
+  \                                                                              \
+  \                          Ran 3 shell commands\n\u25CF task-330's session is alive\
+  \ and mid-rebase with two conflicted docs files \u2014 that's the child's own work\
+  \ to resolve, so I won't touch it. But task-331's session is lingering again at\
+  \ 4,733s with its   task already closed, holding the slot 332 will need. Checking\
+  \ whether it's idle or still delivering:                                       \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                           Read 1 file, ran 1 shell command                   \
   \                                                                              \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \                             \u25CF Monitor event: \"task-066 epic: child lifecycle\
-  \ changes, reclaimable run slots, walk exit\"\n\u25CF Confirms 330 active alongside\
-  \ 331. Waiting.                                                                \
+  \                                   \u25CF Idle at a prompt, no active shell, task\
+  \ closed and merged. Reclaiming that slot so 332 isn't blocked when 330 lands: \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \                                                         \u273B Cogitated for 1s\
-  \ \xB7 done 11:35 PM \xB7 1 monitor still running                              \
+  \                                                 Ran 2 shell commands\n       \
+  \                                                                              \
+  \                                                                              \
+  \                                     \u25CF It had concluded on its own in the\
+  \ interval \u2014 the slot is free, no action needed. Confirming the walk is still\
+  \ alive to carry 332 when 330 lands:                                           \
+  \                                                                              \
+  \                                                                              \
+  \                                                        Ran 1 shell command\n \
+  \                                                                              \
+  \                                                                              \
+  \                                           \u25CF 3 of 7 complete, all merged to\
+  \ main: 329 (principal resolution), 331 (run credential), 334 (dispatch caps). \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \                                                                            \u25CF\
-  \ Monitor event: \"task-066 epic: child lifecycle changes, reclaimable run slots,\
-  \ walk exit\"                                                                  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \         \u25CF task-331 closed. Verifying:\n  Ran 2 shell commands           \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                       \u25CF task-331 merged (3\
-  \ of 7 done). But task-330's finish escalated at rebase, and its worktree is sitting\
-  \ in detached HEAD \u2014 that's a conflicted rebase. Reading its record:\n  Ran\
-  \ 3 shell commands                                                             \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \     \u25CF task-330's session is alive and mid-rebase with two conflicted docs\
-  \ files \u2014 that's the child's own work to resolve, so I won't touch it. But\
-  \ task-331's session is lingering again at 4,733s with its   task already closed,\
-  \ holding the slot 332 will need. Checking whether it's idle or still delivering:\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                  Read 1 file,\
-  \ ran 1 shell command                                                          \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          \u25CF\
-  \ Idle at a prompt, no active shell, task closed and merged. Reclaiming that slot\
-  \ so 332 isn't blocked when 330 lands:                                         \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \         Ran 2 shell commands                                                 \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                 \u25CF It had concluded on its own in the interval \u2014 the\
-  \ slot is free, no action needed. Confirming the walk is still alive to carry 332\
-  \ when 330 lands:                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                     Ran 1 shell command                      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                             \u25CF 3 of 7 complete, all merged\
-  \ to main: 329 (principal resolution), 331 (run credential), 334 (dispatch caps).\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                           task-330 hit a real\
-  \ rebase conflict \u2014 docs/index.md and docs/principals-design.md, against what\
-  \ 331 landed while 330 was in the air. That's exactly the hazard ENGINEERING.md\
-  \ warns about: a branch     living across another branch's merge. The scripted finish\
+  \                                                          task-330 hit a real rebase\
+  \ conflict \u2014 docs/index.md and docs/principals-design.md, against what 331\
+  \ landed while 330 was in the air. That's exactly the hazard ENGINEERING.md warns\
+  \ about: a branch     living across another branch's merge. The scripted finish\
   \ stopped correctly and merged nothing; its worktree is mid-rebase with two UU files\
   \ and its session is alive working them. That's the child's  job, not mine \u2014\
   \ I'm leaving it alone.                                                        \
@@ -313,9 +297,45 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \                                                                              \
   \                                                                         The 331\
   \ session concluded itself before my cancel landed, so the slot freed without intervention.\
-  \ The walk process is alive and will start 332 once 330 closes.\n  Nothing needs\
-  \ Jeff. Watching.\n\u273B Saut\xE9ed for 1m 3s \xB7 done 12:43 AM \xB7 1 monitor\
-  \ still running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \ The walk process is alive and will start 332 once 330 closes.                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                     Nothing needs\
+  \ Jeff. Watching.                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                         \u273B\
+  \ Saut\xE9ed for 1m 3s \xB7 done 12:43 AM \xB7 1 monitor still running         \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                  \u25CF Monitor event: \"task-066 epic: child lifecycle changes,\
+  \ reclaimable run slots, walk exit\"                                           \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                \u25CF task-330 closed and 332 already took off.\
+  \ Verifying 330 resolved its conflict and actually merged:                     \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                               Ran 1 shell command            \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                       \u25CF 4 of 7 complete.\
+  \ task-330 resolved its own rebase conflict and merged cleanly (4d6c85c), worktree\
+  \ and branch gone \u2014 no leftovers anywhere.                                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                          That\
+  \ closes the whole second layer. task-332 (authorization \u2014 capabilities per\
+  \ principal kind) is now in flight, and it's the one ac-3 hangs on. After it, 244\
+  \ and 333 unblock and can run together.\n  The walk is handling it.\n\u273B Saut\xE9\
+  ed for 10s \xB7 done 1:18 AM \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
@@ -325,7 +345,8 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
   \ \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
@@ -341,90 +362,56 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\
-  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (180k/1.00M) \xB7\
-  \ $9.77/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\
+  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (181k/1.00M) \xB7\
+  \ $9.97/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\
   \                                                                              \
   \                                                                              \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \          \u273B Saut\xE9ed for 22s \xB7 done 11:34 PM \xB7 1 monitor still running\
+  \          \u25CF task-331 merged (3 of 7 done). But task-330's finish escalated\
+  \ at rebase, and its worktree is sitting in detached HEAD \u2014 that's a conflicted\
+  \ rebase. Reading its record:                                                  \
+  \                                                                              \
+  \                                                                              \
+  \                          Ran 3 shell commands\n\u25CF task-330's session is alive\
+  \ and mid-rebase with two conflicted docs files \u2014 that's the child's own work\
+  \ to resolve, so I won't touch it. But task-331's session is lingering again at\
+  \ 4,733s with its   task already closed, holding the slot 332 will need. Checking\
+  \ whether it's idle or still delivering:                                       \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                           Read 1 file, ran 1 shell command                   \
   \                                                                              \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \                             \u25CF Monitor event: \"task-066 epic: child lifecycle\
-  \ changes, reclaimable run slots, walk exit\"\n\u25CF Confirms 330 active alongside\
-  \ 331. Waiting.                                                                \
+  \                                   \u25CF Idle at a prompt, no active shell, task\
+  \ closed and merged. Reclaiming that slot so 332 isn't blocked when 330 lands: \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \                                                         \u273B Cogitated for 1s\
-  \ \xB7 done 11:35 PM \xB7 1 monitor still running                              \
+  \                                                 Ran 2 shell commands\n       \
+  \                                                                              \
+  \                                                                              \
+  \                                     \u25CF It had concluded on its own in the\
+  \ interval \u2014 the slot is free, no action needed. Confirming the walk is still\
+  \ alive to carry 332 when 330 lands:                                           \
+  \                                                                              \
+  \                                                                              \
+  \                                                        Ran 1 shell command\n \
+  \                                                                              \
+  \                                                                              \
+  \                                           \u25CF 3 of 7 complete, all merged to\
+  \ main: 329 (principal resolution), 331 (run credential), 334 (dispatch caps). \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \                                                                            \u25CF\
-  \ Monitor event: \"task-066 epic: child lifecycle changes, reclaimable run slots,\
-  \ walk exit\"                                                                  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \         \u25CF task-331 closed. Verifying:\n  Ran 2 shell commands           \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                       \u25CF task-331 merged (3\
-  \ of 7 done). But task-330's finish escalated at rebase, and its worktree is sitting\
-  \ in detached HEAD \u2014 that's a conflicted rebase. Reading its record:\n  Ran\
-  \ 3 shell commands                                                             \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \     \u25CF task-330's session is alive and mid-rebase with two conflicted docs\
-  \ files \u2014 that's the child's own work to resolve, so I won't touch it. But\
-  \ task-331's session is lingering again at 4,733s with its   task already closed,\
-  \ holding the slot 332 will need. Checking whether it's idle or still delivering:\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                  Read 1 file,\
-  \ ran 1 shell command                                                          \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          \u25CF\
-  \ Idle at a prompt, no active shell, task closed and merged. Reclaiming that slot\
-  \ so 332 isn't blocked when 330 lands:                                         \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \         Ran 2 shell commands                                                 \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                 \u25CF It had concluded on its own in the interval \u2014 the\
-  \ slot is free, no action needed. Confirming the walk is still alive to carry 332\
-  \ when 330 lands:                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                     Ran 1 shell command                      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                             \u25CF 3 of 7 complete, all merged\
-  \ to main: 329 (principal resolution), 331 (run credential), 334 (dispatch caps).\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                           task-330 hit a real\
-  \ rebase conflict \u2014 docs/index.md and docs/principals-design.md, against what\
-  \ 331 landed while 330 was in the air. That's exactly the hazard ENGINEERING.md\
-  \ warns about: a branch     living across another branch's merge. The scripted finish\
+  \                                                          task-330 hit a real rebase\
+  \ conflict \u2014 docs/index.md and docs/principals-design.md, against what 331\
+  \ landed while 330 was in the air. That's exactly the hazard ENGINEERING.md warns\
+  \ about: a branch     living across another branch's merge. The scripted finish\
   \ stopped correctly and merged nothing; its worktree is mid-rebase with two UU files\
   \ and its session is alive working them. That's the child's  job, not mine \u2014\
   \ I'm leaving it alone.                                                        \
@@ -433,9 +420,45 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \                                                                              \
   \                                                                         The 331\
   \ session concluded itself before my cancel landed, so the slot freed without intervention.\
-  \ The walk process is alive and will start 332 once 330 closes.\n  Nothing needs\
-  \ Jeff. Watching.\n\u273B Saut\xE9ed for 1m 3s \xB7 done 12:43 AM \xB7 1 monitor\
-  \ still running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \ The walk process is alive and will start 332 once 330 closes.                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                     Nothing needs\
+  \ Jeff. Watching.                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                         \u273B\
+  \ Saut\xE9ed for 1m 3s \xB7 done 12:43 AM \xB7 1 monitor still running         \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                  \u25CF Monitor event: \"task-066 epic: child lifecycle changes,\
+  \ reclaimable run slots, walk exit\"                                           \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                \u25CF task-330 closed and 332 already took off.\
+  \ Verifying 330 resolved its conflict and actually merged:                     \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                               Ran 1 shell command            \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                       \u25CF 4 of 7 complete.\
+  \ task-330 resolved its own rebase conflict and merged cleanly (4d6c85c), worktree\
+  \ and branch gone \u2014 no leftovers anywhere.                                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                          That\
+  \ closes the whole second layer. task-332 (authorization \u2014 capabilities per\
+  \ principal kind) is now in flight, and it's the one ac-3 hangs on. After it, 244\
+  \ and 333 unblock and can run together.\n  The walk is handling it.\n\u273B Saut\xE9\
+  ed for 10s \xB7 done 1:18 AM \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
@@ -445,7 +468,8 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
   \ \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
@@ -461,90 +485,56 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\
-  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (180k/1.00M) \xB7\
-  \ $9.77/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\
+  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (181k/1.00M) \xB7\
+  \ $9.97/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\
   \                                                                              \
   \                                                                              \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \          \u273B Saut\xE9ed for 22s \xB7 done 11:34 PM \xB7 1 monitor still running\
+  \          \u25CF task-331 merged (3 of 7 done). But task-330's finish escalated\
+  \ at rebase, and its worktree is sitting in detached HEAD \u2014 that's a conflicted\
+  \ rebase. Reading its record:                                                  \
+  \                                                                              \
+  \                                                                              \
+  \                          Ran 3 shell commands\n\u25CF task-330's session is alive\
+  \ and mid-rebase with two conflicted docs files \u2014 that's the child's own work\
+  \ to resolve, so I won't touch it. But task-331's session is lingering again at\
+  \ 4,733s with its   task already closed, holding the slot 332 will need. Checking\
+  \ whether it's idle or still delivering:                                       \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                           Read 1 file, ran 1 shell command                   \
   \                                                                              \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \                             \u25CF Monitor event: \"task-066 epic: child lifecycle\
-  \ changes, reclaimable run slots, walk exit\"\n\u25CF Confirms 330 active alongside\
-  \ 331. Waiting.                                                                \
+  \                                   \u25CF Idle at a prompt, no active shell, task\
+  \ closed and merged. Reclaiming that slot so 332 isn't blocked when 330 lands: \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \                                                         \u273B Cogitated for 1s\
-  \ \xB7 done 11:35 PM \xB7 1 monitor still running                              \
+  \                                                 Ran 2 shell commands\n       \
+  \                                                                              \
+  \                                                                              \
+  \                                     \u25CF It had concluded on its own in the\
+  \ interval \u2014 the slot is free, no action needed. Confirming the walk is still\
+  \ alive to carry 332 when 330 lands:                                           \
+  \                                                                              \
+  \                                                                              \
+  \                                                        Ran 1 shell command\n \
+  \                                                                              \
+  \                                                                              \
+  \                                           \u25CF 3 of 7 complete, all merged to\
+  \ main: 329 (principal resolution), 331 (run credential), 334 (dispatch caps). \
   \                                                                              \
   \                                                                              \
   \                                                                              \
-  \                                                                            \u25CF\
-  \ Monitor event: \"task-066 epic: child lifecycle changes, reclaimable run slots,\
-  \ walk exit\"                                                                  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \         \u25CF task-331 closed. Verifying:\n  Ran 2 shell commands           \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                       \u25CF task-331 merged (3\
-  \ of 7 done). But task-330's finish escalated at rebase, and its worktree is sitting\
-  \ in detached HEAD \u2014 that's a conflicted rebase. Reading its record:\n  Ran\
-  \ 3 shell commands                                                             \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \     \u25CF task-330's session is alive and mid-rebase with two conflicted docs\
-  \ files \u2014 that's the child's own work to resolve, so I won't touch it. But\
-  \ task-331's session is lingering again at 4,733s with its   task already closed,\
-  \ holding the slot 332 will need. Checking whether it's idle or still delivering:\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                  Read 1 file,\
-  \ ran 1 shell command                                                          \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          \u25CF\
-  \ Idle at a prompt, no active shell, task closed and merged. Reclaiming that slot\
-  \ so 332 isn't blocked when 330 lands:                                         \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \         Ran 2 shell commands                                                 \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                 \u25CF It had concluded on its own in the interval \u2014 the\
-  \ slot is free, no action needed. Confirming the walk is still alive to carry 332\
-  \ when 330 lands:                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                     Ran 1 shell command                      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                             \u25CF 3 of 7 complete, all merged\
-  \ to main: 329 (principal resolution), 331 (run credential), 334 (dispatch caps).\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                           task-330 hit a real\
-  \ rebase conflict \u2014 docs/index.md and docs/principals-design.md, against what\
-  \ 331 landed while 330 was in the air. That's exactly the hazard ENGINEERING.md\
-  \ warns about: a branch     living across another branch's merge. The scripted finish\
+  \                                                          task-330 hit a real rebase\
+  \ conflict \u2014 docs/index.md and docs/principals-design.md, against what 331\
+  \ landed while 330 was in the air. That's exactly the hazard ENGINEERING.md warns\
+  \ about: a branch     living across another branch's merge. The scripted finish\
   \ stopped correctly and merged nothing; its worktree is mid-rebase with two UU files\
   \ and its session is alive working them. That's the child's  job, not mine \u2014\
   \ I'm leaving it alone.                                                        \
@@ -553,9 +543,45 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \                                                                              \
   \                                                                         The 331\
   \ session concluded itself before my cancel landed, so the slot freed without intervention.\
-  \ The walk process is alive and will start 332 once 330 closes.\n  Nothing needs\
-  \ Jeff. Watching.\n\u273B Saut\xE9ed for 1m 3s \xB7 done 12:43 AM \xB7 1 monitor\
-  \ still running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \ The walk process is alive and will start 332 once 330 closes.                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                     Nothing needs\
+  \ Jeff. Watching.                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                         \u273B\
+  \ Saut\xE9ed for 1m 3s \xB7 done 12:43 AM \xB7 1 monitor still running         \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                  \u25CF Monitor event: \"task-066 epic: child lifecycle changes,\
+  \ reclaimable run slots, walk exit\"                                           \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                \u25CF task-330 closed and 332 already took off.\
+  \ Verifying 330 resolved its conflict and actually merged:                     \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                               Ran 1 shell command            \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                       \u25CF 4 of 7 complete.\
+  \ task-330 resolved its own rebase conflict and merged cleanly (4d6c85c), worktree\
+  \ and branch gone \u2014 no leftovers anywhere.                                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                          That\
+  \ closes the whole second layer. task-332 (authorization \u2014 capabilities per\
+  \ principal kind) is now in flight, and it's the one ac-3 hangs on. After it, 244\
+  \ and 333 unblock and can run together.\n  The walk is handling it.\n\u273B Saut\xE9\
+  ed for 10s \xB7 done 1:18 AM \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
@@ -565,7 +591,8 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
   \ \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
@@ -581,8 +608,8 @@ ball_prompt: "Dispatched session `160808d3` still reports itself as working but 
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
   \u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\
-  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (180k/1.00M) \xB7\
-  \ $9.77/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\n\
+  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (181k/1.00M) \xB7\
+  \ $9.97/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\n\
   ```"
 archived: false
 priority: critical
@@ -2385,6 +2412,638 @@ log:
     \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (180k/1.00M) \xB7\
     \ $9.77/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\n\
     ```"
+  data:
+    ball: human
+    ball_reason: input
+- id: 19
+  ts: '2026-09-04T06:48:27.330196Z'
+  actor: dispatcher
+  type: handoff
+  body: "Dispatched session `160808d3` still reports itself as working but has produced\
+    \ no output for 30 minutes, so this task has been reading `agent`/`work` while\
+    \ nothing happened. It was **not** killed and is still attachable: `claude attach\
+    \ 160808d3`. Attach to see what it is doing, or stop it and move this task on\
+    \ yourself.\n\nThe end of its terminal, verbatim:\n\n```\n  task already closed,\
+    \ holding the slot 332 will need. Checking whether it's idle or still delivering:\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                        Read\
+    \ 1 file, ran 1 shell command                                                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \              \u25CF Idle at a prompt, no active shell, task closed and merged.\
+    \ Reclaiming that slot so 332 isn't blocked when 330 lands:                  \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                      Ran 2 shell commands\n\u25CF It had concluded\
+    \ on its own in the interval \u2014 the slot is free, no action needed. Confirming\
+    \ the walk is still alive to carry 332 when 330 lands:                       \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \    Ran 1 shell command\n\u25CF 3 of 7 complete, all merged to main: 329 (principal\
+    \ resolution), 331 (run credential), 334 (dispatch caps).                    \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                             task-330 hit a real rebase conflict\
+    \ \u2014 docs/index.md and docs/principals-design.md, against what 331 landed\
+    \ while 330 was in the air. That's exactly the hazard ENGINEERING.md warns about:\
+    \ a branch     living across another branch's merge. The scripted finish stopped\
+    \ correctly and merged nothing; its worktree is mid-rebase with two UU files and\
+    \ its session is alive working them. That's the child's  job, not mine \u2014\
+    \ I'm leaving it alone.                                                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \     The 331 session concluded itself before my cancel landed, so the slot freed\
+    \ without intervention. The walk process is alive and will start 332 once 330\
+    \ closes.                                                                    \
+    \                                                                            \
+    \                                                                            \
+    \                     Nothing needs Jeff. Watching.                          \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                       \u273B Saut\xE9ed for 1m 3s \xB7 done\
+    \ 12:43 AM \xB7 1 monitor still running                                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                         \u25CF\
+    \ Monitor event: \"task-066 epic: child lifecycle changes, reclaimable run slots,\
+    \ walk exit\"                                                                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                 \u25CF task-330 closed and 332 already took off. Verifying 330\
+    \ resolved its conflict and actually merged:                                 \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                         Ran 1 shell command                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                           \u25CF 4 of 7 complete.\
+    \ task-330 resolved its own rebase conflict and merged cleanly (4d6c85c), worktree\
+    \ and branch gone \u2014 no leftovers anywhere.                              \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \    That closes the whole second layer. task-332 (authorization \u2014 capabilities\
+    \ per principal kind) is now in flight, and it's the one ac-3 hangs on. After\
+    \ it, 244 and 333 unblock and can run together.                              \
+    \                                                                            \
+    \                                                                            \
+    \                      The walk is handling it.\n* Meandering\u2026 (10s \xB7\
+    \ \u2193 369 tokens)\n  \u23BF \_Tip: Use Plan Mode to prepare for a complex request\
+    \ before making changes. Press shift+tab twice to enable.\n\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736 \u2500\u276F\n\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\u2591\u2591\
+    \u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (181k/1.00M) \xB7 $9.97/rc\n  \u23F5\
+    \u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor             \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \       \u25CF task-331 merged (3 of 7 done). But task-330's finish escalated\
+    \ at rebase, and its worktree is sitting in detached HEAD \u2014 that's a conflicted\
+    \ rebase. Reading its record:                                                \
+    \                                                                            \
+    \                                                                            \
+    \                                Ran 3 shell commands\n\u25CF task-330's session\
+    \ is alive and mid-rebase with two conflicted docs files \u2014 that's the child's\
+    \ own work to resolve, so I won't touch it. But task-331's session is lingering\
+    \ again at 4,733s with its   task already closed, holding the slot 332 will need.\
+    \ Checking whether it's idle or still delivering:                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                            Read 1 file, ran 1 shell command\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                              \u25CF Idle at\
+    \ a prompt, no active shell, task closed and merged. Reclaiming that slot so 332\
+    \ isn't blocked when 330 lands:                                              \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \          Ran 2 shell commands\n                                            \
+    \                                                                            \
+    \                                                                            \
+    \    \u25CF It had concluded on its own in the interval \u2014 the slot is free,\
+    \ no action needed. Confirming the walk is still alive to carry 332 when 330 lands:\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                           Ran 1 shell command\n                            \
+    \                                                                            \
+    \                                                                            \
+    \                    \u25CF 3 of 7 complete, all merged to main: 329 (principal\
+    \ resolution), 331 (run credential), 334 (dispatch caps).                    \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                             task-330 hit a real rebase conflict\
+    \ \u2014 docs/index.md and docs/principals-design.md, against what 331 landed\
+    \ while 330 was in the air. That's exactly the hazard ENGINEERING.md warns about:\
+    \ a branch     living across another branch's merge. The scripted finish stopped\
+    \ correctly and merged nothing; its worktree is mid-rebase with two UU files and\
+    \ its session is alive working them. That's the child's  job, not mine \u2014\
+    \ I'm leaving it alone.                                                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \     The 331 session concluded itself before my cancel landed, so the slot freed\
+    \ without intervention. The walk process is alive and will start 332 once 330\
+    \ closes.                                                                    \
+    \                                                                            \
+    \                                                                            \
+    \                     Nothing needs Jeff. Watching.                          \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                       \u273B Saut\xE9ed for 1m 3s \xB7 done\
+    \ 12:43 AM \xB7 1 monitor still running                                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                         \u25CF\
+    \ Monitor event: \"task-066 epic: child lifecycle changes, reclaimable run slots,\
+    \ walk exit\"                                                                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                 \u25CF task-330 closed and 332 already took off. Verifying 330\
+    \ resolved its conflict and actually merged:                                 \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                         Ran 1 shell command                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                           \u25CF 4 of 7 complete.\
+    \ task-330 resolved its own rebase conflict and merged cleanly (4d6c85c), worktree\
+    \ and branch gone \u2014 no leftovers anywhere.                              \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \    That closes the whole second layer. task-332 (authorization \u2014 capabilities\
+    \ per principal kind) is now in flight, and it's the one ac-3 hangs on. After\
+    \ it, 244 and 333 unblock and can run together.\n  The walk is handling it.\n\u273B\
+    \ Saut\xE9ed for 10s \xB7 done 1:18 AM \xB7 1 monitor still running\n\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736 \u2500\
+    \u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\
+    \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (181k/1.00M) \xB7 $9.97/rc\n\
+    \  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor    \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                \u25CF task-331 merged (3 of 7 done). But task-330's finish escalated\
+    \ at rebase, and its worktree is sitting in detached HEAD \u2014 that's a conflicted\
+    \ rebase. Reading its record:                                                \
+    \                                                                            \
+    \                                                                            \
+    \                                Ran 3 shell commands\n\u25CF task-330's session\
+    \ is alive and mid-rebase with two conflicted docs files \u2014 that's the child's\
+    \ own work to resolve, so I won't touch it. But task-331's session is lingering\
+    \ again at 4,733s with its   task already closed, holding the slot 332 will need.\
+    \ Checking whether it's idle or still delivering:                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                            Read 1 file, ran 1 shell command\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                              \u25CF Idle at\
+    \ a prompt, no active shell, task closed and merged. Reclaiming that slot so 332\
+    \ isn't blocked when 330 lands:                                              \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \          Ran 2 shell commands\n                                            \
+    \                                                                            \
+    \                                                                            \
+    \    \u25CF It had concluded on its own in the interval \u2014 the slot is free,\
+    \ no action needed. Confirming the walk is still alive to carry 332 when 330 lands:\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                           Ran 1 shell command\n                            \
+    \                                                                            \
+    \                                                                            \
+    \                    \u25CF 3 of 7 complete, all merged to main: 329 (principal\
+    \ resolution), 331 (run credential), 334 (dispatch caps).                    \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                             task-330 hit a real rebase conflict\
+    \ \u2014 docs/index.md and docs/principals-design.md, against what 331 landed\
+    \ while 330 was in the air. That's exactly the hazard ENGINEERING.md warns about:\
+    \ a branch     living across another branch's merge. The scripted finish stopped\
+    \ correctly and merged nothing; its worktree is mid-rebase with two UU files and\
+    \ its session is alive working them. That's the child's  job, not mine \u2014\
+    \ I'm leaving it alone.                                                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \     The 331 session concluded itself before my cancel landed, so the slot freed\
+    \ without intervention. The walk process is alive and will start 332 once 330\
+    \ closes.                                                                    \
+    \                                                                            \
+    \                                                                            \
+    \                     Nothing needs Jeff. Watching.                          \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                       \u273B Saut\xE9ed for 1m 3s \xB7 done\
+    \ 12:43 AM \xB7 1 monitor still running                                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                         \u25CF\
+    \ Monitor event: \"task-066 epic: child lifecycle changes, reclaimable run slots,\
+    \ walk exit\"                                                                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                 \u25CF task-330 closed and 332 already took off. Verifying 330\
+    \ resolved its conflict and actually merged:                                 \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                         Ran 1 shell command                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                           \u25CF 4 of 7 complete.\
+    \ task-330 resolved its own rebase conflict and merged cleanly (4d6c85c), worktree\
+    \ and branch gone \u2014 no leftovers anywhere.                              \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \    That closes the whole second layer. task-332 (authorization \u2014 capabilities\
+    \ per principal kind) is now in flight, and it's the one ac-3 hangs on. After\
+    \ it, 244 and 333 unblock and can run together.\n  The walk is handling it.\n\u273B\
+    \ Saut\xE9ed for 10s \xB7 done 1:18 AM \xB7 1 monitor still running\n\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736 \u2500\
+    \u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\
+    \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (181k/1.00M) \xB7 $9.97/rc\n\
+    \  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor    \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                \u25CF task-331 merged (3 of 7 done). But task-330's finish escalated\
+    \ at rebase, and its worktree is sitting in detached HEAD \u2014 that's a conflicted\
+    \ rebase. Reading its record:                                                \
+    \                                                                            \
+    \                                                                            \
+    \                                Ran 3 shell commands\n\u25CF task-330's session\
+    \ is alive and mid-rebase with two conflicted docs files \u2014 that's the child's\
+    \ own work to resolve, so I won't touch it. But task-331's session is lingering\
+    \ again at 4,733s with its   task already closed, holding the slot 332 will need.\
+    \ Checking whether it's idle or still delivering:                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                            Read 1 file, ran 1 shell command\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                              \u25CF Idle at\
+    \ a prompt, no active shell, task closed and merged. Reclaiming that slot so 332\
+    \ isn't blocked when 330 lands:                                              \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \          Ran 2 shell commands\n                                            \
+    \                                                                            \
+    \                                                                            \
+    \    \u25CF It had concluded on its own in the interval \u2014 the slot is free,\
+    \ no action needed. Confirming the walk is still alive to carry 332 when 330 lands:\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                           Ran 1 shell command\n                            \
+    \                                                                            \
+    \                                                                            \
+    \                    \u25CF 3 of 7 complete, all merged to main: 329 (principal\
+    \ resolution), 331 (run credential), 334 (dispatch caps).                    \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                             task-330 hit a real rebase conflict\
+    \ \u2014 docs/index.md and docs/principals-design.md, against what 331 landed\
+    \ while 330 was in the air. That's exactly the hazard ENGINEERING.md warns about:\
+    \ a branch     living across another branch's merge. The scripted finish stopped\
+    \ correctly and merged nothing; its worktree is mid-rebase with two UU files and\
+    \ its session is alive working them. That's the child's  job, not mine \u2014\
+    \ I'm leaving it alone.                                                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \     The 331 session concluded itself before my cancel landed, so the slot freed\
+    \ without intervention. The walk process is alive and will start 332 once 330\
+    \ closes.                                                                    \
+    \                                                                            \
+    \                                                                            \
+    \                     Nothing needs Jeff. Watching.                          \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                       \u273B Saut\xE9ed for 1m 3s \xB7 done\
+    \ 12:43 AM \xB7 1 monitor still running                                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                         \u25CF\
+    \ Monitor event: \"task-066 epic: child lifecycle changes, reclaimable run slots,\
+    \ walk exit\"                                                                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                 \u25CF task-330 closed and 332 already took off. Verifying 330\
+    \ resolved its conflict and actually merged:                                 \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                         Ran 1 shell command                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                           \u25CF 4 of 7 complete.\
+    \ task-330 resolved its own rebase conflict and merged cleanly (4d6c85c), worktree\
+    \ and branch gone \u2014 no leftovers anywhere.                              \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \    That closes the whole second layer. task-332 (authorization \u2014 capabilities\
+    \ per principal kind) is now in flight, and it's the one ac-3 hangs on. After\
+    \ it, 244 and 333 unblock and can run together.\n  The walk is handling it.\n\u273B\
+    \ Saut\xE9ed for 10s \xB7 done 1:18 AM \xB7 1 monitor still running\n\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736 \u2500\
+    \u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\
+    \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (181k/1.00M) \xB7 $9.97/rc\n\
+    \  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor    \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                \u25CF task-331 merged (3 of 7 done). But task-330's finish escalated\
+    \ at rebase, and its worktree is sitting in detached HEAD \u2014 that's a conflicted\
+    \ rebase. Reading its record:                                                \
+    \                                                                            \
+    \                                                                            \
+    \                                Ran 3 shell commands\n\u25CF task-330's session\
+    \ is alive and mid-rebase with two conflicted docs files \u2014 that's the child's\
+    \ own work to resolve, so I won't touch it. But task-331's session is lingering\
+    \ again at 4,733s with its   task already closed, holding the slot 332 will need.\
+    \ Checking whether it's idle or still delivering:                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                            Read 1 file, ran 1 shell command\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                              \u25CF Idle at\
+    \ a prompt, no active shell, task closed and merged. Reclaiming that slot so 332\
+    \ isn't blocked when 330 lands:                                              \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \          Ran 2 shell commands\n                                            \
+    \                                                                            \
+    \                                                                            \
+    \    \u25CF It had concluded on its own in the interval \u2014 the slot is free,\
+    \ no action needed. Confirming the walk is still alive to carry 332 when 330 lands:\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                           Ran 1 shell command\n                            \
+    \                                                                            \
+    \                                                                            \
+    \                    \u25CF 3 of 7 complete, all merged to main: 329 (principal\
+    \ resolution), 331 (run credential), 334 (dispatch caps).                    \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                             task-330 hit a real rebase conflict\
+    \ \u2014 docs/index.md and docs/principals-design.md, against what 331 landed\
+    \ while 330 was in the air. That's exactly the hazard ENGINEERING.md warns about:\
+    \ a branch     living across another branch's merge. The scripted finish stopped\
+    \ correctly and merged nothing; its worktree is mid-rebase with two UU files and\
+    \ its session is alive working them. That's the child's  job, not mine \u2014\
+    \ I'm leaving it alone.                                                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \     The 331 session concluded itself before my cancel landed, so the slot freed\
+    \ without intervention. The walk process is alive and will start 332 once 330\
+    \ closes.                                                                    \
+    \                                                                            \
+    \                                                                            \
+    \                     Nothing needs Jeff. Watching.                          \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                       \u273B Saut\xE9ed for 1m 3s \xB7 done\
+    \ 12:43 AM \xB7 1 monitor still running                                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                         \u25CF\
+    \ Monitor event: \"task-066 epic: child lifecycle changes, reclaimable run slots,\
+    \ walk exit\"                                                                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                 \u25CF task-330 closed and 332 already took off. Verifying 330\
+    \ resolved its conflict and actually merged:                                 \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                         Ran 1 shell command                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                           \u25CF 4 of 7 complete.\
+    \ task-330 resolved its own rebase conflict and merged cleanly (4d6c85c), worktree\
+    \ and branch gone \u2014 no leftovers anywhere.                              \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \    That closes the whole second layer. task-332 (authorization \u2014 capabilities\
+    \ per principal kind) is now in flight, and it's the one ac-3 hangs on. After\
+    \ it, 244 and 333 unblock and can run together.\n  The walk is handling it.\n\u273B\
+    \ Saut\xE9ed for 10s \xB7 done 1:18 AM \xB7 1 monitor still running\n\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736 \u2500\
+    \u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\
+    \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (181k/1.00M) \xB7 $9.97/rc\n\
+    \  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\n```"
   data:
     ball: human
     ball_reason: input
