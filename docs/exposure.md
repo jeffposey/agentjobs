@@ -131,9 +131,15 @@ them.
 2.  **It does not touch the CLI**, which drives the manager directly and speaks no HTTP.
     `agentjobs dispatch walk`, the poller, the scripted finish and `agentjobs queue` all
     run as the person at the machine and see everything, by construction.
-3.  **It is a disclosure control, not authentication.** A `tailnet` principal still exists
-    only because the front door proved an identity; see
-    [principals](principals-design.md) and [the proxy's own configuration](../audits/2026-08-21/12-security.md)
-    (task-244).
+3.  **It is a disclosure control, not authentication.** A `tailnet` principal exists only
+    because the front door proved an identity, which since task-244 means the tsnet proxy
+    ran `WhoIs` on the connection, set `X-Tailscale-User`, and proved it was the proxy
+    with the shared secret. Nothing here authenticates anybody; it decides what an
+    already-authenticated caller is shown. See [principals](principals-design.md).
+
+    The order those two landed in is worth knowing, because it is the difference between
+    a control that works and one that is merely written down: **until the proxy set that
+    header, every remote caller resolved as `owner`**, so a `visibility: local` project
+    would have gone on being served to a phone. Both are on `main` as of 2026-09-04.
 4.  **It hides projects, not tasks.** There is no per-task exposure and none is planned:
     a task that must not be read from a phone belongs in a project that must not be.

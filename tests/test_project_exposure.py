@@ -37,6 +37,7 @@ from agentjobs.dispatch.transcript import (
     SOURCE_JSONL,
     project_slug,
 )
+from agentjobs.front_door import SECRET_ENV, reset_cache as reset_front_door_cache
 from agentjobs.exposure import (
     DEFAULT_VISIBILITY,
     VISIBILITY_KEY,
@@ -45,12 +46,28 @@ from agentjobs.exposure import (
     visibility_of,
 )
 from agentjobs.manager import TaskManager
-from agentjobs.principals import Principal, PrincipalKind, PrincipalSource
+from agentjobs.principals import (
+    FRONT_DOOR_HEADER,
+    IDENTITY_HEADER,
+    Principal,
+    PrincipalKind,
+    PrincipalSource,
+    resolve_principal,
+)
 from agentjobs.projects import ProjectRegistry
 from agentjobs.storage import TaskStorage
 
 LOOPBACK = "127.0.0.1"
-TAILNET_HEADER = {"x-tailscale-user": "jeff@example.com"}
+
+FRONT_DOOR_SECRET = "a-front-door-secret-for-this-test"
+"""What the proxy proves itself with. Since task-244 loopback alone is not the front
+door, so a test that only sets the identity header resolves to nobody rather than to a
+``tailnet`` principal -- and would then assert the right refusals for the wrong reason."""
+
+REMOTE_HEADERS = {
+    FRONT_DOOR_HEADER: FRONT_DOOR_SECRET,
+    IDENTITY_HEADER: "jeff@example.com",
+}
 
 OPEN_PROJECT = "alpha"
 HIDDEN_PROJECT = "ledger"
@@ -185,6 +202,8 @@ def machine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Tuple[P
     home.mkdir()
     session_home = tmp_path / "sessionhome"
     monkeypatch.setenv("AGENTJOBS_HOME", str(home))
+    monkeypatch.setenv(SECRET_ENV, FRONT_DOOR_SECRET)
+    reset_front_door_cache()
     monkeypatch.delenv(TASKS_DIR_ENV, raising=False)
     monkeypatch.delenv("AGENTJOBS_PROJECT_ROOT", raising=False)
     monkeypatch.chdir(tmp_path)
@@ -221,16 +240,43 @@ def machine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Tuple[P
     yield tmp_path, home
 
     reset_dependency_cache()
+    reset_front_door_cache()
 
 
 def remote() -> TestClient:
-    """A tailnet peer: through the front door, carrying a proven identity."""
-    return TestClient(app, client=(LOOPBACK, 51001), headers=TAILNET_HEADER)
+    """A tailnet peer: through the proven front door, carrying a proven identity."""
+    return TestClient(app, client=(LOOPBACK, 51001), headers=REMOTE_HEADERS)
 
 
 def owner() -> TestClient:
-    """The person at this machine: the same socket, no identity header."""
+    """The person at this machine: the same socket, neither header."""
     return TestClient(app, client=(LOOPBACK, 51002))
+
+
+class TestTheTwoClientsAreWhoTheyClaimToBe:
+    """The fixture's own premise, asserted rather than assumed.
+
+    Every refusal below would also be produced by a request that resolved to *nobody*,
+    and since task-244 that is exactly what loopback plus an identity header gets you
+    without the front-door secret. So this suite would pass for the wrong reason and
+    prove nothing about a tailnet caller. One test stops that.
+    """
+
+    def test_the_remote_client_resolves_tailnet(self, machine) -> None:
+        resolution = resolve_principal(
+            client_host=LOOPBACK,
+            headers=REMOTE_HEADERS,
+            front_door_secret=FRONT_DOOR_SECRET,
+        )
+
+        assert resolution.principal is not None, resolution.detail
+        assert resolution.principal.kind is PrincipalKind.TAILNET
+
+    def test_the_owner_client_resolves_owner(self, machine) -> None:
+        resolution = resolve_principal(client_host=LOOPBACK, headers={})
+
+        assert resolution.principal is not None, resolution.detail
+        assert resolution.principal.kind is PrincipalKind.OWNER
 
 
 def _unknown_project_404(client: TestClient) -> Dict[str, Any]:
