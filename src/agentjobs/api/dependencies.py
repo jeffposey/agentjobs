@@ -19,6 +19,7 @@ from fastapi.templating import Jinja2Templates
 
 from agentjobs.actors import Identity, human_identity
 from agentjobs.manager import TaskManager
+from agentjobs.principals import Principal, Resolution, resolve_principal
 from agentjobs.projects import (
     AmbiguousProjectError,
     Project,
@@ -309,3 +310,56 @@ def reset_dependency_cache() -> None:
     _webhook_manager_for.cache_clear()
     global _TEMPLATES
     _TEMPLATES = None
+
+
+# ----- who is asking -----------------------------------------------------------
+#
+# Resolution only. Nothing here refuses a request, and no route reads it yet: task-332
+# owns what an absent or insufficient principal means. See agentjobs.principals.
+
+PRINCIPAL_STATE_ATTR = "principal_resolution"
+"""Where the middleware stashes the request's resolution.
+
+On ``request.state`` rather than in a context variable so that anything with the
+request in hand -- a handler, an exception handler, a future audit record -- can name
+who was asking without a second resolution and without a global.
+"""
+
+
+def resolve_request_principal(request: Request) -> Resolution:
+    """Resolve who is asking, from the socket the request arrived on and its headers.
+
+    The adapter, and deliberately the whole of it: the trust rule lives in
+    ``agentjobs.principals`` where it can be tested without a transport. ``request.client``
+    is the immediate peer -- the socket, which cannot be forwarded or rewritten -- and
+    is why a header claiming an identity is only believed when it arrives by the path
+    the front door controls.
+    """
+    client = request.client
+    return resolve_principal(
+        client_host=client.host if client is not None else None,
+        headers=request.headers,
+    )
+
+
+def get_principal_resolution(request: Request) -> Resolution:
+    """The resolution for this request, resolved once.
+
+    Falls back to resolving on the spot when the middleware did not run, so a route
+    exercised through a bare ASGI call or a partially-wired test app still gets an
+    answer rather than a default one.
+    """
+    cached = getattr(request.state, PRINCIPAL_STATE_ATTR, None)
+    if isinstance(cached, Resolution):
+        return cached
+    return resolve_request_principal(request)
+
+
+def get_principal(request: Request) -> Optional[Principal]:
+    """The principal this request resolved to, or ``None`` when none did.
+
+    ``None`` is the honest answer and not a defect: a caller with no proven identity
+    has no principal, and substituting one would be the silent default task-064
+    removed.
+    """
+    return get_principal_resolution(request).principal

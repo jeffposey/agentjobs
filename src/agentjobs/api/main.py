@@ -24,6 +24,7 @@ from agentjobs.instrumentation import reset_task_parses, task_parse_count
 from agentjobs.projects import ProjectError, ProjectRegistry, default_home
 from agentjobs.storage import TaskLoadError, corpus_snapshot
 
+from .dependencies import PRINCIPAL_STATE_ATTR, resolve_request_principal
 from .routes import (
     PROJECT_SCOPED_ROUTERS,
     health_router,
@@ -198,6 +199,24 @@ async def measure_request(request: Any, call_next: Any) -> Any:
     response.headers[MEASUREMENT_HEADER] = f"{elapsed_ms:.1f}"
     response.headers[PARSE_COUNT_HEADER] = str(task_parse_count())
     return response
+
+
+@app.middleware("http")
+async def resolve_principal_for_request(request: Any, call_next: Any) -> Any:
+    """Resolve who is asking, once, before any handler runs.
+
+    Middleware rather than a route dependency because "every request" is what the
+    account system (task-066) is built on, and a dependency list covers routes rather
+    than everything the application serves. Resolving here also means one answer per
+    request: a handler and a future audit record cannot disagree about who was asking.
+
+    **It only records.** Nothing is refused, no response changes, and no route reads
+    the result yet -- enforcement is task-332, and landing it separately is what makes
+    a mistake in resolution show up as a wrong principal in a test rather than as a
+    locked-out dashboard.
+    """
+    setattr(request.state, PRINCIPAL_STATE_ATTR, resolve_request_principal(request))
+    return await call_next(request)
 
 
 app.add_middleware(
