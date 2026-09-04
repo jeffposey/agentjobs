@@ -1,57 +1,65 @@
 """Auto-dispatch: a human approval that starts an agent without a second click.
 
-This is the last piece of the loop and the only one where the budget caps bind, and
-both facts follow from the same observation. Runaway needs a *cycle*: agent finishes,
-something starts an agent, repeat. Manual dispatch has no cycle -- every turn of the
-wheel costs a human click, so refusing one would be the tool second-guessing its owner
-about his own money (design section 7, decision D3). Auto-dispatch is the only place a
-cycle could form, so it is the only place the numbers are enforced.
+This was the only place the budget caps bound, on the argument that runaway needs a
+*cycle* and manual dispatch has none -- every turn of the wheel costing a human click, so
+refusing one would be the tool second-guessing its owner about his own money (design
+section 7, decision D3). **Task-334 moved them to ``dispatch/budget.py`` and applied
+them to every trigger**, because D3's premise assumes the server can tell a human's click
+from an agent's and the 2026-08-21 audit showed it cannot. Nothing about the caps is
+decided here any more; this module is one caller of them.
 
-**The human-clocked rule is not weakened here, and that is the whole safety argument.**
-An approval is a human act, so it may cause one dispatch. The handoff that ends the
-resulting run is written by an agent, so it causes nothing -- there is no second turn,
-and the wheel stops. That is enforced by `assert_human_clocked` in ``guards.py``, which
-this module calls rather than reimplements, and it is tested directly rather than
-assumed: see ``tests/test_auto_dispatch.py``.
-
-The caps are therefore a backstop against a bug in *this file*, not the primary
-defence. They are still specified concretely, because "we have a structural argument"
-is exactly the sentence people write before an incident.
+**The human-clocked rule is not weakened here.** An approval is a human act, so it may
+cause one dispatch. The handoff that ends the resulting run is written by an agent, so it
+causes nothing -- there is no second turn, and the wheel stops. That is enforced by
+`assert_human_clocked` in ``guards.py``, which this module calls rather than
+reimplements, and it is tested directly rather than assumed: see
+``tests/test_auto_dispatch.py``. What it does *not* do is make a loop impossible; see
+that module's docstring for what it does and does not buy.
 
 **Nothing here ever raises into the caller.** Auto-dispatch is a consequence of an
 approval, not a part of it: an approval that already succeeded must not turn into an
 error response because a run could not start. Every failure path returns an outcome and,
-where it matters, writes what happened onto the task.
+where it matters, writes what happened onto the task. That is why ``dispatch_task``'s
+``BudgetCapError`` is caught below rather than allowed out, and why the outcome a
+refused auto-dispatch returns is unchanged by the move.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 
-from agentjobs.dispatch.config import (
-    AutoDispatchLimits,
-    DispatchError,
-    assert_dispatch_permitted,
+from agentjobs.dispatch.budget import (
+    DISPATCHER_ACTOR,
+    CapRefusal,
+    check_budget,
+    last_dispatch_at,
+    record_cap_refusal,
 )
+from agentjobs.dispatch.config import DispatchError, assert_dispatch_permitted
 from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
-from agentjobs.dispatch.record_commit import commit_task_record
 from agentjobs.dispatch.runner import DispatchRunError
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import (
-    Ball,
-    BallReason,
-    DispatchTrigger,
-    LogEntryType,
-    Task,
-    utcnow,
-)
+from agentjobs.models_v2 import Ball, BallReason, DispatchTrigger, Task
 from agentjobs.projects import Project
 
-DISPATCHER_ACTOR = "dispatcher"
-"""Who writes a cap refusal. The reserved actor from task-069, never a human's id."""
+__all__ = [
+    "DISPATCHER_ACTOR",
+    "AutoDispatchOutcome",
+    "CapRefusal",
+    "check_budget",
+    "last_dispatch_at",
+    "maybe_auto_dispatch",
+    "record_cap_refusal",
+]
+"""The budget names are re-exported rather than left behind.
+
+They lived here until task-334 and are imported from here by tests and by anyone reading
+the design's section 7 alongside the code. Re-exporting costs a line and saves a reader
+discovering that ``check_budget`` moved by getting an ImportError; ``budget.py`` is where
+they are defined and where the reasoning lives."""
 
 
 # ----- what happened ----------------------------------------------------------
@@ -79,88 +87,6 @@ class AutoDispatchOutcome:
 def _skipped(reason: str, detail: str = "") -> AutoDispatchOutcome:
     """An outcome that started nothing, for a reason that is not a failure."""
     return AutoDispatchOutcome(started=False, reason=reason, detail=detail)
-
-
-# ----- the caps ---------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class CapRefusal:
-    """One budget cap, refusing, in words that name it and its value."""
-
-    #: Stable code: ``per_task_per_day``, ``per_task_lifetime`` or ``cooldown``.
-    limit: str
-    message: str
-    #: Cooldown is transient -- waiting fixes it -- so it does not park the task with a
-    #: human. Exhausting a count is not transient and does.
-    parks_task: bool
-
-
-def last_dispatch_at(task: Task) -> Optional[datetime]:
-    """When this task was last dispatched, or None if it never was.
-
-    Read from the log rather than from a stored field, for the same reason
-    ``Task.dispatch_count`` is derived: a second copy of a fact can disagree with the
-    evidence for it, and here it would disagree in the direction that spends money.
-    """
-    stamps = [
-        entry.ts if entry.ts.tzinfo else entry.ts.replace(tzinfo=timezone.utc)
-        for entry in task.log
-        if entry.type is LogEntryType.DISPATCH
-    ]
-    return max(stamps) if stamps else None
-
-
-def check_budget(
-    task: Task, limits: AutoDispatchLimits, *, now: Optional[datetime] = None
-) -> Optional[CapRefusal]:
-    """The first cap this task has reached, or None when all three have room.
-
-    Order matters only in what gets reported: the counts are checked before the
-    cooldown, so a task that has genuinely exhausted its budget says so rather than
-    telling someone to wait sixty seconds for a refusal that will not change.
-    """
-    moment = now or utcnow()
-
-    lifetime = task.dispatch_count
-    if lifetime >= limits.per_task_lifetime:
-        return CapRefusal(
-            limit="per_task_lifetime",
-            message=(
-                f"{task.id} has been dispatched {lifetime} times, and the lifetime cap "
-                f"is {limits.per_task_lifetime}. A task that reaches this has not been "
-                "failing to run -- it has been running and not finishing, which is a "
-                "fact about the task, not about the dispatcher."
-            ),
-            parks_task=True,
-        )
-
-    today = task.dispatches_since(moment - timedelta(days=1))
-    if today >= limits.per_task_per_day:
-        return CapRefusal(
-            limit="per_task_per_day",
-            message=(
-                f"{task.id} has been dispatched {today} times in the last 24 hours, and "
-                f"the daily cap is {limits.per_task_per_day}. Something about this task "
-                "is not working; a fourth identical run will not discover what."
-            ),
-            parks_task=True,
-        )
-
-    previous = last_dispatch_at(task)
-    if previous is not None:
-        waited = (moment - previous).total_seconds()
-        if waited < limits.cooldown_seconds:
-            return CapRefusal(
-                limit="cooldown",
-                message=(
-                    f"{task.id} was dispatched {int(waited)}s ago and the cooldown is "
-                    f"{limits.cooldown_seconds}s. Nothing is wrong; this is the "
-                    "dispatcher refusing to start two runs in the same breath."
-                ),
-                parks_task=False,
-            )
-    return None
 
 
 # ----- the trigger ------------------------------------------------------------
@@ -214,11 +140,6 @@ def maybe_auto_dispatch(
     if not resolution.settings.auto_dispatch:
         return _skipped("not_enabled", f"{project.id} has auto_dispatch off")
 
-    refusal = check_budget(task, resolution.limits.auto, now=now)
-    if refusal is not None:
-        _record_cap_refusal(manager, task, refusal)
-        return AutoDispatchOutcome(started=False, reason=refusal.limit, detail=refusal.message)
-
     try:
         handle = dispatch_task(
             manager=manager,
@@ -227,11 +148,18 @@ def maybe_auto_dispatch(
             request=DispatchRequest(task_id=task.id, trigger=DispatchTrigger.AUTO),
             home=home,
             api_base=api_base,
+            now=now,
         )
     except (DispatchError, DispatchRunError) as exc:
         # Includes `not_human_clocked`, which is the case that matters: if the entry
         # that moved this ball was an agent's, nothing starts, and no amount of
         # configuration changes that.
+        #
+        # And it includes every budget cap, which used to be checked here instead. The
+        # outcome is deliberately identical either way -- `reason` is still the cap's own
+        # code and `detail` is still its message -- because a caller of this function
+        # branches on those and none of them should have to know the check moved
+        # (task-334).
         return _skipped(getattr(exc, "reason", "dispatch_failed"), str(exc))
 
     return AutoDispatchOutcome(
@@ -239,48 +167,4 @@ def maybe_auto_dispatch(
         reason="dispatched",
         detail=f"Auto-dispatched run {handle.run_id}.",
         run_id=handle.run_id,
-    )
-
-
-def _record_cap_refusal(manager: TaskManager, task: Task, refusal: CapRefusal) -> None:
-    """Write a tripped cap onto the task, loudly.
-
-    A cap that refuses silently is worse than no cap: the human clicked Approve,
-    expected an agent, and would be left waiting for one that was never coming. So the
-    limit is named in a log entry, and a count cap additionally parks the task with a
-    person -- because a task that burns its budget is reporting a problem with itself,
-    and nobody will look at it unless it asks them to.
-    """
-    manager.add_log_entry(
-        task.id,
-        actor=DISPATCHER_ACTOR,
-        type=LogEntryType.NOTE,
-        body=f"Auto-dispatch refused by the `{refusal.limit}` budget cap.\n\n{refusal.message}",
-        data={"auto_dispatch_refused": refusal.limit, "dispatch_count": task.dispatch_count},
-    )
-    current = manager.get_task(task.id)
-    if (
-        refusal.parks_task
-        and current is not None
-        and current.is_open
-        and current.ball is not Ball.HUMAN
-    ):
-        manager.handoff(
-            task.id,
-            actor=DISPATCHER_ACTOR,
-            ball=Ball.HUMAN,
-            ball_reason=BallReason.DECISION,
-            ball_prompt=(
-                f"Auto-dispatch has stopped starting runs for this task: it hit the "
-                f"`{refusal.limit}` cap after {current.dispatch_count} dispatches "
-                "without reaching a conclusion. Read the dispatch_result entries and "
-                "decide what is actually wrong — the spec, the runner, or the task "
-                "itself. Manual dispatch still works and is not capped."
-            ),
-        )
-
-    # No run was started, so there is no session and no run directory: this write has
-    # nobody at all behind it, which makes it the most dangling of the lot (task-203).
-    commit_task_record(
-        manager, task.id, subject=f"record the `{refusal.limit}` auto-dispatch cap refusal"
     )

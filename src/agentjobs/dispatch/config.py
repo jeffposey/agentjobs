@@ -760,10 +760,18 @@ class ProjectDispatchSettings:
 
 @dataclass(frozen=True)
 class AutoDispatchLimits:
-    """Budget caps. These bind auto-dispatch only (design section 7, D3).
+    """The per-task budget caps. Since task-334 these bind **every** trigger.
 
-    A human clicking Dispatch repeatedly is a decision, not a malfunction; refusing it
-    would be the tool second-guessing its owner about his own money.
+    The name and the ``limits.auto:`` key under which they are configured are
+    historical. D3 scoped them to auto-dispatch on the premise that "a human clicking
+    Dispatch repeatedly is a decision, not a malfunction" -- which assumes the server can
+    tell a human's click from an agent's, and the 2026-08-21 audit demonstrated it
+    cannot. See ``dispatch/budget.py``.
+
+    Neither is renamed, on purpose. This block lives in machine-local
+    ``~/.agentjobs/dispatch.yaml``; a key rename would silently return a machine whose
+    caps had been tuned to these defaults, which is the one direction a cap must never
+    move by accident.
     """
 
     per_task_per_day: int = 3
@@ -773,11 +781,24 @@ class AutoDispatchLimits:
 
 @dataclass(frozen=True)
 class DispatchLimits:
-    """Safety caps. Unlike the auto budget, these bind every run including manual."""
+    """Machine-wide caps. Every run, every project, every trigger."""
 
     max_concurrent_runs: int = 1
     run_timeout_seconds: int = 1800
     session_stale_seconds: int = 3600
+    dispatches_per_hour: int = 30
+    """How many runs this machine may *start* in a rolling hour (task-334).
+
+    Distinct from ``max_concurrent_runs``, which bounds how many are alive at once and
+    therefore cannot see a loop that starts a run, fails it, and starts another: such a
+    loop never holds a slot long enough to be refused. This counts takeoffs.
+
+    Thirty because the busiest rolling hour in this machine's whole run ledger was
+    **twelve** (137 runs, measured 2026-09-04), and the thing being bounded is orders of
+    magnitude faster than the thing being permitted: an epic walk on three concurrent
+    slots would have to turn a run over every six minutes to reach thirty, and no real
+    run on this machine has ever been that short, while a dispatch loop reaches it in
+    seconds. A cap that fires on real work is a cap somebody raises to infinity."""
     session_stall_seconds: int = 1800
     """How long a live session may emit nothing before it is reported as stalled.
 
@@ -1246,6 +1267,12 @@ def _parse_limits(raw: Mapping[str, object], path: Path) -> DispatchLimits:
             "limits.session_stall_seconds",
             path,
             defaults.session_stall_seconds,
+        ),
+        dispatches_per_hour=_positive_int(
+            raw.get("dispatches_per_hour"),
+            "limits.dispatches_per_hour",
+            path,
+            defaults.dispatches_per_hour,
         ),
         auto=AutoDispatchLimits(
             per_task_per_day=_positive_int(

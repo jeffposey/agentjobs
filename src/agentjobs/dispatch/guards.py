@@ -4,19 +4,35 @@ Task-068 answered *may this machine dispatch for this project at all*. This modu
 answers the harder question: *may this particular dispatch happen, now, caused by this*.
 The two are separate because the first is configuration and the second is evidence.
 
-The load-bearing one is `assert_human_clocked`. Everything else here is a limit;
-that one is a structural property:
+The load-bearing one is `assert_human_clocked`:
 
     A dispatch may only be caused by a log entry whose actor is a human.
 
-Which makes the circular failure mode -- agent finishes, agent starts, repeat -- *not
-representable* rather than merely capped. Counters and cooldowns defend a loop that is
-still allowed to exist; this rule removes the loop. It is deliberately one function with
-its own tests rather than a condition spread across call sites, because a rule enforced
-in three places is a rule enforced in two places as soon as someone adds a fourth.
+It is deliberately one function with its own tests rather than a condition spread across
+call sites, because a rule enforced in three places is a rule enforced in two places as
+soon as someone adds a fourth.
+
+**What that rule does and does not buy** (corrected 2026-09-04, task-334). This docstring
+used to say the rule made the circular failure mode -- agent finishes, agent starts,
+repeat -- *not representable* rather than merely capped. That was a claim about the
+design's own paths, and the 2026-08-21 dispatch audit tested it against the machine
+instead (finding P1-2): the API carries no authentication, every dispatched agent is told
+its address in the first sentence of its prompt, and one POST naming a configured human
+writes an authorising entry this module cannot distinguish from a click. On a single-user
+machine where the agent runs as the user, no local secret is unreadable by the agent, so
+no token would make it structural either.
+
+So the honest statement is the weaker one, and it is the one to reason from: **the loop
+is bounded, not impossible.** What bounds it is `dispatch/budget.py` -- the per-task
+caps, the machine-wide hourly cap, and the run ceiling -- every one of which is checked
+in `dispatch_task` below, on every trigger. When you are reasoning about a runaway, those
+are the numbers to look at. This rule still does real work: it keeps the *design's* paths
+free of an agent-clocked cycle, and it means an unbounded loop needs someone to have gone
+around the front door rather than merely to have found a bug in this file.
 
 The permanent cost is real and worth restating: "agent finishes, the next agent picks up
-automatically" will never work. Every turn of the wheel costs one human click.
+automatically" will never work through the supported path. Every turn of the wheel costs
+one human click.
 
 **What task-188 changed, and what it deliberately did not.** The rule above is intact
 and is still asserted on every path. What changed is *where the entry it reads comes
@@ -48,6 +64,7 @@ text.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
@@ -60,6 +77,12 @@ from agentjobs.dispatch.address import (
     ResolvedApiBase,
     probe_api_base,
     resolve_api_base_detail,
+)
+from agentjobs.dispatch.budget import (
+    CapRefusal,
+    check_budget,
+    check_machine_budget,
+    record_cap_refusal,
 )
 from agentjobs.dispatch.config import (
     DispatchError,
@@ -198,6 +221,28 @@ class ConcurrencyLimitError(DispatchRefused):
     """The machine is already running as many agents as it is configured to."""
 
     reason = "concurrency_limit"
+
+
+class BudgetCapError(DispatchRefused):
+    """A spend cap refused this dispatch. Which one is on ``reason`` (task-334).
+
+    One class rather than four, because the four caps differ in nothing a caller
+    branches on: each is a count with a value, each is rendered under its own code, and
+    each carries the ``CapRefusal`` that says which and how much. They were previously
+    not exceptions at all -- ``auto.py`` returned them as outcomes, because auto-dispatch
+    is the one caller that must never raise into an approval that already succeeded. That
+    caller still does not see a raise; it catches this here and returns the same outcome
+    it always did.
+    """
+
+    reason = "budget_cap"
+
+    def __init__(self, refusal: CapRefusal) -> None:
+        super().__init__(refusal.message)
+        self.refusal = refusal
+        #: Shadows the class attribute, so the API renders `per_task_per_day` and
+        #: `machine_per_hour` under their own codes rather than one opaque `budget_cap`.
+        self.reason = refusal.limit
 
 
 class DirtyTreeError(DispatchRefused):
@@ -359,8 +404,9 @@ def assert_authorizer_is_human(config: Dict[str, object], actor_id: str) -> Acto
     if not actor.is_human:
         raise AuthorizerNotHumanError(
             f"{actor_id!r} is an agent, and an agent may not authorise a dispatch "
-            "(design section 2). This is not a configuration option, and it is what "
-            "keeps an agent-starts-agent loop impossible rather than merely capped."
+            "(design section 2). This is not a configuration option. It keeps an "
+            "agent-starts-agent loop out of every supported path; what bounds the loop "
+            "itself is the caps in dispatch/budget.py."
         )
     return actor
 
@@ -504,9 +550,7 @@ def assert_human_clocked(config: Dict[str, object], entry: LogEntry) -> Actor:
         raise CausingActorNotHumanError(
             f"Log entry {entry.id} ({entry.type.value}) was written by {entry.actor!r}, "
             f"an agent.{origin} A dispatch may only be caused by a human act (design "
-            "section 2, D4) -- which is what makes an agent-starts-agent loop "
-            "impossible rather than merely capped. Act on the task yourself, then "
-            "dispatch."
+            "section 2, D4). Act on the task yourself, then dispatch."
         )
     return actor
 
@@ -719,6 +763,7 @@ def dispatch_task(
     request: DispatchRequest,
     home: Optional[Path] = None,
     api_base: Optional[str] = None,
+    now: Optional[datetime] = None,
 ) -> RunHandle:
     """Check every precondition, claim the task, and start a run.
 
@@ -742,6 +787,10 @@ def dispatch_task(
     whose address is a claim -- so before anything is written, `assert_api_base_answers`
     checks that something is listening where this run's agent would be told to look
     (task-193).
+
+    ``now`` moves the clock the budget caps are measured against, and nothing else. It is
+    a test seam: every caller in the application leaves it ``None`` and gets the real
+    clock, and a test that needs a cooldown to have expired says so rather than sleeping.
     """
     task = manager.get_task(request.task_id)
     if task is None:
@@ -855,6 +904,23 @@ def dispatch_task(
             "spend money later, when nobody is watching. Cancel one of those runs, or "
             "dispatch this again once one finishes."
         )
+
+    # The spend caps, and the thing that actually bounds a dispatch loop -- see
+    # `dispatch/budget.py`. Here rather than in any caller because this is the one
+    # chokepoint every trigger passes through, and a cap wired into one caller is a cap
+    # the next caller does not have (task-334).
+    #
+    # After the two checks above and not before them, because both of those name a
+    # sharper cause than a cap would. A task whose run is still live is one dispatch old
+    # by definition, so the cooldown would fire on it and report a timer where the real
+    # answer is "that run has not finished"; and a cap refusal writes to the task record,
+    # which is not a thing to do to a task whose only problem is that the machine is busy.
+    refusal: Optional[CapRefusal] = check_budget(task, resolution.limits.auto, now=now)
+    if refusal is None:
+        refusal = check_machine_budget(machine_home, resolution.limits, now=now)
+    if refusal is not None:
+        record_cap_refusal(manager, task, refusal, trigger=request.trigger)
+        raise BudgetCapError(refusal)
 
     # AgentJobs' own tasks directory is excluded from this. A project that keeps its task
     # records in the repository being dispatched -- this one does -- has that directory
