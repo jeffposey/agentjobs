@@ -3,7 +3,7 @@ id: task-333
 title: 'Project exposure: a hidden project stays hidden through its run transcripts
   too'
 created: '2026-09-04T03:28:25.746152Z'
-updated: '2026-09-04T08:24:48.871089Z'
+updated: '2026-09-04T08:29:54.379923Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -475,3 +475,21 @@ log:
     finish_step: started
     branch: feat/task-333-project-exposure
     finish_id: fin_6e9ee9c2
+- id: 11
+  ts: '2026-09-04T08:29:54.379777Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-333-project-exposure` into `main` as `d2548c1f`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-333
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    epic) releases the merge gate (task-021), and run run_dfdae0fc ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: d2548c1f2aa74e42ef9e2d425ac53362be05326c
+    branch: feat/task-333-project-exposure
+    base: main
