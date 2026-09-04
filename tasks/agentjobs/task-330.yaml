@@ -2,7 +2,7 @@ schema: 2
 id: task-330
 title: 'Identity registry: several human actors, login mapping, and retirement'
 created: '2026-09-04T03:26:56.564971Z'
-updated: '2026-09-04T06:17:47.045246Z'
+updated: '2026-09-04T06:18:11.125386Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -1156,3 +1156,44 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 31
+  ts: '2026-09-04T06:18:11.125098Z'
+  actor: claude
+  type: note
+  body: "**Merged as `4d6c85c9`, live and verified. Six finish attempts; five were\
+    \ lost to gate flakiness, none to this work.** Recording that here because the\
+    \ pattern is a finding about dispatch, not about this task, and the next child\
+    \ of this epic will hit it.\n\n| # | Stopped at | Cause |\n|---|---|---|\n| 1\
+    \ | `catch_up` | `test_the_timeout_kills_the_grandchild_too` \u2014 \"pid survived\
+    \ the timeout\" |\n| 2 | `rebase` | genuine conflict with task-331; resolved by\
+    \ hand |\n| 3 | `gate` | same test \u2014 \"the grandchild never started\" |\n\
+    | 4 | `gate` | same test \u2014 \"pid survived the timeout\" |\n| 5 | `gate` |\
+    \ **e2e**: `browser.newContext: Target page, context or browser has been closed`,\
+    \ 37/38 passed |\n| 6 | \u2014 | green; merged |\n\nOnly #2 was real. The other\
+    \ four are the same class: **the gate's two process-spawning stages fail under\
+    \ concurrent load, and a scripted finish during an epic walk is exactly when the\
+    \ machine is loaded** \u2014 50 to 54 Python processes throughout, with the parent\
+    \ walk (`run_b1c2d736`) and sibling children gating alongside. My own unqualified\
+    \ gate on the identical tree was green twice in that window (3836 passed, 10 of\
+    \ 10 stages), and `git diff --stat main...HEAD` touches no dispatch file and no\
+    \ e2e spec.\n\n`test_the_timeout_kills_the_grandchild_too` carries a comment saying\
+    \ it was already loosened once, after **failing task-308's finish for a branch\
+    \ that also touched neither the test nor the kill path**. The loosening was a\
+    \ 30-second tolerance on the *second* half of the assertion; both halves failed\
+    \ here, including the first \u2014 the grandchild not being observed to start\
+    \ within roughly six seconds of polling. The test measures the machine's ability\
+    \ to spawn and reap a process, under a gate that this repository deliberately\
+    \ runs three-at-a-time. That is not a property of the kill path.\n\n**Not filing\
+    \ a task for it \u2014 that is not mine to authorise** \u2014 but the case is\
+    \ now: two epics' finishes blocked, five wasted gate runs at three to five minutes\
+    \ each, and a mechanism (`--posture-release`) whose whole value is that it does\
+    \ not need a human. Whoever picks it up should look at both the dispatch-runner\
+    \ test and the e2e web server's tolerance for a saturated box, not just the one\
+    \ that fires most often.\n\nCleanup done by the finish: worktree removed, branch\
+    \ deleted, bundle rebuilt, server restarted on 8876 serving `e462a6d4`, which\
+    \ contains the merge."
+  data:
+    operation:
+      id: 3d0a1f52-7b41-4c8e-9a2d-1e5c8b330008
+      kind: log_append
+      fingerprint: 7633279df31a147c82d8828c9d6e7aa8
