@@ -2,7 +2,7 @@ schema: 2
 id: task-329
 title: 'Principals: resolve who is asking, per request, before any handler runs'
 created: '2026-09-04T03:26:29.534859Z'
-updated: '2026-09-04T04:19:55.436066Z'
+updated: '2026-09-04T04:23:33.276538Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -601,3 +601,14 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 17
+  ts: '2026-09-04T04:23:33.276383Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: stopped session 0abbd216
+  re: 4
+  data:
+    run_id: run_43c2a909
+    outcome: cancelled
+    duration_seconds: 2835.407392
+    log_path: C:\Users\jpose\.agentjobs\runs\run_43c2a909
