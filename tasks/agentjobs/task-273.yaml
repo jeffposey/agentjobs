@@ -3,7 +3,7 @@ id: task-273
 title: 'Backend decision point: declare the TaskStorage Protocol with load_raw, and
   record the hybrid-index and out-of-the-working-tree triggers'
 created: '2026-08-22T19:00:47.987602Z'
-updated: '2026-08-22T19:00:48.505072Z'
+updated: '2026-09-04T03:42:03.348787Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -113,3 +113,26 @@ log:
       id: 5a0796b0-bdec-4b7d-b0a9-d15849227fa6
       kind: create
       fingerprint: 7cddcbf97be059d2afc4a1f3e95ad7bd
+- id: 2
+  ts: '2026-09-04T03:42:03.348663Z'
+  actor: claude
+  type: note
+  body: 'Measured 2026-09-03 against the live server on 8876 (CPU at 23%, so not a
+    contention artefact), while answering Jeff''s SQL-vs-MongoDB question. The hybrid-index
+    trigger this task names (listing p50 over 250 ms) has fired: GET /api/projects/agentjobs/tasks
+    answered in 711, 739, 747, 767, 826 ms with X-Task-Parses 331 on every request;
+    GET .../tasks/task-311/detail answered in 526-602 ms, also parsing all 331 files;
+    /revision answered in 56 ms. Corpus is now 331 files / 6.1 MB / ~18.5 KB per task
+    (audit figure on 2026-08-21 was 240 / 3.76 MB / 15.7 KB), largest file 132 KB
+    (task-224). task-134''s own reopen trigger (~350 files) is also within reach.
+    The second trigger, a writer that is not a process on this machine, has not fired:
+    the tailnet proxy forwards to the same server process. Recommendation given to
+    Jeff: SQLite as a derived, disposable index (schema-design.md section 7''s escape
+    hatch), not a substrate swap and not MongoDB; the workflow coupling is task-311''s
+    location question, not a storage-engine question. The atomic-write fix (task-247)
+    is owed regardless of backend.'
+  data:
+    operation:
+      id: 3f6b2a1e-9c4d-4e0f-8a7b-2d1c5e9f0a11
+      kind: log_append
+      fingerprint: c8d276bb9421e0018f432efa3517397b
