@@ -31,7 +31,12 @@ from fastapi.testclient import TestClient
 
 from agentjobs.api.dependencies import TASKS_DIR_ENV, reset_dependency_cache
 from agentjobs.api.main import app
-from agentjobs.dispatch.transcript import CLAUDE_HOME_DIRNAME, PROJECTS_DIRNAME, project_slug
+from agentjobs.dispatch.transcript import (
+    CLAUDE_HOME_DIRNAME,
+    PROJECTS_DIRNAME,
+    SOURCE_JSONL,
+    project_slug,
+)
 from agentjobs.exposure import (
     DEFAULT_VISIBILITY,
     VISIBILITY_KEY,
@@ -53,6 +58,9 @@ OPEN_TASK = "task-001"
 HIDDEN_TASK = "task-900"
 HIDDEN_RUN = "run_hidden"
 HIDDEN_SESSION = "553f321b"
+OPEN_RUN = "run_open"
+OPEN_SESSION = "77c1a204"
+OPEN_NARRATION = "Rebased onto main and ran the gate."
 
 SECRET = "the rent ledger for 14 Elm Row"
 """Written into the hidden project's task and into its run transcript, so every test
@@ -198,6 +206,17 @@ def machine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Tuple[P
         posture="auto",
     )
     _write_session_transcript(session_home, hidden, HIDDEN_SESSION, SECRET)
+    _write_run(
+        home,
+        OPEN_RUN,
+        task_id=OPEN_TASK,
+        project_id=OPEN_PROJECT,
+        mode="session",
+        status="running",
+        session_id=OPEN_SESSION,
+        posture="auto",
+    )
+    _write_session_transcript(session_home, tmp_path / OPEN_PROJECT, OPEN_SESSION, OPEN_NARRATION)
 
     yield tmp_path, home
 
@@ -297,7 +316,7 @@ class TestAHiddenProjectsRunsAreAbsent:
         response = remote().get(f"/api/projects/{OPEN_PROJECT}/dispatch/runs")
 
         assert response.status_code == 200
-        assert response.json() == []
+        assert [row["run_id"] for row in response.json()] == [OPEN_RUN]
 
     def test_the_transcript_is_not_reachable_through_the_open_project(self, machine) -> None:
         """The run belongs to the hidden project; the URL naming another does not help."""
@@ -309,16 +328,24 @@ class TestAHiddenProjectsRunsAreAbsent:
         assert SECRET not in response.text
 
     def test_it_is_absent_from_the_machine_wide_live_runs(self, machine) -> None:
+        """The open project's run is there; the hidden one's is not, nor is its task."""
         body = remote().get("/api/runs/live").json()
 
-        assert body["runs"] == []
+        assert [row["run_id"] for row in body["runs"]] == [OPEN_RUN]
         assert SECRET not in json.dumps(body)
 
     def test_the_capacity_still_counts_it(self, machine) -> None:
-        """The rows are 'what may I read'; the count is 'why can I not dispatch'."""
+        """The rows are 'what may I read'; the count is 'why can I not dispatch'.
+
+        Two runs are live and a remote caller may see one of them. It is still told the
+        machine has two slots in use, because that is why its next dispatch may be
+        refused -- and because a surface that subtracted them would be the one place in
+        the system able to disagree with `dispatch/guards.py` about capacity.
+        """
         body = remote().get("/api/runs/live").json()
 
-        assert body["occupied"] == 1
+        assert len(body["runs"]) == 1
+        assert body["occupied"] == 2
 
 
 # ----- ac-3: the cross-project view is filtered, not denied --------------------
@@ -378,8 +405,8 @@ class TestAnOwnerLosesNothing:
     def test_the_hidden_projects_run_is_listed_machine_wide(self, machine) -> None:
         body = owner().get("/api/runs/live").json()
 
-        assert [row["run_id"] for row in body["runs"]] == [HIDDEN_RUN]
-        assert body["occupied"] == 1
+        assert sorted(row["run_id"] for row in body["runs"]) == sorted([HIDDEN_RUN, OPEN_RUN])
+        assert body["occupied"] == 2
 
 
 # ----- an exposed project keeps working, which is the line this task holds ------
@@ -397,6 +424,27 @@ class TestAnExposedProjectIsUntouched:
 
         assert response.status_code == 200, response.text
         assert response.json()["project_id"] == OPEN_PROJECT
+
+    def test_its_structured_transcript_still_renders_for_a_remote_caller(self, machine) -> None:
+        """ac-5, in the suite: the panel's own data, over the tailnet, for a real run.
+
+        Asserted on the rendered entry rather than on a 200, because a transcript route
+        that answers ``source: none`` with an empty list is also a 200 and is exactly
+        what a broken lookup looks like.
+        """
+        response = remote().get(f"/api/projects/{OPEN_PROJECT}/dispatch/runs/{OPEN_RUN}/transcript")
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["source"] == SOURCE_JSONL
+        assert OPEN_NARRATION in " ".join(entry["text"] for entry in body["entries"])
+
+    def test_its_run_tail_and_output_still_answer_a_remote_caller(self, machine) -> None:
+        client = remote()
+
+        for suffix in ("tail", "output"):
+            response = client.get(f"/api/projects/{OPEN_PROJECT}/dispatch/runs/{OPEN_RUN}/{suffix}")
+            assert response.status_code == 200, f"{suffix}: {response.text}"
 
     def test_a_remote_caller_may_still_write_to_it(self, machine) -> None:
         """Exposure narrows *which projects*, never what a human may do in one."""
