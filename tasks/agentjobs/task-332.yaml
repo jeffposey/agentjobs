@@ -2,7 +2,7 @@ schema: 2
 id: task-332
 title: 'Authorization: what each kind of principal may do'
 created: '2026-09-04T03:27:57.244568Z'
-updated: '2026-09-04T07:06:47.156430Z'
+updated: '2026-09-04T07:07:31.522555Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -471,3 +471,14 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 11
+  ts: '2026-09-04T07:07:31.522356Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: stopped session ed38dcf1
+  re: 4
+  data:
+    run_id: run_630ec919
+    outcome: cancelled
+    duration_seconds: 2971.73974
+    log_path: C:\Users\jpose\.agentjobs\runs\run_630ec919
