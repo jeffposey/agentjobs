@@ -1710,6 +1710,154 @@
         "title": "LinkRel",
         "type": "string"
       },
+      "LiveRunView": {
+        "description": "One run that is happening now, said in words a person can act on.",
+        "properties": {
+          "elapsed_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Seconds since this run started, computed on the server. The phone reading this page is not on the clock that wrote `started_at`.",
+            "title": "Elapsed Seconds"
+          },
+          "health": {
+            "description": "What the run is actually doing: working, starting, parked, silent, orphaned or unknown. `live` means only that nothing has declared the run over, so this is the field a surface renders.",
+            "title": "Health",
+            "type": "string"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "output_url": {
+            "description": "Where this run's captured output is readable.",
+            "title": "Output Url",
+            "type": "string"
+          },
+          "posture": {
+            "title": "Posture",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "project_name": {
+            "default": "",
+            "description": "The project's display name. Falls back to the id for a run whose project is no longer registered, rather than rendering a blank cell.",
+            "title": "Project Name",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "session": {
+            "description": "A session run, as opposed to a batch one.",
+            "title": "Session",
+            "type": "boolean"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "description": "The ledger's own word. Prefer `health` for display.",
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "task_title": {
+            "default": "",
+            "description": "The task's title, resolved server-side from its project's storage. Empty when the record cannot be read -- a run whose task file has been renamed or removed is exactly the kind of thing this surface should still show.",
+            "title": "Task Title",
+            "type": "string"
+          },
+          "task_url": {
+            "description": "Where this run's task is, in this app.",
+            "title": "Task Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "task_id",
+          "project_id",
+          "mode",
+          "session",
+          "posture",
+          "status",
+          "health",
+          "task_url",
+          "output_url"
+        ],
+        "title": "LiveRunView",
+        "type": "object"
+      },
+      "LiveRunsView": {
+        "description": "Everything both machine-wide surfaces need, in one response.\n\nThe capacity numbers ride along with the list rather than being fetched separately\nor recomputed in TypeScript: a browser that divided a count by a ceiling it read from\nsomewhere else would be the one place in the system able to disagree with\n``dispatch/guards.py`` about whether the machine is full.",
+        "properties": {
+          "dispatch_configured": {
+            "description": "False on a machine with no dispatch.yaml at all, where the ceiling below is a default rather than a setting anyone chose.",
+            "title": "Dispatch Configured",
+            "type": "boolean"
+          },
+          "generated_at": {
+            "description": "When this answer was assembled, in UTC.",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "holders": {
+            "items": {
+              "$ref": "#/components/schemas/MachineHolderView"
+            },
+            "title": "Holders",
+            "type": "array"
+          },
+          "max_concurrent_runs": {
+            "description": "`limits.max_concurrent_runs` from ~/.agentjobs/dispatch.yaml.",
+            "title": "Max Concurrent Runs",
+            "type": "integer"
+          },
+          "occupied": {
+            "description": "Run slots in use. Counted exactly as the concurrency guard counts them -- `len(live_runs(home))` -- so this surface and a refused dispatch can never disagree. Finishes and the runway are not in it: they hold locks, not run slots.",
+            "title": "Occupied",
+            "type": "integer"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/LiveRunView"
+            },
+            "title": "Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "occupied",
+          "max_concurrent_runs",
+          "dispatch_configured",
+          "runs",
+          "holders",
+          "generated_at"
+        ],
+        "title": "LiveRunsView",
+        "type": "object"
+      },
       "LogAppendRequest": {
         "additionalProperties": false,
         "description": "Append one entry to the unified log.",
@@ -1871,6 +2019,87 @@
         ],
         "title": "LogEntryType",
         "type": "string"
+      },
+      "MachineHolderView": {
+        "description": "Something holding a lock on this machine that is not a dispatched run.\n\nA scripted finish (task-241) and the merge runway (task-223) are both real work\ncompeting for this machine, both leave a lock behind, and neither has a run record\n-- so neither is reachable through ``live_runs``. Leaving them out would make the\nsurface answer \"nothing is happening\" during the three minutes a merge takes.",
+        "properties": {
+          "detail": {
+            "default": "",
+            "description": "What it is doing right now, e.g. the finish step it is on.",
+            "title": "Detail",
+            "type": "string"
+          },
+          "elapsed_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elapsed Seconds"
+          },
+          "finish_id": {
+            "default": "",
+            "title": "Finish Id",
+            "type": "string"
+          },
+          "kind": {
+            "description": "`finish` or `runway`.",
+            "title": "Kind",
+            "type": "string"
+          },
+          "lock_name": {
+            "description": "The lock file's stem. A task id, or a runway key.",
+            "title": "Lock Name",
+            "type": "string"
+          },
+          "pid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pid"
+          },
+          "project_id": {
+            "default": "",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "project_name": {
+            "default": "",
+            "title": "Project Name",
+            "type": "string"
+          },
+          "started_at": {
+            "default": "",
+            "title": "Started At",
+            "type": "string"
+          },
+          "task_id": {
+            "default": "",
+            "description": "Empty for a runway, which holds no task.",
+            "title": "Task Id",
+            "type": "string"
+          },
+          "task_url": {
+            "default": "",
+            "description": "Empty when there is no task to link to.",
+            "title": "Task Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "lock_name"
+        ],
+        "title": "MachineHolderView",
+        "type": "object"
       },
       "MutationResult-Input": {
         "description": "What a mutation did, for callers that need more than the new task.\n\nReturned only when a request asks for it with `?envelope=true`, so the existing\ntask-shaped responses stay exactly as they were. `replayed` is the field that\ncannot be derived any other way: a caller retrying after a timeout has no way to\ntell \"I did that\" from \"you already had\".",
@@ -9876,6 +10105,28 @@
         "summary": "Get Project Revision",
         "tags": [
           "live updates"
+        ]
+      }
+    },
+    "/api/runs/live": {
+      "get": {
+        "description": "Every run happening on this machine, with what is left of its capacity.\n\nOne request answers both surfaces task-328 ships -- the Runs tab and the Dashboard's\ncapacity row -- which is why the ceiling and the occupied count are in the body\nrather than left to a second call.",
+        "operationId": "list_live_runs_api_runs_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveRunsView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Live Runs",
+        "tags": [
+          "dispatch"
         ]
       }
     },
