@@ -2,15 +2,517 @@ schema: 2
 id: task-066-multiple-human-users
 title: 'Account system: principals, attribution, and the network boundary'
 created: '2026-08-10T23:20:39.069637Z'
-updated: '2026-09-04T04:09:58.945162Z'
+updated: '2026-09-04T05:05:21.026331Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Supervising. task-329 and task-334 are in flight as live dispatched runs
-  (run_43c2a909, run_b6998ff8) and need nothing from a human; entry 15 explains why
-  the walk reported otherwise. Hold the watch on those two, then relaunch the detached
-  walk once 330/331 become claimable, and repeat until no open child remains. Then
-  judge ac-1..ac-7 against what the children recorded and close this parent.
+ball: human
+ball_reason: input
+ball_prompt: "Dispatched session `160808d3` still reports itself as working but has\
+  \ produced no output for 30 minutes, so this task has been reading `agent`/`work`\
+  \ while nothing happened. It was **not** killed and is still attachable: `claude\
+  \ attach 160808d3`. Attach to see what it is doing, or stop it and move this task\
+  \ on yourself.\n\nThe end of its terminal, verbatim:\n\n```\n\u273B Cogitated for\
+  \ 1s \xB7 done 11:35 PM \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736 \u2500\
+  \u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\
+  \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (175k/1.00M) \xB7 $7.27/rc\n\
+  \  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor  \"finished\"\
+  \ as far as the ledger is concerned).                                          \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              I\
+  \ verified before killing anything \u2014 task closed, merge on main, branch and\
+  \ worktree gone, transcript showing an idle prompt \u2014 then cancelled run_43c2a909.\
+  \ task-331 started six seconds later.                                          \
+  \                                                                              \
+  \                                                                              \
+  \           This is a systemic throttle for unattended epics, so I've replaced the\
+  \ narrow watcher with one covering all seven children that also flags a run holding\
+  \ a slot while its task is already closed. It    waits for two consecutive sightings\
+  \ before flagging, so a post-merge rebuild/restart doesn't get cut off mid-delivery.\n\
+  \                                                                              \
+  \                                                                              \
+  \                                              Current state: task-331 and task-334\
+  \ in flight; task-330 takes the next free slot. Note the epic effectively gets two\
+  \ child slots, not three \u2014 my supervisor run permanently occupies one of the\
+  \        three.                                                                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                  Nothing needs Jeff. I'll keep reclaiming slots and relaunching\
+  \ the walk as the layers clear, then judge ac-1..ac-7 and close the parent.    \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                        \u273B Saut\xE9ed for 4m 17s \xB7 done 11:24 PM \xB7 1\
+  \ monitor still running\n\u25CF Monitor event: \"task-066 epic: child lifecycle\
+  \ changes, reclaimable run slots, walk exit\"                                  \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                         \u25CF Baseline as expected \u2014 329\
+  \ closed, 331 and 334 in flight, the rest ready and waiting on slots. Nothing to\
+  \ act on.\n\u273B Churned for 7s \xB7 done 11:24 PM \xB7 1 monitor still running\
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                              \u25CF Monitor event: \"task-066 epic: child lifecycle\
+  \ changes, reclaimable run slots, walk exit\"                                  \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                         \u25CF task-334 closed. Verifying its\
+  \ outcome and that the merge landed:                                           \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                          Ran 2 shell commands\
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                  \u25CF task-334\
+  \ done \u2014 merged cc9d7a6, closed completed, and its run recorded itself as completed\
+  \ (so that session exited cleanly, unlike 329's). Two of seven down. Checking that\
+  \ 330 takes the freed slot:                                                    \
+  \                                                                              \
+  \                                                                         Ran 1\
+  \ shell command                                                                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \   \u25CF task-330 took the freed slot automatically \u2014 no intervention needed\
+  \ this time, because task-334's session concluded itself properly.             \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                     Epic status: 2 of 7 complete (329 principal resolution, 334\
+  \ dispatch caps), both merged to main with branches and worktrees cleaned. 330 (identity\
+  \ registry) and 331 (run credential) now in flight     together \u2014 they're the\
+  \ two independent branches off the keystone. After they land, 332 (authorization)\
+  \ unblocks, then 244 and 333.                                                  \
+  \                                                                              \
+  \                                                                              \
+  \                                                                The walk is carrying\
+  \ it; my monitor is watching for lifecycle changes and stuck slots.\n\u273B Saut\xE9\
+  ed for 22s \xB7 done 11:34 PM \xB7 1 monitor still running                     \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \        \u25CF Monitor event: \"task-066 epic: child lifecycle changes, reclaimable\
+  \ run slots, walk exit\"\n\u25CF Confirms 330 active alongside 331. Waiting.\n\u273B\
+  \ Cogitated for 1s \xB7 done 11:35 PM \xB7 1 monitor still running\n\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
+  \ \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\
+  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (175k/1.00M) \xB7\
+  \ $7.27/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\
+  \  \"finished\" as far as the ledger is concerned).                            \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \              I verified before killing anything \u2014 task closed, merge on main,\
+  \ branch and worktree gone, transcript showing an idle prompt \u2014 then cancelled\
+  \ run_43c2a909. task-331 started six seconds later.                            \
+  \                                                                              \
+  \                                                                              \
+  \                         This is a systemic throttle for unattended epics, so I've\
+  \ replaced the narrow watcher with one covering all seven children that also flags\
+  \ a run holding a slot while its task is already closed. It    waits for two consecutive\
+  \ sightings before flagging, so a post-merge rebuild/restart doesn't get cut off\
+  \ mid-delivery.\n                                                              \
+  \                                                                              \
+  \                                                              Current state: task-331\
+  \ and task-334 in flight; task-330 takes the next free slot. Note the epic effectively\
+  \ gets two child slots, not three \u2014 my supervisor run permanently occupies\
+  \ one of the        three.                                                     \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                             Nothing needs Jeff. I'll keep reclaiming slots and\
+  \ relaunching the walk as the layers clear, then judge ac-1..ac-7 and close the\
+  \ parent.                                                                      \
+  \                                                                              \
+  \                                                                              \
+  \                                    \u273B Saut\xE9ed for 4m 17s \xB7 done 11:24\
+  \ PM \xB7 1 monitor still running\n\u25CF Monitor event: \"task-066 epic: child\
+  \ lifecycle changes, reclaimable run slots, walk exit\"                        \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                   \u25CF Baseline as expected\
+  \ \u2014 329 closed, 331 and 334 in flight, the rest ready and waiting on slots.\
+  \ Nothing to act on.\n\u273B Churned for 7s \xB7 done 11:24 PM \xB7 1 monitor still\
+  \ running                                                                      \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                      \u25CF Monitor event: \"task-066 epic: child\
+  \ lifecycle changes, reclaimable run slots, walk exit\"                        \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                   \u25CF task-334 closed. Verifying\
+  \ its outcome and that the merge landed:                                       \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                              Ran 2 shell commands\
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                  \u25CF task-334\
+  \ done \u2014 merged cc9d7a6, closed completed, and its run recorded itself as completed\
+  \ (so that session exited cleanly, unlike 329's). Two of seven down. Checking that\
+  \ 330 takes the freed slot:                                                    \
+  \                                                                              \
+  \                                                                         Ran 1\
+  \ shell command                                                                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \   \u25CF task-330 took the freed slot automatically \u2014 no intervention needed\
+  \ this time, because task-334's session concluded itself properly.             \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                     Epic status: 2 of 7 complete (329 principal resolution, 334\
+  \ dispatch caps), both merged to main with branches and worktrees cleaned. 330 (identity\
+  \ registry) and 331 (run credential) now in flight     together \u2014 they're the\
+  \ two independent branches off the keystone. After they land, 332 (authorization)\
+  \ unblocks, then 244 and 333.                                                  \
+  \                                                                              \
+  \                                                                              \
+  \                                                                The walk is carrying\
+  \ it; my monitor is watching for lifecycle changes and stuck slots.\n\u273B Saut\xE9\
+  ed for 22s \xB7 done 11:34 PM \xB7 1 monitor still running                     \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \        \u25CF Monitor event: \"task-066 epic: child lifecycle changes, reclaimable\
+  \ run slots, walk exit\"\n\u25CF Confirms 330 active alongside 331. Waiting.\n\u273B\
+  \ Cogitated for 1s \xB7 done 11:35 PM \xB7 1 monitor still running\n\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
+  \ \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\
+  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (175k/1.00M) \xB7\
+  \ $7.36/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\
+  \  \"finished\" as far as the ledger is concerned).                            \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \              I verified before killing anything \u2014 task closed, merge on main,\
+  \ branch and worktree gone, transcript showing an idle prompt \u2014 then cancelled\
+  \ run_43c2a909. task-331 started six seconds later.                            \
+  \                                                                              \
+  \                                                                              \
+  \                         This is a systemic throttle for unattended epics, so I've\
+  \ replaced the narrow watcher with one covering all seven children that also flags\
+  \ a run holding a slot while its task is already closed. It    waits for two consecutive\
+  \ sightings before flagging, so a post-merge rebuild/restart doesn't get cut off\
+  \ mid-delivery.\n                                                              \
+  \                                                                              \
+  \                                                              Current state: task-331\
+  \ and task-334 in flight; task-330 takes the next free slot. Note the epic effectively\
+  \ gets two child slots, not three \u2014 my supervisor run permanently occupies\
+  \ one of the        three.                                                     \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                             Nothing needs Jeff. I'll keep reclaiming slots and\
+  \ relaunching the walk as the layers clear, then judge ac-1..ac-7 and close the\
+  \ parent.                                                                      \
+  \                                                                              \
+  \                                                                              \
+  \                                    \u273B Saut\xE9ed for 4m 17s \xB7 done 11:24\
+  \ PM \xB7 1 monitor still running\n\u25CF Monitor event: \"task-066 epic: child\
+  \ lifecycle changes, reclaimable run slots, walk exit\"                        \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                   \u25CF Baseline as expected\
+  \ \u2014 329 closed, 331 and 334 in flight, the rest ready and waiting on slots.\
+  \ Nothing to act on.\n\u273B Churned for 7s \xB7 done 11:24 PM \xB7 1 monitor still\
+  \ running                                                                      \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                      \u25CF Monitor event: \"task-066 epic: child\
+  \ lifecycle changes, reclaimable run slots, walk exit\"                        \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                   \u25CF task-334 closed. Verifying\
+  \ its outcome and that the merge landed:                                       \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                              Ran 2 shell commands\
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                  \u25CF task-334\
+  \ done \u2014 merged cc9d7a6, closed completed, and its run recorded itself as completed\
+  \ (so that session exited cleanly, unlike 329's). Two of seven down. Checking that\
+  \ 330 takes the freed slot:                                                    \
+  \                                                                              \
+  \                                                                         Ran 1\
+  \ shell command                                                                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \   \u25CF task-330 took the freed slot automatically \u2014 no intervention needed\
+  \ this time, because task-334's session concluded itself properly.             \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                     Epic status: 2 of 7 complete (329 principal resolution, 334\
+  \ dispatch caps), both merged to main with branches and worktrees cleaned. 330 (identity\
+  \ registry) and 331 (run credential) now in flight     together \u2014 they're the\
+  \ two independent branches off the keystone. After they land, 332 (authorization)\
+  \ unblocks, then 244 and 333.                                                  \
+  \                                                                              \
+  \                                                                              \
+  \                                                                The walk is carrying\
+  \ it; my monitor is watching for lifecycle changes and stuck slots.\n\u273B Saut\xE9\
+  ed for 22s \xB7 done 11:34 PM \xB7 1 monitor still running                     \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \        \u25CF Monitor event: \"task-066 epic: child lifecycle changes, reclaimable\
+  \ run slots, walk exit\"\n\u25CF Confirms 330 active alongside 331. Waiting.\n\u273B\
+  \ Cogitated for 1s \xB7 done 11:35 PM \xB7 1 monitor still running\n\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
+  \ \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\
+  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (175k/1.00M) \xB7\
+  \ $7.36/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\
+  \  \"finished\" as far as the ledger is concerned).                            \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \              I verified before killing anything \u2014 task closed, merge on main,\
+  \ branch and worktree gone, transcript showing an idle prompt \u2014 then cancelled\
+  \ run_43c2a909. task-331 started six seconds later.                            \
+  \                                                                              \
+  \                                                                              \
+  \                         This is a systemic throttle for unattended epics, so I've\
+  \ replaced the narrow watcher with one covering all seven children that also flags\
+  \ a run holding a slot while its task is already closed. It    waits for two consecutive\
+  \ sightings before flagging, so a post-merge rebuild/restart doesn't get cut off\
+  \ mid-delivery.\n                                                              \
+  \                                                                              \
+  \                                                              Current state: task-331\
+  \ and task-334 in flight; task-330 takes the next free slot. Note the epic effectively\
+  \ gets two child slots, not three \u2014 my supervisor run permanently occupies\
+  \ one of the        three.                                                     \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                             Nothing needs Jeff. I'll keep reclaiming slots and\
+  \ relaunching the walk as the layers clear, then judge ac-1..ac-7 and close the\
+  \ parent.                                                                      \
+  \                                                                              \
+  \                                                                              \
+  \                                    \u273B Saut\xE9ed for 4m 17s \xB7 done 11:24\
+  \ PM \xB7 1 monitor still running\n\u25CF Monitor event: \"task-066 epic: child\
+  \ lifecycle changes, reclaimable run slots, walk exit\"                        \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                   \u25CF Baseline as expected\
+  \ \u2014 329 closed, 331 and 334 in flight, the rest ready and waiting on slots.\
+  \ Nothing to act on.\n\u273B Churned for 7s \xB7 done 11:24 PM \xB7 1 monitor still\
+  \ running                                                                      \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                      \u25CF Monitor event: \"task-066 epic: child\
+  \ lifecycle changes, reclaimable run slots, walk exit\"                        \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                   \u25CF task-334 closed. Verifying\
+  \ its outcome and that the merge landed:                                       \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                              Ran 2 shell commands\
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                  \u25CF task-334\
+  \ done \u2014 merged cc9d7a6, closed completed, and its run recorded itself as completed\
+  \ (so that session exited cleanly, unlike 329's). Two of seven down. Checking that\
+  \ 330 takes the freed slot:                                                    \
+  \                                                                              \
+  \                                                                         Ran 1\
+  \ shell command                                                                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \   \u25CF task-330 took the freed slot automatically \u2014 no intervention needed\
+  \ this time, because task-334's session concluded itself properly.             \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                     Epic status: 2 of 7 complete (329 principal resolution, 334\
+  \ dispatch caps), both merged to main with branches and worktrees cleaned. 330 (identity\
+  \ registry) and 331 (run credential) now in flight     together \u2014 they're the\
+  \ two independent branches off the keystone. After they land, 332 (authorization)\
+  \ unblocks, then 244 and 333.                                                  \
+  \                                                                              \
+  \                                                                              \
+  \                                                                The walk is carrying\
+  \ it; my monitor is watching for lifecycle changes and stuck slots.\n\u273B Saut\xE9\
+  ed for 22s \xB7 done 11:34 PM \xB7 1 monitor still running                     \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \        \u25CF Monitor event: \"task-066 epic: child lifecycle changes, reclaimable\
+  \ run slots, walk exit\"\n\u25CF Confirms 330 active alongside 331. Waiting.\n\u273B\
+  \ Cogitated for 1s \xB7 done 11:35 PM \xB7 1 monitor still running\n\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
+  \ \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\
+  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (175k/1.00M) \xB7\
+  \ $7.36/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\n\
+  ```"
 archived: false
 priority: critical
 queue_position: 12
@@ -677,3 +1179,536 @@ log:
       id: 3f8c1a52-9d47-4e61-b2a3-7c5e0f118802
       kind: handoff
       fingerprint: 14162656fc4562755cd7f07b1a8c7dc5
+- id: 17
+  ts: '2026-09-04T05:05:21.026120Z'
+  actor: dispatcher
+  type: handoff
+  body: "Dispatched session `160808d3` still reports itself as working but has produced\
+    \ no output for 30 minutes, so this task has been reading `agent`/`work` while\
+    \ nothing happened. It was **not** killed and is still attachable: `claude attach\
+    \ 160808d3`. Attach to see what it is doing, or stop it and move this task on\
+    \ yourself.\n\nThe end of its terminal, verbatim:\n\n```\n\u273B Cogitated for\
+    \ 1s \xB7 done 11:35 PM \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736 \u2500\u276F\n\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\u2591\u2591\
+    \u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (175k/1.00M) \xB7 $7.27/rc\n  \u23F5\
+    \u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor  \"finished\"\
+    \ as far as the ledger is concerned).                                        \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \          I verified before killing anything \u2014 task closed, merge on main,\
+    \ branch and worktree gone, transcript showing an idle prompt \u2014 then cancelled\
+    \ run_43c2a909. task-331 started six seconds later.                          \
+    \                                                                            \
+    \                                                                            \
+    \                               This is a systemic throttle for unattended epics,\
+    \ so I've replaced the narrow watcher with one covering all seven children that\
+    \ also flags a run holding a slot while its task is already closed. It    waits\
+    \ for two consecutive sightings before flagging, so a post-merge rebuild/restart\
+    \ doesn't get cut off mid-delivery.\n                                        \
+    \                                                                            \
+    \                                                                            \
+    \          Current state: task-331 and task-334 in flight; task-330 takes the\
+    \ next free slot. Note the epic effectively gets two child slots, not three \u2014\
+    \ my supervisor run permanently occupies one of the        three.            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \  Nothing needs Jeff. I'll keep reclaiming slots and relaunching the walk as\
+    \ the layers clear, then judge ac-1..ac-7 and close the parent.              \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                    \u273B Saut\xE9ed for 4m 17s \xB7 done 11:24 PM \xB7 1 monitor\
+    \ still running\n\u25CF Monitor event: \"task-066 epic: child lifecycle changes,\
+    \ reclaimable run slots, walk exit\"                                         \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                        \u25CF Baseline as expected \u2014 329\
+    \ closed, 331 and 334 in flight, the rest ready and waiting on slots. Nothing\
+    \ to act on.\n\u273B Churned for 7s \xB7 done 11:24 PM \xB7 1 monitor still running\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                      \u25CF Monitor event: \"task-066 epic:\
+    \ child lifecycle changes, reclaimable run slots, walk exit\"                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                 \u25CF task-334\
+    \ closed. Verifying its outcome and that the merge landed:                   \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \            Ran 2 shell commands                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                              \u25CF task-334 done \u2014 merged cc9d7a6, closed\
+    \ completed, and its run recorded itself as completed (so that session exited\
+    \ cleanly, unlike 329's). Two of seven down. Checking that 330 takes the freed\
+    \ slot:                                                                      \
+    \                                                                            \
+    \                                                         Ran 1 shell command\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                           \u25CF\
+    \ task-330 took the freed slot automatically \u2014 no intervention needed this\
+    \ time, because task-334's session concluded itself properly.                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                        Epic status: 2 of 7 complete (329 principal resolution,\
+    \ 334 dispatch caps), both merged to main with branches and worktrees cleaned.\
+    \ 330 (identity registry) and 331 (run credential) now in flight     together\
+    \ \u2014 they're the two independent branches off the keystone. After they land,\
+    \ 332 (authorization) unblocks, then 244 and 333.                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \              The walk is carrying it; my monitor is watching for lifecycle changes\
+    \ and stuck slots.\n\u273B Saut\xE9ed for 22s \xB7 done 11:34 PM \xB7 1 monitor\
+    \ still running                                                              \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                   \u25CF Monitor event: \"task-066\
+    \ epic: child lifecycle changes, reclaimable run slots, walk exit\"\n\u25CF Confirms\
+    \ 330 active alongside 331. Waiting.\n\u273B Cogitated for 1s \xB7 done 11:35\
+    \ PM \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
+    \ \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\
+    \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (175k/1.00M) \xB7\
+    \ $7.27/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\
+    \  \"finished\" as far as the ledger is concerned).                          \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                        I verified before killing anything \u2014 task closed,\
+    \ merge on main, branch and worktree gone, transcript showing an idle prompt \u2014\
+    \ then cancelled run_43c2a909. task-331 started six seconds later.           \
+    \                                                                            \
+    \                                                                            \
+    \                                              This is a systemic throttle for\
+    \ unattended epics, so I've replaced the narrow watcher with one covering all\
+    \ seven children that also flags a run holding a slot while its task is already\
+    \ closed. It    waits for two consecutive sightings before flagging, so a post-merge\
+    \ rebuild/restart doesn't get cut off mid-delivery.\n                        \
+    \                                                                            \
+    \                                                                            \
+    \                          Current state: task-331 and task-334 in flight; task-330\
+    \ takes the next free slot. Note the epic effectively gets two child slots, not\
+    \ three \u2014 my supervisor run permanently occupies one of the        three.\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \              Nothing needs Jeff. I'll keep reclaiming slots and relaunching\
+    \ the walk as the layers clear, then judge ac-1..ac-7 and close the parent.  \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                \u273B Saut\xE9ed for 4m 17s \xB7 done 11:24\
+    \ PM \xB7 1 monitor still running\n\u25CF Monitor event: \"task-066 epic: child\
+    \ lifecycle changes, reclaimable run slots, walk exit\"                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                           \u25CF Baseline as\
+    \ expected \u2014 329 closed, 331 and 334 in flight, the rest ready and waiting\
+    \ on slots. Nothing to act on.\n\u273B Churned for 7s \xB7 done 11:24 PM \xB7\
+    \ 1 monitor still running                                                    \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                              \u25CF Monitor\
+    \ event: \"task-066 epic: child lifecycle changes, reclaimable run slots, walk\
+    \ exit\"                                                                     \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \            \u25CF task-334 closed. Verifying its outcome and that the merge\
+    \ landed:                                                                    \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                       Ran 2 shell commands                 \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                         \u25CF task-334 done\
+    \ \u2014 merged cc9d7a6, closed completed, and its run recorded itself as completed\
+    \ (so that session exited cleanly, unlike 329's). Two of seven down. Checking\
+    \ that 330 takes the freed slot:                                             \
+    \                                                                            \
+    \                                                                            \
+    \      Ran 1 shell command                                                   \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                        \u25CF task-330 took the freed slot automatically \u2014\
+    \ no intervention needed this time, because task-334's session concluded itself\
+    \ properly.                                                                  \
+    \                                                                            \
+    \                                                                            \
+    \                                                  Epic status: 2 of 7 complete\
+    \ (329 principal resolution, 334 dispatch caps), both merged to main with branches\
+    \ and worktrees cleaned. 330 (identity registry) and 331 (run credential) now\
+    \ in flight     together \u2014 they're the two independent branches off the keystone.\
+    \ After they land, 332 (authorization) unblocks, then 244 and 333.           \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                               The walk is carrying it; my monitor is watching\
+    \ for lifecycle changes and stuck slots.\n\u273B Saut\xE9ed for 22s \xB7 done\
+    \ 11:34 PM \xB7 1 monitor still running                                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                           \u25CF\
+    \ Monitor event: \"task-066 epic: child lifecycle changes, reclaimable run slots,\
+    \ walk exit\"\n\u25CF Confirms 330 active alongside 331. Waiting.\n\u273B Cogitated\
+    \ for 1s \xB7 done 11:35 PM \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736 \u2500\u276F\n\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\u2591\u2591\
+    \u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (175k/1.00M) \xB7 $7.36/rc\n  \u23F5\
+    \u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor  \"finished\"\
+    \ as far as the ledger is concerned).                                        \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \          I verified before killing anything \u2014 task closed, merge on main,\
+    \ branch and worktree gone, transcript showing an idle prompt \u2014 then cancelled\
+    \ run_43c2a909. task-331 started six seconds later.                          \
+    \                                                                            \
+    \                                                                            \
+    \                               This is a systemic throttle for unattended epics,\
+    \ so I've replaced the narrow watcher with one covering all seven children that\
+    \ also flags a run holding a slot while its task is already closed. It    waits\
+    \ for two consecutive sightings before flagging, so a post-merge rebuild/restart\
+    \ doesn't get cut off mid-delivery.\n                                        \
+    \                                                                            \
+    \                                                                            \
+    \          Current state: task-331 and task-334 in flight; task-330 takes the\
+    \ next free slot. Note the epic effectively gets two child slots, not three \u2014\
+    \ my supervisor run permanently occupies one of the        three.            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \  Nothing needs Jeff. I'll keep reclaiming slots and relaunching the walk as\
+    \ the layers clear, then judge ac-1..ac-7 and close the parent.              \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                    \u273B Saut\xE9ed for 4m 17s \xB7 done 11:24 PM \xB7 1 monitor\
+    \ still running\n\u25CF Monitor event: \"task-066 epic: child lifecycle changes,\
+    \ reclaimable run slots, walk exit\"                                         \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                        \u25CF Baseline as expected \u2014 329\
+    \ closed, 331 and 334 in flight, the rest ready and waiting on slots. Nothing\
+    \ to act on.\n\u273B Churned for 7s \xB7 done 11:24 PM \xB7 1 monitor still running\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                      \u25CF Monitor event: \"task-066 epic:\
+    \ child lifecycle changes, reclaimable run slots, walk exit\"                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                 \u25CF task-334\
+    \ closed. Verifying its outcome and that the merge landed:                   \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \            Ran 2 shell commands                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                              \u25CF task-334 done \u2014 merged cc9d7a6, closed\
+    \ completed, and its run recorded itself as completed (so that session exited\
+    \ cleanly, unlike 329's). Two of seven down. Checking that 330 takes the freed\
+    \ slot:                                                                      \
+    \                                                                            \
+    \                                                         Ran 1 shell command\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                           \u25CF\
+    \ task-330 took the freed slot automatically \u2014 no intervention needed this\
+    \ time, because task-334's session concluded itself properly.                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                        Epic status: 2 of 7 complete (329 principal resolution,\
+    \ 334 dispatch caps), both merged to main with branches and worktrees cleaned.\
+    \ 330 (identity registry) and 331 (run credential) now in flight     together\
+    \ \u2014 they're the two independent branches off the keystone. After they land,\
+    \ 332 (authorization) unblocks, then 244 and 333.                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \              The walk is carrying it; my monitor is watching for lifecycle changes\
+    \ and stuck slots.\n\u273B Saut\xE9ed for 22s \xB7 done 11:34 PM \xB7 1 monitor\
+    \ still running                                                              \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                   \u25CF Monitor event: \"task-066\
+    \ epic: child lifecycle changes, reclaimable run slots, walk exit\"\n\u25CF Confirms\
+    \ 330 active alongside 331. Waiting.\n\u273B Cogitated for 1s \xB7 done 11:35\
+    \ PM \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
+    \ \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\
+    \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (175k/1.00M) \xB7\
+    \ $7.36/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\
+    \  \"finished\" as far as the ledger is concerned).                          \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                        I verified before killing anything \u2014 task closed,\
+    \ merge on main, branch and worktree gone, transcript showing an idle prompt \u2014\
+    \ then cancelled run_43c2a909. task-331 started six seconds later.           \
+    \                                                                            \
+    \                                                                            \
+    \                                              This is a systemic throttle for\
+    \ unattended epics, so I've replaced the narrow watcher with one covering all\
+    \ seven children that also flags a run holding a slot while its task is already\
+    \ closed. It    waits for two consecutive sightings before flagging, so a post-merge\
+    \ rebuild/restart doesn't get cut off mid-delivery.\n                        \
+    \                                                                            \
+    \                                                                            \
+    \                          Current state: task-331 and task-334 in flight; task-330\
+    \ takes the next free slot. Note the epic effectively gets two child slots, not\
+    \ three \u2014 my supervisor run permanently occupies one of the        three.\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \              Nothing needs Jeff. I'll keep reclaiming slots and relaunching\
+    \ the walk as the layers clear, then judge ac-1..ac-7 and close the parent.  \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                \u273B Saut\xE9ed for 4m 17s \xB7 done 11:24\
+    \ PM \xB7 1 monitor still running\n\u25CF Monitor event: \"task-066 epic: child\
+    \ lifecycle changes, reclaimable run slots, walk exit\"                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                           \u25CF Baseline as\
+    \ expected \u2014 329 closed, 331 and 334 in flight, the rest ready and waiting\
+    \ on slots. Nothing to act on.\n\u273B Churned for 7s \xB7 done 11:24 PM \xB7\
+    \ 1 monitor still running                                                    \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                              \u25CF Monitor\
+    \ event: \"task-066 epic: child lifecycle changes, reclaimable run slots, walk\
+    \ exit\"                                                                     \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \            \u25CF task-334 closed. Verifying its outcome and that the merge\
+    \ landed:                                                                    \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                       Ran 2 shell commands                 \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                         \u25CF task-334 done\
+    \ \u2014 merged cc9d7a6, closed completed, and its run recorded itself as completed\
+    \ (so that session exited cleanly, unlike 329's). Two of seven down. Checking\
+    \ that 330 takes the freed slot:                                             \
+    \                                                                            \
+    \                                                                            \
+    \      Ran 1 shell command                                                   \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                        \u25CF task-330 took the freed slot automatically \u2014\
+    \ no intervention needed this time, because task-334's session concluded itself\
+    \ properly.                                                                  \
+    \                                                                            \
+    \                                                                            \
+    \                                                  Epic status: 2 of 7 complete\
+    \ (329 principal resolution, 334 dispatch caps), both merged to main with branches\
+    \ and worktrees cleaned. 330 (identity registry) and 331 (run credential) now\
+    \ in flight     together \u2014 they're the two independent branches off the keystone.\
+    \ After they land, 332 (authorization) unblocks, then 244 and 333.           \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                               The walk is carrying it; my monitor is watching\
+    \ for lifecycle changes and stuck slots.\n\u273B Saut\xE9ed for 22s \xB7 done\
+    \ 11:34 PM \xB7 1 monitor still running                                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                           \u25CF\
+    \ Monitor event: \"task-066 epic: child lifecycle changes, reclaimable run slots,\
+    \ walk exit\"\n\u25CF Confirms 330 active alongside 331. Waiting.\n\u273B Cogitated\
+    \ for 1s \xB7 done 11:35 PM \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736 \u2500\u276F\n\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\u2591\u2591\
+    \u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (175k/1.00M) \xB7 $7.36/rc\n  \u23F5\
+    \u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\n```"
+  data:
+    ball: human
+    ball_reason: input
