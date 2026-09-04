@@ -3,7 +3,7 @@ id: task-333
 title: 'Project exposure: a hidden project stays hidden through its run transcripts
   too'
 created: '2026-09-04T03:28:25.746152Z'
-updated: '2026-09-04T08:24:39.811082Z'
+updated: '2026-09-04T08:24:48.871089Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -461,3 +461,17 @@ log:
     produces every one of the same refusals, so without that test the whole file could
     pass while testing nothing.'
   data: {}
+- id: 10
+  ts: '2026-09-04T08:24:48.870926Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-333-project-exposure` (e7c117c9).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-333.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_6e9ee9c2\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-333-project-exposure
+    finish_id: fin_6e9ee9c2
