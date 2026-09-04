@@ -6,6 +6,8 @@ import pytest
 
 from typing import Iterator
 
+from starlette.testclient import TestClient
+
 from agentjobs.api.dependencies import reset_dependency_cache
 from agentjobs.dispatch.address import ApiBaseProbe
 from agentjobs.dispatch.auth import CLAUDE_HOME_ENV
@@ -127,3 +129,33 @@ def api_base_always_answers(monkeypatch) -> None:
 
     for target in PROBE_CALL_SITES:
         monkeypatch.setattr(target, answered)
+
+
+@pytest.fixture(autouse=True)
+def the_test_client_arrives_on_loopback(monkeypatch) -> None:
+    """Give every ``TestClient`` a loopback peer, unless the test names its own.
+
+    Starlette's ``TestClient`` defaults its peer address to the literal host
+    ``"testclient"``, which is not an IP address at all. ``principals.is_front_door``
+    therefore -- correctly, and by design -- says that request did not arrive by the
+    path the front door controls, so **no principal resolves**, so with task-332's
+    capability gate installed every mutating route in this suite would answer 403.
+
+    That is a fact about the harness rather than about the application: AgentJobs is
+    served on loopback, so a request the application really sees carries a loopback
+    peer. This fixture makes the harness say what the deployment does. It is a default,
+    not an override: ``tests/test_identity_registry_api.py`` and the capability tests
+    pass their own ``client=`` to say where a request came from, and those win.
+
+    The alternative -- treating an unparseable client address as loopback in
+    ``is_front_door`` -- was rejected outright. "We could not tell where this came from"
+    must never mean "believe what it claims about itself", and weakening that rule to
+    spare a fixture would put a hole in the one function the whole trust model rests on.
+    """
+    original = TestClient.__init__
+
+    def on_loopback(self: TestClient, *args: object, **kwargs: object) -> None:
+        kwargs.setdefault("client", ("127.0.0.1", 50000))
+        original(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(TestClient, "__init__", on_loopback)

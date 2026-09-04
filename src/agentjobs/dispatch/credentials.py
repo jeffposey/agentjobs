@@ -198,7 +198,11 @@ def verify_run_credential(
                 "back to a *more* capable principal on expiry would invert the control."
             ),
         )
-    return RunCredential(run_id=record.run_id or run_id, task_id=record.task_id)
+    return RunCredential(
+        run_id=record.run_id or run_id,
+        task_id=record.task_id,
+        agent=record.agent,
+    )
 
 
 def _default_home() -> Optional[Path]:

@@ -327,8 +327,9 @@ def reset_dependency_cache() -> None:
 
 # ----- who is asking -----------------------------------------------------------
 #
-# Resolution only. Nothing here refuses a request, and no route reads it yet: task-332
-# owns what an absent or insufficient principal means. See agentjobs.principals.
+# Resolution only. Nothing here refuses a request; `api.authorization.enforce_capability`
+# reads what this resolves and is the one place that does. See agentjobs.principals and
+# agentjobs.capabilities.
 
 PRINCIPAL_STATE_ATTR = "principal_resolution"
 """Where the middleware stashes the request's resolution.

@@ -43,6 +43,7 @@ from agentjobs.playbooks.run import PlaybookDispatchRefused, PlaybookRunError, r
 from agentjobs.principals import Principal
 from agentjobs.projects import Project
 
+from ..authorization import assert_actor_agrees
 from ..dependencies import current_identity, get_principal, get_task_manager, project_config
 from ..models import DispatchStarted, ErrorBody, ReviewIdentity
 from .status import (
@@ -307,6 +308,13 @@ async def run_playbook_endpoint(
     is written onto the task named. Neither path substitutes the project's
     ``default_user`` for a human nobody named.
     """
+    # Same check the Dispatch button's endpoint makes, and for the same reason: `user`
+    # names the human whose authorising entry is about to be written, so a caller has to
+    # *be* that person rather than merely know their id (task-332). `require_human` is
+    # deliberately off: whether the named id is a person at all is the guard layer's
+    # refusal, which names its own reason and its own remedy.
+    if payload.user:
+        assert_actor_agrees(request, project_config(project), payload.user, field="user")
     try:
         playbook = read_playbook(project.playbooks_dir(), name)
         targets_task = playbook.contract.target is PlaybookTarget.TASK

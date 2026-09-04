@@ -225,6 +225,17 @@ recoverability is the whole reason an unreviewed merge is acceptable here.
 If you are supervising a parent task, the clause is phrased for you instead: it tells you
 what the children you start will do, and you approve nothing yourself either way.
 
+### Your API and MCP writes are scoped to your own task
+
+Every request you make over HTTP carries your run's credential, so the server knows you
+are a run rather than the person at the keyboard (task-332). You may work **your own**
+task -- log, hand off, close, reorder it -- and file new tasks. You may not approve a
+review, dispatch anything, change dispatch configuration, register a project, repair the
+queue, or act on a task that is not yours. A 403 naming `wrong_task` or
+`capability_denied` is that rule and not a bug; ask the human, or say so on the record.
+The CLI speaks no HTTP and is unaffected, which is how the epic walk still starts
+children. The table is in [docs/authorization.md](docs/authorization.md).
+
 ### If you are woken after an approval, read the record before you act
 
 An approval may already have merged your branch without any agent: where a project has

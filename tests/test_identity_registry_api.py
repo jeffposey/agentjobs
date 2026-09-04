@@ -187,8 +187,15 @@ class TestTwoPeopleAreEachThemselves:
 
         response = as_(SAM_LOGIN).post(f"/api/tasks/{task_id}/approve", json={"user": "jeff"})
 
-        assert response.status_code == 400
-        assert "'sam'" in response.json()["detail"]
+        # 403 rather than the 400 this answered before task-332: acting as another
+        # person is a refusal of the caller, not a malformed request. The body carries
+        # both names -- what was claimed and what the request resolved to -- because a
+        # misconfigured mapping is the likeliest cause of seeing this.
+        assert response.status_code == 403
+        body = response.json()
+        assert body["code"] == "actor_mismatch"
+        assert "'sam'" in body["detail"]
+        assert "'jeff'" in body["detail"]
 
     def test_a_bare_loopback_request_is_refused_rather_than_guessed(self, project: Path) -> None:
         # Nobody said who is at the keyboard and two people could be. The old MULTIPLE
@@ -233,7 +240,12 @@ class TestTheHeaderIsOnlyBelievedFromTheFrontDoor:
             f"/api/tasks/{task_id}/approve", json={"user": "sam"}
         )
 
-        assert response.status_code == 400
+        # Since task-332 this is refused before the identity is even consulted: the
+        # request resolved to no principal at all, and the capability gate answers 403
+        # naming the problem code rather than letting the route reason about a login it
+        # already decided not to believe.
+        assert response.status_code == 403
+        assert response.json()["code"] == "no_proven_identity"
 
 
 class TestAnUnmappedLoginIsRefusedNotDefaulted:
@@ -343,3 +355,42 @@ class TestASingleHumanConfigIsUntouched:
         task_id = task_in_review(bare())
 
         assert identity_of(bare(), task_id)["user"] == "jeff"
+
+
+class TestNobodyDispatchesInSomebodyElsesName:
+    """Audit S-1's dispatch line, closed (task-332).
+
+    ``POST /tasks/{id}/dispatch`` accepts a ``user``: the human whose authorising entry
+    the server writes onto the task before starting a run. It has always been validated
+    as a configured human -- and ``GET /api/projects`` publishes exactly that list, so
+    knowing a valid name was the whole of the check. What was missing is that the caller
+    has to *be* them.
+    """
+
+    def test_one_person_cannot_dispatch_in_the_other_s_name(self, project: Path) -> None:
+        write_config(project, TWO_PEOPLE)
+        map_both(project)
+        task_id = task_in_review(bare())
+
+        response = as_(SAM_LOGIN).post(f"/api/tasks/{task_id}/dispatch", json={"user": "jeff"})
+
+        assert response.status_code == 403, response.text
+        body = response.json()
+        assert body["code"] == "actor_mismatch"
+        assert "'jeff'" in body["detail"] and "'sam'" in body["detail"]
+
+    def test_dispatching_in_your_own_name_reaches_the_dispatch_gates(self, project: Path) -> None:
+        """The contrast that makes the test above mean something.
+
+        Not a 200: this temp home configures no runner, so the machine-level gate
+        refuses with ``not_configured``. That is the request getting *through* identity
+        and being answered by the layer that should answer it.
+        """
+        write_config(project, TWO_PEOPLE)
+        map_both(project)
+        task_id = task_in_review(bare())
+
+        response = as_(JEFF_LOGIN).post(f"/api/tasks/{task_id}/dispatch", json={"user": "jeff"})
+
+        assert response.status_code != 403, response.text
+        assert response.json()["code"] == "not_configured"

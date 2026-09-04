@@ -7,6 +7,14 @@
 > loopback — `agentjobs serve` refuses a wildcard bind for this reason — and reach it
 > from elsewhere only through a private network with its own access control. See
 > [mobile access](mobile-access.md) for the tailnet setup this project uses.
+>
+> **There is authorization, which is a different thing.** Every mutating route is checked
+> against a capability table keyed by the kind of caller, so a **dispatched agent** cannot
+> approve a review, start a run, change dispatch configuration, register a project,
+> repair the queue, or act on a task other than its own — and no caller may submit an
+> `actor`/`user` naming somebody they are not. That constrains agents on this machine; it
+> authenticates nobody. See [authorization](authorization.md), whose closing section says
+> plainly what it does not cover.
 
 AgentJobs exposes the schema-v2 task workflow as JSON. The generated OpenAPI document
 is the endpoint and payload source of truth:

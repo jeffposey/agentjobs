@@ -26,6 +26,7 @@ from agentjobs.dispatch.credentials import verify_run_credential
 from agentjobs.principals import set_run_credential_verifier
 from agentjobs.storage import TaskLoadError, corpus_snapshot
 
+from .authorization import Forbidden, enforce_capability
 from .dependencies import PRINCIPAL_STATE_ATTR, resolve_request_principal
 from .routes import (
     PROJECT_SCOPED_ROUTERS,
@@ -173,6 +174,13 @@ app = FastAPI(
     version=__version__,
     docs_url="/docs",
     redoc_url="/redoc",
+    # The capability gate, installed once for the whole application rather than route by
+    # route (task-332). Application-wide is what makes "no route left un-checked by
+    # oversight" structural: a route added tomorrow is covered by this the moment it is
+    # registered, and `tests/test_authorization.py` fails until somebody says which
+    # capability it needs. A dependency rather than middleware, because middleware runs
+    # before routing and would know neither the matched endpoint nor the path params.
+    dependencies=[Depends(enforce_capability)],
 )
 
 MEASUREMENT_HEADER = "X-Response-Time-Ms"
@@ -219,10 +227,11 @@ async def resolve_principal_for_request(request: Any, call_next: Any) -> Any:
     than everything the application serves. Resolving here also means one answer per
     request: a handler and a future audit record cannot disagree about who was asking.
 
-    **It only records.** Nothing is refused, no response changes, and no route reads
-    the result yet -- enforcement is task-332, and landing it separately is what makes
-    a mistake in resolution show up as a wrong principal in a test rather than as a
-    locked-out dashboard.
+    **It only records.** Nothing is refused here, and nothing ever will be: the
+    refusing is done by ``enforce_capability`` in ``api.authorization``, which reads
+    what this stashed. Keeping resolution and enforcement apart is what makes a mistake
+    in resolution show up as a wrong principal in a test rather than as a locked-out
+    dashboard.
     """
     setattr(request.state, PRINCIPAL_STATE_ATTR, resolve_request_principal(request))
     return await call_next(request)
@@ -282,6 +291,19 @@ async def handle_mutation_error(request: Any, exc: MutationError) -> JSONRespons
     endpoints report failure in one shape without repeating a try/except six times.
     """
     return await mutation_error_response(request, exc)
+
+
+@app.exception_handler(Forbidden)
+async def handle_forbidden(request: Any, exc: Forbidden) -> JSONResponse:
+    """Render a capability or identity refusal, code and sentence both.
+
+    The code is in the body rather than only in the status because 403 alone cannot tell
+    "your credential is for another run" from "no principal holds this at all", and the
+    two need different responses from whoever hit them. ``detail`` is carried as well as
+    the code so every existing client -- which reads ``detail`` and nothing else -- shows
+    the sentence rather than an empty box.
+    """
+    return JSONResponse(status_code=exc.status_code, content=exc.body())
 
 
 @app.exception_handler(RequestValidationError)

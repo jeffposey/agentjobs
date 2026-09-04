@@ -797,6 +797,15 @@ class RunRecord:
     task_id: str = ""
     project_id: str = ""
     mode: str = ""
+    agent: str = ""
+    """The actor id this run was dispatched as, from the runner's ``actor_id``.
+
+    Written into every ``meta.yaml`` since dispatch had a runner, and read back since
+    task-332, which needs it to tell a run claiming to be *itself* from one claiming to
+    be another agent. Empty on a meta written by hand or by a version that predates the
+    field, and every reader treats empty as "unknown" rather than as a claim.
+    """
+
     posture: str = ""
     posture_source: str = ""
     posture_ceiling: str = ""
@@ -903,6 +912,7 @@ def read_run(directory: Path) -> RunRecord:
         task_id=str(meta.get("task_id") or ""),
         project_id=str(meta.get("project_id") or ""),
         mode=str(meta.get("mode") or ""),
+        agent=str(meta.get("agent") or ""),
         posture=str(meta.get("posture") or ""),
         posture_source=str(meta.get("posture_source") or ""),
         posture_ceiling=str(meta.get("posture_ceiling") or ""),
