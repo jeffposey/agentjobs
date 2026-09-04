@@ -3,7 +3,7 @@ id: task-328
 title: 'Nothing shows what is being worked right now: build the machine-wide live-run
   surface'
 created: '2026-09-04T01:37:40.980704Z'
-updated: '2026-09-04T01:49:00.338189Z'
+updated: '2026-09-04T01:59:34.071074Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -322,3 +322,31 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 6
+  ts: '2026-09-04T01:59:34.070900Z'
+  actor: claude
+  type: decision
+  body: "**The machine-wide route is `GET /api/runs/live`, in a new `runs` router\
+    \ mounted once \u2014 not under `/api/projects/{id}`.** (ac-6)\n\n`/api/projects/{id}/dispatch/runs`\
+    \ filters the ledger to one project and its docstring says why: *\"a page about\
+    \ one project has no business showing another's.\"* That reasoning is right and\
+    \ this endpoint's answer contradicts it \u2014 the whole point is that the run\
+    \ occupying the last slot is usually in some *other* project. Nesting a machine-wide\
+    \ answer under a project path would make the `project_id` in the URL a lie: the\
+    \ same response for every value of it.\n\nMechanically it also cannot go there\
+    \ without breaking the mounting contract. Every router in `PROJECT_SCOPED_ROUTERS`\
+    \ is mounted **twice** (`/api` and `/api/projects/{project_id}`) and resolves\
+    \ its project through `request_project`. A handler that ignores the project would\
+    \ still be generated into the client twice, keyed on a path parameter it does\
+    \ not read.\n\nSo: `src/agentjobs/api/routes/runs.py`, `APIRouter(prefix=\"/api/runs\"\
+    )`, mounted once in `main.py` beside `health_router` and `projects_router` \u2014\
+    \ the two routers that already exist because their answers are about the machine\
+    \ rather than about a project. Rejected alternatives: `/api/dispatch/runs` (unscoped\
+    \ mount of the existing dispatch router \u2014 the `/api` mount already means\
+    \ \"the default project\", so it would be ambiguous rather than machine-wide)\
+    \ and `/api/machine/...` (invents a noun the codebase does not use anywhere else).\n"
+  data:
+    operation:
+      id: 3f7a1c02-6d31-4a4e-9c11-1a2b3c4d5e01
+      kind: log_append
+      fingerprint: 8df6d6afba6cbacd4b9eb09b18c0f0fc
