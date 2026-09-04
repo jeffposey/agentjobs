@@ -2,7 +2,7 @@ schema: 2
 id: task-330
 title: 'Identity registry: several human actors, login mapping, and retirement'
 created: '2026-09-04T03:26:56.564971Z'
-updated: '2026-09-04T05:35:44.433450Z'
+updated: '2026-09-04T05:41:56.797138Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -535,3 +535,31 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 11
+  ts: '2026-09-04T05:37:45.373586Z'
+  actor: finisher
+  type: progress
+  body: 'Queued for this repository''s merge runway, held by fin_f1703fab, pid 3043944
+    started at 00:35:45, 2m ago.
+
+
+    **This is the queue working, not a stall.** Children of an epic fly in parallel
+    and land one at a time, because a gate is only evidence about the base it ran
+    against. Nothing here is rebased, gated or merged until the runway is free.'
+  data:
+    finish_step: runway_queued
+    finish_id: fin_5ff73506
+- id: 12
+  ts: '2026-09-04T05:41:56.796950Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-330-identity-registry` (76aa7870).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-330.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_5ff73506\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-330-identity-registry
+    finish_id: fin_5ff73506
