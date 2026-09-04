@@ -2,7 +2,7 @@ schema: 2
 id: task-330
 title: 'Identity registry: several human actors, login mapping, and retirement'
 created: '2026-09-04T03:26:56.564971Z'
-updated: '2026-09-04T06:18:11.125386Z'
+updated: '2026-09-04T06:18:47.388072Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -1197,3 +1197,13 @@ log:
       id: 3d0a1f52-7b41-4c8e-9a2d-1e5c8b330008
       kind: log_append
       fingerprint: 7633279df31a147c82d8828c9d6e7aa8
+- id: 32
+  ts: '2026-09-04T06:18:47.387862Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 4
+  data:
+    run_id: run_4d12b705
+    outcome: completed
+    duration_seconds: 6241.634201
+    log_path: C:\Users\jpose\.agentjobs\runs\run_4d12b705
