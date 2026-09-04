@@ -35,6 +35,7 @@ from agentjobs.operations import OperationConflictError, RevisionConflictError
 from agentjobs.projects import Project
 from agentjobs.storage import TaskLockTimeout
 
+from ..authorization import assert_actor_agrees
 from ..dependencies import get_task_manager, project_config, request_project, storage_for
 from ..models import (
     ClaimRequest,
@@ -181,22 +182,24 @@ def lock_timeout_error(
     )
 
 
-def acting_actor(project: Project, actor: str) -> str:
-    """Return the actor id to record, refused when this project does not define it.
+def acting_actor(request: Request, project: Project, actor: str) -> str:
+    """Return the actor id to record, refused when it is not this project's or not yours.
 
-    The three human review routes have always validated their actor. These six did
-    not, so a typo -- or an MCP client inventing an identity from a model name --
-    wrote an unresolvable attribution into an append-only log. The validator itself
-    still accepts anything on a project that configures no actors, so a fresh
-    ``agentjobs init`` is unaffected; it only bites once a project has said who its
-    actors are.
+    Two checks, and they answer different questions. ``validate_actor`` asks whether the
+    project has heard of this id at all: a typo -- or an MCP client inventing an identity
+    from a model name -- otherwise writes an unresolvable attribution into an
+    append-only log. It still accepts anything on a project that configures no actors, so
+    a fresh ``agentjobs init`` is unaffected.
 
-    Unlike review actions, an agent verb need not match ``default_user``. Any
-    configured actor may claim or log; only the human review endpoints care which
-    person is at the keyboard.
+    :func:`~agentjobs.api.authorization.assert_actor_agrees` asks whether this caller may
+    write as that id (task-332). An agent verb is not a review, so it is *not* required to
+    be the acting human: a run must write as the agent it was dispatched as, while a
+    person at this machine may attribute a write to the tool they are driving. What is
+    refused either way is claiming to be somebody else -- a run naming a human, or one
+    caller naming another person.
     """
     try:
-        return validate_actor(project_config(project), actor)
+        validated = validate_actor(project_config(project), actor)
     except UnknownActorError as exc:
         raise _error(
             status.HTTP_400_BAD_REQUEST,
@@ -205,6 +208,8 @@ def acting_actor(project: Project, actor: str) -> str:
             field_errors=[ErrorDetail(path="actor", message="Not a configured actor.")],
             suggested_action="Use one of the project's configured actor ids.",
         ) from exc
+    assert_actor_agrees(request, project_config(project), actor)
+    return validated
 
 
 def get_acting_project(request: Request) -> Project:
@@ -272,13 +277,14 @@ def _run(
 @router.post("/{task_id}/promote", response_model=MutationResponse, status_code=status.HTTP_200_OK)
 async def promote_task(
     task_id: str,
+    request: Request,
     payload: PromoteRequest,
     envelope: bool = ENVELOPE_QUERY,
     manager: TaskManager = Depends(get_task_manager),
     project: Project = Depends(get_acting_project),
 ) -> Any:
     """Declare a draft's spec finished: it becomes ready and claimable."""
-    actor = acting_actor(project, payload.actor)
+    actor = acting_actor(request, project, payload.actor)
     return _run(
         lambda: manager.promote_task(
             task_id,
@@ -297,13 +303,14 @@ async def promote_task(
 @router.post("/{task_id}/claim", response_model=MutationResponse, status_code=status.HTTP_200_OK)
 async def claim_task(
     task_id: str,
+    request: Request,
     payload: ClaimRequest,
     envelope: bool = ENVELOPE_QUERY,
     manager: TaskManager = Depends(get_task_manager),
     project: Project = Depends(get_acting_project),
 ) -> Any:
     """Claim a ready task: one winner, everyone else gets a 409."""
-    agent = acting_actor(project, payload.agent)
+    agent = acting_actor(request, project, payload.agent)
     return _run(
         lambda: manager.claim_task(task_id, agent=agent, operation_id=payload.operation_id),
         task_id=task_id,
@@ -316,13 +323,14 @@ async def claim_task(
 @router.post("/{task_id}/handoff", response_model=MutationResponse, status_code=status.HTTP_200_OK)
 async def handoff_task(
     task_id: str,
+    request: Request,
     payload: HandoffRequest,
     envelope: bool = ENVELOPE_QUERY,
     manager: TaskManager = Depends(get_task_manager),
     project: Project = Depends(get_acting_project),
 ) -> Any:
     """Move the ball, with its ask."""
-    actor = acting_actor(project, payload.actor)
+    actor = acting_actor(request, project, payload.actor)
     return _run(
         lambda: manager.handoff(
             task_id,
@@ -345,13 +353,14 @@ async def handoff_task(
 @router.post("/{task_id}/release", response_model=MutationResponse, status_code=status.HTTP_200_OK)
 async def release_task(
     task_id: str,
+    request: Request,
     payload: ReleaseRequest,
     envelope: bool = ENVELOPE_QUERY,
     manager: TaskManager = Depends(get_task_manager),
     project: Project = Depends(get_acting_project),
 ) -> Any:
     """Return a claimed task to the pool."""
-    actor = acting_actor(project, payload.actor)
+    actor = acting_actor(request, project, payload.actor)
     return _run(
         lambda: manager.release_task(
             task_id, actor=actor, body=payload.body, operation_id=payload.operation_id
@@ -366,13 +375,14 @@ async def release_task(
 @router.post("/{task_id}/close", response_model=MutationResponse, status_code=status.HTTP_200_OK)
 async def close_task(
     task_id: str,
+    request: Request,
     payload: CloseRequest,
     envelope: bool = ENVELOPE_QUERY,
     manager: TaskManager = Depends(get_task_manager),
     project: Project = Depends(get_acting_project),
 ) -> Any:
     """End the task with an outcome."""
-    actor = acting_actor(project, payload.actor)
+    actor = acting_actor(request, project, payload.actor)
     return _run(
         lambda: manager.close_task(
             task_id,
@@ -395,6 +405,7 @@ async def close_task(
 )
 async def queue_move_task(
     task_id: str,
+    request: Request,
     payload: QueueMoveRequest,
     envelope: bool = ENVELOPE_QUERY,
     manager: TaskManager = Depends(get_task_manager),
@@ -413,7 +424,7 @@ async def queue_move_task(
     findings, ``queue_undo`` the placement that puts the task back where it came from.
     Without the envelope this answers with the bare task exactly as it always did.
     """
-    actor = acting_actor(project, payload.actor)
+    actor = acting_actor(request, project, payload.actor)
     return _run(
         lambda: manager.move_with_warnings(
             task_id,
@@ -439,6 +450,7 @@ async def queue_move_task(
 )
 async def queue_keep_task(
     task_id: str,
+    request: Request,
     payload: QueueKeepRequest,
     envelope: bool = ENVELOPE_QUERY,
     manager: TaskManager = Depends(get_task_manager),
@@ -455,7 +467,7 @@ async def queue_keep_task(
     kept anyway", and one written where nothing was ever said would bind `reorder` to a
     decision nobody took.
     """
-    actor = acting_actor(project, payload.actor)
+    actor = acting_actor(request, project, payload.actor)
     return _run(
         lambda: manager.keep_queue_move(
             task_id,
@@ -476,6 +488,7 @@ async def queue_keep_task(
 )
 async def reprioritize_task(
     task_id: str,
+    request: Request,
     payload: ReprioritizeRequest,
     envelope: bool = ENVELOPE_QUERY,
     manager: TaskManager = Depends(get_task_manager),
@@ -489,7 +502,7 @@ async def reprioritize_task(
     decision. Sending `priority` through `PATCH /tasks/{id}` still works and still
     rejoins the band at the bottom; this is the route that lets a caller say otherwise.
     """
-    actor = acting_actor(project, payload.actor)
+    actor = acting_actor(request, project, payload.actor)
     return _run(
         lambda: manager.reprioritize(
             task_id,
@@ -512,13 +525,14 @@ async def reprioritize_task(
 @router.post("/{task_id}/log", response_model=MutationResponse, status_code=status.HTTP_200_OK)
 async def append_log_entry(
     task_id: str,
+    request: Request,
     payload: LogAppendRequest,
     envelope: bool = ENVELOPE_QUERY,
     manager: TaskManager = Depends(get_task_manager),
     project: Project = Depends(get_acting_project),
 ) -> Any:
     """Append a note/progress/decision/question/answer/instruction entry."""
-    actor = acting_actor(project, payload.actor)
+    actor = acting_actor(request, project, payload.actor)
     return _run(
         lambda: manager.add_log_entry(
             task_id,
@@ -539,13 +553,14 @@ async def append_log_entry(
 @router.post("/{task_id}/progress", response_model=MutationResponse, status_code=status.HTTP_200_OK)
 async def post_progress_update(
     task_id: str,
+    request: Request,
     payload: ProgressUpdateRequest,
     envelope: bool = ENVELOPE_QUERY,
     manager: TaskManager = Depends(get_task_manager),
     project: Project = Depends(get_acting_project),
 ) -> Any:
     """Append a progress update entry for the task."""
-    author = acting_actor(project, payload.author)
+    author = acting_actor(request, project, payload.author)
     return _run(
         lambda: manager.add_progress_update(
             task_id=task_id,
@@ -705,6 +720,19 @@ async def dispatch_task_endpoint(
     same answer the CLI gets, and the React app disables the button and says so rather
     than letting someone press it into a refusal.
     """
+    # The identity claim this endpoint accepts is checked against the principal before
+    # the guard layer writes it onto the task (task-332). It has always been validated as
+    # a configured human; what was missing is that a caller could name *any* configured
+    # human, from a list `GET /api/projects` publishes -- which is the whole of audit
+    # finding S-1's dispatch line.
+    #
+    # `require_human` is deliberately off. Whether the named id is a person at all is
+    # already the guard layer's refusal, under its own code (`authorizer_not_human`) with
+    # its own remedy; adding it here would replace that specific answer with a vaguer one
+    # for no gain. What this adds is the half nothing checked: that the caller is the
+    # person they named.
+    if payload.user:
+        assert_actor_agrees(request, project_config(project), payload.user, field="user")
     try:
         # ``dispatch_task`` starts Codex App Server synchronously. Keep it off
         # FastAPI's event loop: the child must handshake with this same AgentJobs

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Sequence, Tuple
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from agentjobs.actors import actor_kinds
 from agentjobs.manager import TaskManager
@@ -92,6 +92,7 @@ async def get_queue(
 
 @router.post("/queue/repair", response_model=QueueRepairResponse)
 async def repair_queue(
+    request: Request,
     payload: QueueMaintenanceRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Project = Depends(get_acting_project),
@@ -108,7 +109,7 @@ async def repair_queue(
     and every task it touched comes back in ``assigned``, which is what makes the guess
     reviewable rather than silent.
     """
-    acting_actor(project, payload.actor)
+    acting_actor(request, project, payload.actor)
     try:
         report = manager.repair_queue()
     except TaskLockTimeout as exc:
@@ -129,6 +130,7 @@ async def repair_queue(
 
 @router.post("/queue/compact", response_model=QueueCompactResponse)
 async def compact_queue(
+    request: Request,
     payload: QueueCompactRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Project = Depends(get_acting_project),
@@ -140,7 +142,7 @@ async def compact_queue(
     that should require somebody to ask for it. One band per request for the same
     reason: compacting the whole corpus is four decisions, not one.
     """
-    acting_actor(project, payload.actor)
+    acting_actor(request, project, payload.actor)
     band = Priority(payload.band)
     try:
         moved = manager.compact_band(band)

@@ -1,13 +1,11 @@
 # Principals: who is asking
 
-> **Partly shipped.** Resolution is real and covered by tests (task-329), and the run
-> credential it resolves is real and minted at dispatch (task-331): every request
-> resolves to exactly one principal, or to a reported absence, before any handler runs,
-> and a dispatched agent now resolves as its **run** rather than as the person at the
-> machine. **Nothing is enforced.** No route reads the principal to decide anything, no
-> request is refused, and the API remains as open as
-> [the API reference](api-reference.md) says it is. The children that change that are
-> named at the foot of this page.
+> **Shipped, and now enforced.** Every request resolves to exactly one principal, or
+> to a reported absence, before any handler runs (task-329), and a dispatched agent
+> resolves as its **run** rather than as the person at the machine (task-331). Since
+> task-332 that answer decides what the request may do: see
+> [authorization](authorization.md) for the capability table and, importantly, for the
+> four things it still does not do. This page is about *who is asking* and stops there.
 
 Implemented in [`src/agentjobs/principals.py`](https://github.com/jeffposey/agentjobs/blob/main/src/agentjobs/principals.py)
 and [`src/agentjobs/dispatch/credentials.py`](https://github.com/jeffposey/agentjobs/blob/main/src/agentjobs/dispatch/credentials.py),
@@ -105,7 +103,7 @@ slot into a boundary.
 **A run can read its own credential out of its own environment, and nothing stops it
 passing that credential to something else.** The property this buys is **"an agent cannot
 claim to be a person"**, not "an agent cannot misbehave as itself". A run principal is
-strictly less capable than an owner once task-332 gives either of them capabilities, so
+[strictly less capable than an owner](authorization.md#the-table), so
 there is no escalation path through it — but it is **not a secret from the agent holding
 it**, and anything built on the assumption that it is will be unsound.
 
@@ -136,8 +134,9 @@ narrowest answer available today: nothing is enforced yet, so there is no less-c
 principal to assign, and refusing such a run outright would break dispatch for the case
 the constraint says must keep working. A session whose credential could not be delivered
 records `session_env: uncredentialed` on its run, so this is readable off the ledger
-rather than inferred. Task-332, which decides what each kind may do, is where an
-uncredentialed run stops being indistinguishable from a person.
+rather than inferred. Task-332 shipped the capability table without closing this: such a
+run resolves `owner` and therefore holds everything an owner holds, which is
+[limit 3 of the authorization page](authorization.md#what-this-does-not-do).
 
 ## Why `actor_id` is empty
 
@@ -163,7 +162,7 @@ exists to prevent.
 | Task | Adds |
 | --- | --- |
 | task-330 **(shipped)** | maps a proven login to a configured actor, replacing `human_identity`'s `MULTIPLE` refusal with a per-request answer — [the identity registry](identity-registry.md) |
-| task-332 | capabilities per principal kind, and what an absent principal means |
+| task-332 **(shipped)** | capabilities per principal kind, and what an absent principal means — [authorization](authorization.md) |
 | task-244 | sets the identity header at the proxy |
 
 The parent is task-066, whose decision entry of 2026-09-03 is binding on all of them.

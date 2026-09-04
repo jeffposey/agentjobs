@@ -20,10 +20,12 @@ Three kinds, and no fourth:
     and is never a human.
 
 **This module resolves; it does not refuse.** When nothing resolves it says so, with a
-problem code and a sentence -- see :class:`Resolution`. What a route does about an
-absent principal is task-332's question, and answering it here would smuggle
-enforcement into a change that is meant to be inert. Nothing in this module is wired to
-authorization, and no route behaves differently because it exists.
+problem code and a sentence -- see :class:`Resolution`. What a route *does* about that is
+:mod:`agentjobs.capabilities`, which turns a principal into a capability set, and
+:mod:`agentjobs.api.authorization`, which enforces it on every mutating route (task-332).
+The split is deliberate and worth keeping: the trust rule below has to be arguable on its
+own terms, and a module that both decides who you are and what you may do makes each
+half harder to read.
 
 **It also does not map an identity to an actor**, and ``actor_id`` is ``None`` on every
 principal this module builds. Task-330 landed the mapping and deliberately put it
@@ -98,10 +100,18 @@ class Problem(str, Enum):
 
 @dataclass(frozen=True)
 class RunCredential:
-    """What a verified run credential proves: which run, working which task."""
+    """What a verified run credential proves: which run, working which task, as whom."""
 
     run_id: str
     task_id: str = ""
+    agent: str = ""
+    """The agent actor id the run was dispatched as. Never a ``kind: human`` id.
+
+    Added by task-332, which checks a submitted ``actor`` against it: a run writing as
+    another agent is an attribution nobody can undo, the log being append-only. Empty
+    when the ledger cannot say -- a meta written by hand, or by a version that did not
+    record it -- and an empty value means "unknown", never "any".
+    """
 
 
 @dataclass(frozen=True)
@@ -144,6 +154,15 @@ class Principal:
 
     run_id: Optional[str] = None
     task_id: Optional[str] = None
+
+    agent_id: Optional[str] = None
+    """The agent actor id a ``run`` was dispatched as. ``None`` on every other kind.
+
+    Deliberately not :attr:`actor_id`, which is the *human* a principal maps to and is
+    documented as ``None`` forever for a run. The two are different claims and folding
+    them into one field would make "a run is never recorded as a person" a matter of
+    reading the kind rather than a property of the record.
+    """
 
     @property
     def is_run(self) -> bool:
@@ -343,6 +362,7 @@ def resolve_principal(
                 source=PrincipalSource.RUN_CREDENTIAL,
                 run_id=credential.run_id,
                 task_id=credential.task_id or None,
+                agent_id=credential.agent or None,
             )
         )
 

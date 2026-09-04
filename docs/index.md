@@ -78,7 +78,8 @@ is how this project has lost the most time, so the status word comes first.
 | [Queue position design](task-selection-design.md) | The explicit work order — **accepted 2026-08-20, implemented 2026-08-21** (task-081, 204–209) |
 | [Agent dispatch design](agent-dispatch-design.md) | Turning an approval into a running agent — **shipped**; its header lists what landed under which task, and the four things in it that were never built |
 | [Playbooks design](playbooks-design.md) | Reusable briefs for recurring judgment work — **partly shipped**: storage and read surfaces (task-214), instantiation and the Run button (task-215). Its header says what remains. |
-| [Principals design](principals-design.md) | Who is asking, resolved per request — **partly shipped**: resolution and its trust rule (task-329), and the run credential that splits loopback in two (task-331). Nothing is enforced yet; its header says which children do that. |
+| [Principals design](principals-design.md) | Who is asking, resolved per request: the trust rule (task-329) and the run credential that splits loopback in two (task-331). Resolution only — what the answer permits is the page below. |
+| [Authorization](authorization.md) | What each kind of principal may do: the capability table, the actor-agreement rule, the refusal codes, and the four things it deliberately does not do (task-332). |
 | [Identity registry](identity-registry.md) | Which configured person a proven login is: several humans per project, the machine-level login map, and retirement (task-330). Attribution, not authorization. |
 
 **Design records — accepted, not yet built.** Read for reasoning, never as a manual.
