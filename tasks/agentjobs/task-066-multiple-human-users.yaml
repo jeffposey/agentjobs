@@ -2,10 +2,13 @@ schema: 2
 id: task-066-multiple-human-users
 title: 'Account system: principals, attribution, and the network boundary'
 created: '2026-08-10T23:20:39.069637Z'
-updated: '2026-09-04T03:31:11.055910Z'
-lifecycle: ready
+updated: '2026-09-04T03:35:32.642741Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: 'Supervise this epic: start a separate session for one eligible child
+  at a time, watch its record, and do not work a child yourself. Open now: task-244,
+  task-329, task-330, task-331, task-332, task-333, task-334.'
 archived: false
 priority: critical
 queue_position: 12
@@ -17,6 +20,7 @@ tags:
 - epic
 effort: 1 session for the design pass, more to build
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: AgentJobs has no notion of who is asking. Identity is a body field the
@@ -490,3 +494,77 @@ log:
       id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110d66
       kind: log_append
       fingerprint: 8add54c061aab05a7ca54a2ca04901f4
+- id: 10
+  ts: '2026-09-04T03:35:29.502549Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. They chose
+    posture `autonomous` for this run, above this project''s `auto`. No extra instruction
+    was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 11
+  ts: '2026-09-04T03:35:30.211573Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude to supervise 7 open sub-task(s).
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 12
+  ts: '2026-09-04T03:35:32.642385Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_b1c2d736
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: dispatch
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 10
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --name
+    - agentjobs/task-066-multiple-human-users@b1c2d736
+    - --settings
+    - '{"env": {"AGENTJOBS_RUN_ID": "run_b1c2d736", "AGENTJOBS_RUN_DIR": "C:\\Users\\jpose\\.agentjobs\\runs\\run_b1c2d736"}}'
+    - 'You are the agent `claude` supervising parent task `task-066-multiple-human-users`
+      in project `agentjobs` (root: C:\projects\agentjobs). It has open children:
+      task-244, task-329, task-330, task-331, task-332, task-333, task-334. You are
+      the supervisor, not the worker: start a separate session for one eligible child
+      at a time and let that session do the child''s work. Do not work a child yourself,
+      do not take a worktree, and check nothing out -- you stay in the shared working
+      tree as it is, and each child session takes its own. AgentJobs is serving at
+      http://127.0.0.1:8876. Read the parent record, then follow the parent-task protocol
+      in docs/agent-workflow.md. Dispatch run id: run_b1c2d736. Posture `autonomous`
+      releases the merge gate: a child you start merges its own work once its gate
+      is green, with no human review. Never push: this project is configured `push:
+      false`. Do not start the children by hand: run `agentjobs dispatch walk task-066-multiple-human-users
+      --project agentjobs` from C:\projects\agentjobs and let it finish. It takes
+      one eligible child at a time and stops the whole walk on the first that is not
+      clean. Exit 0 means every open child is done -- then judge this parent''s own
+      acceptance criteria against what the children recorded, and close it. Exit 1
+      means it stopped and this record says why.'
+    cwd: C:\projects\agentjobs
+    git_head: 8face3d
+    session_id: 160808d3
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
