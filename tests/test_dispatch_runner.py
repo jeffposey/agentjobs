@@ -105,6 +105,22 @@ def write_script(path: Path, source: str) -> Path:
     return path
 
 
+def settings_document(argv: Sequence[str]) -> Dict[str, Any]:
+    """The `--settings` document argv carries, inline or by the path it names.
+
+    Both shapes are real: inline is the default, and a document holding anything that
+    may not be recorded -- a runner's own `env:`, or the run credential task-331 mints
+    -- goes to a 0600 file beside the run with only its path in argv. A test that only
+    understood the first shape would fail the moment a credential existed, which is what
+    happened.
+    """
+    value = str(argv[list(argv).index("--settings") + 1])
+    candidate = Path(value)
+    if candidate.is_file():
+        value = candidate.read_text(encoding="utf-8")
+    return cast(Dict[str, Any], json.loads(value))
+
+
 def without_session_name(argv: Sequence[str]) -> List[str]:
     """*argv* with the dispatcher's spliced --name <name> pair taken out.
 
@@ -2922,7 +2938,7 @@ class TestIdentitySurvivesTheDaemonHop:
             List[str], RunDirectory(workspace / "home" / "runs" / handle.run_id).read_meta()["argv"]
         )
         assert argv.count("--settings") == 1
-        document = json.loads(argv[argv.index("--settings") + 1])
+        document = settings_document(argv)
         assert document["env"]["AGENTJOBS_RUN_ID"] == handle.run_id
 
     def test_the_flag_is_spliced_before_the_prompt(
@@ -3116,7 +3132,7 @@ class TestAWalkStartedChildIsNotGivenItsSupervisorsIdentity:
         argv = cast(
             List[str], RunDirectory(workspace / "home" / "runs" / handle.run_id).read_meta()["argv"]
         )
-        document = json.loads(argv[argv.index("--settings") + 1])
+        document = settings_document(argv)
         assert document["env"]["AGENTJOBS_RUN_ID"] == handle.run_id
         assert handle.run_id != "run_1132ebf8"
         assert document["env"]["AGENTJOBS_RUN_DIR"] == str(

@@ -218,13 +218,17 @@ def test_a_presented_credential_that_does_not_verify_resolves_nothing() -> None:
 
 
 def test_the_default_verifier_verifies_nothing_so_no_request_resolves_a_run() -> None:
-    """This task is inert, and this is the assertion that says so.
+    """An application that mints no credentials resolves no runs, and refuses rather
+    than falling back.
 
-    Until task-331 mints credentials there is nothing to verify, so the default must
-    reject rather than accept -- and a presented credential therefore resolves nothing
-    at all rather than silently becoming the owner.
+    This was the assertion that task-329 was inert. It is now the assertion about the
+    *default*: task-331 installs a real verifier over it in ``api/main.py``, so what the
+    module ships with is what a bare import gets and what every ``reset`` restores. The
+    property that matters is unchanged either way -- a credential nothing can verify
+    resolves nothing at all, rather than silently becoming the owner.
     """
     assert no_run_credentials(RUN_TOKEN) is None
+    reset_run_credential_verifier()
     assert run_credential_verifier() is no_run_credentials
     resolution = resolve_principal(client_host=LOOPBACK, headers={RUN_CREDENTIAL_HEADER: RUN_TOKEN})
     assert resolution.principal is None
