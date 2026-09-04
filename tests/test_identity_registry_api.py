@@ -22,12 +22,17 @@ from fastapi.testclient import TestClient
 
 from agentjobs.api.dependencies import reset_dependency_cache
 from agentjobs.api.main import app
+from agentjobs.front_door import SECRET_ENV
 from agentjobs.identities import IDENTITIES_FILENAME
-from agentjobs.principals import IDENTITY_HEADER
+from agentjobs.principals import FRONT_DOOR_HEADER, IDENTITY_HEADER
 from agentjobs.projects import HOME_ENV
 
 LOOPBACK = "127.0.0.1"
 OFF_MACHINE = "10.1.2.3"
+
+PROXY_SECRET = "the-secret-only-the-front-door-holds"
+"""Since task-244 a proven login is believed only from a request that also proves it
+came through the proxy, so every ``as_`` client below carries both headers."""
 
 JEFF_LOGIN = "jeff@example.com"
 SAM_LOGIN = "sam@example.com"
@@ -68,6 +73,7 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     monkeypatch.setenv("AGENTJOBS_PROJECT_ROOT", str(tmp_path))
     monkeypatch.setenv("AGENTJOBS_TASKS_DIR", str(tmp_path / "tasks"))
     monkeypatch.setenv(HOME_ENV, str(tmp_path / "home"))
+    monkeypatch.setenv(SECRET_ENV, PROXY_SECRET)
     reset_dependency_cache()
     yield tmp_path
     reset_dependency_cache()
@@ -95,7 +101,11 @@ def map_both(project: Path) -> None:
 
 def as_(login: str, *, host: str = LOOPBACK) -> TestClient:
     """A client arriving by the front door's path, carrying a proven login."""
-    return TestClient(app, client=(host, 51000), headers={IDENTITY_HEADER: login})
+    return TestClient(
+        app,
+        client=(host, 51000),
+        headers={IDENTITY_HEADER: login, FRONT_DOOR_HEADER: PROXY_SECRET},
+    )
 
 
 def bare(host: str = LOOPBACK) -> TestClient:

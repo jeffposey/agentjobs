@@ -18,6 +18,8 @@ func main() {
 	serviceFlag := flag.String("service", "svc:agentjobs", "Tailscale Service name")
 	hostnameFlag := flag.String("hostname", "agentjobs-service-host", "virtual host name")
 	stateDirFlag := flag.String("state-dir", "", "persistent tsnet state directory")
+	secretFileFlag := flag.String("front-door-secret-file", "",
+		"file holding the secret this proxy presents to AgentJobs; created if absent")
 	flag.Parse()
 	if !strings.HasPrefix(*serviceFlag, "svc:") || len(*serviceFlag) == len("svc:") {
 		log.Fatalf("service must have the form svc:<name>, got %q", *serviceFlag)
@@ -38,11 +40,30 @@ func main() {
 	if stateDir == "" {
 		stateDir = defaultStateDir(*hostnameFlag)
 	}
+	secretFile := *secretFileFlag
+	if secretFile == "" {
+		secretFile, err = secretPath()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	secret, err := loadOrCreateSecret(secretFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	server := &tsnet.Server{
 		Hostname: *hostnameFlag,
 		Dir:      stateDir,
 	}
 	defer server.Close()
+
+	// Started before the listener so a machine that cannot reach tailscaled fails here,
+	// naming that, rather than at the first request as an unexplained refusal.
+	localClient, err := server.LocalClient()
+	if err != nil {
+		log.Fatalf("reach the local Tailscale daemon: %v", err)
+	}
 
 	listener, err := server.ListenService(*serviceFlag, tsnet.ServiceModeHTTP{
 		HTTPS: true,
@@ -59,8 +80,18 @@ func main() {
 		http.Error(writer, "Service is unavailable", http.StatusBadGateway)
 	}
 
+	// The proxy is no longer the handler; it is what the front door forwards to once it
+	// has established who is calling. Nothing reaches the backend un-identified.
+	door := &frontDoor{
+		whois:  localClient.WhoIs,
+		secret: secret,
+		next:   proxy,
+		logf:   log.Printf,
+	}
+
 	log.Printf("%s available at https://%s", *serviceFlag, listener.FQDN)
-	if err := http.Serve(listener, proxy); err != nil {
+	log.Printf("front-door secret read from %s; AgentJobs must read the same file", secretFile)
+	if err := http.Serve(listener, door); err != nil {
 		log.Fatal(err)
 	}
 }
