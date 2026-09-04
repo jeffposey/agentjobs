@@ -2,58 +2,17 @@ schema: 2
 id: task-331
 title: 'Run principals: a dispatched agent identifies as its run, never as a person'
 created: '2026-09-04T03:27:26.962795Z'
-updated: '2026-09-04T05:41:17.423961Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
-  \ was merged.**\n\n`scripts/check.py` failed on feat/task-331-run-credential after\
-  \ the rebase (287s, exit 1). A red gate never merges. The branch is rebased onto\
-  \ main and is otherwise untouched; nothing was merged. Full output: C:\\Users\\\
-  jpose\\.agentjobs\\finishes\\fin_f37553a5\\gate.log\n\n```\ntests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_records_traces_and_final_state\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_refusal_scenarios_actually_recorded_refusals\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-uvEDVdsE-py3.13\\\
-  Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response = await\
-  \ handler(conn, exc)\ntests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-uvEDVdsE-py3.13\\\
-  Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
-  \ dependant.call(**values)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
-  \  C:\\projects\\worktrees\\agentjobs-331\\src\\agentjobs\\api\\routes\\web.py:368:\
-  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
-  \ removal in a future version. Use timezone-aware objects to represent datetimes\
-  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
-  tests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
-  \  C:\\projects\\worktrees\\agentjobs-331\\src\\agentjobs\\api\\routes\\web.py:350:\
-  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
-  \ removal in a future version. Use timezone-aware objects to represent datetimes\
-  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
-  -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\e[36m\e\
-  [1m=========================== short test summary info ===========================\e\
-  [0m\n\e[31mFAILED\e[0m tests/test_dispatch_runner.py::\e[1mTestProcessGroup::test_the_timeout_kills_the_grandchild_too\e\
-  [0m - AssertionError: the grandchild never started, so this proves nothing\n\e[31m=====\
-  \ \e[31m\e[1m1 failed\e[0m, \e[32m3768 passed\e[0m, \e[33m1 skipped\e[0m, \e[33m219\
-  \ warnings\e[0m\e[31m in 231.44s (0:03:51)\e[0m\e[31m =====\e[0m\n  black      0.9s\n\
-  \  ruff       0.1s\n  mypy      19.6s\n  api       10.0s\n  icons      6.8s\n  oxlint\
-  \     1.3s\n  pytest   247.2s\n  total    285.9s\nAll done! \\u2728 \\U0001f370\
-  \ \\u2728\n240 files would be left unchanged.\nFailed at stage 'pytest'.\nFix it,\
-  \ then resume with `--from pytest` instead of paying for the stages above a second\
-  \ time.\n```\n\nTake it from here by hand. Check the tree against what is written\
-  \ above before acting on anything you remember: if your worktree, your branch or\
-  \ your account of this task no longer matches what is on disk, say so on the record\
-  \ and hand the ball back rather than improvising a recovery."
+updated: '2026-09-04T05:41:52.385891Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 48
 category: security
 tags:
 - security
 - dispatch
 - epic-066
 assignment:
-  owner: claude
   eligible: []
 parent: task-066-multiple-human-users
 spec:
@@ -172,7 +131,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-331-run-credential
-  status: active
+  status: merged
+  merged_at: '2026-09-04T05:41:52.328461Z'
 log:
 - id: 1
   ts: '2026-09-04T03:27:27.625120Z'
@@ -624,3 +584,28 @@ log:
     merge_commit: 1774f803b6e45f083a3e50bd4575a3f8d71c3110
     branch: feat/task-331-run-credential
     base: main
+- id: 17
+  ts: '2026-09-04T05:41:52.385715Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-331-run-credential` into `main` as `1774f803` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). No human\
+    \ reviewed this merge: posture `autonomous` (from the epic) releases the merge\
+    \ gate (task-021), and run run_ba7a4a0d ran the finish. What authorised it is\
+    \ the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.7s  feat/task-331-run-credential at 3ed7c28c\
+    \ in C:\\projects\\worktrees\\agentjobs-331\n  runway     ok       333.5s  taken\
+    \ after queuing\n  rebase     ok         0.3s  feat/task-331-run-credential onto\
+    \ main: 3ed7c28c -> a2735747\n  gate       ok       330.4s  scripts/check.py green\n\
+    \  catch_up   skipped    0.0s  main did not move during the gate\n  merge    \
+    \  ok         1.4s  --no-ff into main as 1774f803b6e45f083a3e50bd4575a3f8d71c3110\n\
+    \  rebuild    ok         6.7s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         1.0s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     ok         0.0s  http://127.0.0.1:8876 is serving 046f1630, which contains\
+    \ the merge 1774f803, from C:\\projects\\agentjobs (started 2026-09-04T05:41:36.841619+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
