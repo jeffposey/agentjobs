@@ -2,981 +2,37 @@ schema: 2
 id: task-066-multiple-human-users
 title: 'Account system: principals, attribution, and the network boundary'
 created: '2026-08-10T23:20:39.069637Z'
-updated: '2026-09-04T07:38:09.352591Z'
+updated: '2026-09-04T08:42:56.260864Z'
 lifecycle: active
 ball: human
-ball_reason: input
-ball_prompt: "Dispatched session `160808d3` still reports itself as working but has\
-  \ produced no output for 30 minutes, so this task has been reading `agent`/`work`\
-  \ while nothing happened. It was **not** killed and is still attachable: `claude\
-  \ attach 160808d3`. Attach to see what it is doing, or stop it and move this task\
-  \ on yourself.\n\nThe end of its terminal, verbatim:\n\n```\n\xB7 Imagining\u2026\
-  \ (53s \xB7 \u2193 1.3k tokens)\n  \u23BF \_Tip: Use /btw to ask a quick side question\
-  \ without interrupting Claude's current work\n\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736 \u2500\u276F\
-  \n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs \xB7 \u2588\u2588\u2591\u2591\
-  \u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (184k/1.00M) \xB7 $10.30/rc\n  \u23F5\
-  \u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor               \
-  \                                                                              \
-  \                                                                              \
-  \                               Nothing needs Jeff. Watching.                  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                       \u273B Saut\xE9ed for 1m 3s \xB7 done 12:43\
-  \ AM \xB7 1 monitor still running                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                           \u25CF Monitor event:\
-  \ \"task-066 epic: child lifecycle changes, reclaimable run slots, walk exit\" \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          \u25CF\
-  \ task-330 closed and 332 already took off. Verifying 330 resolved its conflict\
-  \ and actually merged:                                                         \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \           Ran 1 shell command                                                \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                   \u25CF 4 of 7 complete. task-330 resolved its own rebase conflict\
-  \ and merged cleanly (4d6c85c), worktree and branch gone \u2014 no leftovers anywhere.\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                            That closes the whole second layer. task-332 (authorization\
-  \ \u2014 capabilities per principal kind) is now in flight, and it's the one ac-3\
-  \ hangs on. After it, 244 and 333 unblock and can run together.                \
-  \                                                                              \
-  \                                                                              \
-  \                                The walk is handling it.                      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                        \u273B Saut\xE9ed for 10s \xB7 done 1:18\
-  \ AM \xB7 1 monitor still running                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                              \u25CF Monitor event:\
-  \ \"task-066 epic: child lifecycle changes, reclaimable run slots, walk exit\" \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          \u25CF\
-  \ task-332 closed and 244 took off. Verifying 332 \u2014 this is the one ac-3 depends\
-  \ on:                                                                          \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \          Ran 2 shell commands                                                \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                  \u25CF task-332 merged (7b2f645) \u2014 5 of 7 done, and capability\
-  \ authorization is now live on main. Note its own effect: agent API writes are now\
-  \ scoped to their own task, which is why the epic walk still     works (the CLI\
-  \ speaks no HTTP).                                                             \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          But 332's\
-  \ session is lingering at 2,956s and holding the slot 333 needs. Checking it:  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \ Read 1 file, ran 1 shell command                                             \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \         \u25CF Monitor event: \"task-066 epic: child lifecycle changes, reclaimable\
-  \ run slots, walk exit\"                                                       \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                    \u25CF Both final children are now in flight together \u2014\
-  \ task-244 (proxy proves identity) and task-333 (project exposure). Reclaiming 332's\
-  \ idle session freed the slot 333 needed, and it started 17 seconds   later.   \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \ 5 of 7 merged to main: 329, 330, 331, 332, 334. These two are the last layer.\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \           Once they land I'll judge ac-1 through ac-7 against what the children\
-  \ actually recorded \u2014 including ac-5, the dispatch-output-panel canary, which\
-  \ has to be verified against a real run rather than     assumed.\n* Imagining\u2026\
-  \ (53s \xB7 \u2193 1.3k tokens)\n  \u23BF \_Tip: Use /btw to ask a quick side question\
-  \ without interrupting Claude's current work\n\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736 \u2500\u276F\
-  \n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs \xB7 \u2588\u2588\u2591\u2591\
-  \u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (184k/1.00M) \xB7 $10.30/rc\n  \u23F5\
-  \u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor               \
-  \                                                                              \
-  \                                                                              \
-  \                               Nothing needs Jeff. Watching.                  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                       \u273B Saut\xE9ed for 1m 3s \xB7 done 12:43\
-  \ AM \xB7 1 monitor still running                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                           \u25CF Monitor event:\
-  \ \"task-066 epic: child lifecycle changes, reclaimable run slots, walk exit\" \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          \u25CF\
-  \ task-330 closed and 332 already took off. Verifying 330 resolved its conflict\
-  \ and actually merged:                                                         \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \           Ran 1 shell command                                                \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                   \u25CF 4 of 7 complete. task-330 resolved its own rebase conflict\
-  \ and merged cleanly (4d6c85c), worktree and branch gone \u2014 no leftovers anywhere.\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                            That closes the whole second layer. task-332 (authorization\
-  \ \u2014 capabilities per principal kind) is now in flight, and it's the one ac-3\
-  \ hangs on. After it, 244 and 333 unblock and can run together.                \
-  \                                                                              \
-  \                                                                              \
-  \                                The walk is handling it.                      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                        \u273B Saut\xE9ed for 10s \xB7 done 1:18\
-  \ AM \xB7 1 monitor still running                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                              \u25CF Monitor event:\
-  \ \"task-066 epic: child lifecycle changes, reclaimable run slots, walk exit\" \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          \u25CF\
-  \ task-332 closed and 244 took off. Verifying 332 \u2014 this is the one ac-3 depends\
-  \ on:                                                                          \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \          Ran 2 shell commands                                                \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                  \u25CF task-332 merged (7b2f645) \u2014 5 of 7 done, and capability\
-  \ authorization is now live on main. Note its own effect: agent API writes are now\
-  \ scoped to their own task, which is why the epic walk still     works (the CLI\
-  \ speaks no HTTP).                                                             \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          But 332's\
-  \ session is lingering at 2,956s and holding the slot 333 needs. Checking it:  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \ Read 1 file, ran 1 shell command                                             \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \         \u25CF Monitor event: \"task-066 epic: child lifecycle changes, reclaimable\
-  \ run slots, walk exit\"                                                       \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                    \u25CF Both final children are now in flight together \u2014\
-  \ task-244 (proxy proves identity) and task-333 (project exposure). Reclaiming 332's\
-  \ idle session freed the slot 333 needed, and it started 17 seconds   later.   \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \ 5 of 7 merged to main: 329, 330, 331, 332, 334. These two are the last layer.\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \           Once they land I'll judge ac-1 through ac-7 against what the children\
-  \ actually recorded \u2014 including ac-5, the dispatch-output-panel canary, which\
-  \ has to be verified against a real run rather than     assumed.\n\u273D Imagining\u2026\
-  \ (54s \xB7 \u2193 1.3k tokens)\n  \u23BF \_Tip: Use /btw to ask a quick side question\
-  \ without interrupting Claude's current work\n\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736 \u2500\u276F\
-  \n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs \xB7 \u2588\u2588\u2591\u2591\
-  \u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (184k/1.00M) \xB7 $10.30/rc\n  \u23F5\
-  \u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor               \
-  \                                                                              \
-  \                                                                              \
-  \                               Nothing needs Jeff. Watching.                  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                       \u273B Saut\xE9ed for 1m 3s \xB7 done 12:43\
-  \ AM \xB7 1 monitor still running                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                           \u25CF Monitor event:\
-  \ \"task-066 epic: child lifecycle changes, reclaimable run slots, walk exit\" \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          \u25CF\
-  \ task-330 closed and 332 already took off. Verifying 330 resolved its conflict\
-  \ and actually merged:                                                         \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \           Ran 1 shell command                                                \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                   \u25CF 4 of 7 complete. task-330 resolved its own rebase conflict\
-  \ and merged cleanly (4d6c85c), worktree and branch gone \u2014 no leftovers anywhere.\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                            That closes the whole second layer. task-332 (authorization\
-  \ \u2014 capabilities per principal kind) is now in flight, and it's the one ac-3\
-  \ hangs on. After it, 244 and 333 unblock and can run together.                \
-  \                                                                              \
-  \                                                                              \
-  \                                The walk is handling it.                      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                        \u273B Saut\xE9ed for 10s \xB7 done 1:18\
-  \ AM \xB7 1 monitor still running                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                              \u25CF Monitor event:\
-  \ \"task-066 epic: child lifecycle changes, reclaimable run slots, walk exit\" \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          \u25CF\
-  \ task-332 closed and 244 took off. Verifying 332 \u2014 this is the one ac-3 depends\
-  \ on:                                                                          \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \          Ran 2 shell commands                                                \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                  \u25CF task-332 merged (7b2f645) \u2014 5 of 7 done, and capability\
-  \ authorization is now live on main. Note its own effect: agent API writes are now\
-  \ scoped to their own task, which is why the epic walk still     works (the CLI\
-  \ speaks no HTTP).                                                             \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          But 332's\
-  \ session is lingering at 2,956s and holding the slot 333 needs. Checking it:  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \ Read 1 file, ran 1 shell command                                             \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \         \u25CF Monitor event: \"task-066 epic: child lifecycle changes, reclaimable\
-  \ run slots, walk exit\"                                                       \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                    \u25CF Both final children are now in flight together \u2014\
-  \ task-244 (proxy proves identity) and task-333 (project exposure). Reclaiming 332's\
-  \ idle session freed the slot 333 needed, and it started 17 seconds   later.   \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \ 5 of 7 merged to main: 329, 330, 331, 332, 334. These two are the last layer.\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \           Once they land I'll judge ac-1 through ac-7 against what the children\
-  \ actually recorded \u2014 including ac-5, the dispatch-output-panel canary, which\
-  \ has to be verified against a real run rather than     assumed.\n\u273D Imagining\u2026\
-  \ (54s \xB7 \u2193 1.3k tokens)\n  \u23BF \_Tip: Use /btw to ask a quick side question\
-  \ without interrupting Claude's current work\n\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736 \u2500\u276F\
-  \n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\u2591\
-  \u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (185k/1.00M) \xB7 $10.40/rc\n\
-  \  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor  The 331\
-  \ session concluded itself before my cancel landed, so the slot freed without intervention.\
-  \ The walk process is alive and will start 332 once 330 closes.                \
-  \                                                                              \
-  \                                                                              \
-  \                                                                     Nothing needs\
-  \ Jeff. Watching.                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                         \u273B\
-  \ Saut\xE9ed for 1m 3s \xB7 done 12:43 AM \xB7 1 monitor still running         \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                  \u25CF Monitor event: \"task-066 epic: child lifecycle changes,\
-  \ reclaimable run slots, walk exit\"                                           \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                \u25CF task-330 closed and 332 already took off.\
-  \ Verifying 330 resolved its conflict and actually merged:                     \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                               Ran 1 shell command            \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                       \u25CF 4 of 7 complete.\
-  \ task-330 resolved its own rebase conflict and merged cleanly (4d6c85c), worktree\
-  \ and branch gone \u2014 no leftovers anywhere.                                \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          That\
-  \ closes the whole second layer. task-332 (authorization \u2014 capabilities per\
-  \ principal kind) is now in flight, and it's the one ac-3 hangs on. After it, 244\
-  \ and 333 unblock and can run together.                                        \
-  \                                                                              \
-  \                                                                              \
-  \        The walk is handling it.                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                \u273B Saut\xE9ed for 10s \xB7 done 1:18 AM \xB7 1 monitor still\
-  \ running                                                                      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                      \u25CF Monitor event: \"task-066 epic: child\
-  \ lifecycle changes, reclaimable run slots, walk exit\"                        \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                   \u25CF task-332 closed and 244\
-  \ took off. Verifying 332 \u2014 this is the one ac-3 depends on:              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                      Ran 2 shell\
-  \ commands                                                                     \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                           \u25CF\
-  \ task-332 merged (7b2f645) \u2014 5 of 7 done, and capability authorization is\
-  \ now live on main. Note its own effect: agent API writes are now scoped to their\
-  \ own task, which is why the epic walk still     works (the CLI speaks no HTTP).\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                         But 332's session is lingering\
-  \ at 2,956s and holding the slot 333 needs. Checking it:                       \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                          Read 1 file, ran 1 shell\
-  \ command                                                                      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                              \u25CF Monitor event:\
-  \ \"task-066 epic: child lifecycle changes, reclaimable run slots, walk exit\" \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          \u25CF\
-  \ Both final children are now in flight together \u2014 task-244 (proxy proves identity)\
-  \ and task-333 (project exposure). Reclaiming 332's idle session freed the slot\
-  \ 333 needed, and it started 17 seconds   later.                               \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                   5 of 7 merged to main: 329,\
-  \ 330, 331, 332, 334. These two are the last layer.                            \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                             Once they land I'll\
-  \ judge ac-1 through ac-7 against what the children actually recorded \u2014 including\
-  \ ac-5, the dispatch-output-panel canary, which has to be verified against a real\
-  \ run rather than\n  assumed.\n\u273B Cooked for 54s \xB7 done 2:08 AM \xB7 1 monitor\
-  \ still running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
-  \ \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\
-  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (185k/1.00M) \xB7\
-  \ $10.40/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\
-  \  The 331 session concluded itself before my cancel landed, so the slot freed without\
-  \ intervention. The walk process is alive and will start 332 once 330 closes.  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \     Nothing needs Jeff. Watching.                                            \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \             \u273B Saut\xE9ed for 1m 3s \xB7 done 12:43 AM \xB7 1 monitor still\
-  \ running                                                                      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                   \u25CF Monitor event: \"task-066 epic: child\
-  \ lifecycle changes, reclaimable run slots, walk exit\"                        \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                   \u25CF task-330 closed and 332\
-  \ already took off. Verifying 330 resolved its conflict and actually merged:   \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                 Ran 1 shell command\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                   \u25CF 4 of\
-  \ 7 complete. task-330 resolved its own rebase conflict and merged cleanly (4d6c85c),\
-  \ worktree and branch gone \u2014 no leftovers anywhere.                       \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \     That closes the whole second layer. task-332 (authorization \u2014 capabilities\
-  \ per principal kind) is now in flight, and it's the one ac-3 hangs on. After it,\
-  \ 244 and 333 unblock and can run together.                                    \
-  \                                                                              \
-  \                                                                              \
-  \            The walk is handling it.                                          \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                    \u273B Saut\xE9ed for 10s \xB7 done 1:18 AM \xB7 1 monitor\
-  \ still running                                                                \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                            \u25CF Monitor event: \"task-066 epic:\
-  \ child lifecycle changes, reclaimable run slots, walk exit\"                  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                         \u25CF task-332 closed\
-  \ and 244 took off. Verifying 332 \u2014 this is the one ac-3 depends on:      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              Ran\
-  \ 2 shell commands                                                             \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \     \u25CF task-332 merged (7b2f645) \u2014 5 of 7 done, and capability authorization\
-  \ is now live on main. Note its own effect: agent API writes are now scoped to their\
-  \ own task, which is why the epic walk still     works (the CLI speaks no HTTP).\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                         But 332's session is lingering\
-  \ at 2,956s and holding the slot 333 needs. Checking it:                       \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                          Read 1 file, ran 1 shell\
-  \ command                                                                      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                              \u25CF Monitor event:\
-  \ \"task-066 epic: child lifecycle changes, reclaimable run slots, walk exit\" \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          \u25CF\
-  \ Both final children are now in flight together \u2014 task-244 (proxy proves identity)\
-  \ and task-333 (project exposure). Reclaiming 332's idle session freed the slot\
-  \ 333 needed, and it started 17 seconds   later.                               \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                   5 of 7 merged to main: 329,\
-  \ 330, 331, 332, 334. These two are the last layer.                            \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                             Once they land I'll\
-  \ judge ac-1 through ac-7 against what the children actually recorded \u2014 including\
-  \ ac-5, the dispatch-output-panel canary, which has to be verified against a real\
-  \ run rather than\n  assumed.\n\u273B Cooked for 54s \xB7 done 2:08 AM \xB7 1 monitor\
-  \ still running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
-  \ \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\
-  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (185k/1.00M) \xB7\
-  \ $10.40/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\
-  \  The 331 session concluded itself before my cancel landed, so the slot freed without\
-  \ intervention. The walk process is alive and will start 332 once 330 closes.  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \     Nothing needs Jeff. Watching.                                            \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \             \u273B Saut\xE9ed for 1m 3s \xB7 done 12:43 AM \xB7 1 monitor still\
-  \ running                                                                      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                   \u25CF Monitor event: \"task-066 epic: child\
-  \ lifecycle changes, reclaimable run slots, walk exit\"                        \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                   \u25CF task-330 closed and 332\
-  \ already took off. Verifying 330 resolved its conflict and actually merged:   \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                 Ran 1 shell command\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                   \u25CF 4 of\
-  \ 7 complete. task-330 resolved its own rebase conflict and merged cleanly (4d6c85c),\
-  \ worktree and branch gone \u2014 no leftovers anywhere.                       \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \     That closes the whole second layer. task-332 (authorization \u2014 capabilities\
-  \ per principal kind) is now in flight, and it's the one ac-3 hangs on. After it,\
-  \ 244 and 333 unblock and can run together.                                    \
-  \                                                                              \
-  \                                                                              \
-  \            The walk is handling it.                                          \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                    \u273B Saut\xE9ed for 10s \xB7 done 1:18 AM \xB7 1 monitor\
-  \ still running                                                                \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                            \u25CF Monitor event: \"task-066 epic:\
-  \ child lifecycle changes, reclaimable run slots, walk exit\"                  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                         \u25CF task-332 closed\
-  \ and 244 took off. Verifying 332 \u2014 this is the one ac-3 depends on:      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              Ran\
-  \ 2 shell commands                                                             \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \     \u25CF task-332 merged (7b2f645) \u2014 5 of 7 done, and capability authorization\
-  \ is now live on main. Note its own effect: agent API writes are now scoped to their\
-  \ own task, which is why the epic walk still     works (the CLI speaks no HTTP).\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                         But 332's session is lingering\
-  \ at 2,956s and holding the slot 333 needs. Checking it:                       \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                          Read 1 file, ran 1 shell\
-  \ command                                                                      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                              \u25CF Monitor event:\
-  \ \"task-066 epic: child lifecycle changes, reclaimable run slots, walk exit\" \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          \u25CF\
-  \ Both final children are now in flight together \u2014 task-244 (proxy proves identity)\
-  \ and task-333 (project exposure). Reclaiming 332's idle session freed the slot\
-  \ 333 needed, and it started 17 seconds   later.                               \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                   5 of 7 merged to main: 329,\
-  \ 330, 331, 332, 334. These two are the last layer.                            \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                             Once they land I'll\
-  \ judge ac-1 through ac-7 against what the children actually recorded \u2014 including\
-  \ ac-5, the dispatch-output-panel canary, which has to be verified against a real\
-  \ run rather than\n  assumed.\n\u273B Cooked for 54s \xB7 done 2:08 AM \xB7 1 monitor\
-  \ still running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
-  \ \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\
-  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (185k/1.00M) \xB7\
-  \ $10.40/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\
-  \  The 331 session concluded itself before my cancel landed, so the slot freed without\
-  \ intervention. The walk process is alive and will start 332 once 330 closes.  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \     Nothing needs Jeff. Watching.                                            \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \             \u273B Saut\xE9ed for 1m 3s \xB7 done 12:43 AM \xB7 1 monitor still\
-  \ running                                                                      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                   \u25CF Monitor event: \"task-066 epic: child\
-  \ lifecycle changes, reclaimable run slots, walk exit\"                        \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                   \u25CF task-330 closed and 332\
-  \ already took off. Verifying 330 resolved its conflict and actually merged:   \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                 Ran 1 shell command\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                   \u25CF 4 of\
-  \ 7 complete. task-330 resolved its own rebase conflict and merged cleanly (4d6c85c),\
-  \ worktree and branch gone \u2014 no leftovers anywhere.                       \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \     That closes the whole second layer. task-332 (authorization \u2014 capabilities\
-  \ per principal kind) is now in flight, and it's the one ac-3 hangs on. After it,\
-  \ 244 and 333 unblock and can run together.                                    \
-  \                                                                              \
-  \                                                                              \
-  \            The walk is handling it.                                          \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                    \u273B Saut\xE9ed for 10s \xB7 done 1:18 AM \xB7 1 monitor\
-  \ still running                                                                \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                            \u25CF Monitor event: \"task-066 epic:\
-  \ child lifecycle changes, reclaimable run slots, walk exit\"                  \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                         \u25CF task-332 closed\
-  \ and 244 took off. Verifying 332 \u2014 this is the one ac-3 depends on:      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              Ran\
-  \ 2 shell commands                                                             \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \     \u25CF task-332 merged (7b2f645) \u2014 5 of 7 done, and capability authorization\
-  \ is now live on main. Note its own effect: agent API writes are now scoped to their\
-  \ own task, which is why the epic walk still     works (the CLI speaks no HTTP).\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                         But 332's session is lingering\
-  \ at 2,956s and holding the slot 333 needs. Checking it:                       \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                          Read 1 file, ran 1 shell\
-  \ command                                                                      \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                              \u25CF Monitor event:\
-  \ \"task-066 epic: child lifecycle changes, reclaimable run slots, walk exit\" \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                          \u25CF\
-  \ Both final children are now in flight together \u2014 task-244 (proxy proves identity)\
-  \ and task-333 (project exposure). Reclaiming 332's idle session freed the slot\
-  \ 333 needed, and it started 17 seconds   later.                               \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                   5 of 7 merged to main: 329,\
-  \ 330, 331, 332, 334. These two are the last layer.                            \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                             Once they land I'll\
-  \ judge ac-1 through ac-7 against what the children actually recorded \u2014 including\
-  \ ac-5, the dispatch-output-panel canary, which has to be verified against a real\
-  \ run rather than\n  assumed.\n\u273B Cooked for 54s \xB7 done 2:08 AM \xB7 1 monitor\
-  \ still running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-066-multiple-human-users@b1c2d736\
-  \ \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\
-  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 18% ctx (185k/1.00M) \xB7\
-  \ $10.40/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\n\
-  ```"
+ball_reason: review
+ball_prompt: "All seven children are merged and closed completed, and the full unqualified\
+  \ gate is green on merged main (10 of 10 stages, 465.8s, 2026-09-04). Six of this\
+  \ parent's seven acceptance criteria are met with live evidence recorded against\
+  \ each one. I am NOT closing this parent, because ac-5 needs an instrument I do\
+  \ not have: a phone.\n\nTWO THINGS FROM YOU.\n\n1. ac-5, the canary. On your phone,\
+  \ over the tailnet, open a task page with a dispatch run on it and confirm the structured\
+  \ output panel still renders. The data path is already proven from this machine\
+  \ -- both routes return 200 through the tailnet against real run run_dfdae0fc, carrying\
+  \ 11KB of tail and 113KB of transcript -- but every observation in this epic was\
+  \ made on a desktop. task-244 and task-333 each left their own ac-5 pending for\
+  \ the same reason. If it renders, ac-5 is met and this parent can close.\n\n2. A\
+  \ residual that makes the dashboard worse on a phone until it is fixed. ~/.agentjobs/identities.yaml\
+  \ does not exist, so a proven tailnet login resolves with actor_id null -- the app\
+  \ refuses to guess rather than falling back to a default, which is correct and is\
+  \ exactly what task-064 removed. The consequence is that Dispatch is disabled from\
+  \ the tailnet until the login is mapped. That is the one respect in which this epic\
+  \ currently violates its own constraint that nothing may make the dashboard worse\
+  \ on a phone, and it is a config file rather than a code change. For this project\
+  \ the human actor id is `Jeff Posey`, so the file is:\n\n    # ~/.agentjobs/identities.yaml\n\
+  \    owner: Jeff Posey\n    identities:\n      - login: jposey@hellfiregames.com\n\
+  \        actor: Jeff Posey\n\nI did not write it. task-330 deliberately refuses\
+  \ to guess an actor for a login, and me guessing on its behalf would defeat that.\
+  \ One wrinkle to decide: the mapping is machine-level to a single actor id, but\
+  \ this machine's projects do not all use the same human actor id -- agentjobs uses\
+  \ `Jeff Posey` while fantasy-football uses `jeff`. Worth checking before you write\
+  \ it.\n\nNothing else is outstanding. No branches, no worktrees, nothing unpushed\
+  \ by design (push: false)."
 archived: false
 priority: critical
 queue_position: 12
@@ -1153,34 +209,88 @@ acceptance:
   text: Every API request resolves to exactly one principal of kind tailnet, owner
     or run before any handler runs, and the record of an action names which kind acted
     and how the identity was established.
-  status: pending
+  verify: 'Live, 2026-09-04. Loopback: GET /api/whoami -> {kind: owner, source: loopback,
+    describe: ''owner via loopback''}. Through the proxy: {kind: tailnet, source:
+    proven_header, login: jposey@hellfiregames.com, describe: ''tailnet (...) via
+    proven_header''} over a real tailnet connection. The run kind is minted at dispatch
+    (runner.py:1495) and revoked when the run ends, which is why a finished run''s
+    directory holds no credential.sha256. The `describe` field is the record naming
+    kind and how identity was established.'
+  status: met
 - id: ac-2
   text: A body user/actor that disagrees with the resolved principal is refused on
     every mutating route, rather than being preferred over it.
-  status: pending
+  verify: 'docs/authorization.md states the rule per axis: a run may claim only the
+    agent id it was dispatched as; a human may claim themselves or any kind:agent
+    id, never a different person. Coverage is enforced rather than promised -- tests/test_authorization.py
+    walks the application''s own router, filters mutating methods, and fails when
+    an endpoint is absent from the table, in both directions so a renamed endpoint
+    fails too. tests/test_run_authorization.py adds test_it_may_not_write_as_a_person
+    and test_it_may_not_write_as_a_different_agent. Probed live: a tailnet principal
+    posting actor ''claude'' is accepted, which is the documented and deliberate case,
+    not a hole.'
+  status: met
 - id: ac-3
   text: A dispatched agent cannot approve a review, dispatch a task, enable dispatch,
     or create a project. Proven by a test that calls the API using a real run's credential,
     not by inspection.
-  status: pending
+  verify: tests/test_run_authorization.py drives the API through a `dispatched()`
+    fixture that mints a real run credential. One test per forbidden act -- test_it_cannot_approve_a_review,
+    test_it_cannot_dispatch_a_task, test_it_cannot_enable_dispatch, test_it_cannot_register_or_initialise_a_project
+    -- plus repair-the-queue, another task, webhooks and another run's transcript.
+    TestARunCanStillWork and TestAnOwnerLosesNothing hold the other side. Green in
+    the full gate on merged main, 2026-09-04.
+  status: met
 - id: ac-4
   text: Several human actors can be configured, each is attributed correctly per request,
     and a retired actor cannot act while their past log entries still resolve.
-  status: pending
+  verify: 'task-330, all five of its own criteria met with tests: several humans accepted
+    and attributed per request rather than per project; one login maps to exactly
+    one actor id; an unmapped login is refused naming the login and the file, with
+    no fallback to default_user asserted by test; a retired actor cannot act while
+    a log written before the retirement still resolves and renders; an existing single-human
+    config works unmodified. No-silent-fallback confirmed live -- through the proxy
+    the principal resolves with login jposey@hellfiregames.com and actor_id null rather
+    than guessing a default. RESIDUAL: ~/.agentjobs/identities.yaml does not exist
+    on this machine, so the capability ships unconfigured. See the handoff.'
+  status: met
 - id: ac-5
   text: The structured dispatch output panel -- /runs/*/tail and /runs/*/transcript,
     rendered by DispatchOutput.tsx -- still works from a phone over the tailnet, verified
     against a real run rather than a mock. Any child that dark-screens it has failed.
+  verify: 'NOT MET, and deliberately not claimed. The data path is proven: against
+    real run run_dfdae0fc, both routes return 200 through https://agentjobs.tailfed1df.ts.net
+    -- 11,312 bytes of tail and 113,562 of transcript, structured JSON carrying that
+    run''s actual output. task-244 additionally saw the panel render over the tailnet
+    against a real run. But every one of those observations was made from this machine,
+    not from a phone; task-244 and task-333 each left their own ac-5 pending for exactly
+    this reason. A phone is the one instrument nobody in this epic had.'
   status: pending
 - id: ac-6
   text: Project creation routes (POST /api/projects/init, POST /api/projects, /api/projects/inspect)
     are unreachable through the proxy and reachable on loopback. No other route is
     denied by path.
-  status: pending
+  verify: 'Live both directions, 2026-09-04. Through the proxy all three return 403
+    with a sentence naming the reason (''is not available through the tailnet; it
+    is reachable on this machine''s loopback interface only''). On loopback all three
+    reach the application and answer ordinary body validation ({''detail'': ''path:
+    Field required''}), so they are reachable rather than denied. GET /api/projects
+    stays 200 through the proxy, so the denial is not over-broad. TestTheDenyListIsThreeEntries
+    fails if the map grows; TestNothingElseIsDenied walks the ten routes the audit
+    wanted denied and asserts each still reaches the application.'
+  status: met
 - id: ac-7
   text: A project marked not exposed serves neither its tasks nor its run transcripts
     to a remote principal, and both to the owner.
-  status: pending
+  verify: 'Live, 2026-09-04. job-hunting and product-strategy are marked local-only:
+    GET /api/projects/<id>/tasks returns 404 through the proxy and 200 on loopback,
+    for both. The exposed agentjobs project returns 200 both ways. The project listing
+    is filtered rather than denied -- the proxy sees agentjobs, fantasy-football and
+    mastercalls; loopback additionally sees job-hunting and product-strategy. Hidden
+    projects answer as absent rather than forbidden, matching _owned_run''s convention.
+    task-333 tested the transcript route directly rather than inferring it from the
+    task route.'
+  status: met
 deliverables: []
 dependencies:
 - task: task-064-human-actor-identity
@@ -4427,3 +3537,102 @@ log:
   data:
     ball: human
     ball_reason: input
+- id: 21
+  ts: '2026-09-04T08:30:41.961772Z'
+  actor: claude
+  type: progress
+  body: "**Epic walk** -- every open child is done.\n\nStarted 2026-09-04T08:30:41.955835+00:00.\n\
+    \nWalk of task-066-multiple-human-users: all_children_done.\nNo open child of\
+    \ task-066-multiple-human-users remains. The parent is deliberately left open:\
+    \ whether its own acceptance criteria are met is a judgement this walk does not\
+    \ make.\n\nChildren, in the order they landed (up to 2 in flight at once):\n \
+    \ task-331 attempt 1 (run_ba7a4a0d): completed -- closed completed; its own gate\
+    \ ran and its own merge happened\n  task-330 attempt 1 (run_4d12b705): completed\
+    \ -- closed completed; its own gate ran and its own merge happened\n  task-332\
+    \ attempt 1 (run_630ec919): completed -- closed completed; its own gate ran and\
+    \ its own merge happened\n  task-244 attempt 1 (run_1359e53f): completed -- closed\
+    \ completed; its own gate ran and its own merge happened\n  task-333 attempt 1\
+    \ (run_dfdae0fc): completed -- closed completed; its own gate ran and its own\
+    \ merge happened\n\n**This parent is deliberately still open.** No open child\
+    \ remains, which is not the same as the parent's acceptance criteria being met.\
+    \ Evaluate them against the children's evidence and close it only where that evidence\
+    \ supports it."
+  data: {}
+- id: 22
+  ts: '2026-09-04T08:41:02.836523Z'
+  actor: claude
+  type: note
+  body: 'probe: does an unmapped tailnet login resolve to an actor?'
+  data: {}
+- id: 23
+  ts: '2026-09-04T08:41:57.044527Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 3f8c1a52-9d47-4e61-b2a3-7c5e0f118803
+      kind: update_content
+      fingerprint: ef23c38981455a53a27cf3f3a3fa9e76
+- id: 24
+  ts: '2026-09-04T08:42:56.260538Z'
+  actor: claude
+  type: handoff
+  body: Epic verification complete. Six of seven acceptance criteria met with live
+    evidence; ac-5 held open pending a phone check that no session in this epic could
+    perform. Full gate green on merged main. Details in the acceptance verify fields
+    and the progress entry.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 3f8c1a52-9d47-4e61-b2a3-7c5e0f118804
+      kind: handoff
+      fingerprint: 255db0bc269f8c20d6524f0898d1258c
+- id: 25
+  ts: '2026-09-04T08:42:56.260648Z'
+  actor: claude
+  type: question
+  body: On your phone over the tailnet, does the structured dispatch output panel
+    still render against a real run? This is the epic's canary (ac-5) and the only
+    thing blocking this parent from closing.
+  re: 24
+  data:
+    options:
+    - label: Yes, it renders
+      description: ac-5 met. I close this parent and the epic is done.
+      recommended: true
+    - label: No, it is broken
+      description: A child regressed the panel. I investigate and file the fix against
+        whichever child did it.
+      recommended: false
+    - label: Not now
+      description: Leave the parent open on ac-5 until you have looked.
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 26
+  ts: '2026-09-04T08:42:56.260671Z'
+  actor: claude
+  type: question
+  body: Shall I write ~/.agentjobs/identities.yaml mapping jposey@hellfiregames.com?
+    Until it exists, Dispatch is disabled from your phone.
+  re: 24
+  data:
+    options:
+    - label: You write it
+      description: I add the file with actor `Jeff Posey`, then verify the tailnet
+        principal resolves and Dispatch re-enables.
+      recommended: false
+    - label: I will do it
+      description: You write it yourself; it is your identity mapping and touches
+        ~/.agentjobs.
+      recommended: true
+    - label: Sort the actor id first
+      description: Settle whether the machine-level actor should be `Jeff Posey` or
+        `jeff` given projects disagree, then write it.
+      recommended: false
+    multi_select: false
+    placeholder: null
