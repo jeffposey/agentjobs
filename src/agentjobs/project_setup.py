@@ -20,6 +20,11 @@ MCP_SERVER_NAME = "agentjobs"
 DEFAULT_CONFIG: Dict[str, Any] = {
     "project_name": "AgentJobs Project",
     "tasks_directory": "tasks",
+    # Who this project is served to. "shared" is what an unset key means anyway
+    # (agentjobs.exposure), and it is written out so a new project records a decision
+    # instead of inheriting a default nobody can see. Change it to "local" for a project
+    # that must never leave this machine; see docs/exposure.md.
+    "visibility": "shared",
     "prompts_directory": "prompts",
     "playbooks_directory": "playbooks",
     "gui": {"host": "localhost", "port": 8765, "theme": "dark"},

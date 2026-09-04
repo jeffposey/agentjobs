@@ -100,6 +100,22 @@ To install AgentJobs, use the browser's **Install app** or **Add to Home Screen*
 then launch the new AgentJobs icon. It should open without browser chrome because the
 manifest requests standalone display. Installation wording varies by browser and OS.
 
+### Keep a project off the phone
+
+A project whose files must never leave this machine is marked in its own config, and
+then no remote device is served it -- not its tasks, not its runs, and not the session
+transcripts those runs left behind:
+
+```yaml
+# <project>/.agentjobs/config.yaml
+visibility: local
+```
+
+`agentjobs project list` marks the local-only ones. The default is `shared`, so nothing
+you already reach from a phone changes, and the setting is per project rather than per
+route -- see [Exposure](exposure.md) for what a hidden project answers and why it
+answers that rather than a refusal.
+
 ### Add another device
 
 Install Tailscale on the new device, sign it into the same tailnet, complete any

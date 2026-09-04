@@ -50,6 +50,37 @@ def mutating_endpoints() -> Set[str]:
     return names
 
 
+def read_endpoints() -> Set[str]:
+    """Every endpoint the application serves *only* behind methods that read.
+
+    The complement of :func:`mutating_endpoints`, and it exists so the staleness test
+    below has no hand-maintained exception list. The table deliberately names a few
+    reads -- the run-output routes -- and a hardcoded set of them goes out of date
+    silently, which is the exact failure that test is for.
+    """
+    names: Set[str] = set()
+    for route in app.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        if set(route.methods or set()) <= READ_METHODS:
+            names.add(route.endpoint.__name__)
+    return names - mutating_endpoints()
+
+
+OUTPUT_READS = {
+    "read_dispatch_run_output",
+    "read_task_finish_output",
+    "read_dispatch_run_tail",
+    "read_dispatch_run_transcript",
+}
+"""The reads the table names on purpose: everything that serves a run's own output.
+
+The first two are task-332's, for its ac-5. The last two were added by task-333, which
+found them to be the same bytes read two other ways and the only such routes with no
+principal check at all.
+"""
+
+
 class TestEveryMutatingRouteIsAccountedFor:
     """ac-1: the enumeration is written down, and checked against reality."""
 
@@ -70,19 +101,26 @@ class TestEveryMutatingRouteIsAccountedFor:
 
         Keyed by function name, so a rename is invisible at import and would leave the
         route unguarded with the old entry still sitting in the table looking correct.
-        The two output routes are reads and so are excluded from the mutating set.
+        The output routes are reads and so are excluded from the mutating set -- derived
+        from the application rather than listed here, so renaming one of *those* is
+        caught too.
         """
-        reads = {"read_dispatch_run_output", "read_task_finish_output"}
-        stale = sorted(set(ROUTE_CAPABILITIES) - mutating_endpoints() - reads)
+        stale = sorted(set(ROUTE_CAPABILITIES) - mutating_endpoints() - read_endpoints())
         assert not stale, (
             "ROUTE_CAPABILITIES names endpoints the application does not serve, so "
             "their routes may have been renamed out from under the table: " + ", ".join(stale)
         )
 
-    def test_the_two_output_reads_are_served(self) -> None:
-        """ac-5's routes are in the table on purpose; assert they are real routes."""
+    def test_every_output_read_is_served_and_named(self) -> None:
+        """Those routes are in the table on purpose; assert they are real routes.
+
+        Both directions: each is served, and each is still in the table. A run-output
+        route quietly dropped from ``ROUTE_CAPABILITIES`` would leave a transcript
+        readable by any run, which is what the entries are there to stop.
+        """
         served = {route.endpoint.__name__ for route in app.routes if isinstance(route, APIRoute)}
-        assert {"read_dispatch_run_output", "read_task_finish_output"} <= served
+        assert OUTPUT_READS <= served
+        assert OUTPUT_READS <= set(ROUTE_CAPABILITIES)
 
     def test_a_scoped_capability_is_never_declared_without_something_to_scope_it_by(
         self,

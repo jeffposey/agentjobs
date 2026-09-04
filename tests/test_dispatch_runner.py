@@ -2020,14 +2020,27 @@ class TestProcessGroup:
         runner = build(
             workspace,
             manager,
-            make_resolution([sys.executable, str(parent), "{prompt}"], timeout=3),
+            make_resolution([sys.executable, str(parent), "{prompt}"], timeout=20),
         )
 
         handle = runner.start(task, actor="Jeff Posey", caused_by=1)
-        deadline = 30
-        while not marker.exists() and deadline:
-            deadline -= 1
-            subprocess.run([sys.executable, "-c", "import time; time.sleep(0.2)"], check=False)
+        # Waiting for the grandchild used to spawn a CPython per poll -- `subprocess.run`
+        # of a script whose whole body was a 0.2s sleep -- which measured 0.4s an
+        # iteration on an *idle* machine, half of it interpreter startup. So the wait
+        # competed for the machine with the very process tree it was waiting for, and it
+        # did that against a 3-second timeout. Under `-n auto` the parent and the
+        # grandchild could not always both start before the runner killed the group, and
+        # the test then failed at its own setup assertion, which says in as many words
+        # that it proved nothing. Observed failing that way on 2026-08-25 during
+        # task-308's finish and twice more on 2026-09-04, each time on a branch that
+        # touched neither this test nor the kill path.
+        #
+        # `time.sleep` is what `_dies_within` below already uses. The timeout is 20s for
+        # the same reason and proves exactly as much: the parent sleeps for 600, so every
+        # timeout under that fires, and the assertion is that the *group* dies with it.
+        deadline = time.monotonic() + 15.0
+        while not marker.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
         assert marker.exists(), "the grandchild never started, so this proves nothing"
         grandchild_pid = int(marker.read_text())
 

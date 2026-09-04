@@ -14,6 +14,7 @@ import typer
 import yaml
 
 from .actors import actor_kinds
+from .exposure import Visibility, visibility_of
 from .dispatch.auth import read_auth_stall
 from .dispatch.address import (
     configured_api_base,
@@ -991,14 +992,25 @@ def project_add(
 
 @project_app.command("list")
 def project_list() -> None:
-    """List registered projects."""
+    """List registered projects, and which of them are local to this machine.
+
+    The CLI runs as the person at the machine and sees every project regardless, so
+    ``local-only`` here is a report rather than a restriction. It is the one place the
+    setting is visible without opening five config files, which is what an operator
+    needs after marking a project local: a way to check it took.
+    """
     projects = ProjectRegistry().list_projects()
     if not projects:
         typer.echo("No projects registered. Run 'agentjobs project add <path>'.")
         return
     for project in projects:
-        missing = "" if project.root.is_dir() else "  [missing]"
-        typer.echo(f"{project.id:20} {project.name:30} {project.root}{missing}")
+        notes = []
+        if not project.root.is_dir():
+            notes.append("missing")
+        if visibility_of(project.load_config()) is Visibility.LOCAL:
+            notes.append("local-only")
+        suffix = f"  [{', '.join(notes)}]" if notes else ""
+        typer.echo(f"{project.id:20} {project.name:30} {project.root}{suffix}")
 
 
 @project_app.command("remove")

@@ -117,11 +117,20 @@ ROUTE_CAPABILITIES: Dict[str, RouteRule] = {
     "create_webhook": RouteRule(Capability.WEBHOOK_ADMIN),
     "delete_webhook": RouteRule(Capability.WEBHOOK_ADMIN),
     "test_webhook": RouteRule(Capability.WEBHOOK_ADMIN),
-    # ----- the two reads that are here on purpose (ac-5) ---------------------------
+    # ----- the reads that are here on purpose --------------------------------------
+    #
+    # task-332 named the first two, for its ac-5: a run may read its own output and no
+    # other's. task-333 added the last two, which are the same file read two other ways
+    # -- the tail is the pty capture and the transcript is the JSONL beside it -- and
+    # were the only run-output routes with no principal check at all. Leaving them out
+    # would have made "a run may read its own transcript and no other's" true of the
+    # route nobody polls and false of the two the page actually polls.
     "read_dispatch_run_output": RouteRule(Capability.RUN_OUTPUT, run_param=_RUN),
     "read_task_finish_output": RouteRule(Capability.RUN_OUTPUT, task_param=_TASK),
+    "read_dispatch_run_tail": RouteRule(Capability.RUN_OUTPUT, run_param=_RUN),
+    "read_dispatch_run_transcript": RouteRule(Capability.RUN_OUTPUT, run_param=_RUN),
 }
-"""Every mutating endpoint, plus the two output reads. Nothing else is checked here."""
+"""Every mutating endpoint, plus the four output reads. Nothing else is checked here."""
 
 
 _STATUS: Dict[str, int] = {

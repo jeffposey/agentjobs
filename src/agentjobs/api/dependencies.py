@@ -18,6 +18,7 @@ from fastapi import HTTPException, Request, status
 from fastapi.templating import Jinja2Templates
 
 from agentjobs.actors import Identity, human_identity
+from agentjobs.exposure import Visibility, readable_by, visibility_of
 from agentjobs.front_door import current_secret
 from agentjobs.manager import TaskManager
 from agentjobs.principals import Principal, Resolution, resolve_principal
@@ -128,17 +129,68 @@ def list_projects() -> list[Project]:
     return registered if registered else [_implicit_project()]
 
 
-def resolve_project(project_id: str) -> Project:
-    """Resolve an explicit project id from a request path."""
+def project_visibility(project: Project) -> Visibility:
+    """Whether this project is served to remote principals. See `agentjobs.exposure`."""
+    return visibility_of(project_config(project))
+
+
+def project_visible_to(project: Project, principal: Optional[Principal]) -> bool:
+    """True when this caller may be served this project at all."""
+    return readable_by(project_visibility(project), principal)
+
+
+def visible_projects(principal: Optional[Principal] = None) -> list[Project]:
+    """Every project this caller may see, which for a local one is every project.
+
+    The filtered form of :func:`list_projects`, and the one every cross-project surface
+    calls. Passing ``None`` is not a way to see everything -- it is the answer for a
+    request that resolved to nobody, and `exposure.readable_by` hides a local-only
+    project from it.
+    """
+    return [project for project in list_projects() if project_visible_to(project, principal)]
+
+
+def resolve_project(project_id: str, principal: Optional[Principal] = None) -> Project:
+    """Resolve an explicit project id from a request path.
+
+    A project this caller may not see answers **exactly** as an unregistered id does,
+    down to the sentence: that is the ``_owned_run`` convention (``routes/dispatch.py``),
+    and the reason is that a 403 here would confirm the hidden project exists to the one
+    caller it is being hidden from. Every project-scoped route in the application
+    resolves through here, so this one check is what makes a hidden project's tasks,
+    runs, transcripts, webhooks, searches and queue absent together rather than one route
+    at a time.
+    """
     if project_id == _IMPLICIT_PROJECT_ID:
-        return _implicit_project()
-    try:
-        return get_registry().get(project_id)
-    except UnknownProjectError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        project = _implicit_project()
+    else:
+        try:
+            project = get_registry().get(project_id)
+        except UnknownProjectError:
+            raise _no_such_project(project_id, principal) from None
+    if not project_visible_to(project, principal):
+        raise _no_such_project(project_id, principal)
+    return project
 
 
-def try_resolve_default_project() -> Optional[Project]:
+def _no_such_project(project_id: str, principal: Optional[Principal]) -> HTTPException:
+    """The one 404 both "never registered" and "not yours to see" answer with.
+
+    Assembled here rather than taken from ``UnknownProjectError`` because the registry's
+    sentence names *every* registered id, which would disclose the hidden projects
+    through the very response that is hiding them -- and because two sentences that are
+    meant to be indistinguishable have to be built by one piece of code or they will
+    eventually differ. The list is the caller's own visible set, so it stays as useful as
+    it ever was to the person it is useful to.
+    """
+    known = ", ".join(project.id for project in visible_projects(principal)) or "none registered"
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Unknown project {project_id!r}. Registered projects: {known}.",
+    )
+
+
+def try_resolve_default_project(principal: Optional[Principal] = None) -> Optional[Project]:
     """Resolve the default project, or None when it cannot be resolved without guessing.
 
     The non-raising form, so callers that want to offer a choice (the web project
@@ -147,7 +199,21 @@ def try_resolve_default_project() -> Optional[Project]:
     Note this must be used in preference to `ProjectRegistry.resolve_default` anywhere
     a default is wanted: the registry knows nothing about implicit single-project mode,
     so going straight to it reports "no projects" for an install that has one.
+
+    ``principal`` filters the answer rather than the search: the default is resolved
+    positionally, from where the server is running, and *then* checked. A caller who may
+    not see the resolved default gets ``None`` -- there is no fallback to the next
+    project it could see, because that would serve one project's tasks under a URL that
+    named none, which is the guess this function exists to refuse.
     """
+    project = _positional_default_project()
+    if project is None or not project_visible_to(project, principal):
+        return None
+    return project
+
+
+def _positional_default_project() -> Optional[Project]:
+    """The default project before anybody asks who is looking at it."""
     if _env_override_active():
         return _implicit_project()
     try:
@@ -158,18 +224,20 @@ def try_resolve_default_project() -> Optional[Project]:
         return None if registered else _implicit_project()
 
 
-def resolve_default_project() -> Project:
+def resolve_default_project(principal: Optional[Principal] = None) -> Project:
     """Resolve the project that unscoped routes act on.
 
     Raises 409 rather than guessing when several projects are registered and none
     contains the working directory: serving the wrong project's tasks silently is a
     worse outcome than an error that names the ambiguity.
     """
-    project = try_resolve_default_project()
+    project = try_resolve_default_project(principal)
     if project is None:
         # Name the candidates. An error that says only "ambiguous" leaves the caller
-        # guessing at the very thing the server refused to guess at.
-        known = ", ".join(candidate.id for candidate in get_registry().list_projects())
+        # guessing at the very thing the server refused to guess at. The candidates are
+        # this caller's visible ones: a hidden project is not an answer it could have
+        # given, so naming it would be both useless and a disclosure.
+        known = ", ".join(candidate.id for candidate in visible_projects(principal))
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
@@ -240,11 +308,17 @@ def request_project(request: Request) -> Project:
     ``/api/projects/{project_id}`` -- so the same handlers serve both. Reading the
     project from the path parameters here is what makes that possible: one dependency,
     one set of routes, and no duplicated handler bodies to drift apart.
+
+    It is also the single place a project's exposure is enforced for scoped routes
+    (task-333). Every handler behind both mounts asks this for its project, so a project
+    a caller may not see is absent from all of them at once rather than from whichever
+    ones somebody remembered to check.
     """
+    principal = get_principal(request)
     project_id = request.path_params.get("project_id")
     if project_id:
-        return resolve_project(str(project_id))
-    return resolve_default_project()
+        return resolve_project(str(project_id), principal)
+    return resolve_default_project(principal)
 
 
 def get_project(request: Request) -> Project:
