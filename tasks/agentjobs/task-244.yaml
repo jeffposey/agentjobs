@@ -3,7 +3,7 @@ id: task-244
 title: 'Tailnet proxy: prove identity at the front door, and keep project creation
   off the network'
 created: '2026-08-22T18:50:12.663333Z'
-updated: '2026-09-04T07:57:46.742515Z'
+updated: '2026-09-04T08:09:22.417153Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -759,3 +759,21 @@ log:
     finish_step: started
     branch: feat/task-244-tailnet-proxy-identity
     finish_id: fin_307471c9
+- id: 15
+  ts: '2026-09-04T08:09:22.416925Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-244-tailnet-proxy-identity` into `main` as `9ff4088f`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-244
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    epic) releases the merge gate (task-021), and run run_1359e53f ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 9ff4088fcbe6483ad772c3bed9918f47323b36c4
+    branch: feat/task-244-tailnet-proxy-identity
+    base: main
