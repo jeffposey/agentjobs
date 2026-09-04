@@ -2,7 +2,7 @@ schema: 2
 id: task-330
 title: 'Identity registry: several human actors, login mapping, and retirement'
 created: '2026-09-04T03:26:56.564971Z'
-updated: '2026-09-04T05:41:57.755822Z'
+updated: '2026-09-04T05:49:33.019337Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -654,3 +654,50 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 15
+  ts: '2026-09-04T05:49:33.019089Z'
+  actor: claude
+  type: progress
+  body: "**Rebased onto the moved `main` and resolved by hand; gate green again. Branch\
+    \ head 3a0e769.**\n\nTwo finish attempts stopped before this, neither on the work:\n\
+    \n1. **`catch_up_gate_failed`.** The full gate went green (296s), then the catch-up\
+    \ re-run of pytest hit `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`\
+    \ \u2014 \"pid 3048356 survived the timeout\". That test's own comment documents\
+    \ the flake and records that it **failed task-308's finish for a branch that touched\
+    \ neither the test nor the kill path**; the same is true here (`git diff --stat\
+    \ main...HEAD` touches no dispatch file). It passed three times in a row alone\
+    \ afterwards, in 8.5s, 13.3s and 27.0s \u2014 the spread is the load sensitivity,\
+    \ visible. It has a 30-second tolerance already and still flaked under a concurrent\
+    \ gate. **This is now the second finish it has blocked. Worth a task; not filing\
+    \ one, as that is not mine to authorise.**\n\n2. **`rebase_conflict`.** task-331\
+    \ merged while my finish sat in the runway queue (251s), taking `docs/index.md`\
+    \ and `docs/principals-design.md` with it. Resolved by hand rather than by preferring\
+    \ a side, because both edits were real:\n   - `docs/index.md` \u2014 kept task-331's\
+    \ rewritten Principals row, added the Identity registry row after it.\n   - `docs/principals-design.md`\
+    \ \u2014 task-331 had closed the `no_run_credentials` stub, leaving a section\
+    \ called \"The seam left open\" whose only remaining bullet was `actor_id`. With\
+    \ task-330 landed that is not a seam either, so the section is now **\"Why `actor_id`\
+    \ is empty\"** and says so: it stays `None` by design, because the mapping needs\
+    \ a project's vocabulary and principal resolution is project-agnostic. Dropped\
+    \ task-331's own row from \"What comes next\", since it has shipped.\n\n**A consequence\
+    \ of landing after task-331, stated so task-332 does not rediscover it.** Run\
+    \ credentials are live now, so `human_identity`'s `not_a_person` branch fires\
+    \ in production rather than only in tests: a dispatched run calling `approve`\
+    \ / `request-changes` / `answer` / `redirect` / `hold` / `resume` / `reject` resolves\
+    \ to no human and is refused. Before this it resolved as `owner`, and an agent\
+    \ that passed the configured human's id in `user` **succeeded** \u2014 which is\
+    \ the impersonation task-066 exists to close. I read this as resolution rather\
+    \ than enforcement (the question \"which human is acting\" has the answer \"none\"\
+    \ for a run, and the route's own equality check is unchanged), but it is a real\
+    \ behaviour change for runs and belongs in task-332's view of the world.\n\n`GET\
+    \ /api/whoami`, which task-331 added, still reports the principal alone and not\
+    \ the actor it maps to. Deliberately left: it is task-331's route, adding a field\
+    \ means an API and client regeneration, and nothing in this task's acceptance\
+    \ needs it. It is the obvious next surface for whoever wants one.\n\n**Gate: full\
+    \ unqualified `scripts/check.py` on the rebased branch, green, 10 of 10 stages**\
+    \ \u2014 3836 passed, 1 skipped; vitest 355; e2e 38; 318.6s. Log: `$CLAUDE_JOB_DIR/tmp/gate6.log`."
+  data:
+    operation:
+      id: 3d0a1f52-7b41-4c8e-9a2d-1e5c8b330007
+      kind: log_append
+      fingerprint: 0b059cb266a98b1f156ad4e7c010fc2c
