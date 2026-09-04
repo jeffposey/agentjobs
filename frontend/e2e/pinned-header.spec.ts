@@ -18,7 +18,18 @@ const PHONE = { width: 390, height: 844 };
 /** One row is `min-h-16` plus a 1px bottom border; anything taller has wrapped. */
 const ONE_ROW_MAX_PX = 72;
 
-const DESTINATIONS = ["Dashboard", "Tasks", "Create", "Dispatch", "Playbooks", "API Docs"];
+const DESTINATIONS = [
+  "Dashboard",
+  "Tasks",
+  "Create",
+  "Dispatch",
+  "Playbooks",
+  "Runs",
+  "API Docs",
+];
+
+/** Mirrors `NAV_INLINE_MIN_PX`; below it the destinations are behind the burger. */
+const NAV_INLINE_MIN_PX = 1100;
 
 /**
  * One record, long enough that every viewport under test has somewhere to scroll to,
@@ -111,6 +122,7 @@ for (const [name, viewport] of [
       "/app/p/_local/tasks/new",
       "/app/p/_local/dispatch",
       "/app/p/_local/playbooks",
+      "/app/p/_local/runs",
     ];
 
     for (const surface of surfaces) {
@@ -150,7 +162,7 @@ test("the Tasks link is reachable from the bottom of a long page, at both viewpo
     await page.goto(`/app/p/_local/tasks/${taskId}`);
     await scrollToEnd(page);
 
-    if (viewport.width < 960) {
+    if (viewport.width < NAV_INLINE_MIN_PX) {
       // Below the breakpoint the destinations live behind the burger, which is itself
       // in the pinned bar and therefore on screen.
       await page.getByRole("button", { name: "Navigation" }).click();

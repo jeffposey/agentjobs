@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import { ProjectSwitcher } from "./ProjectSwitcher";
@@ -15,9 +15,8 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * and `z-50` modal, because a header floating above a full-screen dialog punches a
  * hole in it.
  *
- * **It never wraps.** The row of destinations only fits on one line at about 955px
- * (measured, not guessed: the eight items are 736px of content before gaps, and the
- * nav is 128px tall at 950 and 64px at 955). Below {@link NAV_INLINE_MIN_PX} the
+ * **It never wraps.** The row of destinations only fits on one line above
+ * {@link NAV_INLINE_MIN_PX} (measured, not guessed -- see that constant). Below it the
  * destinations move behind a burger and drop from the bar in a panel; above it they
  * are inline and there is no burger at all. Pinning the wrapped row instead would
  * spend 164px of an 844px phone screen -- 19% -- permanently on navigation, which is
@@ -32,19 +31,36 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
 /**
  * The width at or above which every destination is shown inline.
  *
- * 960 rather than this app's existing 820px breakpoint: 820 is where the tables
- * restack, and the header stops fitting 135px later. A breakpoint at 820 would leave
- * the whole 820-954 band -- landscape tablets, split-screen desktop windows -- with a
- * wrapped, pinned, two-row bar.
+ * **Re-measured for task-328's Runs entry, which added 82px to the row** (665px of
+ * destinations, up from 583px, measured at 960 in Chromium). task-292 settled the
+ * mechanism and measured 955px for the contents it had; adding a destination changes
+ * the input to that measurement, so the number moves and the mechanism does not.
+ *
+ * 1090px is where the bar last overflows, with the project switcher at the 224px
+ * (`max-w-56`) it reaches for a long project name -- the case the constant has to hold
+ * for, not the four-character one a sandbox happens to have. Overflow, not wrapping, is
+ * how this now fails: `flex-nowrap` and `min-w-0` mean the switcher is squeezed and then
+ * the row runs off the right edge, so a header measured only by its height would have
+ * called every width below this fine. 1100 for the same 10px of margin 960 had over 955.
+ *
+ * The cost is the 960-1099 band -- landscape tablets, split-screen desktop windows --
+ * moving from an inline row to the burger. That is the trade task-292 already made once
+ * at 960, and the burger keeps every destination one tap away.
  *
  * Kept as a constant beside the class names that encode it so a reader can find both
  * at once; Tailwind needs the literal in the class, so the two are checked against
  * each other by a test rather than by the compiler.
  */
-export const NAV_INLINE_MIN_PX = 960;
+export const NAV_INLINE_MIN_PX = 1100;
 
 /** Shown inline above the breakpoint, and inside the panel below it. */
-const DESTINATIONS: ReadonlyArray<{ path: string; label: string; className?: string }> = [
+const DESTINATIONS: ReadonlyArray<{
+  path: string;
+  label: string;
+  className?: string;
+  /** Renders the live-run count after the label. Exactly one entry has one. */
+  badge?: boolean;
+}> = [
   { path: "", label: "Dashboard" },
   { path: "/tasks", label: "Tasks" },
   // Accented because it is the one entry that creates something rather than going
@@ -57,6 +73,13 @@ const DESTINATIONS: ReadonlyArray<{ path: string; label: string; className?: str
   // Beside Dispatch rather than under it: a playbook run *is* a dispatch, and the two
   // gates a reader needs are the same ones.
   { path: "/playbooks", label: "Playbooks" },
+  // Beside them again, and carrying the only badge in the bar (task-328). Dispatch is
+  // the switch and Playbooks is what to start; this is what is *already* running, which
+  // is the question the other two cannot answer. The badge is here rather than on the
+  // Dashboard link because the count matters most while you are somewhere else --
+  // reading a task, watching a queue -- and it is the only number in the app that is
+  // about the machine rather than about the project the bar is scoped to.
+  { path: "/runs", label: "Runs", badge: true },
 ];
 
 const PANEL_ID = "primary-nav-destinations";
@@ -67,7 +90,20 @@ function projectPath(projectId: string | undefined, path = "") {
 
 const linkClass = "touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border";
 
-export function PrimaryNav({ projectId }: { projectId: string }) {
+export function PrimaryNav({
+  projectId,
+  badge,
+}: {
+  projectId: string;
+  /**
+   * The live-run count, supplied by the shell rather than queried here.
+   *
+   * Same shape as the Dashboard's `renderWhyThisOne`: this component is otherwise pure
+   * presentation, rendered from props in its tests, and a query inside it would make
+   * every one of those tests need a query client and a server.
+   */
+  badge?: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -123,7 +159,12 @@ export function PrimaryNav({ projectId }: { projectId: string }) {
       to={projectPath(projectId, destination.path)}
       className={destination.className ? `${linkClass} ${destination.className}` : linkClass}
     >
-      {destination.label}
+      {/* The label is its own element so a test can address it exactly. Without the
+          span the badge's text is part of the link's only text node, and
+          `getByText("Runs", { exact: true })` -- how every other destination in
+          e2e/pinned-header.spec.ts is found -- matches nothing at all. */}
+      <span>{destination.label}</span>
+      {destination.badge ? badge : null}
     </Link>
   ));
 
@@ -140,18 +181,18 @@ export function PrimaryNav({ projectId }: { projectId: string }) {
       className="sticky top-0 z-30 border-b border-dark-border bg-dark-surface"
     >
       <nav
-        className="mx-auto flex min-h-16 max-w-7xl flex-nowrap items-center gap-2 px-4 py-2 min-[960px]:gap-6 sm:px-6 lg:px-8"
+        className="mx-auto flex min-h-16 max-w-7xl flex-nowrap items-center gap-2 px-4 py-2 min-[1100px]:gap-6 sm:px-6 lg:px-8"
         aria-label="Primary navigation"
       >
         {/*
           The breakpoint lives on this wrapper rather than on the button, and that is
           not a stylistic choice. `styles.css` carries `.touch-target:not(.block) {
           display: inline-flex }`, whose specificity (0,2,0) beats a Tailwind utility's
-          (0,1,0) -- so `min-[960px]:hidden` on a `touch-target` element loses, and the
+          (0,1,0) -- so `min-[1100px]:hidden` on a `touch-target` element loses, and the
           burger stays visible at every width. Caught in a browser at 1280px; jsdom
           would never have shown it.
         */}
-        <div className="shrink-0 min-[960px]:hidden">
+        <div className="shrink-0 min-[1100px]:hidden">
           <button
             ref={triggerRef}
             type="button"
@@ -173,7 +214,7 @@ export function PrimaryNav({ projectId }: { projectId: string }) {
         </div>
         <h1 className="shrink-0 text-2xl font-bold">AgentJobs</h1>
         <ProjectSwitcher projectId={projectId} />
-        <div className="hidden items-center gap-6 min-[960px]:flex">
+        <div className="hidden items-center gap-6 min-[1100px]:flex">
           {destinations}
           {apiDocs}
         </div>
@@ -184,7 +225,7 @@ export function PrimaryNav({ projectId }: { projectId: string }) {
           // Absolute rather than in flow, so opening the panel overlays the page
           // instead of pushing it down under a bar that is already pinned. `sticky`
           // is a positioned value, so the header is the containing block already.
-          className="absolute inset-x-0 top-full border-b border-dark-border bg-dark-surface shadow-lg min-[960px]:hidden"
+          className="absolute inset-x-0 top-full border-b border-dark-border bg-dark-surface shadow-lg min-[1100px]:hidden"
         >
           <div
             className="mx-auto flex max-w-7xl flex-col px-4 py-2 sm:px-6"

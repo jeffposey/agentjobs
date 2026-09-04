@@ -48,7 +48,15 @@ describe("PrimaryNav", () => {
     expect(trigger()).toHaveAttribute("aria-expanded", "true");
     const opened = panel();
     expect(opened).not.toBeNull();
-    for (const label of ["Dashboard", "Tasks", "Create", "Dispatch", "Playbooks", "API Docs"]) {
+    for (const label of [
+      "Dashboard",
+      "Tasks",
+      "Create",
+      "Dispatch",
+      "Playbooks",
+      "Runs",
+      "API Docs",
+    ]) {
       expect(within(opened as HTMLElement).getByText(label)).toBeInTheDocument();
     }
   });
@@ -83,6 +91,24 @@ describe("PrimaryNav", () => {
     fireEvent.click(trigger());
     fireEvent.mouseDown(screen.getByRole("heading", { name: "AgentJobs" }));
     expect(panel()).not.toBeNull();
+  });
+
+  it("puts the live-run badge on the Runs entry and nowhere else", () => {
+    // The badge is a node the shell supplies, so this asserts the wiring rather than
+    // the count: which destination carries it, and that nothing else does.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/p/demo"]}>
+          <PrimaryNav projectId="demo" badge={<span data-testid="badge">7</span>} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const runs = screen.getByRole("link", { name: /Runs/ });
+    expect(within(runs).getByTestId("badge")).toBeInTheDocument();
+    expect(runs).toHaveAttribute("href", "/p/demo/runs");
+    expect(screen.getAllByTestId("badge")).toHaveLength(1);
   });
 
   it("keeps the burger's breakpoint and the class that hides it in agreement", () => {
