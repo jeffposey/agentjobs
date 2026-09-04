@@ -3,7 +3,7 @@ id: task-023
 title: Dispatch output is a raw terminal dump; render the session's structured transcript
   instead
 created: '2026-08-19T22:31:46.196691Z'
-updated: '2026-09-04T01:03:59.929561Z'
+updated: '2026-09-04T01:11:23.234351Z'
 lifecycle: active
 ball: agent
 ball_reason: answer
@@ -982,3 +982,78 @@ log:
     outcome: interrupted
     duration_seconds: 12.222908
     log_path: C:\Users\jpose\.agentjobs\runs\run_79dc23dd
+- id: 19
+  ts: '2026-09-04T01:11:18.578941Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. They chose
+    posture `autonomous` for this run, above this project''s `auto`. No extra instruction
+    was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 20
+  ts: '2026-09-04T01:11:21.072912Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_bf3b2e25
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: dispatch
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 19
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --name
+    - agentjobs/task-023@bf3b2e25
+    - --settings
+    - '{"env": {"AGENTJOBS_RUN_ID": "run_bf3b2e25", "AGENTJOBS_RUN_DIR": "C:\\Users\\jpose\\.agentjobs\\runs\\run_bf3b2e25"}}'
+    - 'You are the agent `claude` working task `task-023` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-023-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_bf3b2e25. Posture `autonomous` releases the merge gate:
+      this run merges its own work with no human review. Record the evidence on the
+      task first, then run `agentjobs finish task-023 --project agentjobs --posture-release`
+      from C:\projects\agentjobs. That rebases, runs the full gate, and merges only
+      on a green one -- it stops and hands the ball back if anything fails. Do not
+      merge by hand. Never push: this project is configured `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 0e1e40c
+    session_id: bf3b2e25
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 21
+  ts: '2026-09-04T01:11:23.234073Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: The session is no longer in the ledger, so it cannot be followed or resumed.
+    Whatever it did is in its own transcript, not here.
+  re: 20
+  data:
+    run_id: run_bf3b2e25
+    outcome: interrupted
+    duration_seconds: 3.181847
+    log_path: C:\Users\jpose\.agentjobs\runs\run_bf3b2e25
