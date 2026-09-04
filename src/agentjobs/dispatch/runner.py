@@ -2039,7 +2039,7 @@ class DispatchRunner:
                 f"{output.strip()[:500]}"
             )
 
-        session_id = self.capture_session_id(completed.stdout or "")
+        session_id = self.capture_session_id(completed.stdout or "", reject=short_run_id(run_id))
         if session_id is None:
             directory.update_meta(status="failed", error="no session id in launcher output")
             raise DispatchRunError(
@@ -2081,17 +2081,37 @@ class DispatchRunner:
         )
 
     @classmethod
-    def capture_session_id(cls, stdout: str) -> Optional[str]:
+    def capture_session_id(cls, stdout: str, *, reject: Optional[str] = None) -> Optional[str]:
         """Read the short id out of ``backgrounded · b55b35ad · name``.
 
         Positional rather than regex-over-the-whole-line on purpose: the separator and
-        the trailing name are cosmetic and will change; an 8-hex token on the launcher's
-        first line is the stable part.
+        the trailing name are cosmetic and will change; the first 8-hex token the
+        launcher prints is the stable part. It is *not* guaranteed to be on the first
+        line -- before ``--name`` existed the only matchable copy was the one in
+        ``claude attach <id>`` two lines down, which is what this used to read.
+
+        **Escapes are stripped before matching, and that is the whole defect this
+        guards** (task-327). The launcher colours the id, so the raw bytes are
+        ``\\x1b[36m1b5f4a48\\x1b[39m``: the ``m`` ending the escape is a word character
+        and so is the digit starting the id, so ``\\b`` never fires between them and the
+        id is invisible to the scan. It went unnoticed for as long as nothing else on
+        that line matched. Then task-324 added ``--name <project>/<task>@<run stub>``,
+        whose stub *is* cleanly delimited -- so every run since recorded its own run
+        stub as the session id, and every one of them was reported dead while working.
+
+        ``strip_ansi`` was already in this module, applied to terminal output meant for
+        a person to read. The id was the one place it was needed for a value something
+        else would act on, and the one place it was not used.
+
+        ``reject`` is the second half, and it is the half that cannot rot: the caller
+        passes the run stub it just put in ``--name``, and a run's own id can never be
+        the id the CLI assigned. A future change to the name format therefore cannot
+        resurrect this, whatever it puts on the line.
         """
         for line in stdout.splitlines():
-            match = cls._SHORT_ID.search(line)
-            if match:
-                return match.group(1)
+            for match in cls._SHORT_ID.finditer(strip_ansi(line)):
+                if match.group(1) != reject:
+                    return match.group(1)
         return None
 
     def executable_prefix(self) -> List[str]:
