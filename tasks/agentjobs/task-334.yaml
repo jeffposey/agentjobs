@@ -3,7 +3,7 @@ id: task-334
 title: Dispatch caps bind every trigger, and the design stops claiming the loop is
   impossible
 created: '2026-09-04T03:28:51.073210Z'
-updated: '2026-09-04T04:27:50.072361Z'
+updated: '2026-09-04T04:28:04.374461Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -356,3 +356,17 @@ log:
       id: a1d6f490-77bc-4e58-b0aa-9d2e4c110334
       kind: log_append
       fingerprint: e53b818253d3210aea0b3fcf81f99ecf
+- id: 8
+  ts: '2026-09-04T04:28:04.374285Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-334-dispatch-caps` (7893b73f).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-334.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_c6a82580\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-334-dispatch-caps
+    finish_id: fin_c6a82580
