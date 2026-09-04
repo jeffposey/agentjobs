@@ -3,26 +3,11 @@ id: task-328
 title: 'Nothing shows what is being worked right now: build the machine-wide live-run
   surface'
 created: '2026-09-04T01:37:40.980704Z'
-updated: '2026-09-04T02:53:30.751016Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.
-
-
-  Note from Jeff Posey:
-
-
-  remove the API docs from the tab list for now, we''ll add it elsewhere later
-
-
-  That note is context to carry into the merge, not another review round: you are
-  still cleared to merge.'
+updated: '2026-09-04T02:53:59.751736Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
-queue_position: 8700
 category: ux
 tags:
 - frontend
@@ -33,7 +18,6 @@ tags:
 effort: medium -- the ledger reader exists; the work is one new API surface, two React
   surfaces, and the Dashboard space decision
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'AgentJobs can start agents but has no surface that answers "what is running
@@ -248,7 +232,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-328-live-runs-surface
-  status: active
+  status: merged
+  merged_at: '2026-09-04T02:53:59.687341Z'
 log:
 - id: 1
   ts: '2026-09-04T01:37:41.477924Z'
@@ -711,3 +696,25 @@ log:
     merge_commit: d429187b9e58f6ecbfd90419f7cd2d610b72fef6
     branch: feat/task-328-live-runs-surface
     base: main
+- id: 18
+  ts: '2026-09-04T02:53:59.751477Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-328-live-runs-surface` into `main` as `d429187b` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). Approved\
+    \ by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         2.1s  feat/task-328-live-runs-surface\
+    \ at 04ca63f8 in C:\\projects\\worktrees\\agentjobs-328\n  runway     ok     \
+    \    0.0s  taken immediately\n  rebase     ok         0.7s  feat/task-328-live-runs-surface\
+    \ onto main: 04ca63f8 -> ab4afecd\n  gate       ok       234.4s  scripts/check.py\
+    \ green\n  catch_up   skipped    0.0s  main did not move during the gate\n  merge\
+    \      ok         0.6s  --no-ff into main as d429187b9e58f6ecbfd90419f7cd2d610b72fef6\n\
+    \  rebuild    ok         7.5s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         0.8s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     ok         0.0s  http://127.0.0.1:8876 is serving 11a80999, which contains\
+    \ the merge d429187b, from C:\\projects\\agentjobs (started 2026-09-04T02:53:47.840041+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
