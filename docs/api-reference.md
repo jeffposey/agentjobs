@@ -235,6 +235,33 @@ the second switch and can never define what runs. See
 `transcript.log` is a raw TTY capture, so a line appears in it once per terminal
 repaint. Link to it and read it; never compute a count from it.
 
+### The one route that is not project-scoped
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/runs/live` | Every run happening on this **machine**, in every project, with its remaining capacity |
+
+Every other route on this page is mounted twice -- once at `/api/...` for the default
+project and once at `/api/projects/{project_id}/...` -- and answers about that one
+project. This one is mounted once and has no project-scoped spelling, because the
+resource it describes is not a project's: `limits.max_concurrent_runs` is machine-level,
+the run ledger under `~/.agentjobs/runs/` is machine-level, and the run occupying the
+last slot is usually on some other project's task. Serving the same body under every
+value of `{project_id}` would be a URL asserting a scope the answer does not have
+(task-328).
+
+Two fields are worth reading carefully:
+
+- **`health`, not `live`.** `live` means only that nothing has declared the run over. A
+  session parked on a permission prompt, a session that has emitted nothing for the
+  stall window, and a batch run whose supervising process is gone are all live and none
+  of them is working. `health` is `working`, `starting`, `parked`, `silent`, `orphaned`
+  or `unknown`, and it is the field a surface should render.
+- **`holders` is not `runs`.** A scripted finish and a repository's merge runway hold
+  locks rather than run slots, so they are real machine activity with no run record.
+  They are listed separately and are deliberately **not** in `occupied`, which counts
+  exactly what the concurrency guard counts.
+
 ### The two readings of one run
 
 `/output` and `/tail` serve `transcript.log`. `/transcript` serves a different file: the

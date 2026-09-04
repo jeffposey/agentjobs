@@ -34,7 +34,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Set
+from typing import Callable, Dict, List, Optional, Set, Tuple
 
 import yaml
 
@@ -50,7 +50,7 @@ from agentjobs.dispatch.runner import (
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BallReason, DispatchMode, DispatchOutcome
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
-from agentjobs.storage import TaskStorage
+from agentjobs.storage import TaskStorage, load_yaml
 
 LOCKS_DIRNAME = ".locks"
 """Run locks live under the runs root. A leading dot cannot collide with a run id."""
@@ -746,6 +746,36 @@ def release_stale_locks(home: Path) -> List[StaleLock]:
     return released
 
 
+def live_lock_holders(home: Path) -> List[Tuple[str, LockHolder]]:
+    """Every lock on this machine that is still being held, as ``(lock name, holder)``.
+
+    The read-only counterpart to ``release_stale_locks``: same evidence, same
+    ``stale_lock_reason`` filter, nothing deleted. It exists because a run is not the
+    only thing occupying this machine -- a scripted finish (task-241) and the merge
+    runway (task-223) both take locks, are both real work a human wants to see, and
+    neither has a run record to be found through ``live_runs``.
+
+    The lock **name** rather than a task id, because it is not always one: a runway lock
+    is named after a hash of the repository path (``runway_lock_name``). Callers that
+    want a task read ``holder.is_runway`` first.
+
+    Sorted so the answer is stable between two reads a second apart, which is what stops
+    a polling surface reordering itself under the reader's eyes.
+    """
+    directory = locks_root(home)
+    if not directory.is_dir():
+        return []
+    held: List[Tuple[str, LockHolder]] = []
+    for path in sorted(directory.glob("*.lock")):
+        holder = read_lock_holder(path)
+        if holder is None:
+            continue
+        if stale_lock_reason(home, holder) is not None:
+            continue
+        held.append((path.stem, holder))
+    return held
+
+
 def _read_text(path: Path) -> str:
     """Best-effort read, for putting a lock's holder into an error message."""
     try:
@@ -846,12 +876,21 @@ def read_run(directory: Path) -> RunRecord:
 
     Deliberate: a run that cannot be read cannot be shown to have ended, and treating it
     as finished would let a second run start beside it and would hide a crash.
+
+    ``load_yaml`` rather than ``yaml.safe_load``, and the difference is not cosmetic:
+    every caller of ``list_runs`` parses **every** run directory the machine has ever
+    had, and a dispatch meta carries the whole argv including a settings blob. Measured
+    on this machine's ledger (135 runs, 224 KB) on 2026-09-04: ``yaml.safe_load`` 178 ms,
+    ``load_yaml`` 16.7 ms -- the former is the pure-Python parser, while ``storage`` has
+    always reached for libyaml. Nothing read the whole ledger on a clock until task-328's
+    machine-wide surface, so nobody had a reason to notice; ``dispatch/guards.py`` pays
+    it on every dispatch too.
     """
     meta: Dict[str, object] = {}
     meta_path = directory / META_FILENAME
     if meta_path.is_file():
         try:
-            loaded = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
+            loaded = load_yaml(meta_path.read_text(encoding="utf-8"))
             if isinstance(loaded, dict):
                 meta = loaded
         except (OSError, yaml.YAMLError):
@@ -900,6 +939,62 @@ def live_runs(home: Path) -> List[RunRecord]:
     return [record for record in list_runs(home) if record.is_live]
 
 
+HEALTH_WORKING = "working"
+HEALTH_STARTING = "starting"
+HEALTH_PARKED = "parked"
+HEALTH_SILENT = "silent"
+HEALTH_ORPHANED = "orphaned"
+HEALTH_UNKNOWN = "unknown"
+
+
+def run_health(record: RunRecord) -> str:
+    """What a *live* run is actually doing, which is not the same as being live.
+
+    ``is_live`` answers only "nothing has declared this over", so every surface that
+    renders a live run as working is asserting something the ledger never said. This is
+    the missing half, and it invents no new evidence: every value below is read off
+    something already written to disk by the code that owns it.
+
+    - ``working`` -- the poller's ``running``. It has produced output recently.
+    - ``starting`` -- written when the run directory is created, before a session id
+      exists. Seconds, normally.
+    - ``parked`` -- ``DispatchRunner`` writes this when a session stops on a permission
+      prompt or an expired login. It is alive and will wait for ever; a human is the
+      only thing that moves it.
+    - ``silent`` -- the poller's ``stalled``: the session still claims to be working and
+      has emitted nothing for ``limits.session_stall_seconds`` (task-296). Recoverable,
+      so it stays live and keeps being polled. Called ``silent`` here rather than
+      ``stalled`` because what the record can honestly claim is the absence of output,
+      not that the agent is stuck.
+    - ``orphaned`` -- a **batch** run whose recorded pid is gone. ``reconcile`` uses
+      exactly this rule ("batch runs do not outlive their supervisor"), so this says the
+      same thing a restart would, without waiting for one.
+    - ``unknown`` -- an unreadable or unrecognised meta. ``read_run`` deliberately keeps
+      such a run live rather than calling it finished, and this is what stops that
+      caution being rendered as confidence.
+
+    **The pid deliberately gets no vote on a session run**, for the reason
+    ``stale_lock_reason`` spells out: a dispatched session outlives the process that
+    launched it, so a gone pid is expected rather than diagnostic. Sessions record no
+    pid at all today. The authoritative liveness check for one is ``session_ledger()``,
+    which shells out to the session manager -- far too expensive for a surface on a
+    two-second clock, and unnecessary, because the API server that serves that surface
+    *is* the poller writing these statuses.
+    """
+    status = record.status
+    if status == "parked":
+        return HEALTH_PARKED
+    if status == "stalled":
+        return HEALTH_SILENT
+    if status == "starting":
+        return HEALTH_STARTING
+    if status == "running":
+        if not record.is_session and record.pid is not None and not process_alive(record.pid):
+            return HEALTH_ORPHANED
+        return HEALTH_WORKING
+    return HEALTH_UNKNOWN
+
+
 def find_run(home: Path, run_id: str) -> RunRecord:
     """One run by id, or an error naming what is there instead."""
     directory = runs_root(home) / run_id
@@ -915,7 +1010,7 @@ def write_status(record: RunRecord, **fields: object) -> None:
     meta: Dict[str, object] = {}
     if meta_path.is_file():
         try:
-            loaded = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
+            loaded = load_yaml(meta_path.read_text(encoding="utf-8"))
             if isinstance(loaded, dict):
                 meta = loaded
         except (OSError, yaml.YAMLError):

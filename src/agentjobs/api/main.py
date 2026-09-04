@@ -28,6 +28,7 @@ from .routes import (
     PROJECT_SCOPED_ROUTERS,
     health_router,
     projects_router,
+    runs_router,
     web_legacy_router,
     web_router,
 )
@@ -284,6 +285,11 @@ async def root_health() -> dict[str, str]:
 
 app.include_router(health_router)
 app.include_router(projects_router)
+# Mounted once, unlike everything in PROJECT_SCOPED_ROUTERS: what is running on this
+# machine is not a fact about any one project, and serving the same body under every
+# spelling of /api/projects/{id}/... would be a URL asserting a scope the answer does
+# not have (task-328).
+app.include_router(runs_router)
 
 # Web pages are canonically project-scoped. The legacy router keeps the old
 # unscoped URLs alive by redirecting into the resolved default project, so

@@ -17,6 +17,11 @@ type DashboardProps = {
    * panel's `renderOutput`, and for the same reason.
    */
   renderWhyThisOne?: () => React.ReactNode;
+  /**
+   * The machine-wide capacity row (task-328), supplied by the page for the same reason
+   * `renderWhyThisOne` is: it owns a query, and this component is pure presentation.
+   */
+  renderMachineCapacity?: () => React.ReactNode;
 };
 
 const priorityClasses: Record<string, string> = {
@@ -233,7 +238,12 @@ client.claim_task(task.id, agent="agent-name")`}</pre>
   }
 }
 
-export function Dashboard({ dashboard, projectId, renderWhyThisOne }: DashboardProps) {
+export function Dashboard({
+  dashboard,
+  projectId,
+  renderWhyThisOne,
+  renderMachineCapacity,
+}: DashboardProps) {
   const statTiles = [
     ["Needs you", dashboard.stats.waiting_for_human, "text-orange-400"],
     ["In Progress", dashboard.stats.in_progress, ""],
@@ -272,6 +282,15 @@ export function Dashboard({ dashboard, projectId, renderWhyThisOne }: DashboardP
             +{dashboard.stats.awaiting_input} in backlog
           </Link>
         )}
+        {/*
+          A row at the foot of this card rather than a section of its own, and that is
+          what pays for it. task-294 requires this page to fit one viewport, so a sixth
+          top-level section would cost its own `space-y-6` gap, border and padding --
+          about 110px -- before rendering a character. Here it costs one line, measured
+          at 41px on a 390x844 phone, and it sits beside the backlog link, which is
+          already exactly this shape. Nothing was removed to make room.
+        */}
+        {renderMachineCapacity?.()}
       </section>
       <section className="rounded-lg border border-dark-border bg-dark-surface">
         <div className="flex items-center justify-between border-b border-dark-border p-6">

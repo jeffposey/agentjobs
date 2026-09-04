@@ -1250,6 +1250,131 @@ export type Link = {
 export type LinkRel = 'pr' | 'issue' | 'doc' | 'design' | 'build' | 'other';
 
 /**
+ * LiveRunView
+ *
+ * One run that is happening now, said in words a person can act on.
+ */
+export type LiveRunView = {
+    /**
+     * Elapsed Seconds
+     *
+     * Seconds since this run started, computed on the server. The phone reading this page is not on the clock that wrote `started_at`.
+     */
+    elapsed_seconds?: number | null;
+    /**
+     * Health
+     *
+     * What the run is actually doing: working, starting, parked, silent, orphaned or unknown. `live` means only that nothing has declared the run over, so this is the field a surface renders.
+     */
+    health: string;
+    /**
+     * Mode
+     */
+    mode: string;
+    /**
+     * Output Url
+     *
+     * Where this run's captured output is readable.
+     */
+    output_url: string;
+    /**
+     * Posture
+     */
+    posture: string;
+    /**
+     * Project Id
+     */
+    project_id: string;
+    /**
+     * Project Name
+     *
+     * The project's display name. Falls back to the id for a run whose project is no longer registered, rather than rendering a blank cell.
+     */
+    project_name?: string;
+    /**
+     * Run Id
+     */
+    run_id: string;
+    /**
+     * Session
+     *
+     * A session run, as opposed to a batch one.
+     */
+    session: boolean;
+    /**
+     * Started At
+     */
+    started_at?: string | null;
+    /**
+     * Status
+     *
+     * The ledger's own word. Prefer `health` for display.
+     */
+    status: string;
+    /**
+     * Task Id
+     */
+    task_id: string;
+    /**
+     * Task Title
+     *
+     * The task's title, resolved server-side from its project's storage. Empty when the record cannot be read -- a run whose task file has been renamed or removed is exactly the kind of thing this surface should still show.
+     */
+    task_title?: string;
+    /**
+     * Task Url
+     *
+     * Where this run's task is, in this app.
+     */
+    task_url: string;
+};
+
+/**
+ * LiveRunsView
+ *
+ * Everything both machine-wide surfaces need, in one response.
+ *
+ * The capacity numbers ride along with the list rather than being fetched separately
+ * or recomputed in TypeScript: a browser that divided a count by a ceiling it read from
+ * somewhere else would be the one place in the system able to disagree with
+ * ``dispatch/guards.py`` about whether the machine is full.
+ */
+export type LiveRunsView = {
+    /**
+     * Dispatch Configured
+     *
+     * False on a machine with no dispatch.yaml at all, where the ceiling below is a default rather than a setting anyone chose.
+     */
+    dispatch_configured: boolean;
+    /**
+     * Generated At
+     *
+     * When this answer was assembled, in UTC.
+     */
+    generated_at: string;
+    /**
+     * Holders
+     */
+    holders: Array<MachineHolderView>;
+    /**
+     * Max Concurrent Runs
+     *
+     * `limits.max_concurrent_runs` from ~/.agentjobs/dispatch.yaml.
+     */
+    max_concurrent_runs: number;
+    /**
+     * Occupied
+     *
+     * Run slots in use. Counted exactly as the concurrency guard counts them -- `len(live_runs(home))` -- so this surface and a refused dispatch can never disagree. Finishes and the runway are not in it: they hold locks, not run slots.
+     */
+    occupied: number;
+    /**
+     * Runs
+     */
+    runs: Array<LiveRunView>;
+};
+
+/**
  * LogAppendRequest
  *
  * Append one entry to the unified log.
@@ -1358,6 +1483,77 @@ export type LogEntry = {
  * Type of a log entry (design doc section 4).
  */
 export type LogEntryType = 'note' | 'progress' | 'transition' | 'handoff' | 'decision' | 'question' | 'answer' | 'instruction' | 'dispatch' | 'dispatch_result' | 'queue_move';
+
+/**
+ * MachineHolderView
+ *
+ * Something holding a lock on this machine that is not a dispatched run.
+ *
+ * A scripted finish (task-241) and the merge runway (task-223) are both real work
+ * competing for this machine, both leave a lock behind, and neither has a run record
+ * -- so neither is reachable through ``live_runs``. Leaving them out would make the
+ * surface answer "nothing is happening" during the three minutes a merge takes.
+ */
+export type MachineHolderView = {
+    /**
+     * Detail
+     *
+     * What it is doing right now, e.g. the finish step it is on.
+     */
+    detail?: string;
+    /**
+     * Elapsed Seconds
+     */
+    elapsed_seconds?: number | null;
+    /**
+     * Finish Id
+     */
+    finish_id?: string;
+    /**
+     * Kind
+     *
+     * `finish` or `runway`.
+     */
+    kind: string;
+    /**
+     * Lock Name
+     *
+     * The lock file's stem. A task id, or a runway key.
+     */
+    lock_name: string;
+    /**
+     * Pid
+     */
+    pid?: number | null;
+    /**
+     * Project Id
+     */
+    project_id?: string;
+    /**
+     * Project Name
+     */
+    project_name?: string;
+    /**
+     * Started At
+     */
+    started_at?: string;
+    /**
+     * Task Id
+     *
+     * Empty for a runway, which holds no task.
+     */
+    task_id?: string;
+    /**
+     * Task Title
+     */
+    task_title?: string;
+    /**
+     * Task Url
+     *
+     * Empty when there is no task to link to.
+     */
+    task_url?: string;
+};
 
 /**
  * MutationResult
@@ -6809,6 +7005,22 @@ export type GetProjectRevisionApiRevisionGetResponses = {
 };
 
 export type GetProjectRevisionApiRevisionGetResponse = GetProjectRevisionApiRevisionGetResponses[keyof GetProjectRevisionApiRevisionGetResponses];
+
+export type ListLiveRunsApiRunsLiveGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/runs/live';
+};
+
+export type ListLiveRunsApiRunsLiveGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LiveRunsView;
+};
+
+export type ListLiveRunsApiRunsLiveGetResponse = ListLiveRunsApiRunsLiveGetResponses[keyof ListLiveRunsApiRunsLiveGetResponses];
 
 export type SearchTasksApiSearchGetData = {
     body?: never;
