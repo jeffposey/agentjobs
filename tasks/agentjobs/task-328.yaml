@@ -1,0 +1,245 @@
+schema: 2
+id: task-328
+title: 'Nothing shows what is being worked right now: build the machine-wide live-run
+  surface'
+created: '2026-09-04T01:37:40.980704Z'
+updated: '2026-09-04T01:38:28.306239Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+queue_position: 8700
+category: ux
+tags:
+- frontend
+- dispatch
+- dashboard
+- observability
+- react
+effort: medium -- the ledger reader exists; the work is one new API surface, two React
+  surfaces, and the Dashboard space decision
+assignment:
+  eligible: []
+spec:
+  summary: 'AgentJobs can start agents but has no surface that answers "what is running
+    right now". Build a machine-wide live-run view: its own tab with a count badge,
+    plus a compact panel on the Dashboard.'
+  intent: 'Jeff, 2026-09-03, asked whether a task existed for showing the tasks with
+    active agent sessions on the dashboard. There was none. He then chose the two
+    decisions this task would otherwise have had to make: machine-wide rather than
+    project-wide, "since right now it really is tied to the machine running AgentJobs
+    -- for now, that could change"; and both placements -- a panel on the Dashboard
+    and a separate tab carrying a count badge.'
+  description: '## Why there is nothing today
+
+
+    Every run view in the app is scoped to one task or one project, while the thing
+    that actually competes for capacity is the machine. `GET /api/projects/{id}/dispatch/runs`
+    filters the ledger down to one project, and its own docstring states the reasoning:
+    *"a page about one project has no business showing another''s."* That reasoning
+    is sound for a task page and wrong for the question this task answers, because
+    **the resource being spent is the machine, not the project**. `limits.max_concurrent_runs`
+    lives in `~/.agentjobs/dispatch.yaml`, the ledger lives in `~/.agentjobs/runs/`,
+    and a run that occupies the last slot is by definition on some other task -- very
+    often in some other project.
+
+
+    task-191 hit exactly this and refused to build it inside a throughput task. Its
+    decision entry names the feature and leaves it unfiled:
+
+
+    > **Rejected alternative: show machine-wide live runs permanently in the dispatch
+    panel.** That is a useful thing to have and it is a different feature -- a machine
+    status surface, wanted whether or not anything was refused. Building it inside
+    a throughput task would be exactly the absorption the spec''s `out_of_scope` warns
+    about.
+
+
+    This task is that follow-up. It was never filed until Jeff asked for it on 2026-09-03.
+
+
+    ## The good news: the model layer already exists
+
+
+    `src/agentjobs/dispatch/ledger.py` is already machine-wide and already has the
+    reader:
+
+
+    - `live_runs(home)` returns every non-terminal `RunRecord` on the machine.
+
+    - `RunRecord` already carries `run_id`, `task_id`, **`project_id`**, `mode`, `posture`,
+    `status`, `session_id`, `pid`, `started_at`, and `elapsed_seconds()`.
+
+    - `read_lock_holder` / `LockHolder.describe()` already render who holds a task''s
+    lock and for how long, including whether the holder is a runway or a finish rather
+    than a run.
+
+
+    So the work is an API surface, a frontend surface, and the judgement about what
+    belongs on each -- not new plumbing underneath.
+
+
+    ## What to build
+
+
+    **1. A machine-wide runs endpoint.** It cannot live under `/api/projects/{id}/...`
+    without contradicting that path''s meaning. Choose and record the shape -- a new
+    top-level route (e.g. `GET /api/runs/live`) is the obvious candidate. It must
+    return, per live run: run id, task id, **project id and project display name**,
+    the task title, mode, posture, status, elapsed time, and whether the run is a
+    session or a batch. Include the machine''s `max_concurrent_runs` and the count
+    of occupied slots in the response so both surfaces can render capacity without
+    a second call and without recomputing the ceiling in TypeScript.
+
+
+    Two things a naive implementation gets wrong, both already solved elsewhere in
+    the ledger -- read it rather than reinventing:
+
+
+    - **A live run is not a healthy run.** `is_live` is only "nothing has declared
+    this over". A run whose process died leaves a live-looking record until something
+    reconciles it; `stale_lock_reason` and `release_stale_locks` are how the rest
+    of the codebase tells those apart. Decide what a stale run renders as, and do
+    not render it as working.
+
+    - **Runs are not the only lock holders.** A finish (task-241) and the merge runway
+    (task-223) both hold locks and both are real machine activity a human wants to
+    see. Decide whether they appear here, and say why either way.
+
+
+    **2. A tab with a count badge.** Its own nav entry in `PrimaryNav`, listing every
+    live run with a link to each run''s task -- which is the thing task-191 explicitly
+    gave up when it settled for a sentence with unclickable ids. The badge shows the
+    live count and must go to zero, not disappear into a stale number, when nothing
+    is running.
+
+
+    **3. A compact Dashboard panel.** This is the constrained half. **task-294 requires
+    the Dashboard to fit one viewport with no scrolling at all**, so a new panel is
+    a claim on space something else currently has. Do not add an unbounded list. Something
+    like *"2 of 3 slots busy"* with the two task titles, capped, linking through to
+    the tab, is the shape to aim for; state what you cut or collapsed to make room,
+    and check the result against task-294''s constraint rather than against a desktop
+    monitor.
+
+
+    **4. Freshness.** A run list that is only correct at page load is worse than none,
+    because it will be read as current. Reuse the existing live-update mechanism (`LiveUpdates.tsx`,
+    task-086) rather than adding a second polling scheme; if it cannot carry a machine-wide
+    signal, say so on the record and choose deliberately.
+
+
+    ## Notes for whoever takes it
+
+
+    - The Dashboard panel and the tab are one task on purpose: they render the same
+    data and splitting them would mean two review rounds over one query.
+
+    - Neither surface may *start* or *cancel* anything in this task. Cancelling from
+    a machine-wide list is a plausible next step and is deliberately out of scope
+    -- task-312 shows how badly a cancel at the wrong moment reads to a human.
+
+    - Verify it against reality, not fixtures: dispatch two real runs in two different
+    projects and check that both appear with the right project names, and that the
+    count returns to zero after they end. A machine-wide view tested only with one
+    project''s runs has not been tested.'
+  constraints: 'Machine-wide, not project-scoped -- that is Jeff''s decision of 2026-09-03
+    and is not to be relitigated; the ceiling and the ledger are both machine-level
+    today. Both placements ship together: a tab with a count badge, and a compact
+    Dashboard panel. The Dashboard panel must respect task-294''s no-scroll goal.
+    Read-only: no start, cancel, or any other mutation from either surface. Reuse
+    `live_runs`/`RunRecord` and the existing live-update mechanism rather than adding
+    parallel machinery.'
+  out_of_scope: Cancelling or dispatching from the machine-wide view. Historical or
+    completed runs, analytics, and run duration trends -- task-212 owns the analytics
+    surface. Making runs visible across more than one machine; if AgentJobs ever serves
+    several, that is a different task and this one should not pre-build for it beyond
+    not making it impossible. Changing `max_concurrent_runs` from the UI.
+  context:
+  - path: src/agentjobs/dispatch/ledger.py
+    why: live_runs(), RunRecord (already carries project_id), LockHolder.describe()
+      and stale_lock_reason() -- everything this surface reads already exists here.
+  - path: src/agentjobs/api/routes/dispatch.py
+    why: The existing project-scoped /runs route at line 748, whose docstring states
+      why it filters by project. The new route must not live under this path.
+  - path: frontend/src/components/Dashboard.tsx
+    why: The Dashboard today touches runs nowhere; this is where the compact panel
+      lands.
+  - path: frontend/src/components/PrimaryNav.tsx
+    why: Where the new tab and its count badge go.
+  - path: frontend/src/components/LiveUpdates.tsx
+    why: The existing freshness mechanism (task-086) to reuse rather than duplicate.
+  - path: tasks/agentjobs/task-191.yaml
+    why: Its decision entry names this feature and explicitly defers it; read that
+      reasoning before changing the shape.
+  - path: tasks/agentjobs/task-294.yaml
+    why: The Dashboard must fit one viewport and never scroll -- the binding constraint
+      on the panel.
+acceptance:
+- id: ac-1
+  text: A machine-wide endpoint returns every live run on the machine with run id,
+    task id, project id and display name, task title, mode, posture, status and elapsed
+    time, plus max_concurrent_runs and occupied slot count. Verified with runs live
+    in two different projects at once.
+  status: pending
+- id: ac-2
+  text: A nav tab lists those runs, each linking to its task's page, with a count
+    badge that shows the live count and reads zero when nothing is running.
+  status: pending
+- id: ac-3
+  text: The Dashboard carries a compact panel showing capacity and the running tasks,
+    and the Dashboard still passes task-294's no-scroll assertion (documentElement.scrollHeight
+    <= window.innerHeight) at the viewports that task names.
+  status: pending
+- id: ac-4
+  text: Both surfaces refresh without a manual reload, through the existing live-update
+    mechanism; a run that ends is gone from both within one update cycle.
+  status: pending
+- id: ac-5
+  text: A run whose process is no longer alive is not rendered as working. The record
+    states what it renders as, and whether finishes and runway holders appear alongside
+    runs.
+  status: pending
+- id: ac-6
+  text: The record states, as a decision, where the machine-wide route lives and why
+    it is not under /api/projects/{id}.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-294
+  type: related
+  note: 'Constrains the Dashboard panel: the Dashboard must fit one viewport with
+    no scrolling.'
+- task: task-191
+  type: related
+  note: Named this feature and deferred it as out of scope for a throughput task.
+- task: task-212
+  type: related
+  note: Owns the analytics surface; historical run data belongs there, not here.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-04T01:37:41.477924Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: be3e3d6d-4d5d-40e5-aa99-044183f6ba32
+      kind: create
+      fingerprint: 0e42cf91f1ee8175965625f673a55b72
+- id: 2
+  ts: '2026-09-04T01:38:28.306089Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: dd426063-c322-4b22-b2c9-736e7de59a5a
+      kind: update_content
+      fingerprint: 09e7d52de1c37dfca241422ad683e033
