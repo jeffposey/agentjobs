@@ -2,7 +2,7 @@ schema: 2
 id: task-329
 title: 'Principals: resolve who is asking, per request, before any handler runs'
 created: '2026-09-04T03:26:29.534859Z'
-updated: '2026-09-04T04:00:40.731075Z'
+updated: '2026-09-04T04:01:05.026940Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -552,3 +552,17 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 12
+  ts: '2026-09-04T04:01:05.026756Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-329-principal-resolution` (883e2db6).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-329.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_2f382546\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-329-principal-resolution
+    finish_id: fin_2f382546
