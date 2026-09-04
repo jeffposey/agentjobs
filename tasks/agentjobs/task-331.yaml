@@ -2,7 +2,7 @@ schema: 2
 id: task-331
 title: 'Run principals: a dispatched agent identifies as its run, never as a person'
 created: '2026-09-04T03:27:26.962795Z'
-updated: '2026-09-04T05:35:45.086688Z'
+updated: '2026-09-04T05:41:17.423961Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -606,3 +606,21 @@ log:
     finish_step: started
     branch: feat/task-331-run-credential
     finish_id: fin_f1703fab
+- id: 16
+  ts: '2026-09-04T05:41:17.423795Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-331-run-credential` into `main` as `1774f803`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-331
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    epic) releases the merge gate (task-021), and run run_ba7a4a0d ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 1774f803b6e45f083a3e50bd4575a3f8d71c3110
+    branch: feat/task-331-run-credential
+    base: main
