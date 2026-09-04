@@ -3,10 +3,53 @@ id: task-327
 title: Dispatch captures the run stub as the session id, so every run is reported
   interrupted and no transcript is findable
 created: '2026-09-04T01:20:45.863726Z'
-updated: '2026-09-04T01:20:46.438417Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-09-04T01:37:47.407056Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: "Ready to merge. Branch `fix/task-327-capture-session-id` at `afb07120`,\
+  \ rebased onto current `main`, one commit, nothing pushed.\n\n**What changed**,\
+  \ all in `src/agentjobs/dispatch/runner.py`:\n\n`capture_session_id` strips ANSI\
+  \ escapes before matching, and scans every 8-hex token on a line rather than stopping\
+  \ at the first. It reuses `strip_ansi`, which was already in that module -- applied\
+  \ to terminal output meant for a person to read, and never applied to the one value\
+  \ the system itself would act on. It also takes a `reject`, and the call site passes\
+  \ the run's own stub: a run's id can never be the id the CLI assigned, so a future\
+  \ change to the `--name` format cannot break this again whatever it puts on the\
+  \ line.\n\n**The evidence that it is the right fix.** Reverting only the source\
+  \ and running the case that passes no `reject`, against run_703a9997's real bytes:\n\
+  \n```\n>       assert DispatchRunner.capture_session_id(self.NAMED) == \"1b5f4a48\"\
+  \nE       AssertionError: assert '703a9997' == '1b5f4a48'\n```\n\nThat matters because\
+  \ it shows the repair is the escape-stripping and not the `reject` filter. Had it\
+  \ been the filter, the parse would still be broken underneath and the next name\
+  \ format carrying a hex token would reintroduce this.\n\n**The finding worth your\
+  \ attention, which is not the bug.** Every fixture that existed for this code path\
+  \ writes the launcher line as `print(\"backgrounded \xB7 b55b35ad \xB7 aj-task\"\
+  )`. That drops the ANSI escape -- the entire defect -- and puts no hex-shaped run\
+  \ stub on the line to be caught instead. Five test files do it the same way, and\
+  \ that is why a green suite coexisted with every dispatched run recording the wrong\
+  \ id. The new fixtures are byte-verbatim from run_703a9997 and run_5fb17eb0, escapes\
+  \ and CRLF intact, with a comment saying they must stay that way. If you want one\
+  \ thing reviewed harder than the fix, make it that: the same approximation habit\
+  \ is presumably elsewhere.\n\n**Verification.** `scripts/check.py` unqualified on\
+  \ the rebased branch: exit 0, ten of ten stages, 266.5s, receipt written for afb07120.\
+  \ Seven new cases in `TestCaptureSessionId`.\n\n**One criterion is deliberately\
+  \ still pending.** ac-5 -- that a live dispatched run records the id `claude agents\
+  \ --json` reports -- cannot be checked before merge, because the dispatcher runs\
+  \ from the main clone. It is the real proof, so please dispatch something after\
+  \ merging and confirm the recorded `session_id` matches the live session and the\
+  \ run is not stamped `interrupted` while it works. I will do that if you would rather.\n\
+  \n**Two things I did not do, and why.** I did not re-stamp the false `interrupted`\
+  \ outcomes on past runs -- they are historical record, and task-023 log entry 19\
+  \ explains what each of them actually meant. And I did not touch task-324's `--name`\
+  \ format: it works as designed and other surfaces now depend on session names, so\
+  \ the repair belongs in the capture rather than in the thing being captured.\n\n\
+  **Context you may not have.** This is the bug that hid tonight's real failure. Your\
+  \ CLI login had expired, so dispatched sessions died instantly on `authentication_failed`\
+  \ -- but under this bug a dead run and a healthy one produce identical dashboard\
+  \ output, which is why it took three dispatches to find. Fixing the capture is also\
+  \ what restores auth-stall detection: `dispatch/auth.py:_belongs_to` matches transcript\
+  \ entries on `sessionId.startswith(session_id)` and could never match a run stub."
 archived: false
 priority: critical
 queue_position: 193
@@ -17,6 +60,7 @@ tags:
 - reliability
 effort: an hour
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: '`capture_session_id` reads the wrong 8-hex token out of the launcher''s
@@ -175,30 +219,48 @@ acceptance:
 - id: ac-1
   text: capture_session_id returns the CLI-assigned session id from launcher output
     containing ANSI colour escapes and a --name suffix carrying the run stub
-  status: pending
+  verify: TestCaptureSessionId::test_the_coloured_id_is_read_not_the_run_stub_beside_it,
+    and test_the_id_is_found_even_with_no_reject_to_help which passes no reject and
+    so proves the parse itself is repaired. Both against run_703a9997's verbatim bytes.
+  status: met
 - id: ac-2
   text: The run stub is never returned as a session id, even when it is the only cleanly
     delimited 8-hex token in the output
-  status: pending
+  verify: TestCaptureSessionId::test_a_run_never_adopts_its_own_stub_as_a_session_id
+    returns None rather than the stub; test_the_stub_is_skipped_in_favour_of_a_real_id_later_on_the_line
+    covers the stub appearing before a genuine id on one line.
+  status: met
 - id: ac-3
   text: Launcher output in the pre-task-324 shape still resolves to the correct session
     id
-  status: pending
+  verify: TestCaptureSessionId::test_the_pre_naming_shape_still_resolves, against
+    run_5fb17eb0's verbatim output (2026-08-29, no --name).
+  status: met
 - id: ac-4
   text: Regression tests use byte-verbatim launcher output including ANSI escapes,
     taken from real runs
-  status: pending
+  verify: 'The NAMED and UNNAMED fixtures are the stdout.log of run_703a9997 and run_5fb17eb0,
+    escapes and CRLF intact. The class docstring records why an approximation is worthless
+    here: every pre-existing fixture in five test files used a plain print() that
+    drops the escape, which is why the suite stayed green.'
+  status: met
 - id: ac-5
   text: A live dispatched run's recorded session_id matches the sessionId claude agents
     --json reports for it, and the run is not stamped interrupted while working
+  verify: 'Not verifiable before merge: it needs a real dispatch, and the dispatcher
+    runs from the main clone. To be checked on the first dispatch after this merges.'
   status: pending
 - id: ac-6
   text: poetry run python scripts/check.py exits 0 unqualified
-  status: pending
+  verify: 'Green on the rebased branch at afb07120, 2026-09-03: ten of ten stages,
+    266.5s, ''Ran every stage (10 of 10)'', gate receipt written. Log at scratchpad/gate-327c.log.'
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-327-capture-session-id
+  status: active
 log:
 - id: 1
   ts: '2026-09-04T01:20:46.437339Z'
@@ -211,3 +273,123 @@ log:
       id: b91d7e34-6cc2-4a58-8d05-31f9a7c6be05
       kind: create
       fingerprint: d0f95587ac1345c4e65e9aad7d77bbb5
+- id: 2
+  ts: '2026-09-04T01:21:07.714704Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 2a8f61c7-40be-4d39-b7f2-9e0c5a13d846
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-09-04T01:31:52.058809Z'
+  actor: claude
+  type: progress
+  body: "Fix written and proven on branch `fix/task-327-capture-session-id`, worktree\
+    \ `../worktrees/agentjobs-327`.\n\n**The change**, `src/agentjobs/dispatch/runner.py`:\n\
+    \n- `capture_session_id` now strips ANSI escapes before matching, and scans every\
+    \ match on a line rather than only the first. It reuses the module's existing\
+    \ `strip_ansi` -- which was already there, already applied to terminal output\
+    \ meant for a person to read. The id was the one place the same stripping was\
+    \ needed for a value something else would act on, and the one place it was not\
+    \ used.\n- It gained `reject: Optional[str]`, and the call site passes `short_run_id(run_id)`.\
+    \ A run's own stub can never be the id the CLI assigned, so a future change to\
+    \ the `--name` format cannot resurrect this however it shapes the line.\n- The\
+    \ docstring was wrong twice over -- it claimed to read the first line, when the\
+    \ value routinely arrived on line 3 -- and now says what the function does and\
+    \ why the stripping is load-bearing.\n\n**Proof the test catches the defect.**\
+    \ Reverting only the source change and running the one case that passes no `reject`,\
+    \ against the verbatim bytes of run_703a9997:\n\n```\n>       assert DispatchRunner.capture_session_id(self.NAMED)\
+    \ == \"1b5f4a48\"\nE       AssertionError: assert '703a9997' == '1b5f4a48'\n```\n\
+    \nSo the repair is the ANSI stripping, not the `reject` filter -- had it been\
+    \ the filter, the parse would still be broken and the next name format carrying\
+    \ a hex token would break it again. Seven cases in `TestCaptureSessionId`, all\
+    \ green with the fix.\n\n**Why the suite was green through all of this**, which\
+    \ is the more useful finding: every pre-existing fixture approximates the launcher\
+    \ with `print(\"backgrounded \xB7 b55b35ad \xB7 aj-task\")`. That drops the ANSI\
+    \ escape -- the entire defect -- and puts no hex-shaped run stub on the line to\
+    \ be caught instead. Five test files did it the same way. The new fixtures are\
+    \ byte-verbatim from real runs, escapes and CRLF included, with a comment saying\
+    \ why they must stay that way.\n\n**Not yet done:** task-023 merged to `main`\
+    \ while this was in flight (`fdb6f3c`), so this branch is behind and its gate\
+    \ ran against the older base. Rebasing onto `main` and re-running the unqualified\
+    \ gate next. ac-5 (a live dispatch recording the right id) is verifiable only\
+    \ after merge, since it needs a real dispatched run."
+  data:
+    operation:
+      id: 5e7a2c19-8d43-4b06-9f21-c3a806e4d752
+      kind: log_append
+      fingerprint: 473480f097b2e758a7dcaed94edc28d1
+- id: 4
+  ts: '2026-09-04T01:37:27.513679Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 9b3f7d21-6e08-4c95-a7d2-14fb0e93a586
+      kind: update_content
+      fingerprint: f23dc7bc2d0e40545e23d58027a0b3f6
+- id: 5
+  ts: '2026-09-04T01:37:47.406812Z'
+  actor: claude
+  type: handoff
+  body: "Ready to merge. Branch `fix/task-327-capture-session-id` at `afb07120`, rebased\
+    \ onto current `main`, one commit, nothing pushed.\n\n**What changed**, all in\
+    \ `src/agentjobs/dispatch/runner.py`:\n\n`capture_session_id` strips ANSI escapes\
+    \ before matching, and scans every 8-hex token on a line rather than stopping\
+    \ at the first. It reuses `strip_ansi`, which was already in that module -- applied\
+    \ to terminal output meant for a person to read, and never applied to the one\
+    \ value the system itself would act on. It also takes a `reject`, and the call\
+    \ site passes the run's own stub: a run's id can never be the id the CLI assigned,\
+    \ so a future change to the `--name` format cannot break this again whatever it\
+    \ puts on the line.\n\n**The evidence that it is the right fix.** Reverting only\
+    \ the source and running the case that passes no `reject`, against run_703a9997's\
+    \ real bytes:\n\n```\n>       assert DispatchRunner.capture_session_id(self.NAMED)\
+    \ == \"1b5f4a48\"\nE       AssertionError: assert '703a9997' == '1b5f4a48'\n```\n\
+    \nThat matters because it shows the repair is the escape-stripping and not the\
+    \ `reject` filter. Had it been the filter, the parse would still be broken underneath\
+    \ and the next name format carrying a hex token would reintroduce this.\n\n**The\
+    \ finding worth your attention, which is not the bug.** Every fixture that existed\
+    \ for this code path writes the launcher line as `print(\"backgrounded \xB7 b55b35ad\
+    \ \xB7 aj-task\")`. That drops the ANSI escape -- the entire defect -- and puts\
+    \ no hex-shaped run stub on the line to be caught instead. Five test files do\
+    \ it the same way, and that is why a green suite coexisted with every dispatched\
+    \ run recording the wrong id. The new fixtures are byte-verbatim from run_703a9997\
+    \ and run_5fb17eb0, escapes and CRLF intact, with a comment saying they must stay\
+    \ that way. If you want one thing reviewed harder than the fix, make it that:\
+    \ the same approximation habit is presumably elsewhere.\n\n**Verification.** `scripts/check.py`\
+    \ unqualified on the rebased branch: exit 0, ten of ten stages, 266.5s, receipt\
+    \ written for afb07120. Seven new cases in `TestCaptureSessionId`.\n\n**One criterion\
+    \ is deliberately still pending.** ac-5 -- that a live dispatched run records\
+    \ the id `claude agents --json` reports -- cannot be checked before merge, because\
+    \ the dispatcher runs from the main clone. It is the real proof, so please dispatch\
+    \ something after merging and confirm the recorded `session_id` matches the live\
+    \ session and the run is not stamped `interrupted` while it works. I will do that\
+    \ if you would rather.\n\n**Two things I did not do, and why.** I did not re-stamp\
+    \ the false `interrupted` outcomes on past runs -- they are historical record,\
+    \ and task-023 log entry 19 explains what each of them actually meant. And I did\
+    \ not touch task-324's `--name` format: it works as designed and other surfaces\
+    \ now depend on session names, so the repair belongs in the capture rather than\
+    \ in the thing being captured.\n\n**Context you may not have.** This is the bug\
+    \ that hid tonight's real failure. Your CLI login had expired, so dispatched sessions\
+    \ died instantly on `authentication_failed` -- but under this bug a dead run and\
+    \ a healthy one produce identical dashboard output, which is why it took three\
+    \ dispatches to find. Fixing the capture is also what restores auth-stall detection:\
+    \ `dispatch/auth.py:_belongs_to` matches transcript entries on `sessionId.startswith(session_id)`\
+    \ and could never match a run stub."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: c8a05f63-7b91-4d24-8e36-a2f14b70c539
+      kind: handoff
+      fingerprint: 4bd861c6d0cca4eca8d6b991a30fd9a8

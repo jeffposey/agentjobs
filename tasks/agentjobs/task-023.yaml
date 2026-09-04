@@ -3,7 +3,7 @@ id: task-023
 title: Dispatch output is a raw terminal dump; render the session's structured transcript
   instead
 created: '2026-08-19T22:31:46.196691Z'
-updated: '2026-09-04T01:27:48.914514Z'
+updated: '2026-09-04T01:31:13.500295Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -1223,3 +1223,50 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 29
+  ts: '2026-09-04T01:31:13.499992Z'
+  actor: claude
+  type: note
+  body: "The `interrupted` outcomes on this task's runs are false, and the cause is\
+    \ now task-327.\n\n`capture_session_id` recorded each run's own run stub instead\
+    \ of the session id the CLI assigned, because the launcher colours the id and\
+    \ the ANSI escape defeats the leading word boundary in `\\b([0-9a-f]{8})\\b`.\
+    \ The poller then looked the stub up in the session ledger, never found it, and\
+    \ wrote \"The session is no longer in the ledger.\"\n\nWhat those verdicts actually\
+    \ meant, run by run:\n\n- `run_5fb17eb0` (entry 14, `interrupted` after 32705s):\
+    \ the run **succeeded**. Its session was `553f321b`, it worked for nine hours\
+    \ and produced the review handoff in entry 13. Note this one recorded its session\
+    \ id correctly -- it predates task-324's `--name`, so the scan fell through to\
+    \ the `claude attach 553f321b` line. The false verdict here has a different cause:\
+    \ by the time it was polled the session had genuinely aged out of the ledger.\n\
+    - `run_79dc23dd` (entry 18, `interrupted` after 12s): a **real failure, wrongly\
+    \ described**. Session `00b1661b` resumed correctly and the ball prompt was delivered\
+    \ to it, but the CLI's OAuth token had expired and the session answered `authentication_failed`\
+    \ / \"Login expired \xB7 Please run /login\" twice. Its meta has since also picked\
+    \ up `reap_blocked: No job matching '79dc23dd'` -- the reaper trying to stop a\
+    \ session id that never existed.\n- `run_bf3b2e25` (`interrupted` after 3s): the\
+    \ same auth failure, cold start, session `2d96ac95`.\n- `run_703a9997` (`interrupted`\
+    \ after 7s): the run **is working**. Session `1b5f4a48`, dispatched after Jeff\
+    \ ran `claude auth login` at 20:12 local; `claude agents --json` reported it `busy`/`working`\
+    \ with a growing transcript while the dashboard showed it dead.\n\nTwo consequences\
+    \ worth carrying into this task's own review rather than leaving in chat:\n\n\
+    1. The auth failure was invisible for three dispatches because a dead run and\
+    \ a healthy one produce byte-identical dashboard output under this bug. Fixing\
+    \ the capture is what makes an auth stall visible again -- `dispatch/auth.py:_belongs_to`\
+    \ matches transcript entries on `sessionId.startswith(session_id)`, which cannot\
+    \ match a run stub, so `_stall_in` has been unable to see an auth stall in a transcript\
+    \ that plainly contained one.\n2. **This defeats the feature under review here.**\
+    \ `find_session_transcript` globs `{session_id}*.jsonl` on the stated assumption\
+    \ that a run's recorded `session_id` is the first segment of the transcript's\
+    \ UUID (`dispatch/transcript.py:158`). Against a run stub that glob matches nothing,\
+    \ so every real dispatched run would fall back to the raw terminal dump. The sandbox\
+    \ looked right because it was fed a genuine session id by hand. Once task-327\
+    \ merges the assumption holds and the readable view works on live runs; until\
+    \ then, this branch's structured panel is correct code sitting on a bad input.\n\
+    \nNothing here asks for a change to this branch. task-327 carries the fix."
+  re: 18
+  data:
+    operation:
+      id: d4e1b8a6-93c7-4f52-b0d1-77ac2e5f9314
+      kind: log_append
+      fingerprint: 21e58c7f5cedcaa8b3e9365af8e46481
