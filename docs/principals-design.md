@@ -1,13 +1,18 @@
 # Principals: who is asking
 
-> **Partly shipped.** Resolution is real and covered by tests (task-329): every request
-> resolves to exactly one principal, or to a reported absence, before any handler runs.
-> **Nothing is enforced.** No route reads the principal, no request is refused, and the
-> API remains as open as [the API reference](api-reference.md) says it is. The three
-> children that change that are named at the foot of this page.
+> **Partly shipped.** Resolution is real and covered by tests (task-329), and the run
+> credential it resolves is real and minted at dispatch (task-331): every request
+> resolves to exactly one principal, or to a reported absence, before any handler runs,
+> and a dispatched agent now resolves as its **run** rather than as the person at the
+> machine. **Nothing is enforced.** No route reads the principal to decide anything, no
+> request is refused, and the API remains as open as
+> [the API reference](api-reference.md) says it is. The children that change that are
+> named at the foot of this page.
 
-Implemented in [`src/agentjobs/principals.py`](https://github.com/jeffposey/agentjobs/blob/main/src/agentjobs/principals.py),
-wired in `api/dependencies.py` and `api/main.py`, tested in `tests/test_principals.py`.
+Implemented in [`src/agentjobs/principals.py`](https://github.com/jeffposey/agentjobs/blob/main/src/agentjobs/principals.py)
+and [`src/agentjobs/dispatch/credentials.py`](https://github.com/jeffposey/agentjobs/blob/main/src/agentjobs/dispatch/credentials.py),
+wired in `api/dependencies.py` and `api/main.py`, reported by `GET /api/whoami`, tested
+in `tests/test_principals.py` and `tests/test_run_credentials.py`.
 
 ## The model
 
@@ -79,25 +84,75 @@ Two consequences worth stating plainly rather than discovering later:
   credential rather than by path. Narrowing it further needs the proxy to prove it is
   the proxy, which is a proxy-side change (task-244).
 
-## The two seams left open
+## The run credential
 
-Both are stubs on purpose, so that the risky work arrives on a foundation that is
-already tested rather than alongside it.
+Minted by `dispatch/credentials.py` when the ledger starts a run, and installed over
+`no_run_credentials` by the API application at import. It is what turns rule 1 from a
+slot into a boundary.
 
-- `no_run_credentials` is the installed verifier, and it verifies nothing. **With it
-  in place no request can resolve `run`**, which is what makes this change inert.
-  Task-331 replaces it through `set_run_credential_verifier`.
+| | |
+| --- | --- |
+| **Shape** | `<run_id>.<nonce>` — the run id in the clear, 256 bits from the OS CSPRNG behind it |
+| **Stored** | its SHA-256 digest only, in the run's own directory, `0600`. The ledger holds nothing replayable |
+| **Delivered** | in the child process's environment. For a Claude `--bg` session, whose worker is spawned by a daemon that discards the launcher's environment, through the `0600` session-settings document `session_env` already writes for secrets |
+| **Never** | in argv — which is recorded verbatim into `meta.yaml` *and* into the task's dispatch log entry — nor in any task record, log entry, transcript or API response |
+| **Expires** | with its run. Verification reads the run's status, and the write that ends a run destroys the digest as well |
+
+### What it buys, and what it does not
+
+**A run can read its own credential out of its own environment, and nothing stops it
+passing that credential to something else.** The property this buys is **"an agent cannot
+claim to be a person"**, not "an agent cannot misbehave as itself". A run principal is
+strictly less capable than an owner once task-332 gives either of them capabilities, so
+there is no escalation path through it — but it is **not a secret from the agent holding
+it**, and anything built on the assumption that it is will be unsound.
+
+Stated here because the natural next assumption is the wrong one, and because
+`docs/agent-dispatch-design.md` already overclaimed once in the same direction: it calls
+the self-dispatch loop structurally impossible, and it is bounded rather than impossible.
+Task-334 corrects that prose.
+
+### Refusal, never fallback
+
+Two ways a credential can fail, and neither resolves the owner:
+
+- **`unverified_run_credential`** — it proves nothing. Malformed, an unknown run, or a
+  digest that does not match.
+- **`expired_run_credential`** — it is genuine and its run has ended.
+
+They are separate problems because "somebody presented a forgery" and "a real run
+outlived its credential" are different events for whoever is reading the log. Falling
+back to a *more capable* principal on expiry would invert the entire control, which is
+why the second one exists rather than being folded into silence.
+
+### A run that has no credential
+
+A run dispatched before this shipped, or one whose settings document could not be
+written, carries none — and therefore resolves as **`owner`**, exactly as every run did
+before task-331. That is the pre-existing state rather than a new hole, and it is the
+narrowest answer available today: nothing is enforced yet, so there is no less-capable
+principal to assign, and refusing such a run outright would break dispatch for the case
+the constraint says must keep working. A session whose credential could not be delivered
+records `session_env: uncredentialed` on its run, so this is readable off the ledger
+rather than inferred. Task-332, which decides what each kind may do, is where an
+uncredentialed run stops being indistinguishable from a person.
+
+## The seam left open
+
+A stub on purpose, so that the risky work arrives on a foundation that is already tested
+rather than alongside it.
+
 - `actor_id` is `None` on every resolved principal. Guessing a mapping here would
   write an attribution nobody configured — the failure
   [`agentjobs.actors`](https://github.com/jeffposey/agentjobs/blob/main/src/agentjobs/actors.py)
-  exists to prevent. Task-330 owns it.
+  exists to prevent. Task-330 owns it. It stays `None` forever for a `run`: a run is not
+  a human and must never be attributed as one.
 
 ## What comes next
 
 | Task | Adds |
 | --- | --- |
 | task-330 | maps a proven login to a configured actor, replacing `human_identity`'s `MULTIPLE` refusal with a per-request answer |
-| task-331 | mints the run credential at dispatch and installs the verifier |
 | task-332 | capabilities per principal kind, and what an absent principal means |
 | task-244 | sets the identity header at the proxy |
 

@@ -420,6 +420,15 @@ a name must never depend on which version of AgentJobs is installed.
 | `GET` | `/api/tasks/{task_id}/attachments/{filename}` | Fetch a file attached to a task |
 | `GET` | `/api/health` | Liveness. Returns `{"status": "ok"}` |
 | `GET` | `/api/version` | Package version, schema version, YAML loader, source root and commit, start time, and whether the frontend bundle is present |
+| `GET` | `/api/whoami` | Who this request resolved as: `owner`, `tailnet`, or a dispatched `run` naming its run and task |
+
+`GET /api/whoami` reports identity and enforces nothing -- every other route answers
+exactly as it did before, for every caller. It is how a dispatched agent can see that the
+service resolved it as its **run** rather than as the person at the machine: a run
+presents a credential minted at dispatch, and loopback without one is the owner. The
+answer never echoes the credential, and a run's `actor_id` is always null, because a run
+is not a human and must never be attributed as one. See the
+[principals design](principals-design.md).
 
 `GET /api/version` is the route to ask when something looks stale. `source_root` and
 `source_commit` are fixed at process start, so they describe the code **in memory**

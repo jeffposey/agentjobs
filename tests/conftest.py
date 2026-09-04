@@ -9,6 +9,8 @@ from typing import Iterator
 from agentjobs.api.dependencies import reset_dependency_cache
 from agentjobs.dispatch.address import ApiBaseProbe
 from agentjobs.dispatch.auth import CLAUDE_HOME_ENV
+from agentjobs.dispatch.credentials import verify_run_credential
+from agentjobs.principals import set_run_credential_verifier
 from agentjobs.projects import HOME_ENV
 
 # The shared write-guard matrix holds assertions but is imported by the two hook test
@@ -38,6 +40,21 @@ def isolate_project_registry(tmp_path_factory, monkeypatch) -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def the_production_run_credential_verifier() -> Iterator[None]:
+    """Start every test with the verifier the served application installs (task-331).
+
+    The verifier is a module global, and several tests legitimately swap it -- for a
+    fake, or for the no-op default -- inside a ``try/finally``. Restoring it here rather
+    than in each of those makes the restore the same in all of them and makes the order
+    tests happen to run in stop mattering: without this, a test that reset to the no-op
+    would silently disarm run resolution for everything that followed it in that worker.
+    """
+    set_run_credential_verifier(verify_run_credential)
+    yield
+    set_run_credential_verifier(verify_run_credential)
+
+
+@pytest.fixture(autouse=True)
 def never_inside_a_dispatched_run(monkeypatch) -> None:
     """Detach every test from any dispatched run this process happens to belong to.
 
@@ -51,8 +68,13 @@ def never_inside_a_dispatched_run(monkeypatch) -> None:
     ``scripts/check.py`` scrubs the pair for its own children, which covers the gate.
     This covers a bare ``pytest`` too, and is the guarantee that does not depend on how
     the suite was started. A test about the records sets the variables itself.
+
+    The credential (task-331) is scrubbed here too, for a related reason: a test that
+    inherited a live run's credential would have every ``TaskClient`` it builds resolve
+    as that run instead of as the owner, so the suite would be measuring the ambient
+    environment rather than the state it set up.
     """
-    for name in ("AGENTJOBS_RUN_ID", "AGENTJOBS_RUN_DIR"):
+    for name in ("AGENTJOBS_RUN_ID", "AGENTJOBS_RUN_DIR", "AGENTJOBS_RUN_CREDENTIAL"):
         monkeypatch.delenv(name, raising=False)
 
 

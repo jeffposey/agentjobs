@@ -15,9 +15,27 @@ import httpx
 from pydantic import BaseModel, Field
 
 from .models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome, Priority, Task
+from .principals import RUN_CREDENTIAL_HEADER
 from .schema_tolerance import tolerant_enum_values
 
 logger = logging.getLogger(__name__)
+
+
+def run_credential_headers() -> Dict[str, str]:
+    """The identity header this process presents, if it is inside a dispatched run.
+
+    Read from the environment at construction, so a client built inside a run says which
+    run it is and a client built anywhere else says nothing. Outside a run the mapping is
+    empty and every request is exactly what it was before task-331 -- which is what keeps
+    the desktop dashboard, the CLI at a human's keyboard, and every test the owner.
+
+    A late import of :mod:`agentjobs.dispatch.credentials` keeps ``client`` free of the
+    dispatch package, which imports the manager.
+    """
+    from .dispatch.credentials import presented_credential
+
+    token = presented_credential()
+    return {RUN_CREDENTIAL_HEADER: token} if token else {}
 
 
 class ProjectActor(BaseModel):
@@ -163,6 +181,7 @@ class TaskClient:
                 base_url=self._base_url,
                 timeout=timeout,
                 transport=transport,
+                headers=run_credential_headers(),
             )
 
     @property
@@ -219,6 +238,19 @@ class TaskClient:
     def service_health(self) -> Dict[str, Any]:
         """Return the service health payload, raising when it is unreachable."""
         response = self._request("GET", "/api/health")
+        payload: Dict[str, Any] = response.json()
+        return payload
+
+    def service_whoami(self) -> Dict[str, Any]:
+        """Return who the service resolved this client as.
+
+        The answer a dispatched agent gets is ``run``, naming its own run and task,
+        because :func:`run_credential_headers` put its credential on every request this
+        client makes. The answer anyone else on the machine gets is ``owner``. That split
+        is the whole of task-331, and this is how a caller can see which side of it it is
+        on without reading the server's logs.
+        """
+        response = self._request("GET", "/api/whoami")
         payload: Dict[str, Any] = response.json()
         return payload
 

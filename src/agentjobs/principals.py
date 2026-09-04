@@ -37,7 +37,7 @@ from __future__ import annotations
 import ipaddress
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Mapping, Optional
+from typing import Callable, Mapping, Optional, Union
 
 IDENTITY_HEADER = "x-tailscale-user"
 """The header the front door sets to name the caller it authenticated.
@@ -51,8 +51,9 @@ does not resolve ``tailnet``.
 RUN_CREDENTIAL_HEADER = "x-agentjobs-run"
 """The header a dispatched run presents its credential in.
 
-The credential itself is minted in task-331. This task defines the slot and the
-precedence so that arrives on a foundation that is already tested.
+The credential is minted in :mod:`agentjobs.dispatch.credentials` (task-331); this
+module defines the slot and the precedence, and landing them separately is why the
+precedence was tested before there was anything to present.
 """
 
 
@@ -88,6 +89,7 @@ class Problem(str, Enum):
 
     NO_PROVEN_IDENTITY = "no_proven_identity"
     UNVERIFIED_RUN_CREDENTIAL = "unverified_run_credential"
+    EXPIRED_RUN_CREDENTIAL = "expired_run_credential"
 
 
 @dataclass(frozen=True)
@@ -96,6 +98,25 @@ class RunCredential:
 
     run_id: str
     task_id: str = ""
+
+
+@dataclass(frozen=True)
+class Refusal:
+    """A verifier saying *why* a credential proves nothing, rather than only that.
+
+    A verifier may return ``None`` and be done with it; that is a forgery, and the
+    sentence :func:`resolve_principal` writes for it is right. This exists for the one
+    case where the distinction is worth keeping: a credential that is genuine and whose
+    run has ended (task-331). "Somebody presented a forgery" and "a real run outlived its
+    credential" are different events for an operator reading a log, and task-332 may want
+    to answer them differently.
+
+    Both outcomes stop resolution dead. **Neither ever falls through to ``owner``** --
+    that is the invariant a refusal exists to make explicit, not to weaken.
+    """
+
+    problem: Problem
+    detail: str = ""
 
 
 @dataclass(frozen=True)
@@ -171,18 +192,24 @@ class Resolution:
         return f"no principal ({problem})"
 
 
-RunCredentialVerifier = Callable[[str], Optional[RunCredential]]
-"""Turns a presented credential into the run it proves, or ``None`` if it proves nothing."""
+RunCredentialVerifier = Callable[[str], Union[RunCredential, Refusal, None]]
+"""Turns a presented credential into the run it proves, or says it proves nothing.
+
+Three return shapes, widened from two by task-331: the credential, a :class:`Refusal`
+naming why a genuine-looking credential is being rejected, or ``None`` for "this proves
+nothing". A verifier written against the original ``Optional[RunCredential]`` signature
+still satisfies this one -- return types are covariant -- so nothing that installed a
+verifier before had to change.
+"""
 
 
 def no_run_credentials(presented: str) -> Optional[RunCredential]:
-    """Verify nothing, because nothing mints credentials yet (task-331).
+    """Verify nothing: the default, for an application that mints no credentials.
 
-    The default verifier, and the reason this task is inert: with it installed, no
-    request can resolve ``run``, so precedence rule 1 never fires in production and the
-    only thing that has changed is that a slot exists. Task-331 replaces it via
-    :func:`set_run_credential_verifier`; the tests here install a fake one, which is
-    how the precedence is proved before the credential exists.
+    With it installed no request can resolve ``run``, so precedence rule 1 never fires.
+    That was the whole of production until task-331; today the API application installs
+    :func:`agentjobs.dispatch.credentials.verify_run_credential` over it at import, and
+    this remains what a bare import of this module, and every test that resets, gets.
     """
     return None
 
@@ -275,7 +302,9 @@ def resolve_principal(
         would otherwise be indistinguishable from the person at the machine. A
         credential that is presented and does *not* verify resolves nothing -- it must
         not fall through to ``owner``, or presenting rubbish would be a way to be
-        promoted from agent to person, which is the whole chain this epic closes.
+        promoted from agent to person, which is the whole chain this epic closes. That
+        holds whichever way the verifier says no: ``None`` for a forgery, a
+        :class:`Refusal` for a genuine credential whose run has ended.
     2.  **Proven identity header**, believed only from the front door -- see
         :func:`is_front_door`.
     3.  **Loopback with no credential**: the owner.
@@ -290,6 +319,8 @@ def resolve_principal(
     presented = _header(headers, RUN_CREDENTIAL_HEADER)
     if presented:
         credential = verify(presented)
+        if isinstance(credential, Refusal):
+            return Resolution(problem=credential.problem, detail=credential.detail)
         if credential is None:
             return Resolution(
                 problem=Problem.UNVERIFIED_RUN_CREDENTIAL,

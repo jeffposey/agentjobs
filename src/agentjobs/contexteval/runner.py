@@ -232,8 +232,14 @@ def run_once(
     env = dict(os.environ)
     env.update(sandbox.env)
     # A dispatched parent exports these; inheriting them would make the eval's sessions
-    # append phase records to somebody else's run directory.
-    for leaked in ("AGENTJOBS_RUN_ID", "AGENTJOBS_RUN_DIR", "VIRTUAL_ENV"):
+    # append phase records to somebody else's run directory, and -- for the credential
+    # (task-331) -- speak to the API as that run.
+    for leaked in (
+        "AGENTJOBS_RUN_ID",
+        "AGENTJOBS_RUN_DIR",
+        "AGENTJOBS_RUN_CREDENTIAL",
+        "VIRTUAL_ENV",
+    ):
         env.pop(leaked, None)
 
     started = time.monotonic()
