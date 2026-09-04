@@ -2,7 +2,7 @@ schema: 2
 id: task-331
 title: 'Run principals: a dispatched agent identifies as its run, never as a person'
 created: '2026-09-04T03:27:26.962795Z'
-updated: '2026-09-04T05:29:56.832125Z'
+updated: '2026-09-04T05:35:45.086688Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -578,3 +578,31 @@ log:
       id: 3f1a5c62-7b40-4e19-9c11-0d8a4e331006
       kind: log_append
       fingerprint: 8338929c0c1061716cfdbedd4e92e768
+- id: 14
+  ts: '2026-09-04T05:30:11.603889Z'
+  actor: finisher
+  type: progress
+  body: 'Queued for this repository''s merge runway, held by fin_045ff513, pid 3048340
+    started at 00:27:17, 2m ago.
+
+
+    **This is the queue working, not a stall.** Children of an epic fly in parallel
+    and land one at a time, because a gate is only evidence about the base it ran
+    against. Nothing here is rebased, gated or merged until the runway is free.'
+  data:
+    finish_step: runway_queued
+    finish_id: fin_f1703fab
+- id: 15
+  ts: '2026-09-04T05:35:45.086520Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-331-run-credential` (3ed7c28c).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-331.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_f1703fab\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-331-run-credential
+    finish_id: fin_f1703fab
