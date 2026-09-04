@@ -3,7 +3,7 @@ id: task-244
 title: 'Tailnet proxy: prove identity at the front door, and keep project creation
   off the network'
 created: '2026-08-22T18:50:12.663333Z'
-updated: '2026-09-04T08:13:02.875988Z'
+updated: '2026-09-04T08:13:55.229199Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -859,3 +859,13 @@ log:
       id: 3f6a1c22-8b90-4a71-9d18-1c5e77b0424a
       kind: log_append
       fingerprint: 78f284505d2d32b2867d326412acb5b4
+- id: 18
+  ts: '2026-09-04T08:13:55.229047Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 7
+  data:
+    run_id: run_1359e53f
+    outcome: completed
+    duration_seconds: 4013.636501
+    log_path: C:\Users\jpose\.agentjobs\runs\run_1359e53f
