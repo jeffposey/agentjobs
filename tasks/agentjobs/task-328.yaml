@@ -3,7 +3,7 @@ id: task-328
 title: 'Nothing shows what is being worked right now: build the machine-wide live-run
   surface'
 created: '2026-09-04T01:37:40.980704Z'
-updated: '2026-09-04T02:00:18.372137Z'
+updated: '2026-09-04T02:44:39.403488Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -184,29 +184,43 @@ acceptance:
     task id, project id and display name, task title, mode, posture, status and elapsed
     time, plus max_concurrent_runs and occupied slot count. Verified with runs live
     in two different projects at once.
-  status: pending
+  verify: tests/test_live_runs_api.py::TestAcrossProjects; two-project answer shown
+    in the progress entry. One run real, one seeded -- the entry states that substitution
+    and why.
+  status: met
 - id: ac-2
   text: A nav tab lists those runs, each linking to its task's page, with a count
     badge that shows the live count and reads zero when nothing is running.
-  status: pending
+  verify: frontend/e2e/live-runs.spec.ts -- badge 0 -> 1 -> 0 against a real dispatched
+    process; row links into its task.
+  status: met
 - id: ac-3
   text: The Dashboard carries a compact panel showing capacity and the running tasks,
     and the Dashboard still passes task-294's no-scroll assertion (documentElement.scrollHeight
     <= window.innerHeight) at the viewports that task names.
+  verify: 'Panel built and measured at 44px (390x844 and 1280x800). The no-scroll
+    half is NOT met and cannot be as written: task-294 is still ready, so the Dashboard
+    fails that assertion today with or without this row. See the Dashboard-space decision
+    entry.'
   status: pending
 - id: ac-4
   text: Both surfaces refresh without a manual reload, through the existing live-update
     mechanism; a run that ends is gone from both within one update cycle.
-  status: pending
+  verify: frontend/e2e/live-runs.spec.ts, on a page never reloaded. Not LiveUpdates
+    -- the freshness decision entry says why it cannot carry a machine-wide signal.
+  status: met
 - id: ac-5
   text: A run whose process is no longer alive is not rendered as working. The record
     states what it renders as, and whether finishes and runway holders appear alongside
     runs.
-  status: pending
+  verify: tests/test_live_runs_api.py::TestHealth and ::TestOtherHolders; the health
+    decision entry states every mapping.
+  status: met
 - id: ac-6
   text: The record states, as a decision, where the machine-wide route lives and why
     it is not under /api/projects/{id}.
-  status: pending
+  verify: Decision entry 6, plus docs/api-reference.md and the module docstring.
+  status: met
 deliverables: []
 dependencies:
 - task: task-294
@@ -364,3 +378,227 @@ log:
       id: 9a1c33ba-7f2e-4c58-b0d1-2e3f4a5b6c71
       kind: update_content
       fingerprint: ee8a0cbfbd55ba82398e633fc944813f
+- id: 8
+  ts: '2026-09-04T02:42:28.630366Z'
+  actor: claude
+  type: decision
+  body: "**What a live-but-not-working run renders as, and whether finishes and the\
+    \ runway appear.** (ac-5)\n\n**`health`, a new field beside `status`, computed\
+    \ in `ledger.run_health()`.** `is_live` only means \"nothing has declared this\
+    \ over\", so a surface that renders every live run as *working* is asserting something\
+    \ the ledger never said. Every value is read off evidence already on disk \u2014\
+    \ nothing new is probed, nothing new is written:\n\n| health | what it is read\
+    \ from | rendered as |\n| --- | --- | --- |\n| `working` | `status: running` |\
+    \ \"Working\" (green) |\n| `starting` | `status: starting` | \"Starting\" (grey)\
+    \ |\n| `parked` | `status: parked` \u2014 the runner writes this when a session\
+    \ stops on a permission prompt or an expired login | \"Waiting on you\" (amber)\
+    \ |\n| `silent` | `status: stalled` \u2014 the poller writes this after `limits.session_stall_seconds`\
+    \ with no transcript growth (task-296) | \"No output\" (amber) |\n| `orphaned`\
+    \ | a **batch** run whose recorded pid is gone | \"Process gone\" (red) |\n| `unknown`\
+    \ | an unreadable or unrecognised meta | \"Unreadable\" (red) |\n\n**The pid deliberately\
+    \ gets no vote on a session run**, which is the trap the spec warned about, and\
+    \ the reason is `stale_lock_reason`'s own: a dispatched session outlives the process\
+    \ that launched it, so a dead pid is expected rather than diagnostic. Session\
+    \ runs record no pid at all today. The authoritative check for one is `session_ledger()`,\
+    \ which shells out to the session manager with a 60-second timeout \u2014 unusable\
+    \ on a two-second poll, and unnecessary, because **the API server serving this\
+    \ page is itself the poller** that writes `parked` and `stalled`. If the page\
+    \ renders, the statuses behind it are current.\n\n`stale_lock_reason` cannot detect\
+    \ this case and is not used for it. Its first rule is \"if the lock names a run,\
+    \ that run's record decides\" \u2014 which returns `None` for every live run,\
+    \ by design. It is used for the holders below, where it is exactly right.\n\n\
+    **Finishes and the merge runway appear, in their own section, and are not counted\
+    \ as occupied slots.** A scripted finish (task-241) and a repository's runway\
+    \ (task-223) are real machine activity, both hold locks, and neither has a run\
+    \ record \u2014 so during the ~3 minutes a merge takes, a runs-only surface would\
+    \ answer \"nothing is happening\". They are read by `ledger.live_lock_holders()`,\
+    \ the read-only twin of `release_stale_locks`: same `stale_lock_reason` filter,\
+    \ nothing deleted, so a finish whose process is gone is not listed.\n\nThey are\
+    \ **excluded from `occupied`** because `occupied` must equal what `dispatch/guards.py`\
+    \ counts (`len(live_runs(home))`) or this surface and a refused dispatch could\
+    \ disagree about whether the machine is full. A lock is not a run slot. The section\
+    \ says so in its own words: *\"They hold locks rather than run slots, so they\
+    \ are not in the count above \u2014 but a task cannot be dispatched while one\
+    \ holds it, and a repository's merges queue behind its runway.\"*\n\nA dispatch's\
+    \ own lock is **not** listed as a holder; it is the run above, and listing both\
+    \ would imply the machine is twice as busy as it is.\n"
+  data:
+    operation:
+      id: 5c9d21ee-7b40-4f0a-9d2a-8ab3c4d5e602
+      kind: log_append
+      fingerprint: b5c1cff1f3a7149815f4ea8f7574109a
+- id: 9
+  ts: '2026-09-04T02:42:47.494312Z'
+  actor: claude
+  type: decision
+  body: "**Freshness: the runs panel's own clock, not `LiveUpdates` \u2014 and unlike\
+    \ that panel, it never stops.** (spec item 4)\n\n`LiveUpdates` (task-086) cannot\
+    \ carry this signal, for two independent reasons:\n\n1. **It is project-scoped.**\
+    \ It polls one project's revision \u2014 a hash of *that project's* task files\
+    \ \u2014 and refetches an allowlist of queries keyed on that project id. A machine-wide\
+    \ answer is not covered by any single project's revision, and the run occupying\
+    \ the last slot is usually in a project the reader is not looking at.\n2. **The\
+    \ signal is wrong even for the right project.** A revision moves on a task write.\
+    \ Most of what changes here is not one: a session going quiet, a finish reaching\
+    \ its gate, a run's elapsed seconds. A page refetching only on revision changes\
+    \ would show \"Running for 3s\" until the run ended \u2014 which is exactly the\
+    \ reasoning `useTaskDispatch` already records for the per-task runs list.\n\n\
+    So this reuses that existing pattern rather than adding a third: `refetchInterval`\
+    \ on the query, 2s while anything is live. No new polling machinery, and no entry\
+    \ needed in `PROJECT_TASK_QUERY_IDS`/`NON_TASK_PROJECT_QUERY_IDS` \u2014 the drift\
+    \ test enumerates ids containing `ApiProjectsProjectId`, and `listLiveRunsApiRunsLiveGet`\
+    \ is deliberately not one.\n\n**One deliberate difference from the per-task panel:\
+    \ it never returns `false`.** That panel stops polling when nothing is live, and\
+    \ is right to: the only thing that starts a run there is the button beside it,\
+    \ which invalidates the query itself. This list has no such guarantee \u2014 the\
+    \ next run to appear will be started from another project's page, from the CLI,\
+    \ or by an epic walk \u2014 so a badge that had stopped polling would sit at zero\
+    \ through all of it. Idle polling is 15s, matched to `LiveUpdates.NORMAL_POLL_MS`,\
+    \ so an idle machine costs one extra request on a cadence the app already pays.\n\
+    \n**Rejected alternative: extend the revision poller to a machine-level revision.**\
+    \ That means a new endpoint hashing the run ledger, a second thing for `LiveUpdates`\
+    \ to poll, and a new drift-test category \u2014 more machinery than the `refetchInterval`\
+    \ this codebase already uses for exactly this, and it would still poll on a clock\
+    \ underneath.\n\n**A cost this exposed, and the fix that came with it.** This\
+    \ is the first thing in AgentJobs to read the whole run ledger *on a clock*. `list_runs`\
+    \ parses every run directory the machine has ever had \u2014 135 of them here,\
+    \ 224 KB, because a dispatch meta carries the full argv including a settings blob\
+    \ \u2014 and `read_run` was using `yaml.safe_load`, the pure-Python parser, while\
+    \ `storage.load_yaml` has always reached for libyaml. Measured 2026-09-04: **178\
+    \ ms \u2192 16.7 ms**, so `live_runs()` goes from ~204 ms to ~33 ms. At the 2s\
+    \ busy poll that is 1.6% of a core rather than 10%, and `dispatch/guards.py` gets\
+    \ the same saving on every dispatch. Committed separately (`1910f13`) so the perf\
+    \ change is reviewable on its own.\n"
+  data:
+    operation:
+      id: 7e2b45aa-9c18-4d33-8b71-5c6d7e8f9a03
+      kind: log_append
+      fingerprint: 81761c5ab49443ab356cf28c67a0f8be
+- id: 10
+  ts: '2026-09-04T02:43:10.193775Z'
+  actor: claude
+  type: decision
+  body: "**The Dashboard panel: what it costs, and what paid for it.** (ac-3)\n\n\
+    **Shape.** One line at the foot of the *existing* statistics card, beside the\
+    \ \"+N in backlog\" link that is already exactly this shape: a status dot, \"\
+    2 of 3 slots busy\", then up to two task titles, capped, with \"+N more\" \u2014\
+    \ the whole row linking to the Runs tab.\n\n**What paid for it: not adding a card.**\
+    \ A sixth top-level section would have cost its own `space-y-6` gap (24px), its\
+    \ own border and its own 24px padding before rendering a character \u2014 roughly\
+    \ 110px. Measured in Chromium against the sandbox, the row as built is **44px**\
+    \ at both 390x844 and 1280x800.\n\n**Nothing was cut, and that is a deliberate\
+    \ answer rather than an omission.** task-294 is still `ready` \u2014 the Dashboard\
+    \ scrolls today and does not pass its assertion, with or without this row. So\
+    \ \"the Dashboard *still* passes\" (ac-3's wording) is not satisfiable as written,\
+    \ and cutting one of the existing sections to buy 44px would not have made it\
+    \ satisfiable either: it would have removed something on a guess about a layout\
+    \ task-294 has not yet decided. Instead the row was made as small as a row can\
+    \ be, and the numbers are recorded here so task-294 inherits a measurement rather\
+    \ than an argument.\n\nMeasured 2026-09-04, Chromium, sandbox seeded with three\
+    \ tasks and two live runs:\n\n| viewport | scrollHeight without the row | with\
+    \ it | window.innerHeight |\n| --- | --- | --- | --- |\n| 390x844 (phone portrait)\
+    \ | 1587 | 1631 | 844 |\n| 1280x800 (desktop) | 1346 | 1390 | 800 |\n\nSo the\
+    \ row adds 44px to a page that is already 743px (phone) and 546px (desktop) over\
+    \ one viewport. **Its 44px is 5.9% of the phone overage.** task-294's own spec\
+    \ says most of the fitting problem is solved by task-212 moving the count tiles\
+    \ off this page; when that happens, this row moves with the card it lives in.\n\
+    \n**It renders when idle rather than vanishing.** A capacity row that disappears\
+    \ cannot be told from one that has broken, and \"nothing is running\" is what\
+    \ somebody opening the Dashboard most often wants to read.\n"
+  data:
+    operation:
+      id: a1b2c3d4-1111-4222-8333-444455556666
+      kind: log_append
+      fingerprint: 71d95ec1e1e1b6b6dbaf02e65593db58
+- id: 11
+  ts: '2026-09-04T02:43:47.022703Z'
+  actor: claude
+  type: progress
+  body: "**Built and verified.** Branch `feat/task-328-live-runs-surface`, rebased\
+    \ onto `main` at `42d5d89`, six commits, gate green with a receipt for `36fe784f`\
+    \ (all ten stages, 270s).\n\n## What shipped\n\n- **`GET /api/runs/live`** \u2014\
+    \ `src/agentjobs/api/routes/runs.py`, mounted once. Per run: run id, task id and\
+    \ title, project id and **display name**, mode, session/batch, posture, status,\
+    \ `health`, `started_at`, server-computed `elapsed_seconds`, and a **server-built\
+    \ `task_url`** into whichever project owns it. Plus `occupied`, `max_concurrent_runs`,\
+    \ `dispatch_configured`, and `holders` (finishes and the merge runway).\n- **`ledger.run_health()`**\
+    \ and **`ledger.live_lock_holders()`** \u2014 the two readers the surface needed;\
+    \ see the `health` decision above.\n- **A Runs tab** at `/p/:projectId/runs` with\
+    \ a count badge on the nav entry.\n- **A one-line Dashboard capacity row**, at\
+    \ the foot of the statistics card.\n- **`scripts/live_runs_sandbox.py`** \u2014\
+    \ both surfaces on their own port, two projects, and a `--idle` half.\n- Docs:\
+    \ the route is in `docs/api-reference.md` under a new heading saying why it is\
+    \ the one route with no project-scoped spelling.\n\n## Verification\n\n**ac-1\
+    \ \u2014 two projects at once.** The sandbox registers two real projects with\
+    \ real task files and puts a run in each. `GET /api/runs/live` returns both, each\
+    \ with its own project's display name, title and link:\n\n```\noccupied 2 / 3\n\
+    \ RUN  run_alpha01 Alpha working /p/sandbox-alpha/tasks/task-101 | Teach the queue\
+    \ to explain itself\n RUN  run_beta01  Beta  parked  /p/sandbox-beta/tasks/task-501\
+    \  | Rewrite the ingest pipeline\n HOLD runway Beta\n HOLD finish Beta task-502\
+    \ Retire the legacy export path /p/sandbox-beta/tasks/task-502\n```\n\n**Where\
+    \ this falls short of the spec's instruction, said plainly.** The spec asks for\
+    \ *two real dispatched runs* in two projects. I dispatched one \u2014 the e2e\
+    \ spec below starts a real agent process \u2014 and seeded the second project's\
+    \ run into the ledger rather than spawning a second agent, because that would\
+    \ spend a run slot and real money starting an agent on a task nobody asked to\
+    \ be worked. The substitution is defensible for a read-only reader whose entire\
+    \ input is the ledger on disk: `read_run` cannot distinguish a seeded `meta.yaml`\
+    \ from a dispatched one, and the code path is byte-identical. What it does *not*\
+    \ prove is that a second concurrent real dispatch writes the fields this surface\
+    \ reads \u2014 but that is `dispatch/runner.py`'s contract, covered by its own\
+    \ suite, and my own live run (`run_1500aed9`, project `agentjobs`) rendered correctly\
+    \ through this endpoint throughout. If you want the full-fat version, dispatching\
+    \ anything in a second project while the sandbox is up would show it.\n\n**ac-2\
+    \ and ac-4 \u2014 a real run, through a real server, with no reload.** `frontend/e2e/live-runs.spec.ts`,\
+    \ two tests, both passing in the gate:\n1. An idle machine renders badge `0`,\
+    \ \"nothing running\" on the Dashboard, and the empty state on the tab.\n2. Enables\
+    \ dispatch, creates a task, **dispatches a real process**, and asserts the badge\
+    \ reaches `1` and the tab shows the row with a link to its task and \"1 of ...\"\
+    \ \u2014 all on a page that was already open, so a pass means the query is polling.\
+    \ Then cancels the run and asserts both surfaces return to zero. It also asserts\
+    \ there is no cancel control anywhere on the tab.\n\n**ac-3.** Measured above;\
+    \ the row is 44px.\n\n**Unit coverage.** `tests/test_live_runs_api.py` \u2014\
+    \ 16 tests over two registered projects, covering the cross-project answer, the\
+    \ 404 on `/api/projects/{id}/runs/live`, capacity, an unconfigured machine, every\
+    \ `health` value including the session-pid trap, and the holder rules. `frontend/src/components/LiveRuns.test.tsx`\
+    \ \u2014 21 tests over the three renderings.\n\n## Two things a reviewer should\
+    \ look at hardest\n\n1. **`NAV_INLINE_MIN_PX` moved 960 \u2192 1100.** The Runs\
+    \ entry made the destinations row 82px wider (583 \u2192 665px, measured at 960).\
+    \ With the project switcher at the 224px `max-w-56` gives it for a long name,\
+    \ the bar overflows horizontally until **1090px** \u2014 measured in 5px steps.\
+    \ 1100 keeps the 10px margin 960 had over its own 955. The cost is real: the 960-1099\
+    \ band (landscape tablets, split-screen windows) moves from an inline row to the\
+    \ burger. Note the failure mode is *overflow*, not wrapping \u2014 `flex-nowrap`\
+    \ plus `min-w-0` squeezes the switcher and then runs off the edge \u2014 so a\
+    \ header checked only by height would have called every width below 1090 fine.\n\
+    2. **The perf commit (`1910f13`) touches shared code.** `read_run` now uses `storage.load_yaml`\
+    \ instead of `yaml.safe_load`. Documented drop-in, same safety, but it is on the\
+    \ path of every `list_runs` caller including `dispatch/guards.py`.\n\n## Review\
+    \ sandbox \u2014 running now, both halves\n\n- **Busy:** http://127.0.0.1:8904/app/p/sandbox-alpha\
+    \ \u2014 two projects, a working run, a parked one, a scripted finish and a merge\
+    \ runway.\n- **Idle:** http://127.0.0.1:8905/app/p/sandbox-alpha \u2014 nothing\
+    \ running, so the badge reads `0` and the row says so.\n\nThrowaway data in a\
+    \ temp directory with its own registry; the 8876 dashboard is untouched. Every\
+    \ button is safe to press. Stop them with:\n\n`Get-NetTCPConnection -LocalPort\
+    \ 8904,8905 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess\
+    \ -Force }`\n\nOr ask and I will. Restart either with `python scripts/live_runs_sandbox.py\
+    \ 8904` (add `--idle` for the other).\n\n**The 8876 dashboard is still on pre-merge\
+    \ code** and will not show any of this until the merge, a `npm run build` and\
+    \ a restart \u2014 merge-gate step 6, which is yours after approval.\n"
+  data:
+    operation:
+      id: b2c3d4e5-2222-4333-8444-555566667777
+      kind: log_append
+      fingerprint: 496ebf031c311c8c84d63ba1c898a3fb
+- id: 12
+  ts: '2026-09-04T02:44:39.403233Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: c3d4e5f6-3333-4444-8555-666677778899
+      kind: update_content
+      fingerprint: e592a67d337b0195df5312986e597cb6
