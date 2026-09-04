@@ -299,12 +299,32 @@ projects: {}
 #
 #       It is deliberately NOT the guarantee that two agents stay off one task. That is
 #       the per-task run lock, it is not configurable, and it holds at any ceiling.
+#
+#     dispatches_per_hour: 30
+#
+#       How many runs this machine may START in a rolling hour, across every project,
+#       task and trigger. Different question from max_concurrent_runs, which bounds how
+#       many are alive at once and so cannot see a loop that starts a run, fails it, and
+#       starts another -- such a loop never holds a slot long enough to be refused.
+#
+#       This is the cap that bounds a runaway. The per-task caps below bound one task,
+#       and N tasks each dispatching at their own limit have no ceiling between them.
+#
+#     auto: (the name is historical -- these bind every trigger since task-334)
+#
+#       Per-task budgets. They used to apply to auto-dispatch alone, on the argument
+#       that a human clicking Dispatch repeatedly is a decision rather than a
+#       malfunction. That assumes this machine can tell a human's click from an agent's,
+#       and it cannot: the API is unauthenticated on loopback and every dispatched agent
+#       is told its address. The key is not renamed, because renaming it would silently
+#       return a tuned machine to these defaults.
 limits:
   max_concurrent_runs: 1
   run_timeout_seconds: 1800      # batch runners only
   session_stale_seconds: 3600    # a session that ended its turn without handing off
   session_stall_seconds: 1800    # one still claiming to work, emitting nothing (never kills)
-  auto:                          # these bind auto-dispatch only
+  dispatches_per_hour: 30        # machine-wide takeoffs, every trigger
+  auto:                          # per-task; historical name, binds every trigger
     per_task_per_day: 3
     per_task_lifetime: 10
     cooldown_seconds: 60

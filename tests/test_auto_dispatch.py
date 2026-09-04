@@ -1,8 +1,11 @@
 """Auto-dispatch: the cap boundaries, and the rule the safety argument rests on.
 
-The rule is that an agent's handoff can never cause a dispatch. Everything else here is
-a backstop. It is tested first and tested directly, because a structural guarantee
-nobody checks is a comment.
+The rule is that an agent's handoff can never cause a dispatch. It is tested first and
+tested directly, because a rule nobody checks is a comment.
+
+It is not, on its own, what bounds a runaway -- see `dispatch/budget.py` and the
+correction in design section 2. The caps below are, and since task-334 they bind every
+trigger rather than auto-dispatch alone.
 """
 
 from __future__ import annotations
@@ -193,7 +196,7 @@ class TestTheHumanClockedRule:
     def test_the_rule_holds_even_when_every_budget_cap_has_room(
         self, served, tmp_path: Path
     ) -> None:
-        """The caps are a backstop. Removing them must not make the loop possible."""
+        """The two controls are independent. A task with budget left is still refused."""
         client, root, home = served
         write_dispatch_config(home, tmp_path, auto=True)
         manager = manager_for(root)
@@ -420,14 +423,13 @@ class TestATrippedCapIsNeverSilent:
         assert after is not None
         notes = [entry for entry in after.log if entry.type is LogEntryType.NOTE]
         assert any("per_task_lifetime" in (entry.body or "") for entry in notes)
-        assert any(
-            entry.data.get("auto_dispatch_refused") == "per_task_lifetime" for entry in notes
-        )
+        assert any(entry.data.get("dispatch_refused") == "per_task_lifetime" for entry in notes)
+        assert any(entry.data.get("dispatch_trigger") == "auto" for entry in notes)
         # Parked with a person, because a task burning its budget is reporting a
         # problem with itself and nobody will look unless it asks them to.
         assert after.ball is Ball.HUMAN
         assert after.ball_reason is BallReason.DECISION
-        assert "manual dispatch still works" in (after.ball_prompt or "").lower()
+        assert "per_task_lifetime" in (after.ball_prompt or "")
         assert runs_in(home) == []
 
     def test_a_cooldown_refusal_is_logged_but_does_not_park_the_task(
@@ -460,11 +462,20 @@ class TestATrippedCapIsNeverSilent:
         assert after.ball is Ball.AGENT, "waiting fixes a cooldown; it is not a decision"
 
 
-class TestManualDispatchIsNotCapped:
-    def test_a_task_over_every_cap_can_still_be_dispatched_by_hand(
-        self, served, tmp_path: Path
-    ) -> None:
-        """D3: a human clicking Dispatch repeatedly is a decision, not a malfunction."""
+class TestManualDispatchIsCappedToo:
+    """task-334 reverses D3, and this is the test that used to assert the opposite.
+
+    D3 held that a human clicking Dispatch repeatedly is a decision rather than a
+    malfunction, so the budget caps bound auto-dispatch alone. That reasoning depends on
+    the server being able to tell a human's click from an agent's, and the 2026-08-21
+    dispatch audit demonstrated it cannot: the API carries no authentication, every
+    dispatched agent is told its address, and one POST naming a configured human writes
+    an authorising entry indistinguishable from a click -- as `manual`, which was the
+    uncapped trigger. The cost D3 was protecting is real and is now paid: the refusal
+    below is what a person over the cap sees.
+    """
+
+    def test_a_task_over_the_lifetime_cap_is_refused_by_hand(self, served, tmp_path: Path) -> None:
         client, root, home = served
         write_dispatch_config(home, tmp_path, auto=True)
         manager = manager_for(root)
@@ -477,8 +488,40 @@ class TestManualDispatchIsNotCapped:
 
         response = client.post(f"/api/projects/sandbox/tasks/{task_id}/dispatch", json={})
 
-        assert response.status_code == 202, response.text
-        assert len(runs_in(home)) == 1
+        assert response.status_code == 409, response.text
+        body = response.json()
+        assert body["code"] == "per_task_lifetime"
+        assert "dispatch.yaml" in body["suggested_action"]
+        assert runs_in(home) == []
+
+    def test_the_refusal_is_on_the_record_and_leaves_the_ball_alone(
+        self, served, tmp_path: Path
+    ) -> None:
+        """ac-4 for the manual trigger: recorded, but the ball is not taken from them.
+
+        A person is reading this refusal in the same second they caused it, so the note
+        is what they need and moving their ball for them is not -- that is reserved for
+        the triggers where nobody is watching.
+        """
+        client, root, home = served
+        write_dispatch_config(home, tmp_path, auto=True)
+        manager = manager_for(root)
+        task_id = seed_task(root, ball=Ball.AGENT)
+        for index in range(20):
+            add_dispatch_entry(manager, task_id, f"run_{index}")
+        manager.add_log_entry(
+            task_id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go anyway."
+        )
+
+        client.post(f"/api/projects/sandbox/tasks/{task_id}/dispatch", json={})
+
+        after = manager.get_task(task_id)
+        assert after is not None
+        notes = [entry for entry in after.log if entry.type is LogEntryType.NOTE]
+        assert any(entry.data.get("dispatch_refused") == "per_task_lifetime" for entry in notes)
+        assert any(entry.data.get("dispatch_trigger") == "manual" for entry in notes)
+        assert any("per_task_lifetime" in (entry.body or "") for entry in notes)
+        assert after.ball is Ball.AGENT
 
 
 class TestAHoldIsNotDispatchable:

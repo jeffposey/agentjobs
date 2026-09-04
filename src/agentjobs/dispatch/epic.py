@@ -32,8 +32,10 @@ the command it runs is doing; it is no longer what performs it.
 ## Authorisation, which is the part that had to be got right
 
 Design section 2's rule is that a dispatch may only be caused by a stored log entry whose
-actor is a human, and the point of it is that agent-starts-agent is *not representable*
-rather than capped. A walk that starts five child runs cannot be allowed to weaken that.
+actor is a human, which keeps agent-starts-agent out of every supported path. (It does not
+make the cycle impossible, and section 2 no longer says it does -- ``dispatch/budget.py``
+holds what actually bounds one.) A walk that starts five child runs cannot be allowed to
+weaken the rule.
 
 It does not. :func:`resolve_epic_authorization` finds the human entry that authorised the
 **parent's** dispatch, and each child dispatch writes its own authorising entry naming

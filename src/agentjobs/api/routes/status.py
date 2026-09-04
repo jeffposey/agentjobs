@@ -582,6 +582,13 @@ _DISPATCH_STATUS: dict = {
     "task_on_hold": status.HTTP_409_CONFLICT,
     "live_run_exists": status.HTTP_409_CONFLICT,
     "concurrency_limit": status.HTTP_409_CONFLICT,
+    # The budget caps (task-334). 409 rather than 403: none of them is a rule no amount
+    # of retrying satisfies, which is what a 403 means here -- three of the four expire
+    # on their own, and the fourth is raisable in a file on this machine.
+    "per_task_per_day": status.HTTP_409_CONFLICT,
+    "per_task_lifetime": status.HTTP_409_CONFLICT,
+    "cooldown": status.HTTP_409_CONFLICT,
+    "machine_per_hour": status.HTTP_409_CONFLICT,
     "dirty_tree": status.HTTP_409_CONFLICT,
     "posture_above_ceiling": status.HTTP_403_FORBIDDEN,
     "claim_lost": status.HTTP_409_CONFLICT,
@@ -624,6 +631,20 @@ _DISPATCH_ACTION: dict = {
     ),
     "claim_lost": "Someone else took it. Re-read the task before deciding again.",
     "owner_mismatch": "Release the task, or dispatch the runner that owns it.",
+    "per_task_per_day": (
+        "Read why the earlier runs did not finish before starting another. The cap is "
+        "limits.auto.per_task_per_day in ~/.agentjobs/dispatch.yaml."
+    ),
+    "per_task_lifetime": (
+        "This task has been running and not finishing. Fix the task rather than the "
+        "cap; it is limits.auto.per_task_lifetime in ~/.agentjobs/dispatch.yaml."
+    ),
+    "cooldown": "Wait out the cooldown and dispatch again.",
+    "machine_per_hour": (
+        "Wait for the hour to roll forward, or raise limits.dispatches_per_hour in "
+        "~/.agentjobs/dispatch.yaml. Nothing reachable over the network writes that "
+        "file, which is the point of it."
+    ),
 }
 
 

@@ -54,7 +54,12 @@ from agentjobs.dispatch.epic import (
     walk_epic,
     walk_report,
 )
-from agentjobs.dispatch.guards import ConflictingAuthorizationError, DispatchRequest, dispatch_task
+from agentjobs.dispatch.guards import (
+    BudgetCapError,
+    ConflictingAuthorizationError,
+    DispatchRequest,
+    dispatch_task,
+)
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
     Ball,
@@ -964,6 +969,58 @@ class TestRealDispatchInheritsAuthorization:
                 home=home,
                 api_base="http://127.0.0.1:8765",
             )
+
+    def test_a_child_over_the_lifetime_cap_is_refused_by_the_budget(
+        self, manager: TaskManager, project: Project, home: Path, configured: Path
+    ) -> None:
+        """ac-1 for the `child` trigger (task-334).
+
+        The attempt budget above bounds one *parent authorisation*, so a child re-filed
+        under a fresh authorisation starts over -- it is a bound on the walk, not on the
+        child. The per-task caps are the bound on the child, and until task-334 they were
+        applied in `auto.py` and so were not applied here at all.
+        """
+        parent_id = make_parent(manager)
+        child_id = make_child(manager, parent_id, "First")
+        for index in range(10):  # the default `per_task_lifetime`
+            manager.record_dispatch(
+                child_id,
+                actor="Jeff Posey",
+                run_id=f"run_{index}",
+                agent="fake",
+                runner="fake",
+                mode=DispatchMode.BATCH,
+                posture=DispatchPosture.SUPERVISED,
+                trigger=DispatchTrigger.CHILD,
+                caused_by=1,
+                argv=["python", "-c", "pass"],
+                cwd=".",
+                git_head="abc1234",
+            )
+
+        with pytest.raises(BudgetCapError) as caught:
+            dispatch_task(
+                manager=manager,
+                project=project,
+                project_config=PROJECT_CONFIG,
+                request=DispatchRequest(
+                    task_id=child_id,
+                    trigger=DispatchTrigger.CHILD,
+                    on_behalf_of_parent=True,
+                ),
+                home=home,
+                api_base="http://127.0.0.1:8765",
+            )
+
+        assert caught.value.reason == "per_task_lifetime"
+        child = manager.get_task(child_id)
+        assert child is not None
+        refusals = [entry for entry in child.log if entry.data.get("dispatch_refused")]
+        assert len(refusals) == 1
+        assert refusals[0].data["dispatch_trigger"] == "child"
+        # Nobody is watching a walk, so a count cap parks the child with a person.
+        assert child.ball is Ball.HUMAN
+        assert child.ball_reason is BallReason.DECISION
 
 
 class TestARealChildRunGetsTheEpicsEnvelope:

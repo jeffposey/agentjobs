@@ -130,16 +130,40 @@ it finishes → ... unbounded tokens, unbounded writes to a repository. The usua
 is counters and cooldowns, which bound the blast radius of a loop that is still, in
 principle, permitted to exist.
 
-This rule makes the loop **structurally impossible** instead. The cycle physically
-cannot advance without exactly one human act per turn. Counters and cooldowns remain
-(§7), but demoted to what they should be: a backstop against a bug in the dispatcher
-itself, not the primary defence.
+!!! danger "This section claimed the loop was structurally impossible. It is not — corrected 2026-09-04, task-334"
+    What stood here said the rule made the cycle **structurally impossible** rather than
+    merely capped, and demoted counters and cooldowns to a backstop against a bug in the
+    dispatcher. That was a claim about *this design's own paths*, written as though it
+    were a claim about the machine.
 
-The price is real and worth stating plainly: **"agent finishes, next agent picks up
-automatically" is permanently off the table.** No chained autonomy, no overnight queue
-that drains itself. Every turn of the wheel costs one click. That was accepted (D1)
-as the correct trade for a system that spawns processes with commit access on a personal
-machine.
+    The 2026-08-21 dispatch audit tested it (finding P1-2) and it did not hold. No route
+    in `src/agentjobs/api/` carries authentication; every dispatched agent is told the
+    server's address in the first sentence of its prompt; and one POST naming a
+    configured human writes an authorising entry the dispatcher re-reads and accepts,
+    indistinguishable from a click. That forged click arrived as `manual` — which was
+    the one trigger §7's caps did not bind.
+
+    The boundary honestly stated: on a single-user machine where the agent runs as the
+    user, no local secret is unreadable by the agent, so a token would not make this
+    structural either. **The loop is bounded, not impossible.** What bounds it is §7's
+    caps — now applied at `dispatch_task`, on every trigger, plus a machine-wide hourly
+    ceiling — and the run ceiling in §8. Those are the numbers to look at when reasoning
+    about a runaway; this rule is not one of them.
+
+    The rule still does real work, and it stays: it keeps an agent-clocked cycle out of
+    every supported path, which means an unbounded loop needs someone to have gone around
+    the front door rather than merely to have found a bug in the dispatcher. That is a
+    weaker guarantee than the one this section used to assert, and it is the true one.
+
+    A document that overstates a guarantee is worse than one that states none, because it
+    stops people looking. The audit found the exposure precisely because an auditor tested
+    the claim instead of believing it.
+
+The price of the rule is real and worth stating plainly: **"agent finishes, next agent
+picks up automatically" is permanently off the table** through the supported path. No
+chained autonomy, no overnight queue that drains itself. Every turn of the wheel costs
+one click. That was accepted (D1) as the correct trade for a system that spawns processes
+with commit access on a personal machine.
 
 A useful consequence: the rule is checkable in one line at spawn time — resolve the log
 entry that caused this dispatch, look up its actor in the project's actor vocabulary,
@@ -174,6 +198,8 @@ Guardrails on top, all of which fail loudly to `ball: human` with the reason nam
   notice.
 - **§7's caps now bind here, counting chains rather than iterations.** They were scoped
   to auto-dispatch (D3) because a human clicking is a decision; a loop is not clicking.
+  *D3 was itself reversed on 2026-09-04 by task-334 — the caps now bind every trigger —
+  which strengthens this clause rather than changing it.*
   *Amended 2026-08-18 by task-078 (decision L7), because as first written this clause
   made the feature inert:* the per-task-per-day cap is 3, so a chain a human authorized
   for 5 iterations would have been refused at iteration 4 by a limit meant for a
@@ -268,11 +294,21 @@ the consequence of setting it is a visible, permanent row in an append-only log 
 that person's name. A caller who abuses it has not bypassed the record — they have
 written to it, in public, and the run traces to them.
 
-**An agent still cannot cause a dispatch**, and it survives for two independent reasons.
-Structurally: agents do not have browsers. Mechanically: an agent id offered as the
-authoriser is refused before anything is written (`authorizer_not_human`), and the entry
-that *is* written still has to pass the human-clocked check, which reads the actor's
-kind from config rather than from the request. Both are pinned by tests.
+**An agent still cannot cause a dispatch *under a name this project calls an agent*.** An
+agent id offered as the authoriser is refused before anything is written
+(`authorizer_not_human`), and the entry that *is* written still has to pass the
+human-clocked check, which reads the actor's kind from config rather than from the
+request. Both are pinned by tests.
+
+!!! warning "A second reason stood here and was false — corrected 2026-09-04, task-334"
+    The sentence "structurally: agents do not have browsers" was offered as an
+    independent guarantee. It is not one. Nothing about this endpoint requires a browser:
+    it is an unauthenticated `POST` on loopback, every dispatched agent is told the
+    server's address in the first sentence of its prompt, and an agent that sends one
+    naming a configured human writes an entry the mechanical check above then accepts.
+    The 2026-08-21 audit's P1-2 is the demonstration. What remains true is the mechanical
+    half — and what bounds an agent that does this is §7's caps, which since task-334 bind
+    the `manual` trigger such a request arrives as.
 
 **Sufficiency is now asked separately, and directly.** The old check was answering two
 unrelated questions at once — *who authorised this run* (safety) and *does the agent have
@@ -366,7 +402,8 @@ limits:
   run_timeout_seconds: 1800        # batch runners only; terminates the run
   session_stale_seconds: 3600      # a session that ended its turn without handing off (§9)
   session_stall_seconds: 1800      # one still claiming to work but silent; reports, never kills
-  auto:                            # applies ONLY to auto-dispatch (D3)
+  dispatches_per_hour: 30          # machine-wide takeoffs, every trigger (§7)
+  auto:                            # per-task; historical name, binds every trigger (task-334)
     per_task_per_day: 3
     per_task_lifetime: 10
     cooldown_seconds: 60
@@ -643,9 +680,10 @@ of its children having stopped. Exit 0 means no open child remains and hands bac
 #### The authorisation, which is the part that had to be got right
 
 §2's rule is that a dispatch is caused by a stored log entry whose actor this project
-configures as a human, and its point is that agent-starts-agent is *not representable*
-rather than capped. A walk that starts five child runs cannot be allowed to weaken it,
-and does not.
+configures as a human, which keeps agent-starts-agent out of every supported path. (It
+does not make the cycle impossible — see the correction in §2; §7's caps are what bounds
+it.) A walk that starts five child runs cannot be allowed to weaken the rule, and does
+not.
 
 `resolve_epic_authorization` reads the human entry that authorised the **parent's**
 dispatch — the parent's newest `dispatch` entry names it in `caused_by`, so the walk
@@ -2238,19 +2276,43 @@ Two different questions, answered differently:
 
 ## 7. Runaway protection
 
-With §2 in force, an unbounded loop requires a *bug* — a dispatcher that misattributes
-an agent entry as human, or an auto-dispatch condition that re-fires. These limits exist
-to make such a bug expensive-in-seconds rather than expensive-in-dollars.
+**These limits are what bounds a runaway.** §2 used to say they were a backstop against
+a bug in the dispatcher, on the strength of a structural argument that did not survive
+being tested — see the correction in §2. They are the primary defence, and task-334
+rewrote them to be one: every cap below is checked in `dispatch_task`, the single
+chokepoint all three triggers pass through, and the reasoning lives beside the code in
+`src/agentjobs/dispatch/budget.py`.
 
-**Budget limits — auto-dispatch only (D3).** Runaway needs an autonomous cycle; a human
-clicking Dispatch repeatedly is a decision, not a malfunction, and refusing it would be
-the tool second-guessing its owner about his own money.
+**Budget limits — every trigger (task-334, reversing D3).** D3 exempted manual dispatch
+on the grounds that a human clicking Dispatch repeatedly is a decision rather than a
+malfunction. That premise requires the server to be able to tell a human's click from an
+agent's, and it cannot: a forged click arrives as `manual`, which was the exempt trigger.
+The cost D3 was protecting is now paid — a fourth manual dispatch of one task in a day is
+refused, and the remedy is to read why the first three did not finish.
 
-| Limit | Default | On trip |
-|---|---|---|
-| Dispatches per task per 24h | 3 | Refuse; log; ball → human/decision |
-| Dispatches per task, lifetime | 10 | Refuse; log; ball → human/decision |
-| Cooldown between dispatches of one task | 60s | Refuse; log (no ball change — it is transient) |
+| Limit | Default | Configured as | On trip |
+|---|---|---|---|
+| Dispatches per task per 24h | 3 | `limits.auto.per_task_per_day` | Refuse; log; ball → human/decision |
+| Dispatches per task, lifetime | 10 | `limits.auto.per_task_lifetime` | Refuse; log; ball → human/decision |
+| Cooldown between dispatches of one task | 60s | `limits.auto.cooldown_seconds` | Refuse; log (no ball change — it is transient) |
+| Dispatches machine-wide per rolling hour | 30 | `limits.dispatches_per_hour` | Refuse; log (no ball change — it is transient) |
+
+The `limits.auto:` key is historical and is deliberately not renamed: it lives in
+machine-local `~/.agentjobs/dispatch.yaml`, and renaming a key there would silently
+return a machine whose caps had been tuned to the defaults.
+
+**The hourly cap is the one no per-task budget can stand in for.** Per-task caps bound
+one task; N tasks each dispatching at their own limit have no ceiling between them.
+`max_concurrent_runs` does not supply one either — it bounds how many runs are *alive*, so
+a loop that starts a run, fails it, and starts another never holds a slot long enough to
+be refused by it. This counts takeoffs.
+
+**Choosing 30.** The busiest rolling hour in this machine's entire run ledger was
+**twelve** dispatches (137 runs, measured 2026-09-04) at `max_concurrent_runs: 3`. Thirty
+is two and a half times that: an epic walk would have to turn a run over every six minutes
+on all three slots to reach it, and no real run here has ever been that short, while a
+dispatch loop reaches thirty in seconds. That gap is the whole design of the number — a
+cap that fires on real work is one somebody raises to infinity.
 
 **Safety limits — every run, manual included.** These are correctness, not spend.
 
@@ -2261,12 +2323,20 @@ the tool second-guessing its owner about his own money.
 | Wall-clock per run (**batch only**) | 1800s | Terminate the run; `dispatch_result: timeout`; ball → human |
 | Staleness (**session only**) | 3600s idle with an unmoved ball | `finished_without_handoff`; ball → human. **The session is not killed** (§9) |
 
-**Tripping a cap is never silent.** Three things happen together: the run is refused, a
-`note` entry naming the specific limit and its value is appended to the task, and — for
-the per-task caps — the ball moves to `human`/`decision` with a `ball_prompt` saying a
-task has now been dispatched N times without reaching a conclusion. A task that burns
-through its daily cap is telling you something is wrong with the task, and it should
-land in the human inbox for that reason, not just stop quietly.
+**Tripping a cap is never silent, whatever started the dispatch.** The run is refused,
+and a `note` entry naming the specific limit, its value and the trigger is appended to the
+task. That entry is written for every trigger and not only for auto-dispatch: an HTTP
+refusal is read once by whoever is holding the mouse and by nobody afterwards, and the
+record is what the next session reads.
+
+A **count** cap additionally moves the ball to `human`/`decision`, with a `ball_prompt`
+saying the task has been dispatched N times without reaching a conclusion — because a task
+that burns through its budget is telling you something is wrong with the task, and it
+should land in the human inbox for that reason rather than stop quietly. Two exceptions,
+both for the same reason: not on a `manual` dispatch, where a person is reading the
+refusal in the same second and taking their ball away would be the tool responding to a
+click by changing the thing clicked on; and not for the transient caps (cooldown, hourly),
+where waiting is the whole remedy.
 
 **Refuse rather than queue.** A concurrency limit that queues turns a click into a
 promise to spend money later, at a moment you are not watching. "Busy, try again" is
@@ -3047,6 +3117,15 @@ always, because they are correctness rather than spend. Conservative starting nu
     which moves the ball rather than killing the run — and session mode has **no spend
     ceiling at all**, since `--max-budget-usd` is `--print`-only. D3's reasoning is
     unchanged; the mechanism it relies on is not available in both modes.
+
+    Amended again 2026-09-04 (task-334): **the budget caps now bind every trigger**, and
+    a machine-wide dispatches-per-hour cap joins them. What D3 got wrong is not the value
+    it placed on a human's decision but the assumption underneath it — that the server can
+    tell a human's click from an agent's. It cannot: the API is unauthenticated on
+    loopback and every dispatched agent is told its address, so a forged click arrives as
+    `manual`, the exempt trigger. The cost D3 was avoiding is now paid deliberately: a
+    fourth manual dispatch of one task in a day is refused, and the refusal names the cap
+    and where to raise it.
 
 **D4 (agent's call, recorded for objection) — the loop is human-clocked (§2).** Not put
 to a vote because it is a consequence of D1 rather than an independent choice, but it is

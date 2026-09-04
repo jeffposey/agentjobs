@@ -1,8 +1,10 @@
 """One test per refusal path between an HTTP request and a running agent.
 
 The load-bearing one is `TestHumanClockedRule`. Everything else here is a limit that
-could reasonably be tuned; that rule is the reason an agent-starts-agent loop is not
-representable, so it gets the case constructed explicitly rather than inferred.
+could reasonably be tuned; that rule is what keeps an agent-starts-agent cycle out of
+every supported path, so it gets the case constructed explicitly rather than inferred.
+It is not what *bounds* such a loop -- the caps in `TestBudgetCapsBindEveryTrigger` are,
+and `dispatch/budget.py` says why.
 
 Runs are started with a fake runner that exits immediately, because what is under test
 is *whether* a run starts and what refuses it -- not what the run then does, which is
@@ -15,6 +17,7 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
+from datetime import timedelta
 from typing import Dict, List, Optional
 
 import pytest
@@ -34,6 +37,7 @@ from agentjobs.dispatch.guards import (
     CausingActorNotHumanError,
     ClaimLostError,
     ConflictingAuthorizationError,
+    BudgetCapError,
     ConcurrencyLimitError,
     DirtyTreeError,
     DispatchRequest,
@@ -55,7 +59,17 @@ from agentjobs.dispatch.guards import (
 )
 from agentjobs.dispatch.runner import DispatchRunner
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome
+from agentjobs.models_v2 import (
+    Ball,
+    BallReason,
+    DispatchMode,
+    DispatchPosture,
+    DispatchTrigger,
+    Lifecycle,
+    LogEntryType,
+    Outcome,
+    utcnow,
+)
 from agentjobs.projects import Project
 from agentjobs.storage import TaskStorage
 
@@ -183,14 +197,21 @@ def ready_task(manager: TaskManager):
     )
 
 
-def run(manager, project, home, task_id, caused_by: Optional[int] = None):
-    """Call the guard chain the way the endpoint and the CLI both do."""
+def run(manager, project, home, task_id, caused_by: Optional[int] = None, now=None):
+    """Call the guard chain the way the endpoint and the CLI both do.
+
+    ``now`` is the budget caps' clock and nothing else (task-334). A test that dispatches
+    the same task twice in one process is inside the 60s cooldown by construction, and
+    since the caps bind every trigger it has to say which moment it means rather than
+    sleep through a real minute.
+    """
     return dispatch_task(
         manager=manager,
         project=project,
         project_config=PROJECT_CONFIG,
         request=DispatchRequest(task_id=task_id, caused_by=caused_by),
         home=home,
+        now=now,
     )
 
 
@@ -364,7 +385,9 @@ class TestHumanClockedRule:
         manager.add_log_entry(
             ready_task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go again."
         )
-        handle = run(manager, project, home, ready_task.id)
+        # Past the cooldown, which binds this manual dispatch since task-334 and would
+        # otherwise refuse the re-armed run for a reason this test is not about.
+        handle = run(manager, project, home, ready_task.id, now=utcnow() + timedelta(minutes=5))
         settle(handle)
 
         assert handle.run_id.startswith("run_")
@@ -1484,3 +1507,245 @@ class TestTheAddressIsCheckedBeforeAnythingStarts:
         settle(handle)
 
         assert handle.api_base == "http://127.0.0.1:8876"
+
+
+def _record_dispatch(manager: TaskManager, task_id: str, run_id: str) -> None:
+    """A dispatch entry exactly as the runner writes one, so the counts are real."""
+    manager.record_dispatch(
+        task_id,
+        actor="Jeff Posey",
+        run_id=run_id,
+        agent="fake",
+        runner="fake",
+        mode=DispatchMode.BATCH,
+        posture=DispatchPosture.SUPERVISED,
+        trigger=DispatchTrigger.MANUAL,
+        caused_by=1,
+        argv=["python", "-c", "pass"],
+        cwd=".",
+        git_head="abc1234",
+    )
+
+
+class TestBudgetCapsBindEveryTrigger:
+    """task-334: the spend caps used to bind `auto` alone, and now bind the chokepoint.
+
+    The reason is in `dispatch/budget.py`. The short version: D3 exempted manual
+    dispatch because a person clicking repeatedly is a decision rather than a
+    malfunction, which assumes this machine can tell a person's click from an agent's.
+    The 2026-08-21 audit showed it cannot -- so `manual` was the uncapped trigger and
+    the one an agent could reach with a single unauthenticated POST.
+
+    These cases go through `dispatch_task` rather than through `check_budget`, because
+    "the function returns a refusal" and "the dispatcher acts on it, for this trigger"
+    are different claims and only the second one was ever missing.
+    """
+
+    def _spend_the_lifetime_cap(self, manager: TaskManager, task_id: str) -> None:
+        """Ten dispatch entries -- the default `per_task_lifetime` -- then a human's.
+
+        Through ``record_dispatch`` rather than ``add_log_entry``: the manager refuses a
+        hand-written ``dispatch`` entry, and a test that faked one would be counting
+        something the dispatcher does not write.
+        """
+        for index in range(10):
+            _record_dispatch(manager, task_id, f"run_{index}")
+        manager.add_log_entry(
+            task_id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go anyway."
+        )
+
+    def test_a_manual_dispatch_over_the_lifetime_cap_is_refused(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        write_dispatch_config(home, fake_runner)
+        self._spend_the_lifetime_cap(manager, ready_task.id)
+
+        with pytest.raises(BudgetCapError) as caught:
+            run(manager, project, home, ready_task.id)
+
+        assert caught.value.reason == "per_task_lifetime"
+        assert caught.value.refusal.parks_task is True
+        assert live_runs(home) == []
+
+    def test_a_manual_dispatch_inside_the_cooldown_is_refused(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """The case an agent's forged click used to walk straight through."""
+        write_dispatch_config(home, fake_runner)
+        settle(run(manager, project, home, ready_task.id))
+        manager.add_log_entry(
+            ready_task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Again."
+        )
+
+        with pytest.raises(BudgetCapError) as caught:
+            run(manager, project, home, ready_task.id)
+
+        assert caught.value.reason == "cooldown"
+        # Transient -- waiting fixes it -- so it is not a decision to hand to anyone.
+        assert caught.value.refusal.parks_task is False
+        after = manager.get_task(ready_task.id)
+        assert after is not None
+        assert not [
+            entry
+            for entry in after.log
+            if entry.type is LogEntryType.TRANSITION and entry.actor == "dispatcher"
+        ]
+
+    def test_the_refusal_names_the_cap_and_the_trigger_on_the_record(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """ac-4. An HTTP refusal is read once; the record is read by the next session."""
+        write_dispatch_config(home, fake_runner)
+        self._spend_the_lifetime_cap(manager, ready_task.id)
+
+        with pytest.raises(BudgetCapError):
+            run(manager, project, home, ready_task.id)
+
+        after = manager.get_task(ready_task.id)
+        assert after is not None
+        notes = [entry for entry in after.log if entry.type is LogEntryType.NOTE]
+        refusals = [entry for entry in notes if entry.data.get("dispatch_refused")]
+        assert len(refusals) == 1
+        assert refusals[0].data["dispatch_refused"] == "per_task_lifetime"
+        assert refusals[0].data["dispatch_trigger"] == "manual"
+        assert refusals[0].actor == "dispatcher"
+        assert "per_task_lifetime" in (refusals[0].body or "")
+
+    def test_a_task_under_every_cap_still_dispatches(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """The control. A cap that refuses everything would pass every test above."""
+        write_dispatch_config(home, fake_runner)
+
+        handle = run(manager, project, home, ready_task.id)
+        settle(handle)
+
+        assert handle.run_id.startswith("run_")
+
+
+def _seed_finished_runs(home: Path, count: int, *, minutes_ago: int) -> None:
+    """``count`` run directories that have already ended, started ``minutes_ago``.
+
+    Terminal on purpose: a live run would be refused by the concurrency ceiling or the
+    per-task lock first, and this is testing the cap that counts *takeoffs* rather than
+    the one that counts what is in the air.
+    """
+    started = (utcnow() - timedelta(minutes=minutes_ago)).isoformat()
+    root = home / "runs"
+    root.mkdir(parents=True, exist_ok=True)
+    for index in range(count):
+        directory = root / f"run_seed{index:03d}"
+        directory.mkdir(exist_ok=True)
+        (directory / "meta.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "run_id": directory.name,
+                    "task_id": f"task-9{index:02d}",
+                    "project_id": "sandbox",
+                    "status": "finished",
+                    "started_at": started,
+                    "finished_at": started,
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+
+
+class TestTheMachineWideHourlyCap:
+    """The cap no per-task budget can stand in for (task-334).
+
+    Per-task caps bound one task. N tasks each dispatching at their own limit have no
+    ceiling between them, and `max_concurrent_runs` does not supply one either: it
+    bounds how many runs are *alive*, so a loop that starts a run, fails it, and starts
+    another never holds a slot long enough to be refused by it. This counts takeoffs.
+    """
+
+    def test_it_refuses_once_the_hour_is_full(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        write_dispatch_config(home, fake_runner, limits={"dispatches_per_hour": 5})
+        _seed_finished_runs(home, 5, minutes_ago=10)
+
+        with pytest.raises(BudgetCapError) as caught:
+            run(manager, project, home, ready_task.id)
+
+        assert caught.value.reason == "machine_per_hour"
+        assert "5 runs in the last hour" in str(caught.value)
+        # Transient: the hour rolls forward on its own, so nobody's ball moves for it.
+        assert caught.value.refusal.parks_task is False
+        after = manager.get_task(ready_task.id)
+        assert after is not None
+        assert not [
+            entry
+            for entry in after.log
+            if entry.type is LogEntryType.TRANSITION and entry.actor == "dispatcher"
+        ]
+
+    def test_it_counts_a_rolling_hour_not_a_clock_hour(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """Runs older than the window do not hold the machine down forever."""
+        write_dispatch_config(home, fake_runner, limits={"dispatches_per_hour": 5})
+        _seed_finished_runs(home, 5, minutes_ago=61)
+
+        handle = run(manager, project, home, ready_task.id)
+        settle(handle)
+
+        assert handle.run_id.startswith("run_")
+
+    def test_it_records_the_refusal_on_the_task(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """ac-4 again, for the cap whose cause is the machine rather than the task."""
+        write_dispatch_config(home, fake_runner, limits={"dispatches_per_hour": 2})
+        _seed_finished_runs(home, 2, minutes_ago=5)
+
+        with pytest.raises(BudgetCapError):
+            run(manager, project, home, ready_task.id)
+
+        after = manager.get_task(ready_task.id)
+        assert after is not None
+        refusals = [
+            entry for entry in after.log if entry.data.get("dispatch_refused") == "machine_per_hour"
+        ]
+        assert len(refusals) == 1
+        assert refusals[0].data["dispatch_trigger"] == "manual"
+        assert "dispatches_per_hour" in (refusals[0].body or "")
+
+    def test_the_default_leaves_room_for_the_epic_walks_this_machine_runs(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """ac-3, with the number the assumption rests on written into the test.
+
+        The busiest rolling hour in this machine's whole run ledger was **twelve**
+        dispatches (137 runs, measured 2026-09-04), on three concurrent slots. The
+        default is 30. So a walk half again as busy as anything that has ever run here
+        still takes off, which is what a cap has to do to survive: one that fires on
+        real work is one somebody raises to infinity.
+        """
+        write_dispatch_config(home, fake_runner)  # no limits block -- the shipped default
+        _seed_finished_runs(home, 18, minutes_ago=30)
+
+        handle = run(manager, project, home, ready_task.id)
+        settle(handle)
+
+        assert handle.run_id.startswith("run_")
+
+    def test_an_unreadable_run_is_not_counted_against_the_cap(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """A run with no readable start time cannot be shown to be recent.
+
+        Counting it would let one corrupt file on disk refuse dispatches, which is a
+        worse failure than the one the cap prevents.
+        """
+        write_dispatch_config(home, fake_runner, limits={"dispatches_per_hour": 1})
+        directory = home / "runs" / "run_broken"
+        directory.mkdir(parents=True)
+        (directory / "meta.yaml").write_text("status: finished\n", encoding="utf-8")
+
+        handle = run(manager, project, home, ready_task.id)
+        settle(handle)
+
+        assert handle.run_id.startswith("run_")
