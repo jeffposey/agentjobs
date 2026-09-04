@@ -205,7 +205,7 @@ describe("TaskDetail resumption contract", () => {
   });
 
   it("blocks every review action when identity is unclear", () => {
-    renderDetail({ ...detail, identity: { ok: false, user: null, problem: "multiple", detail: "Cannot choose safely." } });
+    renderDetail({ ...detail, identity: { ok: false, user: null, problem: "ambiguous", detail: "Cannot choose safely." } });
 
     // Scoped to the review panel: the note composer states the same identity problem
     // for the same reason, so an unscoped query now matches twice.
@@ -378,7 +378,7 @@ describe("TaskDetail action panel speaks the phase it is in", () => {
   });
 
   it("offers no action at all when identity is unclear", () => {
-    renderDetail({ ...draftDetail, identity: { ok: false, user: null, problem: "missing", detail: "No user configured in this project." } });
+    renderDetail({ ...draftDetail, identity: { ok: false, user: null, problem: "unconfigured", detail: "No user configured in this project." } });
 
     const panel = screen.getByRole("region", { name: "Draft actions" });
     expect(within(panel).getByText("No user configured in this project.")).toBeVisible();

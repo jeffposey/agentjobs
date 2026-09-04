@@ -27,8 +27,10 @@ an absence, and giving the absence a name is how it stops being visible.
 | `run` | a dispatched agent | a run-scoped credential, minted at dispatch |
 
 A principal carries the `kind`, the `source` (which of the three routes above
-established it — the audit trail's evidence, distinct from the kind), an `actor_id`
-once task-330 maps logins to configured actors, and `run_id`/`task_id` for a run.
+established it — the audit trail's evidence, distinct from the kind), the raw `login` the
+front door proved for a `tailnet` caller, and `run_id`/`task_id` for a run. Turning that
+login into one of a project's configured actor ids is
+[the identity registry](identity-registry.md)'s job, not this module's.
 
 ## Why loopback is split in two
 
@@ -137,22 +139,30 @@ records `session_env: uncredentialed` on its run, so this is readable off the le
 rather than inferred. Task-332, which decides what each kind may do, is where an
 uncredentialed run stops being indistinguishable from a person.
 
-## The seam left open
+## Why `actor_id` is empty
 
-A stub on purpose, so that the risky work arrives on a foundation that is already tested
-rather than alongside it.
+`actor_id` is `None` on every principal this module resolves, and that is the finished
+state rather than a stub — the last version of this page said task-330 would fill it in,
+and task-330 deliberately did not.
 
-- `actor_id` is `None` on every resolved principal. Guessing a mapping here would
-  write an attribution nobody configured — the failure
-  [`agentjobs.actors`](https://github.com/jeffposey/agentjobs/blob/main/src/agentjobs/actors.py)
-  exists to prevent. Task-330 owns it. It stays `None` forever for a `run`: a run is not
-  a human and must never be attributed as one.
+Which configured person a login belongs to depends on a **project's** actor vocabulary,
+while principal resolution is project-agnostic by design: one request, one principal,
+before any handler knows what it is addressing.
+`human_identity(config, principal)` is the function that answers it — see
+[the identity registry](identity-registry.md). A resolved principal carries the raw
+`login` the front door proved, which is that function's input.
+
+It stays `None` forever for a `run` under any caller: a run is not a human and must
+never be attributed as one. Guessing a mapping here would write an attribution nobody
+configured, which is the failure
+[`agentjobs.actors`](https://github.com/jeffposey/agentjobs/blob/main/src/agentjobs/actors.py)
+exists to prevent.
 
 ## What comes next
 
 | Task | Adds |
 | --- | --- |
-| task-330 | maps a proven login to a configured actor, replacing `human_identity`'s `MULTIPLE` refusal with a per-request answer |
+| task-330 **(shipped)** | maps a proven login to a configured actor, replacing `human_identity`'s `MULTIPLE` refusal with a per-request answer — [the identity registry](identity-registry.md) |
 | task-332 | capabilities per principal kind, and what an absent principal means |
 | task-244 | sets the identity header at the proxy |
 

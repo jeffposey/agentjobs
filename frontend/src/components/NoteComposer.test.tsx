@@ -78,7 +78,10 @@ describe("writing a note from the task page", () => {
       identity: {
         ok: false,
         user: null,
-        problem: "none",
+        // The code the backend actually emits for this. It used to read "none", which
+        // no resolver has ever returned; it passed because the headline was a ternary
+        // whose else-branch said "No user configured" for every unrecognised code.
+        problem: "unconfigured",
         detail: "Add a human to 'actors:' in .agentjobs/config.yaml.",
       },
     });
@@ -88,5 +91,22 @@ describe("writing a note from the task page", () => {
     expect(
       screen.getByText("Add a human to 'actors:' in .agentjobs/config.yaml."),
     ).toBeInTheDocument();
+  });
+
+  it("sends an unrecognised login to the file that maps logins, not to actors:", () => {
+    // The refusal a second person meets. Announcing it as "No user configured" -- which
+    // is what the old ternary did with every code it did not know -- would send them to
+    // edit a project config that is already correct.
+    renderComposer({
+      identity: {
+        ok: false,
+        user: null,
+        problem: "unmapped",
+        detail: "Add it to ~/.agentjobs/identities.yaml.",
+      },
+    });
+
+    expect(screen.getByText(/your login is not mapped/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no user configured/i)).toBeNull();
   });
 });

@@ -40,9 +40,10 @@ from agentjobs.playbooks import (
 )
 from agentjobs.playbooks.model import PlaybookTarget
 from agentjobs.playbooks.run import PlaybookDispatchRefused, PlaybookRunError, run_playbook
+from agentjobs.principals import Principal
 from agentjobs.projects import Project
 
-from ..dependencies import current_identity, get_task_manager, project_config
+from ..dependencies import current_identity, get_principal, get_task_manager, project_config
 from ..models import DispatchStarted, ErrorBody, ReviewIdentity
 from .status import (
     MutationError,
@@ -135,10 +136,11 @@ class PlaybookCollection(BaseModel):
 @router.get("/playbooks", response_model=PlaybookCollection, response_model_exclude_none=True)
 async def get_playbooks(
     project: Project = Depends(get_acting_project),
+    principal: Optional[Principal] = Depends(get_principal),
 ) -> PlaybookCollection:
     """Every playbook this project holds, with the files that would not load."""
     listing = list_playbooks(project.playbooks_dir())
-    identity = current_identity(project)
+    identity = current_identity(project, principal)
     return PlaybookCollection(
         directory=str(listing.directory),
         exists=listing.exists,

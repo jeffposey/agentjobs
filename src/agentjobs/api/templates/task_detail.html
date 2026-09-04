@@ -79,13 +79,15 @@
 
         {% if not identity.ok %}
         {# Refusing to act beats acting anonymously: the log entry is permanent and an
-           unattributed approval cannot be traced to anyone later. The two reasons need
-           different guidance, so the message comes from the resolver, not from here. #}
+           unattributed approval cannot be traced to anyone later. Each reason needs its
+           own guidance, so the sentence comes from the resolver and only the headline is
+           chosen here. The fallback is deliberately the vaguest one rather than the most
+           likely: a wrong specific headline sends the reader to the wrong file, while a
+           general one costs nothing because the detail underneath is always right.
+           `frontend/src/components/identityProblem.ts` is the same table for the React
+           app; `test_identity_problem_headlines.py` fails if either loses a code. #}
         <div class="rounded-lg border border-yellow-600/50 bg-dark-bg p-4 text-sm">
-            <strong class="text-yellow-400">
-                {% if identity.problem == 'multiple' %}Multiple users configured.
-                {% else %}No user configured.{% endif %}
-            </strong>
+            <strong class="text-yellow-400">{{ identity_headlines.get(identity.problem, 'Cannot act as anyone.') }}</strong>
             <span class="text-dark-muted">{{ identity.detail }}</span>
         </div>
         {% else %}

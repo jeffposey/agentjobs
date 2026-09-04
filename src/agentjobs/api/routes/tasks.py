@@ -11,6 +11,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agentjobs.actors import UnknownActorError, validate_actor
+from agentjobs.principals import Principal
 from agentjobs.attachments import AttachmentError, AttachmentPayload
 from agentjobs.dispatch.auto import maybe_auto_dispatch
 from agentjobs.dispatch.finish import finish_is_offered, spawn_finish
@@ -33,6 +34,7 @@ from agentjobs.models_v2 import (
 from .status import acting_actor, get_acting_project, serving_api_base
 from ..dependencies import (
     current_identity,
+    get_principal,
     get_project,
     get_task_manager,
     get_task_storage,
@@ -94,18 +96,24 @@ def _needs_reason(task_id: str, *, by_id: Dict[str, Task]) -> str:
     return f"Needs {task_id}; it is closed as {outcome}."
 
 
-def acting_user(project: Any, user: str) -> str:
+def acting_user(project: Any, user: str, principal: Optional[Principal] = None) -> str:
     """The actor id to record, refused if this project does not define it.
 
     D2: an unrecognised id is a silent no-op that survives forever, and the log is the
     one structure in this system that is never rewritten. Better to reject the action
     than to write an attribution nobody can resolve later.
+
+    ``principal`` is who the request proved itself to be (task-329). It is what the
+    submitted ``user`` is checked against, so on a project configuring several people
+    each of them is held to their own identity rather than to a project-wide default:
+    the equality test below is unchanged, and it is the thing it compares against that
+    now varies per request.
     """
     try:
         validated = validate_actor(project_config(project), user)
     except UnknownActorError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    identity = current_identity(project)
+    identity = current_identity(project, principal)
     if not identity.ok:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -233,6 +241,7 @@ async def get_task_detail(
     task_id: str,
     manager: TaskManager = Depends(get_task_manager),
     project: Any = Depends(get_project),
+    principal: Optional[Principal] = Depends(get_principal),
 ) -> TaskDetailResponse:
     """Return the complete resumption and review contract for one task."""
     task = manager.get_task(task_id)
@@ -241,7 +250,7 @@ async def get_task_detail(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Task {task_id} not found",
         )
-    identity = current_identity(project)
+    identity = current_identity(project, principal)
     tasks = manager.list_tasks()
     by_id = {candidate.id: candidate for candidate in tasks}
     facts = manager.dependency_facts(tasks)
@@ -697,6 +706,7 @@ async def approve_task(
     payload: NoteActionRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Any = Depends(get_project),
+    principal: Optional[Principal] = Depends(get_principal),
 ) -> HumanActionResponse:
     """Record human approval and hand the ball back to the agent (agent/work).
 
@@ -714,7 +724,7 @@ async def approve_task(
     approval carrying a sentence had to go through Request Changes: a round trip the
     human did not ask for, and a record that said `revise` about work that was approved.
     """
-    user = acting_user(project, payload.user)
+    user = acting_user(project, payload.user, principal)
     note = (payload.note or "").strip()
     try:
         task = manager.handoff(
@@ -761,13 +771,14 @@ async def request_changes(
     payload: FeedbackActionRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Any = Depends(get_project),
+    principal: Optional[Principal] = Depends(get_principal),
 ) -> HumanActionResponse:
     """Record requested changes and hand the ball back to the agent (agent/revise).
 
     The feedback is the payload of the handoff, so it rides in the ball_prompt and the
     log entry verbatim.
     """
-    user = acting_user(project, payload.user)
+    user = acting_user(project, payload.user, principal)
     attachments = decoded_attachments(payload.attachments)
     try:
         task = manager.handoff(
@@ -890,6 +901,7 @@ async def answer_task(
     payload: AnswerActionRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Any = Depends(get_project),
+    principal: Optional[Principal] = Depends(get_principal),
 ) -> HumanActionResponse:
     """Supply what the agent was waiting for and hand the ball back (agent/answer).
 
@@ -903,7 +915,7 @@ async def answer_task(
     tapped options and typed nothing -- which is the whole point of the feature, and
     would otherwise leave the agent a handoff whose ask is blank.
     """
-    user = acting_user(project, payload.user)
+    user = acting_user(project, payload.user, principal)
     drafts = [
         AnswerDraft(re=item.re, selected=list(item.selected), other=item.other)
         for item in payload.answers
@@ -930,6 +942,7 @@ async def redirect_task(
     payload: SendBackActionRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Any = Depends(get_project),
+    principal: Optional[Principal] = Depends(get_principal),
 ) -> HumanActionResponse:
     """Re-brief the agent and hand the ball back (agent/redirect).
 
@@ -938,7 +951,7 @@ async def redirect_task(
     which it was from prose -- task-222 entry 14 had to supersede entry 13 to say
     exactly that.
     """
-    user = acting_user(project, payload.user)
+    user = acting_user(project, payload.user, principal)
     return _send_back(
         task_id=task_id,
         request=request,
@@ -959,6 +972,7 @@ async def hold_task(
     payload: SendBackActionRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Any = Depends(get_project),
+    principal: Optional[Principal] = Depends(get_principal),
 ) -> HumanActionResponse:
     """Stop the task, with the release condition on the record (agent/hold).
 
@@ -968,7 +982,7 @@ async def hold_task(
     dispatch path will act on, so a held task cannot be started by clicking Dispatch
     beside the Hold button that stopped it.
     """
-    user = acting_user(project, payload.user)
+    user = acting_user(project, payload.user, principal)
     return _send_back(
         task_id=task_id,
         request=request,
@@ -993,6 +1007,7 @@ async def resume_task(
     payload: NoteActionRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Any = Depends(get_project),
+    principal: Optional[Principal] = Depends(get_principal),
 ) -> HumanActionResponse:
     """Release a hold and put the task back to work (agent/work).
 
@@ -1001,7 +1016,7 @@ async def resume_task(
     sentence to say it would push the human back onto the send-back controls, which is
     how one reason came to carry four intents in the first place.
     """
-    user = acting_user(project, payload.user)
+    user = acting_user(project, payload.user, principal)
     note = (payload.note or "").strip()
     released = f"Hold released by {user} -- resume this task."
     try:
@@ -1029,9 +1044,10 @@ async def reject_task(
     payload: RejectActionRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Any = Depends(get_project),
+    principal: Optional[Principal] = Depends(get_principal),
 ) -> HumanActionResponse:
     """Reject a task: closed as cancelled, archived, reason on the record."""
-    user = acting_user(project, payload.user)
+    user = acting_user(project, payload.user, principal)
     try:
         task = manager.close_task(
             task_id,

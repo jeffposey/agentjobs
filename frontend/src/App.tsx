@@ -263,7 +263,7 @@ function TaskListPage({ projectId }: { projectId: string }) {
       reorderUnavailable={
         actor
           ? null
-          : "Reordering is off because this project configures no human actor, and every queue move is recorded against one. Add a default_user to .agentjobs/config.yaml."
+          : "Reordering is off because this request does not resolve to a person, and every queue move is recorded against one. Open a task to see the reason and the file to change: either this project configures no human actor, or it configures several and nothing said which of them you are."
       }
     />
   );

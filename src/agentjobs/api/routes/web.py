@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from agentjobs.actors import PROBLEM_HEADLINES
 from agentjobs.dashboard import awaits_human_input, blocks_human, build_dashboard_snapshot
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, Lifecycle, Outcome, Task
@@ -20,6 +21,7 @@ from ..dependencies import (
     get_task_manager,
     get_templates,
     list_projects,
+    request_identity,
     storage_for as _storage_for_picker,
     try_resolve_default_project,
 )
@@ -36,6 +38,7 @@ different project than it did last time."""
 def _context_base(
     *,
     project: Project,
+    request: Optional[Request] = None,
     waiting_count: int = 0,
     broken_files: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
@@ -45,6 +48,7 @@ def _context_base(
     instead of hardcoding "/tasks/...", because a task id is unique only within a
     project -- an unscoped link would silently open a different project's task.
     """
+    identity = request_identity(request) if request is not None else current_identity(project)
     return {
         "current_year": datetime.utcnow().year,
         "waiting_count": waiting_count,
@@ -54,8 +58,13 @@ def _context_base(
         "broken_files": broken_files or [],
         # Who the review buttons act as, and why not when they cannot. The template
         # surfaces the reason rather than silently falling back to an anonymous id.
-        "identity": current_identity(project),
-        "current_user": current_identity(project).user,
+        # Resolved from the request's own principal where there is one, so a project
+        # configuring several people names whichever of them is asking (task-330).
+        "identity": identity,
+        "current_user": identity.user,
+        # The headline above a refusal. One table, in `agentjobs.actors`, because this
+        # page and the React app both draw it and a code missing from either is silent.
+        "identity_headlines": PROBLEM_HEADLINES,
     }
 
 
@@ -195,6 +204,7 @@ async def dashboard(
         "request": request,
         **snapshot,
         **_context_base(
+            request=request,
             project=project,
             waiting_count=snapshot["stats"]["waiting_for_human"],
             broken_files=snapshot["broken_files"],
@@ -235,6 +245,7 @@ async def task_list(
         "rows": _nest_tasks(tasks),
         "initial_status": initial_status,
         **_context_base(
+            request=request,
             project=project,
             waiting_count=waiting_count,
             broken_files=[e.as_dict() for e in manager.load_errors()],
@@ -257,7 +268,9 @@ async def task_detail(
         context = {
             "request": request,
             "task_id": task_id,
-            **_context_base(project=project, waiting_count=get_waiting_count(manager)),
+            **_context_base(
+                request=request, project=project, waiting_count=get_waiting_count(manager)
+            ),
         }
         return templates.TemplateResponse(
             "404.html", context, status_code=status.HTTP_404_NOT_FOUND
@@ -274,7 +287,7 @@ async def task_detail(
         # a file edited by hand can still carry one, and the page should show the task
         # rather than 500 over it.
         "parent_task": manager.get_task(task.parent) if task.parent else None,
-        **_context_base(project=project, waiting_count=get_waiting_count(manager)),
+        **_context_base(request=request, project=project, waiting_count=get_waiting_count(manager)),
     }
     return templates.TemplateResponse("task_detail.html", context)
 
