@@ -2,60 +2,47 @@ schema: 2
 id: task-330
 title: 'Identity registry: several human actors, login mapping, and retirement'
 created: '2026-09-04T03:26:56.564971Z'
-updated: '2026-09-04T05:49:43.559456Z'
+updated: '2026-09-04T05:53:21.534790Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: 'The approval ran the scripted finish and it stopped at `rebase`. **Nothing
-  was merged.**
-
-
-  Rebasing feat/task-330-identity-registry onto main did not apply cleanly, and a
-  conflict is never resolved here. The branch is exactly where it was (76aa7870).
-  Nothing was merged.
-
-
-  ```
-
-  Auto-merging docs/index.md
-
-  CONFLICT (content): Merge conflict in docs/index.md
-
-  Auto-merging docs/principals-design.md
-
-  CONFLICT (content): Merge conflict in docs/principals-design.md
-
-  Rebasing (1/4)
-
-  Rebasing (2/4)
-
-  Rebasing (3/4)
-
-  Rebasing (4/4)
-
-  error: could not apply 76aa787... docs: the identity registry, and correct principals-design
-  on actor_id
-
-  hint: Resolve all conflicts manually, mark them as resolved with
-
-  hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
-
-  hint: You can instead skip this commit: run "git rebase --skip".
-
-  hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
-
-  hint: Disable this message with "git config set advice.mergeConflict false"
-
-  Could not apply 76aa787... # docs: the identity registry, and correct principals-design
-  on actor_id
-
-  ```
-
-
-  Take it from here by hand. Check the tree against what is written above before acting
-  on anything you remember: if your worktree, your branch or your account of this
-  task no longer matches what is on disk, say so on the record and hand the ball back
-  rather than improvising a recovery.'
+ball_prompt: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
+  \ was merged.**\n\n`scripts/check.py` failed on feat/task-330-identity-registry\
+  \ after the rebase (218s, exit 1). A red gate never merges. The branch is rebased\
+  \ onto main and is otherwise untouched; nothing was merged. Full output: C:\\Users\\\
+  jpose\\.agentjobs\\finishes\\fin_7264f12f\\gate.log\n\n```\ntests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
+  tests/test_mcp_protocol.py::TestAgentEvaluations::test_every_scenario_passes\ntests/test_mcp_protocol.py::TestAgentEvaluations::test_all_ten_accepted_scenarios_ran\n\
+  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-Oa9zoEij-py3.13\\\
+  Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response = await\
+  \ handler(conn, exc)\ntests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
+  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-Oa9zoEij-py3.13\\\
+  Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
+  \ dependant.call(**values)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
+  \  C:\\projects\\worktrees\\agentjobs-330\\src\\agentjobs\\api\\routes\\web.py:381:\
+  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
+  \ removal in a future version. Use timezone-aware objects to represent datetimes\
+  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
+  tests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
+  \  C:\\projects\\worktrees\\agentjobs-330\\src\\agentjobs\\api\\routes\\web.py:363:\
+  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
+  \ removal in a future version. Use timezone-aware objects to represent datetimes\
+  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
+  -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\e[36m\e\
+  [1m=========================== short test summary info ===========================\e\
+  [0m\n\e[31mFAILED\e[0m tests/test_dispatch_runner.py::\e[1mTestProcessGroup::test_the_timeout_kills_the_grandchild_too\e\
+  [0m - AssertionError: the grandchild never started, so this proves nothing\n\e[31m=====\
+  \ \e[31m\e[1m1 failed\e[0m, \e[32m3835 passed\e[0m, \e[33m1 skipped\e[0m, \e[33m219\
+  \ warnings\e[0m\e[31m in 201.68s (0:03:21)\e[0m\e[31m =====\e[0m\n  black      0.7s\n\
+  \  ruff       0.1s\n  mypy       2.4s\n  api        6.2s\n  icons      3.2s\n  oxlint\
+  \     1.5s\n  pytest   202.9s\n  total    217.0s\nAll done! \\u2728 \\U0001f370\
+  \ \\u2728\n244 files would be left unchanged.\nFailed at stage 'pytest'.\nFix it,\
+  \ then resume with `--from pytest` instead of paying for the stages above a second\
+  \ time.\n```\n\nTake it from here by hand. Check the tree against what is written\
+  \ above before acting on anything you remember: if your worktree, your branch or\
+  \ your account of this task no longer matches what is on disk, say so on the record\
+  \ and hand the ball back rather than improvising a recovery."
 archived: false
 priority: high
 queue_position: 14800
@@ -715,3 +702,100 @@ log:
     finish_step: started
     branch: feat/task-330-identity-registry
     finish_id: fin_7264f12f
+- id: 17
+  ts: '2026-09-04T05:53:21.498420Z'
+  actor: finisher
+  type: progress
+  body: "The scripted finish stopped at `gate` (gate_failed).\n\n**Nothing was merged.**\n\
+    \n`scripts/check.py` failed on feat/task-330-identity-registry after the rebase\
+    \ (218s, exit 1). A red gate never merges. The branch is rebased onto main and\
+    \ is otherwise untouched; nothing was merged. Full output: C:\\Users\\jpose\\\
+    .agentjobs\\finishes\\fin_7264f12f\\gate.log\n\n```\ntests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_every_scenario_passes\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_all_ten_accepted_scenarios_ran\n\
+    \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-Oa9zoEij-py3.13\\\
+    Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+    \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response =\
+    \ await handler(conn, exc)\ntests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
+    \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-Oa9zoEij-py3.13\\\
+    Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+    \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
+    \ dependant.call(**values)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
+    \  C:\\projects\\worktrees\\agentjobs-330\\src\\agentjobs\\api\\routes\\web.py:381:\
+    \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
+    \ removal in a future version. Use timezone-aware objects to represent datetimes\
+    \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
+    tests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
+    \  C:\\projects\\worktrees\\agentjobs-330\\src\\agentjobs\\api\\routes\\web.py:363:\
+    \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
+    \ removal in a future version. Use timezone-aware objects to represent datetimes\
+    \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
+    -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\e[36m\e\
+    [1m=========================== short test summary info ===========================\e\
+    [0m\n\e[31mFAILED\e[0m tests/test_dispatch_runner.py::\e[1mTestProcessGroup::test_the_timeout_kills_the_grandchild_too\e\
+    [0m - AssertionError: the grandchild never started, so this proves nothing\n\e\
+    [31m===== \e[31m\e[1m1 failed\e[0m, \e[32m3835 passed\e[0m, \e[33m1 skipped\e\
+    [0m, \e[33m219 warnings\e[0m\e[31m in 201.68s (0:03:21)\e[0m\e[31m =====\e[0m\n\
+    \  black      0.7s\n  ruff       0.1s\n  mypy       2.4s\n  api        6.2s\n\
+    \  icons      3.2s\n  oxlint     1.5s\n  pytest   202.9s\n  total    217.0s\n\
+    All done! \\u2728 \\U0001f370 \\u2728\n244 files would be left unchanged.\nFailed\
+    \ at stage 'pytest'.\nFix it, then resume with `--from pytest` instead of paying\
+    \ for the stages above a second time.\n```\n\n```\n  preflight  ok         1.8s\
+    \  feat/task-330-identity-registry at 3a0e7697 in C:\\projects\\worktrees\\agentjobs-330\n\
+    \  runway     ok         0.0s  taken immediately\n  rebase     ok         0.2s\
+    \  feat/task-330-identity-registry onto main: 3a0e7697 -> 06f0a5cd\n  gate   \
+    \    STOPPED    0.0s  `scripts/check.py` failed on feat/task-330-identity-registry\
+    \ after the rebase (218s, exit 1). A red gate never merges. The branch is rebased\
+    \ onto main and is otherwise untouched; nothing was merged. Full output: C:\\\
+    Users\\jpose\\.agentjobs\\finishes\\fin_7264f12f\\gate.log\n```"
+  data:
+    finish_step: gate
+    finish_reason: gate_failed
+    merge_commit: null
+    merged: false
+- id: 18
+  ts: '2026-09-04T05:53:21.534627Z'
+  actor: finisher
+  type: handoff
+  body: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
+    \ was merged.**\n\n`scripts/check.py` failed on feat/task-330-identity-registry\
+    \ after the rebase (218s, exit 1). A red gate never merges. The branch is rebased\
+    \ onto main and is otherwise untouched; nothing was merged. Full output: C:\\\
+    Users\\jpose\\.agentjobs\\finishes\\fin_7264f12f\\gate.log\n\n```\ntests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_every_scenario_passes\n\
+    tests/test_mcp_protocol.py::TestAgentEvaluations::test_all_ten_accepted_scenarios_ran\n\
+    \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-Oa9zoEij-py3.13\\\
+    Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+    \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response =\
+    \ await handler(conn, exc)\ntests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
+    \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-Oa9zoEij-py3.13\\\
+    Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
+    \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
+    \ dependant.call(**values)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
+    \  C:\\projects\\worktrees\\agentjobs-330\\src\\agentjobs\\api\\routes\\web.py:381:\
+    \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
+    \ removal in a future version. Use timezone-aware objects to represent datetimes\
+    \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
+    tests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
+    \  C:\\projects\\worktrees\\agentjobs-330\\src\\agentjobs\\api\\routes\\web.py:363:\
+    \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
+    \ removal in a future version. Use timezone-aware objects to represent datetimes\
+    \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
+    -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\e[36m\e\
+    [1m=========================== short test summary info ===========================\e\
+    [0m\n\e[31mFAILED\e[0m tests/test_dispatch_runner.py::\e[1mTestProcessGroup::test_the_timeout_kills_the_grandchild_too\e\
+    [0m - AssertionError: the grandchild never started, so this proves nothing\n\e\
+    [31m===== \e[31m\e[1m1 failed\e[0m, \e[32m3835 passed\e[0m, \e[33m1 skipped\e\
+    [0m, \e[33m219 warnings\e[0m\e[31m in 201.68s (0:03:21)\e[0m\e[31m =====\e[0m\n\
+    \  black      0.7s\n  ruff       0.1s\n  mypy       2.4s\n  api        6.2s\n\
+    \  icons      3.2s\n  oxlint     1.5s\n  pytest   202.9s\n  total    217.0s\n\
+    All done! \\u2728 \\U0001f370 \\u2728\n244 files would be left unchanged.\nFailed\
+    \ at stage 'pytest'.\nFix it, then resume with `--from pytest` instead of paying\
+    \ for the stages above a second time.\n```\n\nTake it from here by hand. Check\
+    \ the tree against what is written above before acting on anything you remember:\
+    \ if your worktree, your branch or your account of this task no longer matches\
+    \ what is on disk, say so on the record and hand the ball back rather than improvising\
+    \ a recovery."
+  data:
+    ball: agent
+    ball_reason: work
