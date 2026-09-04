@@ -3,53 +3,13 @@ id: task-327
 title: Dispatch captures the run stub as the session id, so every run is reported
   interrupted and no transcript is findable
 created: '2026-09-04T01:20:45.863726Z'
-updated: '2026-09-04T01:37:47.407056Z'
+updated: '2026-09-04T01:43:23.466717Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Ready to merge. Branch `fix/task-327-capture-session-id` at `afb07120`,\
-  \ rebased onto current `main`, one commit, nothing pushed.\n\n**What changed**,\
-  \ all in `src/agentjobs/dispatch/runner.py`:\n\n`capture_session_id` strips ANSI\
-  \ escapes before matching, and scans every 8-hex token on a line rather than stopping\
-  \ at the first. It reuses `strip_ansi`, which was already in that module -- applied\
-  \ to terminal output meant for a person to read, and never applied to the one value\
-  \ the system itself would act on. It also takes a `reject`, and the call site passes\
-  \ the run's own stub: a run's id can never be the id the CLI assigned, so a future\
-  \ change to the `--name` format cannot break this again whatever it puts on the\
-  \ line.\n\n**The evidence that it is the right fix.** Reverting only the source\
-  \ and running the case that passes no `reject`, against run_703a9997's real bytes:\n\
-  \n```\n>       assert DispatchRunner.capture_session_id(self.NAMED) == \"1b5f4a48\"\
-  \nE       AssertionError: assert '703a9997' == '1b5f4a48'\n```\n\nThat matters because\
-  \ it shows the repair is the escape-stripping and not the `reject` filter. Had it\
-  \ been the filter, the parse would still be broken underneath and the next name\
-  \ format carrying a hex token would reintroduce this.\n\n**The finding worth your\
-  \ attention, which is not the bug.** Every fixture that existed for this code path\
-  \ writes the launcher line as `print(\"backgrounded \xB7 b55b35ad \xB7 aj-task\"\
-  )`. That drops the ANSI escape -- the entire defect -- and puts no hex-shaped run\
-  \ stub on the line to be caught instead. Five test files do it the same way, and\
-  \ that is why a green suite coexisted with every dispatched run recording the wrong\
-  \ id. The new fixtures are byte-verbatim from run_703a9997 and run_5fb17eb0, escapes\
-  \ and CRLF intact, with a comment saying they must stay that way. If you want one\
-  \ thing reviewed harder than the fix, make it that: the same approximation habit\
-  \ is presumably elsewhere.\n\n**Verification.** `scripts/check.py` unqualified on\
-  \ the rebased branch: exit 0, ten of ten stages, 266.5s, receipt written for afb07120.\
-  \ Seven new cases in `TestCaptureSessionId`.\n\n**One criterion is deliberately\
-  \ still pending.** ac-5 -- that a live dispatched run records the id `claude agents\
-  \ --json` reports -- cannot be checked before merge, because the dispatcher runs\
-  \ from the main clone. It is the real proof, so please dispatch something after\
-  \ merging and confirm the recorded `session_id` matches the live session and the\
-  \ run is not stamped `interrupted` while it works. I will do that if you would rather.\n\
-  \n**Two things I did not do, and why.** I did not re-stamp the false `interrupted`\
-  \ outcomes on past runs -- they are historical record, and task-023 log entry 19\
-  \ explains what each of them actually meant. And I did not touch task-324's `--name`\
-  \ format: it works as designed and other surfaces now depend on session names, so\
-  \ the repair belongs in the capture rather than in the thing being captured.\n\n\
-  **Context you may not have.** This is the bug that hid tonight's real failure. Your\
-  \ CLI login had expired, so dispatched sessions died instantly on `authentication_failed`\
-  \ -- but under this bug a dead run and a healthy one produce identical dashboard\
-  \ output, which is why it took three dispatches to find. Fixing the capture is also\
-  \ what restores auth-stall detection: `dispatch/auth.py:_belongs_to` matches transcript\
-  \ entries on `sessionId.startswith(session_id)` and could never match a run stub."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: critical
 queue_position: 193
@@ -393,3 +353,25 @@ log:
       id: c8a05f63-7b91-4d24-8e36-a2f14b70c539
       kind: handoff
       fingerprint: 4bd861c6d0cca4eca8d6b991a30fd9a8
+- id: 6
+  ts: '2026-09-04T01:43:21.153135Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 7
+  ts: '2026-09-04T01:43:23.466570Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-327-capture-session-id` (afb07120).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-327.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_b8b3f3cb\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-327-capture-session-id
+    finish_id: fin_b8b3f3cb
