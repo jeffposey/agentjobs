@@ -3,7 +3,7 @@ id: task-023
 title: Dispatch output is a raw terminal dump; render the session's structured transcript
   instead
 created: '2026-08-19T22:31:46.196691Z'
-updated: '2026-09-04T01:13:18.264177Z'
+updated: '2026-09-04T01:17:41.392758Z'
 lifecycle: active
 ball: agent
 ball_reason: answer
@@ -1132,3 +1132,42 @@ log:
     outcome: interrupted
     duration_seconds: 7.88702
     log_path: C:\Users\jpose\.agentjobs\runs\run_703a9997
+- id: 25
+  ts: '2026-09-04T01:17:41.392499Z'
+  actor: claude
+  type: progress
+  body: "Closeout run `run_703a9997`, posture `autonomous`. The ball came back at\
+    \ `agent`/`answer` with Jeff's approval and one instruction: file a task for the\
+    \ review UI. Both halves are done here; no code on this branch changed.\n\n**The\
+    \ follow-up is task-326**, filed `ready`/`high`. While writing it I traced *why*\
+    \ he was offered \"Answer Questions\" rather than Approve, because his wording\
+    \ implied the panel was wrong and the panel was not. The evidence, all from this\
+    \ task's own commit history:\n\n| commit | ball / ball_reason |\n|---|---|\n|\
+    \ `9fdca2f` \u2014 my review handoff | `human` / `review` |\n| `c44b3c0`, `aa9cfa6`,\
+    \ `48ce613` \u2014 three dispatcher stall reports | `human` / `input` |\n\n`DispatchRunner._check_running_stall`\
+    \ (runner.py ~2567) hands off `ball_reason=BallReason.INPUT` with no check on\
+    \ where the ball already is, so it overwrote a review that had already reached\
+    \ the human \u2014 three times, each time also asserting the task \"has been reading\
+    \ `agent`/`work` while nothing happened\", which was false from `9fdca2f` onward.\
+    \ `_settle_finished_session` in the same file already guards on `_ball_moved`;\
+    \ the stall path does not. `verbsFor` in TaskDetail.tsx then did exactly what\
+    \ task-231 told it to: `input` has no true primary verb, so no Approve.\n\nThe\
+    \ second half of his ask is separate and also real: `TaskDetail.tsx:389` renders\
+    \ `ball_prompt` through `SpecText`, a `whitespace-pre-wrap` div, so the sandbox\
+    \ URL I put in the handoff was text to be selected and pasted rather than a link\
+    \ to tap. On a phone that is the difference between reviewing and not.\n\n**The\
+    \ cost of the pair, since it is the argument for the priority:** an approval typed\
+    \ into the answer box lands as `agent`/`answer`, not as an approval, so the scripted\
+    \ finish never ran and this merge took four further dispatched runs.\n\n**State\
+    \ of this branch.** `feat/task-023-structured-transcript` at `f9ad2db`, two commits,\
+    \ unchanged since the review Jeff approved. All six acceptance criteria remain\
+    \ `met` with their evidence in entries 7 and 8. Next: `agentjobs finish task-023\
+    \ --project agentjobs --posture-release`, which rebases onto `main` and merges\
+    \ only on a green unqualified gate.\n\nOne thing for whoever reads a red gate\
+    \ here: `test_the_timeout_kills_the_grandchild_too` is flaky under parallel load\
+    \ and is not this branch \u2014 that is task-325."
+  data:
+    operation:
+      id: 7c1f2a90-4b3d-4e61-9a72-0d5c8e3f1a48
+      kind: log_append
+      fingerprint: 782f1c2c722618357c537ed8e47dee34

@@ -1,0 +1,157 @@
+schema: 2
+id: task-326
+title: A review waiting on a human offers "Answer Questions" instead of Approve, and
+  the sandbox URL it names is dead text
+created: '2026-09-04T01:16:47.468610Z'
+updated: '2026-09-04T01:17:24.527084Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 14700
+category: ux
+tags:
+- dispatch
+- react-frontend
+- ux
+- workflow
+effort: half a day
+assignment:
+  eligible: []
+spec:
+  summary: A task handed off for review can have its ball rewritten to `human`/`input`
+    by the stall watcher, which strips Approve and Request Changes from the panel
+    and leaves only "Answer Questions". Any sandbox URL the review names is also unclickable.
+  intent: 'Jeff, 2026-09-03, approving task-023 from the task page: "File a task for
+    making this waiting on human state not be ''Answer Questions'' and instead have
+    a very clear UI with link to open the sandbox link for review. The button state
+    should probably be in state for approve or request changes." A review request
+    should be answerable by tapping Approve, from a phone, without reading prose to
+    work out that Approve was what was wanted.'
+  description: "## What happened, traced\n\nTask-023 was handed off at `human`/`review`\
+    \ with a running review sandbox named in its prompt, and Jeff was shown a screen\
+    \ with no Approve button on it. Two independent defects produced that one screen.\
+    \ Both are verified against this repository's own history, not inferred.\n\n**1.\
+    \ The stall watcher overwrites a review handoff.** `DispatchRunner._check_running_stall`\
+    \ (`src/agentjobs/dispatch/runner.py`, around line 2567) hands off unconditionally:\n\
+    \n```python\nself.manager.handoff(\n    handle.task_id,\n    actor=\"dispatcher\"\
+    ,\n    ball=Ball.HUMAN,\n    ball_reason=BallReason.INPUT,\n    ...\n)\n```\n\n\
+    It never asks where the ball already is. Task-023's own commits show the sequence\
+    \ exactly:\n\n| commit | ball / ball_reason |\n|---|---|\n| `9fdca2f` \u2014 the\
+    \ agent's review handoff | `human` / `review` |\n| `c44b3c0`, `aa9cfa6`, `48ce613`\
+    \ \u2014 three stall reports | `human` / `input` |\n\nThe agent handed off correctly\
+    \ for review; its session stayed alive and quiet, so `SessionPhase.RUNNING` kept\
+    \ being classified, and the stall report fired three times over a ball that had\
+    \ already reached the human. The sibling path already gets this right \u2014 `_settle_finished_session`\
+    \ consults `_ball_moved(task, handle)` before writing anything. The stall path\
+    \ has no such guard.\n\nNote the message it wrote was also false by then: *\"\
+    this task has been reading `agent`/`work` while nothing happened\"* \u2014 it\
+    \ had been reading `human`/`review` since the handoff.\n\n**2. `input` has no\
+    \ primary verb, by design.** `verbsFor` in `frontend/src/components/TaskDetail.tsx`\
+    \ maps `decision` and `input` to `primary: null` and a secondary of \"\u270E Answer\
+    \ Questions\". That mapping is correct for the reason it was written (task-231:\
+    \ never offer a verb that is not true of the task). The defect is upstream \u2014\
+    \ the ball reason was wrong \u2014 but the screen is where it was felt.\n\n**3.\
+    \ A URL in a `ball_prompt` is dead text.** `TaskDetail.tsx:389` renders the prompt\
+    \ through `SpecText`, which is a `whitespace-pre-wrap` div. The handoff said:\n\
+    \n    http://127.0.0.1:8903/app/p/sandbox-output/tasks/task-201\n\nOn a phone\
+    \ that is text to be selected and pasted. The whole point of standing a sandbox\
+    \ up for review is that the reviewer opens it; the review surface should make\
+    \ that one tap.\n\n## The cost, stated plainly\n\nJeff read the review, was satisfied,\
+    \ and had no Approve button to press. He typed his approval into the answer box.\
+    \ An answer moves the ball to `agent`/`answer`, which is not an approval, so `finish`\
+    \ never ran \u2014 and closing out task-023 cost four further dispatched runs.\n\
+    \n## What to build\n\n- **Guard the stall report on the ball.** A session whose\
+    \ task already sits with a human is not stalling a task; report it, if at all,\
+    \ without touching the ball. Decide whether it should write a `note` instead,\
+    \ or say nothing, and record the reasoning either way. Keep the recovery property\
+    \ that made stall reporting worth having: a session genuinely stuck at `agent`/`work`\
+    \ must still be surfaced.\n- **Make the review surface unmistakable when work\
+    \ is waiting on approval.** Approve and Request Changes present, labelled for\
+    \ what they write, and any URL in the `ball_prompt` rendered as a real link \u2014\
+    \ with the safe-link rules the repo already needs (`http`/`https` only, `rel=\"\
+    noopener noreferrer\"`, no injected markup).\n- **Consider surfacing the branch\
+    \ and the sandbox as first-class review affordances** rather than as prose the\
+    \ agent happened to include. Out of scope if it grows past a link; in scope if\
+    \ the prompt already names one.\n\n## Worth deciding\n\n- Should a stall report\
+    \ on a task already with the human be silent, or a `note` on the log? A note is\
+    \ honest and does not steal the ball; silence is simpler and the run record already\
+    \ carries `status: stalled`.\n- Should `input` gain a primary verb when the previous\
+    \ ball reason was `review`? Probably not \u2014 fixing the overwrite makes the\
+    \ question moot, and inferring intent from ball history is the kind of guess task-231\
+    \ removed. Say so explicitly if you reject it."
+  constraints: '- Do not weaken the task-231 rule that a control appears only where
+    its verb is true of the task in front of it. The fix is to stop the ball reason
+    being wrong, not to offer Approve everywhere.
+
+    - Do not make stall detection unreachable. A session genuinely stuck at `agent`/`work`
+    must still be reported; the guard is about a ball that has already moved.
+
+    - Linkify defensively: `http`/`https` schemes only, `rel="noopener noreferrer"`,
+    and no path that renders agent-authored text as markup.
+
+    - Assert on rendered text, not on the presence of markup (ENGINEERING.md).'
+  out_of_scope: Redesigning the review panel's vocabulary (task-231 settled it). Splitting
+    approve-for-design from approve-for-merge (task-001). Rendering the whole `ball_prompt`
+    as Markdown.
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: _check_running_stall writes ball_reason INPUT with no regard for where the
+      ball already is; _settle_finished_session nearby shows the guard that is missing.
+  - path: frontend/src/components/TaskDetail.tsx
+    why: verbsFor maps the ball_reason to the offered controls; SpecText renders ball_prompt
+      as plain pre-wrapped text, which is why a URL in it cannot be tapped.
+  - path: tasks/agentjobs/task-023.yaml
+    why: The incident. Its log and its commit history are the evidence for both halves.
+acceptance:
+- id: ac-1
+  text: A task already at human/review is not re-handed to human/input by the stall
+    watcher; its Approve and Request Changes controls survive a stall report
+  verify: A runner test that hands off to human/review, then drives a stalled RUNNING
+    poll, and asserts the ball_reason is unchanged.
+  status: pending
+- id: ac-2
+  text: A session genuinely stuck at agent/work is still reported, with the same recovery
+    behaviour as today
+  verify: The existing stall tests still pass unmodified.
+  status: pending
+- id: ac-3
+  text: A URL in a ball_prompt is a working link in the review surface, on a phone-width
+    viewport
+  verify: A vitest case asserting the rendered anchor's href and rel, and a look at
+    it in the browser at mobile width.
+  status: pending
+- id: ac-4
+  text: Replaying task-023's sequence produces a screen with Approve on it
+  verify: Seed a sandbox task through the same handoff sequence -- agent review handoff,
+    then stall report -- and read the panel.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-04T01:16:48.115464Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7c1f2a90-4b3d-4e61-9a72-0d5c8e3f1a45
+      kind: create
+      fingerprint: bfc759a6cce12e86b247fd0d85270150
+- id: 2
+  ts: '2026-09-04T01:17:24.526957Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 7c1f2a90-4b3d-4e61-9a72-0d5c8e3f1a47
+      kind: update_content
+      fingerprint: a3cd5bf5ce86a786491bd85ebdf44f57
