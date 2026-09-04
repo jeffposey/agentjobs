@@ -3,7 +3,7 @@ id: task-023
 title: Dispatch output is a raw terminal dump; render the session's structured transcript
   instead
 created: '2026-08-19T22:31:46.196691Z'
-updated: '2026-09-04T01:17:53.680067Z'
+updated: '2026-09-04T01:27:08.564396Z'
 lifecycle: active
 ball: agent
 ball_reason: answer
@@ -1185,3 +1185,21 @@ log:
     finish_step: started
     branch: feat/task-023-structured-transcript
     finish_id: fin_55355e72
+- id: 27
+  ts: '2026-09-04T01:27:08.564164Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-023-structured-transcript` into `main` as `fdb6f3c5`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-023
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    dispatch) releases the merge gate (task-021), and run run_703a9997 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: fdb6f3c52b7742f83fd0159b577dff6a26253da3
+    branch: feat/task-023-structured-transcript
+    base: main
