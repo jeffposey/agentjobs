@@ -1544,6 +1544,10 @@ export type MachineHolderView = {
      */
     task_id?: string;
     /**
+     * Task Title
+     */
+    task_title?: string;
+    /**
      * Task Url
      *
      * Empty when there is no task to link to.

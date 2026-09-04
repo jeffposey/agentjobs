@@ -107,7 +107,8 @@ def two_projects(tmp_path: Path, monkeypatch) -> Iterator[Tuple[TestClient, Path
 def _live(client: TestClient) -> Dict[str, Any]:
     response = client.get("/api/runs/live")
     assert response.status_code == 200, response.text
-    return response.json()
+    parsed: Dict[str, Any] = response.json()
+    return parsed
 
 
 class TestAcrossProjects:

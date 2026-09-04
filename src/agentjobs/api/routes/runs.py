@@ -104,6 +104,7 @@ class MachineHolderView(BaseModel):
     kind: str = Field(..., description="`finish` or `runway`.")
     lock_name: str = Field(..., description="The lock file's stem. A task id, or a runway key.")
     task_id: str = Field(default="", description="Empty for a runway, which holds no task.")
+    task_title: str = ""
     project_id: str = ""
     project_name: str = ""
     finish_id: str = ""
@@ -191,6 +192,23 @@ def _task_title(project: Optional[Project], task_id: str) -> str:
     return getattr(task, "title", "") or ""
 
 
+def _project_owning(task_id: str, projects: Dict[str, Project]) -> str:
+    """The id of the project whose storage holds this task, or ``""``.
+
+    Task ids are only unique within a project, so the first hit wins and two projects
+    that both use ``task-001`` can be attributed to the wrong one. That is accepted
+    here: this is a status row about a merge in progress, the alternative is a row that
+    names no project at all, and the id is displayed beside the name either way.
+    """
+    for project in projects.values():
+        try:
+            if storage_for(project).load_task(task_id) is not None:
+                return project.id
+        except Exception:  # pragma: no cover - a status page never fails over a lookup
+            continue
+    return ""
+
+
 def _task_url(project_id: str, task_id: str) -> str:
     """The React app's route for one task, in whichever project owns it.
 
@@ -276,7 +294,7 @@ def _holder_view(
             pid=holder.pid,
             started_at=holder.started_at,
             elapsed_seconds=_elapsed_since(holder.started_at),
-            detail="merging -- every other finish in this repository is queued behind it",
+            detail="every other finish in this repository is queued behind it",
         )
 
     task_id = lock_name
@@ -288,11 +306,18 @@ def _holder_view(
     except Exception:  # pragma: no cover - a status page never fails over a detail
         status = None
     project_id = status.project_id if status else ""
+    if not project_id:
+        # No finish record to read the project off. That is an ordinary state rather
+        # than a fault -- ``newest_finish_directory`` scans a bounded number of
+        # directories, so an older finish falls out of reach while its lock is still
+        # held -- and the task id is enough to find the owner without it.
+        project_id = _project_owning(task_id, projects)
     project = projects.get(project_id)
     return MachineHolderView(
         kind=KIND_FINISH,
         lock_name=lock_name,
         task_id=task_id,
+        task_title=_task_title(project, task_id),
         project_id=project_id,
         project_name=project.name if project else project_id,
         finish_id=holder.finish_id or (status.finish_id if status else ""),

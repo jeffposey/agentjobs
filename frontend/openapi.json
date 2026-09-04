@@ -2087,6 +2087,11 @@
             "title": "Task Id",
             "type": "string"
           },
+          "task_title": {
+            "default": "",
+            "title": "Task Title",
+            "type": "string"
+          },
           "task_url": {
             "default": "",
             "description": "Empty when there is no task to link to.",
