@@ -8,10 +8,12 @@ from typing import Iterator
 
 from starlette.testclient import TestClient
 
+from agentjobs import front_door
 from agentjobs.api.dependencies import reset_dependency_cache
 from agentjobs.dispatch.address import ApiBaseProbe
 from agentjobs.dispatch.auth import CLAUDE_HOME_ENV
 from agentjobs.dispatch.credentials import verify_run_credential
+from agentjobs.front_door import SECRET_ENV
 from agentjobs.principals import set_run_credential_verifier
 from agentjobs.projects import HOME_ENV
 
@@ -39,6 +41,25 @@ def isolate_project_registry(tmp_path_factory, monkeypatch) -> Iterator[None]:
     reset_dependency_cache()
     yield
     reset_dependency_cache()
+
+
+@pytest.fixture(autouse=True)
+def no_front_door_by_default(monkeypatch) -> Iterator[None]:
+    """No proxy secret, and no memory of one, at the start of every test (task-244).
+
+    ``agentjobs.front_door`` caches its file read for a few seconds, and the file lives
+    under ``AGENTJOBS_HOME`` -- which the fixture above re-points per test. Without this
+    reset a cached answer would outlive the home it was read from, which is the kind of
+    coupling that shows up as one test failing only when another ran first.
+
+    Clearing the environment variable as well means a machine with a real front-door
+    secret injected into the developer's shell does not quietly change what the suite
+    proves.
+    """
+    monkeypatch.delenv(SECRET_ENV, raising=False)
+    front_door.reset_cache()
+    yield
+    front_door.reset_cache()
 
 
 @pytest.fixture(autouse=True)

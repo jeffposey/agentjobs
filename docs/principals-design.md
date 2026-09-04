@@ -62,10 +62,15 @@ to a person, at which point every capability the epic gives a person is the agen
 ## The trust rule
 
 **The identity header is believed only when the request arrives by the path the front
-door controls.** The proxy terminates the tailnet's HTTPS and forwards to
-`127.0.0.1`, so a proven identity reaches the application on loopback; the check is on
-the socket's peer address, which cannot be forwarded, rewritten or spoofed. A header
-arriving any other way is ignored — not refused, not logged as an identity, just
+door controls**, and since task-244 that is two things rather than one:
+
+1. The socket's peer address is loopback. The proxy terminates the tailnet's HTTPS and
+   forwards to `127.0.0.1`, and a peer address cannot be forwarded, rewritten or
+   spoofed by the caller.
+2. The request presents `X-AgentJobs-Front-Door` matching the machine's shared secret,
+   which is how the proxy proves it is the proxy rather than merely a neighbour of it.
+
+A header arriving without both is ignored — not refused, not logged as an identity, just
 absent — so the request resolves to exactly what it would have resolved to without it.
 
 A header trusted unconditionally is **worse than no header at all**: it converts a body
@@ -73,16 +78,41 @@ field anyone could set into a header field anyone can set while looking authorit
 Bind the server to `0.0.0.0`, which is a thing people do, and any host on the LAN could
 name itself as any user.
 
-Two consequences worth stating plainly rather than discovering later:
+Three consequences worth stating plainly rather than discovering later:
 
 - `X-Forwarded-For` and friends are not consulted. They are set by whatever sent the
   request, so reading them would undo the rule entirely.
-- **Loopback does not separate the proxy from any other local process.** A local
-  process could present an identity header and be believed as `tailnet`. That residual
-  is bounded — both kinds are human, so nothing is escalated by it, and the local
-  caller that actually matters is a dispatched agent, which rule 1 catches by
-  credential rather than by path. Narrowing it further needs the proxy to prove it is
-  the proxy, which is a proxy-side change (task-244).
+- **With no secret configured, nothing is the front door.** That is the default, and it
+  is deliberate: on a machine running no proxy the identity header is inert, and every
+  local caller is the owner it actually is. Failing closed on *attribution* while
+  staying open on *function* is the intended shape.
+- **A request that proves it is the front door and names nobody resolves nothing.** It
+  does not fall back to `owner`. The proxy refuses a connection it cannot identify, so
+  this should not occur; if it does, the caller behind it is remote, and handing a
+  remote caller the machine owner's identity would be the largest escalation available.
+
+### What the shared secret is worth
+
+It is created by the proxy on first run at `~/.agentjobs/front-door-secret` (the
+environment variable `AGENTJOBS_FRONT_DOOR_SECRET` overrides it), and the application
+only ever reads. Both ends compute that path from constants of their own; neither is
+told it by the other, which is why each side pins the spelling in a test.
+
+The honest limit, because overstating it would be the worse error: **the proxy and every
+dispatched agent run as the same user on the same machine**, so no secret stored here is
+unreadable by an agent determined to find it. What it buys is three real things:
+
+- forging a tailnet identity stops being "set a header" and becomes "read a file you
+  were not pointed at, then set two headers" — a deliberate act rather than an accident,
+  and one that leaves a shape in a transcript;
+- an install with no proxy running cannot produce a `tailnet` principal at all;
+- the trust boundary acquires a name and a file, so a deployment that genuinely does
+  separate the proxy — another user, another container, another host — tightens by
+  changing where the secret lives rather than by redesigning resolution.
+
+The escalation this closes is not cosmetic. `tailnet` holds every capability there is
+and `run` holds five of eleven, so before the proof a dispatched agent could reach
+review, dispatch and project administration by setting one header.
 
 ## The run credential
 
@@ -163,6 +193,6 @@ exists to prevent.
 | --- | --- |
 | task-330 **(shipped)** | maps a proven login to a configured actor, replacing `human_identity`'s `MULTIPLE` refusal with a per-request answer — [the identity registry](identity-registry.md) |
 | task-332 **(shipped)** | capabilities per principal kind, and what an absent principal means — [authorization](authorization.md) |
-| task-244 | sets the identity header at the proxy |
+| task-244 **(shipped)** | the proxy proves who is calling and sets the identity header — [the tailnet front door](tailnet-front-door.md) |
 
 The parent is task-066, whose decision entry of 2026-09-03 is binding on all of them.

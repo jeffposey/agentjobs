@@ -40,6 +40,7 @@ prevent.
 
 from __future__ import annotations
 
+import hmac
 import ipaddress
 from dataclasses import dataclass
 from enum import Enum
@@ -49,9 +50,10 @@ IDENTITY_HEADER = "x-tailscale-user"
 """The header the front door sets to name the caller it authenticated.
 
 Named for the proxy that sets it rather than generically, so a reader can tell at a
-glance which component is being trusted. The proxy does not set it yet -- that is
-task-244 -- and this module is correct in the meantime because an absent header simply
-does not resolve ``tailnet``.
+glance which component is being trusted. The proxy sets it from
+``LocalClient().WhoIs`` on the tailnet connection (task-244), refusing rather than
+forwarding a connection it cannot identify, and strips any copy the client sent -- so a
+value arriving here was written by the front door and not merely passed through it.
 """
 
 RUN_CREDENTIAL_HEADER = "x-agentjobs-run"
@@ -60,6 +62,38 @@ RUN_CREDENTIAL_HEADER = "x-agentjobs-run"
 The credential is minted in :mod:`agentjobs.dispatch.credentials` (task-331); this
 module defines the slot and the precedence, and landing them separately is why the
 precedence was tested before there was anything to present.
+"""
+
+FORWARDING_HEADERS = ("x-forwarded-for", "x-real-ip", "forwarded")
+"""Headers whose presence means the peer address may not be the peer (task-244).
+
+The rule everywhere else in this module is that the socket cannot lie. That is true of
+ASGI's ``scope["client"]`` only if nothing rewrote it, and **uvicorn rewrites it by
+default**: ``ProxyHeadersMiddleware`` is on unless disabled, and for a request arriving
+from ``127.0.0.1`` it replaces the client with whatever ``X-Forwarded-For`` says. So on a
+served process -- not under ``TestClient``, which is why this was invisible -- any local
+caller could hand itself an arbitrary peer address, and the real proxy, which sets the
+header honestly, made every remote caller look like a tailnet address rather than
+loopback. Measured against the live server on 2026-09-04: ``curl -H 'X-Forwarded-For:
+203.0.113.9' http://127.0.0.1:8876/api/whoami`` reported that address as the origin.
+
+Task-329 decided not to *consult* these headers, and that was right and insufficient:
+something below the application consults them regardless. The rule is therefore
+stronger. **A request carrying any of them is not local**, whatever address the server
+reports for it -- see :func:`was_forwarded`. This costs nothing real, because the front
+door removes them from what it forwards, and an application behind somebody else's
+reverse proxy resolved no principal before this change either.
+"""
+
+FRONT_DOOR_HEADER = "x-agentjobs-front-door"
+"""The header the front door presents its shared secret in (task-244).
+
+Loopback says a request came from this machine. It does not say it came from the proxy,
+and until this header existed the two were the same claim -- so any local process could
+set :data:`IDENTITY_HEADER` and be believed as ``tailnet``, which holds every capability
+there is. The proxy now proves it is the proxy on every request; see
+:mod:`agentjobs.front_door` for where the secret lives and, more importantly, for an
+honest account of what a same-user secret is and is not worth.
 """
 
 
@@ -260,31 +294,37 @@ def run_credential_verifier() -> RunCredentialVerifier:
     return _verifier
 
 
-def is_front_door(client_host: Optional[str]) -> bool:
-    """True when a request arrived by the path the front door controls.
+def was_forwarded(headers: Mapping[str, str]) -> bool:
+    """True when something claims to have relayed this request on somebody's behalf.
 
-    **This is the trust rule, and it is the part of this module worth reading twice.**
-    The proxy terminates the tailnet's HTTPS and forwards to ``127.0.0.1``, so a
-    request bearing a proven identity reaches the application on loopback. A request
-    arriving any other way did not come through the front door, whatever its headers
-    say, and its identity header is ignored rather than believed.
+    Deliberately not "was relayed by a proxy we trust": there is no such set, and a
+    request that says it was forwarded is one whose reported origin is an assertion
+    rather than a socket. Treating that as unknowable is the whole rule -- see
+    :data:`FORWARDING_HEADERS` for the measurement that made it necessary.
+    """
+    return any(_header(headers, name) for name in FORWARDING_HEADERS)
 
-    A header that is trusted unconditionally is worse than no header at all: it turns a
+
+def is_local(client_host: Optional[str]) -> bool:
+    """True when a request's reported peer address is on this machine.
+
+    The address half only. A caller deciding whether to trust a request must also ask
+    :func:`was_forwarded`, because a reported address is only the socket's when nothing
+    claimed to relay it -- :func:`resolve_principal` and :func:`is_front_door` both do.
+
+    Half of the trust rule, and the weaker half. The proxy terminates the tailnet's
+    HTTPS and forwards to ``127.0.0.1``, so everything the front door sends arrives on
+    loopback -- but so does everything every other process here sends, which is why this
+    answers "from this machine" and :func:`is_front_door` answers "from the proxy".
+
+    A header that is trusted on this alone is worse than no header at all: it turns a
     body field anyone could set into a header field anyone can set while looking
-    authoritative. Bind the server to ``0.0.0.0`` -- which is a thing people do -- and
-    an unconditional rule would let any host on the LAN name itself as any user.
+    authoritative. Bind the server to ``0.0.0.0`` -- which is a thing people do -- and a
+    rule that stopped here would let any host on the LAN name itself as any user.
 
-    An unparseable or absent client address is not the front door. There is no
-    circumstance in which "we could not tell where this came from" should mean "believe
-    what it claims about itself".
-
-    What this rule does *not* do is separate the proxy from any other local process:
-    both are loopback, so a local process could present an identity header and be
-    believed as ``tailnet``. That residual is deliberate and bounded -- both kinds are
-    human, so nothing is escalated by it, and the local caller that actually matters is
-    a dispatched agent, which rule 1 catches by credential rather than by path.
-    Narrowing loopback further needs the proxy to prove it is the proxy, which is a
-    proxy-side change and belongs to task-244.
+    An unparseable or absent client address is not local. There is no circumstance in
+    which "we could not tell where this came from" should mean "believe what it claims
+    about itself".
     """
     if not client_host:
         return False
@@ -300,6 +340,44 @@ def is_front_door(client_host: Optional[str]) -> bool:
         # IPv6Address.is_loopback says False for it. Unwrap before asking.
         address = mapped
     return address.is_loopback
+
+
+def is_front_door(
+    client_host: Optional[str],
+    headers: Optional[Mapping[str, str]] = None,
+    *,
+    secret: Optional[str] = None,
+) -> bool:
+    """True when a request arrived through the proxy, and provably so.
+
+    **This is the trust rule, and it is the part of this module worth reading twice.**
+    Two things must hold, and neither is sufficient alone:
+
+    -   The request is :func:`is_local` -- the socket is loopback, which cannot be
+        forwarded or rewritten by the caller.
+    -   It presents :data:`FRONT_DOOR_HEADER` matching the configured secret, which is
+        how the proxy proves it is the proxy rather than merely a neighbour of it.
+
+    ``secret`` of ``None`` means **no front door is configured**, and then nothing is
+    the front door -- not even a genuine proxy request. That is the deliberate default
+    (task-244): on a machine running no proxy the identity header is inert, and an
+    install that has not been told what the front door's secret is refuses to guess.
+    Compare with :func:`hmac.compare_digest` so a wrong secret cannot be found a
+    character at a time.
+
+    The residual task-329 recorded is narrowed here rather than closed, and the
+    difference matters: the proxy and a dispatched agent still run as the same user, so
+    the secret is a barrier the agent must cross deliberately, not one it cannot cross.
+    :mod:`agentjobs.front_door` states exactly what that is worth.
+    """
+    if not is_local(client_host) or was_forwarded(headers or {}):
+        return False
+    if not secret:
+        return False
+    presented = _header(headers or {}, FRONT_DOOR_HEADER)
+    if not presented:
+        return False
+    return hmac.compare_digest(presented, secret)
 
 
 def _header(headers: Mapping[str, str], name: str) -> str:
@@ -318,6 +396,7 @@ def resolve_principal(
     client_host: Optional[str],
     headers: Mapping[str, str],
     verifier: Optional[RunCredentialVerifier] = None,
+    front_door_secret: Optional[str] = None,
 ) -> Resolution:
     """Resolve exactly one principal for a request, or report that none did.
 
@@ -332,13 +411,22 @@ def resolve_principal(
         holds whichever way the verifier says no: ``None`` for a forgery, a
         :class:`Refusal` for a genuine credential whose run has ended.
     2.  **Proven identity header**, believed only from the front door -- see
-        :func:`is_front_door`.
-    3.  **Loopback with no credential**: the owner.
+        :func:`is_front_door`, which since task-244 means loopback *and* a matching
+        :data:`FRONT_DOOR_HEADER`, not loopback alone.
+    3.  **Local with no credential and no front-door proof**: the owner. An identity
+        header on such a request is ignored, exactly as it is from off the machine.
     4.  **Anything else**: nothing resolves, and the absence is reported.
 
-    Pure by construction -- it takes a host and a header mapping rather than a
-    ``Request`` -- so the trust rule can be exercised without a transport, and so the
-    HTTP tests are testing the wiring rather than re-testing the logic.
+    One case is new with the front-door proof and is worth stating because the obvious
+    reading of it is wrong: a request that **does** prove it is the front door and
+    carries **no** identity resolves nothing. It does not fall back to ``owner``. The
+    proxy refuses a connection it cannot identify, so this should not occur; if it does,
+    the caller is remote and handing it the machine owner's identity would be the
+    largest escalation in the system, granted by a bug rather than a decision.
+
+    Pure by construction -- it takes a host, a header mapping and a secret rather than a
+    ``Request`` and a global -- so the trust rule can be exercised without a transport,
+    and so the HTTP tests are testing the wiring rather than re-testing the logic.
     """
     verify = verifier if verifier is not None else run_credential_verifier()
 
@@ -366,16 +454,25 @@ def resolve_principal(
             )
         )
 
-    front_door = is_front_door(client_host)
-    if front_door:
-        login = _header(headers, IDENTITY_HEADER)
-        if login:
-            return Resolution(
-                principal=Principal(
-                    kind=PrincipalKind.TAILNET,
-                    source=PrincipalSource.PROVEN_HEADER,
-                    login=login,
+    if is_local(client_host) and not was_forwarded(headers):
+        if is_front_door(client_host, headers, secret=front_door_secret):
+            login = _header(headers, IDENTITY_HEADER)
+            if login:
+                return Resolution(
+                    principal=Principal(
+                        kind=PrincipalKind.TAILNET,
+                        source=PrincipalSource.PROVEN_HEADER,
+                        login=login,
+                    )
                 )
+            return Resolution(
+                problem=Problem.NO_PROVEN_IDENTITY,
+                detail=(
+                    "The request proved it came through the front door but named "
+                    "nobody. The proxy refuses a connection it cannot identify, so "
+                    "this is a front-door fault; it is not treated as the owner, "
+                    "because the caller behind it is remote."
+                ),
             )
         return Resolution(
             principal=Principal(kind=PrincipalKind.OWNER, source=PrincipalSource.LOOPBACK)
@@ -385,7 +482,8 @@ def resolve_principal(
         problem=Problem.NO_PROVEN_IDENTITY,
         detail=(
             f"The request arrived from {client_host or 'an unknown address'}, which is "
-            "not the path the front door controls, and carried no run credential. Any "
-            "identity header on it was ignored rather than believed."
+            "not this machine -- or claimed to have been forwarded, which makes its "
+            "origin an assertion rather than a socket -- and carried no run credential. "
+            "Any identity header on it was ignored rather than believed."
         ),
     )

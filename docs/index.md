@@ -81,6 +81,7 @@ is how this project has lost the most time, so the status word comes first.
 | [Principals design](principals-design.md) | Who is asking, resolved per request: the trust rule (task-329) and the run credential that splits loopback in two (task-331). Resolution only — what the answer permits is the page below. |
 | [Authorization](authorization.md) | What each kind of principal may do: the capability table, the actor-agreement rule, the refusal codes, and the four things it deliberately does not do (task-332). |
 | [Identity registry](identity-registry.md) | Which configured person a proven login is: several humans per project, the machine-level login map, and retirement (task-330). Attribution, not authorization. |
+| [Tailnet front door](tailnet-front-door.md) | The tsnet proxy that proves who a remote caller is, refuses a connection it cannot identify, and denies three routes (task-244). Includes what the tailnet ACL actually allows, read 2026-09-04. |
 
 **Design records — accepted, not yet built.** Read for reasoning, never as a manual.
 

@@ -18,6 +18,7 @@ from fastapi import HTTPException, Request, status
 from fastapi.templating import Jinja2Templates
 
 from agentjobs.actors import Identity, human_identity
+from agentjobs.front_door import current_secret
 from agentjobs.manager import TaskManager
 from agentjobs.principals import Principal, Resolution, resolve_principal
 from agentjobs.projects import (
@@ -348,11 +349,19 @@ def resolve_request_principal(request: Request) -> Resolution:
     is the immediate peer -- the socket, which cannot be forwarded or rewritten -- and
     is why a header claiming an identity is only believed when it arrives by the path
     the front door controls.
+
+    The secret is read here rather than held as a module-level slot the way the run
+    credential verifier is (task-244). A slot would have to be installed at import,
+    which fixes the answer to whatever was true when the server started -- so a server
+    started before the proxy would treat every remote caller as the owner until somebody
+    restarted it. :func:`agentjobs.front_door.current_secret` caches the file read, so
+    reading it per request costs a clock comparison and makes start order irrelevant.
     """
     client = request.client
     return resolve_principal(
         client_host=client.host if client is not None else None,
         headers=request.headers,
+        front_door_secret=current_secret(),
     )
 
 
