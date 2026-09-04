@@ -2,7 +2,7 @@ schema: 2
 id: task-330
 title: 'Identity registry: several human actors, login mapping, and retirement'
 created: '2026-09-04T03:26:56.564971Z'
-updated: '2026-09-04T05:49:33.019337Z'
+updated: '2026-09-04T05:49:43.559456Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -701,3 +701,17 @@ log:
       id: 3d0a1f52-7b41-4c8e-9a2d-1e5c8b330007
       kind: log_append
       fingerprint: 0b059cb266a98b1f156ad4e7c010fc2c
+- id: 16
+  ts: '2026-09-04T05:49:43.559265Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-330-identity-registry` (3a0e7697).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-330.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_7264f12f\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-330-identity-registry
+    finish_id: fin_7264f12f
