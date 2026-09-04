@@ -2,10 +2,11 @@ schema: 2
 id: task-330
 title: 'Identity registry: several human actors, login mapping, and retirement'
 created: '2026-09-04T03:26:56.564971Z'
-updated: '2026-09-04T03:26:57.252818Z'
-lifecycle: ready
+updated: '2026-09-04T05:27:05.346453Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 queue_position: 14800
@@ -15,6 +16,7 @@ tags:
 - architecture
 - epic-066
 assignment:
+  owner: claude
   eligible: []
 parent: task-066-multiple-human-users
 spec:
@@ -100,29 +102,47 @@ acceptance:
 - id: ac-1
   text: A config naming several human actors is accepted, and each is attributed correctly
     per request rather than per project.
-  status: pending
+  status: met
 - id: ac-2
   text: A proven login maps to exactly one actor id; the location of that mapping
     is recorded as a decision entry with the rejected alternative.
-  status: pending
+  status: met
 - id: ac-3
   text: An unmapped login is refused with a message naming the login, the file, and
     the shape of the entry to add. No fallback to default_user, asserted by test.
-  status: pending
+  status: met
 - id: ac-4
   text: A retired actor cannot act, and their past log entries still resolve and render.
     Tested against a log written before the retirement.
-  status: pending
+  status: met
 - id: ac-5
   text: An existing single-human config works unmodified.
-  status: pending
-deliverables: []
+  status: met
+deliverables:
+- path: src/agentjobs/identities.py
+  note: The machine-level login-to-actor registry and the refusal a second person
+    reads.
+  status: done
+- path: src/agentjobs/actors.py
+  note: human_identity is per request; several humans accepted; Actor.retired and
+    RetiredActorError.
+  status: done
+- path: docs/identity-registry.md
+  note: Where the mapping lives and why, the resolution order, the six refusal codes,
+    retirement.
+  status: done
+- path: tests/test_identity_registry_api.py
+  note: 'Two people over HTTP: each attributed to themselves, unmapped refused, retirement
+    against a log written before it.'
+  status: done
 dependencies:
 - task: task-329
   type: needs
   note: A registry maps a proven identity; task-329 is what establishes one.
 links: []
-branches: []
+branches:
+- name: feat/task-330-identity-registry
+  status: active
 log:
 - id: 1
   ts: '2026-09-04T03:26:57.251879Z'
@@ -135,3 +155,210 @@ log:
       id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110330
       kind: create
       fingerprint: abd099460179e683ff1c483a76a177cb
+- id: 2
+  ts: '2026-09-04T04:34:43.889464Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of task-066-multiple-human-users, and this
+    run is attempt 1 of 2 at one of its children on that authorisation (entry 10 on
+    task-066-multiple-human-users). They chose posture `autonomous` for the epic,
+    so this run gets it too. No separate approval of this task was given or is required:
+    the epic is what was authorised.'
+  data:
+    authorizes_dispatch: true
+    surface: the epic walk
+    epic:
+      parent: task-066-multiple-human-users
+      entry: 10
+      attempt: 1
+      limit: 2
+- id: 3
+  ts: '2026-09-04T04:34:44.408641Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 4
+  ts: '2026-09-04T04:34:47.190749Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_4d12b705
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: epic
+    posture_ceiling: autonomous
+    trigger: child
+    caused_by: 2
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --name
+    - agentjobs/task-330@4d12b705
+    - --settings
+    - '{"env": {"AGENTJOBS_RUN_ID": "run_4d12b705", "AGENTJOBS_RUN_DIR": "C:\\Users\\jpose\\.agentjobs\\runs\\run_4d12b705"}}'
+    - 'You are the agent `claude` working task `task-330` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-330-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_4d12b705. Posture `autonomous` releases the merge gate:
+      this run merges its own work with no human review. Record the evidence on the
+      task first, then run `agentjobs finish task-330 --project agentjobs --posture-release`
+      from C:\projects\agentjobs. That rebases, runs the full gate, and merges only
+      on a green one -- it stops and hands the ball back if anything fails. Do not
+      merge by hand. Never push: this project is configured `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: d504cb8
+    session_id: ddc58eb8
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 5
+  ts: '2026-09-04T05:25:53.966918Z'
+  actor: claude
+  type: decision
+  body: "**The login-to-actor mapping lives machine-level, in `~/.agentjobs/identities.yaml`.\
+    \ The actor vocabulary stays per project.** (ac-2)\n\n```yaml\n# ~/.agentjobs/identities.yaml\n\
+    owner: jeffposey\nidentities:\n  - login: jeff@example.com\n    actor: jeffposey\n\
+    ```\n\nChosen for two reasons, only the first of which the spec anticipated. A\
+    \ tailnet login is a property of this machine's tailnet, not of any repository,\
+    \ so one person has one login across every project served here \u2014 the file\
+    \ sits beside `projects.yaml`, and both record what this particular machine has.\
+    \ The second reason is the decisive one: **`.agentjobs/config.yaml` is committed\
+    \ and travels with a clone.** A login map there publishes the machine's account\
+    \ list to everyone who clones the repository, which for a public repo is a real\
+    \ disclosure, and it forces the same person to be re-declared in every project\
+    \ on the machine \u2014 so adding a second person becomes *n* edits rather than\
+    \ one, which is the friction this task exists to remove.\n\n**Rejected: per-project,\
+    \ in `.agentjobs/config.yaml` alongside the actor vocabulary.** Its argument is\
+    \ good and was weighed: identity split across two files is harder to reason about,\
+    \ and the actor ids the mapping points at are already there. It loses on the two\
+    \ counts above. What survives of it is that the vocabulary \u2014 who exists,\
+    \ their kind, their display name, whether they are retired \u2014 stays per project,\
+    \ because who may act on a project is a property of that project and travels with\
+    \ it correctly.\n\n**A third question the spec did not name, decided here: which\
+    \ of several people is the caller on bare loopback.** They present no login, so\
+    \ nothing can be looked up. `owner:` in the same machine file answers it. `default_user`\
+    \ deliberately does *not* \u2014 project config is shared, so it cannot say who\
+    \ is at *this* keyboard, and honouring it would be exactly task-064's defect.\
+    \ With no `owner:` and several people who can act, the request is refused as `ambiguous`.\n\
+    \n**Residual, stated rather than designed around:** an entry names one actor id,\
+    \ so a person whom two projects call by different ids can only be mapped to one.\
+    \ The other project refuses with `unknown_actor`, naming the id and the config\
+    \ file. Using the same id is the fix. A per-project alias was considered and rejected\
+    \ as speculative generality \u2014 nothing on this machine needs it, and the refusal\
+    \ is honest and actionable."
+  data:
+    operation:
+      id: 3d0a1f52-7b41-4c8e-9a2d-1e5c8b330001
+      kind: log_append
+      fingerprint: 0b62e4ad9b145c91458c28df6eb13b31
+- id: 6
+  ts: '2026-09-04T05:26:24.447392Z'
+  actor: claude
+  type: progress
+  body: "**Built and verified on `feat/task-330-identity-registry` (4 commits: f36d0dd,\
+    \ 0b546ef, c2e75cc, b3e2167).** This is the only review this work will get, so\
+    \ what follows is the whole of it.\n\n## What landed\n\n- **`src/agentjobs/identities.py`\
+    \ (new).** The machine-level login map: `IdentityRegistry`, case-insensitive lookup,\
+    \ an `owner:` line, and `unmapped_login_help()` \u2014 the refusal message. A\
+    \ malformed entry is skipped rather than fatal, because one person's typo must\
+    \ not take the dashboard away from everybody else.\n- **`src/agentjobs/actors.py`.**\
+    \ `human_identity(config, principal)` \u2014 per request, not per project. `MULTIPLE`\
+    \ is gone, replaced by six problem codes (`unconfigured`, `unmapped`, `unknown_actor`,\
+    \ `retired`, `ambiguous`, `not_a_person`). `Actor.retired`, `active_humans()`,\
+    \ `RetiredActorError`, `PROBLEM_HEADLINES`.\n- **API wiring.** `current_identity`\
+    \ takes the principal; the seven review routes, the task detail route, the playbooks\
+    \ route, the legacy pages and `GET /api/projects` all pass the request's own.\
+    \ The projects listing mattered more than it looks: the React app attributes queue\
+    \ reordering with its `default_user` field, so leaving it project-wide would have\
+    \ meant two people reordering as one.\n- **Both UIs.** The headline over a refusal\
+    \ was `problem === \"multiple\" ? \u2026 : \"No user configured.\"` in two places\
+    \ \u2014 exhaustive for two problems, wrong for six. One table per surface plus\
+    \ `tests/test_identity_problem_headlines.py`, which fails when either loses a\
+    \ code; the drift is silent otherwise because both sides fall back rather than\
+    \ erroring.\n- **`docs/identity-registry.md`**, and a correction to `docs/principals-design.md`,\
+    \ which promised this task would populate `Principal.actor_id`. It does not and\
+    \ should not \u2014 the mapping needs a project's vocabulary and principal resolution\
+    \ is deliberately project-agnostic. Left as written it would have sent the next\
+    \ reader hunting a field that stays `None`.\n\n## Resolution order, as built\n\
+    \n1. A run \u2192 `not_a_person`, first, so nothing downstream can map it to a\
+    \ human.\n2. A proven login \u2192 the machine registry. Mapped to a live actor,\
+    \ that is the answer.\n3. Otherwise the machine's `owner:`; failing that, a project\
+    \ with several active people is refused as `ambiguous`, and a project with at\
+    \ most one resolves from `default_user` or from being the only candidate \u2014\
+    \ exactly what every caller got before principals existed.\n\n## Verified\n\n\
+    **Full unqualified `scripts/check.py`, green, all 10 of 10 stages** (3794 passed,\
+    \ 1 skipped; vitest 355; e2e 38; 339s). Log: `$CLAUDE_JOB_DIR/tmp/gate5.log`.\n\
+    \nAn earlier full run had one unrelated failure \u2014 `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`,\
+    \ whose own assertion message is \"the grandchild never started, so this proves\
+    \ nothing\". It passed alone and passed in the green run; it is load-sensitive,\
+    \ not caused by this change.\n\n**Exercised against a live server**, not only\
+    \ the suite: a sandbox project on port 8971 with three people (jeff, sam, dana-retired)\
+    \ and a real `identities.yaml`. Every path checked by HTTP:\n\n| Request | Result\
+    \ |\n|---|---|\n| bare loopback, two active people | `ambiguous`, refused, names\
+    \ both |\n| `X-Tailscale-User: jeff@\u2026` | resolves `jeff` |\n| `X-Tailscale-User:\
+    \ sam@\u2026` | resolves `sam` |\n| sam approves as `jeff` | 400, \"must be attributed\
+    \ to configured user 'sam'\" |\n| sam approves as `sam` | 200 \u2014 **and the\
+    \ task file records `actor: sam`** |\n| dana (retired) approves | 400, \"'dana'\
+    \ is retired and may no longer act\" |\n| unmapped login | `unmapped`, message\
+    \ names the login and the absolute path of the file |\n| retire sam *after* he\
+    \ approved | his entries still render; jeff then resolves cleanly on bare loopback\
+    \ with no further config |\n| legacy Jinja page, unmapped login | headline reads\
+    \ \"Your login is not mapped.\" |\n\nThe retirement case was run in that order\
+    \ deliberately \u2014 act, then retire \u2014 because that is the constraint:\
+    \ the log is append-only and a person's history must survive their departure.\n\
+    \nNote on the first attempt at this: port 8899 was already held by an orphaned\
+    \ server from worktree `aj-219` (started 2026-08-23), so the first round of results\
+    \ was the wrong process answering. Caught by checking `/api/version`'s `source_root`.\
+    \ That process was left alone \u2014 it is not mine and not blocking anything.\n\
+    \n## Judgement, the other half of the autonomous gate\n\nNothing found wrong with\
+    \ the work. Two things a reader should know rather than discover:\n\n- **`default_user`\
+    \ is not consulted when several people can act.** That is task-064's reasoning\
+    \ surviving intact, and it is the one place where this task deliberately *refuses*\
+    \ rather than resolving. Project config is committed, so it cannot say who is\
+    \ at this keyboard.\n- **`default_user` on a project with at most one human is\
+    \ still honoured unchecked**, even when it names an id `actors:` never listed.\
+    \ Some installs are in that state; `validate_actor` already refuses the write,\
+    \ so re-refusing here would break working configs for no gain. Retirement is the\
+    \ one thing that still bites on that path."
+  data:
+    operation:
+      id: 3d0a1f52-7b41-4c8e-9a2d-1e5c8b330002
+      kind: log_append
+      fingerprint: fc0757fa79a665e298a3590c49de3977
+- id: 7
+  ts: '2026-09-04T05:27:05.346193Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 3d0a1f52-7b41-4c8e-9a2d-1e5c8b330006
+      kind: update_content
+      fingerprint: d9145e9f83159dc00b9273c1919b445d
