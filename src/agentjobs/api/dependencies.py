@@ -278,19 +278,32 @@ def project_config(project: Project) -> dict:
     return _load_config(project.root)
 
 
-def current_identity(project: Project) -> Identity:
-    """Who the GUI acts as for this project, or why it cannot tell."""
-    return human_identity(project_config(project))
+def current_identity(project: Project, principal: Optional[Principal] = None) -> Identity:
+    """Who the GUI acts as for this project, or why it cannot tell.
+
+    ``principal`` is what makes this per request rather than per project (task-330): a
+    remote caller's proven login resolves through the machine's identity registry, so
+    two people can use one dashboard and each be recorded as themselves. Omitted, it
+    resolves the machine owner, which is the right answer for a caller with no request
+    behind it -- the CLI, a script -- and is what every call site did before principals
+    existed.
+    """
+    return human_identity(project_config(project), principal)
 
 
-def current_user(project: Project) -> Optional[str]:
+def current_user(project: Project, principal: Optional[Principal] = None) -> Optional[str]:
     """The actor id the GUI acts as for this project, or None if unresolvable."""
-    return current_identity(project).user
+    return current_identity(project, principal).user
+
+
+def request_identity(request: Request) -> Identity:
+    """Who this request acts as, resolved from its own principal."""
+    return current_identity(request_project(request), get_principal(request))
 
 
 def get_current_user(request: Request) -> Optional[str]:
     """Provide the acting user to a route."""
-    return current_user(request_project(request))
+    return request_identity(request).user
 
 
 def get_templates() -> Jinja2Templates:

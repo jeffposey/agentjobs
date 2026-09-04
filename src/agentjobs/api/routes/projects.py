@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel, Field
 
 from agentjobs.actors import default_user, load_actors
+from agentjobs.principals import Principal
 from agentjobs.dispatch.address import api_base_from_server, configured_api_base
 from agentjobs.models_v2 import Ball, Lifecycle, Task
 from agentjobs.project_setup import (
@@ -26,7 +27,13 @@ from agentjobs.projects import (
     validate_project_id,
 )
 
-from ..dependencies import get_registry, list_projects, project_config, storage_for
+from ..dependencies import (
+    get_principal,
+    get_registry,
+    list_projects,
+    project_config,
+    storage_for,
+)
 
 router = APIRouter(prefix="/api", tags=["projects"])
 
@@ -124,13 +131,22 @@ def _registration_details(
     return identifier, project_name
 
 
-def _actor_vocabulary(project: Any) -> tuple[List[ProjectActor], Optional[str]]:
-    """Read a project's configured actors and its human default.
+def _actor_vocabulary(
+    project: Any, principal: Optional[Principal] = None
+) -> tuple[List[ProjectActor], Optional[str]]:
+    """Read a project's configured actors and the human this caller acts as.
 
     Discovery has to carry these because an agent must supply an exact actor on every
     mutation and has no other way to learn the vocabulary. ``default_user`` is
     reported for addressing a person, not for an agent to adopt: inferring an actor
     from the human default is precisely the attribution bug actors.py exists to stop.
+
+    Since task-330 it is resolved from ``principal`` rather than from config alone, so
+    on a project configuring several people it names whichever of them is asking. The
+    field keeps its name because it is public API and the meaning is a refinement rather
+    than a reversal -- it was always "the person this caller acts as", and there was
+    only ever one candidate. The React app attributes queue reordering with it, which is
+    why leaving it project-wide would have meant two people reordering as one.
 
     A project whose config cannot be read reports an empty vocabulary rather than
     failing the listing, matching how a missing directory is already handled. Nothing
@@ -145,7 +161,7 @@ def _actor_vocabulary(project: Any) -> tuple[List[ProjectActor], Optional[str]]:
         ProjectActor(id=actor.id, kind=actor.kind, display_name=actor.display_name)
         for actor in load_actors(config).values()
     ]
-    return vocabulary, default_user(config)
+    return vocabulary, default_user(config, principal)
 
 
 def _declare_mcp_server(request: Request, root: Path, port: int) -> None:
@@ -170,9 +186,11 @@ def _declare_mcp_server(request: Request, root: Path, port: int) -> None:
         logger.warning("No MCP server entry written for %s: %s", root, exc)
 
 
-def _describe(project: Any, task_count: Optional[int]) -> ProjectResponse:
+def _describe(
+    project: Any, task_count: Optional[int], principal: Optional[Principal] = None
+) -> ProjectResponse:
     """Render a project as an API payload."""
-    actors, human = _actor_vocabulary(project)
+    actors, human = _actor_vocabulary(project, principal)
     return ProjectResponse(
         id=project.id,
         name=project.name,
@@ -185,7 +203,9 @@ def _describe(project: Any, task_count: Optional[int]) -> ProjectResponse:
 
 
 @router.get("/projects", response_model=List[ProjectResponse])
-async def get_projects() -> List[ProjectResponse]:
+async def get_projects(
+    principal: Optional[Principal] = Depends(get_principal),
+) -> List[ProjectResponse]:
     """List every project this server can serve, with task counts.
 
     A project whose directory has gone missing is reported with a null task_count
@@ -198,7 +218,7 @@ async def get_projects() -> List[ProjectResponse]:
             count: Optional[int] = len(storage_for(project).list_tasks())
         except OSError:
             count = None
-        payload.append(_describe(project, count))
+        payload.append(_describe(project, count, principal))
     return payload
 
 
