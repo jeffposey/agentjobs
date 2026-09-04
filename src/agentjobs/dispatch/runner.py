@@ -94,6 +94,11 @@ from agentjobs.models_v2 import (
     utcnow,
 )
 from agentjobs.dispatch.phases import RUN_DIR_ENV, RUN_ID_ENV
+from agentjobs.dispatch.credentials import (
+    CREDENTIAL_ENV,
+    mint_run_credential,
+    revoke_run_credential,
+)
 from agentjobs.dispatch.session_env import daemon_was_started, deliver_identity
 from agentjobs.project_setup import MCP_CONFIG_FILENAME
 
@@ -1059,8 +1064,17 @@ class RunDirectory:
         return loaded if isinstance(loaded, dict) else {}
 
     def update_meta(self, **fields: object) -> None:
-        """Merge fields into meta.yaml, stamping the finish time when the run ends."""
-        self.write_meta(finish_stamped(self.read_meta(), fields))
+        """Merge fields into meta.yaml, stamping the finish time when the run ends.
+
+        A write that ends the run also destroys its credential digest (task-331). Not
+        what enforces expiry -- verification reads the status, and would refuse this run
+        whether or not the digest survived -- but a concluded run's directory sits on
+        disk for months, and there is no reason for a verifiable secret to sit in it.
+        """
+        merged = finish_stamped(self.read_meta(), fields)
+        self.write_meta(merged)
+        if str(merged.get("status") or "") in TERMINAL_STATUSES:
+            revoke_run_credential(self.path)
 
     def output_tail(self, lines: int = OUTPUT_TAIL_LINES) -> str:
         """The last lines of combined output, for inlining into a failure entry."""
@@ -1476,11 +1490,15 @@ class DispatchRunner:
             },
         )
 
+        # Codex needs no settings hop: the App Server is spawned directly from this
+        # environment, so the credential reaches its worker the way the run id does.
+        credential = mint_run_credential(directory.path, run_id)
+
         def new_app_server() -> CodexAppServerProcess:
             return CodexAppServerProcess(
                 executable=resolve_executable(argv[0], driver=RunnerDriver.CODEX),
                 cwd=self.project_root,
-                env=self._environment(directory, run_id),
+                env=self._environment(directory, run_id, credential),
                 settings=settings,
                 service_name="agentjobs",
                 thread_name=f"AgentJobs {self.resolution.project_id}/{task.id}",
@@ -1746,7 +1764,12 @@ class DispatchRunner:
             desktop_visibility="not_observed",
         )
 
-    def _environment(self, run: Optional[RunDirectory] = None, run_id: str = "") -> Dict[str, str]:
+    def _environment(
+        self,
+        run: Optional[RunDirectory] = None,
+        run_id: str = "",
+        credential: str = "",
+    ) -> Dict[str, str]:
         """The child's environment: ours, plus the runner's additions.
 
         Additive rather than replacing, so a runner does not have to restate PATH. Never
@@ -1776,10 +1799,17 @@ class DispatchRunner:
         # first makes the invariant hold whatever the ambient environment says.
         environment.pop(RUN_DIR_ENV, None)
         environment.pop(RUN_ID_ENV, None)
+        # The credential is popped for a sharper reason than the other two (task-331):
+        # a child that inherited its supervisor's credential would *be* the supervisor
+        # to every request it made, which is the impersonation this epic closes rather
+        # than a mislabelled measurement.
+        environment.pop(CREDENTIAL_ENV, None)
         if run is not None:
             environment[RUN_DIR_ENV] = str(run.path)
             if run_id:
                 environment[RUN_ID_ENV] = run_id
+            if credential:
+                environment[CREDENTIAL_ENV] = credential
         return environment
 
     def _assert_spawnable(self, task: Task) -> None:
@@ -1961,12 +1991,18 @@ class DispatchRunner:
         # rewrites only the element carrying the prompt and preserves everything else.
         # The directory is named here and created a few lines below; `deliver_identity`
         # makes it, because the settings document has to exist before the launcher runs.
+        directory_path = runs_root(self.home) / run_id
+        # Minted before the worker exists, so the digest is on disk before anything can
+        # present the token. A credential in hand also moves the settings document out of
+        # argv and into a 0600 file -- see `session_env.deliver_identity`.
+        credential = mint_run_credential(directory_path, run_id)
         delivered = deliver_identity(
             argv,
             prompt=prompt,
-            directory=runs_root(self.home) / run_id,
+            directory=directory_path,
             run_id=run_id,
             runner_env=self.runner.env,
+            credential=credential,
         )
         argv = delivered.argv
         wake, argv, stdin_text = self._plan_wake(task, run_id, argv, prompt)
@@ -2010,6 +2046,13 @@ class DispatchRunner:
         try:
             completed = subprocess.run(
                 argv,
+                # No credential here, deliberately, and this is the one place the
+                # asymmetry with the run id matters. This process is a *launcher*: when
+                # it is the launch that starts the Claude daemon, the daemon inherits
+                # this environment and hands it to every session it spawns afterwards
+                # (task-249). A stale run id mislabels a phase record; a stale credential
+                # would make one run's sessions speak as another's. The worker's copy
+                # goes through the settings document instead.
                 cwd=str(self.project_root),
                 env=self._environment(directory, run_id),
                 capture_output=True,
@@ -2839,6 +2882,10 @@ class DispatchRunner:
             session_id=None,
         )
 
+        # A batch run's worker is the process started here, so it inherits the
+        # environment directly and needs no settings hop.
+        credential = mint_run_credential(directory.path, run_id)
+
         stdout_file = (directory.path / STDOUT_FILENAME).open("w", encoding="utf-8")
         stderr_file = (directory.path / STDERR_FILENAME).open("w", encoding="utf-8")
         try:
@@ -2848,7 +2895,7 @@ class DispatchRunner:
                 process = subprocess.Popen(
                     argv,
                     cwd=str(self.project_root),
-                    env=self._environment(directory, run_id),
+                    env=self._environment(directory, run_id, credential),
                     stdout=stdout_file,
                     stderr=stderr_file,
                     creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
@@ -2857,7 +2904,7 @@ class DispatchRunner:
                 process = subprocess.Popen(
                     argv,
                     cwd=str(self.project_root),
-                    env=self._environment(directory, run_id),
+                    env=self._environment(directory, run_id, credential),
                     stdout=stdout_file,
                     stderr=stderr_file,
                     start_new_session=True,

@@ -38,7 +38,12 @@ ACTIVATION_VARS = ("VIRTUAL_ENV", "POETRY_ACTIVE")
 # which would then append a gate record per simulated run straight into the live ledger.
 # Observed the first time the gate was run inside a real run directory -- sixteen phantom
 # records beside one true one. Named the same way in `agentjobs.dispatch.phases`.
-RUN_VARS = ("AGENTJOBS_RUN_ID", "AGENTJOBS_RUN_DIR")
+#
+# The credential joins them for a second reason (task-331): the gate's children include
+# `pytest`, which drives this repository's own API, and a test that inherited a live
+# run's credential would resolve as that run instead of as the owner -- so the suite
+# would measure the ambient environment rather than what it set up.
+RUN_VARS = ("AGENTJOBS_RUN_ID", "AGENTJOBS_RUN_DIR", "AGENTJOBS_RUN_CREDENTIAL")
 
 
 def same_environment(active: str) -> bool:

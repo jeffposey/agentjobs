@@ -22,6 +22,8 @@ from agentjobs.environment import (
 )
 from agentjobs.instrumentation import reset_task_parses, task_parse_count
 from agentjobs.projects import ProjectError, ProjectRegistry, default_home
+from agentjobs.dispatch.credentials import verify_run_credential
+from agentjobs.principals import set_run_credential_verifier
 from agentjobs.storage import TaskLoadError, corpus_snapshot
 
 from .dependencies import PRINCIPAL_STATE_ATTR, resolve_request_principal
@@ -156,6 +158,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         with suppress(asyncio.CancelledError):
             await poller
 
+
+# Who a run credential proves you to be, installed over the verifier that verifies
+# nothing (task-331). This is the line that splits loopback in two: until it runs, every
+# local caller is the owner, including a dispatched agent. At import rather than in the
+# lifespan so a TestClient that never enters the lifespan resolves runs the same way a
+# served process does.
+set_run_credential_verifier(verify_run_credential)
 
 app = FastAPI(
     lifespan=lifespan,

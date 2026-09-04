@@ -40,6 +40,7 @@ import yaml
 
 from agentjobs.dispatch.config import sentinel_path
 from agentjobs.dispatch.record_commit import commit_task_record
+from agentjobs.dispatch.credentials import revoke_run_credential
 from agentjobs.dispatch.runner import (
     META_FILENAME,
     TERMINAL_STATUSES,
@@ -1015,10 +1016,15 @@ def write_status(record: RunRecord, **fields: object) -> None:
                 meta = loaded
         except (OSError, yaml.YAMLError):
             meta = {}
+    merged = finish_stamped(meta, fields)
     meta_path.write_text(
-        yaml.safe_dump(finish_stamped(meta, fields), sort_keys=False, allow_unicode=False),
+        yaml.safe_dump(merged, sort_keys=False, allow_unicode=False),
         encoding="utf-8",
     )
+    if str(merged.get("status") or "") in TERMINAL_STATUSES:
+        # The write that ends a run destroys its credential digest -- see
+        # `RunDirectory.update_meta`, which does the same for the other write path.
+        revoke_run_credential(record.path)
 
 
 # ----- stopping things --------------------------------------------------------

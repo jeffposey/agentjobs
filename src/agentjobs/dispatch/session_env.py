@@ -38,19 +38,18 @@ repeatable, so a second one would silently win and drop the first, which would m
 replacing the thing that decides what the run may do. The document is therefore **merged
 into**, never appended beside; a document that cannot be read is left strictly alone.
 
-**The merged document stays inline unless a runner declares its own ``env:``.** That
-keeps the default case byte-identical in shape to what it has always been -- ``meta.yaml``
-records argv verbatim, so a reader of a run record goes on seeing exactly which
-permissions that run was granted, which is the point of recording argv at all. The
-identity pair is not a secret: the run id is the name of the directory the record sits
-in.
+**The merged document stays inline unless it holds something that may not be recorded.**
+Inline keeps the shape it has always had -- ``meta.yaml`` records argv verbatim, so a
+reader of a run record goes on seeing exactly which permissions that run was granted,
+which is the point of recording argv at all. The identity pair is not a secret: the run
+id is the name of the directory the record sits in.
 
-A runner's ``env:`` is the exception, because the design doc tells operators to put
-secrets there *precisely because* argv is recorded. Inlining those would put them back
-into the record, so a runner that declares any ``env:`` gets a file at mode ``0600``
-beside the run, with only its path in argv -- and the merged document, with the ``env``
-values redacted to their key names, is written to ``meta.yaml`` so the permission
-envelope stays as auditable as it was before.
+Two things are. A runner's ``env:`` is one, because the design doc tells operators to put
+secrets there *precisely because* argv is recorded. The run credential (task-331) is the
+other, and it is why the ordinary Claude session now takes this path too. Either one gets
+a file at mode ``0600`` beside the run, with only its path in argv -- and the merged
+document, with the ``env`` values redacted to their key names, is written to ``meta.yaml``
+so the permission envelope stays as auditable as it was before.
 """
 
 from __future__ import annotations
@@ -61,6 +60,8 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Mapping, Optional, Sequence
+
+from agentjobs.dispatch.credentials import CREDENTIAL_ENV
 
 SESSION_SETTINGS_FILENAME = "session-settings.json"
 """The per-run settings document, written into the run's own directory."""
@@ -101,8 +102,20 @@ class Delivery(str, Enum):
     FAILED = "failed"
     """The settings file could not be written. The launch goes ahead without it.
 
-    Only reachable for a runner with an ``env:`` of its own, which is the one case that
-    needs a file rather than an inline document.
+    Only reachable for a runner with an ``env:`` of its own, which is the one case where
+    there is no safe inline fallback: those values may not go into argv either.
+    """
+
+    UNCREDENTIALED = "uncredentialed"
+    """The file could not be written, so the identity went inline without the credential.
+
+    A run credential (task-331) is the second value that may not go into argv, and it is
+    the only one whose absence is survivable: a run with no credential resolves as this
+    machine's owner, exactly as every run dispatched before credentials existed does.
+    Dropping it is therefore strictly better than either losing the run id -- which is
+    what ``FAILED`` costs -- or writing a secret into a record. It is recorded under its
+    own name because "this run has no credential" is a fact task-332 will want to read
+    off the ledger rather than infer.
     """
 
     NOT_APPLICABLE = "not_applicable"
@@ -114,17 +127,22 @@ def session_environment(
     run_id: str,
     run_dir: Path,
     runner_env: Optional[Mapping[str, str]] = None,
+    credential: str = "",
 ) -> Dict[str, str]:
     """The variables a dispatched worker needs that its environment will not carry.
 
     The runner's own ``env:`` is included because it has the same problem and the same
-    remedy: it is set on the launcher, and the launcher is not the worker.
+    remedy: it is set on the launcher, and the launcher is not the worker. So does the
+    run credential (task-331), which is how the worker's API requests identify as this
+    run rather than as the person at the machine.
     """
     environment: Dict[str, str] = dict(runner_env or {})
     # Ours last: a runner may not overwrite the identity of the run it is being started
     # for. The same precedence `_environment` applies, for the same reason.
     environment["AGENTJOBS_RUN_ID"] = run_id
     environment["AGENTJOBS_RUN_DIR"] = str(run_dir)
+    if credential:
+        environment[CREDENTIAL_ENV] = credential
     return environment
 
 
@@ -235,6 +253,7 @@ def deliver_identity(
     directory: Path,
     run_id: str,
     runner_env: Optional[Mapping[str, str]] = None,
+    credential: str = "",
 ) -> Delivered:
     """Get this run's identity into argv, merging rather than displacing what is there.
 
@@ -243,15 +262,25 @@ def deliver_identity(
     ``phases.record_phase`` makes, and it is why every failure below returns a verdict
     instead of an exception.
 
-    Two shapes, and which one is used turns only on whether the runner declared an
-    ``env:`` of its own:
+    Two shapes, and which one is used turns only on whether the document contains
+    anything that may not be recorded:
 
-    - **Inline**, the default. The merged document goes back into argv as JSON, exactly
-      where ``posture_flags`` already puts one. ``meta.yaml`` records argv verbatim, so
-      the permission envelope stays as readable in the run record as it has always been.
-    - **A file**, when the runner has an ``env:``. Those values are where operators are
-      told to put secrets *because* argv is recorded, so they may not go back into it.
-      Only the path is spliced, and the redacted document is returned for the record.
+    - **Inline**, when it does not. The merged document goes back into argv as JSON,
+      exactly where ``posture_flags`` already puts one. ``meta.yaml`` records argv
+      verbatim, so the permission envelope stays as readable in the run record as it has
+      always been.
+    - **A file**, when the runner has an ``env:`` of its own, or when this run has a
+      credential (task-331). Both are secrets, and argv is recorded verbatim into
+      ``meta.yaml`` *and* into the task's dispatch log entry, so neither may go back into
+      it. Only the path is spliced, and the redacted document is returned for the record
+      so the permission envelope stays as auditable as it was inline.
+
+    A credential therefore moves the ordinary Claude session from the first shape to the
+    second. If that write fails the launch does not lose its run id: the identity goes
+    inline **without** the credential, reported as :attr:`Delivery.UNCREDENTIALED`. A run
+    with no credential is a run that resolves as the machine's owner -- the pre-existing
+    state, and survivable -- while a run with no id loses its phase records, and a secret
+    in argv is not survivable at all.
 
     The flag is spliced immediately before the element carrying the prompt when there is
     no existing one -- where ``compose_argv`` puts the posture flags, because a CLI
@@ -276,22 +305,32 @@ def deliver_identity(
     else:
         inline_form = False
 
-    environment = session_environment(run_id=run_id, run_dir=directory, runner_env=runner_env)
+    environment = session_environment(
+        run_id=run_id, run_dir=directory, runner_env=runner_env, credential=credential
+    )
 
-    if runner_env:
+    delivery = Delivery.DELIVERED
+    document: Optional[Dict[str, object]] = None
+    if runner_env or credential:
         try:
             path = write_session_settings(directory, environment, base=base)
         except OSError:
-            return Delivered(rendered, Delivery.FAILED)
-        value: str = str(path)
-        document = redacted(merged_document(environment, base))
+            if runner_env:
+                # No safe fallback: a runner's `env:` is where operators are told to put
+                # secrets, so an inline retry would put them in argv.
+                return Delivered(rendered, Delivery.FAILED)
+            environment.pop(CREDENTIAL_ENV, None)
+            value: str = json.dumps(merged_document(environment, base))
+            delivery = Delivery.UNCREDENTIALED
+        else:
+            value = str(path)
+            document = redacted(merged_document(environment, base))
     else:
         value = json.dumps(merged_document(environment, base))
-        document = None
 
     if at is not None:
         rendered[at] = f"{SETTINGS_FLAG}={value}" if inline_form else value
-        return Delivered(rendered, Delivery.DELIVERED, document)
+        return Delivered(rendered, delivery, document)
 
     insert_at = len(rendered)
     if prompt:
@@ -301,7 +340,7 @@ def deliver_identity(
                 break
     return Delivered(
         [*rendered[:insert_at], SETTINGS_FLAG, value, *rendered[insert_at:]],
-        Delivery.DELIVERED,
+        delivery,
         document,
     )
 
