@@ -3,7 +3,7 @@ id: task-333
 title: 'Project exposure: a hidden project stays hidden through its run transcripts
   too'
 created: '2026-09-04T03:28:25.746152Z'
-updated: '2026-09-04T08:35:01.385783Z'
+updated: '2026-09-04T08:35:49.474636Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -581,3 +581,13 @@ log:
     \ on loopback, since loopback is the one path that never had the problem.\n\n\
     Say the word and I will write it, or file it as a task."
   data: {}
+- id: 15
+  ts: '2026-09-04T08:35:49.474487Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 4
+  data:
+    run_id: run_dfdae0fc
+    outcome: completed
+    duration_seconds: 5290.743926
+    log_path: C:\Users\jpose\.agentjobs\runs\run_dfdae0fc
