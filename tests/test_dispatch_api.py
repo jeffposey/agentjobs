@@ -9,6 +9,7 @@ retry the one that can never succeed.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import time
@@ -755,6 +756,217 @@ class TestRunOutputAndTail:
             client.get("/api/projects/sandbox/dispatch/runs/run_elsewhere2/tail").status_code == 404
         )
         assert client.get("/api/projects/sandbox/dispatch/runs/run_nope/tail").status_code == 404
+
+
+class TestRunStructuredTranscript:
+    """The panel's readable view: what the session recorded, not what its terminal drew.
+
+    The defect these are written against is the one a better regex cannot fix.
+    ``transcript.log`` is a *repaint*, so an approval dialog reached the reader as
+    ``NewMCPserverfoundinthisproject:agentjobs``. These assert on the rendered strings a
+    browser will show, because the broken panel had every field it was meant to have.
+    """
+
+    def _session_run(self, home: Path, *, status: str = "running", session_id: str = "b55b35ad"):
+        run_id = "run_structured"
+        directory = home / "runs" / run_id
+        directory.mkdir(parents=True)
+        meta: Dict[str, object] = {
+            "run_id": run_id,
+            "task_id": "task-001",
+            "project_id": "sandbox",
+            "mode": "session",
+            "status": status,
+        }
+        if session_id:
+            meta["session_id"] = session_id
+        (directory / "meta.yaml").write_text(yaml.safe_dump(meta), encoding="utf-8")
+        (directory / "stdout.log").write_text("backgrounded - b55b35ad\n", encoding="utf-8")
+        return run_id
+
+    def _store(self, monkeypatch, tmp_path: Path, root: Path, events, session="b55b35ad") -> None:
+        """Write a session transcript where the server will go looking for it."""
+        from agentjobs.api.routes import dispatch as dispatch_routes
+        from agentjobs.dispatch.transcript import project_slug
+
+        store = tmp_path / "fake-home" / ".claude" / "projects" / project_slug(root)
+        store.mkdir(parents=True, exist_ok=True)
+        (store / f"{session}-1111-2222-3333-444444444444.jsonl").write_text(
+            "\n".join(json.dumps(event) for event in events) + "\n", encoding="utf-8"
+        )
+        monkeypatch.setattr(dispatch_routes, "_session_home", lambda: tmp_path / "fake-home")
+
+    @staticmethod
+    def _assistant(*blocks) -> Dict[str, object]:
+        return {"type": "assistant", "message": {"role": "assistant", "content": list(blocks)}}
+
+    @staticmethod
+    def _result(call_id: str, content: str, *, is_error: bool = False, patch=None):
+        event: Dict[str, object] = {
+            "type": "user",
+            "message": {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": call_id,
+                        "content": content,
+                        "is_error": is_error,
+                    }
+                ],
+            },
+        }
+        if patch is not None:
+            event["toolUseResult"] = {"structuredPatch": patch}
+        return event
+
+    def test_a_dialog_reads_as_sentences_rather_than_one_run_together_string(
+        self, served, monkeypatch, tmp_path
+    ) -> None:
+        client, root, home = served
+        run_id = self._session_run(home)
+        self._store(
+            monkeypatch,
+            tmp_path,
+            root,
+            [
+                self._assistant(
+                    {
+                        "type": "text",
+                        "text": "New MCP server found in this project: agentjobs",
+                    }
+                )
+            ],
+        )
+
+        body = client.get(f"/api/projects/sandbox/dispatch/runs/{run_id}/transcript").json()
+
+        assert body["source"] == "session-jsonl"
+        assert body["entries"][0]["kind"] == "narration"
+        assert body["entries"][0]["text"] == "New MCP server found in this project: agentjobs"
+
+    def test_calls_are_summarized_with_the_detail_and_the_failure_alongside(
+        self, served, monkeypatch, tmp_path
+    ) -> None:
+        client, root, home = served
+        run_id = self._session_run(home)
+        self._store(
+            monkeypatch,
+            tmp_path,
+            root,
+            [
+                self._assistant(
+                    {
+                        "type": "tool_use",
+                        "id": "t1",
+                        "name": "Edit",
+                        "input": {"file_path": "/repo/App.tsx"},
+                    },
+                    {
+                        "type": "tool_use",
+                        "id": "t2",
+                        "name": "Bash",
+                        "input": {"command": "npm run build", "description": "Build"},
+                    },
+                ),
+                self._result("t1", "done", patch=[{"lines": ["+a", "+b", "-c"]}]),
+                self._result("t2", "error TS2345", is_error=True),
+            ],
+        )
+
+        entry = client.get(f"/api/projects/sandbox/dispatch/runs/{run_id}/transcript").json()[
+            "entries"
+        ][0]
+
+        assert entry["summary"] == "Edited App.tsx, ran 1 command"
+        assert (entry["added"], entry["removed"]) == (2, 1)
+        assert entry["failed"] == 1
+        assert [call["failed"] for call in entry["calls"]] == [False, True]
+        assert entry["calls"][1]["detail"] == "npm run build"
+        assert "TS2345" in entry["calls"][1]["output"]
+
+    def test_a_batch_run_says_it_has_no_session_rather_than_showing_an_empty_box(
+        self, served
+    ) -> None:
+        client, _, home = served
+        (home / "runs" / "run_batchy").mkdir(parents=True)
+        (home / "runs" / "run_batchy" / "meta.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "run_id": "run_batchy",
+                    "project_id": "sandbox",
+                    "mode": "batch",
+                    "status": "finished",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        body = client.get("/api/projects/sandbox/dispatch/runs/run_batchy/transcript").json()
+
+        assert body["source"] == "none"
+        assert "batch command rather than a session" in body["note"]
+        assert body["entries"] == []
+
+    def test_a_session_with_no_id_yet_says_the_transcript_is_not_locatable(self, served) -> None:
+        client, _, home = served
+        run_id = self._session_run(home, session_id="")
+
+        body = client.get(f"/api/projects/sandbox/dispatch/runs/{run_id}/transcript").json()
+
+        assert body["source"] == "none"
+        assert "not reported a session id yet" in body["note"]
+
+    def test_a_session_whose_transcript_is_not_on_disk_says_so(
+        self, served, monkeypatch, tmp_path
+    ) -> None:
+        """A run driven by something that keeps no such file lands here, and degrades."""
+        from agentjobs.api.routes import dispatch as dispatch_routes
+
+        client, _, home = served
+        run_id = self._session_run(home)
+        monkeypatch.setattr(dispatch_routes, "_session_home", lambda: tmp_path / "empty-home")
+
+        body = client.get(f"/api/projects/sandbox/dispatch/runs/{run_id}/transcript").json()
+
+        assert body["source"] == "none"
+        assert "No structured transcript" in body["note"]
+
+    def test_the_entry_count_is_bounded_and_the_rest_declared(
+        self, served, monkeypatch, tmp_path
+    ) -> None:
+        client, root, home = served
+        run_id = self._session_run(home)
+        self._store(
+            monkeypatch,
+            tmp_path,
+            root,
+            [self._assistant({"type": "text", "text": f"step {index}"}) for index in range(12)],
+        )
+
+        body = client.get(
+            f"/api/projects/sandbox/dispatch/runs/{run_id}/transcript", params={"entries": 3}
+        ).json()
+
+        assert [entry["text"] for entry in body["entries"]] == ["step 9", "step 10", "step 11"]
+        assert body["total_entries"] == 12
+        assert body["truncated"] is True
+        assert body["updated_at"], "a live panel cannot show staleness without one"
+
+    def test_another_projects_run_cannot_have_its_transcript_read(self, served) -> None:
+        client, _, home = served
+        (home / "runs" / "run_elsewhere3").mkdir(parents=True)
+        (home / "runs" / "run_elsewhere3" / "meta.yaml").write_text(
+            yaml.safe_dump(
+                {"run_id": "run_elsewhere3", "project_id": "other", "status": "running"}
+            ),
+            encoding="utf-8",
+        )
+
+        assert (
+            client.get("/api/projects/sandbox/dispatch/runs/run_elsewhere3/transcript").status_code
+            == 404
+        )
 
 
 def enable_grouped_dispatch(home: Path, tmp_path: Path) -> None:

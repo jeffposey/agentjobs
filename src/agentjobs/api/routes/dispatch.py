@@ -61,6 +61,13 @@ from agentjobs.dispatch.runner import (
     readable_tail,
     strip_ansi,
 )
+from agentjobs.dispatch.transcript import (
+    DEFAULT_ENTRY_LIMIT,
+    MAX_ENTRY_LIMIT,
+    StructuredTranscript,
+    find_session_transcript,
+    read_structured_transcript,
+)
 from agentjobs.manager import TaskManager
 from agentjobs.projects import Project, default_home
 
@@ -260,6 +267,64 @@ class DispatchRunTailView(BaseModel):
     text: str = Field(..., description="The tail itself, escape sequences already removed.")
     updated_at: Optional[str] = Field(
         default=None, description="When the file behind this text last changed."
+    )
+
+
+class TranscriptCallView(BaseModel):
+    """One tool call inside a run of them, for the disclosure that holds the detail."""
+
+    name: str = Field(..., description="The tool, as the runner names it.")
+    title: str = Field(default="", description="The one line that stands for this call.")
+    detail: str = Field(default="", description="What was actually run or written, bounded.")
+    output: str = Field(default="", description="The end of what came back, bounded.")
+    failed: bool = Field(default=False, description="The call answered with an error.")
+    added: int = 0
+    removed: int = 0
+
+
+class TranscriptEntryView(BaseModel):
+    """One thing the agent did.
+
+    ``kind`` is ``'narration'`` (the agent's own prose), ``'tools'`` (a run of
+    consecutive calls, summarized, with ``calls`` holding the detail), or ``'prompt'``
+    (what a human -- or the dispatcher -- asked for).
+    """
+
+    kind: str
+    text: str = Field(default="", description="Prompt or narration text; empty for tools.")
+    summary: str = Field(default="", description="A run of calls in one line.")
+    added: int = 0
+    removed: int = 0
+    failed: int = Field(default=0, description="How many calls in this run answered with an error.")
+    calls: List[TranscriptCallView] = Field(default_factory=list)
+
+
+class DispatchRunTranscriptView(BaseModel):
+    """A run's transcript as structured entries, for a panel that renders rather than dumps.
+
+    Distinct from ``DispatchRunTailView`` and not a replacement for it. That one serves
+    the terminal capture, which stays the only evidence when a session dies in a way no
+    renderer models; this one serves what the session recorded about itself.
+    """
+
+    run_id: str
+    live: bool = Field(..., description="Nothing has declared this run over.")
+    source: str = Field(
+        ...,
+        description=(
+            "'session-jsonl' when the session's own structured transcript was read, "
+            "'none' when there was nothing to read -- in which case 'note' says why "
+            "and the caller should fall back to the tail."
+        ),
+    )
+    note: str = Field(default="", description="Why there is nothing structured, in a sentence.")
+    entries: List[TranscriptEntryView] = Field(default_factory=list)
+    total_entries: int = Field(default=0, description="How many entries the transcript holds.")
+    truncated: bool = Field(
+        default=False, description="Earlier entries exist and were not returned."
+    )
+    updated_at: Optional[str] = Field(
+        default=None, description="When the file behind these entries last changed."
     )
 
 
@@ -774,6 +839,97 @@ async def read_dispatch_run_tail(
         lines=lines,
         text=readable_tail(text, lines),
         updated_at=_moment(mtime),
+    )
+
+
+def _session_home() -> Path:
+    """The home directory whose runner transcript stores this server reads.
+
+    A function rather than ``Path.home()`` inline so a test can point it somewhere it
+    controls. It is *not* :func:`_home`: that one is AgentJobs' own home, and these files
+    belong to the runner rather than to us.
+    """
+    return Path.home()
+
+
+def _structured_transcript(
+    record: RunRecord, project: Project, entries: int
+) -> StructuredTranscript:
+    """This run's structured transcript, or an empty one carrying the reason.
+
+    A batch run has no session and therefore no such file; saying so is more useful than
+    an empty panel, and the caller shows the captured output instead.
+    """
+    if not record.is_session:
+        return StructuredTranscript(
+            note=(
+                "This run was a batch command rather than a session, so there is no "
+                "structured transcript. What it wrote is below."
+            )
+        )
+    if not record.session_id:
+        return StructuredTranscript(
+            note=(
+                "This run has not reported a session id yet, so its structured "
+                "transcript cannot be located. It appears within a poll or two of the "
+                "session starting."
+            )
+        )
+    path = find_session_transcript(record.session_id, project.root, home=_session_home())
+    return read_structured_transcript(path, entries)
+
+
+@router.get("/runs/{run_id}/transcript", response_model=DispatchRunTranscriptView)
+async def read_dispatch_run_transcript(
+    run_id: str,
+    entries: int = Query(default=DEFAULT_ENTRY_LIMIT, ge=1, le=MAX_ENTRY_LIMIT),
+    project: Project = Depends(request_project),
+) -> DispatchRunTranscriptView:
+    """What the session recorded about itself, as entries rather than as a screen.
+
+    Polled on the same clock as ``/tail`` and read the same way -- a file, no subprocess
+    -- but from a different file. ``/tail`` serves the pty capture, which is a *repaint*
+    of a terminal and loses every space and line break the moment its escape sequences
+    are removed. This serves the JSONL the runner writes beside it, where the agent's
+    prose, each tool call and whether it failed are all still separate things.
+
+    ``source: 'none'`` is an ordinary answer, not an error: a batch run, a session that
+    has not reported its id yet, and a driver that keeps no such file all reach it. The
+    ``note`` says which, and the caller falls back to the tail.
+    """
+    record = _owned_run(run_id, project)
+    result = _structured_transcript(record, project, entries)
+    return DispatchRunTranscriptView(
+        run_id=record.run_id,
+        live=record.is_live,
+        source=result.source,
+        note=result.note,
+        entries=[
+            TranscriptEntryView(
+                kind=entry.kind,
+                text=entry.text,
+                summary=entry.summary,
+                added=entry.added,
+                removed=entry.removed,
+                failed=entry.failed,
+                calls=[
+                    TranscriptCallView(
+                        name=call.name,
+                        title=call.title,
+                        detail=call.detail,
+                        output=call.output,
+                        failed=call.failed,
+                        added=call.added,
+                        removed=call.removed,
+                    )
+                    for call in entry.calls
+                ],
+            )
+            for entry in result.entries
+        ],
+        total_entries=result.total_entries,
+        truncated=result.truncated,
+        updated_at=_moment(result.updated_at),
     )
 
 

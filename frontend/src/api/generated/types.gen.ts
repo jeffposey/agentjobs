@@ -713,6 +713,62 @@ export type DispatchRunTailView = {
 };
 
 /**
+ * DispatchRunTranscriptView
+ *
+ * A run's transcript as structured entries, for a panel that renders rather than dumps.
+ *
+ * Distinct from ``DispatchRunTailView`` and not a replacement for it. That one serves
+ * the terminal capture, which stays the only evidence when a session dies in a way no
+ * renderer models; this one serves what the session recorded about itself.
+ */
+export type DispatchRunTranscriptView = {
+    /**
+     * Entries
+     */
+    entries?: Array<TranscriptEntryView>;
+    /**
+     * Live
+     *
+     * Nothing has declared this run over.
+     */
+    live: boolean;
+    /**
+     * Note
+     *
+     * Why there is nothing structured, in a sentence.
+     */
+    note?: string;
+    /**
+     * Run Id
+     */
+    run_id: string;
+    /**
+     * Source
+     *
+     * 'session-jsonl' when the session's own structured transcript was read, 'none' when there was nothing to read -- in which case 'note' says why and the caller should fall back to the tail.
+     */
+    source: string;
+    /**
+     * Total Entries
+     *
+     * How many entries the transcript holds.
+     */
+    total_entries?: number;
+    /**
+     * Truncated
+     *
+     * Earlier entries exist and were not returned.
+     */
+    truncated?: boolean;
+    /**
+     * Updated At
+     *
+     * When the file behind these entries last changed.
+     */
+    updated_at?: string | null;
+};
+
+/**
  * DispatchRunView
  *
  * One run, as the browser sees it.
@@ -3571,6 +3627,98 @@ export type TaskUpdateRequest = {
 };
 
 /**
+ * TranscriptCallView
+ *
+ * One tool call inside a run of them, for the disclosure that holds the detail.
+ */
+export type TranscriptCallView = {
+    /**
+     * Added
+     */
+    added?: number;
+    /**
+     * Detail
+     *
+     * What was actually run or written, bounded.
+     */
+    detail?: string;
+    /**
+     * Failed
+     *
+     * The call answered with an error.
+     */
+    failed?: boolean;
+    /**
+     * Name
+     *
+     * The tool, as the runner names it.
+     */
+    name: string;
+    /**
+     * Output
+     *
+     * The end of what came back, bounded.
+     */
+    output?: string;
+    /**
+     * Removed
+     */
+    removed?: number;
+    /**
+     * Title
+     *
+     * The one line that stands for this call.
+     */
+    title?: string;
+};
+
+/**
+ * TranscriptEntryView
+ *
+ * One thing the agent did.
+ *
+ * ``kind`` is ``'narration'`` (the agent's own prose), ``'tools'`` (a run of
+ * consecutive calls, summarized, with ``calls`` holding the detail), or ``'prompt'``
+ * (what a human -- or the dispatcher -- asked for).
+ */
+export type TranscriptEntryView = {
+    /**
+     * Added
+     */
+    added?: number;
+    /**
+     * Calls
+     */
+    calls?: Array<TranscriptCallView>;
+    /**
+     * Failed
+     *
+     * How many calls in this run answered with an error.
+     */
+    failed?: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Removed
+     */
+    removed?: number;
+    /**
+     * Summary
+     *
+     * A run of calls in one line.
+     */
+    summary?: string;
+    /**
+     * Text
+     *
+     * Prompt or narration text; empty for tools.
+     */
+    text?: string;
+};
+
+/**
  * ValidationError
  */
 export type ValidationError = {
@@ -4421,6 +4569,41 @@ export type ReadDispatchRunTailApiDispatchRunsRunIdTailGetResponses = {
 
 export type ReadDispatchRunTailApiDispatchRunsRunIdTailGetResponse = ReadDispatchRunTailApiDispatchRunsRunIdTailGetResponses[keyof ReadDispatchRunTailApiDispatchRunsRunIdTailGetResponses];
 
+export type ReadDispatchRunTranscriptApiDispatchRunsRunIdTranscriptGetData = {
+    body?: never;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: {
+        /**
+         * Entries
+         */
+        entries?: number;
+    };
+    url: '/api/dispatch/runs/{run_id}/transcript';
+};
+
+export type ReadDispatchRunTranscriptApiDispatchRunsRunIdTranscriptGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadDispatchRunTranscriptApiDispatchRunsRunIdTranscriptGetError = ReadDispatchRunTranscriptApiDispatchRunsRunIdTranscriptGetErrors[keyof ReadDispatchRunTranscriptApiDispatchRunsRunIdTranscriptGetErrors];
+
+export type ReadDispatchRunTranscriptApiDispatchRunsRunIdTranscriptGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchRunTranscriptView;
+};
+
+export type ReadDispatchRunTranscriptApiDispatchRunsRunIdTranscriptGetResponse = ReadDispatchRunTranscriptApiDispatchRunsRunIdTranscriptGetResponses[keyof ReadDispatchRunTranscriptApiDispatchRunsRunIdTranscriptGetResponses];
+
 export type ApiHealthCheckApiHealthGetData = {
     body?: never;
     path?: never;
@@ -4949,6 +5132,45 @@ export type ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetRespo
 };
 
 export type ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetResponse = ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetResponses[keyof ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetResponses];
+
+export type ReadDispatchRunTranscriptApiProjectsProjectIdDispatchRunsRunIdTranscriptGetData = {
+    body?: never;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: {
+        /**
+         * Entries
+         */
+        entries?: number;
+    };
+    url: '/api/projects/{project_id}/dispatch/runs/{run_id}/transcript';
+};
+
+export type ReadDispatchRunTranscriptApiProjectsProjectIdDispatchRunsRunIdTranscriptGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadDispatchRunTranscriptApiProjectsProjectIdDispatchRunsRunIdTranscriptGetError = ReadDispatchRunTranscriptApiProjectsProjectIdDispatchRunsRunIdTranscriptGetErrors[keyof ReadDispatchRunTranscriptApiProjectsProjectIdDispatchRunsRunIdTranscriptGetErrors];
+
+export type ReadDispatchRunTranscriptApiProjectsProjectIdDispatchRunsRunIdTranscriptGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchRunTranscriptView;
+};
+
+export type ReadDispatchRunTranscriptApiProjectsProjectIdDispatchRunsRunIdTranscriptGetResponse = ReadDispatchRunTranscriptApiProjectsProjectIdDispatchRunsRunIdTranscriptGetResponses[keyof ReadDispatchRunTranscriptApiProjectsProjectIdDispatchRunsRunIdTranscriptGetResponses];
 
 export type GetPlaybooksApiProjectsProjectIdPlaybooksGetData = {
     body?: never;

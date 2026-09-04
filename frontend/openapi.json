@@ -960,6 +960,69 @@
         "title": "DispatchRunTailView",
         "type": "object"
       },
+      "DispatchRunTranscriptView": {
+        "description": "A run's transcript as structured entries, for a panel that renders rather than dumps.\n\nDistinct from ``DispatchRunTailView`` and not a replacement for it. That one serves\nthe terminal capture, which stays the only evidence when a session dies in a way no\nrenderer models; this one serves what the session recorded about itself.",
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptEntryView"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "live": {
+            "description": "Nothing has declared this run over.",
+            "title": "Live",
+            "type": "boolean"
+          },
+          "note": {
+            "default": "",
+            "description": "Why there is nothing structured, in a sentence.",
+            "title": "Note",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source": {
+            "description": "'session-jsonl' when the session's own structured transcript was read, 'none' when there was nothing to read -- in which case 'note' says why and the caller should fall back to the tail.",
+            "title": "Source",
+            "type": "string"
+          },
+          "total_entries": {
+            "default": 0,
+            "description": "How many entries the transcript holds.",
+            "title": "Total Entries",
+            "type": "integer"
+          },
+          "truncated": {
+            "default": false,
+            "description": "Earlier entries exist and were not returned.",
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the file behind these entries last changed.",
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "run_id",
+          "live",
+          "source"
+        ],
+        "title": "DispatchRunTranscriptView",
+        "type": "object"
+      },
       "DispatchRunView": {
         "description": "One run, as the browser sees it.",
         "properties": {
@@ -5191,6 +5254,104 @@
         "title": "TaskUpdateRequest",
         "type": "object"
       },
+      "TranscriptCallView": {
+        "description": "One tool call inside a run of them, for the disclosure that holds the detail.",
+        "properties": {
+          "added": {
+            "default": 0,
+            "title": "Added",
+            "type": "integer"
+          },
+          "detail": {
+            "default": "",
+            "description": "What was actually run or written, bounded.",
+            "title": "Detail",
+            "type": "string"
+          },
+          "failed": {
+            "default": false,
+            "description": "The call answered with an error.",
+            "title": "Failed",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "The tool, as the runner names it.",
+            "title": "Name",
+            "type": "string"
+          },
+          "output": {
+            "default": "",
+            "description": "The end of what came back, bounded.",
+            "title": "Output",
+            "type": "string"
+          },
+          "removed": {
+            "default": 0,
+            "title": "Removed",
+            "type": "integer"
+          },
+          "title": {
+            "default": "",
+            "description": "The one line that stands for this call.",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "TranscriptCallView",
+        "type": "object"
+      },
+      "TranscriptEntryView": {
+        "description": "One thing the agent did.\n\n``kind`` is ``'narration'`` (the agent's own prose), ``'tools'`` (a run of\nconsecutive calls, summarized, with ``calls`` holding the detail), or ``'prompt'``\n(what a human -- or the dispatcher -- asked for).",
+        "properties": {
+          "added": {
+            "default": 0,
+            "title": "Added",
+            "type": "integer"
+          },
+          "calls": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptCallView"
+            },
+            "title": "Calls",
+            "type": "array"
+          },
+          "failed": {
+            "default": 0,
+            "description": "How many calls in this run answered with an error.",
+            "title": "Failed",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "removed": {
+            "default": 0,
+            "title": "Removed",
+            "type": "integer"
+          },
+          "summary": {
+            "default": "",
+            "description": "A run of calls in one line.",
+            "title": "Summary",
+            "type": "string"
+          },
+          "text": {
+            "default": "",
+            "description": "Prompt or narration text; empty for tools.",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "TranscriptEntryView",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -5891,6 +6052,61 @@
           }
         },
         "summary": "Read Dispatch Run Tail",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/dispatch/runs/{run_id}/transcript": {
+      "get": {
+        "description": "What the session recorded about itself, as entries rather than as a screen.\n\nPolled on the same clock as ``/tail`` and read the same way -- a file, no subprocess\n-- but from a different file. ``/tail`` serves the pty capture, which is a *repaint*\nof a terminal and loses every space and line break the moment its escape sequences\nare removed. This serves the JSONL the runner writes beside it, where the agent's\nprose, each tool call and whether it failed are all still separate things.\n\n``source: 'none'`` is an ordinary answer, not an error: a batch run, a session that\nhas not reported its id yet, and a driver that keeps no such file all reach it. The\n``note`` says which, and the caller falls back to the tail.",
+        "operationId": "read_dispatch_run_transcript_api_dispatch_runs__run_id__transcript_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "entries",
+            "required": false,
+            "schema": {
+              "default": 40,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Entries",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchRunTranscriptView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Dispatch Run Transcript",
         "tags": [
           "dispatch"
         ]
@@ -6724,6 +6940,70 @@
           }
         },
         "summary": "Read Dispatch Run Tail",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/dispatch/runs/{run_id}/transcript": {
+      "get": {
+        "description": "What the session recorded about itself, as entries rather than as a screen.\n\nPolled on the same clock as ``/tail`` and read the same way -- a file, no subprocess\n-- but from a different file. ``/tail`` serves the pty capture, which is a *repaint*\nof a terminal and loses every space and line break the moment its escape sequences\nare removed. This serves the JSONL the runner writes beside it, where the agent's\nprose, each tool call and whether it failed are all still separate things.\n\n``source: 'none'`` is an ordinary answer, not an error: a batch run, a session that\nhas not reported its id yet, and a driver that keeps no such file all reach it. The\n``note`` says which, and the caller falls back to the tail.",
+        "operationId": "read_dispatch_run_transcript_api_projects__project_id__dispatch_runs__run_id__transcript_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "entries",
+            "required": false,
+            "schema": {
+              "default": 40,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Entries",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchRunTranscriptView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Dispatch Run Transcript",
         "tags": [
           "dispatch"
         ]
