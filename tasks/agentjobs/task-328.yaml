@@ -3,7 +3,7 @@ id: task-328
 title: 'Nothing shows what is being worked right now: build the machine-wide live-run
   surface'
 created: '2026-09-04T01:37:40.980704Z'
-updated: '2026-09-04T02:49:34.498590Z'
+updated: '2026-09-04T02:53:30.751016Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -695,3 +695,19 @@ log:
     finish_step: started
     branch: feat/task-328-live-runs-surface
     finish_id: fin_4404879d
+- id: 17
+  ts: '2026-09-04T02:53:30.750843Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-328-live-runs-surface` into `main` as `d429187b`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-328
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: d429187b9e58f6ecbfd90419f7cd2d610b72fef6
+    branch: feat/task-328-live-runs-surface
+    base: main
