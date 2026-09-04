@@ -2,7 +2,7 @@ schema: 2
 id: task-331
 title: 'Run principals: a dispatched agent identifies as its run, never as a person'
 created: '2026-09-04T03:27:26.962795Z'
-updated: '2026-09-04T05:41:52.385891Z'
+updated: '2026-09-04T05:42:41.549260Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -609,3 +609,13 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 18
+  ts: '2026-09-04T05:42:41.549081Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 4
+  data:
+    run_id: run_ba7a4a0d
+    outcome: completed
+    duration_seconds: 4745.596058
+    log_path: C:\Users\jpose\.agentjobs\runs\run_ba7a4a0d
