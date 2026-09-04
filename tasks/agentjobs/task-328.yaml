@@ -3,44 +3,23 @@ id: task-328
 title: 'Nothing shows what is being worked right now: build the machine-wide live-run
   surface'
 created: '2026-09-04T01:37:40.980704Z'
-updated: '2026-09-04T02:49:27.057287Z'
+updated: '2026-09-04T02:49:34.498590Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Ready for review on `feat/task-328-live-runs-surface`, rebased onto\
-  \ `main`, gate green with a receipt for `36fe784f` (all ten stages).\n\n**Look at\
-  \ it first, then the diff.** Both sandbox halves are running:\n\n- **Busy:** http://127.0.0.1:8904/app/p/sandbox-alpha\
-  \ \u2014 two projects, a working run, a parked one, a scripted finish and a merge\
-  \ runway.\n- **Idle:** http://127.0.0.1:8905/app/p/sandbox-alpha \u2014 nothing\
-  \ running, so the badge reads `0` and the row says so.\n\nThrowaway data, own registry,\
-  \ your 8876 dashboard untouched. Every button is safe. Stop them with `Get-NetTCPConnection\
-  \ -LocalPort 8904,8905 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess\
-  \ -Force }`, or say the word and I will.\n\n**Three things worth your judgement,\
-  \ not mine:**\n\n1. **The nav breakpoint moved, 960 \u2192 1100.** The Runs entry\
-  \ made the destinations row 82px wider, and with a long project name the bar overflows\
-  \ sideways until 1090px (measured in Chromium, 5px steps). So the 960\u20131099\
-  \ band \u2014 landscape tablet, split-screen desktop window \u2014 now gets the\
-  \ burger instead of the inline row. That is a real cost to a band you may actually\
-  \ use. Tell me if you would rather I shrank the entry (an icon, or dropping the\
-  \ badge from the bar) than moved the breakpoint.\n2. **ac-3 is `pending`, deliberately.**\
-  \ The panel is built and is 44px. The other half of that criterion \u2014 that the\
-  \ Dashboard still passes task-294's no-scroll assertion \u2014 cannot be met as\
-  \ written, because task-294 has not landed: the Dashboard is 1631px against 844\
-  \ of phone viewport, and was 1587 before this row. I did not cut an existing section\
-  \ to buy 44px, because that would be guessing at a layout task-294 has not decided\
-  \ yet. The measurements are on the record for it to inherit.\n3. **The spec asked\
-  \ for two *real* dispatched runs in two projects; I ran one.** The e2e spec dispatches\
-  \ a real process and watches both surfaces notice it and forget it. The second project's\
-  \ run is seeded into the ledger rather than spawned \u2014 starting a second agent\
-  \ means a run slot and real money on work nobody asked for. For a read-only reader\
-  \ whose whole input is `meta.yaml` the code path is identical, but you should know\
-  \ the substitution was made rather than find it later.\n\nOne shared-code change\
-  \ to eye: `read_run` now uses `storage.load_yaml` instead of `yaml.safe_load` (178ms\
-  \ \u2192 16.7ms over this machine's 135-run ledger). It is a documented drop-in,\
-  \ and it is on the path of every `list_runs` caller including the concurrency guard.\
-  \ Committed on its own as `1910f13` so it can be reverted without touching the feature.\n\
-  \nNothing was pushed. On approval the scripted finish handles the merge, rebuild\
-  \ and restart \u2014 the 8876 dashboard is on pre-merge code until then."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.
+
+
+  Note from Jeff Posey:
+
+
+  remove the API docs from the tab list for now, we''ll add it elsewhere later
+
+
+  That note is context to carry into the merge, not another review round: you are
+  still cleared to merge.'
 archived: false
 priority: medium
 queue_position: 8700
@@ -691,3 +670,28 @@ log:
     outcome: completed
     duration_seconds: 3627.540579
     log_path: C:\Users\jpose\.agentjobs\runs\run_1500aed9
+- id: 15
+  ts: '2026-09-04T02:49:31.598996Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    remove the API docs from the tab list for now, we''ll add it elsewhere later'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 16
+  ts: '2026-09-04T02:49:34.498364Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-328-live-runs-surface` (04ca63f8).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-328.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_4404879d\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-328-live-runs-surface
+    finish_id: fin_4404879d
