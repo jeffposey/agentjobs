@@ -3,7 +3,7 @@ id: task-244
 title: 'Tailnet proxy: prove identity at the front door, and keep project creation
   off the network'
 created: '2026-08-22T18:50:12.663333Z'
-updated: '2026-09-04T07:49:44.052527Z'
+updated: '2026-09-04T07:50:42.184066Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -393,3 +393,104 @@ log:
       id: 3f6a1c22-8b90-4a71-9d18-1c5e77b04245
       kind: update_content
       fingerprint: c8cbca8d83b1ff697dc25ac9fae7d9ab
+- id: 10
+  ts: '2026-09-04T07:50:42.183797Z'
+  actor: claude
+  type: decision
+  body: '**The two things the live Service taught, neither of which any test in this
+    repository could have.** Binding on anyone who touches the proxy or `agentjobs.principals`.
+
+
+    **1. `ServiceModeHTTP` does not hand this process the tailnet connection, so `WhoIs(r.RemoteAddr)`
+    answers "peer not found" for every request.**
+
+
+    The spec says `server.LocalClient().WhoIs(remoteAddr)`, and written literally
+    that is a proxy which refuses everything. `tsnet.ListenService(..., ServiceModeHTTP{HTTPS:
+    true})` does not give you a tailnet listener: it opens a `localhost:0` socket
+    and registers a **serve handler in tailscaled** that terminates the Service''s
+    HTTPS and reverse-proxies to that socket (`tsnet/tsnet.go`, the `ServiceModeHTTP`
+    arm of `ListenService`). So `RemoteAddr` is `127.0.0.1:<ephemeral>`. Measured,
+    not reasoned: the first build refused every request through `https://agentjobs.tailfed1df.ts.net`
+    with `tailscale could not identify 127.0.0.1:55014: peer not found`.
+
+
+    tailscaled sets `X-Forwarded-For` to the real source on that hop (`ipn/ipnlocal/serve.go`,
+    `addProxyForwardedHeaders`), using `Set` rather than `Add`, so a client''s own
+    copy is overwritten. **The address looked up is therefore that header when the
+    immediate peer is loopback, and `RemoteAddr` otherwise** -- the condition matters,
+    because a caller we could reach over the network could have invented the header.
+    `TestAForwardedForFromOffTheMachineIsIgnored` pins that.
+
+
+    *Rejected: reading tailscaled''s `Tailscale-User-Login` header instead.* It is
+    right there, it is set after deleting the client''s copy, and tailscaled deliberately
+    omits it for tagged nodes -- so it would have worked. Rejected because the refusal
+    reasons then become inferences from an absent header ("nobody was named" cannot
+    be told from "the lookup failed"), and because the tagged-node case would be enforced
+    by tailscaled''s policy rather than by this proxy''s. `WhoIs` returns the node,
+    so the refusals can each say which thing was wrong.
+
+
+    *Rejected: `ServiceModeTCP` with `TerminateTLS`*, which would hand over the real
+    connection. That is a larger change to how the Service is published, on a deployment
+    that works, to avoid one header read.
+
+
+    **2. Uvicorn rewrites the application''s view of the peer address, so task-329''s
+    trust rule did not hold in production.**
+
+
+    `ProxyHeadersMiddleware` is on by default and, for a request arriving from `127.0.0.1`,
+    replaces `scope["client"]` with whatever `X-Forwarded-For` says. Measured against
+    the live server, 2026-09-04:
+
+
+    ```
+
+    $ curl -H ''X-Forwarded-For: 203.0.113.9'' http://127.0.0.1:8876/api/whoami
+
+    {"kind":null,...,"detail":"The request arrived from 203.0.113.9, which is not
+    the path the front door controls..."}
+
+    ```
+
+
+    Task-329 decided not to *consult* those headers and wrote a test that passes a
+    loopback value in them from a remote peer. That test passes, and it proved nothing
+    about the served application, because `TestClient` speaks ASGI directly and never
+    runs uvicorn''s middleware. The consequence in production was not subtle: **every
+    tailnet caller resolved to no principal at all**, so after task-332 the dispatch
+    output panel returned 403 through the tailnet -- confirmed by probe before this
+    change, 200 after.
+
+
+    **The rule is therefore stronger than "not consulted": a request carrying `X-Forwarded-For`,
+    `X-Real-IP` or `Forwarded` is not local**, whatever address the server reports.
+    The proxy strips all three (and sets the first to a nil value, which is how `httputil.ReverseProxy`
+    is told not to add its own).
+
+
+    *Rejected: passing `proxy_headers=False` to `uvicorn.run`.* The narrower fix,
+    and it looks like the root cause. Rejected because it binds only where the CLI
+    starts the server -- `python -m uvicorn` is how the test suite, `scripts/bench.py`
+    and every sandbox script start the same application, and a trust rule that depends
+    on the invocation is one somebody will invoke around. A property of the request
+    holds everywhere.
+
+
+    *Rejected: trusting `X-Forwarded-For` when it names loopback.* That is the same
+    mistake in a smaller font.
+
+
+    **The cost, stated so nobody finds it as a bug:** AgentJobs behind a third-party
+    reverse proxy (nginx, Caddy) now resolves no principal, so every mutating route
+    refuses. That is not a regression -- such a deployment resolved no principal before
+    this change either, for the same reason -- and the fix for anyone who wants it
+    is a trusted-proxy configuration, which task-329 rejected on the grounds that
+    a trust boundary with a knob on it is one somebody will widen.'
+  data:
+    operation:
+      id: 3f6a1c22-8b90-4a71-9d18-1c5e77b04246
+      kind: log_append
+      fingerprint: 26d85c7bf858fd2b4aa2a86b461d56d3
