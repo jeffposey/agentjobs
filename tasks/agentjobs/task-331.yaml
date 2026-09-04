@@ -2,7 +2,7 @@ schema: 2
 id: task-331
 title: 'Run principals: a dispatched agent identifies as its run, never as a person'
 created: '2026-09-04T03:27:26.962795Z'
-updated: '2026-09-04T05:00:34.358006Z'
+updated: '2026-09-04T05:13:55.316627Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -395,3 +395,17 @@ log:
     finish_step: started
     branch: feat/task-331-run-credential
     finish_id: fin_7a394e02
+- id: 10
+  ts: '2026-09-04T05:13:55.316443Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-331-run-credential` (af0e646d).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-331.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_f37553a5\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-331-run-credential
+    finish_id: fin_f37553a5
