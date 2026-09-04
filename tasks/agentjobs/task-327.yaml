@@ -1,0 +1,213 @@
+schema: 2
+id: task-327
+title: Dispatch captures the run stub as the session id, so every run is reported
+  interrupted and no transcript is findable
+created: '2026-09-04T01:20:45.863726Z'
+updated: '2026-09-04T01:20:46.438417Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 193
+category: bug
+tags:
+- dispatch
+- regression
+- reliability
+effort: an hour
+assignment:
+  eligible: []
+spec:
+  summary: '`capture_session_id` reads the wrong 8-hex token out of the launcher''s
+    output: it records the run-id stub taken from our own `--name` flag instead of
+    the session id the CLI assigned. Every dispatched run is therefore stamped `interrupted`
+    within seconds while it is still working, and nothing keyed on the session id
+    -- stall detection, `attach`, `stop`, and task-023''s structured transcript --
+    can find the session.'
+  intent: Make a dispatched run's recorded session id be the id the CLI actually assigned,
+    so the run can be followed, stopped, stall-checked and read.
+  description: '## What is wrong
+
+
+    `DispatchRunner.capture_session_id` (`src/agentjobs/dispatch/runner.py:2084`)
+    scans the launcher''s stdout with `_SHORT_ID = re.compile(r"\b([0-9a-f]{8})\b")`
+    (`runner.py:1899`) and returns the first match.
+
+
+    The launcher''s first line is, in raw bytes:
+
+
+    ```
+
+    backgrounded \xb7 \x1b[36m1b5f4a48\x1b[39m \xb7 agentjobs/task-023@703a9997
+
+    ```
+
+
+    The real session id is wrapped in an ANSI colour escape. The `m` that ends `\x1b[36m`
+    is a word character and so is the `1` that starts the id, so there is no word
+    boundary between them and the leading `\b` never fires. The run-id stub after
+    `@` **is** cleanly delimited, so that is what matches and what gets recorded.
+
+
+    Measured against the three runs dispatched on 2026-09-03, every one captured the
+    stub and none captured the session:
+
+
+    | run | real session | captured |
+
+    |---|---|---|
+
+    | run_703a9997 | 1b5f4a48 | 703a9997 |
+
+    | run_bf3b2e25 | 2d96ac95 | bf3b2e25 |
+
+    | run_79dc23dd | 00b1661b | 79dc23dd |
+
+
+    ## Why it used to work
+
+
+    It was never reading line 0. Before task-324 the launcher printed no `--name`,
+    so line 0 held no matchable token at all and the scan fell through to line 2 --
+    `claude attach 553f321b` -- where the id is space-delimited and matches cleanly.
+    That is what runs up to and including run_5fb17eb0 (2026-08-29) recorded, correctly.
+
+
+    `f3d7a8a feat(dispatch): name a dispatched session after the run it is working`
+    (task-324, merged 2026-08-29) added `--name agentjobs/task-<nnn>@<run stub>`.
+    That put a cleanly delimited 8-hex token on line 0, and since the scan returns
+    on the first matching line, line 0 now wins with the wrong value.
+
+
+    The docstring on `capture_session_id` asserts it reads "an 8-hex token on the
+    launcher''s first line". That was never true, and the accidental line-2 rescue
+    is what the regression removed.
+
+
+    ## What it breaks
+
+
+    1. **Run outcomes are false.** The poller looks the recorded id up in the session
+    ledger, never finds it, and writes "The session is no longer in the ledger, so
+    it cannot be followed or resumed" with `outcome: interrupted`. `run_5fb17eb0`
+    got that verdict after nine hours of successful work; `run_703a9997` got it seven
+    seconds in while `claude agents --json` reported it `busy`/`working`.
+
+    2. **A real failure is indistinguishable from a healthy run.** On 2026-09-03 the
+    CLI''s OAuth token had expired (`claude auth status` -> `loggedIn: false`), so
+    dispatched sessions died instantly on `authentication_failed`. Dead and alive
+    runs produced byte-identical dashboard output, which is why the auth failure took
+    three dispatches to find.
+
+    3. **Stall detection is dead.** `dispatch/auth.py:_belongs_to` matches on `entry["sessionId"].startswith(session_id)`;
+    against the stub it never matches, so `_stall_in` cannot see an auth stall in
+    a transcript that plainly contains one.
+
+    4. **`attach`, `stop` and `rm` target a session that does not exist** (`ledger.py:1055`,
+    `1128`, `1203`).
+
+    5. **Task-023''s structured transcript cannot find its file.** `find_session_transcript`
+    globs `{session_id}*.jsonl` on the stated assumption that "a run''s recorded `session_id`
+    is the first segment of the transcript''s UUID" (`dispatch/transcript.py:158`).
+    With the stub recorded, every dispatched run falls back to the raw terminal dump
+    -- i.e. the feature under review on task-023 is defeated in production while passing
+    in its sandbox, which was fed a genuine session id by hand.
+
+
+    ## The fix
+
+
+    In `capture_session_id`:
+
+
+    - Strip ANSI escapes (`\x1b\[[0-9;]*[A-Za-z]`) from each line before matching,
+    so the id the CLI actually printed is visible to the scan at all. This is the
+    root repair; everything else is a guard.
+
+    - Reject a candidate equal to this run''s own stub. The runner knows its `run_id`,
+    and a run''s own stub can never be the session id the CLI assigned, so this makes
+    the failure impossible to reintroduce by changing the `--name` format again.
+
+
+    Keep the positional-not-structural approach the existing docstring argues for
+    -- do not start parsing on the `\xb7` separator or on the name''s shape, both
+    of which are cosmetic. Correct the docstring: it should say what the function
+    does, and should not claim line 0 when the value may legitimately arrive on a
+    later line.
+
+
+    ## Verification
+
+
+    - A regression test over the **verbatim** launcher output of the three runs above,
+    including their ANSI bytes, asserting the real session id is returned. Byte-for-byte
+    fixtures, not a hand-typed approximation -- the escape sequence is the whole defect.
+
+    - A test asserting the run stub alone is never returned when it is the only 8-hex
+    token present, so a future `--name` change cannot silently resurrect this.
+
+    - A test that the pre-task-324 output shape (no `--name`, id on line 0 in colour)
+    still resolves.
+
+    - End to end: dispatch a task, then confirm the recorded `session_id` matches
+    what `claude agents --json` reports for that run''s session, and that the run''s
+    outcome is not `interrupted` while it is working.'
+  constraints: Do not change the `--name` format task-324 introduced; it is working
+    as designed and other things now depend on session names. The repair belongs in
+    the capture, not in the thing being captured.
+  out_of_scope: Re-stamping the outcomes of runs already recorded with a stub. Their
+    meta and task entries stay as historical record; the accompanying log entry on
+    task-023 explains what those verdicts really meant.
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: capture_session_id at :2084 and _SHORT_ID at :1899 are the defect
+  - path: src/agentjobs/dispatch/auth.py
+    why: _belongs_to at :254 matches transcript entries on the recorded session id,
+      so stall detection is downstream of this bug
+  - path: src/agentjobs/dispatch/transcript.py
+    why: find_session_transcript globs on the recorded session id; on the task-023
+      branch, not yet on main
+  - path: src/agentjobs/dispatch/ledger.py
+    why: stop/rm/reconciliation all address the session by the recorded id
+acceptance:
+- id: ac-1
+  text: capture_session_id returns the CLI-assigned session id from launcher output
+    containing ANSI colour escapes and a --name suffix carrying the run stub
+  status: pending
+- id: ac-2
+  text: The run stub is never returned as a session id, even when it is the only cleanly
+    delimited 8-hex token in the output
+  status: pending
+- id: ac-3
+  text: Launcher output in the pre-task-324 shape still resolves to the correct session
+    id
+  status: pending
+- id: ac-4
+  text: Regression tests use byte-verbatim launcher output including ANSI escapes,
+    taken from real runs
+  status: pending
+- id: ac-5
+  text: A live dispatched run's recorded session_id matches the sessionId claude agents
+    --json reports for it, and the run is not stamped interrupted while working
+  status: pending
+- id: ac-6
+  text: poetry run python scripts/check.py exits 0 unqualified
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-04T01:20:46.437339Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: b91d7e34-6cc2-4a58-8d05-31f9a7c6be05
+      kind: create
+      fingerprint: d0f95587ac1345c4e65e9aad7d77bbb5
