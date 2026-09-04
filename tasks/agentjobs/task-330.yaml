@@ -2,7 +2,7 @@ schema: 2
 id: task-330
 title: 'Identity registry: several human actors, login mapping, and retirement'
 created: '2026-09-04T03:26:56.564971Z'
-updated: '2026-09-04T06:08:47.876509Z'
+updated: '2026-09-04T06:17:18.630678Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1152,3 +1152,21 @@ log:
     finish_step: started
     branch: feat/task-330-identity-registry
     finish_id: fin_605f0aa0
+- id: 29
+  ts: '2026-09-04T06:17:18.630486Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-330-identity-registry` into `main` as `4d6c85c9`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-330
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    epic) releases the merge gate (task-021), and run run_4d12b705 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 4d6c85c97572595300a7bb9406fbad430ecef21e
+    branch: feat/task-330-identity-registry
+    base: main
