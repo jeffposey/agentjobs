@@ -2,37 +2,41 @@ schema: 2
 id: task-066-multiple-human-users
 title: 'Account system: principals, attribution, and the network boundary'
 created: '2026-08-10T23:20:39.069637Z'
-updated: '2026-09-04T08:42:56.260864Z'
+updated: '2026-09-04T08:45:00.816103Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: "All seven children are merged and closed completed, and the full unqualified\
-  \ gate is green on merged main (10 of 10 stages, 465.8s, 2026-09-04). Six of this\
-  \ parent's seven acceptance criteria are met with live evidence recorded against\
-  \ each one. I am NOT closing this parent, because ac-5 needs an instrument I do\
-  \ not have: a phone.\n\nTWO THINGS FROM YOU.\n\n1. ac-5, the canary. On your phone,\
-  \ over the tailnet, open a task page with a dispatch run on it and confirm the structured\
-  \ output panel still renders. The data path is already proven from this machine\
-  \ -- both routes return 200 through the tailnet against real run run_dfdae0fc, carrying\
-  \ 11KB of tail and 113KB of transcript -- but every observation in this epic was\
-  \ made on a desktop. task-244 and task-333 each left their own ac-5 pending for\
-  \ the same reason. If it renders, ac-5 is met and this parent can close.\n\n2. A\
-  \ residual that makes the dashboard worse on a phone until it is fixed. ~/.agentjobs/identities.yaml\
-  \ does not exist, so a proven tailnet login resolves with actor_id null -- the app\
-  \ refuses to guess rather than falling back to a default, which is correct and is\
-  \ exactly what task-064 removed. The consequence is that Dispatch is disabled from\
-  \ the tailnet until the login is mapped. That is the one respect in which this epic\
-  \ currently violates its own constraint that nothing may make the dashboard worse\
-  \ on a phone, and it is a config file rather than a code change. For this project\
-  \ the human actor id is `Jeff Posey`, so the file is:\n\n    # ~/.agentjobs/identities.yaml\n\
-  \    owner: Jeff Posey\n    identities:\n      - login: jposey@hellfiregames.com\n\
-  \        actor: Jeff Posey\n\nI did not write it. task-330 deliberately refuses\
-  \ to guess an actor for a login, and me guessing on its behalf would defeat that.\
-  \ One wrinkle to decide: the mapping is machine-level to a single actor id, but\
-  \ this machine's projects do not all use the same human actor id -- agentjobs uses\
-  \ `Jeff Posey` while fantasy-football uses `jeff`. Worth checking before you write\
-  \ it.\n\nNothing else is outstanding. No branches, no worktrees, nothing unpushed\
-  \ by design (push: false)."
+ball_prompt: "REFRESHED after reconciling the two children that judged this same criterion\
+  \ differently. Your check is now a glance, not an investigation.\n\nAll seven children\
+  \ merged and closed completed. Full unqualified gate green on merged main (10 of\
+  \ 10 stages, 465.8s). Six of seven acceptance criteria met with live evidence recorded\
+  \ per criterion.\n\nWHAT IS ACTUALLY STILL OPEN: mobile rendering, and only that.\n\
+  \ntask-333 verified the panel over the real tailnet path in a browser -- a genuine\
+  \ proxy-WhoIs'd caller at https://agentjobs.tailfed1df.ts.net/app/ -- and the task\
+  \ page rendered with the structured dispatch output panel showing that run's live\
+  \ narration and tool groups, with the project switcher listing exactly the three\
+  \ exposed projects. I confirmed the data path independently: both routes 200 through\
+  \ the tailnet against real run run_dfdae0fc, 11KB of tail and 113KB of transcript.\
+  \ So identity at the front door, exposure filtering and the panel's routes are all\
+  \ proven over the real network path.\n\nWhat nobody exercised is a phone-sized viewport.\
+  \ task-333 marked its own ac-5 met on the browser evidence; task-244 left the identical\
+  \ criterion pending because the browser was a desktop one. task-244 was right to\
+  \ be strict, so this parent stays pending on that one point. Open the dashboard\
+  \ on your phone, look at a task with a dispatch run on it, confirm the output panel\
+  \ renders and is readable. That is the whole of it.\n\nSECOND THING, and the one\
+  \ that actually costs you something today. ~/.agentjobs/identities.yaml does not\
+  \ exist, so a proven tailnet login resolves with actor_id null -- the app refuses\
+  \ to guess rather than falling back to a default, which is correct and is exactly\
+  \ what task-064 removed. The consequence is that Dispatch is disabled from the tailnet\
+  \ until the login is mapped. That is the one respect in which this epic currently\
+  \ makes the dashboard worse on a phone, and it is a config file, not code:\n\n \
+  \   # ~/.agentjobs/identities.yaml\n    owner: Jeff Posey\n    identities:\n   \
+  \   - login: jposey@hellfiregames.com\n        actor: Jeff Posey\n\nI did not write\
+  \ it: task-330 deliberately refuses to guess an actor for a login, and guessing\
+  \ on its behalf would defeat the point. One thing to settle first -- the mapping\
+  \ is machine-level to a single actor id, but this machine's projects disagree: agentjobs\
+  \ uses `Jeff Posey`, fantasy-football uses `jeff`.\n\nNothing else outstanding.\
+  \ No branches, no worktrees, tree clean, nothing pushed (push: false)."
 archived: false
 priority: critical
 queue_position: 12
@@ -3633,6 +3637,88 @@ log:
     - label: Sort the actor id first
       description: Settle whether the machine-level actor should be `Jeff Posey` or
         `jeff` given projects disagree, then write it.
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 27
+  ts: '2026-09-04T08:45:00.815736Z'
+  actor: claude
+  type: handoff
+  body: 'Reconciled a disagreement between two children on the same criterion, which
+    is the kind of thing a parent exists to catch.
+
+
+    task-333 marked its own ac-5 `met`; task-244 left the identical criterion `pending`.
+    Both did the same class of check -- a browser on this machine pointed at the tailnet
+    hostname -- and reached opposite conclusions about whether that satisfies "from
+    a phone".
+
+
+    task-244 is right and its judgement stands for this parent. A desktop browser
+    reaching the tailnet URL proves the front door, the exposure filter and the panel''s
+    routes, all of which task-333 evidenced thoroughly and on real data (including
+    40KB of a hidden project''s transcript served to the owner and 404 to a tailnet
+    caller). It does not exercise a phone-sized viewport, which is the half the epic''s
+    own constraint is about -- the dashboard is used from a phone, and the panel is
+    the canary precisely because it is the surface a bad fix would dark-screen there.
+
+
+    So this parent''s ac-5 stays pending, but the residual risk is now narrow and
+    named: mobile layout only, not identity, not exposure, not route availability.
+    I have rewritten the ball prompt so the ask is a glance rather than an investigation.
+
+
+    Recording it here rather than editing either child: both children are closed,
+    their evidence is sound, and the disagreement is a judgement call that belongs
+    at the parent.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 3f8c1a52-9d47-4e61-b2a3-7c5e0f118805
+      kind: handoff
+      fingerprint: 2f89980fdc4687eb32dd44cc3b37f430
+- id: 28
+  ts: '2026-09-04T08:45:00.815856Z'
+  actor: claude
+  type: question
+  body: On your phone, does the dispatch output panel render and read properly? Everything
+    else in this epic is verified -- this is the last open point (ac-5).
+  re: 27
+  data:
+    options:
+    - label: Yes, renders fine
+      description: ac-5 met. I close this parent and the epic is done.
+      recommended: true
+    - label: No, it is broken on mobile
+      description: A child regressed the panel on a phone viewport. I find which and
+        file the fix.
+      recommended: false
+    - label: Not now
+      description: Leave the parent open until you have looked.
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 29
+  ts: '2026-09-04T08:45:00.815881Z'
+  actor: claude
+  type: question
+  body: Shall I write ~/.agentjobs/identities.yaml? Until it exists, Dispatch is disabled
+    from your phone.
+  re: 27
+  data:
+    options:
+    - label: I will do it
+      description: It is your identity mapping and lives in ~/.agentjobs; you write
+        it.
+      recommended: true
+    - label: You write it, actor `Jeff Posey`
+      description: I add the file, then verify the tailnet principal resolves and
+        Dispatch re-enables.
+      recommended: false
+    - label: Settle the actor id first
+      description: agentjobs uses `Jeff Posey`, fantasy-football uses `jeff`; decide
+        the machine-level id before writing.
       recommended: false
     multi_select: false
     placeholder: null
