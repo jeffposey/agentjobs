@@ -54,6 +54,12 @@ import { TaskCreate } from "./components/TaskCreate";
 import { IssueReporter } from "./components/IssueReporter";
 import { NextExplanation } from "./components/NextExplanation";
 import { invalidateProjectTaskQueries, LiveUpdateStatus } from "./components/LiveUpdates";
+import {
+  LiveRunCount,
+  LiveRunsPage,
+  MachineCapacityRow,
+  useLiveRuns,
+} from "./components/LiveRuns";
 import { Playbooks, type PlaybookRunRequest } from "./components/Playbooks";
 import { PrimaryNav } from "./components/PrimaryNav";
 
@@ -128,8 +134,24 @@ function DashboardPage({ projectId }: { projectId: string }) {
       dashboard={dashboardQuery.data}
       projectId={projectId}
       renderWhyThisOne={() => <NextExplanation projectId={projectId} />}
+      renderMachineCapacity={() => <DashboardMachineCapacity projectId={projectId} />}
     />
   );
+}
+
+/**
+ * The Dashboard's capacity row, wired to the shared machine-wide query.
+ *
+ * Its own component so `Dashboard` stays pure presentation -- it is rendered straight
+ * from a response object in its tests, and a query inside it would need a client and a
+ * server there. Same shape, and the same reason, as `renderWhyThisOne`.
+ */
+function DashboardMachineCapacity({ projectId }: { projectId: string }) {
+  return <MachineCapacityRow body={useLiveRuns()} projectId={projectId} />;
+}
+
+function LiveRunsRoute() {
+  return <LiveRunsPage body={useLiveRuns()} />;
 }
 
 function TaskListPage({ projectId }: { projectId: string }) {
@@ -626,11 +648,22 @@ function PlaybooksPage({ projectId }: { projectId: string }) {
   );
 }
 
+/**
+ * The header, with the live-run badge attached.
+ *
+ * A component of its own because the badge needs a hook and `PrimaryNav` must stay
+ * prop-driven. The query is shared with the Dashboard row and the Runs page by
+ * react-query's cache, so a Dashboard costs one request rather than two.
+ */
+function ProjectShellNav({ projectId }: { projectId: string }) {
+  return <PrimaryNav projectId={projectId} badge={<LiveRunCount body={useLiveRuns()} />} />;
+}
+
 function ProjectApp() {
   const { projectId = "" } = useParams<{ projectId: string }>();
   return (
     <div className="flex min-h-screen flex-col bg-dark-bg text-dark-text">
-      <PrimaryNav projectId={projectId} />
+      <ProjectShellNav projectId={projectId} />
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
         <LiveUpdateStatus projectId={projectId} />
         <Routes>
@@ -640,6 +673,9 @@ function ProjectApp() {
           <Route path="tasks/:taskId" element={<TaskDetailPage projectId={projectId} />} />
           <Route path="dispatch" element={<DispatchSettingsPage projectId={projectId} />} />
           <Route path="playbooks" element={<PlaybooksPage projectId={projectId} />} />
+          {/* Inside the project shell for its chrome, machine-wide in its content:
+              every row carries a server-built link into whichever project owns it. */}
+          <Route path="runs" element={<LiveRunsRoute />} />
           <Route path="*" element={<Navigate to="/not-found" replace />} />
         </Routes>
       </main>
