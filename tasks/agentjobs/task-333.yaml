@@ -3,20 +3,16 @@ id: task-333
 title: 'Project exposure: a hidden project stays hidden through its run transcripts
   too'
 created: '2026-09-04T03:28:25.746152Z'
-updated: '2026-09-04T08:29:54.379923Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-09-04T08:30:26.832109Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 14900
 category: security
 tags:
 - security
 - epic-066
 assignment:
-  owner: claude
   eligible: []
 parent: task-066-multiple-human-users
 spec:
@@ -128,7 +124,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-333-project-exposure
-  status: active
+  status: merged
+  merged_at: '2026-09-04T08:30:26.789258Z'
 log:
 - id: 1
   ts: '2026-09-04T03:28:26.367778Z'
@@ -493,3 +490,28 @@ log:
     merge_commit: d2548c1f2aa74e42ef9e2d425ac53362be05326c
     branch: feat/task-333-project-exposure
     base: main
+- id: 12
+  ts: '2026-09-04T08:30:26.831926Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-333-project-exposure` into `main` as `d2548c1f` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). No human\
+    \ reviewed this merge: posture `autonomous` (from the epic) releases the merge\
+    \ gate (task-021), and run run_dfdae0fc ran the finish. What authorised it is\
+    \ the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         2.4s  feat/task-333-project-exposure at e7c117c9\
+    \ in C:\\projects\\worktrees\\agentjobs-333\n  runway     ok         0.0s  taken\
+    \ immediately\n  rebase     ok         0.2s  feat/task-333-project-exposure onto\
+    \ main: e7c117c9 -> 2ecc6ab2\n  gate       ok       304.8s  scripts/check.py green\n\
+    \  catch_up   skipped    0.0s  main did not move during the gate\n  merge    \
+    \  ok         0.3s  --no-ff into main as d2548c1f2aa74e42ef9e2d425ac53362be05326c\n\
+    \  rebuild    ok         7.4s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         0.9s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     ok         0.0s  http://127.0.0.1:8876 is serving 1c7e37ea, which contains\
+    \ the merge d2548c1f, from C:\\projects\\agentjobs (started 2026-09-04T08:30:11.094677+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
