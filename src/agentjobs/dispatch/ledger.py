@@ -50,7 +50,7 @@ from agentjobs.dispatch.runner import (
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BallReason, DispatchMode, DispatchOutcome
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
-from agentjobs.storage import TaskStorage
+from agentjobs.storage import TaskStorage, load_yaml
 
 LOCKS_DIRNAME = ".locks"
 """Run locks live under the runs root. A leading dot cannot collide with a run id."""
@@ -846,12 +846,21 @@ def read_run(directory: Path) -> RunRecord:
 
     Deliberate: a run that cannot be read cannot be shown to have ended, and treating it
     as finished would let a second run start beside it and would hide a crash.
+
+    ``load_yaml`` rather than ``yaml.safe_load``, and the difference is not cosmetic:
+    every caller of ``list_runs`` parses **every** run directory the machine has ever
+    had, and a dispatch meta carries the whole argv including a settings blob. Measured
+    on this machine's ledger (135 runs, 224 KB) on 2026-09-04: ``yaml.safe_load`` 178 ms,
+    ``load_yaml`` 16.7 ms -- the former is the pure-Python parser, while ``storage`` has
+    always reached for libyaml. Nothing read the whole ledger on a clock until task-328's
+    machine-wide surface, so nobody had a reason to notice; ``dispatch/guards.py`` pays
+    it on every dispatch too.
     """
     meta: Dict[str, object] = {}
     meta_path = directory / META_FILENAME
     if meta_path.is_file():
         try:
-            loaded = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
+            loaded = load_yaml(meta_path.read_text(encoding="utf-8"))
             if isinstance(loaded, dict):
                 meta = loaded
         except (OSError, yaml.YAMLError):
@@ -915,7 +924,7 @@ def write_status(record: RunRecord, **fields: object) -> None:
     meta: Dict[str, object] = {}
     if meta_path.is_file():
         try:
-            loaded = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
+            loaded = load_yaml(meta_path.read_text(encoding="utf-8"))
             if isinstance(loaded, dict):
                 meta = loaded
         except (OSError, yaml.YAMLError):
