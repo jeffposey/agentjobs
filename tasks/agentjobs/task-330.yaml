@@ -2,55 +2,60 @@ schema: 2
 id: task-330
 title: 'Identity registry: several human actors, login mapping, and retirement'
 created: '2026-09-04T03:26:56.564971Z'
-updated: '2026-09-04T05:41:56.797138Z'
+updated: '2026-09-04T05:41:57.755822Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: "The approval ran the scripted finish and it stopped at `catch_up`. **Nothing\
-  \ was merged.**\n\n`scripts/check.py --only pytest` failed on feat/task-330-identity-registry\
-  \ after rebasing onto the moved main (209s, exit 1). The full gate had been green;\
-  \ what the base moved under it was not. Nothing was merged. This is the case the\
-  \ catch-up exists to find, so read it before assuming it is noise. Full output:\
-  \ C:\\Users\\jpose\\.agentjobs\\finishes\\fin_045ff513\\catch-up-1.log\n\n```\n\
-  \    warnings.warn(\ntests/test_cli.py::test_migrate_command_execution\n  C:\\projects\\\
-  worktrees\\agentjobs-330\\src\\agentjobs\\migration\\reporter.py:40: DeprecationWarning:\
-  \ datetime.datetime.utcnow() is deprecated and scheduled for removal in a future\
-  \ version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n\
-  \    f\"**Generated**: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\\n\"\
-  \ntests/test_loud_load_errors.py::TestApiSurfacesIt::test_reading_the_broken_task_is_a_422_naming_it\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_refusal_scenarios_actually_recorded_refusals\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
-  tests/test_mcp_read_tools.py::TestTaskGet::test_a_broken_file_is_distinct_from_a_missing_task\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_every_scenario_passes\ntests/test_mcp_protocol.py::TestAgentEvaluations::test_all_ten_accepted_scenarios_ran\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_records_traces_and_final_state\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-Oa9zoEij-py3.13\\\
-  Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response = await\
-  \ handler(conn, exc)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
-  \  C:\\projects\\worktrees\\agentjobs-330\\src\\agentjobs\\api\\routes\\web.py:381:\
-  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
-  \ removal in a future version. Use timezone-aware objects to represent datetimes\
-  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
-  tests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-Oa9zoEij-py3.13\\\
-  Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
-  \ dependant.call(**values)\ntests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
-  \  C:\\projects\\worktrees\\agentjobs-330\\src\\agentjobs\\api\\routes\\web.py:363:\
-  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
-  \ removal in a future version. Use timezone-aware objects to represent datetimes\
-  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
-  -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\e[36m\e\
-  [1m=========================== short test summary info ===========================\e\
-  [0m\n\e[31mFAILED\e[0m tests/test_dispatch_runner.py::\e[1mTestProcessGroup::test_the_timeout_kills_the_grandchild_too\e\
-  [0m - AssertionError: pid 3048356 survived the timeout\n\e[31m===== \e[31m\e[1m1\
-  \ failed\e[0m, \e[32m3793 passed\e[0m, \e[33m1 skipped\e[0m, \e[33m219 warnings\e\
-  [0m\e[31m in 194.07s (0:03:14)\e[0m\e[31m =====\e[0m\n  pytest   208.3s\n  total\
-  \    208.3s\nFailed to deliver webhook wh_a98aa22ebb: All connection attempts failed\n\
-  Failed at stage 'pytest'.\n```\n\nTake it from here by hand. Check the tree against\
-  \ what is written above before acting on anything you remember: if your worktree,\
-  \ your branch or your account of this task no longer matches what is on disk, say\
-  \ so on the record and hand the ball back rather than improvising a recovery."
+ball_prompt: 'The approval ran the scripted finish and it stopped at `rebase`. **Nothing
+  was merged.**
+
+
+  Rebasing feat/task-330-identity-registry onto main did not apply cleanly, and a
+  conflict is never resolved here. The branch is exactly where it was (76aa7870).
+  Nothing was merged.
+
+
+  ```
+
+  Auto-merging docs/index.md
+
+  CONFLICT (content): Merge conflict in docs/index.md
+
+  Auto-merging docs/principals-design.md
+
+  CONFLICT (content): Merge conflict in docs/principals-design.md
+
+  Rebasing (1/4)
+
+  Rebasing (2/4)
+
+  Rebasing (3/4)
+
+  Rebasing (4/4)
+
+  error: could not apply 76aa787... docs: the identity registry, and correct principals-design
+  on actor_id
+
+  hint: Resolve all conflicts manually, mark them as resolved with
+
+  hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+  hint: You can instead skip this commit: run "git rebase --skip".
+
+  hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+
+  hint: Disable this message with "git config set advice.mergeConflict false"
+
+  Could not apply 76aa787... # docs: the identity registry, and correct principals-design
+  on actor_id
+
+  ```
+
+
+  Take it from here by hand. Check the tree against what is written above before acting
+  on anything you remember: if your worktree, your branch or your account of this
+  task no longer matches what is on disk, say so on the record and hand the ball back
+  rather than improvising a recovery.'
 archived: false
 priority: high
 queue_position: 14800
@@ -563,3 +568,89 @@ log:
     finish_step: started
     branch: feat/task-330-identity-registry
     finish_id: fin_5ff73506
+- id: 13
+  ts: '2026-09-04T05:41:57.722321Z'
+  actor: finisher
+  type: progress
+  body: "The scripted finish stopped at `rebase` (rebase_conflict).\n\n**Nothing was\
+    \ merged.**\n\nRebasing feat/task-330-identity-registry onto main did not apply\
+    \ cleanly, and a conflict is never resolved here. The branch is exactly where\
+    \ it was (76aa7870). Nothing was merged.\n\n```\nAuto-merging docs/index.md\n\
+    CONFLICT (content): Merge conflict in docs/index.md\nAuto-merging docs/principals-design.md\n\
+    CONFLICT (content): Merge conflict in docs/principals-design.md\nRebasing (1/4)\n\
+    Rebasing (2/4)\nRebasing (3/4)\nRebasing (4/4)\nerror: could not apply 76aa787...\
+    \ docs: the identity registry, and correct principals-design on actor_id\nhint:\
+    \ Resolve all conflicts manually, mark them as resolved with\nhint: \"git add/rm\
+    \ <conflicted_files>\", then run \"git rebase --continue\".\nhint: You can instead\
+    \ skip this commit: run \"git rebase --skip\".\nhint: To abort and get back to\
+    \ the state before \"git rebase\", run \"git rebase --abort\".\nhint: Disable\
+    \ this message with \"git config set advice.mergeConflict false\"\nCould not apply\
+    \ 76aa787... # docs: the identity registry, and correct principals-design on actor_id\n\
+    ```\n\n```\n  preflight  ok         5.5s  feat/task-330-identity-registry at 76aa7870\
+    \ in C:\\projects\\worktrees\\agentjobs-330\n  runway     ok       251.4s  taken\
+    \ after queuing\n  rebase     STOPPED    0.0s  Rebasing feat/task-330-identity-registry\
+    \ onto main did not apply cleanly, and a conflict is never resolved here. The\
+    \ branch is exactly where it was (76aa7870). Nothing was merged.\n```"
+  data:
+    finish_step: rebase
+    finish_reason: rebase_conflict
+    merge_commit: null
+    merged: false
+- id: 14
+  ts: '2026-09-04T05:41:57.755651Z'
+  actor: finisher
+  type: handoff
+  body: 'The approval ran the scripted finish and it stopped at `rebase`. **Nothing
+    was merged.**
+
+
+    Rebasing feat/task-330-identity-registry onto main did not apply cleanly, and
+    a conflict is never resolved here. The branch is exactly where it was (76aa7870).
+    Nothing was merged.
+
+
+    ```
+
+    Auto-merging docs/index.md
+
+    CONFLICT (content): Merge conflict in docs/index.md
+
+    Auto-merging docs/principals-design.md
+
+    CONFLICT (content): Merge conflict in docs/principals-design.md
+
+    Rebasing (1/4)
+
+    Rebasing (2/4)
+
+    Rebasing (3/4)
+
+    Rebasing (4/4)
+
+    error: could not apply 76aa787... docs: the identity registry, and correct principals-design
+    on actor_id
+
+    hint: Resolve all conflicts manually, mark them as resolved with
+
+    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+    hint: You can instead skip this commit: run "git rebase --skip".
+
+    hint: To abort and get back to the state before "git rebase", run "git rebase
+    --abort".
+
+    hint: Disable this message with "git config set advice.mergeConflict false"
+
+    Could not apply 76aa787... # docs: the identity registry, and correct principals-design
+    on actor_id
+
+    ```
+
+
+    Take it from here by hand. Check the tree against what is written above before
+    acting on anything you remember: if your worktree, your branch or your account
+    of this task no longer matches what is on disk, say so on the record and hand
+    the ball back rather than improvising a recovery.'
+  data:
+    ball: agent
+    ball_reason: work
