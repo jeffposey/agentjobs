@@ -2,7 +2,7 @@ schema: 2
 id: task-332
 title: 'Authorization: what each kind of principal may do'
 created: '2026-09-04T03:27:57.244568Z'
-updated: '2026-09-04T07:00:47.078650Z'
+updated: '2026-09-04T07:01:02.273333Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -417,3 +417,17 @@ log:
       id: 3f2a1c40-9d51-4e2b-8f77-0a1b2c3d4e03
       kind: log_append
       fingerprint: 4e29cf15756b512f82e65b0334a98e5c
+- id: 8
+  ts: '2026-09-04T07:01:02.273158Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-332-capability-authorization` (b757d245).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-332.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_83130f1c\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-332-capability-authorization
+    finish_id: fin_83130f1c
