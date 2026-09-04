@@ -3,21 +3,17 @@ id: task-334
 title: Dispatch caps bind every trigger, and the design stops claiming the loop is
   impossible
 created: '2026-09-04T03:28:51.073210Z'
-updated: '2026-09-04T04:33:37.136827Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-09-04T04:34:03.295614Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 15000
 category: dispatch
 tags:
 - security
 - dispatch
 - epic-066
 assignment:
-  owner: claude
   eligible: []
 parent: task-066-multiple-human-users
 spec:
@@ -120,7 +116,8 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-334-dispatch-caps
-  status: active
+  status: merged
+  merged_at: '2026-09-04T04:34:03.260282Z'
 log:
 - id: 1
   ts: '2026-09-04T03:28:51.600608Z'
@@ -388,3 +385,28 @@ log:
     merge_commit: cc9d7a635d95bc4f8b6797508c9e70c411a0770b
     branch: feat/task-334-dispatch-caps
     base: main
+- id: 10
+  ts: '2026-09-04T04:34:03.295468Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-334-dispatch-caps` into `main` as `cc9d7a63` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). No human\
+    \ reviewed this merge: posture `autonomous` (from the epic) releases the merge\
+    \ gate (task-021), and run run_b6998ff8 ran the finish. What authorised it is\
+    \ the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         2.2s  feat/task-334-dispatch-caps at 7893b73f in\
+    \ C:\\projects\\worktrees\\agentjobs-334\n  runway     ok         0.0s  taken\
+    \ immediately\n  rebase     ok         0.2s  feat/task-334-dispatch-caps onto\
+    \ main: 7893b73f -> 9dee6901\n  gate       ok       332.0s  scripts/check.py green\n\
+    \  catch_up   skipped    0.0s  main did not move during the gate\n  merge    \
+    \  ok         0.3s  --no-ff into main as cc9d7a635d95bc4f8b6797508c9e70c411a0770b\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         0.9s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving cd6cc1a7, which contains the merge\
+    \ cc9d7a63, from C:\\projects\\agentjobs (started 2026-09-04T04:33:46.985030+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
