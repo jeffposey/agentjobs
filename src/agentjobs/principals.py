@@ -25,11 +25,15 @@ absent principal is task-332's question, and answering it here would smuggle
 enforcement into a change that is meant to be inert. Nothing in this module is wired to
 authorization, and no route behaves differently because it exists.
 
-**It also does not map an identity to an actor.** ``actor_id`` is populated by
-task-330, which owns the login-to-actor mapping; until then a resolved principal
-carries the raw login in :attr:`Principal.login` and ``actor_id`` is ``None``. That is
-deliberate: guessing the mapping here would write an attribution nobody configured,
-which is the failure :mod:`agentjobs.actors` exists to prevent.
+**It also does not map an identity to an actor**, and ``actor_id`` is ``None`` on every
+principal this module builds. Task-330 landed the mapping and deliberately put it
+elsewhere: which configured person a login is depends on the *project's* actor
+vocabulary, and resolution here is project-agnostic by design -- one request, one
+principal, before any handler knows what it is addressing. A resolved principal carries
+the raw login in :attr:`Principal.login`, and :func:`agentjobs.actors.human_identity`
+turns that into an actor id given a project's config. Guessing it here would write an
+attribution nobody configured, which is the failure :mod:`agentjobs.actors` exists to
+prevent.
 """
 
 from __future__ import annotations
@@ -126,10 +130,13 @@ class Principal:
     kind: PrincipalKind
     source: PrincipalSource
     actor_id: Optional[str] = None
-    """The configured actor this principal maps to, once task-330 maps it.
+    """The configured actor this principal maps to, where a caller already knows it.
 
-    ``None`` today for every kind, and ``None`` forever for ``run`` -- a run is not a
-    human and must never be attributed as one.
+    ``None`` on everything this module builds, and ``None`` forever for ``run`` -- a run
+    is not a human and must never be attributed as one. The mapping is a function of the
+    principal *and* a project's actor vocabulary, so it lives in
+    :func:`agentjobs.actors.human_identity` rather than here; the field remains for a
+    caller that has resolved one and wants to carry it.
     """
 
     login: Optional[str] = None
