@@ -3,7 +3,7 @@ id: task-244
 title: 'Tailnet proxy: prove identity at the front door, and keep project creation
   off the network'
 created: '2026-08-22T18:50:12.663333Z'
-updated: '2026-09-04T08:10:01.266581Z'
+updated: '2026-09-04T08:13:02.875988Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -799,3 +799,63 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 17
+  ts: '2026-09-04T08:13:02.875774Z'
+  actor: claude
+  type: progress
+  body: '**Delivered, and re-verified against the merged code.** The scripted finish
+    did the repository half -- gate green 10 of 10 in 693s, `--no-ff` merge `9ff4088`,
+    worktree removed, branch deleted, server restarted through `open-agentjobs.ps1`
+    (the right one; port 8876, not the CLI default). This entry records the half the
+    finisher cannot do, because **the proxy is a compiled binary outside this repository.**
+
+
+    **Installed** `C:/ai/shared/services/bin/tailscale-service-host.exe`, built from
+    `main` at the merge. The previous binary is kept beside it as `tailscale-service-host.pre-task-244.exe`
+    -- renamed rather than deleted, which is also how it was replaced while `svc:jobsearch`
+    had it open. The agentjobs proxy was restarted through `ensure-tailscale-service.ps1`,
+    so it is running from the installed path and will survive a reboot; nothing points
+    at a temporary build any more.
+
+
+    **`svc:jobsearch` is still running the old binary in memory** and will pick up
+    the new one on its next restart. Nothing about that is urgent, and it is an improvement
+    there too (identity required, the three `/api/projects*` paths denied -- job-hunting
+    has no such routes).
+
+
+    **Post-merge probes, all against the live Service and the restarted server:**
+
+
+    | Probe | Answer |
+
+    |---|---|
+
+    | `https://agentjobs.tailfed1df.ts.net/api/whoami` | `tailnet (jposey@hellfiregames.com)
+    via proven_header` |
+
+    | loopback, `X-Tailscale-User: attacker@example.com` | `owner via loopback` --
+    **the escalation is closed**; the same request answered `tailnet (attacker@example.com)`
+    before the merge |
+
+    | loopback, `X-Forwarded-For: 203.0.113.9` | no principal, *"...or claimed to
+    have been forwarded, which makes its origin an assertion rather than a socket"*
+    -- uvicorn''s rewrite no longer decides who you are |
+
+    | `POST /api/projects/inspect` via the tailnet / on loopback | **403** / **200**
+    |
+
+    | `GET /api/projects`, run output, `/app/` via the tailnet | **200**, **200**,
+    **200** |
+
+
+    **One housekeeping item:** Go 1.27.1 sits unpacked at `C:/ai/scratch/goroot/go`.
+    Nothing on `PATH` points at it and nothing depends on it; it is there because
+    `go test ./scripts/tailscale-service-host/` needs a toolchain and this machine
+    had none. Scratch is throwaway by convention -- delete it whenever, and re-download
+    it the next time somebody touches the proxy.'
+  data:
+    operation:
+      id: 3f6a1c22-8b90-4a71-9d18-1c5e77b0424a
+      kind: log_append
+      fingerprint: 78f284505d2d32b2867d326412acb5b4
