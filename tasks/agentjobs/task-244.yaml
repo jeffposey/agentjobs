@@ -3,7 +3,7 @@ id: task-244
 title: 'Tailnet proxy: prove identity at the front door, and keep project creation
   off the network'
 created: '2026-08-22T18:50:12.663333Z'
-updated: '2026-09-04T07:50:42.184066Z'
+updated: '2026-09-04T07:57:32.317843Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -130,27 +130,56 @@ acceptance:
   text: A request through the tailnet hostname carries a proxy-established identity
     that the app maps to a configured actor, verified against a real connection rather
     than a synthesised header.
-  status: pending
+  verify: 'GET https://agentjobs.tailfed1df.ts.net/api/whoami from coruscant over
+    a real tailnet connection: `tailnet (jposey@hellfiregames.com) via proven_header`,
+    where it was `no principal (no_proven_identity)` before. The *mapping* half stops
+    at configuration, not at code: ~/.agentjobs/identities.yaml does not exist, so
+    the app names the login and the file to add it to rather than guessing an actor
+    -- task-330''s deliberate refusal. See the progress entry''s residual 1.'
+  status: met
 - id: ac-2
   text: A connection WhoIs cannot identify is refused with a reason, not forwarded
     as anonymous.
-  status: pending
+  verify: 'Connecting to the proxy''s own loopback socket (127.0.0.1:56428, no forwarded-for):
+    403 `tailscale could not identify 127.0.0.1:50622: peer not found`, nothing forwarded.
+    Three more refusal cases -- a tagged node, no user profile, an empty login --
+    in frontdoor_test.go, which is how they are reached at all.'
+  status: met
 - id: ac-3
   text: An identity header arriving by any path other than this proxy is not believed
     by the app. Tested from outside the proxy.
-  status: pending
+  verify: 'Two layers plus a served process. Pure: test_a_local_process_forging_the_identity_header_gets_the_owner_not_tailnet.
+    Real uvicorn: test_a_served_process_answers_the_same_as_the_pure_rule sends the
+    header with no front-door proof and gets `owner`, and with X-Forwarded-For gets
+    no principal -- the layer TestClient could not reach, and the one where the rule
+    was in fact broken before this change.'
+  status: met
 - id: ac-4
   text: POST /api/projects/init, POST /api/projects and /api/projects/inspect return
     403 or 404 through the proxy and 200 on loopback. No fourth route is denied.
-  status: pending
+  verify: 'Live: all three 403 through https://agentjobs.tailfed1df.ts.net; /api/projects/inspect
+    200 on loopback with a real body. GET /api/projects 200 both ways. No fourth:
+    TestTheDenyListIsThreeEntries fails if the map grows, and TestNothingElseIsDenied
+    walks the ten routes the audit wanted denied and asserts each reaches the application.'
+  status: met
 - id: ac-5
   text: The structured dispatch output panel renders on a phone over the tailnet against
     a real run, after this change. Dispatching a task and disabling dispatch also
     still work from the phone.
+  verify: 'PARTLY DONE, and left pending rather than claimed. The panel does render
+    over the tailnet against a real run -- task-244''s own page, live, showing this
+    run''s output -- and the three routes behind it went 403 -> 200. But that was
+    a desktop browser on this machine, not a phone; and the two dispatch gestures
+    were not exercised, because Dispatch is disabled until ~/.agentjobs/identities.yaml
+    maps the login, and toggling live dispatch off would have broken the sibling runs
+    in flight. Jeff: open the task on your phone and look, then decide.'
   status: pending
 - id: ac-6
   text: The tailnet ACL's reach for svc:agentjobs is read and recorded on this task.
-  status: pending
+  verify: Log entry 8, and docs/tailnet-front-door.md. Default allow-all policy; the
+    services/agentjobs capability is on this node; five nodes, one user account, two
+    of them tagged.
+  status: met
 deliverables: []
 dependencies:
 - task: task-329
@@ -494,3 +523,225 @@ log:
       id: 3f6a1c22-8b90-4a71-9d18-1c5e77b04246
       kind: log_append
       fingerprint: 26d85c7bf858fd2b4aa2a86b461d56d3
+- id: 11
+  ts: '2026-09-04T07:56:43.356603Z'
+  actor: claude
+  type: progress
+  body: '**Built and verified on `feat/task-244-tailnet-proxy-identity` (`833a166`,
+    `6b16880`).** Fourteen files: three new (`src/agentjobs/front_door.py`, `scripts/tailscale-service-host/frontdoor.go`
+    and its test, `docs/tailnet-front-door.md`, `tests/test_front_door.py`), the rest
+    edits.
+
+
+    ## What landed
+
+
+    **Go, `scripts/tailscale-service-host/`** -- `frontdoor.go` is a handler in front
+    of the existing `NewSingleHostReverseProxy`, so nothing reaches the backend un-identified.
+
+
+    - `WhoIs` on every request, and **four refusals**, each `403` with a sentence:
+    the lookup failed, no node came back, the node is **tagged** (a machine, and AgentJobs
+    maps a login to a *person* -- this tailnet has two tagged nodes), or no user profile
+    / empty login.
+
+    - **Strips** the caller''s own `X-Tailscale-User`, `X-AgentJobs-Front-Door`, `X-AgentJobs-Run`
+    and the three forwarding headers before setting its own. Load-bearing, not tidy-up:
+    each is evidence the application acts on, arriving from someone who can type anything.
+
+    - **Three denied routes**, `POST /api/projects`, `/api/projects/init`, `/api/projects/inspect`,
+    matched on the `path.Clean`ed path so `/api/projects/x/../init` and `/api/proj%65cts/init`
+    are the same route here as they are to the application. `GET /api/projects` is
+    not denied.
+
+    - The shared secret, minted here on first run at `~/.agentjobs/front-door-secret`.
+
+
+    **Python** -- `front_door.py` supplies the secret (environment, then file, cached
+    five seconds so server-before-proxy start order cannot matter); `principals.py`
+    splits `is_front_door` into `is_local` (address) and `is_front_door` (address
+    **and** a `compare_digest` match on the proof), adds `was_forwarded`, and refuses
+    to fall back to `owner` for a front-door request that names nobody.
+
+
+    **Docs** -- `docs/tailnet-front-door.md` (new, in `docs/index.md`), and the trust-rule
+    section of `docs/principals-design.md` rewritten. Both say what the shared secret
+    is *not* worth as plainly as what it is.
+
+
+    ## How it was verified
+
+
+    **The gate**, unqualified, in the worktree, from the worktree''s own interpreter:
+    **1 failed, 3925 passed, 1 skipped, 625.9s**. The failure is `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`
+    -- *"the grandchild never started, so this proves nothing"* -- the known load-sensitive
+    flake named on task-308 and task-329''s records. **Two gates were running on this
+    machine at once** (task-333''s child was mid-gate). It passed alone in 10.1s;
+    this branch touches neither the runner nor the kill path. Log at `C:/Users/jpose/.claude/jobs/33934cfd/tmp/gate-244.log`.
+    The scripted finish runs the full gate again and merges only on a green one, so
+    that run is the authority rather than this note.
+
+
+    **Go tests**: `go test ./scripts/tailscale-service-host/` green, 18 cases, plus
+    `go vet` and `gofmt`. Go is not a dependency of this repository and these are
+    deliberately **not** in `scripts/check.py` -- see the separate decision entry.
+
+
+    **Against the live Service**, which is where the two design corrections came from.
+    Every row below is a real request over `https://agentjobs.tailfed1df.ts.net` from
+    `coruscant`, with the new binary serving `svc:agentjobs`:
+
+
+    | Probe | Before | After |
+
+    |---|---|---|
+
+    | `GET /api/whoami` | `no principal (no_proven_identity)` | `tailnet (jposey@hellfiregames.com)
+    via proven_header` |
+
+    | `GET /api/dispatch/runs/<id>/output`, `/tail`, `/transcript` | **403** | **200**
+    |
+
+    | `POST /api/projects/inspect` | 200 | **403**, *"not available through the tailnet;
+    it is reachable on this machine''s loopback interface only"* |
+
+    | the same on loopback | 200 | **200** |
+
+    | `POST /api/projects`, `POST /api/projects/init` | 200 | **403** |
+
+    | `GET /api/projects`, `/api/all/tasks` | 200 | **200** |
+
+    | the proxy''s own loopback socket, directly | forwarded | **403** *"tailscale
+    could not identify 127.0.0.1:50622: peer not found"* |
+
+    | through the front door with forged `X-Tailscale-User: attacker@example.com`
+    + `X-AgentJobs-Front-Door: guessed` + `X-AgentJobs-Run` + `X-Forwarded-For` |
+    -- | `tailnet (jposey@hellfiregames.com)`: every forged header stripped |
+
+    | the same identity header sent **directly** to the app on loopback | `tailnet
+    (attacker@example.com)` | `owner` once the merged app is serving |
+
+
+    **In a browser over the tailnet**: `/app/` loads, the Dispatch page renders with
+    its gates and its Disable button, `/runs` lists three live runs, and **task-244''s
+    own page shows the structured dispatch output panel, live, against this run**
+    -- the panel the whole epic is shaped not to break, and which was returning 403
+    through the tailnet an hour ago.
+
+
+    ## Two residuals, both named rather than buried
+
+
+    1. **`~/.agentjobs/identities.yaml` does not exist**, so the proven login maps
+    to no actor and the app says so in the Dispatch panel: *"The login ''jposey@hellfiregames.com''
+    is not mapped to an actor."* That is task-330''s deliberate refusal working, not
+    a defect, and **the Dispatch button is disabled until it is written** -- which
+    is why ac-5''s second sentence is not claimed. I did not write it: the registry
+    is one actor id per login machine-wide, and this machine''s projects use two spellings
+    of the same person (`Jeff Posey` in agentjobs/job-hunting/mastercalls, `jeff`
+    in fantasy-football/product-strategy), so the choice has a consequence that is
+    Jeff''s to make, not mine to guess. Worth a follow-up on task-330''s model.
+
+    2. **The proxy binary is shared with `svc:jobsearch`** (`C:/ai/shared/services/bin/tailscale-service-host.exe`,
+    one binary, two state directories). Replacing it changes jobsearch''s front door
+    on its next restart: identity becomes required there too, and the three `/api/projects*`
+    paths become denied -- grepped, and job-hunting has no such routes.'
+  data:
+    operation:
+      id: 3f6a1c22-8b90-4a71-9d18-1c5e77b04247
+      kind: log_append
+      fingerprint: 4193b9c06ebf4ed6460abf837f993e9f
+- id: 12
+  ts: '2026-09-04T07:57:09.680526Z'
+  actor: claude
+  type: decision
+  body: '**Three smaller calls the diff will not explain.**
+
+
+    **1. The front-door proof exists, and its default is "no front door".** Task-329
+    recorded the residual and assigned the fix here: loopback says "from this machine",
+    not "from the proxy", so any local process could set `X-Tailscale-User` and be
+    believed as `tailnet` -- which holds all eleven capabilities against a run''s
+    five. Demonstrated live before the change: `curl -H ''X-Tailscale-User: attacker@example.com''
+    http://127.0.0.1:8876/api/whoami` answered `tailnet (attacker@example.com) via
+    proven_header`.
+
+
+    The proxy now presents a 32-byte secret from `~/.agentjobs/front-door-secret`,
+    compared with `hmac.compare_digest`. **With no secret configured, nothing is the
+    front door** -- not even a genuine proxy request -- so on a machine running no
+    proxy the identity header is inert and every local caller is the owner it actually
+    is. Failing closed on *attribution* while staying open on *function*.
+
+
+    *The honest limit, stated in `front_door.py` at length rather than left for someone
+    to discover:* the proxy and every dispatched agent run as the same user, so no
+    secret stored here is unreadable by an agent that goes looking. It buys three
+    real things -- forgery becomes a deliberate act rather than an accident, a proxy-less
+    install cannot produce a `tailnet` principal at all, and the boundary acquires
+    a name and a file so a deployment that genuinely separates the proxy tightens
+    by moving the secret rather than by redesigning resolution. It does not buy secrecy,
+    and claiming it did would be the worse error.
+
+
+    *Rejected: leaving the residual open and only stripping the client''s header.*
+    That closes the remote forgery and leaves the local escalation, which is the one
+    task-332 built a capability table to prevent.
+
+    *Rejected: keeping loopback-alone as the default and tightening only when a secret
+    is configured.* Backwards compatible, and it leaves the hole in the exact configuration
+    that matters -- this machine -- until somebody remembers to set a variable.
+
+    *Rejected: the application minting the secret.* It would be handing out the evidence
+    it uses to decide whom to believe. The proxy writes; the application only reads,
+    and a missing file is the ordinary state rather than an error.
+
+
+    **2. The deny-list stays three, and a test says so.** `TestTheDenyListIsThreeEntries`
+    fails if the map grows, with a message pointing at the record; `TestNothingElseIsDenied`
+    walks ten routes the audit originally wanted denied -- `/api/all/tasks`, both
+    dispatch switches, dispatching a task, the three run-output routes, `/queue/repair`,
+    the scoped task list, `/app/` -- and asserts each reaches the application. Task-066
+    entry 5 is binding and this is the mechanism that keeps it binding after everyone
+    who read it has moved on.
+
+
+    **3. The Go tests are not in `scripts/check.py`, deliberately.** `go test ./scripts/tailscale-service-host/`
+    is green and documented in two READMEs, and `scripts/bootstrap.py` does not install
+    a Go toolchain. Adding a stage would make Go a dependency of a Python project
+    for an optional component most installs never run; making the stage skip when
+    Go is absent gives a gate that silently covers less on some machines than others,
+    which is worse than a documented manual step.
+
+
+    The trade-off is real and is the reason this is a decision and not a footnote:
+    **a change to `frontdoor.go` can merge with its tests unrun.** What limits the
+    damage is that the proxy is not the security boundary on its own -- the application
+    refuses an unproven identity by itself -- and that the two halves pin each other''s
+    header spellings from opposite sides (`frontdoor_test.go` and `tests/test_front_door.py`
+    each assert their own, because a disagreement between them is silent and its symptom
+    is every remote caller quietly becoming the owner). *Reopen this if the proxy
+    grows a second responsibility.*
+
+
+    **Also worth knowing, and not obvious:** there was no Go toolchain on this machine.
+    Go 1.27.1 was unpacked to `C:/ai/scratch/goroot/go` (throwaway by Jeff''s convention)
+    purely to build and test; nothing was installed system-wide and nothing on `PATH`
+    changed.'
+  data:
+    operation:
+      id: 3f6a1c22-8b90-4a71-9d18-1c5e77b04248
+      kind: log_append
+      fingerprint: 91f8dc4e5c1c782c232bb00fef9579a4
+- id: 13
+  ts: '2026-09-04T07:57:32.317418Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 3f6a1c22-8b90-4a71-9d18-1c5e77b04249
+      kind: update_content
+      fingerprint: ee3752d632df4a940dfae4736fdc9e2e
