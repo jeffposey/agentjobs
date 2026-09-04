@@ -750,6 +750,84 @@ class TestSessionName:
         assert "pwned" not in names[0]
 
 
+class TestCaptureSessionId:
+    """The id a dispatched run is followed, stopped and read by (task-327).
+
+    Every fixture here is the **verbatim** stdout of a real run, ANSI escapes included,
+    taken from `~/.agentjobs/runs/<run>/stdout.log`. That is not fussiness: the escape
+    is the entire defect. Every fixture that existed before this class approximated the
+    launcher with a plain `print("backgrounded - b55b35ad - aj-task")`, which drops the
+    one byte that breaks the parse and puts no run stub on the line to be caught
+    instead -- so the suite was green for a year against output the launcher has never
+    produced.
+    """
+
+    # run_703a9997, 2026-09-03. Session 1b5f4a48; the trailing @703a9997 is the run's
+    # own stub, put there by our own --name flag.
+    NAMED = (
+        "backgrounded · \x1b[36m1b5f4a48\x1b[39m · agentjobs/task-023@703a9997\r\n"
+        "\x1b[2m  claude agents             list sessions\x1b[22m\r\n"
+        "\x1b[2m  claude attach 1b5f4a48    open in this terminal\x1b[22m\r\n"
+        "\x1b[2m  claude logs 1b5f4a48      show recent output\x1b[22m\r\n"
+        "\x1b[2m  claude stop 1b5f4a48      stop this session\x1b[22m\r\n"
+    )
+
+    # run_5fb17eb0, 2026-08-29, before task-324 added --name. The id is still wrapped in
+    # colour on line 0 and still invisible there; this shape only ever resolved because
+    # `claude attach 553f321b` two lines down is space-delimited.
+    UNNAMED = (
+        "backgrounded · \x1b[36m553f321b\x1b[39m\r\n"
+        "\x1b[2m  claude agents             list sessions\x1b[22m\r\n"
+        "\x1b[2m  claude attach 553f321b    open in this terminal\x1b[22m\r\n"
+        "\x1b[2m  claude logs 553f321b      show recent output\x1b[22m\r\n"
+        "\x1b[2m  claude stop 553f321b      stop this session\x1b[22m\r\n"
+        "\r\nStarting background service…\r\n"
+    )
+
+    def test_the_coloured_id_is_read_not_the_run_stub_beside_it(self) -> None:
+        assert DispatchRunner.capture_session_id(self.NAMED, reject="703a9997") == "1b5f4a48"
+
+    def test_the_id_is_found_even_with_no_reject_to_help(self) -> None:
+        """Stripping the escape is the repair; `reject` is only the belt to its braces.
+
+        If this needed `reject` to pass, the fix would be a filter over a still-broken
+        parse -- and the next name format to carry a hex token would break it again.
+        """
+        assert DispatchRunner.capture_session_id(self.NAMED) == "1b5f4a48"
+
+    def test_the_pre_naming_shape_still_resolves(self) -> None:
+        assert DispatchRunner.capture_session_id(self.UNNAMED, reject="5fb17eb0") == "553f321b"
+
+    def test_a_run_never_adopts_its_own_stub_as_a_session_id(self) -> None:
+        """The guard that survives a future change to the name format.
+
+        Here the stub is the only 8-hex token in the output at all. Returning it would
+        be worse than returning nothing: `None` fails the launch loudly, while a stub
+        is recorded, reported healthy, and then found dead by every consumer of it.
+        """
+        stdout = "backgrounded · agentjobs/task-023@703a9997\r\n"
+        assert DispatchRunner.capture_session_id(stdout, reject="703a9997") is None
+
+    def test_the_stub_is_skipped_in_favour_of_a_real_id_later_on_the_line(self) -> None:
+        stdout = "started agentjobs/task-023@703a9997 as 1b5f4a48\r\n"
+        assert DispatchRunner.capture_session_id(stdout, reject="703a9997") == "1b5f4a48"
+
+    def test_output_with_no_id_at_all_still_yields_nothing(self) -> None:
+        assert DispatchRunner.capture_session_id("Starting background service…\r\n") is None
+
+    def test_the_captured_id_is_the_prefix_of_a_real_transcript_filename(self) -> None:
+        """What the id is *for*, asserted rather than assumed.
+
+        `find_session_transcript` globs `{session_id}*.jsonl`, `_belongs_to` matches
+        `sessionId.startswith(session_id)`, and `stop`/`rm` pass it to the CLI. All four
+        hold only if the captured value is the first segment of the session UUID -- so
+        assert against a real one rather than against another 8-hex string.
+        """
+        captured = DispatchRunner.capture_session_id(self.NAMED, reject="703a9997")
+        assert captured is not None
+        assert "1b5f4a48-17f0-401e-82f5-28b7e26d9019".startswith(captured)
+
+
 class TestArgvComposition:
     def test_posture_flags_land_before_the_prompt(self) -> None:
         argv = compose_argv(
