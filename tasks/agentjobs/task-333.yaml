@@ -3,10 +3,11 @@ id: task-333
 title: 'Project exposure: a hidden project stays hidden through its run transcripts
   too'
 created: '2026-09-04T03:28:25.746152Z'
-updated: '2026-09-04T03:28:26.368615Z'
-lifecycle: ready
+updated: '2026-09-04T08:24:39.811082Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 queue_position: 14900
@@ -15,6 +16,7 @@ tags:
 - security
 - epic-066
 assignment:
+  owner: claude
   eligible: []
 parent: task-066-multiple-human-users
 spec:
@@ -92,20 +94,20 @@ acceptance:
 - id: ac-1
   text: A project marked not exposed serves neither its tasks nor its runs to a tailnet
     principal, and serves both to an owner.
-  status: pending
+  status: met
 - id: ac-2
   text: A run transcript belonging to a hidden project is not served to a remote principal,
     tested directly against the transcript route rather than inferred from the task
     route.
-  status: pending
+  status: met
 - id: ac-3
   text: /api/all/tasks is filtered by exposure rather than denied, and returns only
     what the asking principal may see.
-  status: pending
+  status: met
 - id: ac-4
   text: Hidden projects answer as absent rather than forbidden, matching _owned_run's
     existing convention.
-  status: pending
+  status: met
 - id: ac-5
   text: For an exposed project, the structured dispatch output panel still renders
     from a phone over the tailnet against a real run.
@@ -113,7 +115,7 @@ acceptance:
 - id: ac-6
   text: The setting's name and its scope are recorded as a decision entry, with the
     rejected proxy-shaped name and why.
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-329
@@ -124,7 +126,9 @@ dependencies:
   note: Builds on the capability layer rather than adding a second, parallel policy
     mechanism.
 links: []
-branches: []
+branches:
+- name: feat/task-333-project-exposure
+  status: active
 log:
 - id: 1
   ts: '2026-09-04T03:28:26.367778Z'
@@ -137,3 +141,323 @@ log:
       id: 7c1e4a90-3b21-4d55-9f08-2a6d5e110333
       kind: create
       fingerprint: 89023193b86f894fcc51f17dab4844e5
+- id: 2
+  ts: '2026-09-04T07:07:35.245514Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of task-066-multiple-human-users, and this
+    run is attempt 1 of 2 at one of its children on that authorisation (entry 10 on
+    task-066-multiple-human-users). They chose posture `autonomous` for the epic,
+    so this run gets it too. No separate approval of this task was given or is required:
+    the epic is what was authorised.'
+  data:
+    authorizes_dispatch: true
+    surface: the epic walk
+    epic:
+      parent: task-066-multiple-human-users
+      entry: 10
+      attempt: 1
+      limit: 2
+- id: 3
+  ts: '2026-09-04T07:07:35.788660Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 4
+  ts: '2026-09-04T07:07:40.065299Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_dfdae0fc
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: epic
+    posture_ceiling: autonomous
+    trigger: child
+    caused_by: 2
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --name
+    - agentjobs/task-333@dfdae0fc
+    - --settings
+    - '{"env": {"AGENTJOBS_RUN_ID": "run_dfdae0fc", "AGENTJOBS_RUN_DIR": "C:\\Users\\jpose\\.agentjobs\\runs\\run_dfdae0fc"}}'
+    - 'You are the agent `claude` working task `task-333` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-333-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_dfdae0fc. Posture `autonomous` releases the merge gate:
+      this run merges its own work with no human review. Record the evidence on the
+      task first, then run `agentjobs finish task-333 --project agentjobs --posture-release`
+      from C:\projects\agentjobs. That rebases, runs the full gate, and merges only
+      on a green one -- it stops and hands the ball back if anything fails. Do not
+      merge by hand. Never push: this project is configured `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 6b4e37b
+    session_id: fdc40c00
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 5
+  ts: '2026-09-04T07:39:59.547544Z'
+  actor: claude
+  type: decision
+  body: 'NAME AND SCOPE OF THE SETTING (ac-6).
+
+
+    Chosen: `visibility`, a top-level key in the *project''s own* `.agentjobs/config.yaml`,
+    with two values -- `shared` (the default) and `local`.
+
+
+    Rejected: `expose_on_proxy`, the audit''s name. It names the wrong thing. The
+    control is about which *principals* may read the project; the proxy is merely
+    today''s only way for a non-local one to arrive. A second front door -- another
+    proxy, a LAN bind, an authenticated public endpoint -- would make a proxy-shaped
+    name read as a lie while the code carried on working correctly, which is the worst
+    kind of wrong name because nothing fails. `visibility` is a property of the thing
+    being read, which is what this is.
+
+
+    Also rejected: `remote_readable: true|false`. Boolean, so it cannot grow a third
+    answer, and `remote` is still a transport word.
+
+
+    Scope, decided the same way:
+
+
+    1. Per project and per principal KIND, never per person. Per-person visibility
+    is out of scope for the whole of task-066 and would turn a setting into a role
+    system.
+
+    2. In the PROJECT''s config, not the machine registry. Local-only is a property
+    of the project -- `vault` is local-only wherever it is checked out -- so the setting
+    travels with the repository and is stated once rather than once per machine. The
+    registry stays a disposable list of what this machine has cloned.
+
+    3. `local` admits `owner` AND `run`, and excludes only `tailnet`. A dispatched
+    agent runs here with the project''s files on its filesystem; refusing it over
+    HTTP would stop nothing and would break a run dispatched *into* a local-only project
+    from reading its own task. The axis is where the caller is, not how much it is
+    trusted.
+
+    4. The default is `shared`, and that is deliberate rather than lazy. Defaulting
+    closed would take every existing install''s phone away at upgrade, silently, with
+    no error naming the cause -- and a change with that shape gets reverted rather
+    than configured. The line this task holds is that exposed projects keep working.
+    Safety is carried instead by `visibility_of` FAILING CLOSED: a key that is present
+    and unreadable means `local`, because the only way to write an unrecognised value
+    is to have been trying to say something about exposure and mistyped it. Hiding
+    on a typo is one edit to recover; publishing on one is not. `agentjobs init` writes
+    the key explicitly, so a new project records a decision rather than inheriting
+    a default.'
+  data: {}
+- id: 6
+  ts: '2026-09-04T07:40:13.390486Z'
+  actor: claude
+  type: decision
+  body: 'TWO SCOPE CALLS, ONE IN AND ONE OUT.
+
+
+    IN: the run TAIL and TRANSCRIPT routes were added to task-332''s capability table
+    (`ROUTE_CAPABILITIES`, `Capability.RUN_OUTPUT`). They were the only run-output
+    routes with no principal check of any kind, so a dispatched run could read another
+    run''s transcript over HTTP while being refused the same bytes through `/output`.
+    That is the same class of hole as the one task-332 closed, on the route this task
+    exists to protect, and it is two lines. Rejected leaving it to a follow-up task:
+    the inconsistency would have shipped inside the change whose whole subject is
+    that route.
+
+
+    While there, `tests/test_authorization.py` stopped carrying a hardcoded set of
+    exempt read endpoints and now derives them from the application, so renaming one
+    of *those* is caught too. The old list would have gone stale silently, which is
+    the exact failure that test exists to prevent.
+
+
+    OUT: the proxy is untouched, as `out_of_scope` says (task-244). This is worth
+    stating plainly because it bounds what shipped: `scripts/tailscale-service-host/main.go`
+    uses a bare `httputil.NewSingleHostReverseProxy` and sets NO identity header (verified
+    by reading it, 2026-09-04). So a phone reaching this machine through the tsnet
+    proxy today arrives on loopback with no header and resolves as `owner` -- which
+    means it still sees every project. The mechanism here is complete, enforced and
+    tested end to end against a `tailnet` principal; it does not bite for a real phone
+    until task-244 makes the proxy say who is asking. Nobody should read this task
+    as ''product-strategy is now hidden from the phone''. What is true is ''product-strategy
+    is now hidden from a tailnet principal, and task-244 is what makes the phone one''.'
+  data: {}
+- id: 7
+  ts: '2026-09-04T08:23:28.899007Z'
+  actor: claude
+  type: decision
+  body: 'CORRECTION to the previous entry, 2026-09-04. Its last paragraph said the
+    proxy sets no identity header, so a phone would still resolve as `owner` and see
+    everything until task-244. That was true when I read `scripts/tailscale-service-host/main.go`
+    at the start of this run and is now false: **task-244 merged to main while this
+    branch was open** (commits 5fe9e44, 9ff4088). The proxy now runs `WhoIs` on the
+    tailnet connection, sets `X-Tailscale-User`, strips any copy the caller sent,
+    and proves it is the proxy with a shared secret in `x-agentjobs-front-door`. So
+    this control is live for a real phone rather than waiting on anything.
+
+
+    That correction had teeth beyond the prose. Task-244 also changed what a `tailnet`
+    caller *is*: `is_front_door` now requires loopback AND the matching secret, so
+    the suite''s `remote()` client -- loopback plus an identity header -- had stopped
+    resolving to a `tailnet` principal and was resolving to nobody. Every refusal
+    this suite asserts is also produced by an unresolved caller, so all 36 tests would
+    have gone on passing while proving nothing about the case they are named for.
+    Found on the rebase, fixed in e7c117c: the client presents the secret too, and
+    one new test asserts each client resolves to the kind it claims. This is why the
+    rebase-before-handoff rule earns its keep -- the conflict was one import line,
+    and the thing it dragged in was the test suite''s premise.
+
+
+    The order the two landed in is now recorded in docs/exposure.md, because it is
+    the difference between a control that works and one that is only written down.'
+  data: {}
+- id: 8
+  ts: '2026-09-04T08:23:49.662223Z'
+  actor: claude
+  type: progress
+  body: 'BUILT AND VERIFIED. Branch `feat/task-333-project-exposure`, rebased onto
+    main at 9a20bd5, three commits: afed4b0 (the feature), ef1b880 (a flaky test in
+    the merge path), e7c117c (the front-door correction).
+
+
+    WHAT SHIPPED
+
+
+    `src/agentjobs/exposure.py` is the rule, pure and transport-free like `capabilities.py`:
+    a project''s `visibility` (`shared` by default, `local` to hide it), read from
+    the project''s own `.agentjobs/config.yaml`, and a predicate saying whether a
+    principal may read it. `local` admits `owner` and `run` and excludes `tailnet`.
+    Enforcement is in `api/dependencies.py`.
+
+
+    The leverage is that `request_project` is the single place every project-scoped
+    route resolves its project, and every router is mounted twice behind it -- so
+    one check makes a hidden project''s tasks, runs, transcripts, webhooks, searches
+    and queue absent together rather than one route at a time. On top of that: `/api/projects`
+    and `/api/all/tasks` and `/api/runs/live` filter by the asking principal, `_owned_run`
+    states the exposure check itself rather than inheriting it, and the legacy Jinja
+    project switcher and picker list only visible projects.
+
+
+    The 404 is built in one function, `_no_such_project`, and it draws its `Registered
+    projects: ...` list from the CALLER''S visible set. The registry''s own sentence
+    names every registered id, so reusing it would have disclosed the hidden projects
+    through the response that is hiding them. That was the one non-obvious hole in
+    the first draft.
+
+
+    Also brought the run `tail` and `transcript` routes under task-332''s capability
+    table. They are the same output read two other ways and were the only run-output
+    routes with no principal check at all, so `a run may read its own transcript and
+    no other''s` was true of the route nobody polls and false of the two the page
+    polls. `tests/test_authorization.py` now derives its read exemptions from the
+    application instead of carrying a hardcoded list that would have gone stale silently.
+
+
+    DEPLOYED, not just implemented. `visibility: local` is committed into `C:/projects/product-strategy/.agentjobs/config.yaml`
+    (ab15c33) and `C:/projects/job-hunting/.agentjobs/config.yaml` (6e99c3a). Neither
+    was pushed. The constraint asked for the setting to be explicit in config rather
+    than a hardcoded list of names, and this is the half of that which actually hides
+    anything on this machine.
+
+
+    VERIFIED
+
+
+    `tests/test_project_exposure.py`, 38 tests, all over HTTP from two sockets that
+    differ only in what they present -- the way the audit established the finding.
+    Refusals asserted as absent rather than forbidden, and the hidden-project 404
+    asserted byte-for-byte equal to the unknown-id one. A `SECRET` string is written
+    into the hidden project''s task title and into its run transcript, so the assertions
+    are on the bytes rather than on status codes.
+
+
+    Proved the tests are not decoration: with `readable_by` stubbed to `return True`,
+    15 of them fail and 19 pass -- and the 19 are exactly the owner-loses-nothing
+    and exposed-project-untouched ones, which is the right split.
+
+
+    Full unqualified `scripts/check.py`: green, all ten stages, 324s, receipt written
+    for e7c117c9.
+
+
+    WHAT IS NOT DONE HERE
+
+
+    ac-5''s browser half. The suite covers its server half -- a tailnet principal
+    reading an exposed project''s structured transcript still gets rendered entries
+    rather than an empty panel -- but the panel itself in a phone browser over the
+    tailnet is a post-merge check, since the running dashboard on 8876 is still on
+    pre-merge code. Doing it immediately after the finish.'
+  data: {}
+- id: 9
+  ts: '2026-09-04T08:24:39.810951Z'
+  actor: claude
+  type: progress
+  body: 'ACCEPTANCE, criterion by criterion, with what proves each. (The schema''s
+    acceptance entries carry no note field, so the evidence lives here.)
+
+
+    ac-1 met -- TestAHiddenProjectIsAbsent and TestAHiddenProjectsRunsAreAbsent, against
+    a tailnet client; TestAnOwnerLosesNothing runs the same requests from the same
+    socket without the front-door headers.
+
+
+    ac-2 met -- test_its_run_transcript_is_not_served, and test_the_transcript_is_not_reachable_through_the_open_project
+    for the URL that names a project it may see. A real JSONL is written into the
+    runner''s store under the hidden project''s own slug, and the assertion is that
+    its text is absent from the body, not merely that the status is 404.
+
+
+    ac-3 met -- TestAllTasksIsFilteredRatherThanDenied: 200 carrying the open project''s
+    rows for a tailnet caller, both projects for an owner, and an empty list rather
+    than a refusal when the hidden project is named in ?project=.
+
+
+    ac-4 met -- test_the_refusal_is_indistinguishable_from_never_having_existed compares
+    the two bodies. test_the_unknown_project_sentence_does_not_name_the_hidden_one
+    covers the leak going the other way: the registry''s unknown-id sentence lists
+    every registered id, so the 404 is assembled from the caller''s own visible set
+    instead.
+
+
+    ac-5 pending -- server half done (test_its_structured_transcript_still_renders_for_a_remote_caller
+    asserts source=jsonl and the rendered entry text for a tailnet caller, because
+    an empty panel is also a 200). Browser half is a post-merge check against the
+    real dashboard.
+
+
+    ac-6 met -- the decision entry above, plus docs/exposure.md.
+
+
+    One thing a later reader should not have to rediscover: the suite''s negative
+    assertions are only worth anything because `TestTheTwoClientsAreWhoTheyClaimToBe`
+    proves the remote client resolves to a `tailnet` principal. An unresolved caller
+    produces every one of the same refusals, so without that test the whole file could
+    pass while testing nothing.'
+  data: {}
