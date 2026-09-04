@@ -5783,6 +5783,111 @@
         ],
         "title": "WebhookCreateRequest",
         "type": "object"
+      },
+      "WhoAmIResponse": {
+        "description": "The principal this request resolved to, or the reason none did.\n\nThe observable half of task-329's resolution and task-331's credential: without a\nroute that says what the application concluded, \"a dispatched run identifies as its\nrun\" is only assertable against a synthesised header in a unit test. Here a real\ndispatched agent can ask, over the same transport it makes every other call on, and\nget the answer the middleware actually reached.\n\nIt reports identity; it enforces nothing. Every route answers exactly as it did\nbefore, including for a caller this resolves nothing for -- that is task-332's\nquestion, and answering it here would smuggle enforcement into a change meant to\nestablish identity.\n\n**It never echoes the credential.** A caller learns which run it is, never the token\nthat proved it. There is nothing here a caller did not already present.",
+        "properties": {
+          "actor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The configured actor this principal maps to. Null until task-330 owns that mapping, and null forever for a run -- a run is not a human and must never be attributed as one.",
+            "title": "Actor Id"
+          },
+          "describe": {
+            "description": "One line naming the kind and the evidence, as a log would record it.",
+            "title": "Describe",
+            "type": "string"
+          },
+          "detail": {
+            "default": "",
+            "description": "A sentence a person can act on when nothing resolved.",
+            "title": "Detail",
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "tailnet, owner, or run. Null when nothing resolved.",
+            "title": "Kind"
+          },
+          "login": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The raw identity the front door proved. Set for kind tailnet only.",
+            "title": "Login"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why nothing resolved: no_proven_identity, unverified_run_credential, or expired_run_credential. An expired credential is reported as its own problem rather than resolving the owner -- falling back to a more capable principal on expiry would invert the control.",
+            "title": "Problem"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The dispatched run asking. Set for kind run only.",
+            "title": "Run Id"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How the identity was established: run_credential, proven_header, or loopback. Kept separate from the kind because an audit trail that records only what a caller is cannot answer on what evidence.",
+            "title": "Source"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The task that run is working. Set for kind run only.",
+            "title": "Task Id"
+          }
+        },
+        "required": [
+          "describe"
+        ],
+        "title": "WhoAmIResponse",
+        "type": "object"
       }
     }
   },
@@ -12156,6 +12261,28 @@
         "summary": "Test Webhook",
         "tags": [
           "webhooks"
+        ]
+      }
+    },
+    "/api/whoami": {
+      "get": {
+        "description": "Report who this request resolved as. Reports only; refuses nothing.",
+        "operationId": "api_whoami_api_whoami_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhoAmIResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Whoami",
+        "tags": [
+          "system"
         ]
       }
     }

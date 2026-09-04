@@ -4070,6 +4070,82 @@ export type WebhookCreateRequest = {
 };
 
 /**
+ * WhoAmIResponse
+ *
+ * The principal this request resolved to, or the reason none did.
+ *
+ * The observable half of task-329's resolution and task-331's credential: without a
+ * route that says what the application concluded, "a dispatched run identifies as its
+ * run" is only assertable against a synthesised header in a unit test. Here a real
+ * dispatched agent can ask, over the same transport it makes every other call on, and
+ * get the answer the middleware actually reached.
+ *
+ * It reports identity; it enforces nothing. Every route answers exactly as it did
+ * before, including for a caller this resolves nothing for -- that is task-332's
+ * question, and answering it here would smuggle enforcement into a change meant to
+ * establish identity.
+ *
+ * **It never echoes the credential.** A caller learns which run it is, never the token
+ * that proved it. There is nothing here a caller did not already present.
+ */
+export type WhoAmIResponse = {
+    /**
+     * Actor Id
+     *
+     * The configured actor this principal maps to. Null until task-330 owns that mapping, and null forever for a run -- a run is not a human and must never be attributed as one.
+     */
+    actor_id?: string | null;
+    /**
+     * Describe
+     *
+     * One line naming the kind and the evidence, as a log would record it.
+     */
+    describe: string;
+    /**
+     * Detail
+     *
+     * A sentence a person can act on when nothing resolved.
+     */
+    detail?: string;
+    /**
+     * Kind
+     *
+     * tailnet, owner, or run. Null when nothing resolved.
+     */
+    kind?: string | null;
+    /**
+     * Login
+     *
+     * The raw identity the front door proved. Set for kind tailnet only.
+     */
+    login?: string | null;
+    /**
+     * Problem
+     *
+     * Why nothing resolved: no_proven_identity, unverified_run_credential, or expired_run_credential. An expired credential is reported as its own problem rather than resolving the owner -- falling back to a more capable principal on expiry would invert the control.
+     */
+    problem?: string | null;
+    /**
+     * Run Id
+     *
+     * The dispatched run asking. Set for kind run only.
+     */
+    run_id?: string | null;
+    /**
+     * Source
+     *
+     * How the identity was established: run_credential, proven_header, or loopback. Kept separate from the kind because an audit trail that records only what a caller is cannot answer on what evidence.
+     */
+    source?: string | null;
+    /**
+     * Task Id
+     *
+     * The task that run is working. Set for kind run only.
+     */
+    task_id?: string | null;
+};
+
+/**
  * DashboardResponse
  *
  * The complete Python-computed dashboard contract.
@@ -8186,3 +8262,19 @@ export type TestWebhookApiWebhooksWebhookIdTestPostResponses = {
 };
 
 export type TestWebhookApiWebhooksWebhookIdTestPostResponse = TestWebhookApiWebhooksWebhookIdTestPostResponses[keyof TestWebhookApiWebhooksWebhookIdTestPostResponses];
+
+export type ApiWhoamiApiWhoamiGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/whoami';
+};
+
+export type ApiWhoamiApiWhoamiGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: WhoAmIResponse;
+};
+
+export type ApiWhoamiApiWhoamiGetResponse = ApiWhoamiApiWhoamiGetResponses[keyof ApiWhoamiApiWhoamiGetResponses];
