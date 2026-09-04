@@ -2,7 +2,7 @@ schema: 2
 id: task-332
 title: 'Authorization: what each kind of principal may do'
 created: '2026-09-04T03:27:57.244568Z'
-updated: '2026-09-04T07:01:02.273333Z'
+updated: '2026-09-04T07:06:22.232490Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -431,3 +431,21 @@ log:
     finish_step: started
     branch: feat/task-332-capability-authorization
     finish_id: fin_83130f1c
+- id: 9
+  ts: '2026-09-04T07:06:22.232309Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-332-capability-authorization` into `main` as `7b2f645d`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-332
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    epic) releases the merge gate (task-021), and run run_630ec919 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 7b2f645da1042b77611ae612d9334e7b1c15ecf9
+    branch: feat/task-332-capability-authorization
+    base: main
