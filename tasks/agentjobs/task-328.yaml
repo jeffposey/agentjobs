@@ -3,7 +3,7 @@ id: task-328
 title: 'Nothing shows what is being worked right now: build the machine-wide live-run
   surface'
 created: '2026-09-04T01:37:40.980704Z'
-updated: '2026-09-04T02:45:07.224574Z'
+updated: '2026-09-04T02:49:27.057287Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -681,3 +681,13 @@ log:
       id: d4e5f6a7-4444-4555-8666-777788889999
       kind: handoff
       fingerprint: 1da6224c390ec58940174f316851c9f3
+- id: 14
+  ts: '2026-09-04T02:49:27.057076Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 5
+  data:
+    run_id: run_1500aed9
+    outcome: completed
+    duration_seconds: 3627.540579
+    log_path: C:\Users\jpose\.agentjobs\runs\run_1500aed9
