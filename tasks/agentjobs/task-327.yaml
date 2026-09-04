@@ -3,7 +3,7 @@ id: task-327
 title: Dispatch captures the run stub as the session id, so every run is reported
   interrupted and no transcript is findable
 created: '2026-09-04T01:20:45.863726Z'
-updated: '2026-09-04T01:43:23.466717Z'
+updated: '2026-09-04T01:46:36.833763Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -375,3 +375,19 @@ log:
     finish_step: started
     branch: fix/task-327-capture-session-id
     finish_id: fin_b8b3f3cb
+- id: 8
+  ts: '2026-09-04T01:46:36.833643Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-327-capture-session-id` into `main` as `13a0f969`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-327
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 13a0f969e4f46e094dea229c156394474524be98
+    branch: fix/task-327-capture-session-id
+    base: main
