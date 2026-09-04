@@ -174,7 +174,7 @@ func peer(request *http.Request) string {
 	if err != nil {
 		host = request.RemoteAddr
 	}
-	if address, parsed := netip.ParseAddr(host); parsed == nil && address.IsLoopback() {
+	if address, err := netip.ParseAddr(host); err == nil && address.IsLoopback() {
 		forwarded, _, _ := strings.Cut(request.Header.Get(forwardedFor), ",")
 		if forwarded = strings.TrimSpace(forwarded); forwarded != "" {
 			return forwarded
