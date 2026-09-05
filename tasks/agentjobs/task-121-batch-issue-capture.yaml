@@ -2,7 +2,7 @@ schema: 2
 id: task-121-batch-issue-capture
 title: Collect a review's worth of findings and file them in one action
 created: '2026-08-15T22:29:34.692845Z'
-updated: '2026-08-21T16:58:56.594136Z'
+updated: '2026-09-05T19:10:42.354681Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -151,3 +151,23 @@ log:
     placement:
       kind: after
       target: task-120-issue-reporter-workflow
+- id: 3
+  ts: '2026-09-05T19:10:42.354537Z'
+  actor: claude
+  type: decision
+  body: 'Gate before dispatch, decided by Jeff Posey on 2026-09-05: do not build the
+    tray until the single-issue Report Issue action (task-065, shipped) has been used
+    for a real multi-finding review pass and found wanting. Jeff has not yet used
+    Report Issue in earnest, so the premise of this task -- that filing findings one
+    at a time is costly enough to leave most of them unfiled -- is a hypothesis, not
+    an observation. The reopen trigger is concrete: one desktop/phone/tablet UI feedback
+    pass done through Report Issue, with a note here saying what the friction actually
+    was (time per finding, focus loss, lost screenshots, lost context). If that pass
+    is fine, close this as cancelled and the umbrella task-120 with it. Rejected alternative:
+    dispatching now because the spec is complete and unblocked -- a complete spec
+    for a feature nobody has needed yet is the more expensive mistake.'
+  data:
+    operation:
+      id: b1f8c4a2-7d0e-4dab-f2b9-5c0e6a7b8c13
+      kind: log_append
+      fingerprint: eb13965f48d7d6d7ab79bf8923fe63a7
