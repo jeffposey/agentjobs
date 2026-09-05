@@ -9,9 +9,11 @@ from fastapi import APIRouter, Depends
 from agentjobs.dashboard import build_dashboard_snapshot, count_blocking_human
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Task
+from agentjobs.principals import Principal
+from agentjobs.projects import Project
 
-from ..dependencies import get_task_manager
-from ..models import AttentionResponse, DashboardResponse, TaskRead
+from ..dependencies import current_identity, get_project, get_principal, get_task_manager
+from ..models import AttentionResponse, DashboardResponse, ReviewIdentity, TaskRead
 
 router = APIRouter(tags=["dashboard"])
 
@@ -19,10 +21,19 @@ router = APIRouter(tags=["dashboard"])
 @router.get("/dashboard", response_model=DashboardResponse)
 async def get_dashboard(
     manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_project),
+    principal: Optional[Principal] = Depends(get_principal),
 ) -> DashboardResponse:
-    """Return the dashboard projection, including its single next action."""
+    """Return the dashboard projection, including its single next action.
+
+    ``identity`` rides along for the same reason it rides along on the task detail and
+    the playbook listing: the next-up panel offers a Dispatch button, a run has to be
+    attributed to a real person, and a button that cannot name one must be disabled with
+    the reason rather than pressable into a refusal.
+    """
     snapshot = build_dashboard_snapshot(manager)
     facts = manager.dependency_facts()
+    identity = current_identity(project, principal)
 
     def read(task: Optional[Task]) -> Optional[TaskRead]:
         return TaskRead.from_task(task, facts[task.id]) if task is not None else None
@@ -37,6 +48,13 @@ async def get_dashboard(
             "waiting_tasks": reads(snapshot["waiting_tasks"]),
             "backlog_tasks": reads(snapshot["backlog_tasks"]),
             "next_task": read(snapshot["next_task"]),
+            "queue_preview": reads(snapshot["queue_preview"]),
+            "identity": ReviewIdentity(
+                ok=identity.ok,
+                user=identity.user,
+                problem=identity.problem,
+                detail=identity.detail,
+            ),
         }
     )
 

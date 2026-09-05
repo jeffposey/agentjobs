@@ -520,6 +520,9 @@
             "title": "Broken Files",
             "type": "array"
           },
+          "identity": {
+            "$ref": "#/components/schemas/ReviewIdentity"
+          },
           "next_action": {
             "enum": [
               "blocked",
@@ -552,6 +555,14 @@
               }
             ]
           },
+          "queue_preview": {
+            "description": "The head of the claimable queue, in the queue's own order, capped at `QUEUE_PREVIEW_LIMIT`. `next_task` is its first element. Sent as a list because the next-up panel offers a way to *start* each of them, and a machine that runs several agents at once can usefully start more than one.",
+            "items": {
+              "$ref": "#/components/schemas/TaskRead-Output"
+            },
+            "title": "Queue Preview",
+            "type": "array"
+          },
           "recent_updates": {
             "items": {
               "$ref": "#/components/schemas/DashboardRecentUpdate"
@@ -578,7 +589,8 @@
           "backlog_tasks",
           "next_task",
           "next_action",
-          "broken_files"
+          "broken_files",
+          "identity"
         ],
         "title": "DashboardResponse",
         "type": "object"
@@ -6023,7 +6035,7 @@
     },
     "/api/dashboard": {
       "get": {
-        "description": "Return the dashboard projection, including its single next action.",
+        "description": "Return the dashboard projection, including its single next action.\n\n``identity`` rides along for the same reason it rides along on the task detail and\nthe playbook listing: the next-up panel offers a Dispatch button, a run has to be\nattributed to a real person, and a button that cannot name one must be disabled with\nthe reason rather than pressable into a refusal.",
         "operationId": "get_dashboard_api_dashboard_get",
         "responses": {
           "200": {
@@ -6826,7 +6838,7 @@
     },
     "/api/projects/{project_id}/dashboard": {
       "get": {
-        "description": "Return the dashboard projection, including its single next action.",
+        "description": "Return the dashboard projection, including its single next action.\n\n``identity`` rides along for the same reason it rides along on the task detail and\nthe playbook listing: the next-up panel offers a Dispatch button, a run has to be\nattributed to a real person, and a button that cannot name one must be disabled with\nthe reason rather than pressable into a refusal.",
         "operationId": "get_dashboard_api_projects__project_id__dashboard_get",
         "parameters": [
           {

@@ -54,8 +54,10 @@ function dashboard(overrides: Partial<DashboardResponse>): DashboardResponse {
     waiting_tasks: [],
     backlog_tasks: [],
     next_task: null,
+    queue_preview: [],
     next_action: "nothing_claimable",
     broken_files: [],
+    identity: { ok: true, user: "jeff", problem: null, detail: "Acting as jeff." },
     ...overrides,
   };
 }
@@ -273,6 +275,91 @@ describe("Dashboard on a broken queue", () => {
     renderDashboard(dashboard({ next_action: "next_up", next_task: claimable }));
 
     expect(screen.queryByRole("alert", { name: "Queue is broken" })).not.toBeInTheDocument();
+  });
+
+  it("offers the whole head of the queue, each with the action the page supplies", () => {
+    // The defect task-337 fixed was a dashboard that answered "what do I do next" with
+    // a table of drafts. The answer is now the claimable frontier, and each row carries
+    // whatever the page hands it -- which on the real page is a Dispatch button.
+    const preview = [task("task-one"), task("task-two"), task("task-three")];
+    render(
+      <MemoryRouter>
+        <Dashboard
+          dashboard={dashboard({
+            next_action: "next_up",
+            next_task: preview[0]!,
+            queue_preview: preview,
+          })}
+          projectId="inbox"
+          renderQueueAction={(queued) => <button type="button">Dispatch {queued.id}</button>}
+        />
+      </MemoryRouter>,
+    );
+
+    const rows = screen.getAllByTestId("queue-preview-task");
+    expect(rows.map((row) => row.dataset.taskId)).toEqual([
+      "task-one",
+      "task-two",
+      "task-three",
+    ]);
+    for (const queued of preview) {
+      expect(screen.getByRole("button", { name: `Dispatch ${queued.id}` })).toBeVisible();
+    }
+  });
+
+  it("still names one task when the server predates the queue preview", () => {
+    // A browser cached from before task-337 talking to a server after it, or the
+    // reverse. Either way the panel names the manager's answer rather than nothing.
+    renderDashboard(dashboard({ next_action: "next_up", next_task: claimable }));
+
+    expect(screen.getAllByTestId("queue-preview-task")).toHaveLength(1);
+    expect(screen.getByRole("heading", { name: "Title of task-next" })).toBeVisible();
+  });
+
+  it.each([
+    [true, "Nothing is running on this machine. Starting one of these is the useful move."],
+    [false, "An agent is already working. These are next in line."],
+  ])("says what the machine is doing when idle is %s", (machineIdle, sentence) => {
+    render(
+      <MemoryRouter>
+        <Dashboard
+          dashboard={dashboard({ next_action: "next_up", queue_preview: [claimable] })}
+          projectId="inbox"
+          machineIdle={machineIdle}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(sentence)).toBeVisible();
+  });
+
+  it("says nothing about the machine until it knows", () => {
+    // A line that flips from "nothing is running" to "something is" one poll after the
+    // page paints is worse than a line that arrives a moment late.
+    renderDashboard(dashboard({ next_action: "next_up", queue_preview: [claimable] }));
+
+    expect(screen.queryByText(/Nothing is running/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/already working/)).not.toBeInTheDocument();
+  });
+
+  it("samples the backlog rather than printing all of it", () => {
+    // Six drafts stands in for the 31 that were on screen when this was reported.
+    const drafts = Array.from({ length: 6 }, (_, index) =>
+      task(`task-draft-${index}`, {
+        lifecycle: "draft",
+        ball: "human",
+        ball_reason: "spec",
+        display_status: "Draft",
+      }),
+    );
+    renderDashboard(dashboard({ next_action: "backlog", backlog_tasks: drafts }));
+
+    const action = screen.getByTestId("next-action");
+    expect(within(action).getAllByRole("link", { name: /^task-draft-/ })).toHaveLength(5);
+    expect(within(action).getByRole("link", { name: "View all 6 drafts →" })).toHaveAttribute(
+      "href",
+      "/p/inbox/tasks?status=draft",
+    );
   });
 
   it("puts the why-this-one disclosure beside the task it is offering", () => {

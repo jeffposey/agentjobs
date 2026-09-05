@@ -49,11 +49,16 @@
         </div>
     </div>
 
-    {# The quiet tier, shown only when nothing is blocked on you. Drafts parked on a
-       person block nothing -- draft already means "not yet work" -- so this is a list
+    {# The quiet tier, and the *last* of the calm rungs since task-337. Drafts parked on
+       a person block nothing -- draft already means "not yet work" -- so this is a list
        you visit, not an alarm you silence: flat on purpose, no red, no bell, no badge.
 
-       It is suppressed while an alert is showing, which is most days, so the count on
+       It used to outrank "next up", which meant the page answered "what do I do next"
+       with a table of every parked draft on exactly the days when nothing needed the
+       reader at all. Starting work is the better answer whenever there is work that can
+       be started, so this now renders only when there is not.
+
+       It is suppressed whenever a higher rung shows, which is most days, so the count on
        the "Blocked on You" tile below is unconditional and links here. Without that
        trace this panel's absence would be indistinguishable from an empty backlog, and
        drafts would rot unseen -- the failure task-080 removed, returning by a different
@@ -73,7 +78,7 @@
             Nothing is blocked by these. They are drafts that need a decision before they become work.
         </p>
         <div class="divide-y divide-dark-border">
-            {% for task in backlog_tasks %}
+            {% for task in backlog_tasks[:5] %}
             <a href="{{ base }}/tasks/{{ task.id }}" class="flex items-baseline gap-3 py-2 hover:bg-dark-border/40 transition rounded px-2 -mx-2">
                 <span class="font-mono text-xs text-blue-400 whitespace-nowrap">{{ task.id }}</span>
                 <span class="text-sm text-dark-text flex-1">{{ task.title }}</span>
@@ -81,12 +86,20 @@
             </a>
             {% endfor %}
         </div>
+        {% if backlog_tasks|length > 5 %}
+        <a href="{{ base }}/tasks?status=draft" class="block text-center text-sm text-blue-400 hover:text-blue-300 mt-2">
+            View all {{ backlog_tasks|length }} drafts →
+        </a>
+        {% endif %}
     </div>
 
-    {# Tier 3. Nothing needs you, so the useful thing to say is what to start. The task
-       is chosen by the manager's get_next_task(), the same answer the CLI gives, so the
-       dashboard cannot recommend one task while `agentjobs work` picks another. It
-       links rather than launches -- dispatching is the 068-078 epic. #}
+    {# Nothing needs you, so the useful thing to say is what to start -- and since
+       task-337 this outranks the backlog rather than sitting under it.
+
+       The tasks are the head of the manager's claimable_tasks(), the same order the CLI
+       hands out, so the dashboard cannot recommend one task while `agentjobs work` picks
+       another. This page links rather than launches: the Dispatch button that task-337
+       added lives on the React dashboard, which is the supported UI. #}
     {% elif next_action == 'next_up' %}
     <div class="bg-dark-surface border border-dark-border rounded-lg p-6">
         <div class="flex items-baseline justify-between gap-4 mb-3">
@@ -95,20 +108,24 @@
                 All ready tasks →
             </a>
         </div>
-        <a href="{{ base }}/tasks/{{ next_task.id }}" class="block bg-dark-bg hover:bg-dark-border border border-dark-border rounded-lg p-4 transition">
-            <div class="flex items-start justify-between gap-4">
-                <div class="flex-1">
-                    <div class="font-mono text-xs text-blue-400">{{ next_task.id }}</div>
-                    <h3 class="font-medium text-dark-text">{{ next_task.title }}</h3>
-                    <p class="text-sm text-dark-muted mt-1">
-                        {{ next_task.spec.summary | truncate(160, True, '…') }}
-                    </p>
+        <div class="space-y-2">
+            {% for task in queue_preview %}
+            <a href="{{ base }}/tasks/{{ task.id }}" class="block bg-dark-bg hover:bg-dark-border border border-dark-border rounded-lg p-4 transition">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1">
+                        <div class="font-mono text-xs text-blue-400">{{ task.id }}</div>
+                        <h3 class="font-medium text-dark-text">{{ task.title }}</h3>
+                        <p class="text-sm text-dark-muted mt-1">
+                            {{ task.spec.summary | truncate(160, True, '…') }}
+                        </p>
+                    </div>
+                    <span class="px-2 py-1 bg-dark-surface text-dark-muted text-xs rounded whitespace-nowrap">
+                        {{ task.priority }}
+                    </span>
                 </div>
-                <span class="px-2 py-1 bg-dark-surface text-dark-muted text-xs rounded whitespace-nowrap">
-                    {{ next_task.priority }}
-                </span>
-            </div>
-        </a>
+            </a>
+            {% endfor %}
+        </div>
     </div>
 
     {# Tier 4, first flavour: the project has work but none of it can be started --
