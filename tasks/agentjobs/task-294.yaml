@@ -2,13 +2,13 @@ schema: 2
 id: task-294
 title: The Dashboard fits one screen, and never scrolls
 created: '2026-08-23T20:39:32.963071Z'
-updated: '2026-08-23T20:39:33.414575Z'
+updated: '2026-09-05T20:01:54.068066Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: medium
-queue_position: 8200
+priority: critical
+queue_position: 9
 category: ux
 tags:
 - frontend
@@ -178,3 +178,18 @@ log:
       id: 6e18b4a0-9d52-4c37-8f61-4a90d2c7e301
       kind: create
       fingerprint: 479d2e5bd3f00233218f6785465ff74c
+- id: 2
+  ts: '2026-09-05T20:01:54.067914Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: 'Grouped at the head of the critical band by Jeff Posey via task-337, 2026-09-05:
+    the Dashboard is the page AgentJobs is judged on and it has been evolved one fix
+    at a time. task-337 shipped the ladder half; these four are the rest of the same
+    subject and are meant to be worked as a set.'
+  data:
+    band: critical
+    from: 8200
+    to: 9
+    placement:
+      kind: top
+    from_band: medium

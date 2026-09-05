@@ -3,13 +3,13 @@ id: task-212
 title: 'Analytics page: move the count tiles off the dashboard and grow them into
   trends'
 created: '2026-08-21T02:34:12.460054Z'
-updated: '2026-08-21T16:59:32.762718Z'
+updated: '2026-09-05T20:16:46.544880Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: medium
-queue_position: 6600
+priority: critical
+queue_position: 18
 category: ux
 tags:
 - analytics
@@ -42,18 +42,19 @@ spec:
     \ the same counts over time, backlog growth or shrinkage, completion throughput,\
     \ the age of open work, and where tasks are piling up (waiting on human, blocked\
     \ on dependencies). What exactly it shows, and how the history behind it is obtained,\
-    \ is the design child's job to settle \u2014 not this record's.\n\n**The open\
-    \ architectural question, stated here so nobody starts coding before it is answered:**\
-    \ AgentJobs stores no time series. `stats` in `src/agentjobs/dashboard.py` is\
-    \ computed by counting the tasks as they are right now. Trends need history, and\
-    \ there are at least three candidate sources \u2014 replaying each task's `log[]`,\
-    \ which already timestamps every claim, handoff and close; walking git history\
-    \ of `tasks/`, which is a real dated snapshot series; or writing periodic rollups.\
-    \ They differ in cost, in fidelity, and in whether they can show a past that predates\
-    \ the feature. Picking among them is the first child.\n\nSequenced as: design\
-    \ \u2192 backend history/metrics API \u2192 the page and its charts \u2192 the\
-    \ dashboard removal and the link. The design child creates the implementation\
-    \ children."
+    \ is the design child's job to settle \u2014 not this record's.\n\n**Accepted\
+    \ storage and history contract.** The owner decided on 2026-09-05 that SQLite,\
+    \ hosted alongside the AgentJobs server outside code worktrees, will be authoritative\
+    \ (task-273 backend, task-311 migration). Analytics must consume indexed task\
+    \ state and timestamped structured state history in that database. Current rows\
+    \ alone cannot answer historical backlog questions. Coordinate the history schema\
+    \ with task-273 before implementation; do not put metrics dimensions only inside\
+    \ whole-task JSON. Optional rollups are rebuildable accelerators, not a separate\
+    \ authority. Audit legacy logs and, if useful, one-time Git backfill for fidelity;\
+    \ never read Git history on each page request or present missing history as zero.\n\
+    \nSequenced as: design \u2192 backend history/metrics API \u2192 the page and\
+    \ its charts \u2192 the dashboard removal and the link. The design child creates\
+    \ the implementation children."
   constraints: '- The dashboard''s next-action ladder is the thing that works. Do
     not disturb it.
 
@@ -63,18 +64,17 @@ spec:
     - Jeff reads this on a phone and a tablet over Tailscale as often as on the desktop.
     Charts that only work at 1400px wide are not done.
 
-    - Watch the parse cost. Every API response carries `X-Task-Parses`; a history
-    view that re-reads every task file on every poll will be visibly slower than the
-    dashboard it sits beside, and `docs/performance.md` has the tooling to prove which
-    it is.
+    - Measure query latency, query plans and rows visited against realistic history
+    volumes. Avoid per-request corpus parsing or whole-task JSON scans; use docs/performance.md
+    for comparable endpoint measurements.
 
     - Counting rules already settled stay settled: "Completed" counts `outcome ==
     completed` only, deliberately, so closed-but-cancelled work is not in it. See
     the comment in `Dashboard.tsx`.'
-  out_of_scope: "Cross-project analytics (this is per-project, as the rest of the\
-    \ app is). Any agent-performance or per-actor scoring. A general reporting or\
-    \ export feature. Adding a database \u2014 if durable history turns out to be\
-    \ necessary the design child says so with reasons, but nothing here presumes it."
+  out_of_scope: Cross-project analytics (this is per-project, as the rest of the app
+    is). Any agent-performance or per-actor scoring. A general reporting or export
+    feature. Implementing the storage backend or migration (task-273/task-311). This
+    feature consumes that accepted storage contract.
   context:
   - path: frontend/src/components/Dashboard.tsx
     why: Holds the stat-tile strip being moved, and the next-action ladder that stays.
@@ -108,8 +108,17 @@ acceptance:
   text: A before/after from scripts/bench.py, or a task-parse count, shows what the
     page costs to load.
   status: pending
+- id: sc-6
+  text: Historical open-task counts cover creation, closure and reopening with explicit
+    archive/timezone semantics; current-state totals reconcile with the dashboard,
+    and unavailable legacy history is distinguished from zero.
+  status: pending
 deliverables: []
-dependencies: []
+dependencies:
+- task: task-273
+  type: related
+- task: task-311
+  type: related
 links: []
 branches: []
 log:
@@ -124,3 +133,32 @@ log:
       id: 6b0d2c1e-9a4f-4d7a-9c31-8f2e5a7b4d10
       kind: create
       fingerprint: fe2161b620a971d1afa9846bbfea5700
+- id: 2
+  ts: '2026-09-05T20:01:45.984942Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: 'Grouped at the head of the critical band by Jeff Posey via task-337, 2026-09-05:
+    the Dashboard is the page AgentJobs is judged on and it has been evolved one fix
+    at a time. task-337 shipped the ladder half; these four are the rest of the same
+    subject and are meant to be worked as a set.'
+  data:
+    band: critical
+    from: 6600
+    to: 18
+    placement:
+      kind: top
+    from_band: medium
+- id: 3
+  ts: '2026-09-05T20:16:46.544713Z'
+  actor: codex
+  type: note
+  body: Updated acceptance, dependencies, spec.
+  data:
+    fields:
+    - acceptance
+    - dependencies
+    - spec
+    operation:
+      id: 52f7a92c-6a13-4869-8325-c73dd7f088d2
+      kind: update_content
+      fingerprint: 986a92aea867a1481f9fda0eacdb4983

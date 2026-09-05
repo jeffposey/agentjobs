@@ -2,7 +2,7 @@ schema: 2
 id: task-092-dashboard-design-pass
 title: 'Rethink the next-action ladder: should the calm rungs coexist?'
 created: '2026-08-11T08:01:24.843122Z'
-updated: '2026-08-21T16:59:32.983759Z'
+updated: '2026-09-05T20:01:59.965885Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -13,8 +13,8 @@ ball_prompt: 'Deferred until the React dashboard (task-087) is at parity -- see 
   rung, and whether this is a narrow ladder tweak or the start of a wider dashboard
   design pass.'
 archived: false
-priority: medium
-queue_position: 4400
+priority: critical
+queue_position: 4
 category: ux
 tags:
 - gui
@@ -155,3 +155,18 @@ log:
     with the packaged React component or shared Python logic that owns the current
     product surface. Historical design context remains unchanged.'
   data: {}
+- id: 3
+  ts: '2026-09-05T20:01:59.965679Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: 'Grouped at the head of the critical band by Jeff Posey via task-337, 2026-09-05:
+    the Dashboard is the page AgentJobs is judged on and it has been evolved one fix
+    at a time. task-337 shipped the ladder half; these four are the rest of the same
+    subject and are meant to be worked as a set.'
+  data:
+    band: critical
+    from: 4400
+    to: 4
+    placement:
+      kind: top
+    from_band: medium
