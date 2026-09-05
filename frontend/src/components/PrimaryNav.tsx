@@ -38,19 +38,26 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
 /**
  * The width at or above which every destination is shown inline.
  *
- * **Re-measured for task-328's Runs entry, which added 82px to the row** (665px of
- * destinations, up from 583px, measured at 960 in Chromium). task-292 settled the
- * mechanism and measured 955px for the contents it had; adding a destination changes
- * the input to that measurement, so the number moves and the mechanism does not.
+ * **Re-measured for task-338's attention badge, which added 34px to the row** -- a
+ * 24px pill and the 10px gap before it. task-292 settled the mechanism and measured
+ * 955px for the contents it had; task-328's Runs entry took that to 1090; anything
+ * added to the row changes the input to that measurement, so the number moves and the
+ * mechanism does not.
  *
- * 1090px is where the bar last overflows, with the project switcher at the 224px
+ * 1134px is where the bar last overflows, with the project switcher at the 224px
  * (`max-w-56`) it reaches for a long project name -- the case the constant has to hold
  * for, not the four-character one a sandbox happens to have. Overflow, not wrapping, is
  * how this now fails: `flex-nowrap` and `min-w-0` mean the switcher is squeezed and then
  * the row runs off the right edge, so a header measured only by its height would have
- * called every width below this fine. 1100 for the same 10px of margin 960 had over 955.
+ * called every width below this fine. 1140 for a little margin over 1134, measured in
+ * Chromium at 1100x800 with the switcher pinned to its maximum.
  *
- * The cost is the 960-1099 band -- landscape tablets, split-screen desktop windows --
+ * **The badge is why this moved and it is also why the move is cheap.** It renders
+ * only when work has actually stopped on you, so the 34px is spent on the rare screen
+ * rather than every screen -- but the constant has to hold for the screen that spends
+ * it, since that is the one a person is being asked to read.
+ *
+ * The cost is the 960-1139 band -- landscape tablets, split-screen desktop windows --
  * moving from an inline row to the burger. That is the trade task-292 already made once
  * at 960, and the burger keeps every destination one tap away.
  *
@@ -58,7 +65,7 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * at once; Tailwind needs the literal in the class, so the two are checked against
  * each other by a test rather than by the compiler.
  */
-export const NAV_INLINE_MIN_PX = 1100;
+export const NAV_INLINE_MIN_PX = 1140;
 
 /** Shown inline above the breakpoint, and inside the panel below it. */
 const DESTINATIONS: ReadonlyArray<{
@@ -150,6 +157,7 @@ const currentClass = "bg-blue-500/15 text-white inset-ring-1 inset-ring-blue-400
 export function PrimaryNav({
   projectId,
   badge,
+  attention,
 }: {
   projectId: string;
   /**
@@ -160,6 +168,21 @@ export function PrimaryNav({
    * every one of those tests need a query client and a server.
    */
   badge?: ReactNode;
+  /**
+   * How many tasks are stopped waiting on you, rendered beside the project switcher
+   * and **outside** the collapsible group (task-338).
+   *
+   * That placement is the whole point rather than a layout preference. Every
+   * destination in this bar disappears behind the burger below
+   * {@link NAV_INLINE_MIN_PX}, and the phone -- read over Tailscale -- is where
+   * noticing that work has stopped matters most. A badge hung on the Dashboard or
+   * Tasks link the way the legacy header hung it would be invisible on exactly the
+   * surface that needs it, and would still cost its width up here.
+   *
+   * Supplied as a node for the same reason `badge` is: this component stays
+   * prop-driven, so its tests need no query client.
+   */
+  attention?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -249,18 +272,18 @@ export function PrimaryNav({
       className="sticky top-0 z-30 border-b border-dark-border bg-dark-surface"
     >
       <nav
-        className="mx-auto flex min-h-16 max-w-7xl flex-nowrap items-center gap-2 px-4 py-2 min-[1100px]:gap-6 sm:px-6 lg:px-8"
+        className="mx-auto flex min-h-16 max-w-7xl flex-nowrap items-center gap-2 px-4 py-2 min-[1140px]:gap-6 sm:px-6 lg:px-8"
         aria-label="Primary navigation"
       >
         {/*
           The breakpoint lives on this wrapper rather than on the button, and that is
           not a stylistic choice. `styles.css` carries `.touch-target:not(.block) {
           display: inline-flex }`, whose specificity (0,2,0) beats a Tailwind utility's
-          (0,1,0) -- so `min-[1100px]:hidden` on a `touch-target` element loses, and the
+          (0,1,0) -- so `min-[1140px]:hidden` on a `touch-target` element loses, and the
           burger stays visible at every width. Caught in a browser at 1280px; jsdom
           would never have shown it.
         */}
-        <div className="shrink-0 min-[1100px]:hidden">
+        <div className="shrink-0 min-[1140px]:hidden">
           <button
             ref={triggerRef}
             type="button"
@@ -282,7 +305,8 @@ export function PrimaryNav({
         </div>
         <h1 className="shrink-0 text-2xl font-bold">AgentJobs</h1>
         <ProjectSwitcher projectId={projectId} />
-        <div className="hidden items-center gap-6 min-[1100px]:flex">
+        {attention}
+        <div className="hidden items-center gap-6 min-[1140px]:flex">
           {destinations}
           {apiDocs}
         </div>
@@ -293,7 +317,7 @@ export function PrimaryNav({
           // Absolute rather than in flow, so opening the panel overlays the page
           // instead of pushing it down under a bar that is already pinned. `sticky`
           // is a positioned value, so the header is the containing block already.
-          className="absolute inset-x-0 top-full border-b border-dark-border bg-dark-surface shadow-lg min-[1100px]:hidden"
+          className="absolute inset-x-0 top-full border-b border-dark-border bg-dark-surface shadow-lg min-[1140px]:hidden"
         >
           <div
             className="mx-auto flex max-w-7xl flex-col px-4 py-2 sm:px-6"

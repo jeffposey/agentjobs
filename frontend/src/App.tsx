@@ -61,6 +61,7 @@ import {
   useLiveRuns,
 } from "./components/LiveRuns";
 import { Playbooks, type PlaybookRunRequest } from "./components/Playbooks";
+import { AttentionBadge, useHumanAttention } from "./components/AttentionBadge";
 import { PrimaryNav } from "./components/PrimaryNav";
 
 function ProjectRedirect() {
@@ -649,14 +650,24 @@ function PlaybooksPage({ projectId }: { projectId: string }) {
 }
 
 /**
- * The header, with the live-run badge attached.
+ * The header, with its two badges attached.
  *
- * A component of its own because the badge needs a hook and `PrimaryNav` must stay
- * prop-driven. The query is shared with the Dashboard row and the Runs page by
- * react-query's cache, so a Dashboard costs one request rather than two.
+ * A component of its own because each badge needs a hook and `PrimaryNav` must stay
+ * prop-driven. The live-run query is shared with the Dashboard row and the Runs page
+ * by react-query's cache, so a Dashboard costs one request rather than two.
+ *
+ * The two badges answer different questions and are deliberately not merged: the
+ * green one is machine-wide and says what is running, the red one is this project's
+ * and says what has stopped on you (task-338).
  */
 function ProjectShellNav({ projectId }: { projectId: string }) {
-  return <PrimaryNav projectId={projectId} badge={<LiveRunCount body={useLiveRuns()} />} />;
+  return (
+    <PrimaryNav
+      projectId={projectId}
+      badge={<LiveRunCount body={useLiveRuns()} />}
+      attention={<AttentionBadge count={useHumanAttention(projectId)} projectId={projectId} />}
+    />
+  );
 }
 
 function ProjectApp() {
