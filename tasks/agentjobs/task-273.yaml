@@ -2,7 +2,7 @@ schema: 2
 id: task-273
 title: Build authoritative SQLite task storage alongside the AgentJobs server
 created: '2026-08-22T19:00:47.987602Z'
-updated: '2026-09-05T21:54:15.168674Z'
+updated: '2026-09-05T21:56:10.271427Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -232,3 +232,42 @@ log:
       id: a4c1f8e2-3b7d-4e6a-9f21-5c8d0e7b2a41
       kind: log_append
       fingerprint: 31be9c7e0c5c4b73ed15509d63520885
+- id: 6
+  ts: '2026-09-05T21:56:10.271158Z'
+  actor: claude
+  type: decision
+  body: 'Owner decision, Jeff Posey, 2026-09-05, answering entry 5. The restart window
+    is handled on both sides of the connection and nowhere else:
+
+
+    1. Clients retry. Every client of the service (CLI, MCP, the dispatch runner''s
+    task writes, the finisher) retries a refused or reset connection with bounded
+    backoff, keyed on the same operation_id so a retry can never write twice. When
+    the budget is spent the client reports "service unavailable, nothing written"
+    as a clean error, never a stack trace, and never a local write. The budget is
+    a documented constant, not per-call configuration.
+
+    2. Restarts drain. The server finishes in-flight requests before exiting (graceful
+    ASGI shutdown), and the tailnet front door answers 503 while nothing is listening
+    rather than resetting the connection. A restart is a pause a client rides through,
+    not an outage it must reason about. The merge gate''s step 6, the launcher and
+    `agentjobs restart` all get this for free once the server does it.
+
+    3. Every CLI verb becomes a service client, the same as MCP already is. The only
+    process that opens the database is the server, including `agentjobs serve` on
+    startup. There is no direct-to-storage CLI path to keep.
+
+
+    Rejected: a local task store or YAML fallback while the server is down (a second
+    authority, and the spec already forbids it); the MCP server spawning the service
+    when nothing answers (reintroduces the stale-server-on-the-wrong-port failure
+    this repository has documented); leaving the CLI on a direct storage path (two
+    processes opening one SQLite file is exactly the concurrency the design exists
+    to remove). Task-126 is closed as superseded on this basis; its remaining concern,
+    MCP behaviour during the window, is item 1 here.'
+  re: 5
+  data:
+    operation:
+      id: c3f7a0d9-8e21-4b5c-a6f4-1d9e7b3c5a02
+      kind: log_append
+      fingerprint: 8c0febab364a1168efa38d703e6103bb

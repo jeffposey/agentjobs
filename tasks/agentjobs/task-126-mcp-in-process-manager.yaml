@@ -2,13 +2,11 @@ schema: 2
 id: task-126-mcp-in-process-manager
 title: Let the STDIO MCP server run without a separately started service
 created: '2026-08-17T20:47:31.623715Z'
-updated: '2026-09-05T21:54:28.074221Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-09-05T21:56:22.998229Z'
+lifecycle: closed
+outcome: superseded
 archived: false
 priority: high
-queue_position: 7200
 category: architecture
 tags:
 - mcp
@@ -330,3 +328,41 @@ log:
       id: 7d2e9b14-c5a6-4f38-b1e0-92a7f3c4d856
       kind: log_append
       fingerprint: f5b9f2b5826cf5a6640ed51bbba54b49
+- id: 7
+  ts: '2026-09-05T21:56:16.057893Z'
+  actor: claude
+  type: decision
+  body: 'Owner decision, Jeff Posey, 2026-09-05, answering entry 6: option (a) plus
+    (c). This task is superseded by task-273 and closes without code. The in-process
+    TaskManager was a workaround for file storage; once the server is the only process
+    that may open the database (task-273, decision entry 6 there), an in-process path
+    is a second writer by construction and cannot exist. What survives of this task
+    moves into task-273''s client contract: the STDIO MCP server retries a refused
+    connection with bounded backoff keyed on operation_id, and returns a clean "service
+    unavailable, nothing written" result when the budget is spent. Rejected: the MCP
+    server starting the service itself, because it reintroduces the second-server-on-the-wrong-port
+    failure recorded in entry 3 above. The port-discovery finding in entry 3 (plugin
+    hardcodes 8765, this machine serves 8876) is still real and is not answered by
+    this decision; it belongs with task-125, the parent, which should discover the
+    service from the registry rather than a constant.'
+  re: 6
+  data:
+    operation:
+      id: e8b4d2c6-1a9f-4e73-b5c8-3f6a0d1e9b27
+      kind: log_append
+      fingerprint: f60e07fb9770f52d943bfcacb454656f
+- id: 8
+  ts: '2026-09-05T21:56:22.997972Z'
+  actor: claude
+  type: transition
+  body: 'Superseded by task-273 per the owner decision in entry 7: the server becomes
+    the sole process that opens the task database, so an in-process manager cannot
+    exist. MCP''s behaviour while the service is down is now item 1 of task-273''s
+    restart-window decision. The port-discovery finding stays with task-125.'
+  data:
+    lifecycle: closed
+    outcome: superseded
+    operation:
+      id: 5f1c8a3e-7b2d-4c9f-a0e6-8d4b2f7c1e93
+      kind: close
+      fingerprint: 58f4c468d8151b964a2373c40ce09a34
