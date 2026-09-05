@@ -2,48 +2,36 @@ schema: 2
 id: task-337
 title: Dashboard must provide next best action for human
 created: '2026-09-05T19:17:08.214513Z'
-updated: '2026-09-05T22:07:45.169626Z'
+updated: '2026-09-05T22:13:37.309905Z'
 lifecycle: active
 ball: agent
 ball_reason: work
 ball_prompt: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
   \ was merged.**\n\n`scripts/check.py` failed on feat/task-337-dashboard-next-action\
-  \ after the rebase (216s, exit 1). A red gate never merges. The branch is rebased\
+  \ after the rebase (350s, exit 1). A red gate never merges. The branch is rebased\
   \ onto main and is otherwise untouched; nothing was merged. Full output: C:\\Users\\\
-  jpose\\.agentjobs\\finishes\\fin_835695c3\\gate.log\n\n```\ntests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_records_traces_and_final_state\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_refusal_scenarios_actually_recorded_refusals\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-hEOKfNXs-py3.13\\\
-  Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response = await\
-  \ handler(conn, exc)\ntests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-hEOKfNXs-py3.13\\\
-  Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
-  \ dependant.call(**values)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
-  \  C:\\projects\\worktrees\\agentjobs-337\\src\\agentjobs\\api\\routes\\web.py:389:\
-  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
-  \ removal in a future version. Use timezone-aware objects to represent datetimes\
-  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
-  tests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
-  \  C:\\projects\\worktrees\\agentjobs-337\\src\\agentjobs\\api\\routes\\web.py:370:\
-  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
-  \ removal in a future version. Use timezone-aware objects to represent datetimes\
-  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
-  -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\e[36m\e\
-  [1m=========================== short test summary info ===========================\e\
-  [0m\n\e[31mFAILED\e[0m tests/test_validate.py::\e[1mTestRealCorpus::test_the_tolerated_drift_is_only_taxonomy_and_serialization\e\
-  [0m - AssertionError: assert {'absolute-path', 'non-canonical-serialization', 'un...\n\
-  \e[31m===== \e[31m\e[1m1 failed\e[0m, \e[32m3974 passed\e[0m, \e[33m1 skipped\e\
-  [0m, \e[33m219 warnings\e[0m\e[31m in 180.16s (0:03:00)\e[0m\e[31m =====\e[0m\n\
-  \  black      1.1s\n  ruff       0.1s\n  mypy       1.9s\n  api        9.3s\n  icons\
-  \      4.1s\n  oxlint     1.4s\n  pytest   197.4s\n  total    215.3s\nAll done!\
-  \ \\u2728 \\U0001f370 \\u2728\n255 files would be left unchanged.\nFailed at stage\
-  \ 'pytest'.\nFix it, then resume with `--from pytest` instead of paying for the\
-  \ stages above a second time.\n```\n\nTake it from here by hand. Check the tree\
-  \ against what is written above before acting on anything you remember: if your\
-  \ worktree, your branch or your account of this task no longer matches what is on\
-  \ disk, say so on the record and hand the ball back rather than improvising a recovery."
+  jpose\\.agentjobs\\finishes\\fin_6b3d2b65\\gate.log\n\n```\n\e[2K\ntransforming...\e\
+  [32m\u2713\e[0m 119 modules transformed.\nrendering chunks...\ncomputing gzip size...\n\
+  \e[2m../src/agentjobs/frontend_dist/\e[0m\e[32mindex.html                 \e[0m\e\
+  [1;2m  0.81 kB\e[0m\e[2m \u2502 gzip:   0.40 kB\e[0m\n\e[2m../src/agentjobs/frontend_dist/\e\
+  [0m\e[2massets/\e[0m\e[35mindex-DE0dUy02.css  \e[0m\e[1;2m 41.91 kB\e[0m\e[2m \u2502\
+  \ gzip:   8.27 kB\e[0m\n\e[2m../src/agentjobs/frontend_dist/\e[0m\e[2massets/\e\
+  [0m\e[36mindex-BCY10Wwk.js   \e[0m\e[1;2m431.61 kB\e[0m\e[2m \u2502 gzip: 125.15\
+  \ kB\e[0m\n\e[32m\u2713 built in 367ms\e[39m\nWrote packaged sw.js with 7 shell\
+  \ resources (5d3079421a2a).\n> C:\\Program Files\\nodejs\\npm.cmd run test:e2e\n\
+  > agentjobs-frontend@0.0.0 test:e2e\n> playwright test\n[e2e] checkout C:\\projects\\\
+  worktrees\\agentjobs-337 owns http://127.0.0.1:24547 (derived from the checkout\
+  \ path; AGENTJOBS_E2E_PORT overrides)\nError: Process from config.webServer was\
+  \ not able to start. Exit code: 1\n\e[1A\e[2K\n  black      2.1s\n  ruff       0.2s\n\
+  \  mypy      19.3s\n  api       13.6s\n  icons      4.7s\n  oxlint     1.6s\n  pytest\
+  \   267.1s\n  vitest    31.1s\n  build      6.0s\n  e2e        3.4s\n  total   \
+  \ 349.0s\nAll done! \\u2728 \\U0001f370 \\u2728\n255 files would be left unchanged.\n\
+  Failed at stage 'e2e'.\nFix it, then resume with `--from e2e` instead of paying\
+  \ for the stages above a second time.\n```\n\nTake it from here by hand. Check the\
+  \ tree against what is written above before acting on anything you remember: if\
+  \ your worktree, your branch or your account of this task no longer matches what\
+  \ is on disk, say so on the record and hand the ball back rather than improvising\
+  \ a recovery."
 archived: false
 priority: medium
 queue_position: 8800
@@ -865,3 +853,74 @@ log:
     finish_step: started
     branch: feat/task-337-dashboard-next-action
     finish_id: fin_6b3d2b65
+- id: 27
+  ts: '2026-09-05T22:13:37.265923Z'
+  actor: finisher
+  type: progress
+  body: "The scripted finish stopped at `gate` (gate_failed).\n\n**Nothing was merged.**\n\
+    \n`scripts/check.py` failed on feat/task-337-dashboard-next-action after the rebase\
+    \ (350s, exit 1). A red gate never merges. The branch is rebased onto main and\
+    \ is otherwise untouched; nothing was merged. Full output: C:\\Users\\jpose\\\
+    .agentjobs\\finishes\\fin_6b3d2b65\\gate.log\n\n```\n\e[2K\ntransforming...\e\
+    [32m\u2713\e[0m 119 modules transformed.\nrendering chunks...\ncomputing gzip\
+    \ size...\n\e[2m../src/agentjobs/frontend_dist/\e[0m\e[32mindex.html         \
+    \        \e[0m\e[1;2m  0.81 kB\e[0m\e[2m \u2502 gzip:   0.40 kB\e[0m\n\e[2m../src/agentjobs/frontend_dist/\e\
+    [0m\e[2massets/\e[0m\e[35mindex-DE0dUy02.css  \e[0m\e[1;2m 41.91 kB\e[0m\e[2m\
+    \ \u2502 gzip:   8.27 kB\e[0m\n\e[2m../src/agentjobs/frontend_dist/\e[0m\e[2massets/\e\
+    [0m\e[36mindex-BCY10Wwk.js   \e[0m\e[1;2m431.61 kB\e[0m\e[2m \u2502 gzip: 125.15\
+    \ kB\e[0m\n\e[32m\u2713 built in 367ms\e[39m\nWrote packaged sw.js with 7 shell\
+    \ resources (5d3079421a2a).\n> C:\\Program Files\\nodejs\\npm.cmd run test:e2e\n\
+    > agentjobs-frontend@0.0.0 test:e2e\n> playwright test\n[e2e] checkout C:\\projects\\\
+    worktrees\\agentjobs-337 owns http://127.0.0.1:24547 (derived from the checkout\
+    \ path; AGENTJOBS_E2E_PORT overrides)\nError: Process from config.webServer was\
+    \ not able to start. Exit code: 1\n\e[1A\e[2K\n  black      2.1s\n  ruff     \
+    \  0.2s\n  mypy      19.3s\n  api       13.6s\n  icons      4.7s\n  oxlint   \
+    \  1.6s\n  pytest   267.1s\n  vitest    31.1s\n  build      6.0s\n  e2e      \
+    \  3.4s\n  total    349.0s\nAll done! \\u2728 \\U0001f370 \\u2728\n255 files would\
+    \ be left unchanged.\nFailed at stage 'e2e'.\nFix it, then resume with `--from\
+    \ e2e` instead of paying for the stages above a second time.\n```\n\n```\n  preflight\
+    \  ok         5.6s  feat/task-337-dashboard-next-action at 8b7dc0fe in C:\\projects\\\
+    worktrees\\agentjobs-337\n  runway     ok         0.0s  taken immediately\n  rebase\
+    \     ok         1.2s  feat/task-337-dashboard-next-action onto main: 8b7dc0fe\
+    \ -> dbbf746f\n  gate       STOPPED    0.0s  `scripts/check.py` failed on feat/task-337-dashboard-next-action\
+    \ after the rebase (350s, exit 1). A red gate never merges. The branch is rebased\
+    \ onto main and is otherwise untouched; nothing was merged. Full output: C:\\\
+    Users\\jpose\\.agentjobs\\finishes\\fin_6b3d2b65\\gate.log\n```"
+  data:
+    finish_step: gate
+    finish_reason: gate_failed
+    merge_commit: null
+    merged: false
+- id: 28
+  ts: '2026-09-05T22:13:37.309661Z'
+  actor: finisher
+  type: handoff
+  body: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
+    \ was merged.**\n\n`scripts/check.py` failed on feat/task-337-dashboard-next-action\
+    \ after the rebase (350s, exit 1). A red gate never merges. The branch is rebased\
+    \ onto main and is otherwise untouched; nothing was merged. Full output: C:\\\
+    Users\\jpose\\.agentjobs\\finishes\\fin_6b3d2b65\\gate.log\n\n```\n\e[2K\ntransforming...\e\
+    [32m\u2713\e[0m 119 modules transformed.\nrendering chunks...\ncomputing gzip\
+    \ size...\n\e[2m../src/agentjobs/frontend_dist/\e[0m\e[32mindex.html         \
+    \        \e[0m\e[1;2m  0.81 kB\e[0m\e[2m \u2502 gzip:   0.40 kB\e[0m\n\e[2m../src/agentjobs/frontend_dist/\e\
+    [0m\e[2massets/\e[0m\e[35mindex-DE0dUy02.css  \e[0m\e[1;2m 41.91 kB\e[0m\e[2m\
+    \ \u2502 gzip:   8.27 kB\e[0m\n\e[2m../src/agentjobs/frontend_dist/\e[0m\e[2massets/\e\
+    [0m\e[36mindex-BCY10Wwk.js   \e[0m\e[1;2m431.61 kB\e[0m\e[2m \u2502 gzip: 125.15\
+    \ kB\e[0m\n\e[32m\u2713 built in 367ms\e[39m\nWrote packaged sw.js with 7 shell\
+    \ resources (5d3079421a2a).\n> C:\\Program Files\\nodejs\\npm.cmd run test:e2e\n\
+    > agentjobs-frontend@0.0.0 test:e2e\n> playwright test\n[e2e] checkout C:\\projects\\\
+    worktrees\\agentjobs-337 owns http://127.0.0.1:24547 (derived from the checkout\
+    \ path; AGENTJOBS_E2E_PORT overrides)\nError: Process from config.webServer was\
+    \ not able to start. Exit code: 1\n\e[1A\e[2K\n  black      2.1s\n  ruff     \
+    \  0.2s\n  mypy      19.3s\n  api       13.6s\n  icons      4.7s\n  oxlint   \
+    \  1.6s\n  pytest   267.1s\n  vitest    31.1s\n  build      6.0s\n  e2e      \
+    \  3.4s\n  total    349.0s\nAll done! \\u2728 \\U0001f370 \\u2728\n255 files would\
+    \ be left unchanged.\nFailed at stage 'e2e'.\nFix it, then resume with `--from\
+    \ e2e` instead of paying for the stages above a second time.\n```\n\nTake it from\
+    \ here by hand. Check the tree against what is written above before acting on\
+    \ anything you remember: if your worktree, your branch or your account of this\
+    \ task no longer matches what is on disk, say so on the record and hand the ball\
+    \ back rather than improvising a recovery."
+  data:
+    ball: agent
+    ball_reason: work
