@@ -2,56 +2,15 @@ schema: 2
 id: task-338
 title: Top bar does not show red badge count for tasks waiting on human
 created: '2026-09-05T20:25:18.784045Z'
-updated: '2026-09-05T21:29:17.316966Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
-  \ was merged.**\n\n`scripts/check.py` failed on fix/task-338-topbar-attention-badge\
-  \ after the rebase (263s, exit 1). A red gate never merges. The branch is rebased\
-  \ onto main and is otherwise untouched; nothing was merged. Full output: C:\\Users\\\
-  jpose\\.agentjobs\\finishes\\fin_7b9b8336\\gate.log\n\n```\ntests/test_mcp_protocol.py::TestAgentEvaluations::test_the_refusal_scenarios_actually_recorded_refusals\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-bSr3_bwT-py3.13\\\
-  Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response = await\
-  \ handler(conn, exc)\ntests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-bSr3_bwT-py3.13\\\
-  Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
-  \ dependant.call(**values)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
-  \  C:\\projects\\worktrees\\agentjobs-338\\src\\agentjobs\\api\\routes\\web.py:391:\
-  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
-  \ removal in a future version. Use timezone-aware objects to represent datetimes\
-  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
-  tests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
-  \  C:\\projects\\worktrees\\agentjobs-338\\src\\agentjobs\\api\\routes\\web.py:372:\
-  \ DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for\
-  \ removal in a future version. Use timezone-aware objects to represent datetimes\
-  \ in UTC: datetime.datetime.now(datetime.UTC).\n    \"current_year\": datetime.utcnow().year,\n\
-  -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\e[36m\e\
-  [1m=========================== short test summary info ===========================\e\
-  [0m\n\e[31mFAILED\e[0m tests/test_validate.py::\e[1mTestRealCorpus::test_the_tolerated_drift_is_only_taxonomy_and_serialization\e\
-  [0m - AssertionError: assert {'absolute-path', 'non-canonical-serialization', 'un...\n\
-  \e[31m===== \e[31m\e[1m1 failed\e[0m, \e[32m3977 passed\e[0m, \e[33m1 skipped\e\
-  [0m, \e[33m221 warnings\e[0m\e[31m in 233.26s (0:03:53)\e[0m\e[31m =====\e[0m\n\
-  \  black      1.2s\n  ruff       0.1s\n  mypy      15.8s\n  api        6.4s\n  icons\
-  \      3.3s\n  oxlint     0.8s\n  pytest   234.4s\n  total    262.2s\nAll done!\
-  \ \\u2728 \\U0001f370 \\u2728\n254 files would be left unchanged.\nFailed to deliver\
-  \ webhook wh_9eb4e78b29: All connection attempts failed\nFailed at stage 'pytest'.\n\
-  Fix it, then resume with `--from pytest` instead of paying for the stages above\
-  \ a second time.\n```\n\nTake it from here by hand. Check the tree against what\
-  \ is written above before acting on anything you remember: if your worktree, your\
-  \ branch or your account of this task no longer matches what is on disk, say so\
-  \ on the record and hand the ball back rather than improvising a recovery."
+updated: '2026-09-05T21:29:52.620632Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
-queue_position: 8900
 category: general
 tags:
 - reported-issue
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: Top bar does not show red badge count for tasks waiting on human
@@ -70,7 +29,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-338-topbar-attention-badge
-  status: active
+  status: merged
+  merged_at: '2026-09-05T21:29:52.575228Z'
 log:
 - id: 1
   ts: '2026-09-05T20:25:19.585881Z'
@@ -420,3 +380,28 @@ log:
     merge_commit: d4dd60c89b347083c5d137f146e0183bf49a746f
     branch: fix/task-338-topbar-attention-badge
     base: main
+- id: 14
+  ts: '2026-09-05T21:29:52.620468Z'
+  actor: finisher
+  type: transition
+  body: "Merged `fix/task-338-topbar-attention-badge` into `main` as `d4dd60c8` and\
+    \ verified live. Finished by the scripted path with no agent session (task-241).\
+    \ No human reviewed this merge: posture `autonomous` (from the dispatch) releases\
+    \ the merge gate (task-021), and run run_da918c41 ran the finish. What authorised\
+    \ it is the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.6s  fix/task-338-topbar-attention-badge at 72aed36a\
+    \ in C:\\projects\\worktrees\\agentjobs-338\n  runway     ok         4.0s  taken\
+    \ after queuing\n  rebase     ok         0.3s  fix/task-338-topbar-attention-badge\
+    \ onto main: 72aed36a -> 8b664015\n  gate       ok       389.2s  scripts/check.py\
+    \ green\n  catch_up   skipped    0.0s  main did not move during the gate\n  merge\
+    \      ok         0.6s  --no-ff into main as d4dd60c89b347083c5d137f146e0183bf49a746f\n\
+    \  rebuild    ok         8.4s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         1.0s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     ok         0.0s  http://127.0.0.1:8876 is serving dab713ac, which contains\
+    \ the merge d4dd60c8, from C:\\projects\\agentjobs (started 2026-09-05T21:29:37.656680+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
