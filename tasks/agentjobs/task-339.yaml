@@ -4,7 +4,7 @@ title: 'The gate is launched six to nine times per task at seven to twelve minut
   each under contention: one gate per handoff, and a core budget shared between concurrent
   gates'
 created: '2026-09-05T20:49:03.656961Z'
-updated: '2026-09-05T20:50:20.287965Z'
+updated: '2026-09-05T21:21:45.526418Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -152,7 +152,7 @@ spec:
     design and is not changed here; note its cost in the closing entry if the measurements
     make it worth a separate task.
   context:
-  - path: C:/Users/jpose/.agentjobs/runs/run_f401cd88/phases.jsonl
+  - path: ~/.agentjobs/runs/run_f401cd88/phases.jsonl
     why: task-336's eight gate launches with per-stage seconds; the timeline table
       above is read from it
   - path: scripts/check.py
@@ -248,3 +248,15 @@ log:
       id: f1c2d3e4-a5b6-4c7d-8e9f-0a1b2c3d4e5f
       kind: update_content
       fingerprint: a63a172c60af6b2a556998f1b72c7aba
+- id: 4
+  ts: '2026-09-05T21:21:45.526160Z'
+  actor: system
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 3d5f7a19-6c40-4e82-9a13-5b8e0f2c7d64
+      kind: update_content
+      fingerprint: f8fca4b42ceedda52245de10874dd060
