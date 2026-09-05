@@ -2,28 +2,13 @@ schema: 2
 id: task-336
 title: Unclear which tab selected
 created: '2026-09-05T19:14:30.057857Z'
-updated: '2026-09-05T20:31:19.721158Z'
+updated: '2026-09-05T20:33:42.745632Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Look at the bar, then approve or send it back.\n\nA sandbox is already\
-  \ running on its own port with throwaway data -- not your dashboard, nothing here\
-  \ can hurt anything:\n\n  http://127.0.0.1:8907/app/p/sandbox-nav\n\nWalk the tabs\
-  \ and watch the marking follow you. Worth clicking specifically:\n\n  Dashboard\
-  \   http://127.0.0.1:8907/app/p/sandbox-nav\n  a task      http://127.0.0.1:8907/app/p/sandbox-nav/tasks/task-101\
-  \   (Tasks stays marked, Create does not light up)\n  Create      http://127.0.0.1:8907/app/p/sandbox-nav/tasks/new\
-  \         (Create marked, Tasks not)\n\nNarrow the window under 1100px for the burger\
-  \ panel, which carries the same marking.\n\nStop it with Ctrl-C in the session that\
-  \ started it, or tell me and I will. If it is not answering, restart it: python\
-  \ scripts/nav_current_sandbox.py 8907\n\nThe one judgement call worth your eye rather\
-  \ than a test: Create no longer has its blue accent. Blue in the bar now means \"\
-  you are here\" and nothing else -- which is the actual cause of what you reported,\
-  \ since on the Dashboard the only coloured entry was the one you were not on. Log\
-  \ entry 6 has the reasoning and what it gives up. If you want Create to stand out\
-  \ again, say so and it comes back as something other than colour.\n\nBranch: fix/task-336-active-tab-indicator,\
-  \ head 9555da7e, rebased onto main, gate green with a receipt. Two commits -- the\
-  \ fix, and scripts/nav_current_sandbox.py. Approving runs the scripted finish; I\
-  \ have merged nothing."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: medium
 queue_position: 8700
@@ -344,3 +329,25 @@ log:
     outcome: completed
     duration_seconds: 3960.108641
     log_path: C:\Users\jpose\.agentjobs\runs\run_f401cd88
+- id: 11
+  ts: '2026-09-05T20:33:39.236436Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 12
+  ts: '2026-09-05T20:33:42.745446Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-336-active-tab-indicator` (9555da7e).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-336.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_21ca19c0\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-336-active-tab-indicator
+    finish_id: fin_21ca19c0
