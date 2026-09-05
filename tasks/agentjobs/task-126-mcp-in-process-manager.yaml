@@ -2,7 +2,7 @@ schema: 2
 id: task-126-mcp-in-process-manager
 title: Let the STDIO MCP server run without a separately started service
 created: '2026-08-17T20:47:31.623715Z'
-updated: '2026-09-05T20:17:30.280519Z'
+updated: '2026-09-05T21:54:28.074221Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -296,3 +296,37 @@ log:
       id: 274c86eb-e004-49c6-b1cc-a9ef2163d70c
       kind: log_append
       fingerprint: 847580973a456ce8fae22dea06e684dd
+- id: 6
+  ts: '2026-09-05T21:54:28.074060Z'
+  actor: claude
+  type: question
+  body: 'Restart window, raised 2026-09-05 when Jeff reviewed the storage decision
+    (task-273 log entry 5 carries the same question from the server side). Entry 4
+    above forbids a local task store when the server is unavailable, and that is right,
+    but it removes the reason this task existed: "run without a separately started
+    service" is no longer achievable by opening the files in-process, because under
+    task-273 the server process is the only thing allowed to open the database. So
+    this task''s remaining question is narrower and needs an answer before coding:
+    what does the STDIO MCP server do while the service is down?
+
+
+    The window is scheduled, not hypothetical. The merge gate''s step 6 restarts the
+    server after every merge, the launcher restarts it when code changes underneath
+    it, and `agentjobs restart` is the documented fix for a stale process. A dispatched
+    run that handoffs, logs or closes through MCP during that restart gets a connection
+    refused, and today that shows up as an opaque tool error mid-turn. Options to
+    decide between: (a) the MCP server retries with bounded backoff, using the operation_id
+    replay the storage contract already requires so a retry can never double-write,
+    and returns a clear "service unavailable, nothing written" result when the budget
+    is spent; (b) the MCP server itself starts the service if nothing is listening
+    on the configured port, which reintroduces the second-server-on-the-wrong-port
+    failure this repository has already documented and should be rejected unless it
+    binds the registry''s configured port and nothing else; (c) drop this task and
+    let (a) live in task-273''s client contract. My recommendation is (a) and (c):
+    the in-process manager was a workaround for file storage, and the storage decision
+    retires the workaround along with the files.'
+  data:
+    operation:
+      id: 7d2e9b14-c5a6-4f38-b1e0-92a7f3c4d856
+      kind: log_append
+      fingerprint: f5b9f2b5826cf5a6640ed51bbba54b49

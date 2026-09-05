@@ -2,7 +2,7 @@ schema: 2
 id: task-273
 title: Build authoritative SQLite task storage alongside the AgentJobs server
 created: '2026-08-22T19:00:47.987602Z'
-updated: '2026-09-05T20:17:03.912896Z'
+updated: '2026-09-05T21:54:15.168674Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -201,3 +201,34 @@ log:
       id: d3f1092d-f332-4598-896c-ab9c2842e3ec
       kind: log_append
       fingerprint: 35dca2dfe94d61dd2efb399a6d33b39c
+- id: 5
+  ts: '2026-09-05T21:54:15.168428Z'
+  actor: claude
+  type: question
+  body: 'Restart window, raised 2026-09-05 when Jeff reviewed the storage decision.
+    The spec is right that there is no local fallback: with SQLite embedded in the
+    server process, the server is the only thing that may open the database, so when
+    it is down the CLI, MCP and every dispatched run''s task writes are down with
+    it. Today that window is not hypothetical, it is scheduled: the merge gate''s
+    step 6 restarts the server after every merge, the launcher restarts it when code
+    changes underneath it, and `agentjobs restart` is the documented fix for a stale
+    process. Under YAML those writes land on disk regardless. Under this design a
+    run that handoffs, logs or closes during the restart gets a connection refused.
+
+
+    Decide, before freezing the contract: (a) clients retry with bounded backoff against
+    a refused connection and surface a clear "service unavailable, nothing written"
+    error rather than a stack trace, with the retry budget documented; (b) the finisher''s
+    restart step and the launcher drain in-flight requests or hold new ones (graceful
+    shutdown on the ASGI side, and the front door returning 503 rather than a reset)
+    so a restart is a pause, not an outage; (c) whether the CLI''s direct-to-storage
+    path survives at all, or every CLI verb becomes an HTTP client like MCP already
+    is, which also decides how `agentjobs serve` and `agentjobs restart` themselves
+    address the store they are about to own. The idempotent operation_id replay the
+    spec already requires is what makes (a) safe. Coordinate with task-126, which
+    carries the same question from the MCP side.'
+  data:
+    operation:
+      id: a4c1f8e2-3b7d-4e6a-9f21-5c8d0e7b2a41
+      kind: log_append
+      fingerprint: 31be9c7e0c5c4b73ed15509d63520885
