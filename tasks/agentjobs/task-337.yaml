@@ -2,56 +2,11 @@ schema: 2
 id: task-337
 title: Dashboard must provide next best action for human
 created: '2026-09-05T19:17:08.214513Z'
-updated: '2026-09-05T22:20:04.944596Z'
+updated: '2026-09-05T22:27:47.815800Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: 'Stopping rather than starting a fourth finish. Something killed the
-  third one and I do not want to spend another gate against your wishes.
-
-
-  STATE, CHECKED NOT REMEMBERED
-
-
-  - Branch feat/task-337-dashboard-next-action at 79ced2c, clean tree, 3 ahead of
-  main and 0 behind.
-
-  - Nothing merged. `git branch --contains` names only the branch.
-
-  - No stale locks: /api/runs/live reports holders [], so nothing here is blocking
-  anyone else.
-
-  - The code is fine. The last full unqualified gate I ran myself was green, ten of
-  ten. The e2e stage re-run alone just now: 47 passed.
-
-
-  WHY IT HAS NOT MERGED YET, IN ORDER
-
-
-  1. task-339''s absolute spec.context path -- fixed by someone else, gone.
-
-  2. I ran `agentjobs finish` in the foreground and my own shell''s 10-minute limit
-  killed it mid-merge. Its gate had passed. That one was mine.
-
-  3. The next finish''s gate failed at e2e in 3.4 seconds: "Process from config.webServer
-  was not able to start". Not a test failure -- the Playwright server could not come
-  up while task-339''s autonomous run was gating on the same machine. Re-running that
-  stage alone passed 47/47.
-
-  4. The finish after that was killed externally at 22:16.
-
-
-  Three of the four are the machine, not the branch, and task-339 is the task about
-  exactly this: gates launched six to nine times per task, competing for cores.
-
-
-  WHAT I RECOMMEND
-
-
-  task-339''s autonomous run has been gating for over twenty minutes and is still
-  going. One more finish while it runs is likely to lose the same coin-flip on the
-  e2e web server. Say the word and I will run it the moment that run lands -- or now,
-  if you would rather take the chance.'
+ball: agent
+ball_reason: answer
+ball_prompt: FINISH.
 archived: false
 priority: medium
 queue_position: 8800
@@ -1025,3 +980,28 @@ log:
     outcome: completed
     duration_seconds: 2087.16204
     log_path: C:\Users\jpose\.agentjobs\runs\run_6af44c4f
+- id: 32
+  ts: '2026-09-05T22:27:41.414398Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    FINISH.'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 33
+  ts: '2026-09-05T22:27:47.815523Z'
+  actor: dispatcher
+  type: note
+  body: 'Dispatch (manual) refused by the `per_task_per_day` budget cap.
+
+
+    task-337 has been dispatched 3 times in the last 24 hours, and the daily cap is
+    3. Something about this task is not working; a fourth identical run will not discover
+    what.'
+  data:
+    dispatch_refused: per_task_per_day
+    dispatch_trigger: manual
+    dispatch_count: 3
