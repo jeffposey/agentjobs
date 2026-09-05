@@ -2,7 +2,7 @@ schema: 2
 id: task-066-multiple-human-users
 title: 'Account system: principals, attribution, and the network boundary'
 created: '2026-08-10T23:20:39.069637Z'
-updated: '2026-09-05T18:49:40.713443Z'
+updated: '2026-09-05T18:59:09.894930Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -3845,3 +3845,26 @@ log:
       id: 9d6a2f80-5ebc-4be9-d0f7-3a8c4e5f6a91
       kind: close
       fingerprint: 162365640018007a1e5072529bea61c1
+- id: 39
+  ts: '2026-09-05T18:59:09.894477Z'
+  actor: claude
+  type: note
+  body: 'CORRECTION, 2026-09-05, about an hour after closing. Entry 32 and the ac-5
+    verify note say Jeff Posey had confirmed the phone rendering before this task
+    was closed. He had not: I misread a chat message about the desktop dashboard as
+    the phone result, and the close ran on that misreading. What actually happened:
+    after the close, Jeff opened the dashboard on his phone over the tailnet and it
+    loaded and worked, once he had connected Tailscale on the phone by hand -- the
+    first attempt showed ''could not load the project registry, confirm local server
+    is running'', which is what an unreachable tailnet looks like, not a server fault.
+    He also has usability feedback about the phone layout that he will file as separate
+    tasks. So ac-5 is met on evidence that arrived after the record said it had, and
+    the earlier entry''s timeline is wrong. The outcome stands; the sequencing did
+    not, and this entry is the honest version. Nothing about auto-connecting Tailscale
+    belongs to AgentJobs: a PWA cannot start a VPN, so that is the phone''s own always-on
+    / on-demand VPN setting.'
+  data:
+    operation:
+      id: a0e7b391-6fcd-4cfa-e1a8-4b9d5f6a7b02
+      kind: log_append
+      fingerprint: fef90ba2f25d4e76e8a7aca893fc8ca9
