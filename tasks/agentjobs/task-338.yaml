@@ -2,7 +2,7 @@ schema: 2
 id: task-338
 title: Top bar does not show red badge count for tasks waiting on human
 created: '2026-09-05T20:25:18.784045Z'
-updated: '2026-09-05T21:19:07.851790Z'
+updated: '2026-09-05T21:22:47.006119Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -374,3 +374,31 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 11
+  ts: '2026-09-05T21:22:42.978988Z'
+  actor: finisher
+  type: progress
+  body: 'Queued for this repository''s merge runway, held by fin_835695c3, pid 3382580
+    started at 16:19:08, 3m ago.
+
+
+    **This is the queue working, not a stall.** Children of an epic fly in parallel
+    and land one at a time, because a gate is only evidence about the base it ran
+    against. Nothing here is rebased, gated or merged until the runway is free.'
+  data:
+    finish_step: runway_queued
+    finish_id: fin_491ec7c5
+- id: 12
+  ts: '2026-09-05T21:22:47.005969Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-338-topbar-attention-badge` (72aed36a).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-338.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_491ec7c5\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-338-topbar-attention-badge
+    finish_id: fin_491ec7c5
