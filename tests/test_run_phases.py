@@ -219,20 +219,45 @@ class TestRunReport:
 
     def test_gate_time_comes_from_phase_records(self, tmp_path: Path) -> None:
         directory = write_run(tmp_path, "run_a", task_id="task-001")
+        record_phase(directory, "gate_started", scope="full")
         record_phase(directory, "gate_finished", passed=True, seconds=600, scope="full")
+        record_phase(directory, "gate_started", scope="full")
         record_phase(directory, "gate_finished", passed=False, seconds=300, scope="full")
 
         text = run_report.summary(run_report.load_runs(tmp_path))
 
         assert "gate runs             2" in text
+        assert "gates launched /run   2.0" in text
         assert "0.1h in gate runs that failed" in text
 
-    def test_a_gate_that_never_finished_contributes_nothing(self, tmp_path: Path) -> None:
-        """A killed gate has an unknown duration, and unknown is not a number."""
+    def test_a_gate_that_never_finished_and_was_never_followed_is_still_dropped(
+        self, tmp_path: Path
+    ) -> None:
+        """Nothing came after it, so nothing measures how long it ran (task-339).
+
+        A killed gate *is* counted once the run recorded anything afterwards -- see
+        ``tests/test_gate_repetition.py`` -- because the next record is a floor on how
+        long the session was inside it. With no next record there is no floor, and
+        inventing one would be the failure ``RunRecord.elapsed_seconds`` refuses.
+        """
         directory = write_run(tmp_path, "run_a", task_id="task-001")
         record_phase(directory, "gate_started", scope="full")
 
         assert "No gate lines can be computed" in run_report.summary(run_report.load_runs(tmp_path))
+
+    def test_a_killed_gate_is_counted_once_the_run_did_something_after_it(
+        self, tmp_path: Path
+    ) -> None:
+        """task-336 paid seventeen minutes for two of these and the report said nothing."""
+        directory = write_run(tmp_path, "run_a", task_id="task-001")
+        record_phase(directory, "gate_started", scope="full")
+        record_phase(directory, "gate_started", scope="full")
+        record_phase(directory, "gate_finished", passed=True, seconds=60, scope="full")
+
+        text = run_report.summary(run_report.load_runs(tmp_path))
+
+        assert "gate runs             2" in text
+        assert "gates abandoned       1" in text
 
     def test_the_per_task_table_ranks_by_time_spent(self, tmp_path: Path) -> None:
         """Finding 2 of task-233 -- one epic taking a third of everything -- is this view."""
