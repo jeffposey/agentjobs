@@ -3,7 +3,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
-import { NAV_INLINE_MIN_PX, PrimaryNav } from "./PrimaryNav";
+import { currentDestinationPath, NAV_INLINE_MIN_PX, PrimaryNav } from "./PrimaryNav";
 // Vite hands the module back as text. Read through the bundler rather than through
 // node:fs so the test needs no Node type definitions and no assumption about which
 // directory the runner started in.
@@ -20,11 +20,11 @@ import navSource from "./PrimaryNav.tsx?raw";
  * is in `e2e/pinned-header.spec.ts`, measured in a real browser.
  */
 
-function renderNav() {
+function renderNav(at = "/p/demo/tasks") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/p/demo/tasks"]}>
+      <MemoryRouter initialEntries={[at]}>
         <PrimaryNav projectId="demo" />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -119,5 +119,94 @@ describe("PrimaryNav", () => {
     const variants = [...navSource.matchAll(/min-\[(\d+)px\]:/g)].map((match) => Number(match[1]));
     expect(variants.length).toBeGreaterThan(0);
     expect(new Set(variants)).toEqual(new Set([NAV_INLINE_MIN_PX]));
+  });
+});
+
+/**
+ * task-336: the bar says which destination you are on.
+ *
+ * The rule is asserted here against URLs, and the rendering against `aria-current`.
+ * That the marked entry actually *looks* different is not assertable in jsdom -- no
+ * Tailwind stylesheet is loaded and `getComputedStyle` would report the same thing
+ * for every link -- so that half is measured in a browser, in
+ * `e2e/nav-current.spec.ts`.
+ */
+describe("currentDestinationPath", () => {
+  it.each([
+    ["/p/demo", ""],
+    ["/p/demo/", ""],
+    ["/p/demo/tasks", "/tasks"],
+    ["/p/demo/tasks/task-042", "/tasks"],
+    // The case the whole longest-match rule exists for: `/tasks` matches this URL
+    // too, and marking both would be no more use than marking neither.
+    ["/p/demo/tasks/new", "/tasks/new"],
+    ["/p/demo/dispatch", "/dispatch"],
+    ["/p/demo/playbooks", "/playbooks"],
+    ["/p/demo/runs", "/runs"],
+  ])("marks %s as %s", (pathname, expected) => {
+    expect(currentDestinationPath(pathname, "demo")).toBe(expected);
+  });
+
+  it("matches the project at a segment boundary, so a prefix is not a project", () => {
+    expect(currentDestinationPath("/p/demo2/tasks", "demo")).toBeNull();
+    expect(currentDestinationPath("/not-found", "demo")).toBeNull();
+  });
+
+  it("reads the project id as it appears in the URL, encoded", () => {
+    expect(currentDestinationPath("/p/my%20project/tasks", "my project")).toBe("/tasks");
+  });
+});
+
+describe("PrimaryNav current destination", () => {
+  const current = () => screen.queryAllByRole("link", { current: "page" });
+
+  it.each([
+    ["/p/demo", "Dashboard"],
+    ["/p/demo/tasks", "Tasks"],
+    ["/p/demo/tasks/task-042", "Tasks"],
+    ["/p/demo/tasks/new", "Create"],
+    ["/p/demo/dispatch", "Dispatch"],
+    ["/p/demo/playbooks", "Playbooks"],
+    ["/p/demo/runs", "Runs"],
+  ])("marks exactly one destination on %s, and it is %s", (at, label) => {
+    renderNav(at);
+    // Both halves matter. One, because the report was that nothing was marked; and
+    // exactly one, because two marked entries answer the question no better.
+    expect(current()).toHaveLength(1);
+    expect(current()[0]).toHaveTextContent(label);
+  });
+
+  it("marks the current destination inside the burger panel too", () => {
+    renderNav("/p/demo/dispatch");
+    fireEvent.click(trigger());
+    const opened = panel() as HTMLElement;
+    const marked = within(opened).getAllByRole("link", { current: "page" });
+    expect(marked).toHaveLength(1);
+    expect(marked[0]).toHaveTextContent("Dispatch");
+  });
+
+  it("styles the current destination differently from every other one", () => {
+    // jsdom cannot see colour here, so this asserts the weaker thing it can: the
+    // marked link is not handed the same class list as its neighbours. The colours
+    // themselves are read out of a real browser in e2e/nav-current.spec.ts.
+    renderNav("/p/demo/tasks");
+    const links = screen.getAllByRole("link");
+    const marked = links.filter((link) => link.getAttribute("aria-current") === "page");
+    const rest = links.filter((link) => link.getAttribute("aria-current") !== "page");
+    expect(marked).toHaveLength(1);
+    expect(rest.length).toBeGreaterThan(0);
+    const markedClass = (marked[0] as HTMLElement).className;
+    for (const link of rest) {
+      expect(link.className).not.toBe(markedClass);
+    }
+  });
+
+  it("gives Create no accent of its own, so colour in the bar means one thing", () => {
+    // The report's actual cause: on the Dashboard, Create was the only coloured entry
+    // in the bar and read as the selected tab. Regression guard, not tidiness.
+    renderNav("/p/demo");
+    const create = screen.getByRole("link", { name: "Create" });
+    const tasks = screen.getByRole("link", { name: "Tasks" });
+    expect(create.className).toBe(tasks.className);
   });
 });
