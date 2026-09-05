@@ -2,7 +2,7 @@ schema: 2
 id: task-337
 title: Dashboard must provide next best action for human
 created: '2026-09-05T19:17:08.214513Z'
-updated: '2026-09-05T21:03:33.424039Z'
+updated: '2026-09-05T21:03:58.491119Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -629,3 +629,13 @@ log:
       id: f3d70a18-42c6-4e91-b5da-08c7e91d6b25
       kind: handoff
       fingerprint: a8fd3e2c02a7bb9ab0eaee84b4e9c197
+- id: 17
+  ts: '2026-09-05T21:03:58.490952Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 14
+  data:
+    run_id: run_e1e2bfde
+    outcome: completed
+    duration_seconds: 1447.45127
+    log_path: C:\Users\jpose\.agentjobs\runs\run_e1e2bfde
