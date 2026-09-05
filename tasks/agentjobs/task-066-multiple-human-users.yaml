@@ -2,44 +2,11 @@ schema: 2
 id: task-066-multiple-human-users
 title: 'Account system: principals, attribution, and the network boundary'
 created: '2026-08-10T23:20:39.069637Z'
-updated: '2026-09-04T08:46:05.754794Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "REFRESHED after reconciling the two children that judged this same criterion\
-  \ differently. Your check is now a glance, not an investigation.\n\nAll seven children\
-  \ merged and closed completed. Full unqualified gate green on merged main (10 of\
-  \ 10 stages, 465.8s). Six of seven acceptance criteria met with live evidence recorded\
-  \ per criterion.\n\nWHAT IS ACTUALLY STILL OPEN: mobile rendering, and only that.\n\
-  \ntask-333 verified the panel over the real tailnet path in a browser -- a genuine\
-  \ proxy-WhoIs'd caller at https://agentjobs.tailfed1df.ts.net/app/ -- and the task\
-  \ page rendered with the structured dispatch output panel showing that run's live\
-  \ narration and tool groups, with the project switcher listing exactly the three\
-  \ exposed projects. I confirmed the data path independently: both routes 200 through\
-  \ the tailnet against real run run_dfdae0fc, 11KB of tail and 113KB of transcript.\
-  \ So identity at the front door, exposure filtering and the panel's routes are all\
-  \ proven over the real network path.\n\nWhat nobody exercised is a phone-sized viewport.\
-  \ task-333 marked its own ac-5 met on the browser evidence; task-244 left the identical\
-  \ criterion pending because the browser was a desktop one. task-244 was right to\
-  \ be strict, so this parent stays pending on that one point. Open the dashboard\
-  \ on your phone, look at a task with a dispatch run on it, confirm the output panel\
-  \ renders and is readable. That is the whole of it.\n\nSECOND THING, and the one\
-  \ that actually costs you something today. ~/.agentjobs/identities.yaml does not\
-  \ exist, so a proven tailnet login resolves with actor_id null -- the app refuses\
-  \ to guess rather than falling back to a default, which is correct and is exactly\
-  \ what task-064 removed. The consequence is that Dispatch is disabled from the tailnet\
-  \ until the login is mapped. That is the one respect in which this epic currently\
-  \ makes the dashboard worse on a phone, and it is a config file, not code:\n\n \
-  \   # ~/.agentjobs/identities.yaml\n    owner: Jeff Posey\n    identities:\n   \
-  \   - login: jposey@hellfiregames.com\n        actor: Jeff Posey\n\nI did not write\
-  \ it: task-330 deliberately refuses to guess an actor for a login, and guessing\
-  \ on its behalf would defeat the point. One thing to settle first -- the mapping\
-  \ is machine-level to a single actor id, but this machine's projects disagree: agentjobs\
-  \ uses `Jeff Posey`, fantasy-football uses `jeff`.\n\nNothing else outstanding.\
-  \ No branches, no worktrees, tree clean, nothing pushed (push: false)."
+updated: '2026-09-05T18:49:40.713443Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 12
 category: architecture
 tags:
 - gui
@@ -48,7 +15,6 @@ tags:
 - epic
 effort: 1 session for the design pass, more to build
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: AgentJobs has no notion of who is asking. Identity is a body field the
@@ -255,21 +221,30 @@ acceptance:
     a log written before the retirement still resolves and renders; an existing single-human
     config works unmodified. No-silent-fallback confirmed live -- through the proxy
     the principal resolves with login jposey@hellfiregames.com and actor_id null rather
-    than guessing a default. RESIDUAL: ~/.agentjobs/identities.yaml does not exist
-    on this machine, so the capability ships unconfigured. See the handoff.'
+    than guessing a default. RESIDUAL CLOSED 2026-09-05: ~/.agentjobs/identities.yaml
+    now exists (owner Jeff Posey, jposey@hellfiregames.com -> Jeff Posey) and the
+    dashboard shows ''Acting as Jeff Posey'' over the tailnet.'
   status: met
 - id: ac-5
   text: The structured dispatch output panel -- /runs/*/tail and /runs/*/transcript,
     rendered by DispatchOutput.tsx -- still works from a phone over the tailnet, verified
     against a real run rather than a mock. Any child that dark-screens it has failed.
-  verify: 'NOT MET, and deliberately not claimed. The data path is proven: against
-    real run run_dfdae0fc, both routes return 200 through https://agentjobs.tailfed1df.ts.net
-    -- 11,312 bytes of tail and 113,562 of transcript, structured JSON carrying that
-    run''s actual output. task-244 additionally saw the panel render over the tailnet
-    against a real run. But every one of those observations was made from this machine,
-    not from a phone; task-244 and task-333 each left their own ac-5 pending for exactly
+  verify: 'MET 2026-09-05. Jeff Posey opened the dashboard on his phone over the tailnet
+    (https://agentjobs.tailfed1df.ts.net/app/), landed on this task''s page as a proxy-WhoIs''d
+    caller, and reported in chat that the phone rendering is valid and readable --
+    the same session in which the page switched from the unmapped-login card to ''Acting
+    as Jeff Posey'' once ~/.agentjobs/identities.yaml was written, which proves the
+    identity path end to end on the same device. The data-path evidence below stands:
+    both routes 200 through the tailnet against real run run_dfdae0fc, 11,312 bytes
+    of tail and 113,562 of transcript. Prior verify note, kept for the record: NOT
+    MET, and deliberately not claimed. The data path is proven: against real run run_dfdae0fc,
+    both routes return 200 through https://agentjobs.tailfed1df.ts.net -- 11,312 bytes
+    of tail and 113,562 of transcript, structured JSON carrying that run''s actual
+    output. task-244 additionally saw the panel render over the tailnet against a
+    real run. But every one of those observations was made from this machine, not
+    from a phone; task-244 and task-333 each left their own ac-5 pending for exactly
     this reason. A phone is the one instrument nobody in this epic had.'
-  status: pending
+  status: met
 - id: ac-6
   text: Project creation routes (POST /api/projects/init, POST /api/projects, /api/projects/inspect)
     are unreachable through the proxy and reachable on loopback. No other route is
@@ -3732,3 +3707,141 @@ log:
     outcome: completed
     duration_seconds: 18633.948725
     log_path: C:\Users\jpose\.agentjobs\runs\run_b1c2d736
+- id: 31
+  ts: '2026-09-05T18:48:37.626661Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 2c9f5e13-8d4b-4a72-c3e0-6f1b7d8e9f24
+      kind: update_content
+      fingerprint: 7ed5b6a6116b2f61c8a0a178bc51067d
+- id: 32
+  ts: '2026-09-05T18:48:50.715065Z'
+  actor: claude
+  type: answer
+  body: Yes. Jeff Posey confirmed on 2026-09-05, from his phone over the tailnet at
+    https://agentjobs.tailfed1df.ts.net/app/, that the dispatch output panel renders
+    and reads properly. Recorded as ac-5 met. (Entry 28 asked the same thing; it is
+    a duplicate from the refreshed handoff at 08:45 and is answered by this entry
+    too.)
+  re: 25
+  data:
+    operation:
+      id: 3d0a6f24-9e5c-4b83-d4f1-7a2c8e9f0a35
+      kind: log_append
+      fingerprint: 0aac38f6dedde268484c39fc196d6a87
+- id: 33
+  ts: '2026-09-05T18:48:53.593524Z'
+  actor: claude
+  type: answer
+  body: 'Duplicate of entry 25, asked again by the refreshed handoff three minutes
+    later. Answered there: yes, the phone rendering is valid, confirmed by Jeff Posey
+    on 2026-09-05.'
+  re: 28
+  data:
+    operation:
+      id: 4e1b7a35-0f6d-4c94-e5a2-8b3d9f0a1b46
+      kind: log_append
+      fingerprint: 3317fba2382226c0837dd00c1ff624b8
+- id: 34
+  ts: '2026-09-05T18:48:58.324378Z'
+  actor: claude
+  type: answer
+  body: 'Yes, and it is done (2026-09-05, on Jeff''s instruction in chat). ~/.agentjobs/identities.yaml
+    now reads: owner: Jeff Posey; identities: [login: jposey@hellfiregames.com, actor:
+    Jeff Posey]. Verified: IdentityRegistry().resolve() returns the mapping case-insensitively,
+    and the dashboard over the tailnet switched from the unmapped-login card to ''Acting
+    as Jeff Posey'' without a restart, since the registry re-reads per request. Entry
+    29 asked the same thing and is answered here too.'
+  re: 26
+  data:
+    operation:
+      id: 5f2c8b46-1a7e-4da5-f6b3-9c4e0a1b2c57
+      kind: log_append
+      fingerprint: 3afd2ef4bc8ba442875a357a300de843
+- id: 35
+  ts: '2026-09-05T18:49:01.275780Z'
+  actor: claude
+  type: answer
+  body: 'Duplicate of entry 26, asked again by the refreshed handoff. Answered there:
+    the file is written and Dispatch is enabled from the tailnet.'
+  re: 29
+  data:
+    operation:
+      id: 6a3d9c57-2b8f-4eb6-a7c4-0d5f1b2c3d68
+      kind: log_append
+      fingerprint: 662307e3f2c9a1ad70a660455d71fa5e
+- id: 36
+  ts: '2026-09-05T18:49:11.298474Z'
+  actor: claude
+  type: decision
+  body: 'Two decisions, made with Jeff Posey in chat on 2026-09-05.
+
+
+    1. One actor id for the person across this machine: ''Jeff Posey''. The identity
+    map binds one login to one actor id, and this machine''s projects disagreed --
+    agentjobs, job-hunting and mastercalls used ''Jeff Posey'' while fantasyfootball
+    and product-strategy used ''jeff''. Resolved by adding ''Jeff Posey'' (kind: human)
+    to both of those projects, marking ''jeff'' retired: true, and setting default_user:
+    Jeff Posey. Committed in each repo (fantasyfootball 9a91dca, product-strategy
+    f0e8179). Rejected alternative: renaming ''jeff'' in place, which would leave
+    the one existing ''jeff'' log entry in each project resolving to nothing; retirement
+    keeps history resolving, which is what retirement is for. Also rejected: a per-project
+    alias in identities.yaml, the residual docs/identity-registry.md names -- one
+    rename is cheaper than a new mechanism for one person.
+
+
+    2. The onboarding gap gets a CLI, not an account system and not a GUI form. Filed
+    as task-335 (agentjobs identity list / map / unmap / owner / whoami). Reasoning:
+    authentication is Tailscale membership plus the proxy''s WhoIs; AgentJobs holds
+    no passwords and should not start. The only missing piece is the login-to-actor
+    line, so a command that writes it safely is the whole fix. A dashboard form that
+    writes identities.yaml was rejected because every tailnet peer reaches the dashboard,
+    and a peer mapping themselves to an actor is exactly the impersonation this epic
+    closes; the dashboard keeps a read-only ''Acting as'' indicator only. Per-person
+    permission levels were also considered and rejected for now: the capability table
+    is keyed by principal kind, per-project membership in actors: is the permission
+    model, and with one human user a role system has no customer yet.'
+  data:
+    operation:
+      id: 7b4e0d68-3c9a-4fc7-b8d5-1e6a2c3d4e79
+      kind: log_append
+      fingerprint: f91da14612d89a939359d10fe9865e25
+- id: 37
+  ts: '2026-09-05T18:49:15.927805Z'
+  actor: claude
+  type: progress
+  body: 'Parent-level verification complete, 2026-09-05. All seven children closed
+    completed; open_children_count 0. All seven acceptance criteria now met with evidence
+    on each: ac-5 (phone rendering) confirmed by Jeff Posey on his phone over the
+    tailnet, and the ac-4 residual (no identities.yaml on this machine) closed by
+    writing the file. Four open questions answered (25, 26 and their duplicates 28,
+    29 -- the duplication came from two handoffs written three minutes apart, each
+    attaching the same pair). Follow-up work filed as task-335 (identity CLI). Config
+    reconciliation committed in fantasyfootball and product-strategy. No branches,
+    no worktrees, nothing pushed. Nothing remains on this epic; closing completed.'
+  data:
+    operation:
+      id: 8c5f1e79-4dab-4ad8-c9e6-2f7b3d4e5f80
+      kind: log_append
+      fingerprint: c83c6f541c569c11c014ec5ed7bd3504
+- id: 38
+  ts: '2026-09-05T18:49:40.713134Z'
+  actor: claude
+  type: transition
+  body: 'Closed completed on Jeff Posey''s instruction in chat, 2026-09-05, after
+    he confirmed the phone rendering (ac-5) from his own device over the tailnet.
+    All seven children merged and closed, all seven acceptance criteria met with evidence,
+    open questions answered, identity map written, actor ids reconciled across projects.
+    Follow-up: task-335 (identity CLI).'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 9d6a2f80-5ebc-4be9-d0f7-3a8c4e5f6a91
+      kind: close
+      fingerprint: 162365640018007a1e5072529bea61c1
