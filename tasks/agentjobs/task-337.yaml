@@ -2,109 +2,60 @@ schema: 2
 id: task-337
 title: Dashboard must provide next best action for human
 created: '2026-09-05T19:17:08.214513Z'
-updated: '2026-09-05T20:04:01.695991Z'
+updated: '2026-09-05T20:29:31.369434Z'
 lifecycle: active
 ball: human
-ball_reason: input
-ball_prompt: "Dispatched session `5e207dd0` is parked on a permission prompt and will\
-  \ wait indefinitely. Answer it wherever the session is open. Or attach locally with\
-  \ `claude attach 5e207dd0`.\n\nThe end of its terminal, verbatim:\n\n```\n\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500 Bash command\n   \u2502 curl -s \"http://127.0.0.1:8876/api/projects/agentjobs/queue\"\
-  \ | python -c \"\n   \u2502 import json,sys\n   \u2502 d=json.load(sys.stdin)\n\
-  \   \u2502 print(json.dumps(d)[:200])\n   \u2502 \" 2>&1 | head -5\n   Read the\
-  \ queue over the API                                                           \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \u2502\
-  \ Auto mode classifier requires confirmation for this command.                 \
-  \                                                                              \
-  \                                           \u2502 3 consecutive actions were blocked.\
-  \ Please review the transcript before continuing.\n \u2502 Latest blocked action:\
-  \ Blocked by classifier\n Do you want to proceed?\n \u276F 1. Yes              \
-  \                                                                              \
-  \                                                                              \
-  \                        2. Yes, and don\u2019t ask again for: curl *\n   3. No\n\
-  \ Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain      4 do next\" with a\
-  \ table of every one of them -- 31 rows, each reading `spec`, under a\n      5 sentence\
-  \ admitting that nothing is blocked by any of them. The backlog rung outranked\n\
-  \      6 \"next up\", so that was the answer on precisely the days when nothing\
-  \ needed a person.\n      7\n      8 Four projects on one server, so the change\
-  \ and everything it must not have broken can be\n      9 compared by switching project\
-  \ rather than by constructing states by hand:\n     \u2026 +250 lines          \
-  \                                                                              \
-  \                                                                              \
-  \                   \u23BF \_Allowed by auto mode classifier                   \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                   Ran 3 shell commands                       \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                           \u25CF Skill(claude-in-chrome)     \
-  \                                                                              \
-  \                                                                              \
-  \                \u23BF \_Successfully loaded skill\n  Called claude-in-chrome 12\
-  \ times, ran 7 shell commands\n\u25CF Now improve the sandbox seed so summaries\
-  \ aren't title echoes:\n  Ran 3 shell commands\n\u25CF Now restart the sandbox with\
-  \ the fixes and rebuild the bundle:\n\u25CF Committed d2734d8, calling claude-in-chrome\
-  \ 4 times, running 19 shell commands\u2026\n  \u23BF  $ curl -s \"http://127.0.0.1:8876/api/projects/agentjobs/queue\"\
-  \ | python -c \"\n     import json,sys\n     d=json.load(sys.stdin)\n     print(json.dumps(d)[:200])\n\
-  \     \" 2>&1 | head -5\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Bash command\n   \u2502 curl -s\
-  \ \"http://127.0.0.1:8876/api/projects/agentjobs/queue\" | python -c \"\n   \u2502\
-  \ import json,sys\n   \u2502 d=json.load(sys.stdin)\n   \u2502 print(json.dumps(d)[:200])\n\
-  \   \u2502 \" 2>&1 | head -5\n   Read the queue over the API                   \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                        \u2502 Auto mode classifier requires confirmation\
-  \ for this command.                                                            \
-  \                                                                              \u2502\
-  \ 3 consecutive actions were blocked. Please review the transcript before continuing.\n\
-  \ \u2502 Latest blocked action: Blocked by classifier\n Do you want to proceed?\n\
-  \ \u276F 1. Yes                                                                \
-  \                                                                              \
-  \                                                    2. Yes, and don\u2019t ask\
-  \ again for: curl *\n   3. No\n Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain\n\
-  ```"
+ball_reason: review
+ball_prompt: "Ready for review, and there is a sandbox to drive rather than a diff\
+  \ to read.\n\nBRANCH `feat/task-337-dashboard-next-action`, worktree `../worktrees/agentjobs-337`,\
+  \ commits 4b56311 and d2734d8, rebased on `main`. Full `scripts/check.py` green,\
+  \ ten of ten stages, receipt for 067a4a65.\n\nDRIVE IT: http://127.0.0.1:8903/app/p/sandbox-reported\n\
+  \nFour projects on that server, switchable from the picker. Everything is throwaway\
+  \ -- its own AGENTJOBS_HOME under a temp directory, and the runner is a script that\
+  \ sleeps 45s and exits -- so press anything, including Dispatch. Your 8876 dashboard\
+  \ is not involved.\n\n  sandbox-reported     what you reported, after. \"Next up\"\
+  \ with three tasks and a Dispatch button on each. Press one and watch the sentence\
+  \ above the list change from \"Nothing is running on this machine\" to \"An agent\
+  \ is already working\", the claimed task leave the list, and the next one fill in\
+  \ behind it.\n  sandbox-drafts-only  the backlog panel still renders when there\
+  \ is nothing claimable to offer instead -- five drafts and \"View all 7 drafts\"\
+  .\n  sandbox-blocked      a task actually stopped on you. The alarm still wins outright;\
+  \ that rung did not move.\n  sandbox-no-dispatch  dispatch off for the project.\
+  \ Tasks still listed, one line at the foot saying why, link to the settings.\n\n\
+  Stop it with: Stop-Process -Id 3370864 -Force   (or tell me and I will).\n\nWHAT\
+  \ I WANT YOU TO LOOK AT\n\n1. The panel is now three rows plus a sentence where\
+  \ it used to be one row. task-294 says the Dashboard fits one screen. On a 1380x868\
+  \ window it fits; on your phone I have not measured it. If it is too tall, the cheap\
+  \ fix is two tasks rather than three -- one constant.\n2. \"An agent is already\
+  \ working. These are next in line.\" -- is that the right thing to say when the\
+  \ machine is busy, or would you rather the panel got quieter, or said how long?\n\
+  3. The Dispatch button here is one click with no group, posture or brief. That is\
+  \ deliberate (choosing happens on the task page) but it is the decision most worth\
+  \ arguing with.\n\nGROUPING, AS ASKED: task-092, task-294, task-212, task-213 are\
+  \ now the first four in the critical band, in that order, commit d1907ca on `main`.\
+  \ task-092 is the design task that asks exactly this question and was deferred until\
+  \ the React port reached parity. Its ac-1 and ac-2 are answered by what shipped\
+  \ here (the rejected alternatives are in the progress entry above); its ac-3 --\
+  \ narrow tweak or wider design pass -- is yours. I could not write onto task-092\
+  \ itself, because a run's API and MCP writes are scoped to its own task (task-332).\n\
+  \nTWO THINGS TO KNOW BEFORE YOU APPROVE\n\n- I committed six task records another\
+  \ agent had staged in the shared clone (task-126, 247, 253, 272, 273, 311) into\
+  \ d1907ca's first attempt. Repaired: `git reset --soft HEAD~1`, then recommitted\
+  \ naming only my four paths. Their six are staged again exactly as I found them,\
+  \ nothing was lost, and `main` now carries only my commit. Worth knowing in case\
+  \ a peer session reports its index looking odd.\n- The classifier parked this run\
+  \ twice on read-only commands (`agentjobs queue list`, then a `curl` of the queue\
+  \ endpoint). You saw the second and approved it. Both were reads. If you want that\
+  \ filed as a dispatch finding, say so and I will."
 archived: false
 priority: medium
 queue_position: 8800
 category: general
 tags:
 - reported-issue
+- dashboard
+- frontend
+- ux
 assignment:
   owner: claude
   eligible: []
@@ -121,11 +72,35 @@ spec:
 
     Reported from the AgentJobs UI by Jeff Posey, at `/p/agentjobs`.'
   context: []
-acceptance: []
+acceptance:
+- id: ac-1
+  text: with claimable work present, the Dashboard's call to action is that work rather
+    than the parked-draft table
+  status: met
+- id: ac-2
+  text: the panel offers the next two to three tasks in queue order, agreeing with
+    agentjobs next on which is first
+  status: met
+- id: ac-3
+  text: each offered task can be dispatched from the Dashboard in one gesture, or
+    says why it cannot
+  status: met
+- id: ac-4
+  text: the panel states whether anything is running on this machine, and stays silent
+    until it knows
+  status: met
+- id: ac-5
+  text: the backlog stays reachable however the ladder lands
+  status: met
+- id: ac-6
+  text: the other Dashboard tasks are grouped and made the critical next work
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-337-dashboard-next-action
+  status: active
 log:
 - id: 1
   ts: '2026-09-05T19:17:08.816648Z'
@@ -316,3 +291,166 @@ log:
   data:
     ball: human
     ball_reason: input
+- id: 6
+  ts: '2026-09-05T20:26:46.388530Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    I discovered the session waiting for approval to run a curl command, in Auto mode.
+    That is not good. I clicked the approve always on that.'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 7
+  ts: '2026-09-05T20:28:39.349853Z'
+  actor: claude
+  type: progress
+  body: "Built and verified on branch `feat/task-337-dashboard-next-action` (worktree\
+    \ `../worktrees/agentjobs-337`), commits 4b56311 and d2734d8. Full `scripts/check.py`\
+    \ green, all ten stages, receipt written for 067a4a65.\n\nWHAT CHANGED\n\n1. The\
+    \ two calm rungs of the ladder swapped (`src/agentjobs/dashboard.py`). `backlog`\
+    \ used to outrank `next_up`, so a project with parked drafts answered \"what do\
+    \ I do next\" with a table of every one of them -- 31 rows on this project, each\
+    \ reading `spec`, under a subtitle admitting that nothing is blocked by any of\
+    \ them. `next_up` now wins whenever there is a claimable task; `backlog` renders\
+    \ only when there is not. The alert rung is untouched and still strict.\n\n2.\
+    \ `next_up` offers the head of the queue, not one task. The snapshot gained `queue_preview`\
+    \ -- `manager.claimable_tasks()[:3]`, one call rather than two, so the panel and\
+    \ the \"Why this one?\" disclosure beside it cannot name different tasks. `next_task`\
+    \ stays in the contract as its first element.\n\n3. Each row carries a Dispatch\
+    \ button (`frontend/src/components/QueueDispatch.tsx`). One click, nothing to\
+    \ fill in -- the record is the brief, as task-188 established. A task whose record\
+    \ cannot brief an agent gets \"Brief and dispatch \u2192\" linking to its own\
+    \ page instead of a textarea in a panel with no room for one. No group pulldown,\
+    \ no posture chooser, no runs list: choosing happens on the task page.\n\n4. The\
+    \ panel says what the machine is doing, from the machine-wide `/api/runs/live`\
+    \ the capacity row already reads: \"Nothing is running on this machine. Starting\
+    \ one of these is the useful move.\" / \"An agent is already working. These are\
+    \ next in line.\" It says neither until that query has answered, so the line cannot\
+    \ flip a poll after the page paints. This is the \"check if there are no current\
+    \ Runs\" half of the spec.\n\n5. `DashboardResponse` gained `identity`, mirroring\
+    \ the task detail and the playbook listing and for the same reason: a run must\
+    \ be attributed to a real person, so a button that cannot name one is disabled\
+    \ with the reason rather than pressable into a refusal.\n\n6. Where the machine\
+    \ may not dispatch, the panel prints one line at its foot with a link to Dispatch\
+    \ settings -- not a refusal repeated beside every row. Where dispatch was never\
+    \ configured it says nothing at all, exactly as the task panel does.\n\n7. The\
+    \ backlog panel, when it does render, samples five drafts and links to the rest.\n\
+    \n8. The legacy Jinja dashboard shares the projection, so it follows the reorder;\
+    \ it lists the same three tasks and still only links.\n\nVERIFIED\n\n- `scripts/check.py`,\
+    \ unqualified, exit 0, ten of ten stages, 489s. Log kept for this session.\n-\
+    \ Driven by hand in Chrome against `scripts/dashboard_next_action_sandbox.py`\
+    \ on :8903, all four seeded states. Pressed Dispatch on the first row: a run started\
+    \ (`run_05e13443`), the claimed task left the preview, the list refilled with\
+    \ the next three, the sentence changed to \"An agent is already working\", and\
+    \ the Runs badge, the In Progress tile and the capacity row all followed. The\
+    \ click was proved to reach the button with a capturing `mousedown`/`click` listener\
+    \ before anything was concluded from it -- a first click had produced no run and\
+    \ the instrument, not the application, was the open question.\n- New tests: `QueueDispatch.test.tsx`\
+    \ (10) covers one-click dispatch, the no-identity disabled state, the cannot-brief\
+    \ link, both silent states and the refusal; `Dashboard.test.tsx` gained the preview\
+    \ list, the render-prop action, both machine sentences, the silence before the\
+    \ runs query answers, and the backlog sampling; `tests/test_attention_tiers.py`\
+    \ now asserts `next_up` outranks `backlog`, that the preview stops at `QUEUE_PREVIEW_LIMIT`,\
+    \ and that the \"+N in backlog\" trace survives under both suppressing rungs.\n\
+    - `frontend/e2e/promote-draft.spec.ts` used to find a draft through the backlog\
+    \ panel. It now walks the \"+N in backlog\" link, which is unconditional -- the\
+    \ panel is not, and that directory shares one project across every spec.\n\nREJECTED\n\
+    \n- Leaving `backlog` above `next_up` and merely shortening its table. It would\
+    \ still be the page's one call to action on the days nothing needs a person, which\
+    \ is the complaint.\n- Making the calm rungs coexist as two panels. That re-creates\
+    \ the two-calls-to-action problem task-081 fixed. The backlog is instead traced\
+    \ by the statistics card's \"+N in backlog\" link, which was already there and\
+    \ already unconditional.\n- Computing \"is anything running\" on the server and\
+    \ adding a ladder rung for it. It is machine-wide state on a per-project projection,\
+    \ the browser already holds the answer for the capacity row, and a fifth rung\
+    \ would have made the panel vanish rather than change one sentence.\n- Rendering\
+    \ the full `DispatchPanel` per row. Group, posture, brief and runs on three rows\
+    \ would make the panel taller than the screen -- and task-294 is open about exactly\
+    \ that.\n\nOTHER DASHBOARD TASKS, AS ASKED\n\ntask-092 (the ladder design question),\
+    \ task-294 (fits one screen), task-212 and task-213 (move the count tiles off\
+    \ it) are now the first four in the `critical` band, in that order, with a note\
+    \ on each saying why. Commit d1907ca on `main`.\n\ntask-092 is the one to read\
+    \ first: it asks exactly this question, was deferred on 2026-08-12 until the React\
+    \ port reached parity, and its ac-1 (\"whether the calm rungs coexist is decided\
+    \ and recorded, with the rejected alternative\") and ac-2 (\"whether 'nothing\
+    \ active' joins the ladder condition is decided\") are answered by the two rejections\
+    \ above. Its ac-3 -- narrow tweak or wider design pass -- is yours, and grouping\
+    \ the four is the shape of the answer I would argue for. I could not write that\
+    \ onto task-092 itself: a run's API and MCP writes are scoped to its own task\
+    \ (task-332), so the decision entry lives here and the queue note on task-092\
+    \ points at it.\n\nNOT DONE\n\nNothing in the spec is outstanding.\n"
+  data:
+    operation:
+      id: 7c2a1f80-3d5e-4a1b-9f62-1c4a8d0e5b31
+      kind: log_append
+      fingerprint: d87c63cc8e2e73a1aee07596a916d72f
+- id: 8
+  ts: '2026-09-05T20:28:58.276050Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, tags.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - tags
+    operation:
+      id: b41d9e22-77a4-4c58-8e70-2f9a6c31d8aa
+      kind: update_content
+      fingerprint: 938bc0557b3d7d3c75968609754d17af
+- id: 9
+  ts: '2026-09-05T20:29:31.369196Z'
+  actor: claude
+  type: handoff
+  body: "Ready for review, and there is a sandbox to drive rather than a diff to read.\n\
+    \nBRANCH `feat/task-337-dashboard-next-action`, worktree `../worktrees/agentjobs-337`,\
+    \ commits 4b56311 and d2734d8, rebased on `main`. Full `scripts/check.py` green,\
+    \ ten of ten stages, receipt for 067a4a65.\n\nDRIVE IT: http://127.0.0.1:8903/app/p/sandbox-reported\n\
+    \nFour projects on that server, switchable from the picker. Everything is throwaway\
+    \ -- its own AGENTJOBS_HOME under a temp directory, and the runner is a script\
+    \ that sleeps 45s and exits -- so press anything, including Dispatch. Your 8876\
+    \ dashboard is not involved.\n\n  sandbox-reported     what you reported, after.\
+    \ \"Next up\" with three tasks and a Dispatch button on each. Press one and watch\
+    \ the sentence above the list change from \"Nothing is running on this machine\"\
+    \ to \"An agent is already working\", the claimed task leave the list, and the\
+    \ next one fill in behind it.\n  sandbox-drafts-only  the backlog panel still\
+    \ renders when there is nothing claimable to offer instead -- five drafts and\
+    \ \"View all 7 drafts\".\n  sandbox-blocked      a task actually stopped on you.\
+    \ The alarm still wins outright; that rung did not move.\n  sandbox-no-dispatch\
+    \  dispatch off for the project. Tasks still listed, one line at the foot saying\
+    \ why, link to the settings.\n\nStop it with: Stop-Process -Id 3370864 -Force\
+    \   (or tell me and I will).\n\nWHAT I WANT YOU TO LOOK AT\n\n1. The panel is\
+    \ now three rows plus a sentence where it used to be one row. task-294 says the\
+    \ Dashboard fits one screen. On a 1380x868 window it fits; on your phone I have\
+    \ not measured it. If it is too tall, the cheap fix is two tasks rather than three\
+    \ -- one constant.\n2. \"An agent is already working. These are next in line.\"\
+    \ -- is that the right thing to say when the machine is busy, or would you rather\
+    \ the panel got quieter, or said how long?\n3. The Dispatch button here is one\
+    \ click with no group, posture or brief. That is deliberate (choosing happens\
+    \ on the task page) but it is the decision most worth arguing with.\n\nGROUPING,\
+    \ AS ASKED: task-092, task-294, task-212, task-213 are now the first four in the\
+    \ critical band, in that order, commit d1907ca on `main`. task-092 is the design\
+    \ task that asks exactly this question and was deferred until the React port reached\
+    \ parity. Its ac-1 and ac-2 are answered by what shipped here (the rejected alternatives\
+    \ are in the progress entry above); its ac-3 -- narrow tweak or wider design pass\
+    \ -- is yours. I could not write onto task-092 itself, because a run's API and\
+    \ MCP writes are scoped to its own task (task-332).\n\nTWO THINGS TO KNOW BEFORE\
+    \ YOU APPROVE\n\n- I committed six task records another agent had staged in the\
+    \ shared clone (task-126, 247, 253, 272, 273, 311) into d1907ca's first attempt.\
+    \ Repaired: `git reset --soft HEAD~1`, then recommitted naming only my four paths.\
+    \ Their six are staged again exactly as I found them, nothing was lost, and `main`\
+    \ now carries only my commit. Worth knowing in case a peer session reports its\
+    \ index looking odd.\n- The classifier parked this run twice on read-only commands\
+    \ (`agentjobs queue list`, then a `curl` of the queue endpoint). You saw the second\
+    \ and approved it. Both were reads. If you want that filed as a dispatch finding,\
+    \ say so and I will."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: e5f30c19-6b8d-4d77-a2c1-9b0741e3f6c4
+      kind: handoff
+      fingerprint: ee9f19ed72e6ad11295f641f616a9f24
