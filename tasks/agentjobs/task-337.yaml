@@ -2,51 +2,35 @@ schema: 2
 id: task-337
 title: Dashboard must provide next best action for human
 created: '2026-09-05T19:17:08.214513Z'
-updated: '2026-09-05T20:30:50.443805Z'
+updated: '2026-09-05T21:03:33.424039Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: "Ready for review, and there is a sandbox to drive rather than a diff\
-  \ to read.\n\nBRANCH `feat/task-337-dashboard-next-action`, worktree `../worktrees/agentjobs-337`,\
-  \ commits 4b56311 and d2734d8, rebased on `main`. Full `scripts/check.py` green,\
-  \ ten of ten stages, receipt for 067a4a65.\n\nDRIVE IT: http://127.0.0.1:8903/app/p/sandbox-reported\n\
-  \nFour projects on that server, switchable from the picker. Everything is throwaway\
-  \ -- its own AGENTJOBS_HOME under a temp directory, and the runner is a script that\
-  \ sleeps 45s and exits -- so press anything, including Dispatch. Your 8876 dashboard\
-  \ is not involved.\n\n  sandbox-reported     what you reported, after. \"Next up\"\
-  \ with three tasks and a Dispatch button on each. Press one and watch the sentence\
-  \ above the list change from \"Nothing is running on this machine\" to \"An agent\
-  \ is already working\", the claimed task leave the list, and the next one fill in\
-  \ behind it.\n  sandbox-drafts-only  the backlog panel still renders when there\
-  \ is nothing claimable to offer instead -- five drafts and \"View all 7 drafts\"\
-  .\n  sandbox-blocked      a task actually stopped on you. The alarm still wins outright;\
-  \ that rung did not move.\n  sandbox-no-dispatch  dispatch off for the project.\
-  \ Tasks still listed, one line at the foot saying why, link to the settings.\n\n\
-  Stop it with: Stop-Process -Id 3370864 -Force   (or tell me and I will).\n\nWHAT\
-  \ I WANT YOU TO LOOK AT\n\n1. The panel is now three rows plus a sentence where\
-  \ it used to be one row. task-294 says the Dashboard fits one screen. On a 1380x868\
-  \ window it fits; on your phone I have not measured it. If it is too tall, the cheap\
-  \ fix is two tasks rather than three -- one constant.\n2. \"An agent is already\
-  \ working. These are next in line.\" -- is that the right thing to say when the\
-  \ machine is busy, or would you rather the panel got quieter, or said how long?\n\
-  3. The Dispatch button here is one click with no group, posture or brief. That is\
-  \ deliberate (choosing happens on the task page) but it is the decision most worth\
-  \ arguing with.\n\nGROUPING, AS ASKED: task-092, task-294, task-212, task-213 are\
-  \ now the first four in the critical band, in that order, commit d1907ca on `main`.\
-  \ task-092 is the design task that asks exactly this question and was deferred until\
-  \ the React port reached parity. Its ac-1 and ac-2 are answered by what shipped\
-  \ here (the rejected alternatives are in the progress entry above); its ac-3 --\
-  \ narrow tweak or wider design pass -- is yours. I could not write onto task-092\
-  \ itself, because a run's API and MCP writes are scoped to its own task (task-332).\n\
-  \nTWO THINGS TO KNOW BEFORE YOU APPROVE\n\n- I committed six task records another\
-  \ agent had staged in the shared clone (task-126, 247, 253, 272, 273, 311) into\
-  \ d1907ca's first attempt. Repaired: `git reset --soft HEAD~1`, then recommitted\
-  \ naming only my four paths. Their six are staged again exactly as I found them,\
-  \ nothing was lost, and `main` now carries only my commit. Worth knowing in case\
-  \ a peer session reports its index looking odd.\n- The classifier parked this run\
-  \ twice on read-only commands (`agentjobs queue list`, then a `curl` of the queue\
-  \ endpoint). You saw the second and approved it. Both were reads. If you want that\
-  \ filed as a dispatch finding, say so and I will."
+ball_prompt: "Fixed, and ready to look at again on the same sandbox.\n\nDRIVE IT:\
+  \ http://127.0.0.1:8903/app/p/sandbox-reported -- hard-refresh, the bundle changed.\
+  \ \"Why this one first?\" is now inside the first card, under a hairline, with no\
+  \ border or background of its own. Open it: it stays in that card and explains that\
+  \ task. It is not repeated on the second or third, because the endpoint only has\
+  \ an answer for the winner.\n\nI also renamed it from \"Why this one?\" to \"Why\
+  \ this one first?\" -- what it explains is the ordering, and the panel now shows\
+  \ three. Say so if you would rather keep the old string.\n\nBRANCH feat/task-337-dashboard-next-action\
+  \ at 948f06b, rebased onto main.\n\nONE THING BLOCKS THE MERGE, AND IT IS NOT THIS\
+  \ BRANCH.\n\nThe rebase brought in task-339 (created 20:49, commit b13d727), whose\
+  \ spec.context carries an absolute path:\n\n    tasks/agentjobs/task-339.yaml:155\n\
+  \      - path: C:/Users/jpose/.agentjobs/runs/run_f401cd88/phases.jsonl\n\ntests/test_validate.py::TestRealCorpus\
+  \ reads this repository's own records, so that one line turns the gate red for every\
+  \ branch here, mine included. The file is outside the repository and cannot be made\
+  \ repository-relative, so it probably belongs in the description -- which already\
+  \ quotes it -- rather than in context. I have not touched it: it is not my task\
+  \ and a run's writes are scoped to its own (task-332). Fix it, or tell me to, and\
+  \ I will re-run the unqualified gate and hand back a receipt.\n\nEverything else\
+  \ is measured green: pytest with only that one test deselected is 3972 passed /\
+  \ 1 skipped, and `--from vitest` is green across vitest, build and e2e. A second\
+  \ failure in the full run, test_mcp_protocol's identity test, passes alone -- flaky\
+  \ under xdist, not chased.\n\nThe three questions from the last handoff are still\
+  \ open and still worth your answer: panel height on a phone, the wording of the\
+  \ busy-machine sentence, and whether one-click-with-no-choices is the right Dispatch\
+  \ here."
 archived: false
 priority: medium
 queue_position: 8800
@@ -493,3 +477,155 @@ log:
     outcome: completed
     duration_seconds: 4394.697428
     log_path: C:\Users\jpose\.agentjobs\runs\run_d7f1af48
+- id: 12
+  ts: '2026-09-05T20:39:43.190717Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by Jeff Posey:
+
+
+    Why this one? seems wrong, its a standalone card, not part of an individual next
+    up card'
+  data:
+    ball: agent
+    ball_reason: revise
+  attachments:
+  - path: attachments/task-337/729789b38732eaa0fb6cf156780d24c74596c69921ad43f0c716b0804d8031ab.png
+    media_type: image/png
+    sha256: 729789b38732eaa0fb6cf156780d24c74596c69921ad43f0c716b0804d8031ab
+    size_bytes: 54807
+    label: image.png
+- id: 13
+  ts: '2026-09-05T20:39:49.293970Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 14
+  ts: '2026-09-05T20:39:51.882111Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_d7f1af48` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_e1e2bfde
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 13
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_e1e2bfde\session-settings.json
+    - --name
+    - agentjobs/task-337@e1e2bfde
+    - --resume
+    - 5e207dd0-fc70-4828-ac22-850e32711b84
+    cwd: C:\projects\agentjobs
+    git_head: ad12571
+    session_id: f69ddae6
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 15
+  ts: '2026-09-05T21:03:19.167865Z'
+  actor: claude
+  type: progress
+  body: "Fixed the \"Why this one?\" placement Jeff reported, on commit 948f06b (rebased\
+    \ onto `main`).\n\nTHE DEFECT\n\nHe is right, and the cause is two things at once.\
+    \ `NextExplanation` carried `rounded-lg border border-dark-border bg-dark-bg/40\
+    \ p-3` -- its own card, the same shape and colour as a task row -- and the panel\
+    \ rendered it after the whole `<ul>`. While the panel offered one task that placement\
+    \ still read as \"about that task\". Offering three, it became a fourth standalone\
+    \ card about nothing in particular.\n\nTHE FIX\n\n- The disclosure now renders\
+    \ **inside the first row's card**, under a `border-t` hairline, so the frame it\
+    \ sits in is the task it explains.\n- Its own card chrome is gone. The row provides\
+    \ the frame; the disclosure provides the sentence.\n- It is not repeated per row.\
+    \ The endpoint explains the winner and has no answer to give for the second.\n\
+    - The label follows the placement: \"Why this one first?\" rather than \"Why this\
+    \ one?\". What it explains is the ordering, and the panel now shows three. Say\
+    \ the word if you would rather keep the old string; it is one line in `NextExplanation.tsx`\
+    \ and two in its test.\n\nVERIFIED\n\n- Looked at in Chrome against the sandbox\
+    \ on :8903, closed and open. Expanded, it stays inside `task-002`'s card and correctly\
+    \ names `task-001` as the one it was passed over for.\n- `Dashboard.test.tsx`'s\
+    \ placement test was the weak kind -- it only asserted the text was visible somewhere,\
+    \ which would have passed throughout the defect. It now renders three tasks and\
+    \ asserts the disclosure is inside `rows[0]` and appears exactly once.\n- `NextExplanation.test.tsx`\
+    \ follows the label.\n- Full unqualified `scripts/check.py` green before the rebase\
+    \ (gate4, ten of ten, 381s).\n\nGATE AFTER THE REBASE: ONE FAILURE, AND IT IS\
+    \ NOT THIS BRANCH\n\n`tests/test_validate.py::TestRealCorpus::test_the_tolerated_drift_is_only_taxonomy_and_serialization`\
+    \ fails on an `absolute-path` finding that came in with `main`:\n\n    tasks/agentjobs/task-339.yaml:155\n\
+    \      - path: C:/Users/jpose/.agentjobs/runs/run_f401cd88/phases.jsonl\n\n`spec.context[].path`\
+    \ is meant to be repository-relative. task-339 was created at 20:49 today (commit\
+    \ b13d727) and that file is outside the repository, so it cannot be expressed\
+    \ relative to it -- the path probably belongs in the description, which already\
+    \ quotes it, rather than in `context`. **This turns the gate red for every branch\
+    \ in this repository, not just mine.** I have not touched it: it is not my task,\
+    \ and a run's writes are scoped to its own (task-332).\n\nEverything else is green,\
+    \ measured rather than argued:\n\n- `pytest -n auto` with only that one test deselected:\
+    \ **3972 passed, 1 skipped**, 229s.\n- `scripts/check.py --from vitest`: vitest,\
+    \ build and e2e all green, 43 e2e tests. (A PARTIAL RUN, and not the gate's green\
+    \ -- stated as such.)\n- `tests/test_mcp_protocol.py::TestPackagedProtocol::test_initialize_reports_the_accepted_identity`\
+    \ also failed in the full run and **passes alone**. Flaky under xdist load; noted,\
+    \ not chased.\n\nSo the branch needs one unqualified green gate before it merges,\
+    \ and the thing standing between it and that is one line of task-339.\n"
+  data:
+    operation:
+      id: c8e41d55-9a62-4b3f-b7d0-6e2f18a4c093
+      kind: log_append
+      fingerprint: 0ca90eba882ce0aab7621332e686d28e
+- id: 16
+  ts: '2026-09-05T21:03:33.423795Z'
+  actor: claude
+  type: handoff
+  body: "Fixed, and ready to look at again on the same sandbox.\n\nDRIVE IT: http://127.0.0.1:8903/app/p/sandbox-reported\
+    \ -- hard-refresh, the bundle changed. \"Why this one first?\" is now inside the\
+    \ first card, under a hairline, with no border or background of its own. Open\
+    \ it: it stays in that card and explains that task. It is not repeated on the\
+    \ second or third, because the endpoint only has an answer for the winner.\n\n\
+    I also renamed it from \"Why this one?\" to \"Why this one first?\" -- what it\
+    \ explains is the ordering, and the panel now shows three. Say so if you would\
+    \ rather keep the old string.\n\nBRANCH feat/task-337-dashboard-next-action at\
+    \ 948f06b, rebased onto main.\n\nONE THING BLOCKS THE MERGE, AND IT IS NOT THIS\
+    \ BRANCH.\n\nThe rebase brought in task-339 (created 20:49, commit b13d727), whose\
+    \ spec.context carries an absolute path:\n\n    tasks/agentjobs/task-339.yaml:155\n\
+    \      - path: C:/Users/jpose/.agentjobs/runs/run_f401cd88/phases.jsonl\n\ntests/test_validate.py::TestRealCorpus\
+    \ reads this repository's own records, so that one line turns the gate red for\
+    \ every branch here, mine included. The file is outside the repository and cannot\
+    \ be made repository-relative, so it probably belongs in the description -- which\
+    \ already quotes it -- rather than in context. I have not touched it: it is not\
+    \ my task and a run's writes are scoped to its own (task-332). Fix it, or tell\
+    \ me to, and I will re-run the unqualified gate and hand back a receipt.\n\nEverything\
+    \ else is measured green: pytest with only that one test deselected is 3972 passed\
+    \ / 1 skipped, and `--from vitest` is green across vitest, build and e2e. A second\
+    \ failure in the full run, test_mcp_protocol's identity test, passes alone --\
+    \ flaky under xdist, not chased.\n\nThe three questions from the last handoff\
+    \ are still open and still worth your answer: panel height on a phone, the wording\
+    \ of the busy-machine sentence, and whether one-click-with-no-choices is the right\
+    \ Dispatch here."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: f3d70a18-42c6-4e91-b5da-08c7e91d6b25
+      kind: handoff
+      fingerprint: a8fd3e2c02a7bb9ab0eaee84b4e9c197
