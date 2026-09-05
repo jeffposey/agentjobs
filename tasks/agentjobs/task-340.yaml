@@ -1,0 +1,219 @@
+schema: 2
+id: task-340
+title: A scripted finish that stops at the gate must start the session that repairs
+  it, not wait for a Dispatch click
+created: '2026-09-05T21:33:27.249588Z'
+updated: '2026-09-05T21:33:52.299742Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 67
+category: dispatch
+tags:
+- finish
+- dispatch
+- process
+assignment:
+  eligible: []
+spec:
+  summary: When an approved task's scripted finish goes red at the gate, the finish
+    hands the ball to agent/work and dispatches nobody, because dispatch_after_escalation
+    is gated on auto_dispatch, which is off here. The task then sits until Jeff notices
+    and clicks Dispatch or runs the CLI by hand, with no notification and the failing
+    test buried in a wall of pytest output. Make the escalation spend the approval's
+    authorisation on a run, and make the escalation prompt lead with what failed.
+  intent: A human approval is the one human act the merge needs. After it, no step
+    of getting the code onto main should wait on a second human act unless a judgement
+    is genuinely required. A red gate is work for an agent, not for Jeff.
+  description: "**The incident (task-337, 2026-09-05).** Jeff approved task-337. The\
+    \ scripted finish (fin_835695c3) rebased feat/task-337-dashboard-next-action onto\
+    \ main and ran the gate; pytest failed on one test, `tests/test_validate.py::TestRealCorpus::test_the_tolerated_drift_is_only_taxonomy_and_serialization`,\
+    \ because task-339.yaml on main at that moment carried an absolute path. The fix\
+    \ for task-339's record (5051c15) landed on main after the finish had rebased,\
+    \ so the worktree still had the broken copy. The branch's own code was fine; today's\
+    \ main passes the test.\n\nThe finish did what it is coded to do: it wrote the\
+    \ escalation (e955c4e), handed the ball to `agent`/`work` with a prompt addressed\
+    \ to \"the session that may be resumed\", released the lock and the runway, and\
+    \ called `dispatch_after_escalation`. That function returns None without dispatching\
+    \ when the project's `auto_dispatch` is false, which it is for agentjobs (`~/.agentjobs/dispatch.yaml`,\
+    \ `projects.agentjobs.auto_dispatch: false`). Its docstring and docs/agent-dispatch-design.md\
+    \ (\"When it escalates, it spends exactly the authorisation the approval already\
+    \ carried\") both describe the fallback as \"the human's existing Dispatch click\
+    \ resumes the session\". Nothing notified Jeff. The last run for the task had\
+    \ finished at 21:03 UTC and no new one existed. The task sat at agent/work with\
+    \ no agent for the rest of the evening, and Jeff's question was \"is task-337\
+    \ stuck?\".\n\nJeff's ruling, 2026-09-05: the fix is the process, not running\
+    \ `agentjobs finish` by hand. A finish that encounters a test failure should not\
+    \ wait for him to run CLI commands.\n\n**What to change.**\n\n1. **Decouple the\
+    \ post-escalation dispatch from `auto_dispatch`.** `auto_dispatch` answers \"\
+    may an approval start a run with no second click\". The escalation case is different:\
+    \ the approval already started machinery (the finish, gated by `finish.enabled`),\
+    \ and the run being asked for is that same act continuing after the machinery\
+    \ could not finish it. Gate `dispatch_after_escalation` on `finish.enabled` (the\
+    \ switch that let the approval start a finish in the first place), not on `auto_dispatch`.\
+    \ Keep `assert_dispatch_permitted`, the machine ceiling, the per-task run bound,\
+    \ and the `caused_by` attribution to the human's approval entry exactly as they\
+    \ are; this widens one gate, not the safety argument. Decide whether it deserves\
+    \ its own `finish.dispatch_on_escalation` knob defaulting to true, or simply follows\
+    \ `finish.enabled`; record the decision with the rejected alternative.\n\n2. **The\
+    \ dispatched run must be able to do the job.** It resumes (or replaces) the session\
+    \ that worked the task, in the task's existing worktree, with a prompt that names\
+    \ the failing step. Check what `dispatch_task` does with a task at agent/work\
+    \ that has a prior run: the docs say a second dispatch may resume the session\
+    \ that worked the task; confirm that path is what an escalation reaches and that\
+    \ the prompt it receives is the escalation's, not a fresh \"work task-NNN\". The\
+    \ run's own success path is unchanged: fix, gate green, rebase, hand off for review.\
+    \ A human approves again, the finish runs again. Every cycle costs a human approval,\
+    \ so this cannot loop unattended.\n\n3. **Lead the escalation with the cause.**\
+    \ The `ball_prompt` and the progress entry currently embed the gate's last lines,\
+    \ which for a pytest failure is two hundred lines of DeprecationWarnings before\
+    \ the `FAILED` line. Put the dispositive lines first: the stage, and for pytest\
+    \ the `FAILED ...` short-summary lines and the assertion; then the pointer to\
+    \ gate.log; then the raw tail if at all. A person reading the dashboard must see\
+    \ *which test* in the first screen. The gate log path is machine-local and absolute;\
+    \ it should not be in `spec.context` or `deliverables` (that is exactly the drift\
+    \ the corpus test rejects) but is fine in a log body.\n\n4. **If the escalation\
+    \ does not dispatch, say so to a human.** Whenever `dispatch_after_escalation`\
+    \ returns None (dispatch disabled, ceiling reached, no human entry, dispatch error),\
+    \ the ball must not sit at `agent`/`work` with no agent. Hand off to `human`/`decision`\
+    \ instead, with a prompt naming why no run started and what the click or command\
+    \ is. An open task names who acts next, and \"agent\" with no agent is a lie the\
+    \ schema cannot catch.\n\n**Verification.** A test in tests/test_dispatch_finish.py\
+    \ where a gate goes red on a project with `finish.enabled` and `auto_dispatch:\
+    \ false` and asserts a run was dispatched with `caused_by` the approval entry;\
+    \ one where dispatch is impossible and asserts the ball lands on `human`, not\
+    \ `agent`; one asserting the escalation prompt's first lines name the failing\
+    \ stage and test. Then the real thing: approve a throwaway task whose branch fails\
+    \ one test on this machine and watch the run start without a click. Update docs/agent-dispatch-design.md\
+    \ \xA75a and the sentence at \"When it escalates, it spends exactly the authorisation\"\
+    \ to match, and ENGINEERING.md's \"Steps 3 to 6 may already have happened\" paragraph\
+    \ if it changes what a woken agent should expect."
+  constraints: Do not widen `auto_dispatch` itself, and do not let an escalation dispatch
+    on a project with `finish.enabled` off. Push stays off. The per-task retry bound
+    and the machine's max_concurrent_runs still apply to the escalation's run. Task
+    records stay on main.
+  out_of_scope: Retrying the gate without an agent when main has moved since the rebase
+    (the no-token fix for this exact incident) is a separate decision; see the question
+    on this task's log. Unsticking task-337 itself is not this task.
+  context:
+  - path: src/agentjobs/dispatch/finish.py
+    why: escalate_on_record writes the handoff; dispatch_after_escalation is the auto_dispatch-gated
+      call at the end of the escalation branch of the orchestrator.
+  - path: src/agentjobs/dispatch/config.py
+    why: FinishSettings and ProjectDispatchSettings.auto_dispatch; where a new knob
+      would live.
+  - path: docs/agent-dispatch-design.md
+    why: section 5a and the paragraph on what an escalation spends; both state the
+      current auto_dispatch fallback and need to change with the code.
+  - path: tests/test_dispatch_finish.py
+    why: existing escalation tests to extend.
+  - path: tasks/agentjobs/task-337.yaml
+    why: 'the incident record: the escalation entry and ball_prompt as written today.'
+acceptance:
+- id: ac-1
+  text: On a project with finish.enabled and auto_dispatch false, a finish that stops
+    at any step dispatches a run attributed to the human's approval entry, with no
+    further human act.
+  status: pending
+- id: ac-2
+  text: When no run can be started, the task lands on human with a prompt saying why,
+    never on agent/work with no run.
+  status: pending
+- id: ac-3
+  text: The escalation's ball_prompt and progress entry name the stopping stage and,
+    for a red pytest, the FAILED test(s) in their first lines.
+  status: pending
+- id: ac-4
+  text: docs/agent-dispatch-design.md and any process prose describing the auto_dispatch
+    fallback are updated in the same branch.
+  status: pending
+- id: ac-5
+  text: 'Exercised for real once: an approved throwaway task with a red gate starts
+    its repair run without a click, and the record shows the run id on the finish
+    entry.'
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-05T21:33:27.922282Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7a2e9c41-3f5b-4d8a-b6c2-91e0d7f4a5b3
+      kind: create
+      fingerprint: cb597278de508b73ea12cad04547af5e
+- id: 2
+  ts: '2026-09-05T21:33:42.925040Z'
+  actor: claude
+  type: queue_move
+  body: 'Jeff''s ruling on 2026-09-05: the process failure that left task-337 parked
+    with no agent is fixed by fixing the finish, not by running it by hand. Every
+    approved task on this machine can hit the same gap, so it goes ahead of feature
+    work.'
+  data:
+    band: high
+    from: 14900
+    to: 67
+    placement:
+      kind: top
+    warnings:
+    - kind: demoted_blocker
+      message: This pushed task-141-embed-launcher-and-project-link (4 open tasks
+        need it), task-138-embed-distribution-decision (3 open tasks need it), task-140-embed-server-surface
+        (3 open tasks need it), and 17 more down the 'high' band. Other open work
+        is waiting on them.
+      tasks:
+      - task-141-embed-launcher-and-project-link
+      - task-138-embed-distribution-decision
+      - task-140-embed-server-surface
+      - task-168-menu-shell
+      - task-139-reporter-host-agnostic-core
+      - task-144-embed-security-posture
+      - task-149-check-trigger
+      - task-161-project-level-dispatch
+      - task-171-voice-input-decision
+      - task-237
+      - task-126-mcp-in-process-manager
+      - task-143-report-and-dispatch-from-host
+      - task-147-acceptance-check-schema
+      - task-148-check-evaluator
+      - task-172-dictation-control
+      - task-174-model-access-decision
+      - task-236
+      - task-238
+      - task-239
+      - task-273
+    undo:
+      kind: after
+      target: task-335
+    operation:
+      id: c3d4e5f6-1a2b-4c3d-8e4f-5a6b7c8d9e01
+      kind: queue_move
+      fingerprint: 691a4a4665064fb3fe05bb3a2dab822e
+- id: 3
+  ts: '2026-09-05T21:33:52.299591Z'
+  actor: claude
+  type: question
+  body: 'For Jeff: should the finish also retry without an agent before escalating,
+    when the gate went red and main has moved since the rebase? In the task-337 incident
+    the branch''s code was fine; the red test was a corpus check on a task record
+    that main had already fixed by the time the finish finished. A single bounded
+    re-rebase-and-rerun of the failed stage, on the same logic the existing catch_up
+    step uses (only when moved paths are classified by gate_scope), would have merged
+    task-337 with zero tokens. Cost: a genuinely red branch pays one extra gate, up
+    to ~4 minutes under load. It is deliberately out of scope for this task so the
+    dispatch change is not held on it; say yes and it becomes a follow-up task, say
+    no and the answer is recorded here.'
+  data:
+    operation:
+      id: 9b8c7d6e-5f4a-4b3c-9d2e-1f0a9b8c7d6e
+      kind: log_append
+      fingerprint: d1fc2caf1783caa29e9d07534914017c
