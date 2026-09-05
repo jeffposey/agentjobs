@@ -23,6 +23,7 @@ from fastapi.testclient import TestClient
 from agentjobs.api.dependencies import TASKS_DIR_ENV, reset_dependency_cache
 from agentjobs.api.main import app
 from agentjobs.api.routes.web import awaits_human_input, blocks_human
+from agentjobs.dashboard import QUEUE_PREVIEW_LIMIT
 from agentjobs.models_v2 import (
     Assignment,
     Ball,
@@ -229,14 +230,6 @@ class TestTheDashboardSeparatesTheTiers:
         assert BLOCKED_ON_HUMAN.id in panel
         assert PARKED_DRAFT.id not in panel
 
-    def test_the_backlog_panel_lists_the_parked_draft_when_nothing_blocks(self, client_for) -> None:
-        client, base = client_for([PARKED_DRAFT, CLAIMABLE])
-
-        panel = panel_region(client.get(f"{base}/").text)
-
-        assert BACKLOG_PANEL in panel
-        assert PARKED_DRAFT.id in panel
-
     def test_a_parked_draft_is_still_visible_with_no_alert(self, client_for) -> None:
         """Quieting the backlog must not hide it -- a rotting draft is the worse bug."""
         client, base = client_for([PARKED_DRAFT])
@@ -274,12 +267,12 @@ class TestTheLadderShowsOnePanel:
         "tasks, expected, expected_action",
         [
             ([BLOCKED_ON_HUMAN, PARKED_DRAFT, CLAIMABLE], ALERT_PANEL, "blocked"),
-            ([PARKED_DRAFT, CLAIMABLE], BACKLOG_PANEL, "backlog"),
-            ([CLAIMABLE], NEXT_UP_PANEL, "next_up"),
+            ([PARKED_DRAFT], BACKLOG_PANEL, "backlog"),
+            ([PARKED_DRAFT, CLAIMABLE], NEXT_UP_PANEL, "next_up"),
             ([FINISHED], NOTHING_CLAIMABLE_PANEL, "nothing_claimable"),
             ([], GETTING_STARTED_PANEL, "empty_project"),
         ],
-        ids=["blocked", "backlog", "next_up", "nothing_claimable", "empty_project"],
+        ids=["blocked", "backlog", "next_up_over_backlog", "nothing_claimable", "empty_project"],
     )
     def test_exactly_one_panel_renders(
         self, client_for, tasks, expected: str, expected_action: str
@@ -295,10 +288,17 @@ class TestTheLadderShowsOnePanel:
 
         assert panels_shown(client.get(f"{base}/").text) == {ALERT_PANEL}
 
-    def test_backlog_outranks_next_up(self, client_for) -> None:
+    def test_next_up_outranks_the_backlog(self, client_for) -> None:
+        """task-337, answering task-092: the two calm rungs swapped.
+
+        The panel that used to win here occupied the page's one call to action with a
+        table of every parked draft, under a subtitle admitting that nothing is blocked
+        by any of them. Starting work is the better answer whenever there is work that
+        can be started.
+        """
         client, base = client_for([PARKED_DRAFT, CLAIMABLE])
 
-        assert panels_shown(client.get(f"{base}/").text) == {BACKLOG_PANEL}
+        assert panels_shown(client.get(f"{base}/").text) == {NEXT_UP_PANEL}
 
 
 class TestNextUpAgreesWithTheManager:
@@ -321,14 +321,50 @@ class TestNextUpAgreesWithTheManager:
 
         panel = panel_region(client.get(f"{base}/").text)
 
-        assert higher.id in panel
-        assert lower.id not in panel
+        # Both appear -- the panel offers the head of the queue rather than one task
+        # (task-337) -- so the assertion is on the *order*, which is what "would hand
+        # out" means. `agentjobs work` takes the first, and so must this panel.
+        assert panel.index(higher.id) < panel.index(lower.id)
+        assert client.get("/api/projects/inbox/dashboard").json()["next_task"]["id"] == higher.id
+
+    def test_the_panel_offers_the_head_of_the_queue_and_stops(self, client_for) -> None:
+        """Three, not a task list. Beyond that the reader is scanning, not choosing."""
+        many = [
+            make_task(
+                f"task-91{index}-ready",
+                lifecycle=Lifecycle.READY,
+                ball=Ball.AGENT,
+                ball_reason=BallReason.AVAILABLE,
+            )
+            for index in range(5)
+        ]
+        client, _ = client_for(many)
+
+        body = client.get("/api/projects/inbox/dashboard").json()
+
+        assert len(body["queue_preview"]) == QUEUE_PREVIEW_LIMIT
+        assert body["next_task"]["id"] == body["queue_preview"][0]["id"]
 
 
 class TestTheBacklogStaysTraceableWhenSuppressed:
-    def test_the_tile_still_counts_the_backlog_while_an_alert_shows(self, client_for) -> None:
-        """The panel is hidden on busy days; without this the backlog would vanish."""
-        client, base = client_for([BLOCKED_ON_HUMAN, PARKED_DRAFT])
+    @pytest.mark.parametrize(
+        "tasks",
+        [
+            [BLOCKED_ON_HUMAN, PARKED_DRAFT],
+            [CLAIMABLE, PARKED_DRAFT],
+        ],
+        ids=["suppressed-by-the-alert", "suppressed-by-next-up"],
+    )
+    def test_the_tile_still_counts_the_backlog_while_another_panel_shows(
+        self, client_for, tasks
+    ) -> None:
+        """The panel is hidden on most days; without this the backlog would vanish.
+
+        Both suppressing rungs are exercised, because task-337 added the second one. A
+        project with ready work now never shows the backlog panel at all, so this link
+        is the whole of the trace rather than a fallback for busy days.
+        """
+        client, base = client_for(tasks)
 
         page = client.get(f"{base}/").text
 

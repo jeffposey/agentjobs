@@ -63,6 +63,7 @@ import {
 import { Playbooks, type PlaybookRunRequest } from "./components/Playbooks";
 import { AttentionBadge, useHumanAttention } from "./components/AttentionBadge";
 import { PrimaryNav } from "./components/PrimaryNav";
+import { QueueDispatch, QueueDispatchGate } from "./components/QueueDispatch";
 
 function ProjectRedirect() {
   const navigate = useNavigate();
@@ -98,6 +99,14 @@ function ProjectRedirect() {
 }
 
 function DashboardPage({ projectId }: { projectId: string }) {
+  const dispatch = useDashboardDispatch(projectId);
+  const liveRuns = useLiveRuns();
+  // Null until the machine-wide answer arrives. The next-up panel prints a different
+  // sentence for each of the three, and silence is the honest one while it does not
+  // know -- see `machineSentence`. Holders count: a scripted finish is this machine
+  // working even though it occupies no run slot.
+  const machineIdle =
+    liveRuns === null ? null : liveRuns.occupied === 0 && liveRuns.holders.length === 0;
   const dashboardQuery = useQuery({
     ...getDashboardApiProjectsProjectIdDashboardGetOptions({
       path: { project_id: projectId },
@@ -130,14 +139,99 @@ function DashboardPage({ projectId }: { projectId: string }) {
     return <ConnectionUnavailable offline={false} />;
   }
 
+  const identity = dashboardQuery.data.identity;
+
   return (
     <Dashboard
       dashboard={dashboardQuery.data}
       projectId={projectId}
+      machineIdle={machineIdle}
       renderWhyThisOne={() => <NextExplanation projectId={projectId} />}
       renderMachineCapacity={() => <DashboardMachineCapacity projectId={projectId} />}
+      renderQueueAction={(task) => (
+        <QueueDispatch
+          state={dispatch.state}
+          user={identity.ok ? identity.user : null}
+          identityDetail={identity.detail}
+          // The same expression the task page uses, against the same field the server
+          // checks. Drift between the two costs a link instead of a button, never a
+          // dispatch the server would refuse.
+          canBrief={Boolean(task.spec.description?.trim())}
+          taskHref={`/p/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.id)}`}
+          busy={dispatch.startingTaskId === task.id}
+          refusal={dispatch.refusal?.taskId === task.id ? dispatch.refusal.refusal : null}
+          onDispatch={() => void dispatch.start(task.id, identity.ok ? identity.user : null)}
+        />
+      )}
+      renderQueueGate={() => <QueueDispatchGate state={dispatch.state} projectId={projectId} />}
     />
   );
+}
+
+/**
+ * Starting a run from the Dashboard's next-up panel (task-337).
+ *
+ * Deliberately thinner than {@link useTaskDispatch}: no runs list and no poller. This
+ * panel offers a button and then gets out of the way -- what the run does next is the
+ * task page's subject, and the machine-wide capacity row below already says that
+ * something is running. Polling a per-task runs endpoint for each of three tasks would
+ * be three requests every two seconds to tell the reader something one request already
+ * tells them.
+ *
+ * The in-flight task id and the refusal are held per task rather than as one flag,
+ * because three buttons share this hook: a single `busy` would grey out all three, and a
+ * single refusal would print the first task's failure beside the third one's button.
+ */
+function useDashboardDispatch(projectId: string) {
+  const queryClient = useQueryClient();
+  const [startingTaskId, setStartingTaskId] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<{ taskId: string; refusal: DispatchRefusal } | null>(null);
+
+  // The same endpoint the task page, the playbooks page and the settings page read, so
+  // no two surfaces can disagree about whether this machine may dispatch.
+  const stateQuery = useQuery(
+    getDispatchStateApiProjectsProjectIdDispatchGetOptions({ path: { project_id: projectId } }),
+  );
+  const start = useMutation(
+    dispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostMutation(),
+  );
+
+  return {
+    state: stateQuery.data ?? null,
+    startingTaskId,
+    refusal,
+    start: async (taskId: string, user: string | null): Promise<void> => {
+      setRefusal(null);
+      setStartingTaskId(taskId);
+      try {
+        // `user` names who is clicking and the server writes their authorising entry
+        // before it starts anything -- the same one-click contract task-188 established
+        // for the task page. Nothing else is sent: a group, a posture or a brief is a
+        // choice, and choosing happens on the task's own page.
+        await start.mutateAsync({
+          path: { project_id: projectId, task_id: taskId },
+          body: { ...(user ? { user } : {}) },
+        });
+      } catch (error) {
+        const read = readRefusal(error);
+        setRefusal({
+          taskId,
+          refusal: read
+            ? { reason: read.code, message: read.message, suggestedAction: read.suggestedAction }
+            : {
+                reason: "unreachable",
+                message: "AgentJobs could not be reached to start a run.",
+              },
+        });
+      } finally {
+        setStartingTaskId(null);
+        // A dispatch claims the task, so the queue this panel is showing is stale the
+        // moment it returns -- including on a refusal, which may be a refusal precisely
+        // because something else claimed it first.
+        await queryClient.invalidateQueries();
+      }
+    },
+  };
 }
 
 /**

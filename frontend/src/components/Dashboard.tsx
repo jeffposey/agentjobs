@@ -15,6 +15,10 @@ type DashboardProps = {
    * It owns a query of its own, and this component is otherwise pure presentation
    * rendered straight from a response object in its tests. Same shape as the dispatch
    * panel's `renderOutput`, and for the same reason.
+   *
+   * Rendered **inside the first queued row**, once (task-337). The endpoint explains
+   * the winner, so the disclosure belongs to the winner's card rather than sitting
+   * after the list, where three tasks make it read as a card about nothing.
    */
   renderWhyThisOne?: () => React.ReactNode;
   /**
@@ -22,6 +26,30 @@ type DashboardProps = {
    * `renderWhyThisOne` is: it owns a query, and this component is pure presentation.
    */
   renderMachineCapacity?: () => React.ReactNode;
+  /**
+   * The Dispatch control for one queued task (task-337), supplied by the page.
+   *
+   * Same render-prop shape as the two above, and for the same reason: starting a run
+   * needs a mutation, the dispatch gates and a resolved human identity, none of which a
+   * component rendered straight from a response object in its tests can have. Omitted,
+   * the panel is exactly what it was before -- a list of links.
+   */
+  renderQueueAction?: (task: TaskRead) => React.ReactNode;
+  /**
+   * A closing note for the next-up panel: why the machine cannot dispatch, if it cannot.
+   *
+   * One line at the foot of the panel rather than a refusal repeated beside every row,
+   * because the gate is a property of the machine and the project, not of the task.
+   */
+  renderQueueGate?: () => React.ReactNode;
+  /**
+   * Whether this machine has nothing running. `null` while that is still being read.
+   *
+   * The next-up panel says a different sentence for each answer, and says none of them
+   * until it knows -- a line that flips from "nothing is running" to "something is"
+   * one poll after the page paints is worse than a line that arrives a moment late.
+   */
+  machineIdle?: boolean | null;
 };
 
 const priorityClasses: Record<string, string> = {
@@ -81,7 +109,37 @@ function CreateTaskLink({ projectId }: { projectId: string }) {
   );
 }
 
-function NextAction({ dashboard, projectId, renderWhyThisOne }: DashboardProps) {
+/**
+ * How many drafts the backlog panel lists before it stops and links to the rest.
+ *
+ * The panel used to print every one. On this project that was 31 rows of identical
+ * `spec`, under a sentence saying that nothing is blocked by any of them -- a filing
+ * cabinet where the page's one call to action belongs (task-337). It is now a sample
+ * with a count and a link, which is what the reader does with it anyway.
+ */
+const BACKLOG_PREVIEW = 5;
+
+/**
+ * What the next-up panel says about the machine, above the tasks it is offering.
+ *
+ * Three answers, and the third is silence. "Nothing is running" is the sentence that
+ * makes the panel a call to action rather than a listing, so it must not be printed
+ * while the runs query is still in flight and might be about to contradict it.
+ */
+function machineSentence(machineIdle: boolean | null | undefined): string | null {
+  if (machineIdle === true) return "Nothing is running on this machine. Starting one of these is the useful move.";
+  if (machineIdle === false) return "An agent is already working. These are next in line.";
+  return null;
+}
+
+function NextAction({
+  dashboard,
+  projectId,
+  renderWhyThisOne,
+  renderQueueAction,
+  renderQueueGate,
+  machineIdle,
+}: DashboardProps) {
   const base = projectPath(projectId);
 
   switch (dashboard.next_action) {
@@ -148,7 +206,7 @@ function NextAction({ dashboard, projectId, renderWhyThisOne }: DashboardProps) 
               </tr>
             </thead>
             <tbody>
-              {dashboard.backlog_tasks.map((task) => (
+              {dashboard.backlog_tasks.slice(0, BACKLOG_PREVIEW).map((task) => (
                 <ResponsiveTableRow key={task.id}>
                   <ResponsiveCell label="Task">
                     <Link to={`${base}/tasks/${encodeURIComponent(task.id)}`} className="touch-target font-mono text-xs text-blue-400">
@@ -161,28 +219,73 @@ function NextAction({ dashboard, projectId, renderWhyThisOne }: DashboardProps) 
               ))}
             </tbody>
           </ResponsiveTable>
+          {dashboard.backlog_tasks.length > BACKLOG_PREVIEW && (
+            <Link to={`${base}/tasks?status=draft`} className="touch-target mt-2 block text-center text-sm text-blue-400 hover:text-blue-300">
+              View all {dashboard.backlog_tasks.length} drafts →
+            </Link>
+          )}
         </section>
       );
     case "next_up": {
-      const task = dashboard.next_task;
-      if (!task) return null;
+      // `queue_preview` is the head of the queue and `next_task` is its first element,
+      // so the fallback is for one case only: a client reading a server that predates
+      // task-337. Preferring the list over the single task everywhere else means the
+      // panel and the why-this-one disclosure beside it cannot name different tasks.
+      const preview = dashboard.queue_preview?.length
+        ? dashboard.queue_preview
+        : dashboard.next_task
+          ? [dashboard.next_task]
+          : [];
+      if (preview.length === 0) return null;
+      const sentence = machineSentence(machineIdle);
       return (
         <section data-testid="next-action" className="rounded-lg border border-dark-border bg-dark-surface p-6">
-          <div className="mb-3 flex items-baseline justify-between gap-4">
+          <div className="mb-1 flex items-baseline justify-between gap-4">
             <h2 className="text-sm font-medium text-dark-text">Next up</h2>
             <Link to={`${base}/tasks?status=ready`} className="touch-target text-xs text-blue-400 hover:text-blue-300">All ready tasks →</Link>
           </div>
-          <Link to={`${base}/tasks/${encodeURIComponent(task.id)}`} className="block rounded-lg border border-dark-border bg-dark-bg p-4 transition hover:bg-dark-border">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <div className="font-mono text-xs text-blue-400">{task.id}</div>
-                <h3 className="font-medium text-dark-text">{task.title}</h3>
-                <p className="mt-1 text-sm text-dark-muted">{truncate(task.spec.summary, 160)}</p>
-              </div>
-              <Badge className="bg-dark-surface text-dark-muted">{task.priority}</Badge>
-            </div>
-          </Link>
-          {renderWhyThisOne?.()}
+          {sentence && <p className="mb-3 text-xs text-dark-muted">{sentence}</p>}
+          <ul className="space-y-2">
+            {preview.map((task, index) => (
+              <li
+                key={task.id}
+                data-testid="queue-preview-task"
+                data-task-id={task.id}
+                className="rounded-lg border border-dark-border bg-dark-bg"
+              >
+                <div className="flex flex-col gap-3 p-4 min-[820px]:flex-row min-[820px]:items-start min-[820px]:justify-between">
+                  {/*
+                    The row's action is a button, and a button inside an anchor is not
+                    valid HTML -- so the link wraps the text and the control sits beside
+                    it, rather than the whole row being one link as it was when the panel
+                    could only ever link.
+                  */}
+                  <Link to={`${base}/tasks/${encodeURIComponent(task.id)}`} className="min-w-0 flex-1 hover:text-blue-300">
+                    <div className="font-mono text-xs text-blue-400">{task.id}</div>
+                    <h3 className="font-medium text-dark-text">{task.title}</h3>
+                    <p className="mt-1 text-sm text-dark-muted">{truncate(task.spec.summary, 160)}</p>
+                  </Link>
+                  <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+                    <Badge className="bg-dark-surface text-dark-muted">{task.priority}</Badge>
+                    {renderQueueAction?.(task)}
+                  </div>
+                </div>
+                {/*
+                  The disclosure belongs to the *first* row, inside its card and under a
+                  hairline, because what it explains is why that task is first. While the
+                  panel offered one task it could sit at the foot and still be read that
+                  way; offering three, a box after the list reads as a fourth card about
+                  nothing in particular, which is what it looked like (Jeff, 2026-09-05).
+                  It is deliberately not repeated per row: the endpoint explains the
+                  winner, and there is no answer to give for the second.
+                */}
+                {index === 0 && renderWhyThisOne && (
+                  <div className="border-t border-dark-border px-4 py-2">{renderWhyThisOne()}</div>
+                )}
+              </li>
+            ))}
+          </ul>
+          {renderQueueGate?.()}
         </section>
       );
     }
@@ -243,6 +346,9 @@ export function Dashboard({
   projectId,
   renderWhyThisOne,
   renderMachineCapacity,
+  renderQueueAction,
+  renderQueueGate,
+  machineIdle,
 }: DashboardProps) {
   const statTiles = [
     ["Needs you", dashboard.stats.waiting_for_human, "text-orange-400"],
@@ -264,7 +370,14 @@ export function Dashboard({
           repairCommand={dashboard.queue_broken.repair_command}
         />
       )}
-      <NextAction dashboard={dashboard} projectId={projectId} renderWhyThisOne={renderWhyThisOne} />
+      <NextAction
+        dashboard={dashboard}
+        projectId={projectId}
+        renderWhyThisOne={renderWhyThisOne}
+        renderQueueAction={renderQueueAction}
+        renderQueueGate={renderQueueGate}
+        machineIdle={machineIdle}
+      />
       <section className="overflow-hidden rounded-lg border border-dark-border bg-dark-surface" aria-label="Task statistics">
         <dl className="grid grid-cols-5 divide-x divide-dark-border">
           {statTiles.map(([label, count, className]) => (

@@ -36,9 +36,23 @@ class DashboardSnapshot(TypedDict):
     waiting_tasks: List[Task]
     backlog_tasks: List[Task]
     next_task: Optional[Task]
+    queue_preview: List[Task]
     next_action: str
     broken_files: List[Dict[str, Any]]
     queue_broken: Optional[QueueBroken]
+
+
+QUEUE_PREVIEW_LIMIT = 3
+"""How many claimable tasks the "next up" panel offers.
+
+Three, because the panel's job is to make *starting work* a single gesture, and a machine
+whose ``max_concurrent_runs`` is greater than one can usefully start more than one. It is
+deliberately not a task list -- ``/tasks`` is that -- and a preview long enough to need
+scanning has become the thing this panel was introduced to replace (task-337).
+
+``next_task`` is its head, and stays in the contract: it is what ``agentjobs next``
+answers, what the why-this-one disclosure explains, and what several callers already read.
+"""
 
 
 def blocks_human(task: Task) -> bool:
@@ -107,26 +121,42 @@ def _next_action(
 ) -> str:
     """Choose the dashboard's single call to action; first match wins.
 
-    ``queue_broken`` sits below the two human rungs and above ``next_up``, because a
-    corrupt queue falsifies exactly one of these answers. "Two tasks are blocked on you"
-    is read off the ball and is still true; "this one is next" is read off an order that
-    does not exist, and the honest reply there is to say the queue is broken and print
-    the repair command. Without this rung a corrupt corpus reports "nothing claimable",
-    which is a lie of a particularly bad kind -- it looks like an empty backlog.
+    ``queue_broken`` sits below the alert rung and above ``next_up``, because a corrupt
+    queue falsifies exactly one of these answers. "Two tasks are blocked on you" is read
+    off the ball and is still true; "this one is next" is read off an order that does not
+    exist, and the honest reply there is to say the queue is broken and print the repair
+    command. Without this rung a corrupt corpus reports "nothing claimable", which is a
+    lie of a particularly bad kind -- it looks like an empty backlog.
 
     The broken-queue *banner* is not this decision. It renders above the panel whatever
     the panel says, the way unreadable task files already do: the ladder chooses one
     call to action, and corruption is a fact about the corpus rather than a call to
     action competing with the others.
+
+    **``backlog`` now sits below ``next_up``** (task-337, answering task-092). It used to
+    outrank it, so a project with drafts parked on a person answered "what do I do next"
+    with a table of every one of them -- 31 rows, each reading ``spec``, under a sentence
+    admitting that nothing is blocked by any of them. That is a filing cabinet, not a
+    call to action, and it appeared on precisely the days when nothing needed the reader
+    at all. Starting work is the better answer whenever there is work that can be
+    started, so the calm rungs swapped: ``next_up`` offers the head of the queue with a
+    way to dispatch it, and the backlog is what the page says when there is nothing
+    claimable to offer instead.
+
+    The alert rung is untouched and still strict -- an alarm must never compete with a
+    nudge, which is what task-081 fixed. What changed is the order of the two calm rungs,
+    neither of which is an alarm. The backlog stays traceable either way through the
+    unconditional "+N in backlog" link on the statistics card, which is the same trace
+    that has always covered it on the days an alert suppressed it.
     """
     if blocking:
         return "blocked"
-    if backlog:
-        return "backlog"
     if queue_broken:
         return "queue_broken"
     if next_task is not None:
         return "next_up"
+    if backlog:
+        return "backlog"
     return "empty_project" if total == 0 else "nothing_claimable"
 
 
@@ -143,13 +173,18 @@ def build_dashboard_snapshot(manager: TaskManager) -> DashboardSnapshot:
     # order keeps rendering.
     queue_broken: Optional[QueueBroken] = None
     try:
-        next_task = manager.get_next_task()
+        # The whole claimable frontier rather than its head, and one call rather than
+        # two: `get_next_task` *is* `claimable_tasks()[0]`, so asking for both would run
+        # the same scan twice and -- worse -- give the panel and the disclosure beside it
+        # two chances to disagree about what is first.
+        queue_preview = manager.claimable_tasks()[:QUEUE_PREVIEW_LIMIT]
     except QueueCorruptionError as error:
-        next_task = None
+        queue_preview = []
         queue_broken = {
             "problems": problem_dicts(error.problems),
             "repair_command": REPAIR_COMMAND,
         }
+    next_task = queue_preview[0] if queue_preview else None
     stats = {
         "total": len(tasks),
         "in_progress": sum(
@@ -167,6 +202,7 @@ def build_dashboard_snapshot(manager: TaskManager) -> DashboardSnapshot:
         "waiting_tasks": waiting_tasks,
         "backlog_tasks": backlog_tasks,
         "next_task": next_task,
+        "queue_preview": queue_preview,
         "next_action": _next_action(
             blocking=waiting_tasks,
             backlog=backlog_tasks,

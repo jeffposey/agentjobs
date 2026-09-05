@@ -60,8 +60,10 @@ function dashboard(overrides: Partial<DashboardResponse> = {}): DashboardRespons
     waiting_tasks: [],
     backlog_tasks: [],
     next_task: null,
+    queue_preview: [],
     next_action: "nothing_claimable",
     broken_files: [],
+    identity: { ok: true, user: "jeff", problem: null, detail: "Acting as jeff." },
     ...overrides,
   };
 }

@@ -1,9 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * The loop the dashboard already promises: a human writes a draft, the drafts panel
- * says it needs a decision before it becomes work, and this is where that decision
- * gets made. Run against the real server, so one assertion covers the endpoint, the
+ * The loop the dashboard already promises: a human writes a draft, the dashboard's
+ * backlog count leads to it, and this is where the decision that makes it work gets
+ * made. Run against the real server, so one assertion covers the endpoint, the
  * generated client and the rendered page together.
  */
 
@@ -39,14 +39,15 @@ async function openTask(page: Page, title: string) {
 test("walks the whole drafts loop: create, find through the dashboard, promote", async ({ page }) => {
   await createTask(page, "Draft to promote", "Draft");
 
-  // Find it the way the dashboard invites: the drafts panel that says these need a
-  // decision before they become work.
+  // Find it the way the dashboard invites. Not the drafts *panel*: since task-337 that
+  // renders only when there is nothing claimable to offer instead, and this directory
+  // shares one project across every spec -- so whether it is on screen depends on what
+  // ran before. The "+N in backlog" link on the statistics card is unconditional, which
+  // is precisely why it is the trace the ladder relies on, so this walks that instead.
   await page.goto("/app/");
-  const backlog = page.getByRole("table", { name: "Backlog awaiting your input" });
-  await expect(backlog).toContainText("Draft to promote");
-  // The drafts table links the task id and prints the title in a plain cell, so the
-  // row is what identifies the draft to a reader and the link inside it is the way in.
-  await backlog.getByRole("row", { name: /Draft to promote/ }).getByRole("link").click();
+  await page.getByRole("link", { name: /in backlog$/ }).click();
+  await expect(page).toHaveURL(/\/tasks\?status=draft$/);
+  await page.getByRole("link", { name: /Draft to promote/ }).click();
 
   const panel = page.getByRole("region", { name: "Draft actions" });
   await expect(panel).toBeVisible();

@@ -104,6 +104,11 @@ export const getDashboardApiDashboardGetQueryKey = (options?: Options<GetDashboa
  * Get Dashboard
  *
  * Return the dashboard projection, including its single next action.
+ *
+ * ``identity`` rides along for the same reason it rides along on the task detail and
+ * the playbook listing: the next-up panel offers a Dispatch button, a run has to be
+ * attributed to a real person, and a button that cannot name one must be disabled with
+ * the reason rather than pressable into a refusal.
  */
 export const getDashboardApiDashboardGetOptions = (options?: Options<GetDashboardApiDashboardGetData>) => queryOptions<GetDashboardApiDashboardGetResponse, DefaultError, GetDashboardApiDashboardGetResponse, ReturnType<typeof getDashboardApiDashboardGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -578,6 +583,11 @@ export const getDashboardApiProjectsProjectIdDashboardGetQueryKey = (options: Op
  * Get Dashboard
  *
  * Return the dashboard projection, including its single next action.
+ *
+ * ``identity`` rides along for the same reason it rides along on the task detail and
+ * the playbook listing: the next-up panel offers a Dispatch button, a run has to be
+ * attributed to a real person, and a button that cannot name one must be disabled with
+ * the reason rather than pressable into a refusal.
  */
 export const getDashboardApiProjectsProjectIdDashboardGetOptions = (options: Options<GetDashboardApiProjectsProjectIdDashboardGetData>) => queryOptions<GetDashboardApiProjectsProjectIdDashboardGetResponse, GetDashboardApiProjectsProjectIdDashboardGetError, GetDashboardApiProjectsProjectIdDashboardGetResponse, ReturnType<typeof getDashboardApiProjectsProjectIdDashboardGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

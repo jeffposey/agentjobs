@@ -159,6 +159,15 @@ class QueueBrokenRead(BaseModel):
     repair_command: str
 
 
+class ReviewIdentity(BaseModel):
+    """Configured human identity used by review mutations, or why none is safe."""
+
+    ok: bool
+    user: Optional[str]
+    problem: Optional[str]
+    detail: str
+
+
 class DashboardResponse(BaseModel):
     """The complete Python-computed dashboard contract."""
 
@@ -168,20 +177,21 @@ class DashboardResponse(BaseModel):
     waiting_tasks: List[TaskRead]
     backlog_tasks: List[TaskRead]
     next_task: Optional[TaskRead]
+    queue_preview: List[TaskRead] = Field(
+        default_factory=list,
+        description=(
+            "The head of the claimable queue, in the queue's own order, capped at "
+            "`QUEUE_PREVIEW_LIMIT`. `next_task` is its first element. Sent as a list "
+            "because the next-up panel offers a way to *start* each of them, and a "
+            "machine that runs several agents at once can usefully start more than one."
+        ),
+    )
     next_action: Literal[
         "blocked", "backlog", "queue_broken", "next_up", "nothing_claimable", "empty_project"
     ]
     broken_files: List[BrokenTaskFile]
     queue_broken: Optional[QueueBrokenRead] = None
-
-
-class ReviewIdentity(BaseModel):
-    """Configured human identity used by review mutations, or why none is safe."""
-
-    ok: bool
-    user: Optional[str]
-    problem: Optional[str]
-    detail: str
+    identity: ReviewIdentity
 
 
 class TaskDetailResponse(BaseModel):

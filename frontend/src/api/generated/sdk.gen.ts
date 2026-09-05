@@ -55,6 +55,11 @@ export const getAttentionApiAttentionGet = <ThrowOnError extends boolean = false
  * Get Dashboard
  *
  * Return the dashboard projection, including its single next action.
+ *
+ * ``identity`` rides along for the same reason it rides along on the task detail and
+ * the playbook listing: the next-up panel offers a Dispatch button, a run has to be
+ * attributed to a real person, and a button that cannot name one must be disabled with
+ * the reason rather than pressable into a refusal.
  */
 export const getDashboardApiDashboardGet = <ThrowOnError extends boolean = false>(options?: Options<GetDashboardApiDashboardGetData, ThrowOnError>) => (options?.client ?? client).get<GetDashboardApiDashboardGetResponses, unknown, ThrowOnError>({ url: '/api/dashboard', ...options });
 
@@ -311,6 +316,11 @@ export const getAttentionApiProjectsProjectIdAttentionGet = <ThrowOnError extend
  * Get Dashboard
  *
  * Return the dashboard projection, including its single next action.
+ *
+ * ``identity`` rides along for the same reason it rides along on the task detail and
+ * the playbook listing: the next-up panel offers a Dispatch button, a run has to be
+ * attributed to a real person, and a button that cannot name one must be disabled with
+ * the reason rather than pressable into a refusal.
  */
 export const getDashboardApiProjectsProjectIdDashboardGet = <ThrowOnError extends boolean = false>(options: Options<GetDashboardApiProjectsProjectIdDashboardGetData, ThrowOnError>) => (options.client ?? client).get<GetDashboardApiProjectsProjectIdDashboardGetResponses, GetDashboardApiProjectsProjectIdDashboardGetErrors, ThrowOnError>({ url: '/api/projects/{project_id}/dashboard', ...options });
 

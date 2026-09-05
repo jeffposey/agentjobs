@@ -415,12 +415,19 @@ export type DashboardResponse = {
      * Broken Files
      */
     broken_files: Array<BrokenTaskFile>;
+    identity: ReviewIdentity;
     /**
      * Next Action
      */
     next_action: 'blocked' | 'backlog' | 'queue_broken' | 'next_up' | 'nothing_claimable' | 'empty_project';
     next_task: TaskReadOutput | null;
     queue_broken?: QueueBrokenRead | null;
+    /**
+     * Queue Preview
+     *
+     * The head of the claimable queue, in the queue's own order, capped at `QUEUE_PREVIEW_LIMIT`. `next_task` is its first element. Sent as a list because the next-up panel offers a way to *start* each of them, and a machine that runs several agents at once can usefully start more than one.
+     */
+    queue_preview?: Array<TaskReadOutput>;
     /**
      * Recent Updates
      */
@@ -4180,12 +4187,19 @@ export type DashboardResponseWritable = {
      * Broken Files
      */
     broken_files: Array<BrokenTaskFile>;
+    identity: ReviewIdentity;
     /**
      * Next Action
      */
     next_action: 'blocked' | 'backlog' | 'queue_broken' | 'next_up' | 'nothing_claimable' | 'empty_project';
     next_task: TaskReadOutputWritable | null;
     queue_broken?: QueueBrokenRead | null;
+    /**
+     * Queue Preview
+     *
+     * The head of the claimable queue, in the queue's own order, capped at `QUEUE_PREVIEW_LIMIT`. `next_task` is its first element. Sent as a list because the next-up panel offers a way to *start* each of them, and a machine that runs several agents at once can usefully start more than one.
+     */
+    queue_preview?: Array<TaskReadOutputWritable>;
     /**
      * Recent Updates
      */
