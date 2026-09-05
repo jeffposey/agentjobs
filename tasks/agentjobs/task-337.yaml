@@ -2,11 +2,23 @@ schema: 2
 id: task-337
 title: Dashboard must provide next best action for human
 created: '2026-09-05T19:17:08.214513Z'
-updated: '2026-09-05T22:44:13.312989Z'
+updated: '2026-09-05T22:46:37.335698Z'
 lifecycle: active
 ball: agent
-ball_reason: answer
-ball_prompt: FINISH.
+ball_reason: work
+ball_prompt: 'The approval ran the scripted finish and it stopped at `verify`. **The
+  merge is done: `2adc817a`.**
+
+
+  After the restart, the merged code could not be shown to be live within 120s: nothing
+  is answering http://127.0.0.1:8876. **The merge is done** and the rebuild and restart
+  both ran, so this is about the serving process, not about the branch.
+
+
+  Take it from here by hand. Check the tree against what is written above before acting
+  on anything you remember: if your worktree, your branch or your account of this
+  task no longer matches what is on disk, say so on the record and hand the ball back
+  rather than improvising a recovery.'
 archived: false
 priority: medium
 queue_position: 8800
@@ -1035,3 +1047,49 @@ log:
     merge_commit: 2adc817a4ee99891e5e08f34428d18af2c993bef
     branch: feat/task-337-dashboard-next-action
     base: main
+- id: 36
+  ts: '2026-09-05T22:46:37.244069Z'
+  actor: finisher
+  type: progress
+  body: "The scripted finish stopped at `verify` (not_live).\n\n**The merge is done:\
+    \ `2adc817a`.**\n\nAfter the restart, the merged code could not be shown to be\
+    \ live within 120s: nothing is answering http://127.0.0.1:8876. **The merge is\
+    \ done** and the rebuild and restart both ran, so this is about the serving process,\
+    \ not about the branch.\n\n```\n  preflight  ok         2.3s  feat/task-337-dashboard-next-action\
+    \ at 79ced2cf in C:\\projects\\worktrees\\agentjobs-337\n  runway     ok     \
+    \    0.0s  taken immediately\n  rebase     ok         0.3s  feat/task-337-dashboard-next-action\
+    \ onto main: 79ced2cf -> c3444d36\n  gate       ok       862.1s  scripts/check.py\
+    \ green\n  catch_up   skipped    0.0s  main did not move during the gate\n  merge\
+    \      ok         0.5s  --no-ff into main as 2adc817a4ee99891e5e08f34428d18af2c993bef\n\
+    \  rebuild    ok        17.5s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         3.3s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     STOPPED    0.0s  After the restart, the merged code could not be shown to\
+    \ be live within 120s: nothing is answering http://127.0.0.1:8876. **The merge\
+    \ is done** and the rebuild and restart both ran, so this is about the serving\
+    \ process, not about the branch.\n```"
+  data:
+    finish_step: verify
+    finish_reason: not_live
+    merge_commit: 2adc817a4ee99891e5e08f34428d18af2c993bef
+    merged: true
+- id: 37
+  ts: '2026-09-05T22:46:37.335124Z'
+  actor: finisher
+  type: handoff
+  body: 'The approval ran the scripted finish and it stopped at `verify`. **The merge
+    is done: `2adc817a`.**
+
+
+    After the restart, the merged code could not be shown to be live within 120s:
+    nothing is answering http://127.0.0.1:8876. **The merge is done** and the rebuild
+    and restart both ran, so this is about the serving process, not about the branch.
+
+
+    Take it from here by hand. Check the tree against what is written above before
+    acting on anything you remember: if your worktree, your branch or your account
+    of this task no longer matches what is on disk, say so on the record and hand
+    the ball back rather than improvising a recovery.'
+  data:
+    ball: agent
+    ball_reason: work
