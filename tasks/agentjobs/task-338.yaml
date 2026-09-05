@@ -2,7 +2,7 @@ schema: 2
 id: task-338
 title: Top bar does not show red badge count for tasks waiting on human
 created: '2026-09-05T20:25:18.784045Z'
-updated: '2026-09-05T21:30:30.169657Z'
+updated: '2026-09-05T21:31:06.647508Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -445,3 +445,13 @@ log:
       id: 7a2e5c81-4d93-4b06-a1f7-3e9c8b04d215
       kind: log_append
       fingerprint: 6846237eaeca9d23979d6d36d866d934
+- id: 16
+  ts: '2026-09-05T21:31:06.647204Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 4
+  data:
+    run_id: run_da918c41
+    outcome: completed
+    duration_seconds: 3818.009037
+    log_path: C:\Users\jpose\.agentjobs\runs\run_da918c41
