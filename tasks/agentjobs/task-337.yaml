@@ -2,7 +2,7 @@ schema: 2
 id: task-337
 title: Dashboard must provide next best action for human
 created: '2026-09-05T19:17:08.214513Z'
-updated: '2026-09-05T21:22:46.260333Z'
+updated: '2026-09-05T21:55:39.373555Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -786,3 +786,68 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 23
+  ts: '2026-09-05T21:45:16.241643Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 24
+  ts: '2026-09-05T21:45:20.223906Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_e1e2bfde` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_6af44c4f
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 23
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_6af44c4f\session-settings.json
+    - --name
+    - agentjobs/task-337@6af44c4f
+    - --resume
+    - f69ddae6-5de8-4278-8043-928876b69b6a
+    cwd: C:\projects\agentjobs
+    git_head: 3eb1a8e
+    session_id: 564dfc3a
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 25
+  ts: '2026-09-05T21:55:39.373301Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-337-dashboard-next-action` (e23a966a).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-337.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_de9265b2\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-337-dashboard-next-action
+    finish_id: fin_de9265b2
