@@ -2,36 +2,56 @@ schema: 2
 id: task-337
 title: Dashboard must provide next best action for human
 created: '2026-09-05T19:17:08.214513Z'
-updated: '2026-09-05T22:16:57.347554Z'
+updated: '2026-09-05T22:19:42.999545Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
-  \ was merged.**\n\n`scripts/check.py` failed on feat/task-337-dashboard-next-action\
-  \ after the rebase (350s, exit 1). A red gate never merges. The branch is rebased\
-  \ onto main and is otherwise untouched; nothing was merged. Full output: C:\\Users\\\
-  jpose\\.agentjobs\\finishes\\fin_6b3d2b65\\gate.log\n\n```\n\e[2K\ntransforming...\e\
-  [32m\u2713\e[0m 119 modules transformed.\nrendering chunks...\ncomputing gzip size...\n\
-  \e[2m../src/agentjobs/frontend_dist/\e[0m\e[32mindex.html                 \e[0m\e\
-  [1;2m  0.81 kB\e[0m\e[2m \u2502 gzip:   0.40 kB\e[0m\n\e[2m../src/agentjobs/frontend_dist/\e\
-  [0m\e[2massets/\e[0m\e[35mindex-DE0dUy02.css  \e[0m\e[1;2m 41.91 kB\e[0m\e[2m \u2502\
-  \ gzip:   8.27 kB\e[0m\n\e[2m../src/agentjobs/frontend_dist/\e[0m\e[2massets/\e\
-  [0m\e[36mindex-BCY10Wwk.js   \e[0m\e[1;2m431.61 kB\e[0m\e[2m \u2502 gzip: 125.15\
-  \ kB\e[0m\n\e[32m\u2713 built in 367ms\e[39m\nWrote packaged sw.js with 7 shell\
-  \ resources (5d3079421a2a).\n> C:\\Program Files\\nodejs\\npm.cmd run test:e2e\n\
-  > agentjobs-frontend@0.0.0 test:e2e\n> playwright test\n[e2e] checkout C:\\projects\\\
-  worktrees\\agentjobs-337 owns http://127.0.0.1:24547 (derived from the checkout\
-  \ path; AGENTJOBS_E2E_PORT overrides)\nError: Process from config.webServer was\
-  \ not able to start. Exit code: 1\n\e[1A\e[2K\n  black      2.1s\n  ruff       0.2s\n\
-  \  mypy      19.3s\n  api       13.6s\n  icons      4.7s\n  oxlint     1.6s\n  pytest\
-  \   267.1s\n  vitest    31.1s\n  build      6.0s\n  e2e        3.4s\n  total   \
-  \ 349.0s\nAll done! \\u2728 \\U0001f370 \\u2728\n255 files would be left unchanged.\n\
-  Failed at stage 'e2e'.\nFix it, then resume with `--from e2e` instead of paying\
-  \ for the stages above a second time.\n```\n\nTake it from here by hand. Check the\
-  \ tree against what is written above before acting on anything you remember: if\
-  \ your worktree, your branch or your account of this task no longer matches what\
-  \ is on disk, say so on the record and hand the ball back rather than improvising\
-  \ a recovery."
+ball: human
+ball_reason: decision
+ball_prompt: 'Stopping rather than starting a fourth finish. Something killed the
+  third one and I do not want to spend another gate against your wishes.
+
+
+  STATE, CHECKED NOT REMEMBERED
+
+
+  - Branch feat/task-337-dashboard-next-action at 79ced2c, clean tree, 3 ahead of
+  main and 0 behind.
+
+  - Nothing merged. `git branch --contains` names only the branch.
+
+  - No stale locks: /api/runs/live reports holders [], so nothing here is blocking
+  anyone else.
+
+  - The code is fine. The last full unqualified gate I ran myself was green, ten of
+  ten. The e2e stage re-run alone just now: 47 passed.
+
+
+  WHY IT HAS NOT MERGED YET, IN ORDER
+
+
+  1. task-339''s absolute spec.context path -- fixed by someone else, gone.
+
+  2. I ran `agentjobs finish` in the foreground and my own shell''s 10-minute limit
+  killed it mid-merge. Its gate had passed. That one was mine.
+
+  3. The next finish''s gate failed at e2e in 3.4 seconds: "Process from config.webServer
+  was not able to start". Not a test failure -- the Playwright server could not come
+  up while task-339''s autonomous run was gating on the same machine. Re-running that
+  stage alone passed 47/47.
+
+  4. The finish after that was killed externally at 22:16.
+
+
+  Three of the four are the machine, not the branch, and task-339 is the task about
+  exactly this: gates launched six to nine times per task, competing for cores.
+
+
+  WHAT I RECOMMEND
+
+
+  task-339''s autonomous run has been gating for over twenty minutes and is still
+  going. One more finish while it runs is likely to lose the same coin-flip on the
+  e2e web server. Say the word and I will run it the moment that run lands -- or now,
+  if you would rather take the chance.'
 archived: false
 priority: medium
 queue_position: 8800
@@ -938,3 +958,60 @@ log:
     finish_step: started
     branch: feat/task-337-dashboard-next-action
     finish_id: fin_7e343a88
+- id: 30
+  ts: '2026-09-05T22:19:42.999272Z'
+  actor: claude
+  type: handoff
+  body: 'Stopping rather than starting a fourth finish. Something killed the third
+    one and I do not want to spend another gate against your wishes.
+
+
+    STATE, CHECKED NOT REMEMBERED
+
+
+    - Branch feat/task-337-dashboard-next-action at 79ced2c, clean tree, 3 ahead of
+    main and 0 behind.
+
+    - Nothing merged. `git branch --contains` names only the branch.
+
+    - No stale locks: /api/runs/live reports holders [], so nothing here is blocking
+    anyone else.
+
+    - The code is fine. The last full unqualified gate I ran myself was green, ten
+    of ten. The e2e stage re-run alone just now: 47 passed.
+
+
+    WHY IT HAS NOT MERGED YET, IN ORDER
+
+
+    1. task-339''s absolute spec.context path -- fixed by someone else, gone.
+
+    2. I ran `agentjobs finish` in the foreground and my own shell''s 10-minute limit
+    killed it mid-merge. Its gate had passed. That one was mine.
+
+    3. The next finish''s gate failed at e2e in 3.4 seconds: "Process from config.webServer
+    was not able to start". Not a test failure -- the Playwright server could not
+    come up while task-339''s autonomous run was gating on the same machine. Re-running
+    that stage alone passed 47/47.
+
+    4. The finish after that was killed externally at 22:16.
+
+
+    Three of the four are the machine, not the branch, and task-339 is the task about
+    exactly this: gates launched six to nine times per task, competing for cores.
+
+
+    WHAT I RECOMMEND
+
+
+    task-339''s autonomous run has been gating for over twenty minutes and is still
+    going. One more finish while it runs is likely to lose the same coin-flip on the
+    e2e web server. Say the word and I will run it the moment that run lands -- or
+    now, if you would rather take the chance.'
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: d21c8f47-5b39-4a6e-9c81-7f0a5e2d3b68
+      kind: handoff
+      fingerprint: 537c2e76e720e8757d0cbc7a80db08b5
