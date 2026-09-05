@@ -4,10 +4,11 @@ title: 'The gate is launched six to nine times per task at seven to twelve minut
   each under contention: one gate per handoff, and a core budget shared between concurrent
   gates'
 created: '2026-09-05T20:49:03.656961Z'
-updated: '2026-09-05T21:21:45.526418Z'
-lifecycle: ready
+updated: '2026-09-05T22:25:05.557881Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 queue_position: 2
@@ -21,6 +22,7 @@ tags:
 effort: 'a day: Part 1 is prose plus two small check.py and run_report.py changes;
   Part 2 is an hour of measurement and one worker rule'
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: 'A dispatched task still pays 20 to 46 minutes of gate after task-233 made
@@ -260,3 +262,129 @@ log:
       id: 3d5f7a19-6c40-4e82-9a13-5b8e0f2c7d64
       kind: update_content
       fingerprint: f8fca4b42ceedda52245de10874dd060
+- id: 5
+  ts: '2026-09-05T21:57:22.951517Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. They chose
+    posture `autonomous` for this run, above this project''s `auto`. No extra instruction
+    was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 6
+  ts: '2026-09-05T21:57:23.780946Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 7
+  ts: '2026-09-05T21:57:34.730483Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_86ee86be
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: dispatch
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 5
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --name
+    - agentjobs/task-339@86ee86be
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_86ee86be\session-settings.json
+    - 'You are the agent `claude` working task `task-339` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-339-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_86ee86be. Posture `autonomous` releases the merge gate:
+      this run merges its own work with no human review. Record the evidence on the
+      task first, then run `agentjobs finish task-339 --project agentjobs --posture-release`
+      from C:\projects\agentjobs. That rebases, runs the full gate, and merges only
+      on a green one -- it stops and hands the ball back if anything fails. Do not
+      merge by hand. Never push: this project is configured `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: be48e62
+    session_id: a75de2e0
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 8
+  ts: '2026-09-05T22:25:05.557634Z'
+  actor: claude
+  type: progress
+  body: "Part 1 built on branch `perf/task-339-one-gate-per-handoff`, worktree `../worktrees/agentjobs-339`.\
+    \ Part 2 measurement is running; Part 1 is code-complete and lint/type clean.\n\
+    \n**1. The sequence is written down (ac-1).** New `#### One gate per handoff`\
+    \ in ENGINEERING.md \xA7Testing: iterate with `--only <stage>` while a named stage\
+    \ is red, commit, rebase onto `main`, run the unqualified `scripts/check.py` once\
+    \ on the result, hand off. ALLAGENTS.md task-lifecycle step 4 now carries the\
+    \ same instruction and links to it. Two sentences that read as a full gate per\
+    \ commit were the reason task-336 ran two back to back, and both are fixed: Commit\
+    \ Hygiene's \"Tests pass before every commit, not just at the end of the branch\"\
+    \ now says \"what your change can break, not the whole gate\", and \xA7Testing's\
+    \ \"regenerate, run the gate, then commit\" became \"no stage of the gate may\
+    \ require a commit -- regenerate before you gate\", which was the actual claim\
+    \ and no longer contradicts committing first.\n\n**2. `ALREADY GREEN` (ac-2).**\
+    \ `gate_scope.tree_fingerprint` digests HEAD + `git diff HEAD` + every untracked\
+    \ file's name and contents. `check.py` records it on `gate_started`/`gate_finished`\
+    \ and, before an unqualified run, looks back through this run's own `phases.jsonl`\
+    \ for a green unqualified gate with the same fingerprint; if there is one it prints\
+    \ the banner, the timestamp and the seconds it cost, then **runs anyway** (task's\
+    \ constraint: a refusal is a new way to be stuck). HEAD alone would have missed\
+    \ it -- task-336's gates 3 and 4 were over the same *uncommitted* tree.\n\n**3.\
+    \ The receipt now names what blocked it (ac-2).** `gate_scope.dirty_paths` + `render_dirty`.\
+    \ Both ends print them: the green gate that cannot earn a receipt because the\
+    \ tree is dirty, and the `--since-gate` that falls back to all ten stages for\
+    \ want of one. task-336's gate 5 cost ten minutes because two untracked sandbox\
+    \ files stopped gate 4 writing a receipt and nothing anywhere named them.\n\n\
+    **4. Abandoned gates (ac-3) -- verified against the real ledger.** `run_report.read_gates`\
+    \ now pairs `gate_started` with its finish; a start with no finish is `abandoned=True`,\
+    \ its seconds being the elapsed time to the next thing the run recorded (a floor,\
+    \ labelled as one everywhere it is summed), and it names the stage it died in.\
+    \ `run_report.py --task task-336 --list` now prints **8 gates, 48.4m, 73% of the\
+    \ run**, against 6 and 31.1m before -- which reproduces the spec's hand-read timeline\
+    \ exactly, including the 612s abandoned gate that matches the Bash tool's 600s\
+    \ cap. Summary gained `gates launched /run` and `gate time /run` so ac-5's pair\
+    \ is printed rather than divided out.\n\nTests: `tests/test_gate_repetition.py`\
+    \ (fingerprint sensitivity, the banner and its four refusals to fire, never-refuses\
+    \ through `check.main`, dirty-path naming both ends, abandoned-gate arithmetic)\
+    \ and `tests/test_gate_slots.py`.\n\n**Context budget.** The four always-loaded\
+    \ files had 369 bytes of headroom against `tests/test_context_budget.py`'s 60,000.\
+    \ Room was made by moving *measurements and duplicated rationale* out, never rules:\
+    \ the ten-row stage-cost table now lives in docs/performance.md (where that file\
+    \ already claimed it was), the cheapest-first and gate-enforcement arguments are\
+    \ pointed at docs/performance.md and `scripts/check.py` where they are stated\
+    \ in full, and task-221's incident narrative is pointed at the docs section that\
+    \ already retells it. No rule was removed, so the ablation suite was not the gate\
+    \ on this change."
+  data:
+    operation:
+      id: c1a7f2d0-4b93-4e15-8a62-9d0f3c7e1b48
+      kind: log_append
+      fingerprint: 0609faf41180787ff36b649b1b801e02
