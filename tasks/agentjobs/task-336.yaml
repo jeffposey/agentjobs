@@ -2,21 +2,15 @@ schema: 2
 id: task-336
 title: Unclear which tab selected
 created: '2026-09-05T19:14:30.057857Z'
-updated: '2026-09-05T20:39:49.541716Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-09-05T20:40:34.488631Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
-queue_position: 8700
 category: general
 tags:
 - reported-issue
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: Unclear which tab selected
@@ -57,7 +51,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-336-active-tab-indicator
-  status: active
+  status: merged
+  merged_at: '2026-09-05T20:40:34.448468Z'
 log:
 - id: 1
   ts: '2026-09-05T19:14:30.615525Z'
@@ -367,3 +362,25 @@ log:
     merge_commit: 0ee084925eff1890b9bbe005bb443daccbba6308
     branch: fix/task-336-active-tab-indicator
     base: main
+- id: 14
+  ts: '2026-09-05T20:40:34.488478Z'
+  actor: finisher
+  type: transition
+  body: "Merged `fix/task-336-active-tab-indicator` into `main` as `0ee08492` and\
+    \ verified live. Finished by the scripted path with no agent session (task-241).\
+    \ Approved by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         2.8s  fix/task-336-active-tab-indicator\
+    \ at 9555da7e in C:\\projects\\worktrees\\agentjobs-336\n  runway     ok     \
+    \    0.0s  taken immediately\n  rebase     ok         0.2s  fix/task-336-active-tab-indicator\
+    \ onto main: 9555da7e -> 96691db9\n  gate       ok       366.0s  scripts/check.py\
+    \ green\n  catch_up   skipped    0.0s  main did not move during the gate\n  merge\
+    \      ok         0.3s  --no-ff into main as 0ee084925eff1890b9bbe005bb443daccbba6308\n\
+    \  rebuild    ok         9.2s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         1.3s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     ok         0.0s  http://127.0.0.1:8876 is serving ad12571c, which contains\
+    \ the merge 0ee08492, from C:\\projects\\agentjobs (started 2026-09-05T20:40:13.811401+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
