@@ -6,7 +6,8 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
 /**
  * The app's global navigation, pinned to the top of the viewport.
  *
- * Two things happen here and they are one decision, recorded on task-292.
+ * The first two things below are one decision, recorded on task-292; the third is
+ * task-336.
  *
  * **It is pinned.** `sticky top-0` on the <header>. This header is the whole
  * navigation system -- there is no rail, and no back button that means anything --
@@ -21,6 +22,12 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * are inline and there is no burger at all. Pinning the wrapped row instead would
  * spend 164px of an 844px phone screen -- 19% -- permanently on navigation, which is
  * a worse problem than the one being fixed.
+ *
+ * **It says where you are.** Until task-336 it did not: every destination rendered
+ * identically on every page, so the only styled entry in the bar was Create's blue
+ * accent and a reader on the Dashboard took *that* for the selected tab. The current
+ * entry is now the brightest thing in the row, tinted and ringed, and carries
+ * `aria-current="page"`; see {@link currentDestinationPath} for which entry that is.
  *
  * The burger is at the **left** end on purpose. task-168 puts an *actions* menu in
  * the top-right (Report issue, About, later dispatch); navigation-left/actions-right
@@ -57,15 +64,17 @@ export const NAV_INLINE_MIN_PX = 1100;
 const DESTINATIONS: ReadonlyArray<{
   path: string;
   label: string;
-  className?: string;
   /** Renders the live-run count after the label. Exactly one entry has one. */
   badge?: boolean;
 }> = [
   { path: "", label: "Dashboard" },
   { path: "/tasks", label: "Tasks" },
-  // Accented because it is the one entry that creates something rather than going
-  // somewhere; carried over unchanged from the pre-task-292 header.
-  { path: "/tasks/new", label: "Create", className: "text-blue-300" },
+  // No accent, deliberately, and this is task-336's finding rather than a tidy-up.
+  // It used to be `text-blue-300` -- the only coloured thing in a bar where nothing
+  // marked the current page -- so on the Dashboard the one entry that stood out was
+  // Create, and it read as the selected tab. Blue in this bar now means "you are
+  // here" and nothing else.
+  { path: "/tasks/new", label: "Create" },
   // Its own nav entry, not buried in a menu: this is where the switch that stops
   // every future run lives, and a kill switch you cannot reach is not one. Below the
   // breakpoint it is one tap behind the burger, which is the most the width allows.
@@ -88,7 +97,55 @@ function projectPath(projectId: string | undefined, path = "") {
   return `/p/${encodeURIComponent(projectId ?? "")}${path}`;
 }
 
-const linkClass = "touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border";
+/**
+ * Which destination the current URL belongs to, or `null` when none of them owns it.
+ *
+ * **Longest match wins**, which is what makes `/tasks/new` mark Create rather than
+ * lighting up Tasks as well -- both entries match that URL and only the deeper one
+ * should win. It also makes Dashboard, whose path is `""`, the fallback for anything
+ * under the project that no other entry claims, without needing a rule of its own.
+ *
+ * A match is compared at a segment boundary in both halves, so project `demo2` is not
+ * a match for project `demo`, and a hypothetical `/tasksomething` is not one for
+ * `/tasks`. Exported so a test can address the rule directly: a URL is the whole
+ * input, so rendering a header to ask about one case is more machinery than the
+ * question needs.
+ */
+export function currentDestinationPath(pathname: string, projectId: string): string | null {
+  const prefix = projectPath(projectId);
+  if (pathname !== prefix && !pathname.startsWith(`${prefix}/`)) return null;
+
+  const rest = pathname.slice(prefix.length);
+  let best: string | null = null;
+  for (const { path } of DESTINATIONS) {
+    const matches = rest === path || rest.startsWith(`${path}/`);
+    if (matches && (best === null || path.length > best.length)) best = path;
+  }
+  return best;
+}
+
+const linkClass = "touch-target rounded-md px-3 text-sm font-medium";
+/**
+ * Not the page you are on.
+ *
+ * Muted rather than full-strength `text-dark-text`: before task-336 every destination
+ * was rendered identically, so "which one is selected" had no answer at all and the
+ * question in the report is literal. Dimming the rest is half of the answer and costs
+ * nothing -- #94a3b8 on the bar's #1e293b is 5.7:1, comfortably past AA.
+ */
+const restClass = "text-dark-muted hover:bg-dark-border hover:text-dark-text";
+/**
+ * The page you are on.
+ *
+ * Three channels, not one: brightest text in the bar, a tinted background, and a
+ * hairline ring around it. Colour alone would be the usual mistake, and the
+ * background alone would collide with `hover:bg-dark-border` -- an inactive entry
+ * under the pointer would then look exactly like the current one, which is the bug
+ * again with extra steps. `inset-ring` rather than a border because a border is 2px
+ * of layout: the row's one-line fit is measured (see {@link NAV_INLINE_MIN_PX}) and a
+ * ring is painted inside the box without moving anything.
+ */
+const currentClass = "bg-blue-500/15 text-white inset-ring-1 inset-ring-blue-400/60";
 
 export function PrimaryNav({
   projectId,
@@ -153,24 +210,35 @@ export function PrimaryNav({
     return () => wide.removeEventListener("change", onChange);
   }, [close]);
 
-  const destinations = DESTINATIONS.map((destination) => (
-    <Link
-      key={destination.label}
-      to={projectPath(projectId, destination.path)}
-      className={destination.className ? `${linkClass} ${destination.className}` : linkClass}
-    >
-      {/* The label is its own element so a test can address it exactly. Without the
-          span the badge's text is part of the link's only text node, and
-          `getByText("Runs", { exact: true })` -- how every other destination in
-          e2e/pinned-header.spec.ts is found -- matches nothing at all. */}
-      <span>{destination.label}</span>
-      {destination.badge ? badge : null}
-    </Link>
-  ));
+  const currentPath = currentDestinationPath(location.pathname, projectId);
 
-  // Outside the router: /docs is FastAPI's, not a route this app owns.
+  const destinations = DESTINATIONS.map((destination) => {
+    const current = destination.path === currentPath;
+    return (
+      <Link
+        key={destination.label}
+        to={projectPath(projectId, destination.path)}
+        // The half of this a screen reader gets, and the half a test can assert on
+        // without knowing a class name. Absent rather than "false" on the others:
+        // `aria-current="false"` is valid and means the same thing, but every entry
+        // carrying the attribute makes "which one" a question about its value.
+        aria-current={current ? "page" : undefined}
+        className={`${linkClass} ${current ? currentClass : restClass}`}
+      >
+        {/* The label is its own element so a test can address it exactly. Without the
+            span the badge's text is part of the link's only text node, and
+            `getByText("Runs", { exact: true })` -- how every other destination in
+            e2e/pinned-header.spec.ts is found -- matches nothing at all. */}
+        <span>{destination.label}</span>
+        {destination.badge ? badge : null}
+      </Link>
+    );
+  });
+
+  // Outside the router: /docs is FastAPI's, not a route this app owns, so it is never
+  // the current page however the app got here.
   const apiDocs = (
-    <a href="/docs" className={linkClass}>
+    <a href="/docs" className={`${linkClass} ${restClass}`}>
       API Docs
     </a>
   );
