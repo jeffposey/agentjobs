@@ -2,7 +2,7 @@ schema: 2
 id: task-336
 title: Unclear which tab selected
 created: '2026-09-05T19:14:30.057857Z'
-updated: '2026-09-05T20:01:08.841904Z'
+updated: '2026-09-05T20:03:34.301123Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -26,11 +26,36 @@ spec:
 
     Reported from the AgentJobs UI by Jeff Posey, at `/p/agentjobs`.'
   context: []
-acceptance: []
+acceptance:
+- id: ac-1
+  text: On every project surface the primary nav marks exactly one destination as
+    the current one, and it is the destination whose page is being shown -- Dashboard
+    on the project root, Tasks on the task list and on a task detail page, Create
+    on /tasks/new, and Dispatch, Playbooks and Runs on their own pages.
+  status: pending
+- id: ac-2
+  text: The marked destination is visibly distinct from every other entry in a real
+    browser, on more than colour alone, and is distinct from the hover state so an
+    inactive entry under the pointer cannot be mistaken for it.
+  status: pending
+- id: ac-3
+  text: The marking carries aria-current=page, and appears inside the burger panel
+    below the 1100px breakpoint as well as in the inline row.
+  status: pending
+- id: ac-4
+  text: No entry other than the current one is accented, so colour in the nav bar
+    means you-are-here and nothing else.
+  status: pending
+- id: ac-5
+  text: 'The header still fits on one row at every viewport it did before: no weight,
+    glyph or border change that moves the measurement behind NAV_INLINE_MIN_PX.'
+  status: pending
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-336-active-tab-indicator
+  status: active
 log:
 - id: 1
   ts: '2026-09-05T19:14:30.615525Z'
@@ -214,3 +239,16 @@ log:
       id: b21c7d40-5e88-4f0a-8c19-77a2e4f0d312
       kind: log_append
       fingerprint: 4ec32593542e16557e9eba4822760af1
+- id: 7
+  ts: '2026-09-05T20:03:34.300703Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: c9d0e1f2-3a4b-4c5d-8e6f-7a8b9c0d1e2f
+      kind: update_content
+      fingerprint: e5ce09a91b615ff79f6bcad11b506bd0
