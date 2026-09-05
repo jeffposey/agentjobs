@@ -2,7 +2,7 @@ schema: 2
 id: task-336
 title: Unclear which tab selected
 created: '2026-09-05T19:14:30.057857Z'
-updated: '2026-09-05T20:30:49.483723Z'
+updated: '2026-09-05T20:31:19.721158Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -334,3 +334,13 @@ log:
       id: e7a8b9c0-2d3e-4f50-a1b2-c3d4e5f60718
       kind: handoff
       fingerprint: 0e002c4e7436f5091a9cce9a81c51107
+- id: 10
+  ts: '2026-09-05T20:31:19.721015Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 4
+  data:
+    run_id: run_f401cd88
+    outcome: completed
+    duration_seconds: 3960.108641
+    log_path: C:\Users\jpose\.agentjobs\runs\run_f401cd88
