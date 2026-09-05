@@ -237,6 +237,33 @@ Two conclusions follow from the parallel column:
   `run_report.py` reports what the phase records say; overlapping gates make the
   percentage a sum, not a share of a timeline. The report flags it when it happens.
 
+#### What is actually scarce, measured (task-339, 2026-09-05)
+
+Task-233 assumed cores. It is memory. Sampling `\Memory\Available MBytes` and the
+`python` process set every twelve seconds through the runs below, on a 64 GB machine:
+
+| | Peak `python` processes | Peak `python` working set | Lowest free memory | Mean CPU |
+|---|---|---|---|---|
+| One gate | 175 | 9.3 GB | 923 MB | 29% |
+| Two gates | 282 | 15.9 GB | **159 MB** | 43% |
+
+**159 MB free of 64 GB, at 43% CPU.** The machine is paging, not queueing for cores,
+which is why the degradation is worse than the 2x that dividing 32 cores between two
+gates would predict — and why the fix is a cap on the *total* number of xdist workers
+alive on the machine rather than a fairness scheme. `-n <cores / active gates>` gives
+exactly that: N gates at 32/N workers each is 32 workers however many gates there are,
+so the machine-wide footprint of the pytest stage stays what a single gate costs.
+
+Two things fall out that are not about speed:
+
+- **Contention makes the suite flaky, not merely slow.** In the two-gate before-arm,
+  `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`
+  failed with "pid 3393900 survived the timeout" — a timing assertion losing to a paging
+  machine. A red gate costs a whole extra launch, so this is part of the six-to-nine.
+- **One gate alone is already close to the edge here** (923 MB free at `-n auto`), with a
+  browser session holding several gigabytes. Lowering the single-gate worker count is a
+  separate lever and belongs to task-268, which owns `check.py`'s stage internals.
+
 ### How many gates a run launches (task-339)
 
 Task-233 made one gate cost 96s and the per-task gate bill did not fall, because the

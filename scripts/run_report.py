@@ -53,7 +53,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -218,9 +218,7 @@ class Run:
         return self.seconds is not None and self.gate_seconds > self.seconds
 
 
-def _abandoned_seconds(
-    records: Sequence[Dict[str, object]], start: int, end: int
-) -> Optional[float]:
+def _abandoned_seconds(records: Sequence[Dict[str, Any]], start: int, end: int) -> Optional[float]:
     """How long a gate that never finished was demonstrably alive for.
 
     The floor is the elapsed time from its ``gate_started`` to the next thing the run
@@ -318,7 +316,7 @@ def read_gates(directory: Path) -> List[Gate]:
     return [gate for _, gate in sorted(found, key=lambda pair: pair[0])]
 
 
-def _finished_gate(record: Dict[str, object]) -> Optional[Gate]:
+def _finished_gate(record: Dict[str, Any]) -> Optional[Gate]:
     """One ``gate_finished`` record as a ``Gate``, or None when it carries no duration."""
     seconds = record.get("seconds")
     if not isinstance(seconds, (int, float)):

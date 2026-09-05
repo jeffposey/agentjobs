@@ -210,11 +210,12 @@ parallel while a hand-run `pytest -k something` stays serial. That is the right 
 both directions: xdist costs more than it saves on a handful of tests, and its
 interleaved output is worse to read when you are debugging one.
 
-**`auto` is every core, and this machine runs three agents at once** (task-339). Two gates
-each asking for all 32 do not take twice as long, they take four to nine times as long,
-because 64 xdist workers on Windows spawn, import the application and thrash one disk.
-`gate_slots.workers` therefore resolves `@workers` to `auto` when this gate is alone and
-to a share of the machine when it is not.
+**`auto` is every core, and this machine runs three agents at once** (task-339). What two
+concurrent gates run out of is not cores but memory: sampled on 2026-09-05, one gate peaks
+at 175 `python` processes and 9.3GB, two peak at 282 and 15.9GB, and free memory on a 64GB
+machine bottoms out at **159MB** while the CPU sits at 43%. `gate_slots.workers` therefore
+resolves `@workers` to `auto` when this gate is alone and to a share of the machine when it
+is not, which holds the machine-wide worker count at one gate's however many are running.
 
 `--serial` turns it off for the case where the interleaving is the problem.
 """
