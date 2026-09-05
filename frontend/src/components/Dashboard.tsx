@@ -15,6 +15,10 @@ type DashboardProps = {
    * It owns a query of its own, and this component is otherwise pure presentation
    * rendered straight from a response object in its tests. Same shape as the dispatch
    * panel's `renderOutput`, and for the same reason.
+   *
+   * Rendered **inside the first queued row**, once (task-337). The endpoint explains
+   * the winner, so the disclosure belongs to the winner's card rather than sitting
+   * after the list, where three tasks make it read as a card about nothing.
    */
   renderWhyThisOne?: () => React.ReactNode;
   /**
@@ -242,7 +246,7 @@ function NextAction({
           </div>
           {sentence && <p className="mb-3 text-xs text-dark-muted">{sentence}</p>}
           <ul className="space-y-2">
-            {preview.map((task) => (
+            {preview.map((task, index) => (
               <li
                 key={task.id}
                 data-testid="queue-preview-task"
@@ -266,11 +270,22 @@ function NextAction({
                     {renderQueueAction?.(task)}
                   </div>
                 </div>
+                {/*
+                  The disclosure belongs to the *first* row, inside its card and under a
+                  hairline, because what it explains is why that task is first. While the
+                  panel offered one task it could sit at the foot and still be read that
+                  way; offering three, a box after the list reads as a fourth card about
+                  nothing in particular, which is what it looked like (Jeff, 2026-09-05).
+                  It is deliberately not repeated per row: the endpoint explains the
+                  winner, and there is no answer to give for the second.
+                */}
+                {index === 0 && renderWhyThisOne && (
+                  <div className="border-t border-dark-border px-4 py-2">{renderWhyThisOne()}</div>
+                )}
               </li>
             ))}
           </ul>
           {renderQueueGate?.()}
-          {renderWhyThisOne?.()}
         </section>
       );
     }

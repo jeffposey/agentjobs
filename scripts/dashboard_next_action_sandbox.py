@@ -39,9 +39,13 @@ silently serves stale code from a process nobody restarts.
 What to look for, since "it renders" is not the property under review:
 
   * On **reported**, the panel names three tasks in the queue's order -- the same order
-    ``agentjobs next`` hands out -- and the first is the one "Why this one?" explains.
-    Above them is a sentence about the machine: with nothing running it reads *Nothing is
-    running on this machine. Starting one of these is the useful move.*
+    ``agentjobs next`` hands out. Above them is a sentence about the machine: with
+    nothing running it reads *Nothing is running on this machine. Starting one of these
+    is the useful move.*
+  * "Why this one first?" is inside the **first** card, under a hairline, and explains
+    that card. It sat after the whole list in a box of its own until Jeff read it as a
+    fourth standalone card; open it and check it still reads as belonging to the task
+    above it.
   * Press one Dispatch. Within a couple of seconds that sentence should change to *An
     agent is already working. These are next in line.* -- it is read from the same
     machine-wide endpoint the capacity row below uses, so the two must agree.

@@ -362,17 +362,28 @@ describe("Dashboard on a broken queue", () => {
     );
   });
 
-  it("puts the why-this-one disclosure beside the task it is offering", () => {
+  it("puts the why-this-one disclosure inside the row it explains, and nowhere else", () => {
+    // It used to render after the whole list, in a bordered box the same shape as a
+    // task row -- which read as a fourth standalone card rather than as the reason the
+    // first task is first (Jeff, 2026-09-05). What it explains is the winner, so it
+    // lives in the winner's card and is not repeated.
+    const preview = [task("task-one"), task("task-two"), task("task-three")];
     render(
       <MemoryRouter>
         <Dashboard
-          dashboard={dashboard({ next_action: "next_up", next_task: claimable })}
+          dashboard={dashboard({
+            next_action: "next_up",
+            next_task: preview[0]!,
+            queue_preview: preview,
+          })}
           projectId="inbox"
           renderWhyThisOne={() => <p>Because it is first in the high band.</p>}
         />
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Because it is first in the high band.")).toBeVisible();
+    const rows = screen.getAllByTestId("queue-preview-task");
+    expect(within(rows[0]!).getByText("Because it is first in the high band.")).toBeVisible();
+    expect(screen.getAllByText("Because it is first in the high band.")).toHaveLength(1);
   });
 });

@@ -27,12 +27,16 @@ export function NextExplanation({ projectId }: { projectId: string }) {
   });
 
   return (
-    <details
-      className="mt-3 rounded-lg border border-dark-border bg-dark-bg/40 p-3"
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-    >
+    <details onToggle={(event) => setOpen(event.currentTarget.open)}>
+      {/*
+        No card of its own -- no border, no background, no margin. It used to carry all
+        three, which made it a box the same shape and colour as a task row: fine at the
+        foot of a panel offering one task, a fourth standalone card once the panel offers
+        three (task-337). The row it now sits in provides the frame; this provides the
+        sentence.
+      */}
       <summary className="touch-target cursor-pointer text-xs text-blue-400 hover:text-blue-300">
-        Why this one?
+        Why this one first?
       </summary>
       {query.isPending && open && <p className="mt-2 text-xs text-dark-muted">Reading the queue…</p>}
       {query.isError && (

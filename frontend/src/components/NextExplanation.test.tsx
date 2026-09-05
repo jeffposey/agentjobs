@@ -29,7 +29,7 @@ function renderPanel() {
 }
 
 function open() {
-  const disclosure = screen.getByText("Why this one?").closest("details") as HTMLDetailsElement;
+  const disclosure = screen.getByText("Why this one first?").closest("details") as HTMLDetailsElement;
   disclosure.open = true;
   fireEvent(disclosure, new Event("toggle"));
   return disclosure;
@@ -44,7 +44,7 @@ describe("NextExplanation", () => {
     // The dashboard polls. Fetching a walk over every open task ahead of the winner on
     // every refresh, to fill a panel nobody has expanded, is how a good idea gets
     // deleted later for being slow.
-    expect(screen.getByText("Why this one?")).toBeVisible();
+    expect(screen.getByText("Why this one first?")).toBeVisible();
     expect(handler).not.toHaveBeenCalled();
 
     open();
