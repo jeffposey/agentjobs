@@ -2,7 +2,7 @@ schema: 2
 id: task-337
 title: Dashboard must provide next best action for human
 created: '2026-09-05T19:17:08.214513Z'
-updated: '2026-09-05T20:29:31.369434Z'
+updated: '2026-09-05T20:30:06.891881Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -454,3 +454,32 @@ log:
       id: e5f30c19-6b8d-4d77-a2c1-9b0741e3f6c4
       kind: handoff
       fingerprint: ee9f19ed72e6ad11295f641f616a9f24
+- id: 10
+  ts: '2026-09-05T20:30:06.891691Z'
+  actor: claude
+  type: note
+  body: 'Correction to the handoff above, on the peer-staged task records.
+
+
+    I wrote that task-126, 247, 253, 272, 273 and 311 were "staged again exactly as
+    I found them". They are not staged. After the last `git commit -- tasks/agentjobs/task-337.yaml`
+    they read ` M` (modified, unstaged) rather than `M ` (staged), which is how I
+    found them.
+
+
+    Their **content is intact** -- `git diff` still shows every line, 16/14/15/15/135/117
+    insertions respectively -- and none of it reached any commit of mine. Only the
+    staging is gone, which is ephemeral state a `git add` restores. I have deliberately
+    not re-staged them: writing to another session''s index in a shared clone while
+    it may be mid-command is how this class of problem gets worse rather than better.
+
+
+    So: if a peer session finds its index empty, its work is still on disk and needs
+    `git add` before its commit.
+
+    '
+  data:
+    operation:
+      id: a9b2c4d6-1e83-4f57-8c09-3d5a7b1e2f40
+      kind: log_append
+      fingerprint: 8af32be76b2b7dad6528bf768a80fec9
