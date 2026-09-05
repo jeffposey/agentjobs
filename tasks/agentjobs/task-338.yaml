@@ -2,7 +2,7 @@ schema: 2
 id: task-338
 title: Top bar does not show red badge count for tasks waiting on human
 created: '2026-09-05T20:25:18.784045Z'
-updated: '2026-09-05T21:22:47.006119Z'
+updated: '2026-09-05T21:29:17.316966Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -402,3 +402,21 @@ log:
     finish_step: started
     branch: fix/task-338-topbar-attention-badge
     finish_id: fin_491ec7c5
+- id: 13
+  ts: '2026-09-05T21:29:17.316820Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-338-topbar-attention-badge` into `main` as `d4dd60c8`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-338
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    dispatch) releases the merge gate (task-021), and run run_da918c41 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: d4dd60c89b347083c5d137f146e0183bf49a746f
+    branch: fix/task-338-topbar-attention-badge
+    base: main
