@@ -2,7 +2,7 @@ schema: 2
 id: task-338
 title: Top bar does not show red badge count for tasks waiting on human
 created: '2026-09-05T20:25:18.784045Z'
-updated: '2026-09-05T21:29:52.620632Z'
+updated: '2026-09-05T21:30:30.169657Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -405,3 +405,43 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 15
+  ts: '2026-09-05T21:30:30.169392Z'
+  actor: claude
+  type: note
+  body: 'Merged as `d4dd60c8`, rebuilt, restarted and verified live: `/api/version`
+    reports `dab713ac` serving from `C:\projects\agentjobs`, and `/api/projects/agentjobs/attention`
+    answers `{"blocking": 0}` -- correctly, since nothing is currently stopped on
+    Jeff.
+
+
+    **The first finish stopped, and not on this branch''s account.** After a clean
+    rebase the gate went red on `tests/test_validate.py::TestRealCorpus`, which runs
+    the validator over this repository''s own records: task-339 had landed on `main`
+    carrying an absolute `C:/Users/...` context pointer, and `absolute-path` fires
+    on any pointer `Path.is_absolute()` accepts. `main` was therefore red for every
+    agent, not only here. Rewritten to the `~/.agentjobs/...` form that task''s own
+    description already used for the same file (`5051c15`), and the second finish
+    was green in 389s.
+
+
+    Two things learned there, neither worth its own task:
+
+    - Editing another task from inside a run goes only one way. `task_log_append`
+    refused it -- *"a run may act on its own task and no other"* -- while a plain
+    HTTP PATCH carrying no credential succeeded as the owner. That asymmetry is not
+    a hole I found: `docs/authorization.md` states it under "What this does not do",
+    point 3, *an uncredentialed run is still the owner*. So the repair is attributed
+    to `system` on task-339 and explained in the commit message instead.
+
+    - A Playwright spec that waits on the 15-second revision poll twice cannot fit
+    in the 30-second default test budget, and the failure is reported as the *assertion*
+    timing out rather than the budget running out. That cost an hour here chasing
+    a LiveUpdates bug that does not exist -- the poller is fine, and I confirmed it
+    against unmodified `main`. `test.setTimeout(120_000)` is on the one spec that
+    needs it, with the reason written down.'
+  data:
+    operation:
+      id: 7a2e5c81-4d93-4b06-a1f7-3e9c8b04d215
+      kind: log_append
+      fingerprint: 6846237eaeca9d23979d6d36d866d934
