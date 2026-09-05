@@ -107,7 +107,11 @@ describe("QueueDispatchGate", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("status")).toHaveTextContent("Dispatch is off for this project.");
+    const line = screen.getByRole("status");
+    expect(line).toHaveTextContent("Dispatch is off for this project.");
+    // The server's `suggested_action` is deliberately not appended: it names a CLI
+    // command, and this surface already offers the control.
+    expect(line).not.toHaveTextContent("Turn it on under Dispatch");
     expect(screen.getByRole("link", { name: "Dispatch settings" })).toHaveAttribute(
       "href",
       "/p/inbox/dispatch",

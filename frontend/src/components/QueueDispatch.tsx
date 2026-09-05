@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 
 import type { DispatchStateView } from "../api/types";
-import { REFUSAL_ACTIONS, type DispatchRefusal } from "./DispatchPanel";
+import type { DispatchRefusal } from "./DispatchPanel";
 
 /**
  * Starting the next task from the Dashboard (task-337).
@@ -71,14 +71,20 @@ export function QueueDispatchGate({
   if (!state?.configured) return null;
   const refusal = queueGateRefusal(state);
   if (!refusal) return null;
-  const action = refusal.suggestedAction || REFUSAL_ACTIONS[refusal.reason];
   return (
     <p
       role="status"
       data-refusal-reason={refusal.reason}
       className="mt-3 text-xs text-orange-200"
     >
-      {refusal.message}{action ? ` ${action}` : ""}{" "}
+      {refusal.message}{" "}
+      {/*
+        The link, and deliberately not the refusal's `suggested_action` as well. That
+        sentence is written to be read by the CLI and by MCP too, so it names a command
+        rather than a control -- and printed here it restates what the message already
+        said and then what this link already is. One place to go beats three sentences
+        about going there.
+      */}
       <Link
         to={`/p/${encodeURIComponent(projectId)}/dispatch`}
         className="text-blue-400 underline hover:text-blue-300"
