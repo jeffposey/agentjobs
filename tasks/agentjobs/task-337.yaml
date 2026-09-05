@@ -2,35 +2,13 @@ schema: 2
 id: task-337
 title: Dashboard must provide next best action for human
 created: '2026-09-05T19:17:08.214513Z'
-updated: '2026-09-05T21:03:58.491119Z'
+updated: '2026-09-05T21:19:08.846280Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Fixed, and ready to look at again on the same sandbox.\n\nDRIVE IT:\
-  \ http://127.0.0.1:8903/app/p/sandbox-reported -- hard-refresh, the bundle changed.\
-  \ \"Why this one first?\" is now inside the first card, under a hairline, with no\
-  \ border or background of its own. Open it: it stays in that card and explains that\
-  \ task. It is not repeated on the second or third, because the endpoint only has\
-  \ an answer for the winner.\n\nI also renamed it from \"Why this one?\" to \"Why\
-  \ this one first?\" -- what it explains is the ordering, and the panel now shows\
-  \ three. Say so if you would rather keep the old string.\n\nBRANCH feat/task-337-dashboard-next-action\
-  \ at 948f06b, rebased onto main.\n\nONE THING BLOCKS THE MERGE, AND IT IS NOT THIS\
-  \ BRANCH.\n\nThe rebase brought in task-339 (created 20:49, commit b13d727), whose\
-  \ spec.context carries an absolute path:\n\n    tasks/agentjobs/task-339.yaml:155\n\
-  \      - path: C:/Users/jpose/.agentjobs/runs/run_f401cd88/phases.jsonl\n\ntests/test_validate.py::TestRealCorpus\
-  \ reads this repository's own records, so that one line turns the gate red for every\
-  \ branch here, mine included. The file is outside the repository and cannot be made\
-  \ repository-relative, so it probably belongs in the description -- which already\
-  \ quotes it -- rather than in context. I have not touched it: it is not my task\
-  \ and a run's writes are scoped to its own (task-332). Fix it, or tell me to, and\
-  \ I will re-run the unqualified gate and hand back a receipt.\n\nEverything else\
-  \ is measured green: pytest with only that one test deselected is 3972 passed /\
-  \ 1 skipped, and `--from vitest` is green across vitest, build and e2e. A second\
-  \ failure in the full run, test_mcp_protocol's identity test, passes alone -- flaky\
-  \ under xdist, not chased.\n\nThe three questions from the last handoff are still\
-  \ open and still worth your answer: panel height on a phone, the wording of the\
-  \ busy-machine sentence, and whether one-click-with-no-choices is the right Dispatch\
-  \ here."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: medium
 queue_position: 8800
@@ -639,3 +617,39 @@ log:
     outcome: completed
     duration_seconds: 1447.45127
     log_path: C:\Users\jpose\.agentjobs\runs\run_e1e2bfde
+- id: 18
+  ts: '2026-09-05T21:15:45.551503Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 19
+  ts: '2026-09-05T21:15:59.503974Z'
+  actor: finisher
+  type: progress
+  body: 'Queued for this repository''s merge runway, held by fin_7b9b8336, pid 3383824
+    started at 16:14:44, 75s ago.
+
+
+    **This is the queue working, not a stall.** Children of an epic fly in parallel
+    and land one at a time, because a gate is only evidence about the base it ran
+    against. Nothing here is rebased, gated or merged until the runway is free.'
+  data:
+    finish_step: runway_queued
+    finish_id: fin_835695c3
+- id: 20
+  ts: '2026-09-05T21:19:08.845947Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-337-dashboard-next-action` (948f06b9).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-337.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_835695c3\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-337-dashboard-next-action
+    finish_id: fin_835695c3
