@@ -6,12 +6,12 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends
 
-from agentjobs.dashboard import build_dashboard_snapshot
+from agentjobs.dashboard import build_dashboard_snapshot, count_blocking_human
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Task
 
 from ..dependencies import get_task_manager
-from ..models import DashboardResponse, TaskRead
+from ..models import AttentionResponse, DashboardResponse, TaskRead
 
 router = APIRouter(tags=["dashboard"])
 
@@ -39,3 +39,18 @@ async def get_dashboard(
             "next_task": read(snapshot["next_task"]),
         }
     )
+
+
+@router.get("/attention", response_model=AttentionResponse)
+async def get_attention(
+    manager: TaskManager = Depends(get_task_manager),
+) -> AttentionResponse:
+    """Return how many tasks are stopped waiting on a person, and nothing else.
+
+    The header polls this on every surface, so it deliberately answers with one
+    integer instead of the records behind it -- see :class:`AttentionResponse`. It
+    is the same predicate the dashboard's own tile and the legacy header use, from
+    the same function, because a badge that disagrees with the page it links to is
+    worse than no badge.
+    """
+    return AttentionResponse(blocking=count_blocking_human(manager))

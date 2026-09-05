@@ -207,6 +207,23 @@ export type AttachmentUpload = {
 };
 
 /**
+ * AttentionResponse
+ *
+ * How much of this project is stopped waiting on a person.
+ *
+ * Its own endpoint rather than a field of the dashboard, because the header renders
+ * it on every surface and the dashboard projection is 900KB of task records --
+ * measured against this repository's own corpus, 2026-09-05. A badge that cost that
+ * on the Tasks tab would not be worth having.
+ */
+export type AttentionResponse = {
+    /**
+     * Blocking
+     */
+    blocking: number;
+};
+
+/**
  * Ball
  *
  * Who acts next. Required while a task is open; null only when closed.
@@ -4573,6 +4590,22 @@ export type GetAllTasksApiAllTasksGetResponses = {
 
 export type GetAllTasksApiAllTasksGetResponse = GetAllTasksApiAllTasksGetResponses[keyof GetAllTasksApiAllTasksGetResponses];
 
+export type GetAttentionApiAttentionGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/attention';
+};
+
+export type GetAttentionApiAttentionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AttentionResponse;
+};
+
+export type GetAttentionApiAttentionGetResponse = GetAttentionApiAttentionGetResponses[keyof GetAttentionApiAttentionGetResponses];
+
 export type GetDashboardApiDashboardGetData = {
     body?: never;
     path?: never;
@@ -5064,6 +5097,36 @@ export type InspectProjectPathApiProjectsInspectPostResponses = {
 };
 
 export type InspectProjectPathApiProjectsInspectPostResponse = InspectProjectPathApiProjectsInspectPostResponses[keyof InspectProjectPathApiProjectsInspectPostResponses];
+
+export type GetAttentionApiProjectsProjectIdAttentionGetData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/attention';
+};
+
+export type GetAttentionApiProjectsProjectIdAttentionGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAttentionApiProjectsProjectIdAttentionGetError = GetAttentionApiProjectsProjectIdAttentionGetErrors[keyof GetAttentionApiProjectsProjectIdAttentionGetErrors];
+
+export type GetAttentionApiProjectsProjectIdAttentionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AttentionResponse;
+};
+
+export type GetAttentionApiProjectsProjectIdAttentionGetResponse = GetAttentionApiProjectsProjectIdAttentionGetResponses[keyof GetAttentionApiProjectsProjectIdAttentionGetResponses];
 
 export type GetDashboardApiProjectsProjectIdDashboardGetData = {
     body?: never;

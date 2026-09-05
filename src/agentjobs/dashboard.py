@@ -51,6 +51,20 @@ def awaits_human_input(task: Task) -> bool:
     return task.ball is Ball.HUMAN and task.lifecycle is Lifecycle.DRAFT
 
 
+def count_blocking_human(manager: TaskManager) -> int:
+    """The badge number: tasks where a person is actually holding work up.
+
+    One function rather than one per surface. The legacy Jinja header, the React
+    header and the dashboard's own "Needs you" tile all render this number, and
+    ``tests/test_attention_tiers.py`` exists because they once each computed it --
+    a parked draft raised the same red badge as a branch at the merge gate, so the
+    badge never reached zero and could only be read by opening it.
+
+    Only ``blocks_human``: a draft is backlog, not a blockage.
+    """
+    return sum(1 for task in manager.list_tasks(ball=Ball.HUMAN) if blocks_human(task))
+
+
 def _inbox_order(tasks: List[Task]) -> List[Task]:
     """Order human-held tasks by urgency, then most recently touched."""
     return sorted(tasks, key=lambda task: (task.priority_rank(), -task.updated.timestamp()))

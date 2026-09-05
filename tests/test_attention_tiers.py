@@ -391,3 +391,56 @@ class TestTheTaskListDefaultsToOpen:
         client, base = client_for([FINISHED])
 
         assert '<option value="open">' in client.get(f"{base}/tasks").text
+
+
+class TestTheAttentionEndpoint:
+    """The React header's badge number (task-338), from the same predicate.
+
+    The React port dropped the badge the Jinja header above has always carried, so
+    every surface but the Dashboard went silent about work that had stopped on you.
+    The restoration is a badge in the React header fed by ``/attention``; these
+    assert on the number that endpoint answers with, and on its agreeing with the
+    two surfaces that already render it.
+    """
+
+    def test_a_parked_draft_raises_no_badge(self, client_for) -> None:
+        client, base = client_for([PARKED_DRAFT, CLAIMABLE])
+
+        response = client.get("/api/projects/inbox/attention")
+
+        assert response.status_code == 200
+        assert response.json() == {"blocking": 0}
+
+    def test_a_task_at_the_merge_gate_raises_a_badge_of_one(self, client_for) -> None:
+        client, base = client_for([BLOCKED_ON_HUMAN, PARKED_DRAFT, CLAIMABLE])
+
+        assert client.get("/api/projects/inbox/attention").json() == {"blocking": 1}
+
+    def test_it_agrees_with_the_jinja_badge_and_the_dashboard_tile(self, client_for) -> None:
+        """One number or none of them is trustworthy -- the thesis of this file."""
+        stalled = make_task(
+            "task-906-also-stalled",
+            lifecycle=Lifecycle.READY,
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.DECISION,
+        )
+        client, base = client_for([BLOCKED_ON_HUMAN, stalled, PARKED_DRAFT, CLAIMABLE])
+
+        endpoint = client.get("/api/projects/inbox/attention").json()["blocking"]
+        jinja = badge_number(client.get(f"{base}/").text)
+        tile = client.get("/api/projects/inbox/dashboard").json()["stats"]["waiting_for_human"]
+
+        assert (endpoint, jinja, tile) == (2, 2, 2)
+
+    def test_the_payload_is_the_count_and_nothing_else(self, client_for) -> None:
+        """It is fetched on every surface, so it may not grow task records.
+
+        The dashboard projection holds the same number and 900KB of records with it;
+        putting the badge on that query is the mistake this endpoint exists to avoid.
+        """
+        client, base = client_for([BLOCKED_ON_HUMAN, PARKED_DRAFT, CLAIMABLE, FINISHED])
+
+        response = client.get("/api/projects/inbox/attention")
+
+        assert set(response.json()) == {"blocking"}
+        assert len(response.content) < 200

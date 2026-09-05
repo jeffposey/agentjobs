@@ -106,6 +106,18 @@ class ProjectRevisionResponse(BaseModel):
     task_count: int
 
 
+class AttentionResponse(BaseModel):
+    """How much of this project is stopped waiting on a person.
+
+    Its own endpoint rather than a field of the dashboard, because the header renders
+    it on every surface and the dashboard projection is 900KB of task records --
+    measured against this repository's own corpus, 2026-09-05. A badge that cost that
+    on the Tasks tab would not be worth having.
+    """
+
+    blocking: int
+
+
 class DashboardRecentUpdate(BaseModel):
     """A compact task-log record for the recent activity list."""
 
