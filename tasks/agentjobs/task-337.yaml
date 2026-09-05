@@ -2,7 +2,7 @@ schema: 2
 id: task-337
 title: Dashboard must provide next best action for human
 created: '2026-09-05T19:17:08.214513Z'
-updated: '2026-09-05T22:27:47.815800Z'
+updated: '2026-09-05T22:29:50.116249Z'
 lifecycle: active
 ball: agent
 ball_reason: answer
@@ -1005,3 +1005,17 @@ log:
     dispatch_refused: per_task_per_day
     dispatch_trigger: manual
     dispatch_count: 3
+- id: 34
+  ts: '2026-09-05T22:29:50.115975Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-337-dashboard-next-action` (79ced2cf).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-337.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_7d946480\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-337-dashboard-next-action
+    finish_id: fin_7d946480
