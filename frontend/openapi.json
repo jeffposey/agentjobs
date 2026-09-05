@@ -232,6 +232,20 @@
         "title": "AttachmentUpload",
         "type": "object"
       },
+      "AttentionResponse": {
+        "description": "How much of this project is stopped waiting on a person.\n\nIts own endpoint rather than a field of the dashboard, because the header renders\nit on every surface and the dashboard projection is 900KB of task records --\nmeasured against this repository's own corpus, 2026-09-05. A badge that cost that\non the Tasks tab would not be worth having.",
+        "properties": {
+          "blocking": {
+            "title": "Blocking",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "blocking"
+        ],
+        "title": "AttentionResponse",
+        "type": "object"
+      },
       "Ball": {
         "description": "Who acts next. Required while a task is open; null only when closed.",
         "enum": [
@@ -5985,6 +5999,28 @@
         ]
       }
     },
+    "/api/attention": {
+      "get": {
+        "description": "Return how many tasks are stopped waiting on a person, and nothing else.\n\nThe header polls this on every surface, so it deliberately answers with one\ninteger instead of the records behind it -- see :class:`AttentionResponse`. It\nis the same predicate the dashboard's own tile and the legacy header use, from\nthe same function, because a badge that disagrees with the page it links to is\nworse than no badge.",
+        "operationId": "get_attention_api_attention_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttentionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Attention",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
     "/api/dashboard": {
       "get": {
         "description": "Return the dashboard projection, including its single next action.",
@@ -6742,6 +6778,49 @@
         "summary": "Inspect Project Path",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/attention": {
+      "get": {
+        "description": "Return how many tasks are stopped waiting on a person, and nothing else.\n\nThe header polls this on every surface, so it deliberately answers with one\ninteger instead of the records behind it -- see :class:`AttentionResponse`. It\nis the same predicate the dashboard's own tile and the legacy header use, from\nthe same function, because a badge that disagrees with the page it links to is\nworse than no badge.",
+        "operationId": "get_attention_api_projects__project_id__attention_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttentionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Attention",
+        "tags": [
+          "dashboard"
         ]
       }
     },

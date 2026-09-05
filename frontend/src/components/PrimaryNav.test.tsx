@@ -111,6 +111,31 @@ describe("PrimaryNav", () => {
     expect(screen.getAllByTestId("badge")).toHaveLength(1);
   });
 
+  it("keeps the attention badge out of the collapsible group, so a phone still sees it", () => {
+    // The load-bearing property of task-338, and the only half of it jsdom can see:
+    // every destination in this bar disappears behind the burger below the
+    // breakpoint, so a badge hung on one of them -- where the legacy Jinja header hung
+    // it -- would be invisible on the surface that needs it most. Asserted as
+    // structure, because jsdom applies no stylesheet and cannot be asked whether the
+    // group is displayed. That it is genuinely visible at a phone width is measured in
+    // e2e/attention-badge.spec.ts.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/p/demo/tasks"]}>
+          <PrimaryNav projectId="demo" attention={<span data-testid="attention">4</span>} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const attention = screen.getByTestId("attention");
+    expect(attention.parentElement).toBe(
+      screen.getByRole("navigation", { name: "Primary navigation" }),
+    );
+    // And it is there without opening anything.
+    expect(panel()).toBeNull();
+  });
+
   it("keeps the burger's breakpoint and the class that hides it in agreement", () => {
     // Tailwind needs the pixel value as a literal inside the class name, so the
     // constant and the class cannot be derived from one another. Nothing but this

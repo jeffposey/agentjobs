@@ -29,7 +29,7 @@ const DESTINATIONS = [
 ];
 
 /** Mirrors `NAV_INLINE_MIN_PX`; below it the destinations are behind the burger. */
-const NAV_INLINE_MIN_PX = 1100;
+const NAV_INLINE_MIN_PX = 1140;
 
 /**
  * One record, long enough that every viewport under test has somewhere to scroll to,

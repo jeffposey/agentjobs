@@ -10,7 +10,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from agentjobs.actors import PROBLEM_HEADLINES
-from agentjobs.dashboard import awaits_human_input, blocks_human, build_dashboard_snapshot
+from agentjobs.dashboard import (
+    awaits_human_input,
+    blocks_human,
+    build_dashboard_snapshot,
+    count_blocking_human,
+)
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, Lifecycle, Outcome, Task
 from agentjobs.projects import Project
@@ -188,11 +193,6 @@ def _get_backlog_tasks(tasks: List[Task]) -> List[Task]:
     )
 
 
-def get_waiting_count(manager: TaskManager) -> int:
-    """The badge number: tasks where a person is actually holding work up."""
-    return sum(1 for task in manager.list_tasks(ball=Ball.HUMAN) if blocks_human(task))
-
-
 @router.get("", name="dashboard")
 @router.get("/")
 async def dashboard(
@@ -227,7 +227,7 @@ async def task_list(
     """Render the searchable/filterable task list."""
     tasks = manager.list_tasks()
     tasks.sort(key=lambda task: (-task.updated.timestamp(), task.priority_rank()))
-    waiting_count = get_waiting_count(manager)
+    waiting_count = count_blocking_human(manager)
 
     # The filter accepts a lifecycle or a ball holder; both are single-valued facts
     # about a task, so one select can offer them side by side. "open" and "all" span
@@ -273,7 +273,7 @@ async def task_detail(
             "request": request,
             "task_id": task_id,
             **_context_base(
-                request=request, project=project, waiting_count=get_waiting_count(manager)
+                request=request, project=project, waiting_count=count_blocking_human(manager)
             ),
         }
         return templates.TemplateResponse(
@@ -291,7 +291,9 @@ async def task_detail(
         # a file edited by hand can still carry one, and the page should show the task
         # rather than 500 over it.
         "parent_task": manager.get_task(task.parent) if task.parent else None,
-        **_context_base(request=request, project=project, waiting_count=get_waiting_count(manager)),
+        **_context_base(
+            request=request, project=project, waiting_count=count_blocking_human(manager)
+        ),
     }
     return templates.TemplateResponse("task_detail.html", context)
 

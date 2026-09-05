@@ -16,7 +16,7 @@ import { expect, test } from "@playwright/test";
 const project = "/app/p/_local";
 
 /** Below `NAV_INLINE_MIN_PX` the destinations are behind the burger. */
-const NAV_INLINE_MIN_PX = 1100;
+const NAV_INLINE_MIN_PX = 1140;
 
 async function openRunsTab(page: import("@playwright/test").Page) {
   if ((page.viewportSize()?.width ?? 0) < NAV_INLINE_MIN_PX) {

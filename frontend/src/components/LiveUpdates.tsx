@@ -19,6 +19,10 @@ export const MISSES_BEFORE_WARNING = 2;
  */
 export const PROJECT_TASK_QUERY_IDS = new Set([
   "getDashboardApiProjectsProjectIdDashboardGet",
+  // The header's red badge. It is a count of task records, so a task write is exactly
+  // and only what moves it -- and the badge sits on every surface, so this is the one
+  // query in the set whose staleness is visible without opening anything.
+  "getAttentionApiProjectsProjectIdAttentionGet",
   "searchTasksApiProjectsProjectIdSearchGet",
   "listTasksApiProjectsProjectIdTasksGet",
   "listBrokenTasksApiProjectsProjectIdTasksBrokenGet",
