@@ -1,0 +1,318 @@
+schema: 2
+id: task-337
+title: Dashboard must provide next best action for human
+created: '2026-09-05T19:17:08.214513Z'
+updated: '2026-09-05T20:04:01.695991Z'
+lifecycle: active
+ball: human
+ball_reason: input
+ball_prompt: "Dispatched session `5e207dd0` is parked on a permission prompt and will\
+  \ wait indefinitely. Answer it wherever the session is open. Or attach locally with\
+  \ `claude attach 5e207dd0`.\n\nThe end of its terminal, verbatim:\n\n```\n\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500 Bash command\n   \u2502 curl -s \"http://127.0.0.1:8876/api/projects/agentjobs/queue\"\
+  \ | python -c \"\n   \u2502 import json,sys\n   \u2502 d=json.load(sys.stdin)\n\
+  \   \u2502 print(json.dumps(d)[:200])\n   \u2502 \" 2>&1 | head -5\n   Read the\
+  \ queue over the API                                                           \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \u2502\
+  \ Auto mode classifier requires confirmation for this command.                 \
+  \                                                                              \
+  \                                           \u2502 3 consecutive actions were blocked.\
+  \ Please review the transcript before continuing.\n \u2502 Latest blocked action:\
+  \ Blocked by classifier\n Do you want to proceed?\n \u276F 1. Yes              \
+  \                                                                              \
+  \                                                                              \
+  \                        2. Yes, and don\u2019t ask again for: curl *\n   3. No\n\
+  \ Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain      4 do next\" with a\
+  \ table of every one of them -- 31 rows, each reading `spec`, under a\n      5 sentence\
+  \ admitting that nothing is blocked by any of them. The backlog rung outranked\n\
+  \      6 \"next up\", so that was the answer on precisely the days when nothing\
+  \ needed a person.\n      7\n      8 Four projects on one server, so the change\
+  \ and everything it must not have broken can be\n      9 compared by switching project\
+  \ rather than by constructing states by hand:\n     \u2026 +250 lines          \
+  \                                                                              \
+  \                                                                              \
+  \                   \u23BF \_Allowed by auto mode classifier                   \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                   Ran 3 shell commands                       \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                           \u25CF Skill(claude-in-chrome)     \
+  \                                                                              \
+  \                                                                              \
+  \                \u23BF \_Successfully loaded skill\n  Called claude-in-chrome 12\
+  \ times, ran 7 shell commands\n\u25CF Now improve the sandbox seed so summaries\
+  \ aren't title echoes:\n  Ran 3 shell commands\n\u25CF Now restart the sandbox with\
+  \ the fixes and rebuild the bundle:\n\u25CF Committed d2734d8, calling claude-in-chrome\
+  \ 4 times, running 19 shell commands\u2026\n  \u23BF  $ curl -s \"http://127.0.0.1:8876/api/projects/agentjobs/queue\"\
+  \ | python -c \"\n     import json,sys\n     d=json.load(sys.stdin)\n     print(json.dumps(d)[:200])\n\
+  \     \" 2>&1 | head -5\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Bash command\n   \u2502 curl -s\
+  \ \"http://127.0.0.1:8876/api/projects/agentjobs/queue\" | python -c \"\n   \u2502\
+  \ import json,sys\n   \u2502 d=json.load(sys.stdin)\n   \u2502 print(json.dumps(d)[:200])\n\
+  \   \u2502 \" 2>&1 | head -5\n   Read the queue over the API                   \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                        \u2502 Auto mode classifier requires confirmation\
+  \ for this command.                                                            \
+  \                                                                              \u2502\
+  \ 3 consecutive actions were blocked. Please review the transcript before continuing.\n\
+  \ \u2502 Latest blocked action: Blocked by classifier\n Do you want to proceed?\n\
+  \ \u276F 1. Yes                                                                \
+  \                                                                              \
+  \                                                    2. Yes, and don\u2019t ask\
+  \ again for: curl *\n   3. No\n Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain\n\
+  ```"
+archived: false
+priority: medium
+queue_position: 8800
+category: general
+tags:
+- reported-issue
+assignment:
+  owner: claude
+  eligible: []
+spec:
+  summary: Dashboard must provide next best action for human
+  description: 'When there is no task waiting on human, the dashboard shows a long
+    list of tasks with reason "spec". The code should check if there are no current
+    Runs and then present UI for the next (2-3?) tasks in queue and ability to dispatch
+    them. Look for other tasks related to Dashboard and keep them grouped and make
+    them critical next task(s).
+
+
+    ---
+
+    Reported from the AgentJobs UI by Jeff Posey, at `/p/agentjobs`.'
+  context: []
+acceptance: []
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-05T19:17:08.816648Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created ready by Jeff Posey.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3b30f5dc-d49e-4a0c-983f-2bacce954158
+      kind: create
+      fingerprint: fcc906661b69b5eca5c740b3c35f8544
+  attachments:
+  - path: attachments/task-337/94470bd6341ee9a0f0510033c53cd531138a9edb6bfb8074c3ad23ab24c4ca5f.png
+    media_type: image/png
+    sha256: 94470bd6341ee9a0f0510033c53cd531138a9edb6bfb8074c3ad23ab24c4ca5f
+    size_bytes: 57484
+    label: image.png
+- id: 2
+  ts: '2026-09-05T19:17:32.664958Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 3
+  ts: '2026-09-05T19:17:33.434592Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 4
+  ts: '2026-09-05T19:17:37.625329Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_d7f1af48
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: dispatch
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 2
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_d7f1af48\session-settings.json
+    - --name
+    - agentjobs/task-337@d7f1af48
+    - 'You are the agent `claude` working task `task-337` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-337-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_d7f1af48. Posture `auto` stops at the merge gate: when
+      the work is done and verified, record the evidence on the task, hand the ball
+      to human/review, and stop. Do not merge. Never push: this project is configured
+      `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: c085a62
+    session_id: 5e207dd0
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 5
+  ts: '2026-09-05T20:04:01.695874Z'
+  actor: dispatcher
+  type: handoff
+  body: "Dispatched session `5e207dd0` is parked on a permission prompt and will wait\
+    \ indefinitely. Answer it wherever the session is open. Or attach locally with\
+    \ `claude attach 5e207dd0`.\n\nThe end of its terminal, verbatim:\n\n```\n\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500 Bash command\n   \u2502 curl -s \"http://127.0.0.1:8876/api/projects/agentjobs/queue\"\
+    \ | python -c \"\n   \u2502 import json,sys\n   \u2502 d=json.load(sys.stdin)\n\
+    \   \u2502 print(json.dumps(d)[:200])\n   \u2502 \" 2>&1 | head -5\n   Read the\
+    \ queue over the API                                                         \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \          \u2502 Auto mode classifier requires confirmation for this command.\
+    \                                                                            \
+    \                                                              \u2502 3 consecutive\
+    \ actions were blocked. Please review the transcript before continuing.\n \u2502\
+    \ Latest blocked action: Blocked by classifier\n Do you want to proceed?\n \u276F\
+    \ 1. Yes                                                                     \
+    \                                                                            \
+    \                                                 2. Yes, and don\u2019t ask again\
+    \ for: curl *\n   3. No\n Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain\
+    \      4 do next\" with a table of every one of them -- 31 rows, each reading\
+    \ `spec`, under a\n      5 sentence admitting that nothing is blocked by any of\
+    \ them. The backlog rung outranked\n      6 \"next up\", so that was the answer\
+    \ on precisely the days when nothing needed a person.\n      7\n      8 Four projects\
+    \ on one server, so the change and everything it must not have broken can be\n\
+    \      9 compared by switching project rather than by constructing states by hand:\n\
+    \     \u2026 +250 lines                                                      \
+    \                                                                            \
+    \                                                       \u23BF \_Allowed by auto\
+    \ mode classifier                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \  Ran 3 shell commands                                                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                    \u25CF Skill(claude-in-chrome)                          \
+    \                                                                            \
+    \                                                                           \u23BF\
+    \ \_Successfully loaded skill\n  Called claude-in-chrome 12 times, ran 7 shell\
+    \ commands\n\u25CF Now improve the sandbox seed so summaries aren't title echoes:\n\
+    \  Ran 3 shell commands\n\u25CF Now restart the sandbox with the fixes and rebuild\
+    \ the bundle:\n\u25CF Committed d2734d8, calling claude-in-chrome 4 times, running\
+    \ 19 shell commands\u2026\n  \u23BF  $ curl -s \"http://127.0.0.1:8876/api/projects/agentjobs/queue\"\
+    \ | python -c \"\n     import json,sys\n     d=json.load(sys.stdin)\n     print(json.dumps(d)[:200])\n\
+    \     \" 2>&1 | head -5\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Bash command\n   \u2502\
+    \ curl -s \"http://127.0.0.1:8876/api/projects/agentjobs/queue\" | python -c \"\
+    \n   \u2502 import json,sys\n   \u2502 d=json.load(sys.stdin)\n   \u2502 print(json.dumps(d)[:200])\n\
+    \   \u2502 \" 2>&1 | head -5\n   Read the queue over the API                 \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                  \u2502 Auto mode classifier\
+    \ requires confirmation for this command.                                    \
+    \                                                                            \
+    \                          \u2502 3 consecutive actions were blocked. Please review\
+    \ the transcript before continuing.\n \u2502 Latest blocked action: Blocked by\
+    \ classifier\n Do you want to proceed?\n \u276F 1. Yes                       \
+    \                                                                            \
+    \                                                                            \
+    \                   2. Yes, and don\u2019t ask again for: curl *\n   3. No\n Esc\
+    \ to cancel \xB7 Tab to amend \xB7 ctrl+e to explain\n```"
+  data:
+    ball: human
+    ball_reason: input
