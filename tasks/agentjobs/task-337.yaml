@@ -2,26 +2,11 @@ schema: 2
 id: task-337
 title: Dashboard must provide next best action for human
 created: '2026-09-05T19:17:08.214513Z'
-updated: '2026-09-05T22:46:37.335698Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'The approval ran the scripted finish and it stopped at `verify`. **The
-  merge is done: `2adc817a`.**
-
-
-  After the restart, the merged code could not be shown to be live within 120s: nothing
-  is answering http://127.0.0.1:8876. **The merge is done** and the rebuild and restart
-  both ran, so this is about the serving process, not about the branch.
-
-
-  Take it from here by hand. Check the tree against what is written above before acting
-  on anything you remember: if your worktree, your branch or your account of this
-  task no longer matches what is on disk, say so on the record and hand the ball back
-  rather than improvising a recovery.'
+updated: '2026-09-05T22:53:55.973863Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
-queue_position: 8800
 category: general
 tags:
 - reported-issue
@@ -29,7 +14,6 @@ tags:
 - frontend
 - ux
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: Dashboard must provide next best action for human
@@ -72,7 +56,8 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-337-dashboard-next-action
-  status: active
+  status: merged
+  merged_at: '2026-09-05T22:53:55.967745Z'
 log:
 - id: 1
   ts: '2026-09-05T19:17:08.816648Z'
@@ -1093,3 +1078,57 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 38
+  ts: '2026-09-05T22:52:55.012080Z'
+  actor: claude
+  type: transition
+  body: 'Delivered and verified by hand after the scripted finish (fin_7d946480) stopped
+    at `verify`.
+
+
+    WHAT HAPPENED
+
+
+    - Jeff answered FINISH at 22:27. The dispatcher refused a fourth dispatch under
+    the `per_task_per_day` cap, but the scripted finish is a CLI command and does
+    not need a dispatch, so it was run directly: `agentjobs finish task-337 --project
+    agentjobs`.
+
+    - The finish rebased 79ced2cf onto main, ran the full unqualified gate green (862s,
+    under contention with task-339''s autonomous run), merged --no-ff as 2adc817a,
+    rebuilt the bundle, and restarted the server with the launcher (open-agentjobs.ps1
+    -Force -NoOpen).
+
+    - Its 120-second verify window expired before the server answered. The server
+    came up at 22:45:05 UTC serving source_commit cf9e221 (the commit after the merge)
+    with the frontend bundle present; /app/ returns 200. The verify step lost a race
+    with the restart, nothing more. Jeff saw the outage as "server is down" and it
+    was the restart.
+
+
+    CLEANUP
+
+
+    - Worktree C:/projects/worktrees/agentjobs-337 removed. The first removal was
+    refused with "Permission denied" because the review sandbox from the earlier session
+    (scripts/dashboard_next_action_sandbox.py, serving on 127.0.0.1:8903 from the
+    worktree) was still running; its process tree was stopped, the directory deleted,
+    and `git worktree prune` run.
+
+    - Branch feat/task-337-dashboard-next-action deleted with `git branch -d` (was
+    c3444d3, contained in main).
+
+
+    FOLLOW-UP NOTED, NOT ACTED ON
+
+
+    Jeff, in chat: the per-task dispatch caps should be bypassable by a human-initiated
+    dispatch, likely via a CLI flag. He asked that nothing be filed or edited for
+    it yet.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 7b2e4c1a-9d3f-4e6b-a8c5-2f1d0e9b7a63
+      kind: close
+      fingerprint: 03e17e88a9f16fbb4d60bd23960dc644
