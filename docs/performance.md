@@ -135,11 +135,35 @@ actually run it.
 
 ## What the gate costs
 
-The stage table and the rules for running the gate are in
-[ENGINEERING.md §Testing](../ENGINEERING.md#testing). What follows is the measurement
-history behind the numbers quoted there — kept because a performance claim is only
-checkable if the run that produced it is on the record, and moved here because a session
-that is about to commit does not need it.
+The rules for *running* the gate are in
+[ENGINEERING.md §Testing](../ENGINEERING.md#testing). The stage table and the measurement
+history live here — kept because a performance claim is only checkable if the run that
+produced it is on the record, and here rather than there because a session that is about
+to commit does not need it, and because the four always-loaded files have a byte budget
+(`tests/test_context_budget.py`) that a table of numbers is a poor use of.
+
+### The stages, and what each cost
+
+One green `poetry run python scripts/check.py` on this machine, 2026-08-21, with nothing
+else competing for it. Read the bottom of your own run rather than quoting these; the
+gate prints the same table every time, which is the whole point of printing it.
+
+| # | Stage | What it checks | Cost |
+|---|---|---|---|
+| 1 | `black` | Python formatting | 0.6s |
+| 2 | `ruff` | Python lint | 0.1s |
+| 3 | `mypy` | Python types | 1.5s |
+| 4 | `api` | `openapi.json` and the generated client both match the app | 4.2s |
+| 5 | `icons` | the committed PWA icons match `assets/app-icon.svg` | 2.8s |
+| 6 | `oxlint` | frontend lint | 0.6s |
+| 7 | `pytest` | the Python suite, across every core | 52.1s |
+| 8 | `vitest` | the jsdom component tests | 5.2s |
+| 9 | `build` | `tsc --noEmit` and the production bundle | 3.7s |
+| 10 | `e2e` | the Playwright suite against a live server | 25.0s |
+| | | | **95.8s** |
+
+MyPy is the one stage whose cost moves for a reason unrelated to load: under two seconds
+against a warm cache, about nineteen seconds on the first run after a checkout.
 
 ### The three figures, and which to quote
 
@@ -212,6 +236,47 @@ Two conclusions follow from the parallel column:
 - **A run's summed gate time can exceed its own duration, and that is not a bug.**
   `run_report.py` reports what the phase records say; overlapping gates make the
   percentage a sum, not a share of a timeline. The report flags it when it happens.
+
+### How many gates a run launches (task-339)
+
+Task-233 made one gate cost 96s and the per-task gate bill did not fall, because the
+number nobody had counted was **how many times a run launches it**.
+
+`poetry run python scripts/run_report.py --since 14 --list`, 2026-09-05, completed runs
+with gate records:
+
+| Task | Run | Gates launched | Gate time |
+|---|---|---|---|
+| task-333 | 88m | 7 (3 failed) | 46.0m |
+| task-330 | 104m | 6 (3 failed) | 33.9m |
+| task-336 | 66m | 8 (2 failed, 2 abandoned) | 48.4m |
+| task-328 | 60m | 8 (5 failed) | 21.9m |
+| task-296 | 47m | 8 (3 failed) | 21.4m |
+| task-321 | 80m | 8 (5 failed) | 20.3m |
+| task-337 | 73m | 3 (1 failed) | 15.0m |
+| task-320 | 47m | 2 | 14.4m |
+| task-244 | 67m | 1 (1 failed) | 12.1m |
+
+**Six to nine launches per run, half of them red, 20 to 46 minutes of gate per task.**
+task-336's row reads 8 and 48.4m only since task-339 taught the report to count
+**abandoned** gates — a `gate_started` with no finish, which is a gate the session was
+killed inside or walked away from. It used to read 6 and 31.1m, and the two it dropped
+were the two longest single blocks in the run.
+
+The worked example, from `~/.agentjobs/runs/run_f401cd88/phases.jsonl`: task-336 added a
+tab indicator to the React app, **finished the code 25 minutes in**, and reached review at
+65. In between it ran a full gate on a stage it already knew was red, abandoned a second
+mid-`e2e`, ran a third green, ran a fourth green over identical code (chained by the agent
+as "wait for gate 3, then run the final gate"), then rebased and found `--since-gate`
+could not narrow anything because two untracked sandbox files had stopped gate 4 writing a
+receipt — and paid a sixth full gate for it.
+
+Every one of those is addressed by the sequence in
+[ENGINEERING.md §One gate per handoff](../ENGINEERING.md#one-gate-per-handoff), and the
+two that the prose alone would not have caught now announce themselves: an unqualified
+gate over a tree this run already has a green gate for prints `ALREADY GREEN` with the
+moment it passed, and both the run that fails to earn a receipt and the `--since-gate`
+that goes looking for one name the paths that blocked it.
 
 ### `--since-gate` is kept for the reasoning, not the saving
 

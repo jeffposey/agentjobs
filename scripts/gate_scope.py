@@ -29,9 +29,10 @@ what ``PARTIAL RUN`` already achieves for ``--only``.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -197,6 +198,80 @@ def changed_since(root: Path, commit: str) -> Optional[List[str]]:
     return sorted(paths)
 
 
+def dirty_paths(root: Path) -> List[Tuple[str, str]]:
+    """Every path that stops this tree being a commit, with what is wrong with each.
+
+    The receipt rule -- a green full gate on a *clean* tree earns one -- is stated in
+    ``issue_receipt`` and was, until task-339, enforced silently. task-336's run left
+    two untracked sandbox files behind, so its fourth green gate wrote no receipt, and
+    the ``--since-gate`` seven minutes later found nothing to narrow against and fell
+    back to all ten stages: ten more minutes to re-establish what a receipt would have
+    settled instantly. Nothing anywhere named the two files.
+
+    So the paths are the finding, and both callers print them: the run that failed to
+    earn a receipt, and the reduced run that went looking for one.
+    """
+    output = _git(root, "status", "--porcelain")
+    if output is None:
+        return []
+    entries: List[Tuple[str, str]] = []
+    for line in output.splitlines():
+        if len(line) < 4:
+            continue
+        code, path = line[:2], line[3:].strip()
+        if not path:
+            continue
+        entries.append((path, "untracked" if code == "??" else f"{code.strip()} in git status"))
+    return entries
+
+
+def render_dirty(entries: Sequence[Tuple[str, str]]) -> List[str]:
+    """The dirty paths as printable lines, or nothing at all when the tree is clean."""
+    if not entries:
+        return []
+    lines = [
+        f"These {len(entries)} path{'' if len(entries) == 1 else 's'} are what stop this "
+        "tree being a commit, and so what stops a receipt:"
+    ]
+    lines += [f"  {path}  --  {why}" for path, why in entries]
+    lines.append("Commit or remove them, then the gate you run next earns a receipt.")
+    return lines
+
+
+def tree_fingerprint(root: Path) -> Optional[str]:
+    """A short digest of exactly what the gate is about to verify, commits included.
+
+    ``HEAD`` alone is not it: the gate verifies the working tree, and task-336 ran two
+    full gates back to back over one uncommitted change and then two more over the
+    committed form of the same code. What identifies "this exact tree" is the commit,
+    plus the patch against it, plus whatever is untracked -- content and all, since an
+    untracked file is source the next commit will carry.
+
+    Returns None when git cannot answer, which every caller reads as "cannot tell",
+    never as "unchanged". A fingerprint that guesses would be worse than none: the whole
+    use of it is to say *nothing has changed since that green run*.
+    """
+    commit = head_commit(root)
+    if commit is None:
+        return None
+    patch = _git(root, "diff", "HEAD")
+    untracked = _git(root, "ls-files", "--others", "--exclude-standard")
+    if patch is None or untracked is None:
+        return None
+    digest = hashlib.sha256()
+    digest.update(commit.encode("utf-8"))
+    digest.update(patch.encode("utf-8", "replace"))
+    for name in sorted(line.strip() for line in untracked.splitlines() if line.strip()):
+        digest.update(name.encode("utf-8", "replace"))
+        try:
+            digest.update(hashlib.sha256((root / name).read_bytes()).hexdigest().encode("ascii"))
+        except OSError:
+            # A path git lists and we cannot read is still a difference; record that it
+            # was there and that we could not see into it, rather than ignoring it.
+            digest.update(b"unreadable")
+    return digest.hexdigest()[:16]
+
+
 def write_receipt(root: Path, commit: str, *, basis: Optional[str]) -> Optional[Path]:
     """Attest that the gate is satisfied at ``commit``.
 
@@ -230,6 +305,14 @@ class Scope:
     reasons: Dict[str, str]
     refusal: Optional[str]
 
+    blocking: List[Tuple[str, str]] = field(default_factory=list)
+    """The dirty paths, when the refusal was that no receipt exists (task-339).
+
+    A refusal that names only itself leaves the reader with a ten-minute gate and no
+    idea what to do about it next time. These are the paths that stopped the last green
+    gate earning a receipt, and they are almost always a couple of scratch files.
+    """
+
     @property
     def reduced(self) -> bool:
         return self.stages is not None
@@ -239,7 +322,14 @@ def resolve(root: Path, every: Sequence[str]) -> Scope:
     """Decide what a ``--since-gate`` run should do, from git and the receipt alone."""
     receipt = read_receipt(root)
     if receipt is None:
-        return Scope(None, None, [], {}, "no gate receipt in this checkout")
+        return Scope(
+            None,
+            None,
+            [],
+            {},
+            "no gate receipt in this checkout",
+            blocking=dirty_paths(root),
+        )
     commit = str(receipt["commit"])
     paths = changed_since(root, commit)
     if paths is None:
@@ -257,10 +347,12 @@ def render(scope: Scope, every: Sequence[str]) -> str:
     outright that this is not the gate.
     """
     if not scope.reduced:
-        return (
-            f"FULL GATE: --since-gate could not narrow anything ({scope.refusal}).\n"
-            "Running every stage."
-        )
+        lines = [
+            f"FULL GATE: --since-gate could not narrow anything ({scope.refusal}).",
+            "Running every stage.",
+        ]
+        lines += render_dirty(scope.blocking)
+        return "\n".join(lines)
     short = (scope.commit or "")[:8]
     if not scope.paths:
         return (
