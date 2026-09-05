@@ -2,7 +2,7 @@ schema: 2
 id: task-126-mcp-in-process-manager
 title: Let the STDIO MCP server run without a separately started service
 created: '2026-08-17T20:47:31.623715Z'
-updated: '2026-08-21T16:58:00.571416Z'
+updated: '2026-09-05T20:17:30.280519Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -281,3 +281,18 @@ log:
       id: fd3b8a34-d9c7-4507-b6d1-62720cd55220
       kind: update_content
       fingerprint: f817057ee5472e7cdb5f7031b314a68c
+- id: 5
+  ts: '2026-09-05T20:17:30.280378Z'
+  actor: codex
+  type: instruction
+  body: 'Owner storage decision, 2026-09-05, supersedes any local fallback proposal
+    here that creates a separate task authority: task-273/task-311 establish server-hosted
+    authoritative SQLite outside worktrees. MCP and CLI must address the same shared
+    service/database authority; server unavailability must not silently create a local
+    task store. Reconcile this task''s implementation plan with that contract before
+    coding.'
+  data:
+    operation:
+      id: 274c86eb-e004-49c6-b1cc-a9ef2163d70c
+      kind: log_append
+      fingerprint: 847580973a456ce8fae22dea06e684dd

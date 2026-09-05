@@ -3,7 +3,7 @@ id: task-247
 title: Atomic task-file writes, stale task-lock reclaim, and the same helper for the
   registry and webhooks.yaml
 created: '2026-08-22T18:51:10.598317Z'
-updated: '2026-08-23T05:15:30.480980Z'
+updated: '2026-09-05T20:17:27.532180Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -113,3 +113,16 @@ log:
       id: a1b2c3d4-0004-4000-8000-000000000004
       kind: queue_move
       fingerprint: e65fe6b19383ab1f2a99f77aff539199
+- id: 3
+  ts: '2026-09-05T20:17:27.532042Z'
+  actor: codex
+  type: instruction
+  body: 'The owner selected authoritative server-hosted SQLite (task-273/task-311).
+    This does not make current file-write failures safe: retain atomic-write protection
+    while YAML is live and for any remaining file-based configuration. Coordinate
+    scope with cutover; do not close this defect merely because a migration is planned.'
+  data:
+    operation:
+      id: ab2366a7-cc40-4500-a0f5-9573e08a16a1
+      kind: log_append
+      fingerprint: 4d803d3bceac03f36cb8660a207071e7

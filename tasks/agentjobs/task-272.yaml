@@ -4,7 +4,7 @@ title: 'migrate-schema: a re-run on a half-migrated corpus duplicates queue posi
   and the migrator writes outside TaskStorage (no lock, no receipt, non-canonical
   bytes)'
 created: '2026-08-22T19:00:21.002481Z'
-updated: '2026-08-22T19:00:21.451976Z'
+updated: '2026-09-05T20:17:29.473460Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -94,3 +94,17 @@ log:
       id: 241c05a5-12cf-44bb-8076-952fd9c9bbb0
       kind: create
       fingerprint: d56ff2d31cb21d42dc6849b0969042e6
+- id: 2
+  ts: '2026-09-05T20:17:29.473285Z'
+  actor: codex
+  type: instruction
+  body: 'The owner selected authoritative server-hosted SQLite (task-273/task-311).
+    Preserve this migration/retry defect as a requirement for the YAML-to-SQLite importer:
+    dry run, repeatable import, explicit errors, complete records and no silent data
+    loss. Reassess remaining legacy migrator exposure at cutover rather than declaring
+    this fixed by changing engines.'
+  data:
+    operation:
+      id: 6c480017-4b31-4915-8f8d-d4ff7855466d
+      kind: log_append
+      fingerprint: 4d44e9e7cf378c3a49b7e4471644f191

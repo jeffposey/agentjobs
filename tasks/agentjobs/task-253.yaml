@@ -3,7 +3,7 @@ id: task-253
 title: "Hold the queue lock across the reopen/reband write in update_task \u2014 a\
   \ concurrent create or move duplicates the position"
 created: '2026-08-22T18:53:05.169309Z'
-updated: '2026-08-22T18:53:05.612653Z'
+updated: '2026-09-05T20:17:28.632231Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -88,3 +88,17 @@ log:
       id: 3fd58084-ba10-47db-81c8-24a7086ca6bb
       kind: create
       fingerprint: e655c32bc2e4c65017c640b336968255
+- id: 2
+  ts: '2026-09-05T20:17:28.632097Z'
+  actor: codex
+  type: instruction
+  body: The owner selected authoritative server-hosted SQLite (task-273/task-311).
+    Carry this queue-race reproduction into transactional SQLite claim/reorder acceptance.
+    A unique constraint alone does not define retries, ordering semantics or a safe
+    multi-step reorder. A disposable SQL index could not have fixed canonical YAML
+    writes; the accepted backend now owns those writes.
+  data:
+    operation:
+      id: b7604f81-6d97-4050-861d-8456dd05c74a
+      kind: log_append
+      fingerprint: 8234e6df804b4fd30f1f0fb1d1f05273

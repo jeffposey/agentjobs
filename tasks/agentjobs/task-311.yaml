@@ -1,9 +1,8 @@
 schema: 2
 id: task-311
-title: Task records live inside the repository they describe, so every branch has
-  its own copy of the backlog
+title: Migrate tasks to server-hosted SQLite and retire task-state Git workflows
 created: '2026-08-24T00:55:20.126619Z'
-updated: '2026-08-24T00:55:20.656776Z'
+updated: '2026-09-05T20:17:05.024700Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -16,83 +15,71 @@ tags:
 - architecture
 - worktrees
 - design
-effort: design first, then a day if it moves
+effort: Estimate after storage contract and migration inventory
 assignment:
   eligible: []
 spec:
-  summary: A project's tasks are YAML under `tasks/` in that project's own git repository.
-    A branch or worktree therefore carries a snapshot of the backlog as it was when
-    the branch was cut, and there is no single source of truth while any branch exists.
-    Three separate defects and one standing prose rule already exist to work around
-    this. The question is whether task records should live in a location that is shared
-    across worktrees rather than versioned alongside the code they describe.
-  intent: 'Jeff, 2026-08-24, immediately after watching it break a gate run: "if only
-    we werent using yaml files for tasks on branches in worktree with no single source
-    of truth, hmmmm... I wonder what we could do about that (WINK)".'
-  description: "## The design fact\n\n`tasks_directory` points inside the project.\
-    \ For this repository that is\n`tasks/agentjobs/`, tracked in the same git repository\
-    \ as the source. Git versions it\nlike any other directory, so **every branch\
-    \ and every worktree holds its own copy of the\nbacklog**, frozen at the moment\
-    \ the branch was cut.\n\nThat is not a bug in any one component. It follows from\
-    \ the arrangement, and the\narrangement was a deliberate and good choice \u2014\
-    \ git-backed, diffable, portable, no\ndatabase. **None of that is what this task\
-    \ questions.** The question is narrower: does\nthe backlog belong on a *branch*,\
-    \ or in one location every worktree shares?\n\n## Four things that already exist\
-    \ because of it\n\n1. **\"Task files live on `main`, always.\"** An entire section\
-    \ of ENGINEERING.md, with the\n   incident that produced it: a handoff committed\
-    \ to a branch is invisible to the human\n   it is addressed to, which defeats\
-    \ the merge gate outright. The rule works. It is a\n   rule, enforced by agents\
-    \ remembering it, standing in for a property the storage layer\n   could have\
-    \ had.\n2. **task-182** \u2014 `require_clean_tree` refused every dispatch in\
-    \ a project whose task\n   files live in its own repo, because writing a task\
-    \ record dirties the tree the check\n   is inspecting. Closed as completed, by\
-    \ special-casing.\n3. **The dashboard shows whatever branch is checked out.**\
-    \ Documented in ENGINEERING.md\n   as a thing not to file bugs about: *\"tasks\
-    \ are YAML files in this repository, so\n   whichever branch is checked out decides\
-    \ what the dashboard shows.\"*\n4. **`test_agentjobs_context_paths_exist` fails\
-    \ on a branch for a record fixed on\n   `main`.** Observed 2026-08-24: a bad `context[]`\
-    \ pointer was committed to `main`,\n   turning the corpus test red; it was corrected\
-    \ on `main` minutes later; a worktree cut\n   before the correction still failed\
-    \ the gate on it until rebased. The test is right to\n   read the corpus. It just\
-    \ cannot tell which copy of the corpus is real.\n\nEach was handled sensibly on\
-    \ its own. Together they are the same cause four times, and\nthe fourth cost a\
-    \ gate run tonight.\n\n## What to weigh\n\nThis is a design task and the answer\
-    \ may be \"keep it as it is, and write down why.\"\n\n- **Move the task directory\
-    \ outside the working tree.** `tasks_directory` is already\n  configurable, and\
-    \ the registry already resolves a project's root independently of the\n  checkout.\
-    \ A location outside the repo \u2014 still git, still YAML, still diffable, just\
-    \ its\n  own repository or a sibling directory \u2014 gives every worktree one\
-    \ backlog and deletes\n  all four workarounds at once. The cost is that a commit\
-    \ can no longer contain both a\n  change and the task record describing it, which\
-    \ ENGINEERING.md already accepts as the\n  price of the \"always on main\" rule,\
-    \ so this may cost nothing that has not been paid.\n- **Keep it in the repo and\
-    \ make readers resolve through the registry.** Narrower: the\n  corpus test and\
-    \ the dashboard ask the registry for the project root rather than reading\n  the\
-    \ checkout. Fixes symptoms 3 and 4, leaves 1 and 2 as rules.\n- **Keep everything\
-    \ and document it as intended.** Defensible. The current arrangement\n  makes\
-    \ a task's history part of the repository's history, which has real value for\n\
-    \  archaeology, and the rules do work when followed.\n\nWhichever is chosen, **record\
-    \ it with the rejected alternatives** \u2014 this is the kind of\ndecision that\
-    \ gets silently re-litigated every time it bites someone.\n\n## Do not treat this\
-    \ as a mandate to rip out YAML\n\n\"Git-friendly and lightweight\" is the product's\
-    \ stated philosophy and one file per task\nis the load-bearing part of it. Nothing\
-    \ here proposes a database, a service, or a schema\nchange. The whole question\
-    \ is *which directory*."
-  constraints: '- Decide before building. This touches storage layout, and a half-migration
-    is worse than either end state.
+  summary: Cut over existing projects to the authoritative SQLite backend from task-273,
+    preserving their complete task history. Remove routine task-state Git commits
+    and ensure every code branch and worktree sees the same live backlog.
+  intent: Owner selected authoritative SQLite co-located with the AgentJobs server
+    on 2026-09-05. The goal is dedicated single-source-of-truth task storage, not
+    relocating canonical YAML or accelerating it with an index.
+  description: 'Task-273 implements the SQLite backend and generic backup support.
+    This task owns safe adoption and removal of the file/Git workflow coupling.
 
-    - Any migration must be reversible and must not lose log history. The task log
-    is the record of why things happened and is not reconstructable.
 
-    - `tasks_directory` is already configurable and other projects on this machine
-    use it differently. Whatever is decided must not assume every project made the
-    same choice as agentjobs.
+    Inventory each registered project''s configured source directory and all task
+    readers/writers: CLI, API, MCP, dispatch/finisher, registry resolution, validators,
+    receipts, attachments, tests and tooling. Do not assume every project''s layout
+    is this repository''s. Choose a configurable durable database location on the
+    AgentJobs server host outside all code worktrees; clients resolve the service/project,
+    never the checkout''s task snapshot.
 
-    - If the decision is to keep things as they are, the four workarounds above get
-    a single documented home explaining the shared cause, so the fifth person to hit
-    it recognises it.'
-  out_of_scope: Replacing YAML with a database or a service. Schema changes. The dispatch/merge
-    policy that happens to interact with this.
+
+    Provide dry-run validation and a transactional, repeatable import preserving IDs,
+    state, queue order, log IDs/thread references, timestamps, actors, nested content,
+    attachment bytes/references and legacy operation metadata. Report malformed records
+    and ambiguous histories with actionable diagnostics; never silently skip or fabricate
+    them. Define baseline/history coverage for task-212/213 and optionally recover
+    evidence from historical Git data before retiring the source, without requiring
+    Git for ongoing metrics.
+
+
+    Take a consistent pre-cutover backup and prove restore. Quiesce old writers during
+    final import, verify counts/content/history/attachments, switch the configured
+    authority once, and reject stale clients or legacy write paths clearly. No steady-state
+    dual writing. A migration interrupted or rerun must not duplicate tasks/logs or
+    partially switch projects. Define rollback both before and after new SQLite writes,
+    including how post-cutover changes are preserved.
+
+
+    After verified cutover remove routine task-record commits from dispatch and finish,
+    the tasks-on-main rule, task-directory clean-tree exceptions that are no longer
+    needed, staged task validation and byte receipts where replaced by database validation/audit.
+    Update or retire direct-file task guards without removing managed-write/authorization
+    requirements. Keep code worktree isolation and meaningful code merge checks. Convert
+    live-corpus-dependent tests to reproducible isolated fixtures and service/store
+    integration tests so Git branch contents do not select the live backlog.
+
+
+    Retire canonical tracked task files through an explicitly documented archival/removal
+    step after migration verification; preserve history and rollback material. Optional
+    YAML/JSON exports are user-requested interchange artifacts, never automatically
+    committed task-state mirrors. Update README, ENGINEERING, ALLAGENTS, workflow/schema/storage
+    documentation and client instructions to describe the new authority accurately.
+
+
+    Exercise two worktrees plus multiple clients against one server: task mutation
+    does not dirty either source checkout, checkout/rebase does not change the visible
+    backlog, and restart preserves tasks/history. Verify generic backup/restore and
+    document an operator backup-enrollment checkpoint before relying on the new store.'
+  constraints: No data loss or silent legacy-record omission. Production migration
+    must be reversible with a demonstrated restore and preserve changes made after
+    cutover. One live authority; no fallback to checkout YAML. Personal backup configuration
+    stays out of public task records. Preserve code worktree and merge safety.
+  out_of_scope: Reconsidering the selected storage engine; keeping YAML canonical;
+    analytics page implementation; personal backup-provider setup.
   context:
   - path: ENGINEERING.md
     why: 'Holds two of the workarounds: ''Task files live on main, always'' and the
@@ -107,29 +94,42 @@ spec:
       for a record already fixed on main.
 acceptance:
 - id: sc-1
-  text: The four known symptoms are confirmed as one cause, or the analysis is corrected,
-    with evidence
+  text: Dry-run and repeatable migration account for every project's task, log/thread,
+    metadata and attachment; malformed data stops or is explicitly reconciled without
+    silent loss.
   status: pending
 - id: sc-2
-  text: A decision is recorded, with rejected alternatives, on whether task records
-    move out of the working tree
+  text: Verified SQLite cutover is shared across worktrees/clients and survives restart;
+    task updates produce no routine source-repository task commits or dirty code trees.
   status: pending
 - id: sc-3
-  text: 'If they move: a reversible migration that preserves every task''s log history,
-    and the workarounds it makes unnecessary are removed rather than left in place'
+  text: Obsolete task-file/Git-specific workflow machinery is removed or replaced
+    and current documentation is updated; code isolation/merge safeguards remain.
   status: pending
 - id: sc-4
-  text: 'If they stay: the shared cause is documented in one place that the four workarounds
-    point at'
+  text: Interrupted import, stale writer, restart and rollback scenarios are tested;
+    backup/restore preserves state and history and covers attachments.
   status: pending
 - id: sc-5
-  text: poetry run python scripts/check.py passes
+  text: Historical metric coverage is reconciled with task-213, and future history
+    is queryable without Git or whole-corpus JSON parsing.
+  status: pending
+- id: sc-6
+  text: Full repository gate and live post-cutover verification pass; operator backup-enrollment
+    checkpoint is documented.
   status: pending
 deliverables: []
 dependencies:
 - task: task-182-clean-tree-versus-in-repo-tasks
   type: related
   note: The same root cause, handled by special-casing require_clean_tree.
+- task: task-273
+  type: needs
+  note: Production cutover requires the implemented SQLite backend, schema and backup/restore
+    contract.
+- task: task-213
+  type: related
+  note: Agree preservation/backfill and history coverage for analytics.
 links: []
 branches: []
 log:
@@ -144,3 +144,37 @@ log:
       id: 0b3e91d4-6a27-4f88-b512-3ce70a95d7f6
       kind: create
       fingerprint: 4300ac31d70411e60a05ed6c3e70d192
+- id: 2
+  ts: '2026-09-05T20:14:07.391823Z'
+  actor: codex
+  type: note
+  body: Updated acceptance, dependencies, effort, spec, title.
+  data:
+    fields:
+    - acceptance
+    - dependencies
+    - effort
+    - spec
+    - title
+    operation:
+      id: 8ae1b7e9-e59d-4a19-af51-117fa5a3a627
+      kind: update_content
+      fingerprint: 9b8571e1eb00e8d5f8e44915a5bb8788
+- id: 3
+  ts: '2026-09-05T20:17:05.024554Z'
+  actor: codex
+  type: decision
+  body: 'Owner decision, 2026-09-05: use authoritative SQLite hosted alongside the
+    AgentJobs server, outside code worktrees, accessed through the shared service.
+    This supersedes prior recommendations for canonical YAML plus a disposable SQLite
+    index or merely relocating canonical YAML. The purpose includes removing task-state
+    Git commits and branch-local backlogs, not only faster reads. Keep queryable task
+    state, relationships and timestamped state history structured for task-212/task-213
+    analytics; JSON may hold appropriate nested content, not the entire query model.
+    Generic consistent backup/restore support is part of the backend and cutover acceptance.
+    Specifications updated; no storage implementation or cutover has occurred.'
+  data:
+    operation:
+      id: d3ba1a89-852f-4fbd-9a16-708a412f5826
+      kind: log_append
+      fingerprint: 35dca2dfe94d61dd2efb399a6d33b39c
