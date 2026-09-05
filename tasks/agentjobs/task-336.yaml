@@ -2,11 +2,28 @@ schema: 2
 id: task-336
 title: Unclear which tab selected
 created: '2026-09-05T19:14:30.057857Z'
-updated: '2026-09-05T20:03:34.301123Z'
+updated: '2026-09-05T20:30:49.483723Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Look at the bar, then approve or send it back.\n\nA sandbox is already\
+  \ running on its own port with throwaway data -- not your dashboard, nothing here\
+  \ can hurt anything:\n\n  http://127.0.0.1:8907/app/p/sandbox-nav\n\nWalk the tabs\
+  \ and watch the marking follow you. Worth clicking specifically:\n\n  Dashboard\
+  \   http://127.0.0.1:8907/app/p/sandbox-nav\n  a task      http://127.0.0.1:8907/app/p/sandbox-nav/tasks/task-101\
+  \   (Tasks stays marked, Create does not light up)\n  Create      http://127.0.0.1:8907/app/p/sandbox-nav/tasks/new\
+  \         (Create marked, Tasks not)\n\nNarrow the window under 1100px for the burger\
+  \ panel, which carries the same marking.\n\nStop it with Ctrl-C in the session that\
+  \ started it, or tell me and I will. If it is not answering, restart it: python\
+  \ scripts/nav_current_sandbox.py 8907\n\nThe one judgement call worth your eye rather\
+  \ than a test: Create no longer has its blue accent. Blue in the bar now means \"\
+  you are here\" and nothing else -- which is the actual cause of what you reported,\
+  \ since on the Dashboard the only coloured entry was the one you were not on. Log\
+  \ entry 6 has the reasoning and what it gives up. If you want Create to stand out\
+  \ again, say so and it comes back as something other than colour.\n\nBranch: fix/task-336-active-tab-indicator,\
+  \ head 9555da7e, rebased onto main, gate green with a receipt. Two commits -- the\
+  \ fix, and scripts/nav_current_sandbox.py. Approving runs the scripted finish; I\
+  \ have merged nothing."
 archived: false
 priority: medium
 queue_position: 8700
@@ -252,3 +269,68 @@ log:
       id: c9d0e1f2-3a4b-4c5d-8e6f-7a8b9c0d1e2f
       kind: update_content
       fingerprint: e5ce09a91b615ff79f6bcad11b506bd0
+- id: 8
+  ts: '2026-09-05T20:30:35.706958Z'
+  actor: claude
+  type: progress
+  body: "Verification receipts.\n\nGate: `scripts/check.py`, unqualified, from the\
+    \ worktree's own interpreter, on the rebased branch head `9555da7e` with a clean\
+    \ tree. Exit 0, all ten stages, 581.0s under contention -- black 2.4 / ruff 2.0\
+    \ / mypy 3.7 / api 23.8 / icons 12.6 / oxlint 3.8 / pytest 397.1 / vitest 43.3\
+    \ / build 7.5 / e2e 84.9. It wrote a gate receipt for `9555da7e`. An earlier unqualified\
+    \ run on the same code before the rebase was also green (403.5s, exit 0); it left\
+    \ no receipt because the tree still had untracked files at the time.\n\nTests\
+    \ added, and what each is for:\n\n- `frontend/src/components/PrimaryNav.test.tsx`\
+    \ -- 20 new jsdom cases (8 \u2192 28 in that file). Ten drive `currentDestinationPath`\
+    \ against URLs directly, including the `/tasks/new` case the longest-match rule\
+    \ exists for, the `demo2`-is-not-`demo` boundary, and an encoded project id. Ten\
+    \ render the header and assert exactly one link carries `aria-current=\"page\"\
+    ` and which one, in the inline row and inside the burger panel, plus that Create's\
+    \ class list now equals Tasks's.\n- `frontend/e2e/nav-current.spec.ts` -- 5 new\
+    \ Playwright cases, and these are the ones that matter. jsdom loads no stylesheet,\
+    \ so every link there reports the same computed colour whatever its classes say;\
+    \ a class-name assertion would also pass against a class Tailwind never emitted.\
+    \ These read `getComputedStyle` out of a real browser: the marked entry's background\
+    \ is not transparent, its `box-shadow` is not `none` (the inset ring compiled),\
+    \ and no other entry matches it on either colour channel.\n- The negative control\
+    \ is in the file rather than in a reviewer's head, in the shape `pinned-header.spec.ts`\
+    \ uses: it reproduces the reported bug by copying a sibling's class list onto\
+    \ the current entry, and shows the paint assertion then has nothing to find. Copying\
+    \ rather than deleting the marking classes, deliberately -- deleting them leaves\
+    \ the link with no colour class at all, so it inherits the page's brighter text\
+    \ and stays distinguishable by accident. That was the first version of the control\
+    \ and it failed for a reason unrelated to what it was controlling for.\n\nAlso\
+    \ verified by eye, in Chrome at 1278px against the sandbox: the project root marks\
+    \ Dashboard, `/tasks/task-101` marks Tasks (not Create), `/tasks/new` marks Create\
+    \ (not Tasks). One thing worth knowing for review: the marked chip uses the same\
+    \ visual language as the selected radio card on the Create form -- blue tint,\
+    \ blue hairline -- so \"selected\" now looks the same in both places.\n\nNot verified\
+    \ by eye: the burger panel below 1100px. `mcp__claude-in-chrome`'s `resize_window`\
+    \ reported success three times and the rendered viewport did not change, so no\
+    \ screenshot of that state is honest evidence. The Playwright case at 390x844\
+    \ does cover it -- one `aria-current` inside `#primary-nav-destinations`, on Dispatch,\
+    \ with a non-transparent background -- and that is the evidence, not a screenshot.\n\
+    \nOne flake seen and named so it is not mistaken for this change: `browser.newContext:\
+    \ Target page, context or browser has been closed`, thrown at chrome-headless-shell\
+    \ launch before any page exists. It hit three different tests across runs, including\
+    \ `pinned-header.spec.ts` which this branch does not touch, and did not recur.\
+    \ It is an environment flake on this machine, not a regression."
+  data:
+    operation:
+      id: d4e5f607-1829-4a3b-9c0d-2e3f4a5b6c7d
+      kind: log_append
+      fingerprint: 282113e4a2c816b18a0c3b84d004fd41
+- id: 9
+  ts: '2026-09-05T20:30:49.483525Z'
+  actor: claude
+  type: handoff
+  body: 'Branch `fix/task-336-active-tab-indicator` is complete, rebased onto main
+    at `1fab9e2`, and green on the unqualified gate at `9555da7e`. Two commits: the
+    fix, and the review sandbox. Nothing merged, nothing pushed.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: e7a8b9c0-2d3e-4f50-a1b2-c3d4e5f60718
+      kind: handoff
+      fingerprint: 0e002c4e7436f5091a9cce9a81c51107
