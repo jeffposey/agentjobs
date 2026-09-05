@@ -2,7 +2,7 @@ schema: 2
 id: task-338
 title: Top bar does not show red badge count for tasks waiting on human
 created: '2026-09-05T20:25:18.784045Z'
-updated: '2026-09-05T21:14:28.222417Z'
+updated: '2026-09-05T21:14:44.332528Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -226,3 +226,17 @@ log:
       id: c4a91d7e-2b38-4f05-9e61-7d3ab0c25f88
       kind: log_append
       fingerprint: 0a356aabf6cb8afabe38077d6f424c81
+- id: 8
+  ts: '2026-09-05T21:14:44.332366Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-338-topbar-attention-badge` (a86e5142).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-338.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_7b9b8336\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-338-topbar-attention-badge
+    finish_id: fin_7b9b8336
