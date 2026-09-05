@@ -1,0 +1,216 @@
+schema: 2
+id: task-336
+title: Unclear which tab selected
+created: '2026-09-05T19:14:30.057857Z'
+updated: '2026-09-05T20:01:08.841904Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
+archived: false
+priority: medium
+queue_position: 8700
+category: general
+tags:
+- reported-issue
+assignment:
+  owner: claude
+  eligible: []
+spec:
+  summary: Unclear which tab selected
+  description: 'This is the dashboard UI in Chrome on desktop. It is not clear which
+    tab is selected and that it is currently Dashboard.
+
+
+    ---
+
+    Reported from the AgentJobs UI by Jeff Posey, at `/p/agentjobs`.'
+  context: []
+acceptance: []
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-05T19:14:30.615525Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created ready by Jeff Posey.
+  data:
+    lifecycle: ready
+    operation:
+      id: 447ac21a-892e-4dac-8f85-c2f7ad2d3399
+      kind: create
+      fingerprint: f34d3f4bfc00b5079bc325bd5adb72d3
+  attachments:
+  - path: attachments/task-336/2e05da4470dd922a91b87d2a412065ef124a7312044c36c4714f4f34aa854afa.png
+    media_type: image/png
+    sha256: 2e05da4470dd922a91b87d2a412065ef124a7312044c36c4714f4f34aa854afa
+    size_bytes: 74979
+    label: image.png
+- id: 2
+  ts: '2026-09-05T19:25:17.216875Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 3
+  ts: '2026-09-05T19:25:17.793898Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 4
+  ts: '2026-09-05T19:25:20.562690Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_f401cd88
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 2
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_f401cd88\session-settings.json
+    - --name
+    - agentjobs/task-336@f401cd88
+    - 'You are the agent `claude` working task `task-336` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-336-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_f401cd88. Posture `auto` stops at the merge gate: when
+      the work is done and verified, record the evidence on the task, hand the ball
+      to human/review, and stop. Do not merge. Never push: this project is configured
+      `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: c085a62
+    session_id: f0d126ee
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 5
+  ts: '2026-09-05T20:00:53.025483Z'
+  actor: claude
+  type: progress
+  body: 'Reproduced the report from the attached screenshot and from the source: `PrimaryNav`
+    had no current-page state at all. Every destination rendered with one class list
+    -- `touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border` --
+    and nothing read `useLocation()` except the effect that closes the burger panel.
+    So "which tab is selected" had no answer in the markup either: no `aria-current`,
+    no styling.
+
+
+    The second half is why the screenshot looks the way it does. `Create` carried
+    `text-blue-300`, the only colour in the bar, so on the Dashboard the one entry
+    that stood out was the one you were *not* on -- which is exactly the reading in
+    the report ("not clear which tab is selected and that it is currently Dashboard").
+
+
+    Fix, on branch `fix/task-336-active-tab-indicator`:
+
+
+    - `currentDestinationPath(pathname, projectId)` -- exported pure function, longest
+    match wins. `/tasks/new` marks Create rather than lighting up Tasks as well; `/tasks/task-042`
+    marks Tasks; Dashboard''s `""` is the fallback for anything under the project
+    nothing else claims. Both the project prefix and the destination path are compared
+    at a segment boundary, so project `demo2` is not project `demo` and `/tasksomething`
+    is not `/tasks`.
+
+    - The current entry gets `aria-current="page"` and three visual channels, not
+    one: `text-white` against muted siblings, a `bg-blue-500/15` tint, and an `inset-ring-1
+    inset-ring-blue-400/60` hairline. `inset-ring` rather than a border because a
+    border is 2px of layout and the row''s one-line fit at `NAV_INLINE_MIN_PX` is
+    measured; a ring paints inside the box. The tint is deliberately not `bg-dark-border`,
+    which is the hover background -- an inactive entry under the pointer would otherwise
+    look exactly like the current one.
+
+    - Everything you are not on is now `text-dark-muted` (5.7:1 on the bar''s `#1e293b`,
+    past AA), which is the other half of the contrast.
+
+    - The same marking appears inside the burger panel below 1100px.
+
+    - Text metrics unchanged: no weight change, no added glyph, no border. `NAV_INLINE_MIN_PX`
+    and its measurement still hold.
+
+
+    Verified: full `scripts/check.py` from the worktree (see the next entry for the
+    receipt), 5 new e2e cases in `frontend/e2e/nav-current.spec.ts` reading computed
+    colour out of a real browser, 15 new jsdom cases in `PrimaryNav.test.tsx`, and
+    by eye at 1278px on a sandbox -- Dashboard, Tasks, a task detail page and Create
+    each marked correctly.'
+  data:
+    operation:
+      id: 6f1a8b2e-4c3d-4a51-9b7e-1d2c3e4f5a61
+      kind: log_append
+      fingerprint: 0e8cabc50e66801b21ba3f2e85c6edc2
+- id: 6
+  ts: '2026-09-05T20:01:08.841624Z'
+  actor: claude
+  type: decision
+  body: 'Decision: retire Create''s `text-blue-300` accent, so colour in the primary
+    nav means "you are here" and nothing else.
+
+
+    Why it is in scope rather than a tidy-up: the report is not only "nothing is marked",
+    it is "not clear ... that it is currently Dashboard". Both halves are visible
+    in the attached screenshot. With no current-page styling, the single blue label
+    was the only thing the eye could land on, and it was on the entry the reader was
+    *not* on. Adding a marker while leaving a second, louder blue in the bar would
+    leave the ambiguity in place and make the fix harder to see.
+
+
+    Rejected alternative 1 -- keep the accent and mark the current page in some other
+    colour. Two colour vocabularies in a seven-item bar, one of which is only decoration.
+    The reader still has to learn which blue is which.
+
+
+    Rejected alternative 2 -- keep an accent for Create in a different hue, or add
+    a `+` glyph. Both re-introduce a competing signal, and the glyph adds width to
+    a row whose one-line fit is a measured constant (`NAV_INLINE_MIN_PX` = 1100, re-measured
+    for task-328). Create is a destination like the others; nothing else in the bar
+    advertises what it does either.
+
+
+    What is given up, stated so nobody rediscovers it as a bug: Create is no longer
+    distinguished as "the entry that creates something rather than going somewhere",
+    which is what the comment on that line claimed the accent was for. If that distinction
+    turns out to matter it should come back as something other than colour -- position,
+    a separator, or a rule in the actions menu task-168 put in the top-right. `PrimaryNav.test.tsx`
+    and `e2e/nav-current.spec.ts` both assert Create is painted identically to the
+    other entries you are not on, so its return would be a deliberate act rather than
+    a drift.'
+  data:
+    operation:
+      id: b21c7d40-5e88-4f0a-8c19-77a2e4f0d312
+      kind: log_append
+      fingerprint: 4ec32593542e16557e9eba4822760af1
