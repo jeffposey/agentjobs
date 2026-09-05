@@ -2,7 +2,7 @@ schema: 2
 id: task-337
 title: Dashboard must provide next best action for human
 created: '2026-09-05T19:17:08.214513Z'
-updated: '2026-09-05T22:29:50.116249Z'
+updated: '2026-09-05T22:44:13.312989Z'
 lifecycle: active
 ball: agent
 ball_reason: answer
@@ -1019,3 +1019,19 @@ log:
     finish_step: started
     branch: feat/task-337-dashboard-next-action
     finish_id: fin_7d946480
+- id: 35
+  ts: '2026-09-05T22:44:13.312382Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-337-dashboard-next-action` into `main` as `2adc817a`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-337
+    before the merge. Approved by a human; no model was in this loop. Delivery --
+    rebuild, restart, verification -- comes next, and this task stays open until it
+    is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 2adc817a4ee99891e5e08f34428d18af2c993bef
+    branch: feat/task-337-dashboard-next-action
+    base: main
