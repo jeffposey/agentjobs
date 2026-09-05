@@ -3,14 +3,13 @@ id: task-268
 title: 'Gate speed, safely: copy the mypy cache into worktrees, add --durations, drop
   nested poetry run, then prototype concurrent stages behind a flag'
 created: '2026-08-22T18:58:37.392234Z'
-updated: '2026-08-22T18:58:37.998709Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Finish specifying this task.
+updated: '2026-09-05T20:50:50.782251Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: high
-queue_position: 13800
+queue_position: 134
 category: developer_experience
 tags:
 - big-dawg-audit
@@ -116,3 +115,89 @@ log:
       id: 77c05739-209b-40cf-aea8-4d8c4fbdd9ad
       kind: create
       fingerprint: 4538a55bf8bbaf19f91d9b1b7cd56560
+- id: 2
+  ts: '2026-09-05T20:50:33.810753Z'
+  actor: claude
+  type: progress
+  body: 'Revived 2026-09-05 on Jeff''s instruction after task-336 took 65 minutes
+    to reach review, 48 of them in eight gate launches. The corpus over the last two
+    weeks (`scripts/run_report.py --since 14 --list`) shows 6 to 9 gates per completed
+    run and 20 to 46 minutes of gate per task, with pytest at 231 to 451 seconds against
+    the 52s this task''s summary assumes, because two `-n auto` suites were sharing
+    the machine.
+
+
+    What that changes about this draft: proposal 6''s warning ("`-n auto` takes every
+    core ... the contended figure is unmeasured") is now measured by accident and
+    is the dominant cost, not a medium-risk side effect. The core budget itself is
+    worked in [task-339](tasks/agentjobs/task-339.yaml), which also takes the gate-count
+    problem; this task keeps the check.py internals it lists: the mypy cache copy,
+    `--durations=15` (which task-339''s Part 2 needs as its instrument, so do it first),
+    nested `poetry run`, `--dist worksteal`, and stage concurrency behind a flag.
+    Promoted as specified; Jeff''s "finish specifying" ask is answered by this entry
+    and by task-339''s spec, which carries the evidence.'
+  data:
+    operation:
+      id: a7b8c9d0-e1f2-4a3b-9c4d-5e6f7a8b9c0d
+      kind: log_append
+      fingerprint: 3738368d78c4e583d5d3d7cf645218b2
+- id: 3
+  ts: '2026-09-05T20:50:39.526407Z'
+  actor: claude
+  type: transition
+  body: 'Promoted from draft on Jeff''s 2026-09-05 instruction to revive the gate-speed
+    work. Do proposal 2 (--durations=15) first: task-339''s contention measurement
+    depends on it.'
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e
+      kind: promote
+      fingerprint: 87606b0a6d7bb96a12021f623422a243
+- id: 4
+  ts: '2026-09-05T20:50:50.782082Z'
+  actor: claude
+  type: queue_move
+  body: Revived with task-339 on Jeff's 2026-09-05 instruction; task-339 sits above
+    it in the critical band and needs this task's --durations instrument.
+  data:
+    band: high
+    from: 13800
+    to: 134
+    placement:
+      kind: top
+    warnings:
+    - kind: demoted_blocker
+      message: This pushed task-141-embed-launcher-and-project-link (4 open tasks
+        need it), task-138-embed-distribution-decision (3 open tasks need it), task-140-embed-server-surface
+        (3 open tasks need it), and 16 more down the 'high' band. Other open work
+        is waiting on them.
+      tasks:
+      - task-141-embed-launcher-and-project-link
+      - task-138-embed-distribution-decision
+      - task-140-embed-server-surface
+      - task-168-menu-shell
+      - task-139-reporter-host-agnostic-core
+      - task-144-embed-security-posture
+      - task-149-check-trigger
+      - task-161-project-level-dispatch
+      - task-171-voice-input-decision
+      - task-237
+      - task-126-mcp-in-process-manager
+      - task-143-report-and-dispatch-from-host
+      - task-147-acceptance-check-schema
+      - task-148-check-evaluator
+      - task-172-dictation-control
+      - task-174-model-access-decision
+      - task-236
+      - task-238
+      - task-239
+    undo:
+      kind: after
+      target: task-267
+    operation:
+      id: c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f
+      kind: queue_move
+      fingerprint: d58203c6f656dc5daf6c134047ffd4c3

@@ -1,0 +1,250 @@
+schema: 2
+id: task-339
+title: 'The gate is launched six to nine times per task at seven to twelve minutes
+  each under contention: one gate per handoff, and a core budget shared between concurrent
+  gates'
+created: '2026-09-05T20:49:03.656961Z'
+updated: '2026-09-05T20:50:20.287965Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 2
+category: developer_experience
+tags:
+- cycle-time
+- check-gate
+- performance
+- dispatch
+- measurement
+effort: 'a day: Part 1 is prose plus two small check.py and run_report.py changes;
+  Part 2 is an hour of measurement and one worker rule'
+assignment:
+  eligible: []
+spec:
+  summary: 'A dispatched task still pays 20 to 46 minutes of gate after task-233 made
+    one gate cost 96s, because agents launch it six to nine times per run and two
+    concurrent `-n auto` suites slow each other four to nine times. Fix both: a one-gate
+    handoff sequence that the tooling reports on, and a core budget shared between
+    concurrent gates.'
+  intent: 'Jeff, 2026-09-05, after task-336 took an hour to reach review: "The task
+    added a little graphic to show which tab was selected. And it took an hour. Why?
+    I told you to measure things ... we already did tasks for speeding gates up...
+    I guess we missed a lot, eh? revive those, this is crazy freaking slow man." The
+    measurements existed and nobody read them back: task-233 closed 2026-08-23 with
+    "concurrent parallel gates" listed as deliberately unmeasured and "recommended,
+    not filed".'
+  description: "## task-336, from `~/.agentjobs/runs/run_f401cd88/phases.jsonl` (UTC,\
+    \ 2026-09-05)\n\nRun 19:25:19 to handoff 20:30:49, 65.5 minutes. task-337's run\
+    \ (`run_d7f1af48`, 19:17 to 20:30) overlapped the whole window with three gates\
+    \ of its own.\n\n| Window | Min | What |\n|---|---|---|\n| 19:25\u201319:33 |\
+    \ 8 | worktree, bootstrap, read, code, write tests |\n| 19:33\u201319:41 | 8 |\
+    \ `--only e2e` red; fix the negative-control test |\n| 19:41\u201319:48 | 7 |\
+    \ full gate 1, red at e2e, the tenth stage, on a stage already known red |\n|\
+    \ 19:48\u201319:50 | 1 | `--only e2e` green. **The code was finished here, 25\
+    \ minutes in.** |\n| 19:50\u201320:00 | 10 | full gate 2, abandoned mid-e2e, no\
+    \ `gate_finished` record (10m12s, which matches the Bash tool's 600s cap; unverified)\
+    \ |\n| 20:00\u201320:07 | 7 | full gate 3, green |\n| 20:07\u201320:13 | 5 | full\
+    \ gate 4, green, identical code, chained by the agent as \"wait for gate 3, then\
+    \ run the final gate\" |\n| 20:13 | | both commits authored (20:13:06, 20:13:11)\
+    \ |\n| 20:13\u201320:20 | 7 | rebase, then `--since-gate`, which found no receipt\
+    \ (gate 4 ran with untracked sandbox files), fell back to all ten stages, stopped\
+    \ by the agent |\n| 20:20\u201320:30 | 10 | full gate 6 on the rebased head, green,\
+    \ receipt written |\n\nEight gate launches, about 48 minutes of gate wall clock,\
+    \ 74% of the run. `run_report.py` reports 31.1m because it only counts the six\
+    \ that wrote a finish record. Per-stage, pytest alone ran 231 / 250 / 289 / 397\
+    \ / 451 seconds against the documented 52s; the whole gate 329 to 581s against\
+    \ 96s.\n\n## It is the corpus, not one run\n\n`poetry run python scripts/run_report.py\
+    \ --since 14 --list`, 2026-09-05, completed runs with gate records:\n\n| Task\
+    \ | Run | Gates | Gate time |\n|---|---|---|---|\n| task-333 | 88m | 7 (3 failed)\
+    \ | 46.0m |\n| task-330 | 104m | 6 (3 failed) | 33.9m |\n| task-336 | 66m | 6\
+    \ recorded, 8 launched (2 failed) | 31.1m |\n| task-328 | 60m | 8 (5 failed) |\
+    \ 21.9m |\n| task-296 | 47m | 8 (3 failed) | 21.4m |\n| task-321 | 80m | 8 (5\
+    \ failed) | 20.3m |\n| task-337 | 73m | 3 (1 failed) | 15.0m |\n| task-320 | 47m\
+    \ | 2 | 14.4m |\n| task-244 | 67m | 1 (1 failed) | 12.1m |\n\nTwo facts fall out.\
+    \ Runs launch the gate six to nine times, and half of those go red. And a single\
+    \ gate under contention costs 7 to 12 minutes, so the 96s baseline in ENGINEERING.md\
+    \ describes a machine this project never runs on: `limits.max_concurrent_runs`\
+    \ is 3 and overlapping runs are the normal case.\n\n## What the earlier tasks\
+    \ did and did not do\n\n- [task-189](tasks/agentjobs/task-189.yaml) was opened\
+    \ on Jeff's words \"why we are doing a full gate, then a full gate, then a full\
+    \ gate\". It delivered cheapest-first ordering and `--from` / `--only`. It did\
+    \ not touch how many times an agent chooses to launch the gate, and task-336 shows\
+    \ the agent still not using `--only` on a stage it already knew was red.\n- [task-221](tasks/agentjobs/task-221.yaml)\
+    \ became `--since-gate`. It needs a receipt, a receipt needs a clean tree, and\
+    \ the agent's sequence (gate, commit, rebase) means there is never one when it\
+    \ is asked for.\n- [task-233](tasks/agentjobs/task-233.yaml) made pytest parallel\
+    \ and coverage opt-in: 365s to 96s alone. Its lever table explicitly listed \"\
+    Concurrent parallel gates\" as unmeasured because `-n auto` \"asks for every core,\
+    \ so two gates now compete for the same 32\", and put \"re-measure concurrent\
+    \ gates\" under \"Follow-ups recommended, not filed\". docs/performance.md later\
+    \ recorded three concurrent gates at 342 / 361 / 384s by accident and drew no\
+    \ action from it.\n- [task-268](tasks/agentjobs/task-268.yaml), a Big Dawg audit\
+    \ draft, proposed capping xdist at `cores-4` while e2e runs and other check.py\
+    \ internals. It sat in draft at the back of the queue; promoted alongside this\
+    \ task.\n\n## Part 1: one gate per handoff\n\nThe sequence that costs one full\
+    \ gate: iterate with `--only <stage>` while a named stage is red; when green,\
+    \ rebase onto `main`, commit, run the unqualified `scripts/check.py` once on the\
+    \ clean committed tree, hand off. That is the order the receipt rule already wants\
+    \ and the reverse of what task-336 did.\n\nThree changes:\n\n1. **Write the sequence\
+    \ down where the agent reads it.** ALLAGENTS.md's Task Lifecycle steps 4 and 5,\
+    \ and ENGINEERING.md's Commit Hygiene. \"Tests pass before every commit\" currently\
+    \ reads as a full gate per commit, and task-336 had two commits and ran two full\
+    \ gates back to back on the same code. Say what is meant: the branch is gated\
+    \ once, after the rebase, before the handoff; a stage you already know is red\
+    \ is re-run with `--only` until it is green.\n2. **Make the gate say when it is\
+    \ being wasted.** `check.py` already writes the run's phase ledger. When an unqualified\
+    \ gate starts and the ledger holds a green unqualified gate for this run on the\
+    \ same tree (HEAD plus a hash of the working-tree diff and untracked paths), print\
+    \ that fact and the timestamp at the top of the run. Do not refuse: the point\
+    \ is that a reader, and the agent's transcript, can see \"the last green gate\
+    \ was on this exact tree 6 seconds ago\". Likewise when a `--since-gate` falls\
+    \ back to all ten stages because the tree has untracked files, name the files\
+    \ so the agent commits them rather than waiting ten minutes.\n3. **Count abandoned\
+    \ gates.** `run_report.py` counts `gate_finished` records. A `gate_started` with\
+    \ no finish in the same run is a gate that was killed or timed out, and task-336\
+    \ had two of them worth 17 minutes. Report them as `abandoned` with their elapsed\
+    \ time to the next event, so the gate minutes a run really paid are the number\
+    \ printed.\n\n## Part 2: a core budget shared between concurrent gates\n\nMeasure\
+    \ first, on this machine, quoted as three runs each the way docs/performance.md\
+    \ requires: pytest stage time alone, and with a second unqualified gate running\
+    \ in another worktree. The task-336 numbers (4x to 9x with one neighbour) say\
+    \ the degradation is worse than linear, so CPU oversubscription may not be the\
+    \ whole cause; task-268's `--durations=15` is the instrument for finding out whether\
+    \ the tail (subprocess spawns, uvicorn starts, `sleep(600)` runner scripts) or\
+    \ the bulk is what stretches.\n\nThen pick, by the summed wall clock of two concurrent\
+    \ gates:\n\n- `-n <cores / active gates>`, where the count of gates currently\
+    \ running on the machine comes from something cheap and durable (a lock file per\
+    \ running gate under `~/.agentjobs`, cleaned on exit, stale ones ignored by age),\
+    \ or\n- a fixed cap when `limits.max_concurrent_runs` is above 1, or\n- `max_concurrent_runs`\
+    \ back to 1 if the measurements say three runs at one-fifth speed each is slower\
+    \ to any single review than one run at full speed. Jeff's stated cost is time\
+    \ to review of one task, not machine throughput, so this is a real candidate and\
+    \ not a rejection.\n\nPlaywright is part of this. The flake task-336 named, `browser.newContext:\
+    \ Target page, context or browser has been closed` at chrome-headless-shell launch,\
+    \ hit three different tests across its runs while pytest from the neighbouring\
+    \ gate held every core. If it disappears under the budget, say so; if not, file\
+    \ it.\n\n## Rejected already, and staying rejected\n\nEverything task-233 and\
+    \ task-268 rejected on the record: reducing what the gate verifies, hand-classified\
+    \ stage skipping beyond `gate_scope.py`'s two entries, `pytest -x` in the gate,\
+    \ `reuseExistingServer`, borrowing the main clone's virtualenv to skip the bootstrap.\
+    \ Jeff's constraint from task-233 stands: \"without just tossing check.py aside,\
+    \ or never having me review or answer questions.\""
+  constraints: '- Every timing claim is a before/after pair from `scripts/check.py`''s
+    stage table, `phases.jsonl`, or `scripts/run_report.py`, quoted with a date, as
+    docs/performance.md requires. Three runs for anything that becomes a default.
+
+    - The gate keeps catching what it catches today. Part 1 changes when the gate
+    is run and what it prints, never what it verifies.
+
+    - Part 1''s tooling change warns; it does not refuse a gate. A refusal is a new
+    way for an agent to be stuck.
+
+    - Do not measure anything by grepping `transcript.log`.
+
+    - The after-figure is `run_report.py --since 7 --split <merge commit>`: gates
+    launched per completed run and gate minutes per run, both quoted in the closing
+    entry.'
+  out_of_scope: check.py stage concurrency, the mypy cache copy, nested `poetry run`,
+    and `--durations` belong to task-268, promoted alongside this task. The scripted
+    finish's own gate after approval (task-241) is a second full gate per task by
+    design and is not changed here; note its cost in the closing entry if the measurements
+    make it worth a separate task.
+  context:
+  - path: C:/Users/jpose/.agentjobs/runs/run_f401cd88/phases.jsonl
+    why: task-336's eight gate launches with per-stage seconds; the timeline table
+      above is read from it
+  - path: scripts/check.py
+    why: PARALLEL_ARGS = ("-n", "auto") and the phase ledger writer; Part 1 change
+      2 and Part 2 both land here
+  - path: scripts/run_report.py
+    why: counts gate_finished only; Part 1 change 3 adds abandoned gates
+  - path: scripts/gate_scope.py
+    why: the --since-gate receipt and classification table; the no-receipt fallback
+      is what cost task-336 gate 5
+  - path: docs/performance.md
+    why: the contention table with three 'not measured' cells, and the three-concurrent-gate
+      figure recorded by accident
+  - path: ALLAGENTS.md
+    why: Task Lifecycle steps 4 and 5 are where the one-gate sequence goes
+  - path: ENGINEERING.md
+    why: '''Tests pass before every commit'' under Commit Hygiene, and the stage cost
+      table that describes an idle machine'
+  - path: tasks/agentjobs/task-233.yaml
+    why: log entry 7 is the lever table that listed concurrent gates as unmeasured
+      and unfiled
+  - path: tasks/agentjobs/task-268.yaml
+    why: the check.py-internal levers, including the xdist cap proposal, promoted
+      alongside this task
+acceptance:
+- id: ac-1
+  text: ALLAGENTS.md and ENGINEERING.md state the one-gate handoff sequence (iterate
+    with --only, rebase, commit, one unqualified gate, hand off), and no sentence
+    in either still reads as a full gate per commit.
+  status: pending
+- id: ac-2
+  text: An unqualified check.py started on a tree that this run's ledger already holds
+    a green unqualified gate for prints that receipt and its age at the top of the
+    run; a --since-gate that falls back for want of a receipt names the untracked
+    paths that blocked one. Both covered by tests.
+  status: pending
+- id: ac-3
+  text: run_report.py reports gates that started and never finished as abandoned with
+    their elapsed time, and task-336's run reads 8 launched rather than 6.
+  status: pending
+- id: ac-4
+  text: Pytest stage time with one and with two concurrent unqualified gates is measured
+    three runs each, before and after the chosen worker rule, and quoted in docs/performance.md's
+    contention table with the date and command.
+  status: pending
+- id: ac-5
+  text: The closing entry quotes run_report.py --since 7 --split <merge> showing gates
+    launched per completed run and gate minutes per run both lower after the merge
+    than before.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-05T20:49:04.300216Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3c7f1a92-5b8e-4d6a-9f0c-2e1b7a4d8c53
+      kind: create
+      fingerprint: b9f194eee9ec96339dd1edae5724fd09
+- id: 2
+  ts: '2026-09-05T20:49:16.826962Z'
+  actor: claude
+  type: queue_move
+  body: 'Jeff, 2026-09-05: "make it front of queue, we can''t be wasting this much
+    time on every task." Gate time is 20 to 46 minutes of every dispatched task, so
+    this compounds across the whole backlog.'
+  data:
+    band: critical
+    from: 193
+    to: 2
+    placement:
+      kind: top
+    operation:
+      id: 8d2e4b61-7a3f-4c95-b1d8-5e6f9a0c2b74
+      kind: queue_move
+      fingerprint: 0636d9b839910ed17ade847c2e4a0ba1
+- id: 3
+  ts: '2026-09-05T20:50:20.287666Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: f1c2d3e4-a5b6-4c7d-8e9f-0a1b2c3d4e5f
+      kind: update_content
+      fingerprint: a63a172c60af6b2a556998f1b72c7aba
