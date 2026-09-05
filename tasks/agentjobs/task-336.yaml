@@ -2,7 +2,7 @@ schema: 2
 id: task-336
 title: Unclear which tab selected
 created: '2026-09-05T19:14:30.057857Z'
-updated: '2026-09-05T20:33:42.745632Z'
+updated: '2026-09-05T20:39:49.541716Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -351,3 +351,19 @@ log:
     finish_step: started
     branch: fix/task-336-active-tab-indicator
     finish_id: fin_21ca19c0
+- id: 13
+  ts: '2026-09-05T20:39:49.541442Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-336-active-tab-indicator` into `main` as `0ee08492`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-336
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 0ee084925eff1890b9bbe005bb443daccbba6308
+    branch: fix/task-336-active-tab-indicator
+    base: main
