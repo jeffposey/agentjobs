@@ -25,6 +25,7 @@ import { DispatchPanel, type DispatchPanelProps } from "./DispatchPanel";
 import { FinishPanel } from "./FinishPanel";
 import { identityHeadline } from "./identityProblem";
 import { NoteComposer } from "./NoteComposer";
+import { useWideShell } from "./shellLayout";
 
 const PRIORITY_CLASSES: Record<string, string> = {
   critical: "bg-red-900 text-red-200",
@@ -44,8 +45,73 @@ function taskPath(projectId: string, taskId: string) {
   return `/p/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`;
 }
 
+/**
+ * The width prose is allowed to reach, wherever in this panel it appears (task-239).
+ *
+ * `ch` rather than `rem`, because the quantity that decides whether a line is readable
+ * is characters per line and not pixels: this panel's prose is `text-sm`, so a `rem`
+ * cap tuned here would be the wrong measure the moment anything is set at a different
+ * size. 78 is the top of the range typography holds to -- long enough that the working
+ * spec of a real task is not a column of five-word lines on a phone, short enough that
+ * the eye finds the start of the next line on a 2560px monitor. The panel is ~2000px
+ * wide there, which is about 190 characters, and 190-character prose is the thing
+ * task-239 exists to stop.
+ *
+ * It is on the text rather than on the sections holding it, deliberately. Half of what
+ * this panel shows -- the dependency graph, the log's rows, the relationship cards, the
+ * metadata strip -- is *better* for the extra width, and a section-level cap would take
+ * it back from them. See {@link MEASURE} for the blocks that do want one.
+ */
+const PROSE = "max-w-[78ch]";
+
+/**
+ * The width a *block* of prose-and-controls is allowed to reach.
+ *
+ * Wider than {@link PROSE}, because these are cards: a bordered box holding a heading,
+ * a paragraph and a row of five buttons reads badly when the box is cut to the measure
+ * of the paragraph inside it. Narrower than the region, because a form whose textarea
+ * is 2000px wide is no easier to write in than one that is 900.
+ *
+ * Left-aligned rather than centred, and that is the whole layout decision: every block
+ * in this panel starts at the same left edge, and the wide ones simply run further
+ * right. A centred column with occasional full-bleed blocks reads as a mistake.
+ */
+const MEASURE = "max-w-4xl";
+
+/**
+ * The threshold this panel restacks at, asked of the panel and not of the window.
+ *
+ * Every `@min-[768px]:` below was a `min-[820px]:` until task-239, and every one of them
+ * was asking "is there room for this on one line" -- a fair question while the panel
+ * *was* the page. It stopped being fair the moment the panel became a region: at a
+ * 900px window the record has 508px, the media query still reads 900, and the header
+ * renders its title at `text-3xl` in a 380px box. Three lines of thirty-pixel type, and
+ * a pinned bar built out of them ate a quarter of the viewport. Measured, not guessed.
+ *
+ * 768 rather than 820 because the number has to be restated in the new frame of
+ * reference: at a 820px window the old full-width page gave its content 820 less two
+ * 24px gutters, so the content width these rules were tuned for was ~772px. Keeping 820
+ * would have moved the breakpoint 50px without anybody deciding to.
+ *
+ * `@container` is declared on the panel's own root rather than on the region, so a
+ * `TaskDetail` rendered anywhere -- the stacked phone shell, a test, a future surface --
+ * measures the box it is actually in. The phone is unaffected either way: 358px was
+ * below 820 and is below 768.
+ */
+const PANEL_CONTAINER = "@container";
+
+/**
+ * `break-words` is not decoration, and it is the half of the measure that is load
+ * bearing (task-239). `whitespace-pre-wrap` wraps at whitespace and nowhere else, so a
+ * token with no whitespace in it -- a 400-character path, a base64 blob, a stack frame
+ * somebody pasted into a handoff -- runs straight past the panel and takes the region's
+ * horizontal scrollbar with it. Measured at a 900px window with every log entry
+ * expanded: 2097px of overflow, from one entry. `break-words` rather than `break-all`,
+ * because the first breaks a word only when it cannot fit a line by itself and the
+ * second breaks every word, which would shred ordinary prose to make one entry behave.
+ */
 function SpecText({ children, muted = false }: { children: string; muted?: boolean }) {
-  return <div className={`whitespace-pre-wrap text-sm leading-6 ${muted ? "text-dark-muted" : "text-dark-text"}`}>{children}</div>;
+  return <div className={`whitespace-pre-wrap break-words text-sm leading-6 ${PROSE} ${muted ? "text-dark-muted" : "text-dark-text"}`}>{children}</div>;
 }
 
 /**
@@ -385,7 +451,7 @@ function ReviewPanel({
   const label = held ? "Hold actions" : verbs.label;
 
   return (
-    <section className="space-y-4 rounded-xl border-2 border-yellow-600/50 bg-yellow-950/30 p-4 min-[820px]:p-6" aria-label={label}>
+    <section className={`space-y-4 rounded-xl border-2 border-yellow-600/50 bg-yellow-950/30 p-4 @min-[768px]:p-6 ${MEASURE}`} aria-label={label}>
       <h2 className="text-lg font-semibold text-yellow-300">{held ? "On hold — nothing will run until you release it" : verbs.heading}</h2>
       {detail.task.ball_prompt && <SpecText>{detail.task.ball_prompt}</SpecText>}
       {detail.identity.ok && detail.identity.user ? (
@@ -537,20 +603,20 @@ function ReviewPanel({
 function PromoteError({ promoteError }: TaskDetailProps) {
   if (!promoteError) return null;
   return (
-    <p role="alert" className="rounded-xl border-2 border-red-600/50 bg-red-950/30 p-4 text-sm text-red-200">{promoteError}</p>
+    <p role="alert" className={`rounded-xl border-2 border-red-600/50 bg-red-950/30 p-4 text-sm text-red-200 ${MEASURE}`}>{promoteError}</p>
   );
 }
 
 function Relationships({ detail, projectId }: { detail: TaskDetailResponse; projectId: string }) {
   if (detail.children.length === 0 && detail.needs.length === 0 && detail.blocks.length === 0 && detail.related.length === 0 && !detail.task.parent) return null;
   return (
-    <section className="grid gap-4 min-[820px]:grid-cols-2" aria-label="Task relationships">
+    <section className="grid gap-4 @min-[768px]:grid-cols-2" aria-label="Task relationships">
       {(detail.task.parent || detail.children.length > 0) && (
         <div className="rounded-lg border border-dark-border bg-dark-surface">
           <h2 className="border-b border-dark-border p-4 font-semibold">Task hierarchy</h2>
           <div className="divide-y divide-dark-border">
             {detail.task.parent && <div className="p-4 text-sm">Parent: <Link className="touch-target inline-flex text-blue-300 hover:underline" to={taskPath(projectId, detail.task.parent)}>{detail.parent_task?.title ?? detail.task.parent} <span className="font-mono text-xs">({detail.task.parent})</span></Link></div>}
-            {detail.children.map((child) => <div className="flex flex-col gap-1 p-4 min-[820px]:flex-row min-[820px]:items-center min-[820px]:justify-between" key={child.id}><Link className="touch-target block text-blue-300 hover:underline" to={taskPath(projectId, child.id)}><span className="block font-medium">{child.title}</span><span className="font-mono text-xs text-dark-muted">{child.id}</span></Link><span className="text-xs text-dark-muted">{child.display_status}</span></div>)}
+            {detail.children.map((child) => <div className="flex flex-col gap-1 p-4 @min-[768px]:flex-row @min-[768px]:items-center @min-[768px]:justify-between" key={child.id}><Link className="touch-target block text-blue-300 hover:underline" to={taskPath(projectId, child.id)}><span className="block font-medium">{child.title}</span><span className="font-mono text-xs text-dark-muted">{child.id}</span></Link><span className="text-xs text-dark-muted">{child.display_status}</span></div>)}
           </div>
         </div>
       )}
@@ -563,7 +629,7 @@ function Relationships({ detail, projectId }: { detail: TaskDetailResponse; proj
       {(detail.needs.length > 0 || detail.blocks.length > 0) && (
         <div className="rounded-lg border border-dark-border bg-dark-surface">
           <h2 className="border-b border-dark-border p-4 font-semibold">Needs and blocks</h2>
-          <div className="grid gap-px bg-dark-border min-[820px]:grid-cols-2">
+          <div className="grid gap-px bg-dark-border @min-[768px]:grid-cols-2">
             <div className="bg-dark-surface p-4"><h3 className="font-semibold">This task needs</h3>{detail.needs.length === 0 ? <p className="mt-2 text-sm text-dark-muted">Nothing.</p> : <ul className="mt-2 space-y-3">{detail.needs.map((relation) => <li className="text-sm" key={relation.task_id}>{relation.exists ? <Link className="touch-target font-mono text-blue-300 hover:underline" to={taskPath(projectId, relation.task_id)}>{relation.task_id}</Link> : <span className="font-mono text-red-300">{relation.task_id} (missing)</span>}<p className={relation.state === "open" || relation.state === "missing" ? "text-red-300" : "text-emerald-300"}>{relation.reason}</p>{relation.note && <p className="text-dark-muted">{relation.note}</p>}</li>)}</ul>}</div>
             <div className="bg-dark-surface p-4"><h3 className="font-semibold">This task blocks</h3>{detail.blocks.length === 0 ? <p className="mt-2 text-sm text-dark-muted">Nothing.</p> : <ul className="mt-2 space-y-3">{detail.blocks.map((relation, index) => <li className="text-sm" key={`${relation.task_id}-${index}`}>{relation.exists ? <Link className="touch-target font-mono text-blue-300 hover:underline" to={taskPath(projectId, relation.task_id)}>{relation.task_id}</Link> : <span className="font-mono text-red-300">{relation.task_id} (missing)</span>}<p className="text-dark-muted">{relation.reason}</p>{relation.note && <p className="text-dark-muted">{relation.note}</p>}</li>)}</ul>}</div>
           </div>
@@ -632,7 +698,7 @@ function Log({ entries, projectId, taskId }: { entries: Array<LogEntry>; project
           {expandAll ? "Collapse long entries" : "Expand all entries"}
         </button>
       </div>
-      <div className="space-y-4 p-4 min-[820px]:p-6">
+      <div className="space-y-4 p-4 @min-[768px]:p-6">
         {ordered.map((entry, index) => {
           const openQuestion = entry.type === "question" && !answered.has(entry.id);
           return (
@@ -704,6 +770,7 @@ export type TaskDetailProps = {
 export function TaskDetail(props: TaskDetailProps) {
   const { detail, projectId } = props;
   const { task } = detail;
+  const pinned = useWideShell();
   const metadata = [
     { label: "Created", value: task.created, date: true },
     { label: "Updated", value: task.updated, date: true },
@@ -711,14 +778,44 @@ export function TaskDetail(props: TaskDetailProps) {
     { label: "Effort", value: task.effort ?? "Not estimated", date: false },
   ];
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col gap-4 min-[820px]:flex-row min-[820px]:items-start min-[820px]:justify-between">
-        <div className="min-w-0"><div className="select-all font-mono text-sm text-blue-300">{task.id}</div><h1 className="break-words text-2xl font-bold min-[820px]:text-3xl">{task.title}</h1><div className="mt-3 flex flex-wrap items-center gap-2"><span className="rounded bg-dark-surface px-2 py-1 text-xs">{task.display_status}</span><span className={`rounded px-2 py-1 text-xs ${PRIORITY_CLASSES[task.priority ?? "medium"]}`}>{task.priority ?? "medium"}</span><span className="text-sm text-dark-muted">{task.category}</span>{task.tags?.map((tag) => <span className="rounded border border-dark-border bg-dark-bg px-2 py-0.5 text-xs" key={tag}>{tag}</span>)}</div></div>
-        <Link to={`/p/${encodeURIComponent(projectId)}/tasks`} className="touch-target rounded-lg border border-dark-border bg-dark-surface px-4 text-sm hover:bg-dark-border">← Back to Tasks</Link>
+    <div className={`space-y-6 ${PANEL_CONTAINER}`}>
+      {/* Pinned to the top of the region that scrolls it, and only where such a region
+          exists (task-239). Which task you are reading is the thing you look back up
+          for while working down a hundred-entry log, and in the two-region shell the
+          record scrolls inside its own box -- so `sticky top-0` here sticks to the top
+          of the record, which is exactly the offer.
+
+          `useWideShell` rather than a `min-[600px]:sticky` class, because the shell's
+          threshold is a device class and not a width: it tests height too, so a class
+          would pin this header on a short desktop window that is rendering the stacked
+          shell, where the document scrolls under a nav bar that is *already* pinned and
+          two pinned bars would fight for `top: 0`. One source of truth for "which shell
+          is this", and it is the module that owns the question.
+
+          The id, title and status ride up here together. They are what the spec asked
+          for, and the chips beside them cost nothing extra because they are already on
+          this line.
+
+          A pinned bar is a row at every width it can appear at, which is the one thing
+          here that is not simply the old header with `sticky` added. Unpinned it keeps
+          the stacked-then-row rule exactly as it was, because that rule is what the
+          phone renders and the phone is not supposed to change. Pinned, stacking would
+          put "← Back to Tasks" on a line of its own and make the bar taller in the
+          narrow case -- which is the case where its height is a problem. */}
+      <header
+        className={`flex gap-4 ${
+          pinned
+            ? "sticky top-0 z-10 flex-row items-start justify-between border-b border-dark-border bg-dark-bg pb-3"
+            : "flex-col @min-[768px]:flex-row @min-[768px]:items-start @min-[768px]:justify-between"
+        }`}
+        data-pinned={pinned ? "yes" : "no"}
+      >
+        <div className="min-w-0"><div className="select-all font-mono text-sm text-blue-300">{task.id}</div><h1 className="break-words text-2xl font-bold @min-[768px]:text-3xl">{task.title}</h1><div className="mt-3 flex flex-wrap items-center gap-2"><span className="rounded bg-dark-surface px-2 py-1 text-xs">{task.display_status}</span><span className={`rounded px-2 py-1 text-xs ${PRIORITY_CLASSES[task.priority ?? "medium"]}`}>{task.priority ?? "medium"}</span><span className="text-sm text-dark-muted">{task.category}</span>{task.tags?.map((tag) => <span className="rounded border border-dark-border bg-dark-bg px-2 py-0.5 text-xs" key={tag}>{tag}</span>)}</div></div>
+        <Link to={`/p/${encodeURIComponent(projectId)}/tasks`} className="touch-target shrink-0 rounded-lg border border-dark-border bg-dark-surface px-4 text-sm hover:bg-dark-border">← Back to Tasks</Link>
       </header>
 
-      <section className="grid grid-cols-2 overflow-hidden rounded-lg border border-dark-border bg-dark-surface min-[820px]:grid-cols-4" aria-label="Task metadata">
-        {metadata.map(({ label, value, date }) => <div className="border-b border-r border-dark-border p-3 min-[820px]:border-b-0" key={label}><div className="text-xs text-dark-muted">{label}</div><div className="mt-1 break-words text-sm">{date ? new Date(value).toLocaleString() : value}</div></div>)}
+      <section className="grid grid-cols-2 overflow-hidden rounded-lg border border-dark-border bg-dark-surface @min-[768px]:grid-cols-4" aria-label="Task metadata">
+        {metadata.map(({ label, value, date }) => <div className="border-b border-r border-dark-border p-3 @min-[768px]:border-b-0" key={label}><div className="text-xs text-dark-muted">{label}</div><div className="mt-1 break-words text-sm">{date ? new Date(value).toLocaleString() : value}</div></div>)}
       </section>
 
       <PromoteError {...props} />
@@ -726,7 +823,14 @@ export function TaskDetail(props: TaskDetailProps) {
       {/* Between the review verbs and Dispatch, because that is where the eye already
           is: a finish is what pressing Approve two feet above this starts, and the
           answer to "did that do anything" has to be where the question was asked. */}
-      <FinishPanel finish={props.finish ?? null} />
+      {props.finish && (
+        <div className={MEASURE}>
+          <FinishPanel finish={props.finish} />
+        </div>
+      )}
+      {/* Not capped. The dispatch panel holds a run's transcript and its raw output,
+          which are the widest things this page ever shows; they scroll inside their own
+          boxes either way, and a wider box means less scrolling. */}
       {props.dispatch && (
         <DispatchPanel
           {...props.dispatch}
@@ -751,18 +855,22 @@ export function TaskDetail(props: TaskDetailProps) {
           refusal that can still land there (no signed-in user, or a CLI-shaped task
           somebody is unpicking) names this control, and a page that names a control it
           does not show is the defect task-185 closed. */}
-      <NoteComposer
-        identity={detail.identity}
-        busy={props.noteBusy}
-        error={props.noteError}
-        onAddNote={props.onAddNote}
-      />
-      {task.ball !== "human" && task.ball_prompt &&<section className="rounded-xl border border-dark-border bg-dark-surface p-4"><h2 className="mb-2 text-xs font-semibold uppercase text-dark-muted">Current ask ({task.ball}/{task.ball_reason})</h2><SpecText>{task.ball_prompt}</SpecText></section>}
-      <section className="rounded-lg border border-dark-border bg-dark-surface p-4" aria-label="Dependency state"><h2 className="mb-2 text-sm font-semibold">Work state</h2><DependencyState task={task} /></section>
+      <div className={MEASURE}>
+        <NoteComposer
+          identity={detail.identity}
+          busy={props.noteBusy}
+          error={props.noteError}
+          onAddNote={props.onAddNote}
+        />
+      </div>
+      {task.ball !== "human" && task.ball_prompt &&<section className={`rounded-xl border border-dark-border bg-dark-surface p-4 ${MEASURE}`}><h2 className="mb-2 text-xs font-semibold uppercase text-dark-muted">Current ask ({task.ball}/{task.ball_reason})</h2><SpecText>{task.ball_prompt}</SpecText></section>}
+      <section className={`rounded-lg border border-dark-border bg-dark-surface p-4 ${MEASURE}`} aria-label="Dependency state"><h2 className="mb-2 text-sm font-semibold">Work state</h2><DependencyState task={task} /></section>
       <Relationships detail={detail} projectId={projectId} />
       <DependencyGraph children={detail.children} edges={detail.child_dependency_edges} projectId={projectId} umbrellaTitle={task.title} />
 
-      <section className="space-y-6 rounded-lg border border-dark-border bg-dark-surface p-4 min-[820px]:p-6" aria-label="Full specification">
+      {/* The specification is the one block that is prose end to end, so it takes the
+          measure at the block as well as on every SpecText inside it. */}
+      <section className={`space-y-6 rounded-lg border border-dark-border bg-dark-surface p-4 @min-[768px]:p-6 ${MEASURE}`} aria-label="Full specification">
         <div><h2 className="mb-2 text-lg font-semibold">Summary</h2><SpecText>{task.spec.summary}</SpecText></div>
         {task.spec.intent && <div><h2 className="mb-2 text-lg font-semibold">Why this task exists</h2><SpecText muted>{task.spec.intent}</SpecText></div>}
         <div><h2 className="mb-2 text-lg font-semibold">Working spec</h2><SpecText>{task.spec.description}</SpecText></div>

@@ -337,7 +337,7 @@ export function DispatchPanel({
 
   return (
     <section
-      className="space-y-4 rounded-xl border-2 border-sky-700/50 bg-sky-950/30 p-4 min-[820px]:p-6"
+      className="space-y-4 rounded-xl border-2 border-sky-700/50 bg-sky-950/30 p-4 @min-[768px]:p-6"
       aria-label="Dispatch"
       data-dispatch-ready={state?.can_dispatch ? "yes" : "no"}
       data-dispatch-asks-for-brief={askForBrief ? "yes" : "no"}
@@ -741,7 +741,7 @@ export function DispatchRunList({
             data-run-live={run.live ? "yes" : "no"}
             className="p-3"
           >
-            <div className="flex flex-col gap-2 min-[820px]:flex-row min-[820px]:items-center min-[820px]:justify-between">
+            <div className="flex flex-col gap-2 @min-[768px]:flex-row @min-[768px]:items-center @min-[768px]:justify-between">
             <div className="min-w-0 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <span
@@ -902,9 +902,15 @@ export function DispatchSettings({
   const chosen = target || current || options[0]?.value || "";
   const selected = options.find((option) => option.value === chosen);
 
+  // `@container` declares its own container query context. The `@min-[768px]:` rules in
+  // this file were window queries until task-239 moved them onto the box -- which the
+  // panel inside a task record needs and this page does not care about -- but a
+  // container query with no container anywhere above it matches nothing at all, so
+  // without this the settings page would render permanently narrow. Declaring one here
+  // costs nothing and makes the rule mean the same thing on both surfaces.
   return (
-    <section className="space-y-6" aria-label="Dispatch settings">
-      <div className="rounded-xl border border-dark-border bg-dark-surface p-4 min-[820px]:p-6">
+    <section className="@container space-y-6" aria-label="Dispatch settings">
+      <div className="rounded-xl border border-dark-border bg-dark-surface p-4 @min-[768px]:p-6">
         <h2 className="text-lg font-semibold">Dispatch for {state.project_id}</h2>
         <p className="mt-1 text-sm text-dark-muted">
           Dispatch lets a click in this browser start an agent process on this machine.

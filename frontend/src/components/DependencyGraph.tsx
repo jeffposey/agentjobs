@@ -57,7 +57,7 @@ export function DependencyGraph({
   const hasCycle = children.some((task) => (task.needs_cycles?.length ?? 0) > 0);
 
   return (
-    <section className="rounded-lg border border-dark-border bg-dark-surface p-4 min-[820px]:p-6" aria-label="Umbrella dependency graph">
+    <section className="rounded-lg border border-dark-border bg-dark-surface p-4 @min-[768px]:p-6" aria-label="Umbrella dependency graph">
       <h2 className="text-lg font-semibold">Sequence inside {umbrellaTitle}</h2>
       <p className="mt-1 text-xs text-dark-muted">The dashed frame means “contained by this umbrella.” Arrows mean execution order.</p>
       {hasCycle && <p role="alert" className="mt-3 rounded border border-amber-600 bg-amber-950/40 p-3 text-sm text-amber-200">Dependency data error: this sequence contains a cycle. Every task is still shown.</p>}

@@ -216,7 +216,7 @@ export function FinishPanel({ finish }: FinishPanelProps) {
 
   return (
     <section
-      className="space-y-3 rounded-xl border-2 border-indigo-700/50 bg-indigo-950/30 p-4 min-[820px]:p-6"
+      className="space-y-3 rounded-xl border-2 border-indigo-700/50 bg-indigo-950/30 p-4 @min-[768px]:p-6"
       aria-label="Finish"
       data-finish-state={finish.state}
       data-finish-live={finish.live ? "yes" : "no"}
