@@ -2,7 +2,7 @@ schema: 2
 id: task-347
 title: 'Rehearsal: a red gate must start its own repair run (task-340 ac-5)'
 created: '2026-09-06T01:13:25.072947Z'
-updated: '2026-09-06T04:12:36.940184Z'
+updated: '2026-09-06T04:13:33.711615Z'
 lifecycle: closed
 outcome: superseded
 archived: false
@@ -395,3 +395,13 @@ log:
       id: 9e18d740-5b2c-4a63-8f91-27c604ba3ed5
       kind: close
       fingerprint: 534b023a618d1286a3154f43e3bb9e9c
+- id: 16
+  ts: '2026-09-06T04:13:33.711440Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 10
+  data:
+    run_id: run_e7b3f8bd
+    outcome: completed
+    duration_seconds: 534.366723
+    log_path: C:\Users\jpose\.agentjobs\runs\run_e7b3f8bd
