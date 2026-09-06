@@ -2,10 +2,11 @@ schema: 2
 id: task-341
 title: Stop wasting all the GUI space
 created: '2026-09-05T21:35:24.982038Z'
-updated: '2026-09-05T21:35:25.793796Z'
-lifecycle: ready
+updated: '2026-09-06T02:51:41.563493Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: medium
 queue_position: 8900
@@ -13,6 +14,7 @@ category: general
 tags:
 - reported-issue
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: Stop wasting all the GUI space
@@ -24,11 +26,33 @@ spec:
 
     Reported from the AgentJobs UI by Jeff Posey, at `/p/agentjobs/tasks`.'
   context: []
-acceptance: []
+acceptance:
+- id: ac-1
+  text: 'At a 1280px viewport the task list fits its scrollport: no horizontal scrollbar,
+    and all six columns are visible without scrolling sideways.'
+  status: pending
+- id: ac-2
+  text: No row is made tall by a task's ball_prompt. A task parked on review with
+    a multi-paragraph prompt occupies a normal row, and the prompt is still reachable
+    (title attribute, and in full on the task detail page).
+  status: pending
+- id: ac-3
+  text: A long title truncates with an ellipsis inside its column rather than widening
+    it.
+  status: pending
+- id: ac-4
+  text: The mobile card layout below 820px is unchanged in behaviour.
+  status: pending
+- id: ac-5
+  text: Regression tests assert the rendered constraint, not the presence of a class,
+    and would fail against the pre-fix code.
+  status: pending
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-341-task-list-density
+  status: active
 log:
 - id: 1
   ts: '2026-09-05T21:35:25.792814Z'
@@ -47,3 +71,116 @@ log:
     sha256: 23272b9e60e9dfdc02b9f35e46d6607ee8462ad1cbec65193bd9f714cce71af7
     size_bytes: 59483
     label: image.png
+- id: 2
+  ts: '2026-09-06T02:46:22.547594Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 3
+  ts: '2026-09-06T02:46:23.442057Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 4
+  ts: '2026-09-06T02:46:25.956336Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_286a044a
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 2
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_286a044a\session-settings.json
+    - --name
+    - agentjobs/task-341@286a044a
+    - 'You are the agent `claude` working task `task-341` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-341-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_286a044a. Posture `auto` stops at the merge gate: when
+      the work is done and verified, record the evidence on the task, hand the ball
+      to human/review, and stop. Do not merge. Never push: this project is configured
+      `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: c9e4b08
+    session_id: 7eb037e7
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 5
+  ts: '2026-09-06T02:51:32.982665Z'
+  actor: claude
+  type: progress
+  body: "Reproduced and measured on the live server (127.0.0.1:8876, /app/p/agentjobs/tasks,\
+    \ Chrome, viewport 1278px). The screenshot understates it: the first screenful\
+    \ of the task list is entirely blank \u2014 header, filters, a column header row,\
+    \ then a void.\n\nTwo independent layout failures, both in shared code.\n\nHorizontal.\
+    \ The table is 1763px wide inside a 1197px scrollport, so Status, Priority, Assigned\
+    \ and Updated sit off-screen behind a horizontal scrollbar nobody looks for. Cause:\
+    \ the Task cell's title carries Tailwind `truncate`, whose `white-space: nowrap`\
+    \ sets that cell's max-content width to the full length of the longest title.\
+    \ `.responsive-table` is `table-layout: auto`, so one title sizes the column \u2014\
+    \ measured 1261px of a 1197px viewport for a single cell. `truncate` can never\
+    \ fire, because nothing constrains the column it lives in.\n\nVertical. `DependencyState\
+    \ compact` renders `ball_prompt` verbatim as the Status cell body. task-092-dashboard-design-pass\
+    \ is parked on review with a full review request in its prompt; poured into the\
+    \ 194px auto-layout left it, that wraps to 2070px. The row is 2091px tall. The\
+    \ median row is 77px. The 122 rows total 12874px, so one task's prose is 16% of\
+    \ the whole list \u2014 and it is the row that lands at the top of the first screen,\
+    \ which is why that screen renders empty.\n\nBoth are the same mistake twice:\
+    \ no cell in this table ever constrains its own text. The other two callers of\
+    \ ResponsiveTable have it too \u2014 Dashboard's \"Title\" column and LiveRuns'\
+    \ `task_title` are equally unbounded; they have just not met a long enough string\
+    \ yet.\n\nBranch fix/task-341-task-list-density, worktree ../worktrees/agentjobs-341,\
+    \ bootstrapped."
+  data:
+    operation:
+      id: 6a1f2c3d-8b47-4e19-9c2a-5d0e7f314a13
+      kind: log_append
+      fingerprint: ddf9ee02c7fc55260b7259cdc525bc0f
+- id: 6
+  ts: '2026-09-06T02:51:41.563308Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 6a1f2c3d-8b47-4e19-9c2a-5d0e7f314a14
+      kind: update_content
+      fingerprint: dd0f8dc11778ab6421eaa1850bb4db31
