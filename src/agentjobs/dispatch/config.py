@@ -940,6 +940,28 @@ def load_dispatch_config(home: Optional[Path] = None) -> Optional[DispatchConfig
     return _parse(loaded, path)
 
 
+def machine_ceiling(home: Optional[Path] = None) -> tuple[int, bool]:
+    """``(max_concurrent_runs, configured)``, never raising at a reader.
+
+    One function, because two surfaces now render this number and they must not be able
+    to disagree: ``GET /api/runs/live`` reports it as the slot board's cell count, and
+    ``GET /api/projects/{id}/dashboard`` sizes its queue preview from it so that a board
+    of N cells has N *different* tasks to offer (task-092). A second copy of "read the
+    config, fall back to the default" would be a second place for the fallback to drift.
+
+    A machine with no dispatch config has no runs either, so the honest answer there is
+    the default ceiling and a flag saying nobody chose it -- not a 500 on a status page,
+    and not a board of confident empty cells.
+    """
+    try:
+        config = load_dispatch_config(home)
+    except DispatchError:
+        return DispatchLimits().max_concurrent_runs, False
+    if config is None:
+        return DispatchLimits().max_concurrent_runs, False
+    return config.limits.max_concurrent_runs, True
+
+
 def _parse(raw: dict, path: Path) -> DispatchConfig:
     """Turn a raw mapping into a validated ``DispatchConfig``."""
     version = raw.get("version", SUPPORTED_VERSION)

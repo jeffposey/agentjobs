@@ -10,46 +10,23 @@ type DashboardProps = {
   dashboard: DashboardResponse;
   projectId: string;
   /**
-   * The "why this one" disclosure, supplied by the page rather than built here.
+   * The slot board (task-092), supplied by the page rather than built here.
    *
-   * It owns a query of its own, and this component is otherwise pure presentation
-   * rendered straight from a response object in its tests. Same shape as the dispatch
-   * panel's `renderOutput`, and for the same reason.
+   * It owns the machine-wide runs query, and this component is otherwise pure
+   * presentation rendered straight from a response object in its tests. Same shape as
+   * the dispatch panel's `renderOutput`, and for the same reason.
    *
-   * Rendered **inside the first queued row**, once (task-337). The endpoint explains
-   * the winner, so the disclosure belongs to the winner's card rather than sitting
-   * after the list, where three tasks make it read as a card about nothing.
-   */
-  renderWhyThisOne?: () => React.ReactNode;
-  /**
-   * The machine-wide capacity row (task-328), supplied by the page for the same reason
-   * `renderWhyThisOne` is: it owns a query, and this component is pure presentation.
-   */
-  renderMachineCapacity?: () => React.ReactNode;
-  /**
-   * The Dispatch control for one queued task (task-337), supplied by the page.
+   * Called with `statusOnly`, which is how task-081's rule survives a grid of equal
+   * cards. The board is not a rung of the ladder -- it is the machine's shape and it
+   * shows on calm days and alarming ones alike -- but on an alarming day it is asked
+   * for its occupied cells only. An occupied cell is a status readout; a free cell with
+   * a Dispatch button is a nudge, and an alarm must never have to compete with one.
    *
-   * Same render-prop shape as the two above, and for the same reason: starting a run
-   * needs a mutation, the dispatch gates and a resolved human identity, none of which a
-   * component rendered straight from a response object in its tests can have. Omitted,
-   * the panel is exactly what it was before -- a list of links.
+   * Everything the next-up rung used to carry moved into it: the queue, the Dispatch
+   * buttons, the why-this-one disclosure and the closed-gate line. The page wires those
+   * straight to the board, so they are no longer this component's business.
    */
-  renderQueueAction?: (task: TaskRead) => React.ReactNode;
-  /**
-   * A closing note for the next-up panel: why the machine cannot dispatch, if it cannot.
-   *
-   * One line at the foot of the panel rather than a refusal repeated beside every row,
-   * because the gate is a property of the machine and the project, not of the task.
-   */
-  renderQueueGate?: () => React.ReactNode;
-  /**
-   * Whether this machine has nothing running. `null` while that is still being read.
-   *
-   * The next-up panel says a different sentence for each answer, and says none of them
-   * until it knows -- a line that flips from "nothing is running" to "something is"
-   * one poll after the page paints is worse than a line that arrives a moment late.
-   */
-  machineIdle?: boolean | null;
+  renderSlotBoard?: (statusOnly: boolean) => React.ReactNode;
 };
 
 const priorityClasses: Record<string, string> = {
@@ -120,26 +97,15 @@ function CreateTaskLink({ projectId }: { projectId: string }) {
 const BACKLOG_PREVIEW = 5;
 
 /**
- * What the next-up panel says about the machine, above the tasks it is offering.
+ * The ladder, minus the rung the board absorbed.
  *
- * Three answers, and the third is silence. "Nothing is running" is the sentence that
- * makes the panel a call to action rather than a listing, so it must not be printed
- * while the runs query is still in flight and might be about to contradict it.
+ * `next_up` used to live here: the head of the claimable queue with a Dispatch button
+ * on each row. It is now the free half of the slot board, one cell per free run slot,
+ * which is the same offer arranged by the machine's capacity instead of by a list
+ * length. Every other rung is unchanged, including the strictness task-081 gave them.
  */
-function machineSentence(machineIdle: boolean | null | undefined): string | null {
-  if (machineIdle === true) return "Nothing is running on this machine. Starting one of these is the useful move.";
-  if (machineIdle === false) return "An agent is already working. These are next in line.";
-  return null;
-}
 
-function NextAction({
-  dashboard,
-  projectId,
-  renderWhyThisOne,
-  renderQueueAction,
-  renderQueueGate,
-  machineIdle,
-}: DashboardProps) {
+function NextAction({ dashboard, projectId }: DashboardProps) {
   const base = projectPath(projectId);
 
   switch (dashboard.next_action) {
@@ -226,69 +192,13 @@ function NextAction({
           )}
         </section>
       );
-    case "next_up": {
-      // `queue_preview` is the head of the queue and `next_task` is its first element,
-      // so the fallback is for one case only: a client reading a server that predates
-      // task-337. Preferring the list over the single task everywhere else means the
-      // panel and the why-this-one disclosure beside it cannot name different tasks.
-      const preview = dashboard.queue_preview?.length
-        ? dashboard.queue_preview
-        : dashboard.next_task
-          ? [dashboard.next_task]
-          : [];
-      if (preview.length === 0) return null;
-      const sentence = machineSentence(machineIdle);
-      return (
-        <section data-testid="next-action" className="rounded-lg border border-dark-border bg-dark-surface p-6">
-          <div className="mb-1 flex items-baseline justify-between gap-4">
-            <h2 className="text-sm font-medium text-dark-text">Next up</h2>
-            <Link to={`${base}/tasks?status=ready`} className="touch-target text-xs text-blue-400 hover:text-blue-300">All ready tasks →</Link>
-          </div>
-          {sentence && <p className="mb-3 text-xs text-dark-muted">{sentence}</p>}
-          <ul className="space-y-2">
-            {preview.map((task, index) => (
-              <li
-                key={task.id}
-                data-testid="queue-preview-task"
-                data-task-id={task.id}
-                className="rounded-lg border border-dark-border bg-dark-bg"
-              >
-                <div className="flex flex-col gap-3 p-4 min-[820px]:flex-row min-[820px]:items-start min-[820px]:justify-between">
-                  {/*
-                    The row's action is a button, and a button inside an anchor is not
-                    valid HTML -- so the link wraps the text and the control sits beside
-                    it, rather than the whole row being one link as it was when the panel
-                    could only ever link.
-                  */}
-                  <Link to={`${base}/tasks/${encodeURIComponent(task.id)}`} className="min-w-0 flex-1 hover:text-blue-300">
-                    <div className="font-mono text-xs text-blue-400">{task.id}</div>
-                    <h3 className="font-medium text-dark-text">{task.title}</h3>
-                    <p className="mt-1 text-sm text-dark-muted">{truncate(task.spec.summary, 160)}</p>
-                  </Link>
-                  <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
-                    <Badge className="bg-dark-surface text-dark-muted">{task.priority}</Badge>
-                    {renderQueueAction?.(task)}
-                  </div>
-                </div>
-                {/*
-                  The disclosure belongs to the *first* row, inside its card and under a
-                  hairline, because what it explains is why that task is first. While the
-                  panel offered one task it could sit at the foot and still be read that
-                  way; offering three, a box after the list reads as a fourth card about
-                  nothing in particular, which is what it looked like (Jeff, 2026-09-05).
-                  It is deliberately not repeated per row: the endpoint explains the
-                  winner, and there is no answer to give for the second.
-                */}
-                {index === 0 && renderWhyThisOne && (
-                  <div className="border-t border-dark-border px-4 py-2">{renderWhyThisOne()}</div>
-                )}
-              </li>
-            ))}
-          </ul>
-          {renderQueueGate?.()}
-        </section>
-      );
-    }
+    case "next_up":
+      // Absorbed by the slot board (task-092). The rung stays in the endpoint's
+      // vocabulary -- it is still the honest name for "there is claimable work" and
+      // `Dashboard` reads it to decide where the board goes -- but the panel it used to
+      // draw is now one free cell per free run slot, which is the same offer arranged by
+      // the machine's capacity rather than by a list length.
+      return null;
     case "queue_broken":
       return (
         <section data-testid="next-action" className="rounded-lg border border-dark-border bg-dark-surface p-6">
@@ -341,15 +251,18 @@ client.claim_task(task.id, agent="agent-name")`}</pre>
   }
 }
 
-export function Dashboard({
-  dashboard,
-  projectId,
-  renderWhyThisOne,
-  renderMachineCapacity,
-  renderQueueAction,
-  renderQueueGate,
-  machineIdle,
-}: DashboardProps) {
+export function Dashboard({ dashboard, projectId, renderSlotBoard }: DashboardProps) {
+  /**
+   * Whether an alarm holds the page.
+   *
+   * These are the two rungs task-081 made strict, and they are the two the board must
+   * not stand beside as an equal card: "work has stopped on these until you act" and
+   * "the queue cannot say what is next" are both alarms, and a grid of six confident
+   * cells under either would be exactly the competition that task fixed. The board
+   * still renders -- what is running is worth knowing on a bad day too -- but below the
+   * alarm and with its free cells withheld, so the page keeps one call to action.
+   */
+  const alarming = dashboard.next_action === "blocked" || dashboard.next_action === "queue_broken";
   const statTiles = [
     ["Needs you", dashboard.stats.waiting_for_human, "text-orange-400"],
     ["In Progress", dashboard.stats.in_progress, ""],
@@ -370,14 +283,24 @@ export function Dashboard({
           repairCommand={dashboard.queue_broken.repair_command}
         />
       )}
-      <NextAction
-        dashboard={dashboard}
-        projectId={projectId}
-        renderWhyThisOne={renderWhyThisOne}
-        renderQueueAction={renderQueueAction}
-        renderQueueGate={renderQueueGate}
-        machineIdle={machineIdle}
-      />
+      {/*
+        Order, not just presence. On a calm day the board is the answer to "what do I do
+        next" and goes first; on an alarming one the alarm does, and the board follows
+        it as a status readout. `empty_project` gets no board at all -- a new project has
+        no runs and no queue, so six empty cells above "Getting Started" would be the
+        page's loudest element saying nothing.
+      */}
+      {alarming ? (
+        <>
+          <NextAction dashboard={dashboard} projectId={projectId} />
+          {renderSlotBoard?.(true)}
+        </>
+      ) : (
+        <>
+          {dashboard.next_action !== "empty_project" && renderSlotBoard?.(false)}
+          <NextAction dashboard={dashboard} projectId={projectId} />
+        </>
+      )}
       <section className="overflow-hidden rounded-lg border border-dark-border bg-dark-surface" aria-label="Task statistics">
         <dl className="grid grid-cols-5 divide-x divide-dark-border">
           {statTiles.map(([label, count, className]) => (
@@ -395,15 +318,6 @@ export function Dashboard({
             +{dashboard.stats.awaiting_input} in backlog
           </Link>
         )}
-        {/*
-          A row at the foot of this card rather than a section of its own, and that is
-          what pays for it. task-294 requires this page to fit one viewport, so a sixth
-          top-level section would cost its own `space-y-6` gap, border and padding --
-          about 110px -- before rendering a character. Here it costs one line, measured
-          at 41px on a 390x844 phone, and it sits beside the backlog link, which is
-          already exactly this shape. Nothing was removed to make room.
-        */}
-        {renderMachineCapacity?.()}
       </section>
       <section className="rounded-lg border border-dark-border bg-dark-surface">
         <div className="flex items-center justify-between border-b border-dark-border p-6">

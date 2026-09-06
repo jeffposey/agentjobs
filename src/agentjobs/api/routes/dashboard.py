@@ -7,6 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 
 from agentjobs.dashboard import build_dashboard_snapshot, count_blocking_human
+from agentjobs.dispatch.config import machine_ceiling
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Task
 from agentjobs.principals import Principal
@@ -31,7 +32,13 @@ async def get_dashboard(
     attributed to a real person, and a button that cannot name one must be disabled with
     the reason rather than pressable into a refusal.
     """
-    snapshot = build_dashboard_snapshot(manager)
+    # The preview is sized by the *machine*, not by this project: the slot board draws
+    # one cell per run slot and each free cell has to offer a different task, so a
+    # ceiling of six needs six (task-092). Read from the same function
+    # `GET /api/runs/live` reports the ceiling with, so the board's cell count and the
+    # supply of tasks for it cannot come from two different readings of one file.
+    ceiling, _configured = machine_ceiling()
+    snapshot = build_dashboard_snapshot(manager, preview_limit=ceiling)
     facts = manager.dependency_facts()
     identity = current_identity(project, principal)
 

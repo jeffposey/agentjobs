@@ -98,11 +98,6 @@ describe("Dashboard next-action ladder", () => {
       exactHeading: "Backlog awaiting your input (1)",
     },
     {
-      name: "next up",
-      response: dashboard({ next_action: "next_up", next_task: claimable }),
-      exactHeading: "Next up",
-    },
-    {
       name: "nothing claimable",
       response: dashboard({ next_action: "nothing_claimable" }),
       exactHeading: "Nothing claimable right now",
@@ -277,71 +272,6 @@ describe("Dashboard on a broken queue", () => {
     expect(screen.queryByRole("alert", { name: "Queue is broken" })).not.toBeInTheDocument();
   });
 
-  it("offers the whole head of the queue, each with the action the page supplies", () => {
-    // The defect task-337 fixed was a dashboard that answered "what do I do next" with
-    // a table of drafts. The answer is now the claimable frontier, and each row carries
-    // whatever the page hands it -- which on the real page is a Dispatch button.
-    const preview = [task("task-one"), task("task-two"), task("task-three")];
-    render(
-      <MemoryRouter>
-        <Dashboard
-          dashboard={dashboard({
-            next_action: "next_up",
-            next_task: preview[0]!,
-            queue_preview: preview,
-          })}
-          projectId="inbox"
-          renderQueueAction={(queued) => <button type="button">Dispatch {queued.id}</button>}
-        />
-      </MemoryRouter>,
-    );
-
-    const rows = screen.getAllByTestId("queue-preview-task");
-    expect(rows.map((row) => row.dataset.taskId)).toEqual([
-      "task-one",
-      "task-two",
-      "task-three",
-    ]);
-    for (const queued of preview) {
-      expect(screen.getByRole("button", { name: `Dispatch ${queued.id}` })).toBeVisible();
-    }
-  });
-
-  it("still names one task when the server predates the queue preview", () => {
-    // A browser cached from before task-337 talking to a server after it, or the
-    // reverse. Either way the panel names the manager's answer rather than nothing.
-    renderDashboard(dashboard({ next_action: "next_up", next_task: claimable }));
-
-    expect(screen.getAllByTestId("queue-preview-task")).toHaveLength(1);
-    expect(screen.getByRole("heading", { name: "Title of task-next" })).toBeVisible();
-  });
-
-  it.each([
-    [true, "Nothing is running on this machine. Starting one of these is the useful move."],
-    [false, "An agent is already working. These are next in line."],
-  ])("says what the machine is doing when idle is %s", (machineIdle, sentence) => {
-    render(
-      <MemoryRouter>
-        <Dashboard
-          dashboard={dashboard({ next_action: "next_up", queue_preview: [claimable] })}
-          projectId="inbox"
-          machineIdle={machineIdle}
-        />
-      </MemoryRouter>,
-    );
-
-    expect(screen.getByText(sentence)).toBeVisible();
-  });
-
-  it("says nothing about the machine until it knows", () => {
-    // A line that flips from "nothing is running" to "something is" one poll after the
-    // page paints is worse than a line that arrives a moment late.
-    renderDashboard(dashboard({ next_action: "next_up", queue_preview: [claimable] }));
-
-    expect(screen.queryByText(/Nothing is running/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/already working/)).not.toBeInTheDocument();
-  });
-
   it("samples the backlog rather than printing all of it", () => {
     // Six drafts stands in for the 31 that were on screen when this was reported.
     const drafts = Array.from({ length: 6 }, (_, index) =>
@@ -362,28 +292,71 @@ describe("Dashboard on a broken queue", () => {
     );
   });
 
-  it("puts the why-this-one disclosure inside the row it explains, and nowhere else", () => {
-    // It used to render after the whole list, in a bordered box the same shape as a
-    // task row -- which read as a fourth standalone card rather than as the reason the
-    // first task is first (Jeff, 2026-09-05). What it explains is the winner, so it
-    // lives in the winner's card and is not repeated.
-    const preview = [task("task-one"), task("task-two"), task("task-three")];
-    render(
+});
+
+// ---------------------------------------------------------------------------
+// task-092 -- where the slot board sits, and what an alarm does to it
+// ---------------------------------------------------------------------------
+
+describe("Dashboard placement of the slot board", () => {
+  function renderWithBoard(value: DashboardResponse) {
+    return render(
       <MemoryRouter>
         <Dashboard
-          dashboard={dashboard({
-            next_action: "next_up",
-            next_task: preview[0]!,
-            queue_preview: preview,
-          })}
+          dashboard={value}
           projectId="inbox"
-          renderWhyThisOne={() => <p>Because it is first in the high band.</p>}
+          renderSlotBoard={(statusOnly) => (
+            <section data-testid="board" data-status-only={String(statusOnly)}>
+              Board
+            </section>
+          )}
         />
       </MemoryRouter>,
     );
+  }
 
-    const rows = screen.getAllByTestId("queue-preview-task");
-    expect(within(rows[0]!).getByText("Because it is first in the high band.")).toBeVisible();
-    expect(screen.getAllByText("Because it is first in the high band.")).toHaveLength(1);
+  it("puts the board above the calm rung and asks it for its free cells", () => {
+    const { container } = renderWithBoard(
+      dashboard({ next_action: "next_up", queue_preview: [claimable] }),
+    );
+
+    const board = screen.getByTestId("board");
+    expect(board).toHaveAttribute("data-status-only", "false");
+    // `next_up` no longer draws a rung of its own: the board is that rung.
+    expect(screen.queryByTestId("next-action")).not.toBeInTheDocument();
+    expect(container.querySelector("[data-testid='board']")).toBe(board);
+  });
+
+  it("keeps an alarm above the board and withholds the board's nudge", () => {
+    // task-081's rule, restated for a grid: an alarm must not have to compete with a
+    // call to action, and a free cell with a Dispatch button in it is one.
+    renderWithBoard(dashboard({ next_action: "blocked", waiting_tasks: [blocked] }));
+
+    const alarm = screen.getByTestId("next-action");
+    const board = screen.getByTestId("board");
+    expect(alarm).toHaveTextContent("1 Task Blocked on You");
+    expect(board).toHaveAttribute("data-status-only", "true");
+    expect(alarm.compareDocumentPosition(board) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("treats a broken queue as an alarm too", () => {
+    renderWithBoard(dashboard({ next_action: "queue_broken", queue_broken: DUPLICATE }));
+
+    expect(screen.getByTestId("board")).toHaveAttribute("data-status-only", "true");
+  });
+
+  it("draws no board at all on a project with no tasks", () => {
+    // Six empty cells above "Getting Started" would be the loudest thing on the page
+    // and would be saying nothing.
+    renderWithBoard(dashboard({ next_action: "empty_project" }));
+
+    expect(screen.queryByTestId("board")).not.toBeInTheDocument();
+  });
+
+  it("still shows the board beside the calm rungs that survived", () => {
+    renderWithBoard(dashboard({ next_action: "backlog", backlog_tasks: [backlog] }));
+
+    expect(screen.getByTestId("board")).toHaveAttribute("data-status-only", "false");
+    expect(screen.getByTestId("next-action")).toHaveTextContent("Backlog awaiting your input");
   });
 });

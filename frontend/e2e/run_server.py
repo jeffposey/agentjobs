@@ -74,6 +74,11 @@ def write_dispatch_config(home: Path) -> None:
                         "actor": "claude",
                     },
                 },
+                # Two slots, so the Dashboard's slot board has a cell to spare while a
+                # run holds one -- which is the only arrangement in which a browser can
+                # see both halves of the board at once (task-092). One would be a board
+                # that is either all run or all queue and never both.
+                "limits": {"max_concurrent_runs": 2},
                 "projects": {"_local": {"enabled": False, "require_clean_tree": False}},
             },
             sort_keys=False,
