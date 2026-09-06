@@ -24,7 +24,9 @@ import { DependencyState } from "./DependencyState";
 import { DispatchPanel, type DispatchPanelProps } from "./DispatchPanel";
 import { FinishPanel } from "./FinishPanel";
 import { identityHeadline } from "./identityProblem";
+import { linkSegments } from "./linkify";
 import { NoteComposer } from "./NoteComposer";
+import { ReviewLinks, reviewLinksFor } from "./ReviewLinks";
 import { useWideShell } from "./shellLayout";
 
 const PRIORITY_CLASSES: Record<string, string> = {
@@ -109,9 +111,35 @@ const PANEL_CONTAINER = "@container";
  * expanded: 2097px of overflow, from one entry. `break-words` rather than `break-all`,
  * because the first breaks a word only when it cannot fit a line by itself and the
  * second breaks every word, which would shred ordinary prose to make one entry behave.
+ *
+ * The URLs in it are anchors (task-363). Every prompt and every log body this panel
+ * shows comes through here, so linkifying once covers the review panel's prompt, the
+ * "Current ask" section and the log -- the three places a handoff puts an address a
+ * reviewer has to reach. It stays plain text otherwise: {@link linkSegments} returns
+ * strings and URLs rather than markup, so nothing on this path renders agent-authored
+ * text as HTML or Markdown, and every href it can produce is absolute and therefore
+ * safe as a raw anchor (see linkify.ts, property 3, and InAppLinks.test.tsx).
  */
 function SpecText({ children, muted = false }: { children: string; muted?: boolean }) {
-  return <div className={`whitespace-pre-wrap break-words text-sm leading-6 ${PROSE} ${muted ? "text-dark-muted" : "text-dark-text"}`}>{children}</div>;
+  return (
+    <div className={`whitespace-pre-wrap break-words text-sm leading-6 ${PROSE} ${muted ? "text-dark-muted" : "text-dark-text"}`}>
+      {linkSegments(children).map((segment, index) =>
+        segment.kind === "link" ? (
+          <a
+            key={index}
+            href={segment.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-300 underline hover:text-blue-200"
+          >
+            {segment.value}
+          </a>
+        ) : (
+          segment.value
+        ),
+      )}
+    </div>
+  );
 }
 
 /**
@@ -454,6 +482,11 @@ function ReviewPanel({
     <section className={`space-y-4 rounded-xl border-2 border-yellow-600/50 bg-yellow-950/30 p-4 @min-[768px]:p-6 ${MEASURE}`} aria-label={label}>
       <h2 className="text-lg font-semibold text-yellow-300">{held ? "On hold — nothing will run until you release it" : verbs.heading}</h2>
       {detail.task.ball_prompt && <SpecText>{detail.task.ball_prompt}</SpecText>}
+      {/* Above the identity line and everything under it, so the first act this panel
+          offers is going to look at the thing. Outside the identity guard on purpose:
+          a reviewer whose identity is unresolved still wants the address, and being
+          unable to act yet is not a reason to hide where to look. */}
+      <ReviewLinks links={reviewLinksFor(detail.task)} />
       {detail.identity.ok && detail.identity.user ? (
         <>
           <p className="text-sm text-dark-muted">Acting as <strong className="text-dark-text">{detail.identity.user}</strong>. {held ? "Releasing puts the task back to work; nothing here runs git." : verbs.guidance}</p>
@@ -661,7 +694,7 @@ function EntryAttachments({
           <li key={attachment.sha256}>
             {/* Shown, not linked. A screenshot nobody clicks is a screenshot nobody
                 sees -- the anchor is only so the full-size image is reachable. */}
-            <a href={href} target="_blank" rel="noreferrer">
+            <a href={href} target="_blank" rel="noopener noreferrer">
               <img
                 src={href}
                 alt={attachment.label}
@@ -882,7 +915,7 @@ export function TaskDetail(props: TaskDetailProps) {
 
       {(task.deliverables?.length ?? 0) > 0 && <section className="rounded-lg border border-dark-border bg-dark-surface" aria-label="Deliverables"><h2 className="border-b border-dark-border p-4 text-lg font-semibold">Deliverables</h2><div className="divide-y divide-dark-border">{task.deliverables?.map((item) => <div className="p-4" key={item.path}><code className="break-all text-sm">{item.path}</code><span className="ml-2 text-xs uppercase text-dark-muted">{item.status ?? "pending"}</span>{item.note && <p className="mt-1 text-sm text-dark-muted">{item.note}</p>}</div>)}</div></section>}
       <Log entries={task.log ?? []} projectId={projectId} taskId={task.id} />
-      {(task.links?.length ?? 0) > 0 && <section className="rounded-lg border border-dark-border bg-dark-surface" aria-label="External links"><h2 className="border-b border-dark-border p-4 text-lg font-semibold">Links</h2><ul>{task.links?.map((link) => <li className="p-4" key={link.url}><a className="touch-target break-all text-blue-300 underline" href={link.url} target="_blank" rel="noreferrer">{link.title ?? link.url}</a><span className="ml-2 text-xs uppercase text-dark-muted">{link.rel ?? "other"}</span></li>)}</ul></section>}
+      {(task.links?.length ?? 0) > 0 && <section className="rounded-lg border border-dark-border bg-dark-surface" aria-label="External links"><h2 className="border-b border-dark-border p-4 text-lg font-semibold">Links</h2><ul>{task.links?.map((link) => <li className="p-4" key={link.url}><a className="touch-target break-all text-blue-300 underline" href={link.url} target="_blank" rel="noopener noreferrer">{link.title ?? link.url}</a><span className="ml-2 text-xs uppercase text-dark-muted">{link.rel ?? "other"}</span></li>)}</ul></section>}
     </div>
   );
 }
