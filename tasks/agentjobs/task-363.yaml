@@ -3,7 +3,7 @@ id: task-363
 title: 'A review the human cannot act on: URLs are not tappable, and the question
   cards are broken'
 created: '2026-09-06T21:21:55.330267Z'
-updated: '2026-09-06T22:52:19.558468Z'
+updated: '2026-09-06T22:52:51.916234Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -674,3 +674,13 @@ log:
       id: 9d4b7e02-3c15-4a68-b0f7-1e5a2c983604
       kind: handoff
       fingerprint: ced588edc8145d54edbf91d952838d09
+- id: 18
+  ts: '2026-09-06T22:52:51.915888Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 14
+  data:
+    run_id: run_499f844d
+    outcome: completed
+    duration_seconds: 1182.611418
+    log_path: C:\Users\jpose\.agentjobs\runs\run_499f844d
