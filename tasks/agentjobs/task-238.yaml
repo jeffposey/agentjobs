@@ -2,7 +2,7 @@ schema: 2
 id: task-238
 title: "Shell 3: the task sidebar \u2014 a collapsible tree you select from"
 created: '2026-08-22T00:39:57.272889Z'
-updated: '2026-09-06T10:34:31.460025Z'
+updated: '2026-09-06T10:35:07.561800Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -561,3 +561,14 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 14
+  ts: '2026-09-06T10:35:07.561533Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: stopped session a63112f0
+  re: 7
+  data:
+    run_id: run_113f7198
+    outcome: cancelled
+    duration_seconds: 4421.775393
+    log_path: C:\Users\jpose\.agentjobs\runs\run_113f7198
