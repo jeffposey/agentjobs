@@ -3,13 +3,21 @@ id: task-363
 title: 'A review the human cannot act on: URLs are not tappable, and the question
   cards are broken'
 created: '2026-09-06T21:21:55.330267Z'
-updated: '2026-09-06T21:21:56.019133Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-09-06T22:21:03.587088Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: "All three defects fixed on `fix/task-363-review-panel-links-questions`.\
+  \ Gate green, all 10 stages, on the rebased branch. Evidence and the two decisions\
+  \ are in log entries 8 and 9.\n\nA sandbox is up on its own port with throwaway\
+  \ data \u2014 press anything:\n\n- Links card + tappable URLs: http://127.0.0.1:8913/app/p/sandbox-links/tasks/task-301\n\
+  - Question cards (one wraps, one numbered itself): http://127.0.0.1:8913/app/p/sandbox-links/tasks/task-302\n\
+  - links[] instead of prose: http://127.0.0.1:8913/app/p/sandbox-links/tasks/task-303\n\
+  - No addresses, so no card: http://127.0.0.1:8913/app/p/sandbox-links/tasks/task-304\n\
+  \nStop it with `Stop-Process -Id 43692`. Approve or send back."
 archived: false
 priority: critical
-queue_position: 1593
+queue_position: 568
 category: frontend
 tags:
 - gui
@@ -17,6 +25,7 @@ tags:
 - questions
 - usability
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: The review panel renders a handoff's URLs as dead text, so the human has
@@ -117,29 +126,31 @@ acceptance:
     review panel, the Current ask section and log entry bodies, with rel=noopener
     noreferrer, and no agent-authored text is rendered as markup anywhere on that
     path.
-  status: pending
+  status: met
 - id: ac-2
   text: The review panel shows the links a review needs as their own labelled block
     above the question list, and a decision entry records how a link gets there and
     what was rejected.
-  status: pending
+  status: met
 - id: ac-3
   text: A question heading of any length renders clear of the fieldset border, and
     a question body that begins with its own ordinal does not render a doubled number.
-  status: pending
+  status: met
 - id: ac-4
   text: The three cases above were driven in a browser on a sandbox seeded with a
     wrapping question, a self-numbered question and a prompt carrying URLs -- not
     asserted only from a test run -- and the evidence is on the record.
-  status: pending
+  status: met
 - id: ac-5
   text: 'The task-017 rules still hold: free text on every question, nothing preselected,
     one explicit Submit.'
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-363-review-panel-links-questions
+  status: active
 log:
 - id: 1
   ts: '2026-09-06T21:21:56.018309Z'
@@ -152,3 +163,280 @@ log:
       id: b81d47e2-3c0a-4d59-95a6-7fe1c2b4a903
       kind: create
       fingerprint: ee231e938aa81318c63eae4b2ea306ef
+- id: 2
+  ts: '2026-09-06T21:45:09.307925Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: Reprioritized from critical to high, at before task-366.
+  data:
+    band: high
+    from: 1593
+    to: 50
+    placement:
+      kind: before
+      target: task-366
+    from_band: critical
+    operation:
+      id: de5b278f-9666-44ec-94ec-2070d459fe50
+      kind: reprioritize
+      fingerprint: 5a606cf97d9b70b499887a25ae49c859
+- id: 3
+  ts: '2026-09-06T21:45:51.595006Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: Reprioritized from high to critical, at before task-358.
+  data:
+    band: critical
+    from: 50
+    to: 568
+    placement:
+      kind: before
+      target: task-358
+    from_band: high
+    operation:
+      id: 2f1365ea-64e3-4139-84fb-373b3b037ffa
+      kind: reprioritize
+      fingerprint: f572c4e5cafa3b21766fce96cf77881e
+- id: 4
+  ts: '2026-09-06T21:55:10.871867Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 5
+  ts: '2026-09-06T21:55:11.492889Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 6
+  ts: '2026-09-06T21:55:13.025743Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_1dd1912f
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 4
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_1dd1912f\session-settings.json
+    - --name
+    - agentjobs/task-363@1dd1912f
+    - 'You are the agent `claude` working task `task-363` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-363-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_1dd1912f. Posture `auto` stops at the merge gate: when
+      the work is done and verified, record the evidence on the task, hand the ball
+      to human/review, and stop. Do not merge. Never push: this project is configured
+      `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 86f7187
+    session_id: 00505d13
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 7
+  ts: '2026-09-06T22:19:38.218108Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 3f2a91c4-6d18-4b7e-9a52-0c7d1e884b31
+      kind: update_content
+      fingerprint: 683b93d4de2272b8e8182f1a3dd50b00
+- id: 8
+  ts: '2026-09-06T22:19:53.443190Z'
+  actor: claude
+  type: decision
+  body: 'A link reaches the review card by being in the current `ball_prompt`, plus
+    any `links[]` entry whose existing `rel` is already `pr` or `build`. Nothing new
+    is asked of the agent writing the handoff, and no schema value was added.
+
+
+    **Rejected: a new `review`/`sandbox` value in `LinkRel`, hoisting links that carry
+    it.** It reads better on paper -- titled, explicit, no guessing -- and three things
+    sank it.
+
+
+    1. `links[]` is durable and a review address is not. A sandbox lives on a throwaway
+    port for the length of one review; written into `links[]` it outlives the process
+    it points at, and nothing in the system removes it, so the task acquires a permanent
+    link to a dead port. `ball_prompt` already has exactly the right lifetime: it
+    is replaced at the next handoff, and so is the card.
+
+    2. It would fix nothing that has been seen to break. The defect that filed this
+    task is a handoff that already exists and already named its URLs in the prompt.
+    A scheme that works only for handoffs written after every agent learns a new field
+    leaves that one, and the corpus behind it, as it was.
+
+    3. Its population depends on agent discipline -- the least reliable mechanism
+    here -- for a benefit (a title) the URL mostly carries itself. The enum addition
+    also costs a migration, schema tolerance, docs and a regenerated client.
+
+
+    The cost of reading the prompt instead, stated so nobody rediscovers it as a bug:
+    a URL mentioned in passing is promoted alongside one meant to be visited, and
+    neither gets a title. That is a card with one row too many, which a reviewer resolves
+    in a glance; the rejected alternative''s failure mode is an empty card, which
+    they cannot. `pr` and `build` are included because those two values of the existing
+    vocabulary already mean "an artefact of the work under review"; `doc`, `design`,
+    `issue` and `other` stay in the Links section further down, where a durable reference
+    belongs.
+
+
+    **Second decision, on the doubled number: the body''s ordinal is stripped, not
+    the form''s.** The panel shows only questions with no answer threaded to them,
+    so an agent''s own numbering goes stale the moment one is answered -- answering
+    the second of four would print a list numbered 1, 3, 4 and invite a reviewer to
+    say "question 3" meaning the second card. Deferring to the body was rejected for
+    that. Dropping the number entirely was rejected for the same reason in reverse:
+    "5 open questions" over unnumbered cards gives the reader no way to name one.
+    The strip is anchored, one or two digits, `.` or `)`, whitespace -- so "8876 or
+    8910 for the sandbox?" keeps its first word, and a body that is nothing but an
+    ordinal keeps it rather than rendering an empty heading.'
+  data:
+    operation:
+      id: 7c4e0a52-1b93-4f6d-8ea7-2d5b9c1f0a44
+      kind: log_append
+      fingerprint: 9fb1077d15d978df156467c7b2942b80
+- id: 9
+  ts: '2026-09-06T22:20:21.735670Z'
+  actor: claude
+  type: progress
+  body: 'All three defects fixed on `fix/task-363-review-panel-links-questions`, three
+    commits, rebased onto `main` and gated once.
+
+
+    **What changed.**
+
+
+    - `frontend/src/components/linkify.ts` (new) splits a body into text and URL runs.
+    It returns data, never markup: the caller renders the pieces as React children,
+    so nothing on this path interprets a task record as HTML or Markdown (task-326
+    stands). The scheme allow-list *is* the pattern -- only `https?://` can match
+    -- and because a match needs a scheme and an authority, every href it can produce
+    is absolute, so the react-router basename cannot be dropped. Trailing punctuation
+    is trimmed, so a URL ending a sentence does not swallow the full stop, and backticks
+    and angle brackets end a match rather than joining it.
+
+    - `SpecText` in `TaskDetail.tsx` renders those segments. One change covers the
+    review panel''s prompt, "Current ask" and every log body. Anchors carry `target="_blank"`
+    and `rel="noopener noreferrer"`; the existing Links section was normalised to
+    the same `rel`.
+
+    - `frontend/src/components/ReviewLinks.tsx` (new) is the hoisted card, `nav aria-label="Links
+    for this review"`, above the identity line, the questions and the verb row.
+
+    - `QuestionForm.tsx`: the legend is `float-left w-full`, which opts it out of
+    the in-border layout the defect comes from, with the rest of the card in a `clear-left`
+    sibling; the `fieldset`/`legend` grouping is unchanged. `questionHeading()` strips
+    a leading ordinal from the body. Card heading raised to `text-base`, option labels
+    lowered to `font-medium`, so the question dominates.
+
+    - `scripts/review_links_sandbox.py` (new), port 8913, four throwaway states.
+
+
+    **Browser evidence** -- Chrome, sandbox on 8913, 2026-09-06. Two screenshots under
+    `tasks/agentjobs/attachments/task-363/`.
+
+
+    - *task-301*, the task-240 prompt verbatim. Six anchors in the panel, three in
+    the prose and the same three in the card, every one `rel="noopener noreferrer"
+    target="_blank"`. The URL that ends a sentence rendered as `.../tasks/task-143`,
+    not `.../task-143.`. The card precedes the verb row (`compareDocumentPosition`).
+    Each card row is 44px tall and `document.elementFromPoint` at its centre returns
+    the anchor.
+
+    - **A real click landed and was followed.** A capture-phase `mousedown` listener
+    recorded `{tag: "A", href: "http://127.0.0.1:8913/app/p/sandbox-shell/tasks/task-143"}`
+    and Chrome opened that exact absolute URL in a new tab. Naming the instrument
+    per ENGINEERING.md: `mcp__claude-in-chrome`''s `left_click`, and the listener
+    is what proves the gesture arrived rather than the tool''s own success report
+    -- an earlier click at the wrong coordinates recorded the fieldset instead and
+    changed nothing, which is how I know the listener discriminates.
+
+    - *task-302*, five questions. Measured per fieldset: `legend.top >= fieldset.top
+    + borderTopWidth` on all five, gap 12px, and question 2''s legend occupies **4
+    line boxes** (`Range.getClientRects().length`) -- the wrapping case, with the
+    border unbroken above it. Numbering: the agent wrote "3." on question 3 and "1)"
+    on question 5; the cards render **1.** to **5.** in order, each with one number.
+    Question 5 is the discriminating case -- body "1)", rendered "5.".
+
+    - *task-017 rules, in the browser*: a `textarea` in all five cards, `[aria-pressed="true"]`
+    count 0 on arrival, exactly one `button[type=submit]`. After a real tap on "Delete
+    it", `aria-pressed` became `true`, the record still read `human/decision` and
+    held **0** `answer` entries -- selecting does not submit.
+
+    - *task-303*: card holds the `pr` (titled "PR #9 -- the shell") and the `build`;
+    the `doc` link stays in the Links section below, which still lists all three.
+
+    - *task-304*: no card, no anchors in the panel. The quiet state stays quiet.
+
+
+    **Tests.** `linkify.test.ts` (10) on the segmentation, including the `javascript:`/`data:`/`file:`/`ftp:`
+    allow-list and the no-relative-href property. `ReviewLinks.test.tsx` (9) drives
+    the real panel and reads hrefs off the DOM. Six added to `QuestionForm.test.tsx`
+    for the heading, including the stale-numbering case and the fieldset grouping.
+
+
+    **Gate.** `scripts/check.py`, no arguments, on the rebased branch: **exit 0, all
+    10 stages, 334.6s**, receipt written for `590a64ec`. Nothing pushed.'
+  data:
+    operation:
+      id: b1d63f78-40ac-4c22-9e6f-53a2b70d9c15
+      kind: log_append
+      fingerprint: bae2da1b9535ec6b3b9dd15ffc6ef6e5
+- id: 10
+  ts: '2026-09-06T22:21:03.586874Z'
+  actor: claude
+  type: handoff
+  body: "All three defects fixed on `fix/task-363-review-panel-links-questions`. Gate\
+    \ green, all 10 stages, on the rebased branch. Evidence and the two decisions\
+    \ are in log entries 8 and 9.\n\nA sandbox is up on its own port with throwaway\
+    \ data \u2014 press anything:\n\n- Links card + tappable URLs: http://127.0.0.1:8913/app/p/sandbox-links/tasks/task-301\n\
+    - Question cards (one wraps, one numbered itself): http://127.0.0.1:8913/app/p/sandbox-links/tasks/task-302\n\
+    - links[] instead of prose: http://127.0.0.1:8913/app/p/sandbox-links/tasks/task-303\n\
+    - No addresses, so no card: http://127.0.0.1:8913/app/p/sandbox-links/tasks/task-304\n\
+    \nStop it with `Stop-Process -Id 43692`. Approve or send back."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: e50c8a17-9b32-4d61-8f04-6ac2b3d97e28
+      kind: handoff
+      fingerprint: b5fdca0996fb115eb87aaedb21d512f8
