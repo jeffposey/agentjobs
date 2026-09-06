@@ -2,12 +2,13 @@ schema: 2
 id: task-235
 title: Adopt the list-and-detail shell every other app on the screen already uses
 created: '2026-08-22T00:38:02.564268Z'
-updated: '2026-09-06T20:56:26.504105Z'
+updated: '2026-09-06T21:14:03.333278Z'
 lifecycle: active
-ball: agent
-ball_reason: answer
-ball_prompt: It was broken, that's why I cancelled it. Even after logging in, those
-  sessions didn't want to work anymore.
+ball: human
+ball_reason: decision
+ball_prompt: A dispatched session (72bb0b45) finished without handing off, so nobody
+  was told what it needs. Read what it did, then either attach to it or move this
+  task on yourself.
 archived: false
 priority: critical
 queue_position: 293
@@ -2359,3 +2360,26 @@ log:
       id: c81a4d26-5f73-4e19-b0a2-9d3e6f7104ba
       kind: log_append
       fingerprint: cd59f48dcd865b3c1526d4f265d0349b
+- id: 64
+  ts: '2026-09-06T21:14:03.129798Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: 'The session finished its turn and the ball never moved, so it stopped without
+    saying what it needs. It was **not** killed and is still attachable: `claude attach
+    72bb0b45`.'
+  re: 59
+  data:
+    run_id: run_31322a89
+    outcome: finished_without_handoff
+    duration_seconds: 4473.993704
+    log_path: C:\Users\jpose\.agentjobs\runs\run_31322a89
+- id: 65
+  ts: '2026-09-06T21:14:03.332960Z'
+  actor: dispatcher
+  type: handoff
+  body: A dispatched session (72bb0b45) finished without handing off, so nobody was
+    told what it needs. Read what it did, then either attach to it or move this task
+    on yourself.
+  data:
+    ball: human
+    ball_reason: decision
