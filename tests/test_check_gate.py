@@ -18,8 +18,10 @@ import json
 import re
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -42,6 +44,16 @@ check = load_script("check")
 
 def names(stages: list[object]) -> list[str]:
     return [stage.name for stage in stages]  # type: ignore[attr-defined]
+
+
+def command_count(stages: list[Any]) -> int:
+    """How many child processes a run of these stages starts.
+
+    Not the same as the number of stages since task-268: ``api`` exports the OpenAPI
+    document and then compares the generated client against it, as two commands the gate
+    runs itself rather than one ``npm run check:api`` that starts a nested Poetry.
+    """
+    return sum(len(stage.steps) for stage in stages)
 
 
 @pytest.fixture(autouse=True)
@@ -105,9 +117,12 @@ class TestOrder:
         assert order.index("build") < order.index("e2e")
 
     def test_the_openapi_document_is_exported_before_a_client_is_compared_to_it(self) -> None:
-        """``check:api`` is one stage precisely because its two halves are ordered."""
+        """``api`` is one stage precisely because its two halves are ordered."""
         api = next(stage for stage in check.stages() if stage.name == "api")
-        assert api.args[-1] == "check:api"
+
+        assert [step[0] for step in api.steps] == [check.PYTHON, check.NPM]
+        assert "export_openapi.py" in api.steps[0][1]
+        assert api.steps[1][-1] == "check:api-client"
 
     def test_every_stage_has_a_distinct_name(self) -> None:
         """``--only`` addresses stages by name, so two stages sharing one is a bug."""
@@ -186,7 +201,7 @@ class TestTheUnqualifiedGate:
         commands = self.record_runs(monkeypatch)
 
         assert check.main([]) == 0
-        assert len(commands) == len(check.stages())
+        assert len(commands) == command_count(check.stages())
 
     def test_a_selection_runs_only_what_was_selected(self, monkeypatch: pytest.MonkeyPatch) -> None:
         commands = self.record_runs(monkeypatch)
@@ -200,6 +215,20 @@ class TestTheUnqualifiedGate:
         assert check.main(["--list"]) == 0
         assert commands == []
 
+    # What each frontend-facing stage of the gate covers of ``npm run check``. Written
+    # down because since task-268 two of them no longer *are* the npm script: the gate
+    # runs ``check:api-schema`` and ``check:icons`` as Python itself, to avoid a nested
+    # ``poetry run``. The map is compared against package.json below, so a check added to
+    # the frontend gate and not to this one still fails.
+    FRONTEND_COVERAGE = {
+        "api": ("check:api",),
+        "icons": ("check:icons",),
+        "oxlint": ("lint",),
+        "vitest": ("test",),
+        "build": ("build",),
+        "e2e": ("test:e2e",),
+    }
+
     def test_the_frontend_stages_are_exactly_the_frontend_gate(self) -> None:
         """Two descriptions of one order drift apart, so assert they agree.
 
@@ -210,9 +239,25 @@ class TestTheUnqualifiedGate:
         """
         manifest = json.loads((ROOT / "frontend" / "package.json").read_text(encoding="utf-8"))
         scripted = re.findall(r"npm run ([\w:-]+)", manifest["scripts"]["check"])
-        from_table = [stage.args[-1] for stage in check.stages() if stage.cwd == ROOT / "frontend"]
+        covered = [script for scripts in self.FRONTEND_COVERAGE.values() for script in scripts]
+        in_the_table = names([s for s in check.stages() if s.cwd == ROOT / "frontend"])
 
-        assert sorted(scripted) == sorted(from_table)
+        assert sorted(scripted) == sorted(covered)
+        assert sorted(in_the_table) == sorted(self.FRONTEND_COVERAGE)
+
+    def test_the_gate_starts_no_nested_poetry_run(self) -> None:
+        """Task-268's ac-3, asserted where it can regress: the stage table.
+
+        ``check:api-schema`` and ``check:icons`` are ``poetry run python ...`` in
+        package.json, so reaching them through npm started npm, then Poetry, then a
+        third interpreter -- and every ``poetry run`` is a fresh chance for Poetry to
+        prefer an *activated* virtualenv over this checkout's, which is task-210.
+        Playwright's ``webServer`` is the one that remains, and it is out of the stage
+        table's reach.
+        """
+        for stage in check.stages():
+            for step in stage.steps:
+                assert "poetry" not in " ".join(step), f"{stage.name} nests a poetry run"
 
 
 # --- the pytest stage's two options -------------------------------------------------
@@ -234,7 +279,7 @@ class TestPytestOptions:
     @staticmethod
     def pytest_args(**options: bool) -> list[str]:
         stage = next(s for s in check.stages(**options) if s.name == "pytest")
-        return [str(arg) for arg in stage.args]
+        return [str(arg) for step in stage.steps for arg in step]
 
     def test_the_gate_runs_the_suite_in_parallel_by_default(self) -> None:
         assert "-n" in self.pytest_args()
@@ -253,10 +298,20 @@ class TestPytestOptions:
         assert "-n" not in self.pytest_args(parallel=False)
 
     def test_the_options_touch_no_other_stage(self) -> None:
-        plain = {s.name: s.args for s in check.stages()}
-        loud = {s.name: s.args for s in check.stages(coverage=True, parallel=False)}
+        plain = {s.name: s.steps for s in check.stages()}
+        loud = {s.name: s.steps for s in check.stages(coverage=True, parallel=False)}
 
         assert [name for name in plain if plain[name] != loud[name]] == ["pytest"]
+
+    def test_the_gate_always_asks_for_the_slowest_tests(self) -> None:
+        """Task-268's ac-2. Every proposal about this suite has been arithmetic over the
+        total, with no per-test measurement in the repository to check it against."""
+        assert "--durations=15" in self.pytest_args()
+
+    def test_the_durations_survive_serial_and_coverage(self) -> None:
+        """Serial is the honest attribution, so it is the last place to lose the flag."""
+        assert "--durations=15" in self.pytest_args(parallel=False)
+        assert "--durations=15" in self.pytest_args(coverage=True)
 
     def test_addopts_no_longer_forces_coverage_on_every_pytest_invocation(self) -> None:
         """The config change is the saving; the flag above is only how you opt back in."""
@@ -303,7 +358,7 @@ class TestSinceGate:
         monkeypatch.setattr(check.gate_scope, "read_receipt", lambda root: None)
 
         assert check.main(["--since-gate"]) == 0
-        assert len(commands) == len(check.stages())
+        assert len(commands) == command_count(check.stages())
         assert "FULL GATE" in capsys.readouterr().out
 
     def test_a_narrowed_run_runs_only_those_stages_and_says_so(
@@ -489,7 +544,7 @@ class TestPhaseRecords:
 
         assert check.main([]) == 0
 
-        assert len(commands) == len(check.stages())
+        assert len(commands) == command_count(check.stages())
         for env in commands:
             assert "AGENTJOBS_RUN_DIR" not in env
             assert "AGENTJOBS_RUN_ID" not in env
@@ -516,10 +571,12 @@ class TestReporting:
     @staticmethod
     def fail_at(monkeypatch: pytest.MonkeyPatch, stage: str) -> None:
         wanted = next(s for s in check.stages() if s.name == stage)
+        # Everything after the runner, which is the only part a stage chooses. A stage
+        # may be more than one command, and failing its first is the honest simulation.
+        tails = [list(step[1:]) for step in wanted.steps]
 
         def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
-            # Everything after the runner, which is the only part a stage chooses.
-            if command[1:] == list(wanted.args[1:]):
+            if command[1:] in tails:
                 raise subprocess.CalledProcessError(1, command)
             return subprocess.CompletedProcess(command, 0)
 
@@ -665,3 +722,210 @@ class TestWhatEngineeringMdMustStillSay:
             assert step in text, step
         # And the sentence that used to read as one gate per commit.
         assert "not a gate per commit" in text
+
+
+# --- concurrency, which is a flag and not a default ---------------------------------
+
+
+class TestConcurrentStages:
+    """``--concurrent`` (task-268), and the reasons it is off.
+
+    The gate's whole value is that its green means something, and every property that
+    makes concurrency fast is also a way to make a green unreliable -- two suites over 32
+    cores is what task-339 measured driving this machine to 6MB free, and Playwright's
+    30s bounds are what an oversubscribed machine breaks. So what is asserted here is
+    that it stays opt-in, that its scheduling respects the two real dependencies, and
+    that a failure inside it is still a failure.
+    """
+
+    @staticmethod
+    def record_runs(monkeypatch: pytest.MonkeyPatch, fails: str = "") -> list[list[str]]:
+        """Capture every command a run starts, in the order it started them.
+
+        ``fails`` names a substring; a command containing it exits non-zero. The
+        concurrent runner captures output rather than raising, so this returns a
+        completed process either way -- which is also what the real thing does.
+        """
+        started: list[list[str]] = []
+        lock = threading.Lock()
+
+        def record(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+            with lock:
+                started.append(command)
+            joined = " ".join(command)
+            code = 1 if fails and fails in joined else 0
+            return subprocess.CompletedProcess(command, code, "", "")
+
+        monkeypatch.setattr(check.subprocess, "run", record)
+        monkeypatch.setattr(check, "setup_problems", lambda root, origin: [])
+        monkeypatch.setattr(check.shutil, "which", lambda name: "npm.cmd")
+        return started
+
+    @staticmethod
+    def first_index(started: list[list[str]], needle: str) -> int:
+        return next(i for i, command in enumerate(started) if needle in " ".join(command))
+
+    def test_it_is_off_unless_asked_for(self) -> None:
+        """The unqualified ``scripts/check.py`` is what the commit rule names, and it
+        must keep meaning the thing docs/performance.md measured."""
+        assert check.parse_args([]).concurrent is False
+
+    def test_it_cannot_be_combined_with_serial(self) -> None:
+        """``--serial`` is asked for when interleaved output is the problem."""
+        with pytest.raises(SystemExit):
+            check.parse_args(["--concurrent", "--serial"])
+
+    def test_the_declared_dependencies_agree_with_the_serial_order(self) -> None:
+        """One graph, written twice: as positions in ``stages()`` and as
+        ``DEPENDENCIES``. A concurrent run reads the second, so they have to agree."""
+        order = names(check.stages())
+        for stage, needs in check.DEPENDENCIES.items():
+            for dependency in needs:
+                assert order.index(dependency) < order.index(stage), f"{stage} needs {dependency}"
+
+    def test_only_the_two_real_dependencies_are_declared(self) -> None:
+        """Everything else is independent, and a dependency nobody needs is wall clock
+        given away for nothing."""
+        assert check.DEPENDENCIES == {"vitest": ("api",), "build": ("api",), "e2e": ("build",)}
+
+    def test_a_dependency_outside_the_selection_is_not_waited_for(self) -> None:
+        """``--only vitest`` asks for one stage. Blocking it on an ``api`` nobody
+        selected would hang rather than run."""
+        vitest = next(stage for stage in check.stages() if stage.name == "vitest")
+
+        assert check.ready([vitest], set(), {"vitest"}) == [vitest]
+        assert check.ready([vitest], set(), {"vitest", "api"}) == []
+
+    def test_a_concurrent_run_still_runs_every_stage(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        started = self.record_runs(monkeypatch)
+
+        assert check.main(["--concurrent"]) == 0
+        assert len(started) == command_count(check.stages())
+
+    def test_the_writing_stage_finishes_before_anything_reads_what_it_wrote(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``check-generated-client.mjs`` regenerates ``src/api/generated`` in place, and
+        ``build`` writes the bundle Playwright serves."""
+        started = self.record_runs(monkeypatch)
+
+        assert check.main(["--concurrent"]) == 0
+        api = self.first_index(started, "check:api-client")
+        assert api < self.first_index(started, "run test")
+        assert api < self.first_index(started, "run build")
+        assert self.first_index(started, "run build") < self.first_index(started, "test:e2e")
+
+    def test_a_failure_is_still_a_failure_and_names_its_stage(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self.record_runs(monkeypatch, fails="-m mypy")
+
+        assert check.main(["--concurrent"]) == 1
+        assert "Failed at stage 'mypy'" in capsys.readouterr().err
+
+    def test_a_failed_stage_grounds_what_had_not_started(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``api`` fails, so the three stages that wait on it never start; nothing that
+        was already running is killed."""
+        started = self.record_runs(monkeypatch, fails="export_openapi.py")
+
+        assert check.main(["--concurrent"]) == 1
+        joined = [" ".join(command) for command in started]
+        assert not any("test:e2e" in command for command in joined)
+        assert not any("run build" in command for command in joined)
+
+    def test_a_concurrent_run_reports_wall_clock_beside_the_sum(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Under concurrency the sum of the stages is what the gate *would* have cost
+        serially, which is worth keeping -- but it is not what it cost."""
+        self.record_runs(monkeypatch)
+
+        check.main(["--concurrent"])
+
+        printed = capsys.readouterr().out
+        assert re.search(r"^  wall +\d+\.\d+s", printed, re.MULTILINE)
+
+    def test_a_serial_run_reports_no_wall_line(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """There it would be the total under another name."""
+        TestTheUnqualifiedGate.record_runs(monkeypatch)
+
+        check.main([])
+
+        assert "wall" not in capsys.readouterr().out
+
+    def test_pytest_reserves_cores_for_the_lane_beside_it(self) -> None:
+        """``gate_slots`` divides the machine between *gates*, and the frontend lane of a
+        concurrent run is not a gate -- it is inside one."""
+        stage = next(stage for stage in check.stages() if stage.name == "pytest")
+
+        alone, _ = check.commands_for(stage, "npm.cmd")
+        reserved, _ = check.commands_for(stage, "npm.cmd", reserve=check.CONCURRENT_RESERVE)
+
+        assert alone[0][alone[0].index("-n") + 1] == "auto"
+        assert reserved[0][reserved[0].index("-n") + 1] != "auto"
+
+    def test_captured_output_cannot_kill_the_run_it_is_reporting(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The first real concurrent gate on this machine passed all ten stages and then
+        died in ``print``: Black's emoji, re-encoded to a redirected cp1252 stdout."""
+
+        class Cp1252Stdout:
+            encoding = "cp1252"
+
+        monkeypatch.setattr(check.sys, "stdout", Cp1252Stdout())
+
+        assert check.printable("all done \u2728 \ufffd") == "all done ? ?"
+
+    def test_printable_leaves_text_the_terminal_can_take(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        class Utf8Stdout:
+            encoding = "utf-8"
+
+        monkeypatch.setattr(check.sys, "stdout", Utf8Stdout())
+
+        assert check.printable("all done \u2728") == "all done \u2728"
+
+    def test_a_concurrent_run_says_it_is_not_the_gate_at_both_ends(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The same device ``PARTIAL RUN`` uses, for the same failure: a green that reads
+        exactly like the gate's."""
+        self.record_runs(monkeypatch)
+
+        check.main(["--concurrent"])
+
+        printed = capsys.readouterr().out
+        assert printed.count("EXPERIMENTAL RUN") == 2
+
+    def test_a_concurrent_run_earns_no_receipt(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        no_receipt_from_a_simulated_gate: list[object],
+    ) -> None:
+        """``--since-gate`` would otherwise later trust a green whose scheduling nobody
+        has finished evidencing."""
+        self.record_runs(monkeypatch)
+
+        check.main(["--concurrent"])
+
+        assert no_receipt_from_a_simulated_gate == []
+        assert "No gate receipt written" in capsys.readouterr().out
+
+    def test_a_concurrent_run_is_recorded_under_its_own_scope(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """So a later gate's ALREADY GREEN notice cannot rest on one."""
+        from agentjobs.dispatch.phases import read_phases
+
+        self.record_runs(monkeypatch)
+        directory = TestPhaseRecords.in_a_run(tmp_path, monkeypatch)
+
+        assert check.main(["--concurrent"]) == 0
+        assert read_phases(directory)[-1]["scope"] == "concurrent"

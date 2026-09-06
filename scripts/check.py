@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import time
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
@@ -234,26 +235,52 @@ Coverage is still a thing this repository cares about; it is now something you a
 `scripts/check.py --coverage`, or `pytest --cov=src/agentjobs` directly.
 """
 
+DURATIONS_ARGS = ("--durations=15",)
+"""The fifteen slowest tests, printed at the end of every gate's pytest stage.
+
+Every proposal anybody has made about this suite has been arithmetic over the total.
+Task-268's own spec is the example: "2538 tests at 342s serial is 135ms/test, and 52s at
+32 workers against an 11s ideal says the tail is the cost" -- a plausible inference from
+two numbers, with no per-test measurement anywhere in the repository to check it against.
+This is the cheapest instrument that ends that. pytest already knows the durations; the
+flag only asks it to say so, and it costs nothing measurable.
+
+Fifteen rather than ten because the suite runs across every core: a tail long enough to
+set the stage's wall clock is a tail wider than one worker.
+
+Unconditional, so a `--serial` run reports them too. Serial is the honest attribution --
+under xdist a duration is the test's own time on its worker, which is what you want when
+hunting a slow test and not what you want when apportioning the stage's wall clock.
+"""
+
 
 @dataclass(frozen=True)
 class Stage:
-    """One check the gate runs, named so it can be asked for on its own."""
+    """One check the gate runs, named so it can be asked for on its own.
+
+    `steps` is a sequence because two stages have a Python half and a JavaScript half
+    that are ordered with respect to each other and pointless apart: `api` exports
+    `openapi.json` and then compares the generated client against it. They used to be
+    one `npm run check:api`, which is how the Python halves came to be started by a
+    nested `poetry run` -- see `stages()`.
+    """
 
     name: str
-    args: tuple[str, ...]
+    steps: tuple[tuple[str, ...], ...]
     cwd: Path
     what: str
 
-    def command(self, npm: str) -> list[str]:
-        """The argv to run, with the two runners resolved at call time.
+    def commands(self, npm: str) -> list[list[str]]:
+        """The argvs to run in order, with the two runners resolved at call time.
 
         `sys.executable` and the npm shim are both properties of the machine rather
         than of the stage, so the table below stays a plain description of *what* runs
         and this decides *how*.
         """
-        if self.args[0] == PYTHON:
-            return [sys.executable, *self.args[1:]]
-        return [npm, *self.args[1:]]
+        return [
+            [sys.executable, *step[1:]] if step[0] == PYTHON else [npm, *step[1:]]
+            for step in self.steps
+        ]
 
 
 def stages(*, coverage: bool = False, parallel: bool = True) -> list[Stage]:
@@ -280,44 +307,75 @@ def stages(*, coverage: bool = False, parallel: bool = True) -> list[Stage]:
 
     The pytest stage is the only one with options, because it is the only one that costs
     minutes. See `PARALLEL_ARGS` and `COVERAGE_ARGS`.
+
+    **Two stages run their Python half directly rather than through npm** (task-268).
+    `check:api-schema` and `check:icons` are `poetry run python ...` in
+    `frontend/package.json`, so the gate used to reach them through npm, then Poetry,
+    then a third interpreter -- measured at 3s for `npm run check:icons` against 1s for
+    the script, and 6s for `npm run check:api` against 3s for its two halves run
+    directly. The seconds are the smaller half of it: every nested `poetry run` is a
+    fresh chance for Poetry to resolve an *activated* virtualenv instead of this
+    checkout's, which is the hazard `child_environment()` exists to paper over
+    (task-210). `sys.executable` cannot be redirected, so the question stops being
+    asked. The npm scripts stay exactly as they are, because `npm run check` is a
+    standalone frontend gate that has no interpreter handed to it.
     """
-    pytest_args = [PYTHON, "-m", "pytest"]
+    pytest_args = [PYTHON, "-m", "pytest", *DURATIONS_ARGS]
     if parallel:
         pytest_args.extend(PARALLEL_ARGS)
     if coverage:
         pytest_args.extend(COVERAGE_ARGS)
     return [
-        Stage("black", (PYTHON, "-m", "black", "--check", "."), ROOT, "Python formatting"),
-        Stage("ruff", (PYTHON, "-m", "ruff", "check", "."), ROOT, "Python lint"),
-        Stage("mypy", (PYTHON, "-m", "mypy", "."), ROOT, "Python types"),
-        Stage("api", (NPM, "run", "check:api"), FRONTEND, "OpenAPI document and generated client"),
-        Stage("icons", (NPM, "run", "check:icons"), FRONTEND, "generated PWA icons"),
-        Stage("oxlint", (NPM, "run", "lint"), FRONTEND, "frontend lint"),
-        Stage("pytest", tuple(pytest_args), ROOT, "Python test suite"),
-        Stage("vitest", (NPM, "run", "test"), FRONTEND, "frontend component suite"),
-        Stage("build", (NPM, "run", "build"), FRONTEND, "typecheck and production build"),
-        Stage("e2e", (NPM, "run", "test:e2e"), FRONTEND, "Playwright, against a live server"),
+        Stage("black", ((PYTHON, "-m", "black", "--check", "."),), ROOT, "Python formatting"),
+        Stage("ruff", ((PYTHON, "-m", "ruff", "check", "."),), ROOT, "Python lint"),
+        Stage("mypy", ((PYTHON, "-m", "mypy", "."),), ROOT, "Python types"),
+        Stage(
+            "api",
+            (
+                (PYTHON, "../scripts/export_openapi.py", "openapi.json", "--check"),
+                (NPM, "run", "check:api-client"),
+            ),
+            FRONTEND,
+            "OpenAPI document and generated client",
+        ),
+        Stage(
+            "icons",
+            ((PYTHON, "scripts/generate_icons.py", "--check"),),
+            FRONTEND,
+            "generated PWA icons",
+        ),
+        Stage("oxlint", ((NPM, "run", "lint"),), FRONTEND, "frontend lint"),
+        Stage("pytest", (tuple(pytest_args),), ROOT, "Python test suite"),
+        Stage("vitest", ((NPM, "run", "test"),), FRONTEND, "frontend component suite"),
+        Stage("build", ((NPM, "run", "build"),), FRONTEND, "typecheck and production build"),
+        Stage("e2e", ((NPM, "run", "test:e2e"),), FRONTEND, "Playwright, against a live server"),
     ]
 
 
-def command_for(stage: Stage, npm: str) -> tuple[list[str], str | None]:
-    """One stage's argv, with the worker budget decided as late as it can be.
+def commands_for(stage: Stage, npm: str, *, reserve: int = 0) -> tuple[list[list[str]], str | None]:
+    """One stage's argvs, with the worker budget decided as late as it can be.
 
-    Returns the command and, when the budget bit, a line saying so. Every failure inside
+    Returns the commands and, when the budget bit, a line saying so. Every failure inside
     `gate_slots` lands here as the default: `-n auto`, which is what the gate did before
     task-339. Instrumentation that can break the thing it measures is worse than none,
     and a core budget that can refuse a gate is a new way for an agent to be stuck.
+
+    `reserve` is what a concurrent run holds back for the frontend lane running beside
+    pytest; it is zero for the serial gate, which is every gate unless `--concurrent` was
+    asked for. See `CONCURRENT_RESERVE`.
     """
-    command = stage.command(npm)
-    if WORKERS_TOKEN not in command:
-        return command, None
+    commands = stage.commands(npm)
+    if not any(WORKERS_TOKEN in command for command in commands):
+        return commands, None
     try:
         gates = gate_slots.active()
-        value = gate_slots.workers(gates=gates)
-        note = gate_slots.note(value, gates)
+        value = gate_slots.workers(gates=gates, reserve=reserve)
+        note = gate_slots.note(value, gates, reserve=reserve)
     except Exception:  # noqa: BLE001 - see the docstring; never fail the gate over this
         value, note = "auto", None
-    return [value if arg == WORKERS_TOKEN else arg for arg in command], note
+    return [
+        [value if arg == WORKERS_TOKEN else arg for arg in command] for command in commands
+    ], note
 
 
 def select(all_stages: list[Stage], only: list[str], start: str | None) -> list[Stage]:
@@ -346,18 +404,259 @@ def select(all_stages: list[Stage], only: list[str], start: str | None) -> list[
     return all_stages
 
 
-def format_timings(timings: list[tuple[str, float]]) -> str:
+DEPENDENCIES: dict[str, tuple[str, ...]] = {
+    "vitest": ("api",),
+    "build": ("api",),
+    "e2e": ("build",),
+}
+"""Which stages may not start until another has finished, and nothing else.
+
+The serial table encodes this ordering by position and does not distinguish it from the
+cheapest-first ordering beside it. A concurrent run has to, so it is written down once
+and asserted against the table (`tests/test_check_gate.py`).
+
+Both edges are real rather than habitual:
+
+- `api` is **not read-only**. `frontend/scripts/check-generated-client.mjs` regenerates
+  `src/api/generated` in place before comparing it, so anything that compiles or imports
+  that tree -- `vitest` and `build` -- would otherwise be reading a directory being
+  rewritten underneath it.
+- `build` writes `src/agentjobs/frontend_dist`, which is the bundle Playwright's server
+  serves, so `e2e` follows it.
+
+Everything else is genuinely independent: `black`, `ruff`, `mypy`, `icons` and `oxlint`
+only read, and nothing in the gate depends on `pytest`.
+"""
+
+EXPERIMENTAL = (
+    "EXPERIMENTAL RUN: --concurrent. This is not the gate, whatever it says below, and\n"
+    "it writes no receipt: three clean contended runs are what promote it (task-268).\n"
+    "Gate the branch with `scripts/check.py`, no arguments, before handing off."
+)
+"""Printed at both ends of a `--concurrent` run, for the same reason `PARTIAL RUN` is.
+
+The failure mode a flag like this introduces is not a slow gate; it is a green that
+reads exactly like the gate's. `--only` already had that problem and solved it by
+saying so twice and refusing a receipt, and the same two devices apply here -- the
+receipt especially, because `--since-gate` would otherwise later trust a green whose
+scheduling nobody has finished evidencing.
+"""
+
+CONCURRENT_RESERVE = 4
+"""Cores a concurrent gate holds back from its own suite for the lane beside it.
+
+`gate_slots` divides this machine between *gates*, and the frontend lane of a
+`--concurrent` run is not a gate -- it is inside one, invisible to the slot count, and it
+is where the two stages with their own timeouts live. Playwright's server start and each
+of its tests are bounded at 30s, and a `-n auto` pytest that has taken every core is
+exactly what makes a 30s bound bite. Four is the smallest reserve that leaves a whole
+core for each of `npm`, `node`, the Playwright driver and the server under test.
+
+It is a floor on reliability rather than a tuning knob: `gate_slots.MIN_WORKERS` still
+wins on a small machine, so a four-core host reserves nothing it cannot afford.
+"""
+
+
+def ready(pending: list[Stage], finished: set[str], wanted: set[str]) -> list[Stage]:
+    """Which pending stages have nothing left to wait for.
+
+    A dependency that is not in this selection is not waited for. `--only vitest` asks
+    for one stage, and blocking it on an `api` nobody selected would hang rather than
+    run: the flags exist for the loop between a late failure and its fix, and the person
+    using them knows what they left out.
+    """
+    return [
+        stage
+        for stage in pending
+        if all(dep in finished for dep in DEPENDENCIES.get(stage.name, ()) if dep in wanted)
+    ]
+
+
+def printable(text: str) -> str:
+    """Child output this process's own stdout can actually encode.
+
+    A captured stage's output is text the gate has to re-encode on the way out, and on
+    Windows a redirected stdout is cp1252. Black prints an emoji; the first concurrent
+    gate run on this machine got through all ten stages and then died in `print` with
+    `UnicodeEncodeError: 'charmap' codec can't encode character '\\ufffd'`, reporting
+    nothing. The serial gate never meets this because its children write to the inherited
+    handle themselves and the gate never sees the bytes.
+
+    Lossy on purpose. A mangled character in a passing stage's output is nothing; a
+    traceback in place of the gate's verdict is the whole run.
+    """
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+
+
+def run_captured(commands: list[list[str]], *, cwd: Path) -> tuple[int, str]:
+    """Run one stage's commands in order, keeping their output to print in one block.
+
+    The serial gate streams, which is right when one thing is running. Concurrently it
+    would interleave Playwright's progress with pytest's into something no one can read,
+    so each stage's output is held and printed whole when the stage ends. Stops at the
+    first non-zero command, like `run()`.
+
+    Never raises for a failing check: a stage that failed is a result the scheduler has
+    to report alongside the stages still in flight, not an exception thrown through a
+    thread pool.
+    """
+    chunks: list[str] = []
+    for command in commands:
+        chunks.append(f"\n> {' '.join(command)}\n")
+        result = subprocess.run(
+            command,
+            cwd=cwd,
+            env=child_environment(),
+            capture_output=True,
+            text=True,
+            # The children write UTF-8 -- Black's emoji, npm's box drawing -- and the
+            # locale encoding this would otherwise use is cp1252 here.
+            encoding="utf-8",
+            errors="replace",
+        )
+        chunks.extend(part for part in (result.stdout, result.stderr) if part)
+        if result.returncode != 0:
+            return result.returncode, "".join(chunks)
+    return 0, "".join(chunks)
+
+
+def format_timings(timings: list[tuple[str, float]], wall: float | None = None) -> str:
     """A per-stage cost table, printed by every run so nobody has to instrument one.
 
     The whole argument of task-189 is a measurement, and a measurement that needs a
     special invocation to obtain is one that stops being taken. Re-measuring the budget
     in ENGINEERING.md is now a matter of reading the bottom of any gate run.
+
+    `wall` is passed by a concurrent run and by nothing else. There the sum of the stages
+    is no longer what the gate cost -- it is what the gate would have cost serially, which
+    is worth keeping precisely because it is the before half of the pair.
     """
-    width = max((len(name) for name, _ in timings), default=len("total"))
+    width = max([len(name) for name, _ in timings] + [len("total")])
     lines = [f"  {name.ljust(width)}  {seconds:6.1f}s" for name, seconds in timings]
     total = sum(seconds for _, seconds in timings)
     lines.append(f"  {'total'.ljust(width)}  {total:6.1f}s")
+    if wall is not None:
+        lines.append(f"  {'wall'.ljust(width)}  {wall:6.1f}s  (stages ran concurrently)")
     return "\n".join(lines)
+
+
+Failure = tuple[str, int] | None
+"""The stage that failed and its exit code, or None. Both runners answer in this shape."""
+
+
+def run_serially(selected: list[Stage], npm: str) -> tuple[list[tuple[str, float]], Failure]:
+    """Run the stages one at a time, streaming each one's output. The default, and the
+    only thing an unqualified `scripts/check.py` does.
+
+    Stops at the first failing stage and returns what it had. Every timing measured here
+    is directly comparable with the table in docs/performance.md, which is the reason the
+    concurrent runner is a separate function rather than a parameter threaded through
+    this one.
+    """
+    timings: list[tuple[str, float]] = []
+    for position, stage in enumerate(selected, start=1):
+        started = time.perf_counter()
+        # One record per stage, so a watcher can say "pytest, 7 of 10" rather than
+        # "running". The gate is the better part of three minutes of a scripted finish
+        # and was, until task-321, one silent block from the outside: the only records
+        # were the two around the whole of it.
+        record_phase("gate_stage_started", stage=stage.name, index=position, total=len(selected))
+        commands, budget = commands_for(stage, npm)
+        if budget is not None:
+            print(f"\n{budget}", flush=True)
+        try:
+            for command in commands:
+                run(command, cwd=stage.cwd)
+        except subprocess.CalledProcessError as exc:
+            timings.append((stage.name, time.perf_counter() - started))
+            return timings, (stage.name, exc.returncode)
+        timings.append((stage.name, time.perf_counter() - started))
+        record_phase(
+            "gate_stage_finished",
+            stage=stage.name,
+            index=position,
+            total=len(selected),
+            seconds=round(timings[-1][1], 1),
+        )
+    return timings, None
+
+
+def run_concurrently(selected: list[Stage], npm: str) -> tuple[list[tuple[str, float]], Failure]:
+    """Run every stage as soon as `DEPENDENCIES` allows it. Experimental; `--concurrent`.
+
+    **This is not the default and must not become one on an argument.** The gate's whole
+    value is that its green means something, and every property that makes concurrency
+    fast is also a way to make a green unreliable: two suites sharing 32 cores is what
+    task-339 measured driving this machine to 6MB free, and Playwright's 30s bounds are
+    exactly what an oversubscribed machine breaks. `CONCURRENT_RESERVE` is the mitigation
+    and three clean contended runs are the evidence required before this stops being a
+    flag -- see docs/performance.md.
+
+    The scheduling rule is the smallest one that is correct: start anything whose
+    dependencies within *this selection* have finished, and once a stage has failed,
+    start nothing further while watching down what is already in the air. Killing the
+    survivors would save a few seconds and cost their answers, and a run that reports
+    three failures is worth more than one that reports the first and abandons the rest.
+    """
+    positions = {stage.name: index for index, stage in enumerate(selected, start=1)}
+    wanted = set(positions)
+    # Nothing runs beside a single stage, so `--only pytest --concurrent` is `-n auto`.
+    reserve = CONCURRENT_RESERVE if len(selected) > 1 else 0
+
+    pending = list(selected)
+    running: dict[Future[tuple[int, str]], tuple[Stage, float]] = {}
+    passed: set[str] = set()
+    elapsed: dict[str, float] = {}
+    failure: Failure = None
+
+    with ThreadPoolExecutor(max_workers=max(1, len(selected))) as pool:
+        while pending or running:
+            if failure is None:
+                for stage in ready(pending, passed, wanted):
+                    pending.remove(stage)
+                    record_phase(
+                        "gate_stage_started",
+                        stage=stage.name,
+                        index=positions[stage.name],
+                        total=len(selected),
+                    )
+                    commands, budget = commands_for(stage, npm, reserve=reserve)
+                    opening = f"\n>>> {stage.name} started ({stage.what})"
+                    print(opening if budget is None else f"{opening}\n{budget}", flush=True)
+                    running[pool.submit(run_captured, commands, cwd=stage.cwd)] = (
+                        stage,
+                        time.perf_counter(),
+                    )
+            if not running:
+                # Either a failure stopped the takeoffs, or what is left is waiting on a
+                # stage that failed. Both are the end of the run rather than a deadlock.
+                break
+            for future in wait(list(running), return_when=FIRST_COMPLETED).done:
+                stage, began = running.pop(future)
+                code, output = future.result()
+                seconds = time.perf_counter() - began
+                elapsed[stage.name] = seconds
+                verdict = "passed" if code == 0 else f"FAILED ({code})"
+                print(
+                    printable(f"\n=== {stage.name} {verdict} in {seconds:.1f}s ==={output}"),
+                    flush=True,
+                )
+                if code != 0:
+                    failure = failure or (stage.name, code)
+                    continue
+                passed.add(stage.name)
+                record_phase(
+                    "gate_stage_finished",
+                    stage=stage.name,
+                    index=positions[stage.name],
+                    total=len(selected),
+                    seconds=round(seconds, 1),
+                )
+
+    # Reported in the table's order rather than the order they happened to finish in, so
+    # a concurrent run's costs line up beside a serial one's.
+    return [(s.name, elapsed[s.name]) for s in selected if s.name in elapsed], failure
 
 
 def scope_note(selected: list[Stage], all_stages: list[Stage]) -> str:
@@ -549,6 +848,11 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="measure coverage during pytest and write htmlcov/ (off by default)",
     )
     parser.add_argument(
+        "--concurrent",
+        action="store_true",
+        help="run independent stages at the same time (experimental; off by default)",
+    )
+    parser.add_argument(
         "--serial",
         action="store_true",
         help="run pytest in one process, for readable output while debugging a failure",
@@ -560,6 +864,10 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         parser.error("--only and --from cannot be combined")
     if args.since_gate and (args.only or args.start):
         parser.error("--since-gate selects stages itself; it cannot be combined with --only/--from")
+    if args.concurrent and args.serial:
+        # --serial is asked for when the interleaving is the problem, and running the
+        # stages at the same time is a larger interleaving than the one it turns off.
+        parser.error("--serial asks for readable output; --concurrent is the opposite of it")
     return args
 
 
@@ -622,6 +930,11 @@ def main(argv: list[str] | None = None) -> int:
     else:
         scope = gate_scope.render(scope_result, names)
         kind = "necessity" if scope_result.reduced else "full"
+    if args.concurrent:
+        # Recorded under its own scope so nothing downstream mistakes it for the gate:
+        # `already_green` only recognises a `full` record, and so does the receipt.
+        kind = "concurrent"
+        scope = f"{EXPERIMENTAL}\n\n{scope}"
     print(f"\n{scope}", flush=True)
 
     if not selected:
@@ -647,60 +960,45 @@ def main(argv: list[str] | None = None) -> int:
     )
     began = time.perf_counter()
 
-    timings: list[tuple[str, float]] = []
     # The slot is held for the whole gate rather than for the pytest stage alone, so a
     # neighbour deciding its own budget can see this gate coming while it is still in the
     # cheap block. See `scripts/gate_slots.py`.
     with gate_slots.hold(ROOT):
-        for position, stage in enumerate(selected, start=1):
-            started = time.perf_counter()
-            # One record per stage, so a watcher can say "pytest, 7 of 10" rather than
-            # "running". The gate is the better part of three minutes of a scripted
-            # finish and was, until task-321, one silent block from the outside: the only
-            # records were the two around the whole of it.
-            record_phase(
-                "gate_stage_started", stage=stage.name, index=position, total=len(selected)
+        if args.concurrent:
+            timings, failure = run_concurrently(selected, npm)
+        else:
+            timings, failure = run_serially(selected, npm)
+
+    wall = time.perf_counter() - began
+    table = format_timings(timings, wall=wall if args.concurrent else None)
+
+    if failure is not None:
+        name, code = failure
+        record_phase(
+            "gate_finished",
+            scope=kind,
+            passed=False,
+            seconds=round(wall, 1),
+            stages_run=len(timings),
+            stages_total=len(all_stages),
+            failed_stage=name,
+            tree=fingerprint,
+        )
+        print(f"\nFailed at stage '{name}'.", file=sys.stderr)
+        if len(timings) > 1:
+            print(
+                f"Fix it, then resume with `--from {name}` instead of paying "
+                "for the stages above a second time.",
+                file=sys.stderr,
             )
-            command, budget = command_for(stage, npm)
-            if budget is not None:
-                print(f"\n{budget}", flush=True)
-            try:
-                run(command, cwd=stage.cwd)
-            except subprocess.CalledProcessError as exc:
-                timings.append((stage.name, time.perf_counter() - started))
-                record_phase(
-                    "gate_finished",
-                    scope=kind,
-                    passed=False,
-                    seconds=round(time.perf_counter() - began, 1),
-                    stages_run=len(timings),
-                    stages_total=len(all_stages),
-                    failed_stage=stage.name,
-                    tree=fingerprint,
-                )
-                print(f"\nFailed at stage '{stage.name}'.", file=sys.stderr)
-                if len(timings) > 1:
-                    print(
-                        f"Fix it, then resume with `--from {stage.name}` instead of paying "
-                        "for the stages above a second time.",
-                        file=sys.stderr,
-                    )
-                print(f"\n{format_timings(timings)}", flush=True)
-                return exc.returncode
-            timings.append((stage.name, time.perf_counter() - started))
-            record_phase(
-                "gate_stage_finished",
-                stage=stage.name,
-                index=position,
-                total=len(selected),
-                seconds=round(timings[-1][1], 1),
-            )
+        print(f"\n{table}", flush=True)
+        return code
 
     record_phase(
         "gate_finished",
         scope=kind,
         passed=True,
-        seconds=round(time.perf_counter() - began, 1),
+        seconds=round(wall, 1),
         stages_run=len(timings),
         stages_total=len(all_stages),
         tree=fingerprint,
@@ -708,16 +1006,19 @@ def main(argv: list[str] | None = None) -> int:
 
     # A receipt is earned by a run that skipped nothing it was not entitled to skip: a
     # full run, or a --since-gate run whose skips were derived from an earlier receipt.
-    # An --only/--from run never earns one, which is the same rule PARTIAL RUN states.
+    # An --only/--from run never earns one, which is the same rule PARTIAL RUN states,
+    # and neither does a --concurrent one -- see EXPERIMENTAL.
     receipt = ""
-    if kind == "full":
+    if args.concurrent:
+        receipt = "\nNo gate receipt written: --concurrent is not the gate (task-268)."
+    elif kind == "full":
         receipt = f"\n{issue_receipt(None)}"
     elif kind == "necessity":
         receipt = f"\n{issue_receipt(scope_result.commit if scope_result else None)}"
 
     # Repeated after the stages, not only before them: the line before is thousands of
     # lines of pytest output away by now, and the last thing printed is what gets read.
-    print(f"\n{format_timings(timings)}\n\n{scope}{receipt}", flush=True)
+    print(f"\n{table}\n\n{scope}{receipt}", flush=True)
     return 0
 
 

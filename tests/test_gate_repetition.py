@@ -235,7 +235,8 @@ class TestTheNoticeNeverRefuses:
         commands = self.stub(monkeypatch, [green("abc123")])
 
         assert check.main([]) == 0
-        assert len(commands) == len(check.stages())
+        # One command per step, not per stage: `api` is two since task-268.
+        assert len(commands) == sum(len(stage.steps) for stage in check.stages())
         assert "ALREADY GREEN" in capsys.readouterr().out
 
     def test_nothing_is_printed_when_the_tree_has_moved(

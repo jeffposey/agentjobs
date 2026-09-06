@@ -144,37 +144,64 @@ to commit does not need it, and because the four always-loaded files have a byte
 
 ### The stages, and what each cost
 
-One green `poetry run python scripts/check.py` on this machine, 2026-08-21, with nothing
-else competing for it. Read the bottom of your own run rather than quoting these; the
-gate prints the same table every time, which is the whole point of printing it.
+Green unqualified `scripts/check.py` runs on this machine with nothing else competing for
+them, in a worktree with warm caches. Two dates, because the shape has changed and the
+column on the left is what most of this file's reasoning was built on. Read the bottom of
+your own run rather than quoting either; the gate prints this table every time, which is
+the whole point of printing it.
 
-| # | Stage | What it checks | Cost |
-|---|---|---|---|
-| 1 | `black` | Python formatting | 0.6s |
-| 2 | `ruff` | Python lint | 0.1s |
-| 3 | `mypy` | Python types | 1.5s |
-| 4 | `api` | `openapi.json` and the generated client both match the app | 4.2s |
-| 5 | `icons` | the committed PWA icons match `assets/app-icon.svg` | 2.8s |
-| 6 | `oxlint` | frontend lint | 0.6s |
-| 7 | `pytest` | the Python suite, across every core | 52.1s |
-| 8 | `vitest` | the jsdom component tests | 5.2s |
-| 9 | `build` | `tsc --noEmit` and the production bundle | 3.7s |
-| 10 | `e2e` | the Playwright suite against a live server | 25.0s |
-| | | | **95.8s** |
+| # | Stage | What it checks | 2026-08-21 | 2026-09-06 |
+|---|---|---|---|---|
+| 1 | `black` | Python formatting | 0.6s | 1.0 / 0.6s |
+| 2 | `ruff` | Python lint | 0.1s | 0.1 / 0.1s |
+| 3 | `mypy` | Python types | 1.5s | 1.6 / 1.6s |
+| 4 | `api` | `openapi.json` and the generated client both match the app | 4.2s | 2.4 / 2.5s |
+| 5 | `icons` | the committed PWA icons match `assets/app-icon.svg` | 2.8s | 1.2 / 1.2s |
+| 6 | `oxlint` | frontend lint | 0.6s | 0.4 / 0.4s |
+| 7 | `pytest` | the Python suite, across every core | 52.1s | 79.3 / 89.1s |
+| 8 | `vitest` | the jsdom component tests | 5.2s | 28.4 / 7.2s |
+| 9 | `build` | `tsc --noEmit` and the production bundle | 3.7s | 4.5 / 4.3s |
+| 10 | `e2e` | the Playwright suite against a live server | 25.0s | 135.3 / 138.8s |
+| | | | **95.8s** | **254.3 / 245.8s** |
 
-MyPy is the one stage whose cost moves for a reason unrelated to load: under two seconds
-against a warm cache, about nineteen seconds on the first run after a checkout.
+**The gate is now bounded by `e2e`, not by `pytest`** — 138.8s against 89.1s — and every
+argument in this file that assumes otherwise was written before that was true. The
+task-268 spec's critical-path arithmetic, "max(pytest 52s, api+build+e2e 33s) ≈ 52s", now
+reads max(89s, 146s) ≈ 146s, which is where the concurrent runner below actually lands.
+
+Four of the moves have named causes. `api` and `icons` fell because task-268 stopped
+routing their Python halves through `npm run` and a nested `poetry run` — measured on
+this machine, three interleaved reps against `main`'s own `check.py` in one worktree, the
+pair together went 6.5 / 6.4 / 7.0s to 3.6 / 3.6 / 4.3s. `pytest` and `e2e` rose because
+the suites did: 2538 tests to 4152, and the Playwright suite to 107 tests on one worker.
+Neither per-test cost moved.
+
+`vitest`'s 28.4s in the first run and 7.2s in the second is Vite's dependency
+pre-bundling, paid once per worktree. It is the reason two runs are quoted rather than one.
+
+MyPy's cost moves for a reason unrelated to load, and not the one this file used to give:
+**a fresh worktree pays about 14s for each of its first two `mypy .` runs and about 1.5s
+thereafter, and copying the main clone's `.mypy_cache` in does not change that** —
+task-268 measured 15 / 14 / 2 / 1s with no cache against 14 / 14 / 1 / 2s with one copied
+in, and 30s for a variant that copied a warm cache to a fresh directory. The cost is
+first-touch I/O over 62 MB of small files, not analysis: `mypy -v` reports 1288 of 1289
+metadata entries fresh in the copied-cache run. The one entry it never finds is
+`tests/test_mcp_server.py`, and one stale module in that graph makes mypy deserialise 798
+SCCs it would otherwise skip.
 
 ### The three figures, and which to quote
 
 | Figure | What it is | Measured |
 | --- | --- | --- |
 | **95.8s** | one green `scripts/check.py` on this machine with nothing else competing | 2026-08-21 |
+| **254.3s / 245.8s** | the same thing, two runs, after five weeks of suite growth | 2026-09-06 |
 | **~155s** | the median full passing gate a *dispatched* session actually paid — 125s, 141s, 155s, 157s, 174s, from the phase records | to 2026-08-23 |
 | **342s / 361s / 384s** | three concurrent parallel gates, from `run_4063f1c0` | 2026-08-23 |
 
-95.8s is a quiet-machine best case and 155s is the working figure. Quote whichever the
-question calls for, and say which.
+~250s is the current quiet-machine best case; 95.8s is what most of the reasoning below
+was measured against and is kept so those arguments can be read. The dispatched median is
+five weeks old and is now certainly low. Quote whichever the question calls for, and say
+which and when.
 
 The three-way contention figure was got by accident rather than by a benchmark — one
 session started a gate at 03:27:10, another at 03:27:50 and a third at 03:29:03 with the
@@ -207,11 +234,70 @@ Coverage is off by default and available with `--coverage`. It cost between 60 a
 seconds depending on what else the machine was doing, and wrote an HTML report that
 nothing reads before a commit.
 
+### What the slowest tests actually are (task-268)
+
+Every proposal about this suite up to now has been arithmetic over its total — task-268's
+own spec argues "2538 tests at 342s serial is 135ms/test, and 52s at 32 workers against an
+11s ideal says the tail is the cost" — and there was no per-test measurement anywhere in
+the repository to check one against. `--durations=15` is now on the gate's pytest stage
+unconditionally, so every run prints them.
+
+The first one, 2026-09-06, 4152 passed in 78.1s at `-n auto`:
+
+| Seconds | Test |
+|---|---|
+| 20.52 | `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too` |
+| 14.48 | `test_validate.py::TestRealCorpus::test_no_task_file_is_unloadable_or_points_at_nothing` |
+| 13.43 | `test_models_v2.py::TestAgreesWithTheLinkMLSchema::test_the_linkml_cross_check_can_actually_fail` |
+| 13.02 | `test_migrate_schema.py::TestTheRealCorpus::test_every_real_task_converts_loads_and_loses_nothing` |
+| 12.18 | `test_validate.py::TestRealCorpus::test_the_tolerated_drift_is_only_taxonomy_and_serialization` |
+| 9.17 | `test_dispatch_finish.py::TestAfterTheMerge::test_a_retry_after_an_escalation_finishes_its_own_merge` |
+| 7.42 | `test_task_corpus.py::test_agentjobs_task_ids_and_relationships_are_not_dangling` |
+| 7.18 | `test_principals.py::test_a_served_process_answers_the_same_as_the_pure_rule` |
+
+**The inference was right and it is now a measurement.** The single slowest test is 20.5s
+against a 78.1s stage — 26% of the stage's wall clock in one test on one worker — and the
+top five are 73.6s of worker time between them. At 32 workers a stage cannot finish before
+its longest test, so the floor here is set by `TestProcessGroup`, not by the 4152 tests.
+
+Two shapes account for almost all of it, and both are worth knowing before anyone proposes
+a fix: **real subprocess timeouts** (the top entry waits out a process-group kill) and
+**whole-corpus loads** (four of the eight parse every task file in `tasks/`, so they grow
+with the backlog rather than with the code). Neither is wasted work; both are candidates
+for being made cheaper, and neither is this task.
+
+This also settles proposal 9 in the negative for now, as its own text said it would:
+receipt-backed incremental test selection attacks the *bulk*, and the bulk is not where
+the time is.
+
+#### `--dist worksteal`: measured, not adopted (task-268)
+
+The obvious follow-on, since a tail is exactly what work-stealing is for. Six runs in one
+worktree, arms interleaved so machine drift falls on both, `-n auto` throughout, same
+4157 tests passing in every one:
+
+| Rep | default (`--dist load`) | `--dist worksteal` |
+|---|---|---|
+| 1 | 76.5s | 69.0s |
+| 2 | 77.2s | **112.9s** |
+| 3 | 79.7s | 73.9s |
+
+**Not adopted.** Two of the three worksteal runs beat every default run, and the third is
+45% worse than any of them — so the spread *within* the worksteal arm, 69s to 113s, is
+larger than the gap between the arms, and three runs cannot tell a 6% effect from a
+neighbouring gate. The default arm's own spread is 3.2s, which is the contrast that
+settles it: whatever produced the 113s was not the default's to suffer that evening.
+
+Reopen it with more reps on a machine with no dispatched neighbour, or once the tail
+itself is shorter — the thing worksteal cannot fix is that no arrangement of 4157 tests
+finishes before the slowest one, and that test is 20.5s.
+
 ### Why the cheap stages run first
 
 Task-189 moved `api`, `icons` and `oxlint` above `pytest`. Together they cost 8.2s, and a
 session working task-188 paid four and a half minutes twice to reach one of them.
-Everything above the pytest line now costs 9.8s together.
+Everything above the pytest line cost 9.8s together then and **6.4s on 2026-09-06**,
+against a gate that has meanwhile gone from 95.8s to about 250s.
 
 The argument used to be stated as "seconds before minutes", and task-233 took the minutes
 away. The ordering stays regardless: it costs nothing, and the gap it exploits reappears
@@ -219,14 +305,16 @@ the moment a slow stage is added.
 
 ### How the gate degrades under contention
 
-| Concurrent gates | Serial suite (historical) | Parallel suite |
-|---|---|---|
-| 1 | 365s | 96s |
-| 2 | 388s | not measured |
-| 3 | not measured | ~360s |
-| 4 | 411s | not measured |
-| 6 | 444s | not measured |
+| Concurrent gates | Serial suite (historical) | Parallel suite | Parallel suite, 2026-09-06 |
+|---|---|---|---|
+| 1 | 365s | 96s | 250s |
+| 2 | 388s | not measured | 326–404s |
+| 3 | not measured | ~360s | not re-measured |
+| 4 | 411s | not measured | not measured |
+| 6 | 444s | not measured | not measured |
 
+The right-hand column is task-268's re-cut and is the one to quote; the middle one is
+five weeks and 1600 tests old, and most of the reasoning below rests on it.
 The serial column is kept only as history: it does not describe the gate as it now runs.
 Two conclusions follow from the parallel column:
 
@@ -320,6 +408,53 @@ The red test above is `tests/test_dispatch_runner.py::TestProcessGroup::
 test_the_timeout_kills_the_grandchild_too`, failing with "pid 3393900 survived the
 timeout" — worth naming because a reader who meets it should suspect the machine before
 the code.
+
+#### Running the stages concurrently (task-268, 2026-09-06)
+
+`scripts/check.py --concurrent` runs each stage as soon as `check.DEPENDENCIES` allows —
+`api` before `vitest` and `build`, `build` before `e2e`, everything else free — capturing
+each stage's output and printing it whole when the stage ends. **It is off by default, it
+says `EXPERIMENTAL RUN` at both ends, and it writes no gate receipt.** What follows is the
+evidence ac-4 asked for before that could change; it is not an argument that it should
+change yet.
+
+Two worktrees of the same commit, `worktrees/agentjobs-268` and `-b`, both bootstrapped and
+both with warm caches, each running the unqualified gate. Paired arms start at the same
+moment. **A third dispatched gate (`worktrees/agentjobs-363`) came and went during the
+run**, which is the normal case on this machine and is why each row names the gate count
+its own budget line reported.
+
+| Arm | Gates seen | pytest `-n` | A | B |
+|---|---|---|---|---|
+| Alone, serial | 1 | auto (32) | 254.3s / 245.8s | — |
+| Alone, `--concurrent` | 1 | 28 | **165.1s / 166.0s** | — |
+| Paired, serial | 2 | 16 | 325.4s / 375.7s | 352.8s / 403.6s |
+| Paired, `--concurrent`, rep 1 | 3 | 6 | **206.4s** | **201.2s** |
+| Paired, `--concurrent`, rep 2 | 2 | 12 | **235.4s** | **234.6s** |
+| Paired, `--concurrent`, rep 3 | 3 | 6 | **211.2s** | **211.6s** |
+
+Every one of the six contended concurrent gates exited 0. The concurrent figures are wall
+clock; the same runs' summed stage costs — what they would have paid serially — are 397s
+to 491s, and the gate prints both.
+
+- **Alone it is a 35% cut**, 165s against 250s, and the wall clock is exactly
+  `api + build + e2e`: the run is bounded by Playwright end to end.
+- **Paired it is about 45%**, ~215s against ~365s. There the binding constraint moves to
+  `pytest`, because `gate_slots` divides the machine between gates and `CONCURRENT_RESERVE`
+  takes four more off the top: two gates give `32/2 − 4 = 12` workers, three give `6`.
+- **The reserve is doing real work and is also the main thing left to tune.** At three
+  gates a concurrent run's suite gets six workers where a serial one would get ten, and
+  rep 1 and rep 3 are what that costs: pytest at 206s and 211s becomes the critical path
+  and `e2e` finishes underneath it with time to spare. A reserve that shrank as the gate
+  count rose would probably recover most of that. Not changed here, because the number
+  that would justify it has not been measured.
+
+**Why this is still a flag.** Three green contended pairs is what the task asked for and
+it is what there is; it is not a flake rate, it is one evening on one machine, and the two
+stages with their own timeouts — Playwright's 30s server start and 30s per test — were
+never close enough to failing for anyone to know how much margin is left. Promoting it
+should also come with the reserve question above settled, since the paired case is the
+one that matters and it is the case the reserve is worst at.
 
 ### How many gates a run launches (task-339)
 

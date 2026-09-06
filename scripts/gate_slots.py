@@ -154,22 +154,29 @@ def hold(root: Path) -> Iterator[None]:
                 pass
 
 
-def workers(cores: Optional[int] = None, gates: Optional[int] = None) -> str:
+def workers(cores: Optional[int] = None, gates: Optional[int] = None, reserve: int = 0) -> str:
     """The ``-n`` value for pytest-xdist, given how many gates share this machine.
 
-    ``auto`` when this gate is alone, so the single-gate case is byte-for-byte what it
-    was before task-339 and the measurements in docs/performance.md still describe it.
+    ``auto`` when this gate is alone and nothing is reserved, so the single-gate case is
+    byte-for-byte what it was before task-339 and the measurements in docs/performance.md
+    still describe it.
+
+    ``reserve`` is cores this gate is holding back from its own suite, which only a
+    ``--concurrent`` run does: there the frontend lane is running *inside* the same gate
+    while pytest runs, and it is invisible to the slot count because it is not a gate.
+    A reserve therefore turns ``auto`` into a number even when this is the only gate on
+    the machine -- that is the whole point of asking for one.
     """
     if gates is None:
         gates = active()
-    if gates <= 1:
+    if gates <= 1 and reserve <= 0:
         return "auto"
     if cores is None:
         cores = os.cpu_count() or 1
-    return str(max(MIN_WORKERS, cores // gates))
+    return str(max(MIN_WORKERS, cores // max(1, gates) - max(0, reserve)))
 
 
-def note(value: str, gates: int) -> Optional[str]:
+def note(value: str, gates: int, reserve: int = 0) -> Optional[str]:
     """Say out loud that the suite was given less than the machine, and why.
 
     A gate that quietly runs at half width is a gate whose timings nobody can compare
@@ -177,7 +184,8 @@ def note(value: str, gates: int) -> Optional[str]:
     """
     if value == "auto":
         return None
+    held = f", {reserve} of them reserved for the frontend lane beside it" if reserve else ""
     return (
         f"Sharing this machine with {gates} gates, so pytest runs at -n {value} rather "
-        f"than -n auto ({os.cpu_count()} cores). See scripts/gate_slots.py."
+        f"than -n auto ({os.cpu_count()} cores){held}. See scripts/gate_slots.py."
     )
