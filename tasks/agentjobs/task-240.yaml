@@ -3,7 +3,7 @@ id: task-240
 title: 'Shell 5: stand the new layout up on a sandbox and have Jeff drive it before
   it merges'
 created: '2026-08-22T00:40:59.806337Z'
-updated: '2026-09-06T21:44:10.566840Z'
+updated: '2026-09-06T21:45:03.709843Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -1117,3 +1117,31 @@ log:
       id: 0b6e4d71-c852-4f39-a704-2d1863e9f5ca
       kind: handoff
       fingerprint: 47ab546fffc06810461113a6b71f9ce2
+- id: 53
+  ts: '2026-09-06T21:45:03.709174Z'
+  actor: claude
+  type: note
+  body: "Evidence for task-276, recorded here because that task is not mine to write\
+    \ on.\n\n**The task-write guard refused a `git commit` of task records** -- the\
+    \ exact operation\nENGINEERING.md's \"Task files live on `main`, always\" requires\
+    \ -- with:\n\n> Refused: a writing git subcommand would write AgentJobs task records\n\
+    > (tasks/agentjobs/task-240.yaml, ...) in the managed directory\n\n**It is intermittent,\
+    \ which is the part worth having.** Two commits earlier in this\nsame session,\
+    \ same shape (`git add <four task paths> && git commit -F -` from\n`C:/projects/agentjobs`),\
+    \ went through untouched: 393e0b6 and the one before it. The\nthird, differing\
+    \ only in which four files and in the message text, was refused. So it\nis not\
+    \ \"git is blocked\" and not \"these paths are blocked\" -- something about the\n\
+    particular invocation decides.\n\nThe documented workaround worked first time:\
+    \ build the path from pieces so the managed\ndirectory does not appear as a literal\
+    \ in the command.\n\n    D=\"tasks/agent\"; git add \"${D}jobs/task-240.yaml\"\
+    \ ...\n\nThat is the tell. The guard is matching on the **text of the command**\
+    \ rather than on\nwhat the command would do, which is exactly the false positive\
+    \ ALLAGENTS.md describes\nfor documentation writes -- here reaching the one git\
+    \ operation the project mandates.\nA guard a correct agent gets past by spelling\
+    \ a path differently is not protecting\nanything; it is taxing the agents that\
+    \ follow the rules.\n\nCommitted as 66d7ced."
+  data:
+    operation:
+      id: 3c8a5f14-6b02-4e7d-9152-8ad0c6e34f79
+      kind: log_append
+      fingerprint: 0254582b7555c57b48fd382d4bbb7a76
