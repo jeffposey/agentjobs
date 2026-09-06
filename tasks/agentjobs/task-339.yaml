@@ -4,7 +4,7 @@ title: 'The gate is launched six to nine times per task at seven to twelve minut
   each under contention: one gate per handoff, and a core budget shared between concurrent
   gates'
 created: '2026-09-05T20:49:03.656961Z'
-updated: '2026-09-06T00:41:40.452332Z'
+updated: '2026-09-06T00:42:13.324965Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -629,3 +629,13 @@ log:
       id: 9b52ce07-3d41-4a68-bf29-8e17d4a05c31
       kind: log_append
       fingerprint: 48e10820a1de57de31a2ef25ed3f3707
+- id: 15
+  ts: '2026-09-06T00:42:13.324816Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 7
+  data:
+    run_id: run_86ee86be
+    outcome: completed
+    duration_seconds: 9884.30989
+    log_path: C:\Users\jpose\.agentjobs\runs\run_86ee86be
