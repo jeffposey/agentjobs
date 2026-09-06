@@ -3,13 +3,12 @@ id: task-356
 title: 'Shell 6: the filter controls hide behind a filter button instead of sitting
   on screen permanently'
 created: '2026-09-06T05:25:14.813338Z'
-updated: '2026-09-06T19:58:12.461986Z'
+updated: '2026-09-06T20:00:21.061030Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: Run run_6d411283 ended `cancelled` and nobody was told what this task
-  needs. Read the dispatch_result entry, then either dispatch again or take it on
-  yourself.
+ball: agent
+ball_reason: answer
+ball_prompt: It was broken, that's why I cancelled it. Even after logging in, those
+  sessions didn't want to work anymore.
 archived: false
 priority: critical
 queue_position: 743
@@ -544,3 +543,124 @@ log:
   data:
     ball: human
     ball_reason: decision
+- id: 17
+  ts: '2026-09-06T19:58:40.018434Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    It was broken, that''s why I cancelled it. Even after logging in, those sessions
+    didn''t want to work anymore.'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 18
+  ts: '2026-09-06T19:58:44.145326Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    It was broken, that''s why I cancelled it. Even after logging in, those sessions
+    didn''t want to work anymore.'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 19
+  ts: '2026-09-06T19:58:49.166740Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 20
+  ts: '2026-09-06T19:58:52.482875Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_6d411283` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_99a38627
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 19
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_99a38627\session-settings.json
+    - --name
+    - agentjobs/task-356@99a38627
+    - --resume
+    - 7cc385d9-8fde-4927-afa9-df157cfe7d91
+    cwd: C:\projects\agentjobs
+    git_head: e33aca5
+    session_id: 7cd17d04
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 21
+  ts: '2026-09-06T20:00:21.060804Z'
+  actor: claude
+  type: progress
+  body: "Resumed as run_99a38627. State checked against disk before anything: the\
+    \ worktree is\nthere, the tree is clean, and `feat/task-356-filter-popover` carries\
+    \ the two commits I\nleft on it. Nothing to recover.\n\n**The gate failure in\
+    \ entry 11 was already diagnosed and fixed before the session went\ndown \u2014\
+    \ that work was never logged, so here it is.** The tail the finisher quoted is\n\
+    `ConnectionResetError` spam from the test server shutting down; the actual failures\
+    \ were\nthree named specs, and only one of them was about the popover.\n\n1. **`promote-draft.spec.ts`**\
+    \ reached the Status filter with `getByLabel(\"Status\")`.\n   That select now\
+    \ needs the button opened first. It also has to dismiss the popover\n   before\
+    \ clicking the row underneath \u2014 the popover deliberately stays open across\
+    \ a\n   change, so two filters are one visit rather than two, and it sits over\
+    \ the top of the\n   list while it is. Escape, which is the gesture a person makes;\
+    \ clicking *through* a\n   popover is not something a person can do either.\n\
+    2. **`task-tree.spec.ts` and `tasks-shell.spec.ts`** each scroll the list region\
+    \ to a\n   fixed offset, click `.first()` row, and assert the offset survived.\
+    \ **Playwright\n   scrolls an off-screen target into view before it clicks**,\
+    \ so that click moved the\n   very offset the test holds still \u2014 and the\
+    \ failure reads exactly like the application\n   throwing the scroll away. It\
+    \ was latent: while the list's header was 358px tall the\n   first row was still\
+    \ on screen at an offset of 200-250, so `.first()` was a visible row\n   by luck.\
+    \ Both now pick a row **measured** to be inside the scrollport, which is what\n\
+    \   they always meant. The application behaviour is unchanged and nothing was\
+    \ weakened \u2014\n   `rowInPort()` fails the test outright if no row is fully\
+    \ inside the port.\n\nFixed in `5d77e40`, and `scripts/check.py --only e2e` was\
+    \ green on it: **107 passed,\nexit 0**. Then the session stalled on the expired\
+    \ login and was cancelled.\n\n**Since resuming.** Rebased onto `main` \u2014 32\
+    \ commits, all of them task records, no code,\nso it was clean and `frontend/node_modules`\
+    \ did not need rebuilding. The branch is now\n`84bdda8` + `e6e7c82`, zero behind.\
+    \ The full unqualified gate is running on that rebased\ntree now; the previous\
+    \ `--only e2e` green does not speak for the branch and is not being\nreported\
+    \ as if it did.\n\n**One thing changed that is not mine to decide.** The first\
+    \ run was dispatched under the\nepic at posture `autonomous` and told to merge\
+    \ its own work. This dispatch (entry 20) is\n`posture: auto`, `posture_source:\
+    \ project`, and my prompt carries no release clause. So\n**this run stops at the\
+    \ merge gate**: I hand off for review rather than running\n`--posture-release`,\
+    \ which would be declined in code anyway on a project configured\n`auto`. Nothing\
+    \ about the work changed \u2014 only who authorises the merge."
+  data:
+    operation:
+      id: d5e93a17-2f48-4c60-b7a1-38e6c04b9d25
+      kind: log_append
+      fingerprint: 14ab992ba165768102eb6fc3b1390699
