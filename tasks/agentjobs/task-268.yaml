@@ -3,7 +3,7 @@ id: task-268
 title: 'Gate speed, safely: copy the mypy cache into worktrees, add --durations, drop
   nested poetry run, then prototype concurrent stages behind a flag'
 created: '2026-08-22T18:58:37.392234Z'
-updated: '2026-09-06T23:29:57.106501Z'
+updated: '2026-09-06T23:33:48.545538Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -584,3 +584,21 @@ log:
     finish_step: started
     branch: perf/task-268-gate-speed
     finish_id: fin_d19d502f
+- id: 18
+  ts: '2026-09-06T23:33:48.545350Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `perf/task-268-gate-speed` into `main` as `9e844c36`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-268
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    dispatch) releases the merge gate (task-021), and run run_06be509e ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 9e844c36e705693266320e5dd3112aaadaf1f0b0
+    branch: perf/task-268-gate-speed
+    base: main
