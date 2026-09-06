@@ -3,7 +3,7 @@ id: task-239
 title: 'Shell 4: fit the detail panel to the main region, and check the full-width
   surfaces still hold up'
 created: '2026-08-22T00:40:27.040648Z'
-updated: '2026-09-06T10:35:17.574789Z'
+updated: '2026-09-06T10:38:51.543972Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -429,3 +429,17 @@ log:
     finish_step: started
     branch: feat/task-239-fit-detail-panel
     finish_id: fin_4e711482
+- id: 14
+  ts: '2026-09-06T10:38:51.543762Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-239-fit-detail-panel` (960794dc).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-239.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_76d2c516\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-239-fit-detail-panel
+    finish_id: fin_76d2c516
