@@ -685,7 +685,13 @@ def _build_handoff(client: TaskClient) -> Any:
             )
         except TaskClientError as exc:
             raise _service_error(exc, project_id=project_id, task_id=task_id) from exc
-        return success(_result_payload(result, project_id), _mutation_summary(result, "Handed off"))
+        payload, summary = _add_record_warnings(
+            _result_payload(result, project_id),
+            _mutation_summary(result, "Handed off"),
+            result.task,
+            "handoff",
+        )
+        return success(payload, summary)
 
     return handler
 
@@ -974,7 +980,12 @@ def mutation_tool_definitions(client: TaskClient) -> List[ToolDefinition]:
                 "handoff decided against a stale read is refused. Handing to a human "
                 "for a decision? Send `questions` -- each with options and a "
                 "recommendation -- and they answer by tapping rather than by writing "
-                "you a paragraph per question on a phone."
+                "you a paragraph per question on a phone. Sending them somewhere to "
+                "look? Put each address on its own line as `Name: <url>`, and refer to "
+                "it in the prose by that name: the review panel lifts those into a "
+                "named 'Links for this review' card and takes the line out of the "
+                "prose, so the address is a target rather than something to retype and "
+                "is on screen once. An address inside a sentence stays there, unnamed."
             ),
             _verb_schema(
                 revision=True,

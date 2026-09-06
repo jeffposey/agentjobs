@@ -390,6 +390,88 @@ describe("answering structured questions", () => {
   });
 });
 
+/**
+ * The heading of a question card (task-363).
+ *
+ * Seen on the task-240 review: "1. 1. Open a task from the sidebar...". The form
+ * numbers the cards and the agent had numbered its own questions, so the reader got
+ * both. The visual half of that defect -- a two-line heading with the fieldset's top
+ * border ruled through it -- cannot be asserted in jsdom, which computes no layout;
+ * it was driven in a browser and the evidence is on task-363.
+ */
+describe("a question heading", () => {
+  /**
+   * Scoped to the panel, because the log renders the same question bodies further down
+   * the page and an unscoped query matches both.
+   */
+  function heading(text: string) {
+    return within(screen.getByRole("region", { name: "Review actions" })).getByText(text);
+  }
+
+  function withBodies(...bodies: Array<string>) {
+    renderPanel(
+      task({
+        log: [
+          { id: 9, ts: "2026-08-18T05:11:00Z", actor: "claude", type: "handoff", body: "Decide." },
+          ...bodies.map((body, index) => ({
+            id: 10 + index,
+            ts: "2026-08-18T05:11:00Z",
+            actor: "claude",
+            type: "question" as const,
+            body,
+          })),
+        ],
+      }),
+    );
+  }
+
+  it("numbers a question once when the agent numbered it too", () => {
+    withBodies("1. Open a task from the sidebar. Did the list stay put?");
+
+    expect(heading("1. Open a task from the sidebar. Did the list stay put?")).toBeVisible();
+    expect(
+      within(screen.getByRole("region", { name: "Review actions" })).queryByText(/^1\. 1\./),
+    ).toBeNull();
+  });
+
+  it("keeps the form's number rather than the body's when the two disagree", () => {
+    // The panel shows only the questions with no answer threaded to them, so an
+    // agent's own numbering goes stale the moment one of them is answered. Here the
+    // agent wrote 2 and 4; the cards are 1 and 2, and 1 and 2 is what a reviewer can
+    // point at.
+    withBodies("2. Which port?", "4. Keep the sandbox up?");
+
+    expect(heading("1. Which port?")).toBeVisible();
+    expect(heading("2. Keep the sandbox up?")).toBeVisible();
+  });
+
+  it("strips a bracketed ordinal too", () => {
+    withBodies("3) Is the legend clear of the border?");
+
+    expect(heading("1. Is the legend clear of the border?")).toBeVisible();
+  });
+
+  it("leaves a number that is part of the question alone", () => {
+    // Not an ordinal: no delimiter, or too many digits to be one.
+    withBodies("8876 or 8910 for the sandbox?");
+
+    expect(heading("1. 8876 or 8910 for the sandbox?")).toBeVisible();
+  });
+
+  it("leaves a body that is nothing but an ordinal alone rather than emptying it", () => {
+    withBodies("1.");
+
+    expect(heading("1. 1.")).toBeVisible();
+  });
+
+  it("keeps the fieldset grouping, so the options are still announced with the question", () => {
+    // Whatever the visual fix, a group of options is a fieldset with a legend.
+    withBodies("Which port?");
+
+    expect(screen.getByRole("group", { name: "1. Which port?" })).toBeVisible();
+  });
+});
+
 /** Escape a label for use inside an accessible-name regex. */
 function escape(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
