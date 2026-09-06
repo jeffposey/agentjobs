@@ -2,7 +2,7 @@ schema: 2
 id: task-366
 title: On a phone there is no way to open the task list without leaving the record
 created: '2026-09-06T21:33:36.449827Z'
-updated: '2026-09-06T21:43:12.912498Z'
+updated: '2026-09-06T21:57:44.025054Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -18,7 +18,7 @@ tags:
 effort: medium
 assignment:
   eligible: []
-parent: task-235
+parent: task-367
 spec:
   summary: Below the device-class threshold the shell shows the list or the record,
     never both, and the only way back to the list is a link that drops the record.
@@ -156,3 +156,15 @@ log:
     undo:
       kind: after
       target: task-365
+- id: 3
+  ts: '2026-09-06T21:57:44.024945Z'
+  actor: claude
+  type: note
+  body: Updated parent.
+  data:
+    fields:
+    - parent
+    operation:
+      id: 9d4c1e78-5f30-42b6-b8e5-71a3c0f26d94
+      kind: update_content
+      fingerprint: ffd6a7523939f389b2d125972c332954

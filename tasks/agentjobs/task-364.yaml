@@ -3,7 +3,7 @@ id: task-364
 title: A fold is thrown away on reload whenever a descendant of the folded parent
   is selected
 created: '2026-09-06T21:32:37.833768Z'
-updated: '2026-09-06T21:43:18.032783Z'
+updated: '2026-09-06T21:57:40.390994Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -19,7 +19,7 @@ tags:
 effort: small
 assignment:
   eligible: []
-parent: task-235
+parent: task-367
 spec:
   summary: "Fold an epic while you are reading one of its descendants, reload, and\
     \ the fold is gone \u2014 and the stored preference is erased, not merely overridden.\
@@ -156,3 +156,15 @@ log:
     undo:
       kind: after
       target: task-361
+- id: 3
+  ts: '2026-09-06T21:57:40.390883Z'
+  actor: claude
+  type: note
+  body: Updated parent.
+  data:
+    fields:
+    - parent
+    operation:
+      id: 7e0a9c34-2b81-4d55-a3f7-90c1e5b47d28
+      kind: update_content
+      fingerprint: ffd6a7523939f389b2d125972c332954

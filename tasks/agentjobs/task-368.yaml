@@ -1,0 +1,207 @@
+schema: 2
+id: task-368
+title: 'Shell 8: drag the divider between the sidebar and the record'
+created: '2026-09-06T21:58:35.553391Z'
+updated: '2026-09-06T21:58:36.168424Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 15800
+category: ux
+tags:
+- frontend
+- layout
+- react
+- accessibility
+effort: medium
+assignment:
+  eligible: []
+parent: task-367
+spec:
+  summary: The sidebar and the record panel sit at a fixed ratio. Make the boundary
+    between them draggable wherever the two-region shell renders, remember where the
+    user put it, and keep today's ratio as the default until asked otherwise.
+  intent: Jeff likes the current proportions but expects to want them different once
+    he has lived in the screen. The cheap answer is to let him move it rather than
+    to guess again.
+  description: "## Where this came from\n\nJeff, 2026-09-06, after driving the task-240\
+    \ sandbox: on desktop and tablet the user should be able to move the divider for\
+    \ the tasks sidebar. Two things he added shape the work: **the current ratio is\
+    \ good**, and **once he has adjusted it he may ask for his setting to become the\
+    \ default**.\n\nThis is a deferred item of the shell epic, not a new direction.\
+    \ task-235's constraints already say: *\"No new frontend dependency for layout.\
+    \ Tailwind grid/flex is enough; a resizable splitter, if wanted, is hand-rolled\
+    \ or deferred.\"* Wanted. Hand-rolled.\n\n## What to build\n\nA draggable boundary\
+    \ between the list column and the record panel, live wherever the two-region shell\
+    \ renders \u2014 gate it on the same `useWideShell()` predicate task-239 used,\
+    \ **not on a fresh media query**, so there is one answer to \"is this the wide\
+    \ shell\" rather than two that can disagree.\n\n**Persistence follows task-238's\
+    \ decided pattern exactly**, because this is the same kind of setting. Read the\
+    \ stored width from `localStorage`; on a miss, use the built-in default. Write\
+    \ on every commit of a drag. Per browser, no server round trip, no account state.\
+    \ Reuse task-238's key convention rather than inventing a second one.\n\n**The\
+    \ default is today's ratio, and it lives in one named constant.** Jeff has said\
+    \ he may later ask for his own setting to become the default, so make that a one-line\
+    \ change to a named value with a comment saying where the number came from \u2014\
+    \ not a figure inlined in three class strings.\n\n## The bounds are the substance\n\
+    \nAn unbounded divider lets a user destroy the screen and then reload into the\
+    \ wreckage, since the position persists. So clamp it, and derive the clamp from\
+    \ what the panels actually need rather than from taste:\n\n- **The record panel's\
+    \ floor is measured, not guessed.** task-239 fitted it with container queries\
+    \ at **768px of content width**, and recorded that at a 900px window the region\
+    \ gets 508px. Below its container-query threshold the panel restacks; that is\
+    \ a real behaviour change and the divider should not be able to push it there\
+    \ by accident.\n- **The list column's floor** is whatever keeps a task row readable\
+    \ \u2014 task-235's spec talks in terms of a 320-400px column, and task-356 put\
+    \ the filters behind a button precisely to buy that column its width back.\n-\
+    \ Both floors should hold at every width the wide shell renders at, including\
+    \ a 1024px tablet, which is the tightest real case.\n\n## Two hazards worth naming\
+    \ before you start\n\n1. **There are now two drag gestures on one screen.** The\
+    \ sidebar rows already drag to reorder (task-207), and this adds a drag on the\
+    \ boundary beside them. They must not steal each other's pointer. This is the\
+    \ highest-risk part of the task and the reason it is `medium` rather than `small`.\n\
+    2. **Collapse already owns this boundary.** task-238 made the sidebar collapsible\
+    \ with persisted state. Decide and record what the divider does when the sidebar\
+    \ is collapsed \u2014 hidden, or inert \u2014 and what happens to the stored width\
+    \ when it re-expands. Getting this wrong gives a collapsed sidebar a draggable\
+    \ edge, or loses the user's width every time they collapse.\n\n## Accessibility\
+    \ is not optional here\n\nA divider that only responds to a mouse is unusable\
+    \ for anyone who does not use one, and this repository has consistently paid that\
+    \ cost properly \u2014 the reorder grip carries a real `aria-label`, and task-238's\
+    \ tree is keyboard-operable. Use the `separator` role with `aria-valuenow` / `aria-valuemin`\
+    \ / `aria-valuemax`, make it focusable, and move it with arrow keys. **Touch matters\
+    \ too**: the tablet is half of Jeff's ask, so use pointer events rather than mouse\
+    \ events."
+  constraints: '- No new frontend dependency. Hand-rolled, per task-235''s constraint.
+    Tailwind plus pointer events is enough.
+
+    - Gate on the existing `useWideShell()` predicate, not a new media query.
+
+    - Persist per browser in `localStorage`, reusing task-238''s key convention. Stored
+    value beats the default; the default applies only on a miss.
+
+    - Today''s ratio is the default, expressed as one named constant so it can be
+    changed in one line later.
+
+    - Clamp both panels above their real floors, with the record panel''s floor tied
+    to task-239''s 768px container-query threshold.
+
+    - Drag-to-reorder in the sidebar keeps working, and the two drags must not capture
+    each other''s pointer.
+
+    - Pointer events, so it works with a finger on the tablet as well as a mouse.
+
+    - `separator` role, focusable, arrow-key operable, with aria-valuenow/min/max.
+
+    - Portrait phone behaviour does not change. There is no divider where there are
+    no two regions.
+
+    - `scripts/check.py` green, unqualified, once, on the rebased branch before handoff.'
+  out_of_scope: '- Changing the default ratio. Today''s is the default; Jeff will
+    say if and when he wants his own value promoted, and that is a one-line follow-up,
+    not this task.
+
+    - Syncing the width across browsers, devices or accounts. Per browser, like the
+    collapse state.
+
+    - A second divider, a third pane, or a resizable anything else.
+
+    - Restyling: colours, typography, spacing scale. This is a control, not a repaint.
+
+    - Any change to the API, the schema or the CLI.'
+  context:
+  - path: frontend/src/App.tsx
+    why: Holds the two-region shell task-237 built. The divider goes between those
+      regions and must not disturb the full-width surfaces.
+  - path: frontend/src/components/TaskList.tsx
+    why: The list column being resized, and the owner of drag-to-reorder and the Alt+Up/Alt+Down
+      move. Hazard 1 lives here.
+  - path: frontend/src/components/TaskDetail.tsx
+    why: The record panel. task-239 fitted it with container queries at 768px of content
+      width; that threshold is where the clamp comes from.
+  - path: tasks/agentjobs/task-238.yaml
+    why: The collapse toggle, its localStorage key convention, and the device-class
+      default rule this persistence should mirror rather than reinvent. Hazard 2 lives
+      here.
+  - path: tasks/agentjobs/task-239.yaml
+    why: Log entry 10 records the measured region widths at four viewports and the
+      useWideShell() reasoning, including why it tests height as well as width.
+  - path: tasks/agentjobs/task-235.yaml
+    why: The shell epic. Its constraints defer this splitter and forbid a new dependency
+      for it; log entry 9 is the binding device-class decision.
+acceptance:
+- id: ac-1
+  text: On a desktop viewport the boundary can be dragged with a mouse, both directions,
+    and the panels follow it live.
+  status: pending
+- id: ac-2
+  text: On a tablet viewport the boundary can be dragged with a finger, verified on
+    the tablet rather than in a desktop emulation of one.
+  status: pending
+- id: ac-3
+  text: A width set by dragging survives a reload; clearing storage returns to the
+    default ratio, and the record names the key.
+  status: pending
+- id: ac-4
+  text: The default ratio is unchanged from today and is one named constant, cited
+    by path and line in the record.
+  status: pending
+- id: ac-5
+  text: Neither panel can be driven below its floor at any wide-shell width including
+    1024px, and the record states the measured floors and where each came from.
+  status: pending
+- id: ac-6
+  text: Drag-to-reorder and Alt+Up/Alt+Down still work with the divider present, focus
+    surviving a move, verified by a person's hand rather than an automation tool;
+    the record names the instrument.
+  status: pending
+- id: ac-7
+  text: The divider is focusable and arrow-key operable, exposes separator role with
+    aria-valuenow/min/max, and a test asserts the rendered values rather than the
+    presence of the attributes.
+  status: pending
+- id: ac-8
+  text: A decision entry records what the divider does while the sidebar is collapsed
+    and what happens to the stored width on re-expand.
+  status: pending
+- id: ac-9
+  text: 'A portrait phone viewport is unchanged: no divider, no stolen width.'
+  status: pending
+- id: ac-10
+  text: scripts/check.py green, unqualified, on the rebased branch, with no new frontend
+    dependency in package.json.
+  status: pending
+deliverables:
+- path: frontend/src/App.tsx
+  note: Draggable boundary between the two regions, with the default ratio as a named
+    constant.
+  status: pending
+dependencies:
+- task: task-362
+  type: related
+  note: 'Independent: that edits a row''s contents, this the region boundary. Both
+    touch TaskList.tsx, so whichever lands second rebases.'
+- task: task-238
+  type: related
+  note: Owns the sidebar collapse state and the localStorage key convention this persistence
+    mirrors. Hazard 2.
+- task: task-239
+  type: related
+  note: Measured the record panel's 768px container-query threshold, which is where
+    this task's clamp comes from.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-06T21:58:36.167637Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 4a71e69b-0d82-4c35-9e14-8b30f5d2a7c6
+      kind: create
+      fingerprint: 3ecc17bf190399a60111cd832cd933de

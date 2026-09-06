@@ -1,0 +1,294 @@
+schema: 2
+id: task-362
+title: 'Shell 7: the sidebar row stops showing the raw queue position'
+created: '2026-09-06T21:02:35.472560Z'
+updated: '2026-09-06T21:57:06.166222Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
+archived: false
+priority: critical
+queue_position: 1493
+category: ux
+tags:
+- frontend
+- layout
+- react
+effort: small
+assignment:
+  owner: claude
+  eligible: []
+parent: task-235
+spec:
+  summary: Every task row in the sidebar prints its raw `queue_position` as visible
+    text. Remove it from the row, keeping it in the reorder grip's aria-label and
+    in NextExplanation, where it is explained and where accessibility needs it.
+  intent: 'A reader scanning the sidebar needs the title. The number is a gapped internal
+    coordinate: it is not ordinal, it duplicates the priority chip beside it, and
+    in a 320-400px column it takes width from the part the reader came for.'
+  description: "## What is wrong\n\n`frontend/src/components/TaskList.tsx:820` renders\
+    \ `{task.queue_position ?? \"\u2014\"}` as visible row text. Jeff asked, 2026-09-06,\
+    \ looking at the finished sidebar: *is there some reason a human needs to see\
+    \ the random queue numbers?* There is not, and there are four reasons against.\n\
+    \n1. **It is not ordinal.** In his screenshot the visible values were 293, 1393,\
+    \ 843, 893. A reader taking 1393 for \"1393rd\" is wrong; one taking it for \"\
+    3rd\" is also wrong. Positions are gapped band coordinates, assigned so a task\
+    \ can be inserted between two others without renumbering. The list's own order\
+    \ already conveys order, exactly, with no arithmetic.\n2. **It duplicates the\
+    \ row it sits on.** Its only meaning is position *within a band*, and the band\
+    \ is already the `critical` / `high` chip immediately beside it.\n3. **It advertises\
+    \ a number the workflow forbids editing.** ALLAGENTS.md is explicit that `queue_position`\
+    \ is never hand-edited \u2014 reordering goes through `queue move`, because a\
+    \ hand-written number can collide with another open task in the band, which is\
+    \ corruption. Displaying it prominently invites the edit the docs prohibit.\n\
+    4. **It truncates the title, in the column this epic exists to fix.** In the screenshot\
+    \ task-235's title dies at \"\u2026on the screen alre\u2026\" while a meaningless\
+    \ 1393 sits on the same row with whitespace around it. Spending a narrow column's\
+    \ width on bookkeeping and clipping the content is precisely the trade task-235\
+    \ was created to reverse.\n\n## What to do\n\n**Remove the visible number from\
+    \ the sidebar row. Keep both other usages.**\n\n- **Keep `TaskList.tsx:741`**,\
+    \ the reorder grip's `aria-label` \u2014 `Reorder task-235, critical band, position\
+    \ 293`. A screen-reader user stepping a task through its band with Alt+Up/Alt+Down\
+    \ has no other way to know where it landed. Removing this would be a real accessibility\
+    \ regression, and it is the one place the number genuinely informs an action.\n\
+    - **Keep `NextExplanation.tsx:51`**, which renders it as \"position X of the Y\"\
+    \ \u2014 in context, explained, and answering a question the reader actually asked.\n\
+    - **Keep the `data-queue-position` attributes** at `TaskList.tsx:775` and `:862`.\
+    \ They are test hooks, not user-facing, and several existing tests assert against\
+    \ them. Removing rendered text is not a reason to remove a test seam; if any of\
+    \ them turns out to be genuinely dead, say so with the grep rather than deleting\
+    \ it in passing.\n\n## Relationship to task-207\n\n**task-207 is what put this\
+    \ number on the row** \u2014 \"Queue position: the React list shows the real order,\
+    \ and you can change it without a mouse\" \u2014 so this task partially reverses\
+    \ a shipped decision, and should say so rather than looking like a tidy-up. What\
+    \ task-207 got right and this keeps: the list renders the stored order rather\
+    \ than re-sorting client-side, and the order is changeable from the keyboard.\
+    \ What it over-delivered: showing the coordinate as well as the ordering it produces.\
+    \ The ordering was the requirement; the number was the implementation showing\
+    \ through.\n\n## The one argument for keeping it, and why it loses\n\nThe number\
+    \ lets you eyeball queue corruption \u2014 two open tasks colliding on the same\
+    \ value inside one band. That is real, but it is rare, `agentjobs queue check`\
+    \ answers it definitively rather than by eye, and there is already a broken-queue\
+    \ banner for the condition. A permanent column on every row in the narrowest surface\
+    \ is the wrong price for a diagnostic that better tools already cover. **What\
+    \ would make this wrong:** if position collisions turned out to be frequent *and*\
+    \ the banner missed them, a debug affordance would be justified \u2014 but as\
+    \ a toggle or a detail-panel field, not restored to every row."
+  constraints: "- Remove only the rendered text. Do not touch how order is computed,\
+    \ stored, or validated \u2014 not `queueOrder.ts`, not `taskTree.ts`, not the\
+    \ schema, not the API, not the CLI.\n- The reorder grip's `aria-label` keeps naming\
+    \ the band and the position.\n- `NextExplanation` keeps showing the position in\
+    \ its explanatory sentence.\n- The `data-queue-position` attributes stay; they\
+    \ are test seams.\n- Drag-to-reorder and Alt+Up / Alt+Down keep working, including\
+    \ focus survival across a move. task-207 and task-225 are the scar tissue here:\
+    \ this edits the same rows those defects lived in.\n- Update the tests that assert\
+    \ the visible number rather than deleting them \u2014 they should assert its absence,\
+    \ or assert the aria-label instead.\n- Do not land this while the shell is under\
+    \ live human review, because it edits the very rows being driven. task-240 was\
+    \ that review and closed `completed` on 2026-09-06, so the constraint is satisfied\
+    \ as of now; re-check only if another by-hand review of the sidebar opens.\n-\
+    \ `scripts/check.py` green, unqualified, once, on the rebased branch before handoff."
+  out_of_scope: '- Any change to how queue order is computed, assigned, or repaired.
+
+    - A debug view or toggle for queue positions. Rejected in the description above;
+    reopening it means reopening this task''s reasoning, not quietly adding one.
+
+    - The broken-queue banner and `queue check`.
+
+    - Any other column, chip or field on the row. This is one data element, not a
+    row redesign.
+
+    - Restyling: colours, typography, spacing scale.'
+  context:
+  - path: frontend/src/components/TaskList.tsx
+    why: Line 820 renders the visible number and is the whole change. Line 741 is
+      the aria-label to keep; lines 775 and 862 are the data-queue-position test seams
+      to keep.
+  - path: frontend/src/components/NextExplanation.tsx
+    why: Line 51 shows the position in context as 'position X of the Y'. This usage
+      stays; it is the counter-example that shows what earning the space looks like.
+  - path: frontend/src/components/TaskList.test.tsx
+    why: Asserts against queue positions in several places; these need updating rather
+      than deleting.
+  - path: tasks/agentjobs/task-207-queue-position-react-list.yaml
+    why: The task that added the number. Its decision is being partially reversed,
+      so read what it was actually asked to deliver before changing it.
+acceptance:
+- id: ac-1
+  text: No task row in the sidebar renders queue_position as visible text, at any
+    viewport, and a test asserts its absence rather than having been deleted.
+  status: pending
+- id: ac-2
+  text: The reorder grip's aria-label still names the band and the position, asserted
+    by a test.
+  status: pending
+- id: ac-3
+  text: NextExplanation still renders the position in its explanatory sentence.
+  status: pending
+- id: ac-4
+  text: The data-queue-position attributes at TaskList.tsx:775 and :862 still exist,
+    or the record names the grep proving each removed one was dead.
+  status: pending
+- id: ac-5
+  text: 'The title gets the width back: the record states a measured title width at
+    a sidebar width before and after, taken from a browser rather than asserted.'
+  status: pending
+- id: ac-6
+  text: Drag-to-reorder and Alt+Up/Alt+Down still move a row, with focus surviving
+    the move; the record names the instrument and does not claim an automated gesture
+    is a person's.
+  status: pending
+- id: ac-7
+  text: scripts/check.py green, unqualified, on the rebased branch.
+  status: pending
+deliverables:
+- path: frontend/src/components/TaskList.tsx
+  note: Visible queue-position text removed; aria-label and data attributes intact.
+  status: pending
+dependencies:
+- task: task-207-queue-position-react-list
+  type: related
+  note: Shipped the number this removes. Keeps its ordering and keyboard-move behaviour.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-06T21:02:36.123947Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 5c1f8a03-7d64-4b29-8e51-2a90c6d7f4e8
+      kind: create
+      fingerprint: 971e6c371908b2c9f05b9aefeda09fda
+- id: 2
+  ts: '2026-09-06T21:55:35.105619Z'
+  actor: claude
+  type: note
+  body: Updated dependencies, spec.
+  data:
+    fields:
+    - dependencies
+    - spec
+    operation:
+      id: 6b1e2f40-1a3d-4c72-9f18-0d5a7c3e9b21
+      kind: update_content
+      fingerprint: 38eab2425cbc6afe6a49208c44411269
+- id: 3
+  ts: '2026-09-06T21:55:39.798826Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. They chose
+    posture `autonomous` for this run, above this project''s `auto`. No extra instruction
+    was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 4
+  ts: '2026-09-06T21:55:40.543157Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 5
+  ts: '2026-09-06T21:55:42.121159Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_4b8ecff5
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: dispatch
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 3
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --name
+    - agentjobs/task-362@4b8ecff5
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_4b8ecff5\session-settings.json
+    - 'You are the agent `claude` working task `task-362` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-362-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_4b8ecff5. Posture `autonomous` releases the merge gate:
+      this run merges its own work with no human review. Record the evidence on the
+      task first, then run `agentjobs finish task-362 --project agentjobs --posture-release`
+      from C:\projects\agentjobs. That rebases, runs the full gate, and merges only
+      on a green one -- it stops and hands the ball back if anything fails. Do not
+      merge by hand. Never push: this project is configured `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 86f7187
+    session_id: b3f6fa7f
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 6
+  ts: '2026-09-06T21:56:51.437354Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 1c9f4d55-8a02-47b6-93e1-6f2b8d1a0c37
+      kind: update_content
+      fingerprint: f41e634d64a3063b900f8255319ea0d8
+- id: 7
+  ts: '2026-09-06T21:57:06.166055Z'
+  actor: claude
+  type: decision
+  body: "Dropped the `needs: task-240` dependency, and repaired three spec fields\
+    \ that a malformed create had corrupted.\n\n**The dependency was wrong in kind,\
+    \ not just in detail.** It was added to express \"run after the shell review\"\
+    , which is ordering. ALLAGENTS.md is explicit that dependencies are prerequisites\
+    \ and that a false one makes a task unclaimable, deadlocks the graph if it ever\
+    \ points both ways, and misleads every reader who takes it at face value. Ordering\
+    \ goes through `queue move`, never through `needs`.\n\nThe concern behind it was\
+    \ real and is preserved: do not land this while a person is driving the sidebar\
+    \ by hand, because it edits the very rows under review. That now sits in `constraints`,\
+    \ where a reader can weigh it, rather than in the graph, where it silently blocked\
+    \ the task. task-240 \u2014 the review in question \u2014 closed `completed` at\
+    \ 21:52Z today, so the concern is discharged as of now.\n\n**Rejected alternative:**\
+    \ keep the dependency and rely on task-240 closing to clear it. Rejected because\
+    \ it teaches the wrong pattern (the next agent copies it), and because the record\
+    \ would still assert a prerequisite relationship that does not exist.\n\n**Field\
+    \ repair.** A malformed create had left `</constraints>` and two `<parameter name=...>`\
+    \ tags embedded as literal text at the end of `constraints`, with `out_of_scope`\
+    \ null and `context` empty \u2014 the content for both was sitting inside that\
+    \ polluted string. Split it back out into the real fields. `summary` was 64 words\
+    \ and tripping the record warning; cut to two sentences, with the four-reasons\
+    \ detail moved to `intent` and `description` where it belongs. Patched rather\
+    \ than re-filed, so the id, the log and the acceptance criteria survive."
+  data:
+    operation:
+      id: a2d7c481-5e93-4f60-b1c8-2e4f9a63d105
+      kind: log_append
+      fingerprint: 9b7978e46b4f9d9f42336b103473bc79
