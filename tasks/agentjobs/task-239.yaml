@@ -3,13 +3,13 @@ id: task-239
 title: 'Shell 4: fit the detail panel to the main region, and check the full-width
   surfaces still hold up'
 created: '2026-08-22T00:40:27.040648Z'
-updated: '2026-08-22T00:46:41.281295Z'
+updated: '2026-09-06T05:25:52.092414Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: high
-queue_position: 11900
+priority: critical
+queue_position: 693
 category: ux
 tags:
 - frontend
@@ -140,3 +140,27 @@ log:
       id: d3908b5e-6c27-4a11-b8d4-52f7ea16c0b9
       kind: update_content
       fingerprint: edb25d44274076d77f3936f703c5312a
+- id: 3
+  ts: '2026-09-06T05:24:10.461370Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the high band into the bottom of the critical band.
+  data:
+    band: critical
+    from: 11900
+    to: 493
+    placement:
+      kind: bottom
+    from_band: high
+- id: 4
+  ts: '2026-09-06T05:24:10.461385Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: d96a4760-fb7a-42c6-a2ac-41b28128dd0b
+      kind: update_content
+      fingerprint: 9a3de991a457a32ef7511b7ac0feaef6

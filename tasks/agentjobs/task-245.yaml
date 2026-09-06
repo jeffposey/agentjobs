@@ -3,14 +3,14 @@ id: task-245
 title: 'Dispatch: drop git merge/git add/npm run from the pre-approved allow-list
   and frame the wake ball_prompt as quoted data'
 created: '2026-08-22T18:50:33.217480Z'
-updated: '2026-08-23T05:15:12.510948Z'
+updated: '2026-09-06T05:25:52.031804Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
 ball_prompt: Finish specifying this task.
 archived: false
 priority: critical
-queue_position: 75
+queue_position: 1193
 category: infrastructure
 tags:
 - big-dawg-audit

@@ -2,13 +2,13 @@ schema: 2
 id: task-238
 title: "Shell 3: the task sidebar \u2014 a collapsible tree you select from"
 created: '2026-08-22T00:39:57.272889Z'
-updated: '2026-08-22T00:45:42.683012Z'
+updated: '2026-09-06T05:25:52.102216Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: high
-queue_position: 11800
+priority: critical
+queue_position: 593
 category: ux
 tags:
 - frontend
@@ -194,3 +194,27 @@ log:
       id: 8c40d7ab-95f2-4e18-a3d6-1b52f9e7c603
       kind: update_content
       fingerprint: 14a0a676c4a5f0c45f35de3cd0523b85
+- id: 3
+  ts: '2026-09-06T05:24:06.965710Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the high band into the bottom of the critical band.
+  data:
+    band: critical
+    from: 11800
+    to: 393
+    placement:
+      kind: bottom
+    from_band: high
+- id: 4
+  ts: '2026-09-06T05:24:06.965726Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: 37cbfe67-8b68-443b-a265-d039bd223f22
+      kind: update_content
+      fingerprint: 9a3de991a457a32ef7511b7ac0feaef6

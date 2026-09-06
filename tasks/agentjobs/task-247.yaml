@@ -3,14 +3,14 @@ id: task-247
 title: Atomic task-file writes, stale task-lock reclaim, and the same helper for the
   registry and webhooks.yaml
 created: '2026-08-22T18:51:10.598317Z'
-updated: '2026-09-05T20:17:27.532180Z'
+updated: '2026-09-06T05:25:52.021341Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
 ball_prompt: Finish specifying this task.
 archived: false
 priority: critical
-queue_position: 93
+queue_position: 1293
 category: infrastructure
 tags:
 - big-dawg-audit

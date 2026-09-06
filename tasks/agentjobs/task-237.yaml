@@ -3,13 +3,13 @@ id: task-237
 title: 'Shell 2: give the Tasks surface two regions and nest the detail route inside
   it'
 created: '2026-08-22T00:39:16.236145Z'
-updated: '2026-08-22T00:46:17.026095Z'
+updated: '2026-09-06T05:25:52.114258Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: high
-queue_position: 11700
+priority: critical
+queue_position: 493
 category: ux
 tags:
 - frontend
@@ -157,3 +157,27 @@ log:
       id: a1f6c283-40b7-4d92-8e51-77c9b0e4a3d8
       kind: update_content
       fingerprint: 0cafe674a8769d0d39985338d0781f13
+- id: 3
+  ts: '2026-09-06T05:24:04.319979Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the high band into the bottom of the critical band.
+  data:
+    band: critical
+    from: 11700
+    to: 293
+    placement:
+      kind: bottom
+    from_band: high
+- id: 4
+  ts: '2026-09-06T05:24:04.319997Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: bee32eca-46f5-4f27-9b29-e057d5ed7973
+      kind: update_content
+      fingerprint: 9a3de991a457a32ef7511b7ac0feaef6

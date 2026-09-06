@@ -2,13 +2,13 @@ schema: 2
 id: task-294
 title: The Dashboard fits one screen, and never scrolls
 created: '2026-08-23T20:39:32.963071Z'
-updated: '2026-09-06T00:56:12.334265Z'
+updated: '2026-09-06T05:25:52.156264Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: critical
-queue_position: 9
+queue_position: 193
 category: ux
 tags:
 - frontend

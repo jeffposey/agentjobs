@@ -2,13 +2,13 @@ schema: 2
 id: task-235
 title: Adopt the list-and-detail shell every other app on the screen already uses
 created: '2026-08-22T00:38:02.564268Z'
-updated: '2026-08-22T00:44:23.440914Z'
+updated: '2026-09-06T05:26:42.862269Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: high
-queue_position: 11500
+priority: critical
+queue_position: 293
 category: ux
 tags:
 - frontend
@@ -250,3 +250,97 @@ log:
       id: 5b97a3da-4e62-4f18-a073-8d219bf4c625
       kind: update_content
       fingerprint: 5c76ccfe1381cf32902633cbb6de89ef
+- id: 5
+  ts: '2026-09-06T05:24:15.447096Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the high band into the bottom of the critical band.
+  data:
+    band: critical
+    from: 11500
+    to: 593
+    placement:
+      kind: bottom
+    from_band: high
+- id: 6
+  ts: '2026-09-06T05:24:15.447116Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: c46ce306-87cc-4028-a5cb-2f7aa17f6ec7
+      kind: update_content
+      fingerprint: 9a3de991a457a32ef7511b7ac0feaef6
+- id: 7
+  ts: '2026-09-06T05:25:30.560286Z'
+  actor: claude
+  type: queue_move
+  body: "Jeff, 2026-09-06: the Tasks screen \u2014 a sidebar you select tasks from,\
+    \ and the filter behind a button \u2014 comes before the analytics page. Both\
+    \ are shell work and this is the one he uses every day; analytics is a new surface\
+    \ he does not have yet. The Dashboard-fits-one-screen task (task-294) stays first.\
+    \ The epic and its children move up into the critical band together so the queue\
+    \ does not hand out task-213 (analytics design) ahead of task-236."
+  data:
+    band: critical
+    from: 593
+    to: 10
+    placement:
+      kind: before
+      target: task-212
+    moved_with:
+    - task-236
+    - task-237
+    - task-238
+    - task-239
+    - task-240
+    - task-356
+    warnings:
+    - kind: promoted_unclaimable
+      message: 'task-235 cannot be claimed where you have just put it: has 6 open
+        children. The queue will skip past it.'
+      tasks:
+      - task-235
+    operation:
+      id: ca4ca525-8ef5-45f7-ab12-5ef0beefbd67
+      kind: queue_move
+      fingerprint: 7f5ca8c1d7c501507dec9052eb0999f4
+- id: 8
+  ts: '2026-09-06T05:26:42.862057Z'
+  actor: claude
+  type: decision
+  body: "**From Jeff, 2026-09-06. Two things: a sixth child, and this epic's place\
+    \ in the queue.**\n\n**1. The filter panel goes behind a filter icon button \u2014\
+    \ task-356.** His words: \"filter not always shown, popped up from a filter icon\
+    \ button.\" Today `TaskList.tsx:427-449` renders a permanent card holding a search\
+    \ box and three selects, on every visit, whether or not anything is filtered.\
+    \ In a 320-400px sidebar that pushes the first task row below the fold, which\
+    \ defeats the column. task-356 is the child; it needs task-238 (the sidebar has\
+    \ to exist first) and task-240 now needs it, so the sandbox review drives the\
+    \ finished thing rather than a sidebar still wearing a four-control filter row.\n\
+    \nRecorded there rather than folded into task-238: task-238's own `out_of_scope`\
+    \ already says filtering in the sidebar is \"worth having, worth its own task\"\
+    , and task-238 is the largest child in the epic already.\n\n**2. This epic now\
+    \ runs before the analytics page (task-212).** It sat at high/11500, behind task-212\
+    \ and its design child task-213 in the critical band. The epic and all six children\
+    \ were raised to critical and moved as a block to sit immediately after task-294\
+    \ (Dashboard fits one screen) and immediately before task-212.\n\nThe reason,\
+    \ in his framing: the Tasks screen is the surface he works in every day and it\
+    \ is the one that is wrong; analytics is a surface that does not exist yet. Both\
+    \ are shell work, so doing the shell once \u2014 dashboard, then tasks \u2014\
+    \ before adding a new page to it is also the cheaper order.\n\n**Why the children\
+    \ moved too, and not just the parent.** `agentjobs next` skips a parent holding\
+    \ open children and answers with whatever is first in the band. Leaving the children\
+    \ at high/11600+ would have put the epic at the top of critical and still handed\
+    \ out task-213 \u2014 analytics design \u2014 as the next actionable task. The\
+    \ band a child sits in is what the queue actually reads.\n\n**Nothing about the\
+    \ shape changed.** Entry 3 remains binding: the sidebar is the task list, per-surface,\
+    \ header nav stays, Dashboard has no sidebar."
+  data:
+    operation:
+      id: 42bf9b8f-e3ee-408b-8d62-315c1d652e20
+      kind: log_append
+      fingerprint: d0e09c733de8d302136ba51d9e3baecb

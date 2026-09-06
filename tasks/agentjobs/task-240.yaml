@@ -3,13 +3,13 @@ id: task-240
 title: 'Shell 5: stand the new layout up on a sandbox and have Jeff drive it before
   it merges'
 created: '2026-08-22T00:40:59.806337Z'
-updated: '2026-08-22T00:47:08.091216Z'
+updated: '2026-09-06T05:25:52.081044Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: high
-queue_position: 12000
+priority: critical
+queue_position: 793
 category: testing
 tags:
 - frontend
@@ -115,6 +115,11 @@ dependencies:
 - task: task-239
   type: needs
   note: There is nothing to read until the detail panel fits.
+- task: task-356
+  type: needs
+  note: The filter popover is part of what Jeff drives in the sandbox; reviewing the
+    shell without it means reviewing a sidebar that still carries a four-control filter
+    row.
 links: []
 branches: []
 log:
@@ -142,3 +147,28 @@ log:
       id: f2c47e60-8b13-4d95-a706-3e91d5b8a742
       kind: update_content
       fingerprint: becfe75e5d753e63c84be763c4576f28
+- id: 3
+  ts: '2026-09-06T05:24:28.265227Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the high band into the bottom of the critical band.
+  data:
+    band: critical
+    from: 12000
+    to: 693
+    placement:
+      kind: bottom
+    from_band: high
+- id: 4
+  ts: '2026-09-06T05:24:28.265244Z'
+  actor: claude
+  type: note
+  body: Updated dependencies, priority.
+  data:
+    fields:
+    - dependencies
+    - priority
+    operation:
+      id: e41320cc-5e97-4cd1-8e06-aba3c68dcf0c
+      kind: update_content
+      fingerprint: 72bccdc33c995e47c89ef645b87c38f0

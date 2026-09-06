@@ -3,13 +3,13 @@ id: task-236
 title: 'Shell 1: settle the breakpoint, and whether the burger menu collides with
   the sidebar'
 created: '2026-08-22T00:38:43.664769Z'
-updated: '2026-08-23T20:37:52.810095Z'
+updated: '2026-09-06T05:25:52.125065Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: high
-queue_position: 11600
+priority: critical
+queue_position: 393
 category: design
 tags:
 - frontend
@@ -182,3 +182,27 @@ log:
       id: 5a1c93b7-2e40-4d78-b3f1-6c02d4a7e236
       kind: log_append
       fingerprint: 0f896c96f42c56927dd6c2b27987c864
+- id: 4
+  ts: '2026-09-06T05:24:02.368149Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the high band into the bottom of the critical band.
+  data:
+    band: critical
+    from: 11600
+    to: 193
+    placement:
+      kind: bottom
+    from_band: high
+- id: 5
+  ts: '2026-09-06T05:24:02.368168Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: e3507d83-075c-42a5-a502-a4384c4fd219
+      kind: update_content
+      fingerprint: 9a3de991a457a32ef7511b7ac0feaef6
