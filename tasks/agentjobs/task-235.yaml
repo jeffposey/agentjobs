@@ -2,10 +2,13 @@ schema: 2
 id: task-235
 title: Adopt the list-and-detail shell every other app on the screen already uses
 created: '2026-08-22T00:38:02.564268Z'
-updated: '2026-09-06T05:37:06.744410Z'
-lifecycle: ready
+updated: '2026-09-06T07:27:58.508776Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: 'Supervise this epic: start a separate session for one eligible child
+  at a time, watch its record, and do not work a child yourself. Open now: task-237,
+  task-238, task-239, task-240, task-356.'
 archived: false
 priority: critical
 queue_position: 293
@@ -17,6 +20,7 @@ tags:
 - epic
 effort: large
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: "On a landscape screen the React app is a top nav bar over one full-width\
@@ -416,3 +420,99 @@ log:
       id: 7c3f21a8-9b04-4d6e-8a52-1e6f0b93c471
       kind: log_append
       fingerprint: 79714dea820f5ee8d2f956e240603d81
+- id: 10
+  ts: '2026-09-06T07:26:51.783933Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. They chose
+    posture `autonomous` for this run, above this project''s `auto`. No extra instruction
+    was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 11
+  ts: '2026-09-06T07:26:52.573676Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude to supervise 5 open sub-task(s).
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 12
+  ts: '2026-09-06T07:26:56.635059Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_4f483ef2
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: dispatch
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 10
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --name
+    - agentjobs/task-235@4f483ef2
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_4f483ef2\session-settings.json
+    - 'You are the agent `claude` supervising parent task `task-235` in project `agentjobs`
+      (root: C:\projects\agentjobs). It has open children: task-237, task-238, task-239,
+      task-240, task-356. You are the supervisor, not the worker: start a separate
+      session for one eligible child at a time and let that session do the child''s
+      work. Do not work a child yourself, do not take a worktree, and check nothing
+      out -- you stay in the shared working tree as it is, and each child session
+      takes its own. AgentJobs is serving at http://127.0.0.1:8876. Read the parent
+      record, then follow the parent-task protocol in docs/agent-workflow.md. Dispatch
+      run id: run_4f483ef2. Posture `autonomous` releases the merge gate: a child
+      you start merges its own work once its gate is green, with no human review.
+      Never push: this project is configured `push: false`. Do not start the children
+      by hand: run `agentjobs dispatch walk task-235 --project agentjobs` from C:\projects\agentjobs
+      and let it finish. It takes one eligible child at a time and stops the whole
+      walk on the first that is not clean. Exit 0 means every open child is done --
+      then judge this parent''s own acceptance criteria against what the children
+      recorded, and close it. Exit 1 means it stopped and this record says why.'
+    cwd: C:\projects\agentjobs
+    git_head: 213e1ff
+    session_id: 1ba5f38e
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 13
+  ts: '2026-09-06T07:27:58.508492Z'
+  actor: claude
+  type: progress
+  body: "**Supervision started, run `run_4f483ef2`, 2026-09-06.** Posture `autonomous`,\
+    \ so each child merges on its own green gate.\n\nPrerequisite checked before starting:\
+    \ **task-236 is closed `completed`**, so task-237 is eligible. The rest of the\
+    \ chain is 237 \u2192 (238, 239 in parallel) \u2192 356 (needs 238) \u2192 240\
+    \ (needs 238, 239 and 356).\n\n`agentjobs dispatch walk task-235 --project agentjobs`\
+    \ is running and has started task-237 (attempt 1 of 2). The walk allows 3 children\
+    \ in flight, retries a child once, and grounds every further takeoff on the first\
+    \ child that does not close `completed`.\n\n**One thing to expect at the end of\
+    \ the chain: task-240 is a human gate by construction** \u2014 it stands the layout\
+    \ up on a sandbox for Jeff to drive, and ac-4 and ac-6 of this epic require a\
+    \ person's hands and a person's approval. An `autonomous` posture releases the\
+    \ *merge* gate; it does not manufacture a human. If the walk stops on task-240\
+    \ sitting at `human`/`review`, that is the design working, not a failure, and\
+    \ this parent cannot close until Jeff has driven it."
+  data:
+    operation:
+      id: 9f2a1c4b-7d38-4e56-b1a0-2c8f6e3d9014
+      kind: log_append
+      fingerprint: a71205218ad526f7e9d35a521aa3398e
