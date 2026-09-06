@@ -77,6 +77,20 @@ async function longTask(request: APIRequestContext) {
 }
 
 /**
+ * Wait until the record itself is on screen.
+ *
+ * `page.goto` returns on `load`, and the record arrives one fetch later, so a test that
+ * scrolls immediately can be measuring an empty page. That used to be invisible: the
+ * loading card demanded a screen's worth of height, so the page had somewhere to scroll
+ * even with nothing in it. task-237 took that height away -- correctly, because inside a
+ * region it produced a scrollbar over nothing -- and these tests started measuring the
+ * gap between the two.
+ */
+async function recordLoaded(page: Page) {
+  await expect(page.getByRole("region", { name: "Task log" })).toBeAttached();
+}
+
+/**
  * Scroll to the end of whatever this page actually scrolls, refusing to pass if
  * nothing does.
  *
@@ -147,6 +161,7 @@ for (const [name, viewport] of [
 
     for (const surface of surfaces) {
       await page.goto(surface);
+      if (surface.endsWith(taskId)) await recordLoaded(page);
       // `banner`, not `header`: the Create surface has a second, nested <header> of
       // its own, and a bare tag selector matches both.
       await expect(page.getByRole("banner")).toBeVisible();
@@ -180,6 +195,7 @@ test("the Tasks link is reachable from the bottom of a long page, at both viewpo
   for (const viewport of [DESKTOP, PHONE]) {
     await page.setViewportSize(viewport);
     await page.goto(`/app/p/_local/tasks/${taskId}`);
+    await recordLoaded(page);
     await scrollToEnd(page);
 
     if (viewport.width < NAV_INLINE_MIN_PX) {
@@ -278,6 +294,7 @@ test("the geometry assertion has teeth: unpinning the header makes it fail", asy
   const taskId = await longTask(request);
   await page.setViewportSize(PHONE);
   await page.goto(`/app/p/_local/tasks/${taskId}`);
+  await recordLoaded(page);
 
   // A negative control, in the test rather than in a reviewer's head. ac-5 asks that
   // the assertion fail when `sticky`/`top-0` is removed; this removes them and shows
