@@ -2,11 +2,18 @@ schema: 2
 id: task-294
 title: The Dashboard fits one screen, and never scrolls
 created: '2026-08-23T20:39:32.963071Z'
-updated: '2026-09-06T07:22:37.935094Z'
+updated: '2026-09-06T07:53:08.479203Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Drive it, then approve or say what to change.\n\nSandboxes are up now,\
+  \ throwaway data, forty open tasks:\n  calm   http://127.0.0.1:8908/app/p/sandbox-crowded\n\
+  \  alarm  http://127.0.0.1:8909/app/p/sandbox-crowded\nResize the window or use\
+  \ Chrome's device toolbar \u2014 the window never scrolls. The\nTasks tab on the\
+  \ same server still scrolls, deliberately.\n\nBranch feat/task-294-dashboard-one-screen,\
+  \ gate green on 899d2e98.\nOne judgement call worth your eye: the drafts link went\
+  \ with the count strip, so\ndrafts are now two clicks (View all \u2192 Status: Draft).\
+  \ Entry 13 says why."
 archived: false
 priority: critical
 queue_position: 193
@@ -571,3 +578,44 @@ log:
       id: e2f9a108-7b56-4c23-9d84-0a1c5e73b6f9
       kind: log_append
       fingerprint: d4d569ffe74db428268f3938de976bbe
+- id: 16
+  ts: '2026-09-06T07:53:08.478903Z'
+  actor: claude
+  type: handoff
+  body: "Done and gated. `feat/task-294-dashboard-one-screen`, three commits, rebased\
+    \ onto `main`; `scripts/check.py` green with no arguments on `899d2e98` \u2014\
+    \ all 10 stages, 4121 pytest, 445 vitest, 87 e2e.\n\n**What changed.** The Dashboard\
+    \ is now a frame of exactly one viewport (`h-dvh overflow-hidden`), with three\
+    \ regions inside it: pinned conditions, the glance (slot board + the one call\
+    \ to action) sized to its content, and a tail (Active tasks, Recent updates) that\
+    \ takes the remainder with its own scroll and a 6rem floor. The five count tiles\
+    \ are gone. Every other surface is byte-for-byte the same behaviour it had.\n\n\
+    **The numbers.** The Dashboard was 5,681px on a 1280x800 desktop and 8,566px on\
+    \ a 390x844 phone against a forty-task backlog. It is now exactly one viewport\
+    \ at all twelve combinations of four named viewports and three ceilings. Entries\
+    \ 12\u201315 carry the decisions and the full measurement tables.\n\n**Two things\
+    \ I would look at before approving:**\n\n1. **The drafts route is two clicks now,\
+    \ not one.** `+N in backlog` hung under the count strip and went with it. Drafts\
+    \ are still unconditionally reachable \u2014 \"View all \u2192\" then the Tasks\
+    \ surface's Status filter \u2014 but it is a real regression in convenience and\
+    \ it is the one thing in this change I would happily undo. It is a single inline\
+    \ link in the Active tasks header if you want it back.\n2. **A phone in landscape,\
+    \ and six slots on a portrait phone, do not \"fit\"** \u2014 the glance scrolls\
+    \ inside its own region there. The document still never scrolls and nothing is\
+    \ clipped, both asserted. That was a deliberate call rather than an oversight;\
+    \ entry 14 has the measurement that forced it.\n\n**One pre-existing thing I noticed\
+    \ and did not touch:** the floating \"Report issue\" button sits over the bottom-right\
+    \ of the page, which now means it overlaps the tail rather than the end of a long\
+    \ scroll. It is `fixed`/`z-40` and predates this change; say the word and I will\
+    \ file it.\n\nac-8 does not apply \u2014 the scroll container did not move on\
+    \ any surface rendering `TaskList`, so `dragAutoScroll.ts` is untouched and the\
+    \ existing drag spec passes unchanged. Entry 14 states the evidence rather than\
+    \ asserting it.\n\nStop the sandboxes when you are done \u2014 Ctrl-C in their\
+    \ windows, or tell me and I will kill 8908 and 8909."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: d3a70b58-9c14-4e2f-8b06-51fa9e2c74d3
+      kind: handoff
+      fingerprint: 4429bb5c502a9c39c55cbd213d8dbcb8
