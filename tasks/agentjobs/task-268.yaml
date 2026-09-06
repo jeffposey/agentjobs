@@ -3,7 +3,7 @@ id: task-268
 title: 'Gate speed, safely: copy the mypy cache into worktrees, add --durations, drop
   nested poetry run, then prototype concurrent stages behind a flag'
 created: '2026-08-22T18:58:37.392234Z'
-updated: '2026-09-06T23:29:48.630242Z'
+updated: '2026-09-06T23:29:57.106501Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -570,3 +570,17 @@ log:
       id: 1d5e8b70-4c93-4a26-8e55-9f0a3c1b7d42
       kind: log_append
       fingerprint: e74da01a70dff7f18eecd19081a88ccb
+- id: 17
+  ts: '2026-09-06T23:29:57.106285Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `perf/task-268-gate-speed` (922ba98b).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-268.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_d19d502f\gate.log.'
+  data:
+    finish_step: started
+    branch: perf/task-268-gate-speed
+    finish_id: fin_d19d502f
