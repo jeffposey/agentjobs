@@ -3,53 +3,27 @@ id: task-356
 title: 'Shell 6: the filter controls hide behind a filter button instead of sitting
   on screen permanently'
 created: '2026-09-06T05:25:14.813338Z'
-updated: '2026-09-06T11:00:52.110432Z'
+updated: '2026-09-06T11:10:20.447959Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
-  \ was merged.**\n\n`scripts/check.py` went red on feat/task-356-filter-popover.\
-  \ It stopped in the `e2e` stage. Full output: C:\\Users\\jpose\\.agentjobs\\finishes\\\
-  fin_17a246aa\\gate.log\n\n```\n\e[2m[WebServer] \e[22mTraceback (most recent call\
-  \ last):\n\e[2m[WebServer] \e[22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\\
-  Python\\Python313\\Lib\\asyncio\\events.py\", line 89, in _run\n\e[2m[WebServer]\
-  \ \e[22m    self._context.run(self._callback, *self._args)\n\e[2m[WebServer] \e\
-  [22m    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22m\
-  \  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\asyncio\\\
-  proactor_events.py\", line 165, in _call_connection_lost\n\e[2m[WebServer] \e[22m\
-  \    self._sock.shutdown(socket.SHUT_RDWR)\n\e[2m[WebServer] \e[22m    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n\
-  \e[2m[WebServer] \e[22mConnectionResetError: [WinError 10054] An existing connection\
-  \ was forcibly closed by the remote host\n\e[1A\e[2K\e[2m[WebServer] \e[22mException\
-  \ in callback _ProactorBasePipeTransport._call_connection_lost()\n\e[2m[WebServer]\
-  \ \e[22mhandle: <Handle _ProactorBasePipeTransport._call_connection_lost()>\n\e\
-  [2m[WebServer] \e[22mTraceback (most recent call last):\n\e[2m[WebServer] \e[22m\
-  \  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\asyncio\\\
-  events.py\", line 89, in _run\n\e[2m[WebServer] \e[22m    self._context.run(self._callback,\
-  \ *self._args)\n\e[2m[WebServer] \e[22m    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
-  \e[2m[WebServer] \e[22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\\
-  Python313\\Lib\\asyncio\\proactor_events.py\", line 165, in _call_connection_lost\n\
-  \e[2m[WebServer] \e[22m    self._sock.shutdown(socket.SHUT_RDWR)\n\e[2m[WebServer]\
-  \ \e[22m    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22mConnectionResetError:\
-  \ [WinError 10054] An existing connection was forcibly closed by the remote host\n\
-  \e[1A\e[2K\e[2m[WebServer] \e[22mException in callback _ProactorBasePipeTransport._call_connection_lost()\n\
-  \e[2m[WebServer] \e[22mhandle: <Handle _ProactorBasePipeTransport._call_connection_lost()>\n\
-  \e[2m[WebServer] \e[22mTraceback (most recent call last):\n\e[2m[WebServer] \e[22m\
-  \  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\asyncio\\\
-  events.py\", line 89, in _run\n\e[2m[WebServer] \e[22m    self._context.run(self._callback,\
-  \ *self._args)\n\e[2m[WebServer] \e[22m    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
-  \e[2m[WebServer] \e[22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\\
-  Python313\\Lib\\asyncio\\proactor_events.py\", line 165, in _call_connection_lost\n\
-  \e[2m[WebServer] \e[22m    self._sock.shutdown(socket.SHUT_RDWR)\n\e[2m[WebServer]\
-  \ \e[22m    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22mConnectionResetError:\
-  \ [WinError 10054] An existing connection was forcibly closed by the remote host\n\
-  Failed at stage 'e2e'.\nFix it, then resume with `--from e2e` instead of paying\
-  \ for the stages above a second time.\n```\n\nThat took 581s and exited 1. A red\
-  \ gate never merges. The branch is rebased onto main and is otherwise untouched;\
-  \ nothing was merged.\n\nTake it from here. Check the tree against what is written\
-  \ above before acting on anything you remember: if your worktree, your branch or\
-  \ your account of this task no longer matches what is on disk, say so on the record\
-  \ and hand the ball back rather than improvising a recovery.\n\nThe work is on `feat/task-356-filter-popover`\
-  \ in C:\\projects\\worktrees\\agentjobs-356. Use it; do not take a new one."
+ball: human
+ball_reason: input
+ball_prompt: "Dispatched session `7cc385d9` stopped on an authentication failure at\
+  \ 2026-09-06T11:10:11.197000+00:00 and will not resume by itself. It said: \"Login\
+  \ expired \xB7 Please run /login\".\n\n**Find out which failure this is before doing\
+  \ anything \u2014 there are two and they look identical from here.** Either the\
+  \ credential store genuinely cannot authenticate, or it can and this session is\
+  \ stuck on a refresh that already failed. Nothing you can see distinguishes them:\
+  \ not this task, not the run ledger, and not `agents --json`. One command does,\
+  \ run as a **fresh process** rather than inside the stalled session:\n\n```\nclaude\
+  \ -p \"Reply with exactly: AUTH_OK\"\n```\n\n**If it answers**, the credential is\
+  \ fine and only the session is stuck. Send it a message to wake it, or attach with\
+  \ `claude attach 7cc385d9`. Logging in again changes nothing.\n\n**If it fails to\
+  \ authenticate**, the store is genuinely dead and no restart will clear it. Run\
+  \ `claude auth login` in a terminal on that machine, then wake the session the same\
+  \ way. Answering inside the session cannot work while this is true: the credential\
+  \ is already gone, so anything sent is retried against nothing and fails instantly.\n\
+  \nEither way the session resumes in place -- nothing is lost and this task does\
+  \ not need re-dispatching."
 archived: false
 priority: critical
 queue_position: 743
@@ -529,3 +503,26 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 13
+  ts: '2026-09-06T11:10:20.447684Z'
+  actor: dispatcher
+  type: handoff
+  body: "Dispatched session `7cc385d9` stopped on an authentication failure at 2026-09-06T11:10:11.197000+00:00\
+    \ and will not resume by itself. It said: \"Login expired \xB7 Please run /login\"\
+    .\n\n**Find out which failure this is before doing anything \u2014 there are two\
+    \ and they look identical from here.** Either the credential store genuinely cannot\
+    \ authenticate, or it can and this session is stuck on a refresh that already\
+    \ failed. Nothing you can see distinguishes them: not this task, not the run ledger,\
+    \ and not `agents --json`. One command does, run as a **fresh process** rather\
+    \ than inside the stalled session:\n\n```\nclaude -p \"Reply with exactly: AUTH_OK\"\
+    \n```\n\n**If it answers**, the credential is fine and only the session is stuck.\
+    \ Send it a message to wake it, or attach with `claude attach 7cc385d9`. Logging\
+    \ in again changes nothing.\n\n**If it fails to authenticate**, the store is genuinely\
+    \ dead and no restart will clear it. Run `claude auth login` in a terminal on\
+    \ that machine, then wake the session the same way. Answering inside the session\
+    \ cannot work while this is true: the credential is already gone, so anything\
+    \ sent is retried against nothing and fails instantly.\n\nEither way the session\
+    \ resumes in place -- nothing is lost and this task does not need re-dispatching."
+  data:
+    ball: human
+    ball_reason: input
