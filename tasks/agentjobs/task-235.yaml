@@ -2,7 +2,7 @@ schema: 2
 id: task-235
 title: Adopt the list-and-detail shell every other app on the screen already uses
 created: '2026-08-22T00:38:02.564268Z'
-updated: '2026-09-06T09:28:18.922377Z'
+updated: '2026-09-06T10:35:52.930912Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1310,3 +1310,50 @@ log:
       id: 2b95e07a-6c14-4f83-9d25-8a1c3f70b6e9
       kind: log_append
       fingerprint: 885c4ab4ba1af76d6cec8c96f17a3a41
+- id: 23
+  ts: '2026-09-06T10:35:52.930443Z'
+  actor: claude
+  type: progress
+  body: "**task-238 landed at 10:34. task-356 started. One thing needs Jeff's attention\
+    \ later, and it is not a problem \u2014 it is a duplication to avoid.**\n\n##\
+    \ task-238, checked\n\nBranch `feat/task-238-sidebar-task-tree` merged `--no-ff`\
+    \ (`fd343fd`), task closed `completed`, and the sidebar is now a real tree: `f3de0f4\
+    \ feat(frontend): render the task list as a tree in the sidebar column`, plus\
+    \ `f31e55f fix(frontend): give the sidebar its vertical space back` and `a3fc980\
+    \ fix(frontend): carry the filters only where losing them costs focus`.\n\n**Nine\
+    \ of eleven acceptance criteria `met`. Two are `pending`, and that is the right\
+    \ answer rather than a gap.** ac-9 (Alt+Up twice, by a person at a real keyboard)\
+    \ and ac-10 (drag, by a person on a real mouse) cannot be met by an unattended\
+    \ run, and the child did not pretend otherwise. Its `verify` notes name the instrument\
+    \ exactly \u2014 Playwright's `page.mouse` through Chromium's `Input.setInterceptDrags`,\
+    \ \"not the operating system's drag loop -- task-225\" \u2014 and classify it\
+    \ as supporting evidence rather than the evidence, which is what this epic's constraints\
+    \ demand. That is the behaviour ENGINEERING.md's verification section exists to\
+    \ produce, and it is worth saying so plainly: the child was handed a released\
+    \ merge gate and still declined to mark two criteria met.\n\nIt filed **task-361**\
+    \ to hold them \u2014 \"By hand: the sidebar tree's Alt+arrow reorder and its\
+    \ real-mouse drag\" \u2014 deliberately as a `draft`, so the queue cannot dispatch\
+    \ an agent at a check only a person can do. I verified the task exists rather\
+    \ than taking the note's word for it.\n\n## The duplication to avoid\n\n**task-361\
+    \ and this epic's ac-4 are the same two gestures**, and task-240 is where Jeff\
+    \ was already going to make them, in a seeded sandbox. Asking him twice would\
+    \ be a waste of the only resource this epic cannot manufacture.\n\nMy recommendation,\
+    \ for Jeff rather than for me to action: **fold task-361's check into task-240's\
+    \ sandbox session and close task-361 as a duplicate**, since task-240 stands the\
+    \ whole layout up anyway and the gestures are two minutes inside a review he is\
+    \ already doing. The alternative \u2014 keeping task-361 separate \u2014 is only\
+    \ better if task-240 slips a long way, since task-361 could then confirm the reorder\
+    \ before the rest of the shell is reviewable. task-361 sits at queue 15600 as\
+    \ a draft, so nothing will pick it up on its own either way.\n\n## Slot cleanup,\
+    \ again\n\nSame pattern as entry 21, same cause: **task-238's session stayed alive\
+    \ and idle after its task closed**, holding a slot, and task-356 was refused on\
+    \ a count that included it. `dispatch cancel run_113f7198` freed it and task-356\
+    \ started immediately. Second occurrence, so this is the normal behaviour of a\
+    \ dispatched session rather than a one-off \u2014 every child of this epic will\
+    \ need it, and an unsupervised epic would deadlock on the second one.\n\n## Standing\n\
+    \ntask-239 and task-356 in flight. task-240 blocked on both, then on Jeff."
+  data:
+    operation:
+      id: 8c4f1e26-7b90-4d53-a1f8-3e206b9c75da
+      kind: log_append
+      fingerprint: c859aac8c91fdd28e76eef2194072cfb
