@@ -2,16 +2,11 @@ schema: 2
 id: task-352
 title: 'A scripted finish is a run: count it, list it, and put it in the slot board'
 created: '2026-09-06T03:59:18.139739Z'
-updated: '2026-09-06T04:33:01.413759Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved by Jeff Posey in chat, 2026-09-06 04:23 UTC: "approved, with
-  caveat you still waste too much gui space, proceed." Run the scripted finish: agentjobs
-  finish task-352 --project agentjobs --approver "Jeff Posey".'
+updated: '2026-09-06T04:33:38.461765Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 193
 category: ux
 tags:
 - gui
@@ -21,7 +16,6 @@ tags:
 - runs
 effort: small
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'While task-092''s scripted finish was running its gate, the Runs badge
@@ -102,7 +96,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-352-finish-is-a-run
-  status: active
+  status: merged
+  merged_at: '2026-09-06T04:33:38.431299Z'
 log:
 - id: 1
   ts: '2026-09-06T03:59:18.983703Z'
@@ -254,3 +249,25 @@ log:
     merge_commit: 9e66dc08c071e48efe2d4a1dbaa1fc6b405cec27
     branch: fix/task-352-finish-is-a-run
     base: main
+- id: 9
+  ts: '2026-09-06T04:33:38.461646Z'
+  actor: finisher
+  type: transition
+  body: "Merged `fix/task-352-finish-is-a-run` into `main` as `9e66dc08` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). Approved\
+    \ by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         2.0s  fix/task-352-finish-is-a-run\
+    \ at 9f418258 in C:\\projects\\worktrees\\agentjobs-352\n  runway     ok     \
+    \    0.0s  taken immediately\n  rebase     ok         0.3s  fix/task-352-finish-is-a-run\
+    \ onto main: 9f418258 -> f8b26b42\n  gate       ok       455.2s  scripts/check.py\
+    \ green\n  catch_up   skipped    0.0s  main did not move during the gate\n  merge\
+    \      ok         0.5s  --no-ff into main as 9e66dc08c071e48efe2d4a1dbaa1fc6b405cec27\n\
+    \  rebuild    ok         8.0s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         1.2s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     ok         0.0s  http://127.0.0.1:8876 is serving f0f8948b, which contains\
+    \ the merge 9e66dc08, from C:\\projects\\agentjobs (started 2026-09-06T04:33:21.491574+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
