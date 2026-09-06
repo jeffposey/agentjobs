@@ -3,7 +3,7 @@ id: task-268
 title: 'Gate speed, safely: copy the mypy cache into worktrees, add --durations, drop
   nested poetry run, then prototype concurrent stages behind a flag'
 created: '2026-08-22T18:58:37.392234Z'
-updated: '2026-09-06T23:34:05.629009Z'
+updated: '2026-09-06T23:34:55.421405Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -590,3 +590,13 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 20
+  ts: '2026-09-06T23:34:55.421021Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 8
+  data:
+    run_id: run_06be509e
+    outcome: completed
+    duration_seconds: 5652.827394
+    log_path: C:\Users\jpose\.agentjobs\runs\run_06be509e
