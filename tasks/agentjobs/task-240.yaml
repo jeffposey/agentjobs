@@ -3,7 +3,7 @@ id: task-240
 title: 'Shell 5: stand the new layout up on a sandbox and have Jeff drive it before
   it merges'
 created: '2026-08-22T00:40:59.806337Z'
-updated: '2026-09-06T21:47:36.002700Z'
+updated: '2026-09-06T21:52:19.285282Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1172,3 +1172,19 @@ log:
     finish_step: started
     branch: chore/task-240-shell-sandbox
     finish_id: fin_64739990
+- id: 57
+  ts: '2026-09-06T21:52:19.284879Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `chore/task-240-shell-sandbox` into `main` as `b5dfcff5`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-240
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: b5dfcff50a7852ff52e7d949e0c359b80419273e
+    branch: chore/task-240-shell-sandbox
+    base: main
