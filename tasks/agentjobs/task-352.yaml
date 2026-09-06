@@ -2,7 +2,7 @@ schema: 2
 id: task-352
 title: 'A scripted finish is a run: count it, list it, and put it in the slot board'
 created: '2026-09-06T03:59:18.139739Z'
-updated: '2026-09-06T04:25:24.917099Z'
+updated: '2026-09-06T04:33:01.413759Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -238,3 +238,19 @@ log:
     finish_step: started
     branch: fix/task-352-finish-is-a-run
     finish_id: fin_906f713e
+- id: 8
+  ts: '2026-09-06T04:33:01.413639Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-352-finish-is-a-run` into `main` as `9e66dc08`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-352
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 9e66dc08c071e48efe2d4a1dbaa1fc6b405cec27
+    branch: fix/task-352-finish-is-a-run
+    base: main
