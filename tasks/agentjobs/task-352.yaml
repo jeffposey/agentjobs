@@ -2,18 +2,13 @@ schema: 2
 id: task-352
 title: 'A scripted finish is a run: count it, list it, and put it in the slot board'
 created: '2026-09-06T03:59:18.139739Z'
-updated: '2026-09-06T04:21:53.861723Z'
+updated: '2026-09-06T04:24:45.665904Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Review branch fix/task-352-finish-is-a-run at 9f41825 (gate green, receipt\
-  \ written, rebased onto main).\n\nLook at it live, throwaway data, own ports:\n\
-  - http://127.0.0.1:8908/app/p/sandbox-here and /runs -- the state you complained\
-  \ about: no runs, one finish in the gate, one queued on the runway. Badge 2, header\
-  \ \"0 of 3 slots busy \xB7 2 merging\", two Finishing cards with step and time,\
-  \ three free cells still dispatchable.\n- http://127.0.0.1:8906/app/p/sandbox-here\
-  \ -- two runs plus a finish in another project as a fourth card.\n\nApprove to merge,\
-  \ or reject with what to change. I stop both sandboxes either way."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved by Jeff Posey in chat, 2026-09-06 04:23 UTC: "approved, with
+  caveat you still waste too much gui space, proceed." Run the scripted finish: agentjobs
+  finish task-352 --project agentjobs --approver "Jeff Posey".'
 archived: false
 priority: critical
 queue_position: 193
@@ -201,3 +196,31 @@ log:
       id: e1f2a3b4-c5d6-4e7f-8a9b-0c1d2e3f4a88
       kind: handoff
       fingerprint: 976a4c5745e7d92ce19fcefa2b64bd49
+- id: 5
+  ts: '2026-09-06T04:24:33.783075Z'
+  actor: claude
+  type: note
+  body: 'Jeff, 2026-09-06, in chat: "approved, with caveat you still waste too much
+    gui space, proceed." The caveat is not addressed by this branch and is not specific
+    to it; task-341 (task list density) merged an hour earlier and he is still unhappy
+    with how much of the screen the app spends. Carry it into whatever next touches
+    the Dashboard or the task page rather than filing a task with no target.'
+  data:
+    operation:
+      id: f3a4b5c6-d7e8-4f9a-8b0c-1d2e3f4a5b99
+      kind: log_append
+      fingerprint: e2ed756d211b2180136325e0193058d7
+- id: 6
+  ts: '2026-09-06T04:24:45.665729Z'
+  actor: claude
+  type: handoff
+  body: 'Approved by Jeff Posey in chat rather than through the Approve button, so
+    the finish is started by hand with the same code: `agentjobs finish task-352 --project
+    agentjobs --approver "Jeff Posey"`. Both review sandboxes stopped.'
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: a7b8c9d0-e1f2-4a3b-8c4d-5e6f7a8b9caa
+      kind: handoff
+      fingerprint: 64789d84917205f3730e09eb13901ef6
