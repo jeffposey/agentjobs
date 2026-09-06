@@ -1,0 +1,159 @@
+schema: 2
+id: task-359
+title: A human's answer can be logged so it never closes the question
+created: '2026-09-06T06:16:04.002299Z'
+updated: '2026-09-06T06:16:04.753067Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 15400
+category: meta
+tags:
+- schema
+- questions
+- frontend
+- agent-behaviour
+assignment:
+  eligible: []
+spec:
+  summary: A question is only closed by a log entry typed `answer`. An agent writing
+    up a human's answer as a `decision` threaded to it looks correct in the record
+    and leaves the question open, so the GUI asks the human the same thing again.
+  intent: 'Jeff answered task-273''s restart-window question on 2026-09-05. On 2026-09-06
+    the draft panel was still asking him, and his reaction was *"right, I spent my
+    effort answering that already, what is happening?"*
+
+
+    The cost is not a cosmetic one. The whole argument for putting questions on the
+    record rather than in chat is that the human answers once and the answer is durable.
+    A loop that reopens silently spends the scarcest thing in this system twice, and
+    the second time it spends trust as well.'
+  description: "## What happens\n\n`Task.open_questions()` in `src/agentjobs/models_v2.py`\
+    \ is three lines:\n\n```python\nanswered = {entry.re for entry in self.log if\
+    \ entry.type is LogEntryType.ANSWER}\nreturn [e for e in self.log if e.type is\
+    \ LogEntryType.QUESTION and e.id not in answered]\n```\n\nOnly `answer` closes\
+    \ a thread. Nothing stops, warns about, or notices an entry of any other type\
+    \ threaded to a question with `re:`.\n\n**The concrete case.** task-273 entry\
+    \ 5 was a `question`. Entry 6 was Jeff's answer, written up by an agent as `type:\
+    \ decision` with `re: 5` \u2014 correctly threaded, correctly attributed, and\
+    \ invisible to `open_questions()`. The question stayed open for a day and the\
+    \ GUI kept presenting it. Fixed by hand in entry 9 (commit `dbc0efe`); the defect\
+    \ is not.\n\n**Why an agent picks `decision`.** It is the honest label for what\
+    \ Jeff said: a binding call with a rejected alternative. ALLAGENTS.md tells agents\
+    \ to *\"Record decisions as `decision` entries, with their reasoning and the rejected\
+    \ alternative\"* and separately to raise unknowns as `question` entries \u2014\
+    \ it never says which type to use when a human's reply is both an answer *and*\
+    \ a decision. So the agent chooses the one that reads better and breaks the loop.\n\
+    \n## Corpus damage, measured 2026-09-06\n\nSmall, and worth knowing before choosing\
+    \ a fix. Of 28 task files containing a `question` entry, 17 have no `answer` entry\
+    \ anywhere. Only **two of those are open tasks** \u2014 task-063 and task-167\
+    \ \u2014 and in both the file's lone `decision` entry carries no `re:`, so those\
+    \ questions are genuinely unanswered rather than mis-typed. task-273 was the only\
+    \ instance of this bug in the corpus.\n\nSo this is a trap that has fired once,\
+    \ not a backlog of broken threads. Fix it for the next time.\n\n## The decision\
+    \ to take\n\nThree shapes, and the choice is the task:\n\n1. **Widen the closing\
+    \ rule.** Any entry threaded to a question with `re:` closes it, or specifically\
+    \ `answer` and `decision` do. Cheapest. The risk is real: an agent already threads\
+    \ follow-up `note` and `question` entries onto a thread, so \"any `re:` closes\
+    \ it\" would close threads that are still live. Scope it deliberately if you take\
+    \ this.\n2. **Warn instead.** Leave the rule alone and surface the anomaly \u2014\
+    \ a `record_warning` on write, and something in `agentjobs validate`, when a question\
+    \ has a threaded non-`answer` entry and no answer. Honest, and it puts the anomaly\
+    \ where an agent sees it immediately.\n3. **Make the write path pick correctly.**\
+    \ Give the manager an `answer` verb that both appends the entry and marks the\
+    \ thread, and say plainly in ALLAGENTS.md that a human's reply to a question is\
+    \ logged as `answer` \u2014 with the reasoning in the same entry if it is also\
+    \ a decision. Fixes the cause rather than the symptom.\n\nThey are not exclusive;\
+    \ 2 and 3 together are probably right, and 1 alone is not. **Whatever you choose,\
+    \ the ALLAGENTS.md sentence is part of the deliverable** \u2014 the guidance that\
+    \ produced this entry is still in the file and will produce another one.\n\n##\
+    \ The other half: the human should see the decision\n\nEven with the thread correctly\
+    \ open, the GUI asked Jeff a question that had a substantial decision entry sitting\
+    \ on it. The panel showed the question and nothing else. Whatever the closing\
+    \ rule becomes, **a question thread that already carries a threaded reply should\
+    \ display it under the question**, so a human is never asked cold about something\
+    \ already discussed."
+  constraints: "- Preserve the append-only log. Nothing here rewrites or retypes an\
+    \ existing entry; task-273 entry 5 stays as it was written.\n- If the closing\
+    \ rule widens, the widening is explicit and enumerated. \"Any `re:` closes the\
+    \ thread\" silently resolves threads that carry follow-up notes and questions,\
+    \ and that is a worse failure than this one.\n- Any change to `open_questions()`\
+    \ needs a test for the mis-typed case that fails before the fix.\n- ALLAGENTS.md\
+    \ is in scope and its change is measured against the context budget \u2014 `tests/test_context_budget.py`\
+    \ caps the loaded bundle, so cutting elsewhere may be needed. Read the ablation\
+    \ note in ENGINEERING.md before adding lines.\n- Take a worktree and bootstrap\
+    \ it; one unqualified `scripts/check.py` on the rebased branch before the handoff."
+  out_of_scope: "- Re-typing or repairing historical entries. The corpus sweep is\
+    \ already done and recorded above; task-273 is fixed.\n- The unanswered questions\
+    \ on task-063 and task-167. Those are genuinely open and are Jeff's to answer,\
+    \ not this task's to close.\n- Redesigning the question/answer model, adding question\
+    \ kinds, or structured multiple-choice \u2014 task-017 owns that.\n- Rendering\
+    \ of long question bodies in the draft panel."
+  context:
+  - path: src/agentjobs/models_v2.py
+    why: '`open_questions()` is the rule: only `answer` closes a thread. Around line
+      1189.'
+  - path: src/agentjobs/manager.py
+    why: "Around line 125-136, where answering already guards against a question that\
+      \ is not open \u2014 the natural home for an `answer` verb."
+  - path: ALLAGENTS.md
+    why: "\"Record decisions as `decision` entries\" and \"raise unknowns as `question`\
+      \ entries\" \u2014 the guidance that produced the mis-typed entry, and silent\
+      \ on which wins when a human's reply is both."
+  - path: tasks/agentjobs/task-273.yaml
+    why: The instance. Entry 5 is the question, entry 6 the decision that should have
+      closed it, entry 9 the hand-written answer that did.
+acceptance:
+- id: ac-1
+  text: 'A test reproduces the defect: a question with a `decision` threaded to it
+    by `re:` and no `answer` is reported open before the fix, and behaves as the chosen
+    design says after it.'
+  status: pending
+- id: ac-2
+  text: "A decision entry records which of the three shapes was taken, and the rejected\
+    \ alternatives \u2014 in particular why the closing rule was or was not widened,\
+    \ and to which entry types."
+  status: pending
+- id: ac-3
+  text: ALLAGENTS.md states which entry type records a human's reply to a question,
+    including the case where the reply is also a binding decision. The context-budget
+    test still passes.
+  status: pending
+- id: ac-4
+  text: A question thread carrying a threaded reply displays that reply beneath the
+    question in the draft panel, so a human is never asked cold about something already
+    discussed.
+  status: pending
+- id: ac-5
+  text: "Verified in a browser against a seeded task in each state \u2014 question\
+    \ with no reply, question with a threaded decision, question properly answered\
+    \ \u2014 not asserted from tests alone."
+  status: pending
+- id: ac-6
+  text: '`scripts/check.py` green with no arguments on a clean rebased tree.'
+  status: pending
+deliverables: []
+dependencies:
+- task: task-273
+  type: related
+  note: Where this fired. Its entries 5, 6 and 9 are the reproduction.
+- task: task-017
+  type: related
+  note: Owns the structured multiple-choice question model. This task does not change
+    the question model, only what closes a thread.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-06T06:16:04.751994Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c7e1fb40-8d52-4a63-9174-2b6e5d0c8f31
+      kind: create
+      fingerprint: 3cd39f9132dad4403a11af4bf3f7616c
