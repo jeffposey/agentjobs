@@ -1,0 +1,139 @@
+schema: 2
+id: task-354
+title: 'A task worked by an interactive session is invisible: no run, no session log,
+  and a Dispatch button'
+created: '2026-09-06T04:19:07.624287Z'
+updated: '2026-09-06T04:19:08.308378Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 293
+category: ux
+tags:
+- gui
+- dispatch
+- runs
+- sessions
+- react
+effort: medium
+assignment:
+  eligible: []
+spec:
+  summary: 'task-352 was being worked by a Claude Code desktop session on 2026-09-06
+    and the GUI showed Runs 0, no session log on the task, and a Dispatch button on
+    a task that was in progress. Jeff: "do you even know what tasks are being worked
+    on?"'
+  intent: The GUI answers "what is being worked on right now" for every session that
+    works a task, not only for the ones dispatch started.
+  description: 'What happened, verified 2026-09-06 04:20 UTC on the live dashboard:
+    task-352 read `active` / `agent` / `work`, owner `claude`. `GET /api/runs/live`
+    returned no runs and no holders. The task page had no Runs panel and no output,
+    and the Dispatch panel offered a Dispatch button.
+
+
+    Why, in three parts:
+
+
+    1. **Interactive sessions never get a run record, by design.** `src/agentjobs/dispatch/registration.py`
+    refuses `session_interactive` by construction: "adopting one would eventually
+    have the poller `stop` a session somebody was typing into". So `agentjobs run
+    register`, which ALLAGENTS.md tells every session to run, can never succeed for
+    a session a person is sitting in. Everything the GUI knows about running work
+    -- the badge, the Runs tab, the slot board, the task page''s output panel -- reads
+    the run ledger, so a task worked in chat is a task nobody is working as far as
+    the GUI can tell.
+
+
+    2. **A desktop-app session is not in the CLI''s session ledger under the project
+    root at all.** Registering this session (id 0feedf93) was refused `session_unknown`,
+    listing six other live sessions under C:\projects\agentjobs. Even with an explicit
+    `--session` the lookup fails. So the first refusal is not even reached for the
+    way Jeff most often works.
+
+
+    3. **Dispatch is offered on an active task.** `dispatch/guards.py::_claim_or_verify`
+    accepts an active task whose owner matches the runner''s actor, so with no live
+    run the button appears. That is the resume path for a run that died, and it is
+    the wrong default for a task that is claimed and being worked: clicking it starts
+    a second agent on the same task.
+
+
+    What "done" looks like:
+
+
+    - A session that claims a task through the API or MCP with no run record behind
+    it is visible as running: on the task page (who, since when, and what session),
+    in the Runs badge and tab, and on the slot board -- as an interactive run, distinguished
+    from a dispatched one, that the poller never parks, stops or settles.
+
+    - The task page shows the session''s log for an interactive run the way it does
+    for a dispatched one, where the driver keeps a transcript (Claude Code writes
+    session JSONL under ~/.claude/projects/<cwd-slug>/<session-id>.jsonl; the desktop
+    app''s sessions included).
+
+    - An active task with an owner and no live run does not present Dispatch as if
+    the task were free. Say what the record says -- claimed by whom, when, last log
+    entry -- and make starting a second run an explicit, labelled act.
+
+    - `agentjobs run register` either accepts an interactive session under these rules
+    or the instruction in ALLAGENTS.md stops telling interactive sessions to run it.
+
+
+    Decide, and record the decision on this task, whether the interactive run record
+    is written by the claim itself (the manager knows a session is claiming when the
+    request carries a session id) or by an explicit register step. The claim is the
+    better seam: it is the one act every session performs.'
+  constraints: The poller must never stop, park or settle an interactive session.
+    `occupied` in GET /api/runs/live stays what the concurrency guard counts; decide
+    explicitly whether an interactive run takes a slot, and say why on the record.
+  out_of_scope: Rendering finishes as runs, which is task-352.
+  context:
+  - path: src/agentjobs/dispatch/registration.py
+    why: Where interactive sessions are refused, and the CLI session ledger lookup
+      that misses desktop sessions.
+  - path: src/agentjobs/dispatch/guards.py
+    why: _claim_or_verify allows dispatching an active owned task.
+  - path: src/agentjobs/api/routes/runs.py
+    why: The live-runs surface every GUI view reads.
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: The Dispatch button and the per-task Runs panel.
+  - path: frontend/src/components/DispatchOutput.tsx
+    why: How a run's transcript is shown on the task page.
+  - path: ALLAGENTS.md
+    why: Tells every session to run `agentjobs run register`, which cannot succeed
+      for an interactive one.
+acceptance:
+- id: visible
+  text: 'Claim a task from an interactive Claude Code session (desktop app included):
+    the Runs badge counts it, the Runs tab and slot board show it as an interactive
+    run, and the task page names the session and shows its log.'
+  status: pending
+- id: never-stopped
+  text: The poller never parks, stops or settles an interactive run; a test proves
+    it.
+  status: pending
+- id: no-blind-dispatch
+  text: An active task with an owner and no live run does not show a plain Dispatch
+    button; starting a second run is explicit and labelled.
+  status: pending
+- id: gate-green
+  text: The unqualified gate is green on the rebased branch.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-06T04:19:08.307077Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c5d7e9f1-3a4b-4c5d-8e6f-7a8b9c0d1e77
+      kind: create
+      fingerprint: 6481cda3c3f7cc49ba1747dc762d5692
