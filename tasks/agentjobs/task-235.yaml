@@ -2,14 +2,521 @@ schema: 2
 id: task-235
 title: Adopt the list-and-detail shell every other app on the screen already uses
 created: '2026-08-22T00:38:02.564268Z'
-updated: '2026-09-06T08:08:48.867207Z'
+updated: '2026-09-06T09:14:34.942672Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Supervising, awake, nothing is blocked. task-237 is in flight (run_b34f8216)
-  and a watch is armed on its record. When it lands, relaunch `agentjobs dispatch
-  walk task-235 --project agentjobs` for the next claimable children. Entry 16 explains
-  why entry 15 asked for a decision that is not needed.
+ball: human
+ball_reason: input
+ball_prompt: "Dispatched session `1ba5f38e` still reports itself as working but has\
+  \ produced no output for 30 minutes, so this task has been reading `agent`/`work`\
+  \ while nothing happened. It was **not** killed and is still attachable: `claude\
+  \ attach 1ba5f38e`. Attach to see what it is doing, or stop it and move this task\
+  \ on yourself.\n\nThe end of its terminal, verbatim:\n\n```\n                  \
+  \                                                                              \
+  \                                                                              \
+  \                          \u25CF Monitor(task-237 child: terminal state, human\
+  \ handoff, or a stalled run)                                                   \
+  \                                                                             \u23BF\
+  \ \_Monitor started \xB7 task bqlf0q6vb \xB7 persistent                        \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \              \u25CF Now let me correct the parent record \u2014 the epic isn't\
+  \ stuck, and the current ball prompt says it is.                               \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                   Called agentjobs 4 times, ran 1 shell command\
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                         \u25CF Monitor event: \"task-237 child:\
+  \ terminal state, human handoff, or a stalled run\"                            \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                        \u25CF Recorded and committed.\
+  \ Interim status:                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                 What happened\
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                           The\
+  \ walk started task-237 correctly at 07:27, then the walk process itself was killed\
+  \ ~38 minutes in. The child was unaffected \u2014 run_b34f8216 is a separate detached\
+  \ session and was live at 08:06,     iterating scripts/check.py --only e2e (three\
+  \ partial gate runs in its phases.jsonl).                                      \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                            The finding worth keeping: a walk cannot\
+  \ be resumed. It watches only children it started itself. On relaunch it saw task-237\
+  \ as \"already claimed\", concluded it had nothing to start, reported          no_eligible_child,\
+  \ and handed the parent to human/decision with a prompt that reads like a blockage.\
+  \ Nothing is blocked. Every other child is legitimately gated behind 237. I've corrected\
+  \ the record  (entry 16), taken the ball back to agent/work, and committed to main\
+  \ (9f39aa9).                                                                   \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                    That gap isn't in the backlog \u2014 I searched; task-316,\
+  \ task-318 and task-320 are adjacent walk/dispatch fixes but none covers a killed\
+  \ supervisor orphaning a live epic. I haven't filed a task for it\n  since it's\
+  \ outside this epic's scope; say the word and I will.                          \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              Where\
+  \ it stands                                                                    \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \     - task-237 in flight, healthy.                                           \
+  \                                                                              \
+  \                                                 - A persistent watch is armed\
+  \ on its record \u2014 fires on closed, on the ball reaching human or external,\
+  \ and on its run transcript going quiet for 25 minutes, so a dead child won't read\
+  \ as a working\n    one.                                                       \
+  \                                                                              \
+  \                                                             - When it lands completed\
+  \ I relaunch the walk, which will then start task-238 and task-239 together.\n \
+  \ - I relaunched via Start-Process rather than a harness-managed background job,\
+  \ on the theory that what reaped the first walk was reaping a job. Untested \u2014\
+  \ it stopped for the unrelated reason above      before proving anything.\n    \
+  \                                                                              \
+  \                                                                              \
+  \                                          Cost of the kill: serialisation, not\
+  \ lost work. The original walk would have flown 238 and 239 together off 237's landing;\
+  \ each relaunch can only start what's claimable at that instant. Only this     first\
+  \ relaunch is degraded.\n                                                      \
+  \                                                                              \
+  \                                                                      The one thing\
+  \ no posture can fix stands from entry 13: task-240 needs Jeff's hands on a real\
+  \ mouse and keyboard (ac-4) and his approval (ac-6). Best case for this run is 237,\
+  \ 238, 239 and 356 merged  with 240 waiting on a sandbox URL.\n\u273B Brewed for\
+  \ 3m 58s \xB7 done 3:09 AM \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-235@4f483ef2\
+  \ \u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\
+  \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (168k/1.00M) \xB7\
+  \ $4.52/rc\n  \u23F5\u23F5 bypass permissions on \xB7 \u2190 8 agents \xB7 1 monitor\
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \          \u25CF Stop Task                                                    \
+  \                                                                              \
+  \                                                             \u23BF \_tail -n 0\
+  \ -f \"$CLAUDE_JOB_DIR/tmp/walk-235.log\" | grep -E --line-buffered \"Starting|attempt|completed|closed|failed|Failed|stopped|stopping|ground|Ground|park|P\u2026\
+  \ \xB7 stopped\n                                                               \
+  \                                                                              \
+  \                                                           \u25CF Monitor(task-237\
+  \ child: terminal state, human handoff, or a stalled run)                      \
+  \                                                                              \
+  \                            \u23BF \_Monitor started \xB7 task bqlf0q6vb \xB7 persistent\
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                      \u25CF Now let me correct the parent record\
+  \ \u2014 the epic isn't stuck, and the current ball prompt says it is.         \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                         Called agentjobs 4 times,\
+  \ ran 1 shell command                                                          \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                             \u25CF Monitor event:\
+  \ \"task-237 child: terminal state, human handoff, or a stalled run\"          \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                          \u25CF\
+  \ Recorded and committed. Interim status:                                      \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \           What happened                                                      \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                     The walk started task-237 correctly at 07:27, then the walk\
+  \ process itself was killed ~38 minutes in. The child was unaffected \u2014 run_b34f8216\
+  \ is a separate detached session and was live at 08:06,     iterating scripts/check.py\
+  \ --only e2e (three partial gate runs in its phases.jsonl).                    \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                              The finding worth\
+  \ keeping: a walk cannot be resumed. It watches only children it started itself.\
+  \ On relaunch it saw task-237 as \"already claimed\", concluded it had nothing to\
+  \ start, reported          no_eligible_child, and handed the parent to human/decision\
+  \ with a prompt that reads like a blockage. Nothing is blocked. Every other child\
+  \ is legitimately gated behind 237. I've corrected the record  (entry 16), taken\
+  \ the ball back to agent/work, and committed to main (9f39aa9).                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                       That gap\
+  \ isn't in the backlog \u2014 I searched; task-316, task-318 and task-320 are adjacent\
+  \ walk/dispatch fixes but none covers a killed supervisor orphaning a live epic.\
+  \ I haven't filed a task for it\n  since it's outside this epic's scope; say the\
+  \ word and I will.                                                             \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                           Where it stands                    \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                     - task-237 in flight, healthy.\
+  \                                                                              \
+  \                                                                              \
+  \              - A persistent watch is armed on its record \u2014 fires on closed,\
+  \ on the ball reaching human or external, and on its run transcript going quiet\
+  \ for 25 minutes, so a dead child won't read as a working\n    one.            \
+  \                                                                              \
+  \                                                                              \
+  \                          - When it lands completed I relaunch the walk, which\
+  \ will then start task-238 and task-239 together.\n  - I relaunched via Start-Process\
+  \ rather than a harness-managed background job, on the theory that what reaped the\
+  \ first walk was reaping a job. Untested \u2014 it stopped for the unrelated reason\
+  \ above      before proving anything.\n                                        \
+  \                                                                              \
+  \                                                                              \
+  \      Cost of the kill: serialisation, not lost work. The original walk would have\
+  \ flown 238 and 239 together off 237's landing; each relaunch can only start what's\
+  \ claimable at that instant. Only this     first relaunch is degraded.\n       \
+  \                                                                              \
+  \                                                                              \
+  \                                       The one thing no posture can fix stands\
+  \ from entry 13: task-240 needs Jeff's hands on a real mouse and keyboard (ac-4)\
+  \ and his approval (ac-6). Best case for this run is 237, 238, 239 and 356 merged\
+  \  with 240 waiting on a sandbox URL.\n\u273B Brewed for 3m 58s \xB7 done 3:09 AM\
+  \ \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-235@4f483ef2 \u2500\
+  \u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\
+  \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (168k/1.00M) \xB7 $4.52/rc\n\
+  \  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor      \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \    \u25CF Stop Task                                                          \
+  \                                                                              \
+  \                                                       \u23BF \_tail -n 0 -f \"\
+  $CLAUDE_JOB_DIR/tmp/walk-235.log\" | grep -E --line-buffered \"Starting|attempt|completed|closed|failed|Failed|stopped|stopping|ground|Ground|park|P\u2026\
+  \ \xB7 stopped\n                                                               \
+  \                                                                              \
+  \                                                           \u25CF Monitor(task-237\
+  \ child: terminal state, human handoff, or a stalled run)                      \
+  \                                                                              \
+  \                            \u23BF \_Monitor started \xB7 task bqlf0q6vb \xB7 persistent\
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                      \u25CF Now let me correct the parent record\
+  \ \u2014 the epic isn't stuck, and the current ball prompt says it is.         \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                         Called agentjobs 4 times,\
+  \ ran 1 shell command                                                          \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                             \u25CF Monitor event:\
+  \ \"task-237 child: terminal state, human handoff, or a stalled run\"          \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                          \u25CF\
+  \ Recorded and committed. Interim status:                                      \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \           What happened                                                      \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                     The walk started task-237 correctly at 07:27, then the walk\
+  \ process itself was killed ~38 minutes in. The child was unaffected \u2014 run_b34f8216\
+  \ is a separate detached session and was live at 08:06,     iterating scripts/check.py\
+  \ --only e2e (three partial gate runs in its phases.jsonl).                    \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                              The finding worth\
+  \ keeping: a walk cannot be resumed. It watches only children it started itself.\
+  \ On relaunch it saw task-237 as \"already claimed\", concluded it had nothing to\
+  \ start, reported          no_eligible_child, and handed the parent to human/decision\
+  \ with a prompt that reads like a blockage. Nothing is blocked. Every other child\
+  \ is legitimately gated behind 237. I've corrected the record  (entry 16), taken\
+  \ the ball back to agent/work, and committed to main (9f39aa9).                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                       That gap\
+  \ isn't in the backlog \u2014 I searched; task-316, task-318 and task-320 are adjacent\
+  \ walk/dispatch fixes but none covers a killed supervisor orphaning a live epic.\
+  \ I haven't filed a task for it\n  since it's outside this epic's scope; say the\
+  \ word and I will.                                                             \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                           Where it stands                    \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                     - task-237 in flight, healthy.\
+  \                                                                              \
+  \                                                                              \
+  \              - A persistent watch is armed on its record \u2014 fires on closed,\
+  \ on the ball reaching human or external, and on its run transcript going quiet\
+  \ for 25 minutes, so a dead child won't read as a working\n    one.            \
+  \                                                                              \
+  \                                                                              \
+  \                          - When it lands completed I relaunch the walk, which\
+  \ will then start task-238 and task-239 together.\n  - I relaunched via Start-Process\
+  \ rather than a harness-managed background job, on the theory that what reaped the\
+  \ first walk was reaping a job. Untested \u2014 it stopped for the unrelated reason\
+  \ above      before proving anything.\n                                        \
+  \                                                                              \
+  \                                                                              \
+  \      Cost of the kill: serialisation, not lost work. The original walk would have\
+  \ flown 238 and 239 together off 237's landing; each relaunch can only start what's\
+  \ claimable at that instant. Only this     first relaunch is degraded.\n       \
+  \                                                                              \
+  \                                                                              \
+  \                                       The one thing no posture can fix stands\
+  \ from entry 13: task-240 needs Jeff's hands on a real mouse and keyboard (ac-4)\
+  \ and his approval (ac-6). Best case for this run is 237, 238, 239 and 356 merged\
+  \  with 240 waiting on a sandbox URL.\n\u273B Brewed for 3m 58s \xB7 done 3:09 AM\
+  \ \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-235@4f483ef2 \u2500\
+  \u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\
+  \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (168k/1.00M) \xB7 $4.52/rc\n\
+  \  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor      \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \    \u25CF Stop Task                                                          \
+  \                                                                              \
+  \                                                       \u23BF \_tail -n 0 -f \"\
+  $CLAUDE_JOB_DIR/tmp/walk-235.log\" | grep -E --line-buffered \"Starting|attempt|completed|closed|failed|Failed|stopped|stopping|ground|Ground|park|P\u2026\
+  \ \xB7 stopped\n                                                               \
+  \                                                                              \
+  \                                                           \u25CF Monitor(task-237\
+  \ child: terminal state, human handoff, or a stalled run)                      \
+  \                                                                              \
+  \                            \u23BF \_Monitor started \xB7 task bqlf0q6vb \xB7 persistent\
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                      \u25CF Now let me correct the parent record\
+  \ \u2014 the epic isn't stuck, and the current ball prompt says it is.         \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                         Called agentjobs 4 times,\
+  \ ran 1 shell command                                                          \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                             \u25CF Monitor event:\
+  \ \"task-237 child: terminal state, human handoff, or a stalled run\"          \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                          \u25CF\
+  \ Recorded and committed. Interim status:                                      \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \           What happened                                                      \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                     The walk started task-237 correctly at 07:27, then the walk\
+  \ process itself was killed ~38 minutes in. The child was unaffected \u2014 run_b34f8216\
+  \ is a separate detached session and was live at 08:06,     iterating scripts/check.py\
+  \ --only e2e (three partial gate runs in its phases.jsonl).                    \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                              The finding worth\
+  \ keeping: a walk cannot be resumed. It watches only children it started itself.\
+  \ On relaunch it saw task-237 as \"already claimed\", concluded it had nothing to\
+  \ start, reported          no_eligible_child, and handed the parent to human/decision\
+  \ with a prompt that reads like a blockage. Nothing is blocked. Every other child\
+  \ is legitimately gated behind 237. I've corrected the record  (entry 16), taken\
+  \ the ball back to agent/work, and committed to main (9f39aa9).                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                       That gap\
+  \ isn't in the backlog \u2014 I searched; task-316, task-318 and task-320 are adjacent\
+  \ walk/dispatch fixes but none covers a killed supervisor orphaning a live epic.\
+  \ I haven't filed a task for it\n  since it's outside this epic's scope; say the\
+  \ word and I will.                                                             \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                           Where it stands                    \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                     - task-237 in flight, healthy.\
+  \                                                                              \
+  \                                                                              \
+  \              - A persistent watch is armed on its record \u2014 fires on closed,\
+  \ on the ball reaching human or external, and on its run transcript going quiet\
+  \ for 25 minutes, so a dead child won't read as a working\n    one.            \
+  \                                                                              \
+  \                                                                              \
+  \                          - When it lands completed I relaunch the walk, which\
+  \ will then start task-238 and task-239 together.\n  - I relaunched via Start-Process\
+  \ rather than a harness-managed background job, on the theory that what reaped the\
+  \ first walk was reaping a job. Untested \u2014 it stopped for the unrelated reason\
+  \ above      before proving anything.\n                                        \
+  \                                                                              \
+  \                                                                              \
+  \      Cost of the kill: serialisation, not lost work. The original walk would have\
+  \ flown 238 and 239 together off 237's landing; each relaunch can only start what's\
+  \ claimable at that instant. Only this     first relaunch is degraded.\n       \
+  \                                                                              \
+  \                                                                              \
+  \                                       The one thing no posture can fix stands\
+  \ from entry 13: task-240 needs Jeff's hands on a real mouse and keyboard (ac-4)\
+  \ and his approval (ac-6). Best case for this run is 237, 238, 239 and 356 merged\
+  \  with 240 waiting on a sandbox URL.\n\u273B Brewed for 3m 58s \xB7 done 3:09 AM\
+  \ \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-235@4f483ef2 \u2500\
+  \u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\
+  \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (168k/1.00M) \xB7 $4.52/rc\n\
+  \  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\n```"
 archived: false
 priority: critical
 queue_position: 293
@@ -623,3 +1130,540 @@ log:
       id: a41e7d92-0c65-4b83-9f27-5e30d1b8a6c4
       kind: handoff
       fingerprint: 87bd5a5513e25a3a3703f44531c0641f
+- id: 18
+  ts: '2026-09-06T09:14:34.942461Z'
+  actor: dispatcher
+  type: handoff
+  body: "Dispatched session `1ba5f38e` still reports itself as working but has produced\
+    \ no output for 30 minutes, so this task has been reading `agent`/`work` while\
+    \ nothing happened. It was **not** killed and is still attachable: `claude attach\
+    \ 1ba5f38e`. Attach to see what it is doing, or stop it and move this task on\
+    \ yourself.\n\nThe end of its terminal, verbatim:\n\n```\n                   \
+    \                                                                            \
+    \                                                                            \
+    \                             \u25CF Monitor(task-237 child: terminal state, human\
+    \ handoff, or a stalled run)                                                 \
+    \                                                                            \
+    \   \u23BF \_Monitor started \xB7 task bqlf0q6vb \xB7 persistent             \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                 \u25CF Now let me correct the parent record\
+    \ \u2014 the epic isn't stuck, and the current ball prompt says it is.       \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                 Called agentjobs\
+    \ 4 times, ran 1 shell command                                               \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \  \u25CF Monitor event: \"task-237 child: terminal state, human handoff, or a\
+    \ stalled run\"                                                              \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                            \u25CF Recorded and committed. Interim status:  \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                       What happened        \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                           The\
+    \ walk started task-237 correctly at 07:27, then the walk process itself was killed\
+    \ ~38 minutes in. The child was unaffected \u2014 run_b34f8216 is a separate detached\
+    \ session and was live at 08:06,     iterating scripts/check.py --only e2e (three\
+    \ partial gate runs in its phases.jsonl).                                    \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                    The finding worth keeping:\
+    \ a walk cannot be resumed. It watches only children it started itself. On relaunch\
+    \ it saw task-237 as \"already claimed\", concluded it had nothing to start, reported\
+    \          no_eligible_child, and handed the parent to human/decision with a prompt\
+    \ that reads like a blockage. Nothing is blocked. Every other child is legitimately\
+    \ gated behind 237. I've corrected the record  (entry 16), taken the ball back\
+    \ to agent/work, and committed to main (9f39aa9).                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                 That gap isn't\
+    \ in the backlog \u2014 I searched; task-316, task-318 and task-320 are adjacent\
+    \ walk/dispatch fixes but none covers a killed supervisor orphaning a live epic.\
+    \ I haven't filed a task for it\n  since it's outside this epic's scope; say the\
+    \ word and I will.                                                           \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                   Where it stands          \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                       - task-237\
+    \ in flight, healthy.                                                        \
+    \                                                                            \
+    \                                      - A persistent watch is armed on its record\
+    \ \u2014 fires on closed, on the ball reaching human or external, and on its run\
+    \ transcript going quiet for 25 minutes, so a dead child won't read as a working\n\
+    \    one.                                                                    \
+    \                                                                            \
+    \                                                  - When it lands completed I\
+    \ relaunch the walk, which will then start task-238 and task-239 together.\n \
+    \ - I relaunched via Start-Process rather than a harness-managed background job,\
+    \ on the theory that what reaped the first walk was reaping a job. Untested \u2014\
+    \ it stopped for the unrelated reason above      before proving anything.\n  \
+    \                                                                            \
+    \                                                                            \
+    \                                                Cost of the kill: serialisation,\
+    \ not lost work. The original walk would have flown 238 and 239 together off 237's\
+    \ landing; each relaunch can only start what's claimable at that instant. Only\
+    \ this     first relaunch is degraded.\n                                     \
+    \                                                                            \
+    \                                                                            \
+    \             The one thing no posture can fix stands from entry 13: task-240\
+    \ needs Jeff's hands on a real mouse and keyboard (ac-4) and his approval (ac-6).\
+    \ Best case for this run is 237, 238, 239 and 356 merged  with 240 waiting on\
+    \ a sandbox URL.\n\u273B Brewed for 3m 58s \xB7 done 3:09 AM \xB7 1 monitor still\
+    \ running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500 agentjobs/task-235@4f483ef2 \u2500\u276F\n\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\u2591\u2591\u2591\u2591\u2591\
+    \u2591\u2591\u2591 17% ctx (168k/1.00M) \xB7 $4.52/rc\n  \u23F5\u23F5 bypass permissions\
+    \ on \xB7 \u2190 8 agents \xB7 1 monitor                                     \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                           \u25CF Stop Task \
+    \                                                                            \
+    \                                                                            \
+    \                                      \u23BF \_tail -n 0 -f \"$CLAUDE_JOB_DIR/tmp/walk-235.log\"\
+    \ | grep -E --line-buffered \"Starting|attempt|completed|closed|failed|Failed|stopped|stopping|ground|Ground|park|P\u2026\
+    \ \xB7 stopped\n                                                             \
+    \                                                                            \
+    \                                                               \u25CF Monitor(task-237\
+    \ child: terminal state, human handoff, or a stalled run)                    \
+    \                                                                            \
+    \                                \u23BF \_Monitor started \xB7 task bqlf0q6vb\
+    \ \xB7 persistent                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                              \u25CF Now let\
+    \ me correct the parent record \u2014 the epic isn't stuck, and the current ball\
+    \ prompt says it is.                                                         \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \               Called agentjobs 4 times, ran 1 shell command                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                 \u25CF Monitor event: \"task-237 child: terminal\
+    \ state, human handoff, or a stalled run\"                                   \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                       \u25CF Recorded and committed.\
+    \ Interim status:                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                         What\
+    \ happened                                                                   \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                The walk started task-237 correctly at 07:27, then the walk process\
+    \ itself was killed ~38 minutes in. The child was unaffected \u2014 run_b34f8216\
+    \ is a separate detached session and was live at 08:06,     iterating scripts/check.py\
+    \ --only e2e (three partial gate runs in its phases.jsonl).                  \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                      The finding\
+    \ worth keeping: a walk cannot be resumed. It watches only children it started\
+    \ itself. On relaunch it saw task-237 as \"already claimed\", concluded it had\
+    \ nothing to start, reported          no_eligible_child, and handed the parent\
+    \ to human/decision with a prompt that reads like a blockage. Nothing is blocked.\
+    \ Every other child is legitimately gated behind 237. I've corrected the record\
+    \  (entry 16), taken the ball back to agent/work, and committed to main (9f39aa9).\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                 That gap isn't in the backlog \u2014 I searched; task-316, task-318\
+    \ and task-320 are adjacent walk/dispatch fixes but none covers a killed supervisor\
+    \ orphaning a live epic. I haven't filed a task for it\n  since it's outside this\
+    \ epic's scope; say the word and I will.                                     \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                         Where\
+    \ it stands                                                                  \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \               - task-237 in flight, healthy.                               \
+    \                                                                            \
+    \                                                               - A persistent\
+    \ watch is armed on its record \u2014 fires on closed, on the ball reaching human\
+    \ or external, and on its run transcript going quiet for 25 minutes, so a dead\
+    \ child won't read as a working\n    one.                                    \
+    \                                                                            \
+    \                                                                            \
+    \      - When it lands completed I relaunch the walk, which will then start task-238\
+    \ and task-239 together.\n  - I relaunched via Start-Process rather than a harness-managed\
+    \ background job, on the theory that what reaped the first walk was reaping a\
+    \ job. Untested \u2014 it stopped for the unrelated reason above      before proving\
+    \ anything.\n                                                                \
+    \                                                                            \
+    \                                                              Cost of the kill:\
+    \ serialisation, not lost work. The original walk would have flown 238 and 239\
+    \ together off 237's landing; each relaunch can only start what's claimable at\
+    \ that instant. Only this     first relaunch is degraded.\n                  \
+    \                                                                            \
+    \                                                                            \
+    \                                The one thing no posture can fix stands from\
+    \ entry 13: task-240 needs Jeff's hands on a real mouse and keyboard (ac-4) and\
+    \ his approval (ac-6). Best case for this run is 237, 238, 239 and 356 merged\
+    \  with 240 waiting on a sandbox URL.\n\u273B Brewed for 3m 58s \xB7 done 3:09\
+    \ AM \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-235@4f483ef2 \u2500\u276F\n\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\u2591\
+    \u2591\u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (168k/1.00M) \xB7 $4.52/rc\n\
+    \  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor    \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                \u25CF Stop Task                                            \
+    \                                                                            \
+    \                                                                       \u23BF\
+    \ \_tail -n 0 -f \"$CLAUDE_JOB_DIR/tmp/walk-235.log\" | grep -E --line-buffered\
+    \ \"Starting|attempt|completed|closed|failed|Failed|stopped|stopping|ground|Ground|park|P\u2026\
+    \ \xB7 stopped\n                                                             \
+    \                                                                            \
+    \                                                               \u25CF Monitor(task-237\
+    \ child: terminal state, human handoff, or a stalled run)                    \
+    \                                                                            \
+    \                                \u23BF \_Monitor started \xB7 task bqlf0q6vb\
+    \ \xB7 persistent                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                              \u25CF Now let\
+    \ me correct the parent record \u2014 the epic isn't stuck, and the current ball\
+    \ prompt says it is.                                                         \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \               Called agentjobs 4 times, ran 1 shell command                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                 \u25CF Monitor event: \"task-237 child: terminal\
+    \ state, human handoff, or a stalled run\"                                   \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                       \u25CF Recorded and committed.\
+    \ Interim status:                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                         What\
+    \ happened                                                                   \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                The walk started task-237 correctly at 07:27, then the walk process\
+    \ itself was killed ~38 minutes in. The child was unaffected \u2014 run_b34f8216\
+    \ is a separate detached session and was live at 08:06,     iterating scripts/check.py\
+    \ --only e2e (three partial gate runs in its phases.jsonl).                  \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                      The finding\
+    \ worth keeping: a walk cannot be resumed. It watches only children it started\
+    \ itself. On relaunch it saw task-237 as \"already claimed\", concluded it had\
+    \ nothing to start, reported          no_eligible_child, and handed the parent\
+    \ to human/decision with a prompt that reads like a blockage. Nothing is blocked.\
+    \ Every other child is legitimately gated behind 237. I've corrected the record\
+    \  (entry 16), taken the ball back to agent/work, and committed to main (9f39aa9).\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                 That gap isn't in the backlog \u2014 I searched; task-316, task-318\
+    \ and task-320 are adjacent walk/dispatch fixes but none covers a killed supervisor\
+    \ orphaning a live epic. I haven't filed a task for it\n  since it's outside this\
+    \ epic's scope; say the word and I will.                                     \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                         Where\
+    \ it stands                                                                  \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \               - task-237 in flight, healthy.                               \
+    \                                                                            \
+    \                                                               - A persistent\
+    \ watch is armed on its record \u2014 fires on closed, on the ball reaching human\
+    \ or external, and on its run transcript going quiet for 25 minutes, so a dead\
+    \ child won't read as a working\n    one.                                    \
+    \                                                                            \
+    \                                                                            \
+    \      - When it lands completed I relaunch the walk, which will then start task-238\
+    \ and task-239 together.\n  - I relaunched via Start-Process rather than a harness-managed\
+    \ background job, on the theory that what reaped the first walk was reaping a\
+    \ job. Untested \u2014 it stopped for the unrelated reason above      before proving\
+    \ anything.\n                                                                \
+    \                                                                            \
+    \                                                              Cost of the kill:\
+    \ serialisation, not lost work. The original walk would have flown 238 and 239\
+    \ together off 237's landing; each relaunch can only start what's claimable at\
+    \ that instant. Only this     first relaunch is degraded.\n                  \
+    \                                                                            \
+    \                                                                            \
+    \                                The one thing no posture can fix stands from\
+    \ entry 13: task-240 needs Jeff's hands on a real mouse and keyboard (ac-4) and\
+    \ his approval (ac-6). Best case for this run is 237, 238, 239 and 356 merged\
+    \  with 240 waiting on a sandbox URL.\n\u273B Brewed for 3m 58s \xB7 done 3:09\
+    \ AM \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-235@4f483ef2 \u2500\u276F\n\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\u2591\
+    \u2591\u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (168k/1.00M) \xB7 $4.52/rc\n\
+    \  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor    \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                \u25CF Stop Task                                            \
+    \                                                                            \
+    \                                                                       \u23BF\
+    \ \_tail -n 0 -f \"$CLAUDE_JOB_DIR/tmp/walk-235.log\" | grep -E --line-buffered\
+    \ \"Starting|attempt|completed|closed|failed|Failed|stopped|stopping|ground|Ground|park|P\u2026\
+    \ \xB7 stopped\n                                                             \
+    \                                                                            \
+    \                                                               \u25CF Monitor(task-237\
+    \ child: terminal state, human handoff, or a stalled run)                    \
+    \                                                                            \
+    \                                \u23BF \_Monitor started \xB7 task bqlf0q6vb\
+    \ \xB7 persistent                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                              \u25CF Now let\
+    \ me correct the parent record \u2014 the epic isn't stuck, and the current ball\
+    \ prompt says it is.                                                         \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \               Called agentjobs 4 times, ran 1 shell command                \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                 \u25CF Monitor event: \"task-237 child: terminal\
+    \ state, human handoff, or a stalled run\"                                   \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                       \u25CF Recorded and committed.\
+    \ Interim status:                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                         What\
+    \ happened                                                                   \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                The walk started task-237 correctly at 07:27, then the walk process\
+    \ itself was killed ~38 minutes in. The child was unaffected \u2014 run_b34f8216\
+    \ is a separate detached session and was live at 08:06,     iterating scripts/check.py\
+    \ --only e2e (three partial gate runs in its phases.jsonl).                  \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                      The finding\
+    \ worth keeping: a walk cannot be resumed. It watches only children it started\
+    \ itself. On relaunch it saw task-237 as \"already claimed\", concluded it had\
+    \ nothing to start, reported          no_eligible_child, and handed the parent\
+    \ to human/decision with a prompt that reads like a blockage. Nothing is blocked.\
+    \ Every other child is legitimately gated behind 237. I've corrected the record\
+    \  (entry 16), taken the ball back to agent/work, and committed to main (9f39aa9).\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                 That gap isn't in the backlog \u2014 I searched; task-316, task-318\
+    \ and task-320 are adjacent walk/dispatch fixes but none covers a killed supervisor\
+    \ orphaning a live epic. I haven't filed a task for it\n  since it's outside this\
+    \ epic's scope; say the word and I will.                                     \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                         Where\
+    \ it stands                                                                  \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \               - task-237 in flight, healthy.                               \
+    \                                                                            \
+    \                                                               - A persistent\
+    \ watch is armed on its record \u2014 fires on closed, on the ball reaching human\
+    \ or external, and on its run transcript going quiet for 25 minutes, so a dead\
+    \ child won't read as a working\n    one.                                    \
+    \                                                                            \
+    \                                                                            \
+    \      - When it lands completed I relaunch the walk, which will then start task-238\
+    \ and task-239 together.\n  - I relaunched via Start-Process rather than a harness-managed\
+    \ background job, on the theory that what reaped the first walk was reaping a\
+    \ job. Untested \u2014 it stopped for the unrelated reason above      before proving\
+    \ anything.\n                                                                \
+    \                                                                            \
+    \                                                              Cost of the kill:\
+    \ serialisation, not lost work. The original walk would have flown 238 and 239\
+    \ together off 237's landing; each relaunch can only start what's claimable at\
+    \ that instant. Only this     first relaunch is degraded.\n                  \
+    \                                                                            \
+    \                                                                            \
+    \                                The one thing no posture can fix stands from\
+    \ entry 13: task-240 needs Jeff's hands on a real mouse and keyboard (ac-4) and\
+    \ his approval (ac-6). Best case for this run is 237, 238, 239 and 356 merged\
+    \  with 240 waiting on a sandbox URL.\n\u273B Brewed for 3m 58s \xB7 done 3:09\
+    \ AM \xB7 1 monitor still running\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500 agentjobs/task-235@4f483ef2 \u2500\u276F\n\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7 agentjobs:main \xB7 \u2588\u2588\u2591\
+    \u2591\u2591\u2591\u2591\u2591\u2591\u2591 17% ctx (168k/1.00M) \xB7 $4.52/rc\n\
+    \  \u23F5\u23F5 bypass permissions on \xB7 \u2190 7 agents \xB7 1 monitor\n```"
+  data:
+    ball: human
+    ball_reason: input
