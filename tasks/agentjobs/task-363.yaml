@@ -3,7 +3,7 @@ id: task-363
 title: 'A review the human cannot act on: URLs are not tappable, and the question
   cards are broken'
 created: '2026-09-06T21:21:55.330267Z'
-updated: '2026-09-06T23:34:09.104726Z'
+updated: '2026-09-06T23:40:01.136240Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -929,3 +929,19 @@ log:
     finish_step: started
     branch: fix/task-363-review-panel-links-questions
     finish_id: fin_0f112137
+- id: 30
+  ts: '2026-09-06T23:40:01.135808Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-363-review-panel-links-questions` into `main` as `20212840`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-363
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 202128400551cca76dcefc77de0558c5216c2462
+    branch: fix/task-363-review-panel-links-questions
+    base: main
