@@ -458,9 +458,10 @@ def test_every_check_the_gate_runs_gets_the_scrubbed_environment(
 
     assert check.main([]) == 0
 
-    # Every stage in the table, including the npm ones -- they are what start the
-    # nested `poetry run` processes this exists for.
-    assert len(seen) == len(check.stages())
+    # Every command in the table, including the npm ones -- they are what start the
+    # nested `poetry run` processes this exists for. `api` is two commands since
+    # task-268, which took the gate's own two nested `poetry run` calls away.
+    assert len(seen) == sum(len(stage.steps) for stage in check.stages())
     for env in seen:
         assert "VIRTUAL_ENV" not in env
         assert "POETRY_ACTIVE" not in env
