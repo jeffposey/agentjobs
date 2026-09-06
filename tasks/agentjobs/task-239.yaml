@@ -3,7 +3,7 @@ id: task-239
 title: 'Shell 4: fit the detail panel to the main region, and check the full-width
   surfaces still hold up'
 created: '2026-08-22T00:40:27.040648Z'
-updated: '2026-09-06T10:11:05.260812Z'
+updated: '2026-09-06T10:26:38.759878Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -368,3 +368,50 @@ log:
       id: 1c4d5e88-30ab-4b62-9f77-8d2e6a10c4f3
       kind: log_append
       fingerprint: ca356f480491225c57c2bb6947abaa87
+- id: 11
+  ts: '2026-09-06T10:18:53.377465Z'
+  actor: finisher
+  type: progress
+  body: 'Queued for this repository''s merge runway, held by fin_593c5f26, pid 3489956
+    started at 05:18:51, 2s ago.
+
+
+    **This is the queue working, not a stall.** Children of an epic fly in parallel
+    and land one at a time, because a gate is only evidence about the base it ran
+    against. Nothing here is rebased, gated or merged until the runway is free.'
+  data:
+    finish_step: runway_queued
+    finish_id: fin_cd2d324c
+- id: 12
+  ts: '2026-09-06T10:26:38.759666Z'
+  actor: claude
+  type: progress
+  body: "Gate and finish status, so a resuming session does not re-derive any of it.\n\
+    \n**The branch's own gate: nine of ten stages green, `e2e` red for a reason that\
+    \ is not this branch.** `scripts/check.py` unqualified on the rebased branch ran\
+    \ every stage and reported `black 1.0s \xB7 ruff 0.2s \xB7 mypy 19.4s \xB7 api\
+    \ 8.6s \xB7 icons 3.2s \xB7 oxlint 2.3s \xB7 pytest 362.7s (4121 passed, 1 skipped)\
+    \ \xB7 vitest 16.2s (460 passed) \xB7 build 10.3s \xB7 e2e 77.0s`, failing at\
+    \ `e2e` with `Timed out waiting 30000ms from config.webServer` \u2014 the stage's\
+    \ uvicorn did not bind inside its 30s allowance. It was competing with the review\
+    \ sandbox and two Chromium runs I had going at the same time; the same stage had\
+    \ passed under `--only e2e` (95 passed) before that, and the five new specs in\
+    \ `e2e/task-detail-fit.spec.ts` pass 5/5 on their own. The sandbox is stopped\
+    \ now.\n\nThat run's green is **not** being claimed as the gate's green. The authoritative\
+    \ one is the finisher's, which runs the full unqualified gate itself and merges\
+    \ only on it.\n\n**The finish has been attempted once and did not get to do anything.**\
+    \ `agentjobs finish task-239 --project agentjobs --posture-release` reached entry\
+    \ 11 \u2014 queued for the merge runway, held by task-238's `fin_593c5f26` \u2014\
+    \ and its process was then killed by this session's harness, which has killed\
+    \ every background command this run started. **Nothing was rebased, gated or merged**;\
+    \ a queued finish holds no lock, and `main` is where it was. `fin_cd2d324c` left\
+    \ no state to unpick.\n\n**Retrying** once task-238's finish releases the runway\
+    \ (its pid 3489956 is still alive). If a resuming session finds this task still\
+    \ `agent`/`work` with no merge entry after this one, the branch is `feat/task-239-fit-detail-panel`\
+    \ at `da78d27`, rebased, and the whole remaining job is to re-run that same finish\
+    \ command from `C:/projects/agentjobs`."
+  data:
+    operation:
+      id: 5f0b8a71-46c2-4d39-91e6-2b7c0f3a9d64
+      kind: log_append
+      fingerprint: 49cfa7c03cf3de83e7dad3e84b51f090
