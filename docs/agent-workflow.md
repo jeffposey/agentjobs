@@ -891,6 +891,13 @@ unblocking event in `ball_prompt` and record what was tried. A ready task with a
 `needs` dependency stays ready and is simply not claimable; do not duplicate that fact as
 stored blocked state.
 
+**A handoff to a human must be actionable the moment they read it.** The dashboard
+counts by ball, not by prose: a task at `human/decision` whose prompt opens "do this
+after task-340 merges" calls the person over to find there is nothing they can do yet.
+If the act waits on another task, give it a `needs` dependency on that task and hand it
+to `external/dependency`; whoever closes the prerequisite hands it to the human, and only
+then is there something to click. Task-347, 2026-09-05, is the incident.
+
 ### Release or Close
 
 - `release_task()` returns active work to `ready` / `agent/available` and clears the
