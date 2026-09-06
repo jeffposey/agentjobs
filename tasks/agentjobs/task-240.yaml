@@ -3,16 +3,11 @@ id: task-240
 title: 'Shell 5: stand the new layout up on a sandbox and have Jeff drive it before
   it merges'
 created: '2026-08-22T00:40:59.806337Z'
-updated: '2026-09-06T21:52:19.285282Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-09-06T21:52:34.388740Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 1393
 category: testing
 tags:
 - frontend
@@ -21,7 +16,6 @@ tags:
 - review
 effort: small
 assignment:
-  owner: claude
   eligible: []
 parent: task-235
 spec:
@@ -127,7 +121,8 @@ dependencies:
 links: []
 branches:
 - name: chore/task-240-shell-sandbox
-  status: active
+  status: merged
+  merged_at: '2026-09-06T21:52:34.314895Z'
 log:
 - id: 1
   ts: '2026-08-22T00:41:00.160948Z'
@@ -1188,3 +1183,25 @@ log:
     merge_commit: b5dfcff50a7852ff52e7d949e0c359b80419273e
     branch: chore/task-240-shell-sandbox
     base: main
+- id: 58
+  ts: '2026-09-06T21:52:34.388379Z'
+  actor: finisher
+  type: transition
+  body: "Merged `chore/task-240-shell-sandbox` into `main` as `b5dfcff5` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). Approved\
+    \ by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         1.0s  chore/task-240-shell-sandbox\
+    \ at 8a1d60a9 in C:\\projects\\worktrees\\agentjobs-240\n  runway     ok     \
+    \    0.0s  taken immediately\n  rebase     ok         0.1s  chore/task-240-shell-sandbox\
+    \ onto main: 8a1d60a9 -> 177c570c\n  gate       ok       282.6s  scripts/check.py\
+    \ green\n  catch_up   skipped    0.0s  main did not move during the gate\n  merge\
+    \      ok         0.3s  --no-ff into main as b5dfcff50a7852ff52e7d949e0c359b80419273e\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         0.5s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving e5a0a1e7, which contains the merge\
+    \ b5dfcff5, from C:\\projects\\agentjobs (started 2026-09-06T21:52:23.425341+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
