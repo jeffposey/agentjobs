@@ -3,15 +3,14 @@ id: task-167-agentjobs-menu
 title: 'The AgentJobs menu: one reusable control for every frontend, and forms fast
   enough to fill on a phone'
 created: '2026-08-19T17:34:04.201284Z'
-updated: '2026-09-06T06:18:41.466774Z'
+updated: '2026-09-06T06:23:44.626614Z'
 lifecycle: ready
-ball: human
-ball_reason: decision
-ball_prompt: 'One question, below. It has been open since 2026-08-19 with the ball
-  still reading agent/available, so nothing ever showed it to you.
+ball: agent
+ball_reason: answer
+ball_prompt: 'The AgentJobs menu and task-141''s host-app launcher menu are the same
+  component approached from two directions. Which task builds it?
 
-
-  Only task-169 is waiting on it. The rest of this epic is unblocked either way.'
+  -> Chose: task-169 builds it, task-141 narrows'
 archived: false
 priority: high
 queue_position: 8900
@@ -356,3 +355,27 @@ log:
       id: f0b4cd73-1a85-4e96-9307-5e9f3a2b8c64
       kind: log_append
       fingerprint: 292e601f336a6cd0e497ce4d64fb2471
+- id: 8
+  ts: '2026-09-06T06:23:44.626395Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    The AgentJobs menu and task-141''s host-app launcher menu are the same component
+    approached from two directions. Which task builds it?
+
+    -> Chose: task-169 builds it, task-141 narrows'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 9
+  ts: '2026-09-06T06:23:44.626420Z'
+  actor: Jeff Posey
+  type: answer
+  body: 'Chose: task-169 builds it, task-141 narrows'
+  re: 6
+  data:
+    selected:
+    - task-169 builds it, task-141 narrows
+    other: null

@@ -2,13 +2,14 @@ schema: 2
 id: task-063-schema-v2
 title: 'Schema v2: finish the dedicated CLI state verbs'
 created: '2026-08-11T03:17:08.422110Z'
-updated: '2026-09-06T06:18:58.295557Z'
+updated: '2026-09-06T06:22:20.161089Z'
 lifecycle: ready
-ball: human
-ball_reason: decision
-ball_prompt: "One question, below. Open since 2026-08-11 with the ball reading agent/available,\
-  \ so nothing ever showed it to you.\n\nIt is probably already answered by events\
-  \ \u2014 promote shipped. One tap either way."
+ball: agent
+ball_reason: answer
+ball_prompt: "Entry 2 asked, on 2026-08-11, whether the v2 verb set should gain a\
+  \ promotion verb covering `draft` -> `ready`. Since then `promote` shipped in the\
+  \ CLI, the API and MCP. Is anything still open here?\n-> Chose: Nothing \u2014 promote\
+  \ shipped, close it"
 archived: false
 priority: high
 queue_position: 11300
@@ -248,3 +249,24 @@ log:
       id: b2d6ef95-3c07-4a18-9529-7a1b5c4d0e86
       kind: log_append
       fingerprint: b8e60d5e07b8fb30071514d3f0b17321
+- id: 8
+  ts: '2026-09-06T06:22:20.160955Z'
+  actor: Jeff Posey
+  type: handoff
+  body: "Answered by Jeff Posey:\n\nEntry 2 asked, on 2026-08-11, whether the v2 verb\
+    \ set should gain a promotion verb covering `draft` -> `ready`. Since then `promote`\
+    \ shipped in the CLI, the API and MCP. Is anything still open here?\n-> Chose:\
+    \ Nothing \u2014 promote shipped, close it"
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 9
+  ts: '2026-09-06T06:22:20.160974Z'
+  actor: Jeff Posey
+  type: answer
+  body: "Chose: Nothing \u2014 promote shipped, close it"
+  re: 6
+  data:
+    selected:
+    - "Nothing \u2014 promote shipped, close it"
+    other: null

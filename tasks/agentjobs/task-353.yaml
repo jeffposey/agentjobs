@@ -1,0 +1,54 @@
+schema: 2
+id: task-353
+title: GUI space also wasted in button and field widths
+created: '2026-09-06T04:13:39.147805Z'
+updated: '2026-09-06T04:13:39.927097Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+queue_position: 9500
+category: general
+tags:
+- reported-issue
+assignment:
+  eligible: []
+spec:
+  summary: GUI space also wasted in button and field widths
+  description: 'Please stop putting giant amounts of text in buttons and fields such
+    that they have to be 1 million pixels wide. Please stop. Make smarter decisions.
+
+
+    ---
+
+    Reported from the AgentJobs UI by Jeff Posey, at `/p/agentjobs/tasks/task-347`.
+
+    Noticed while viewing `task-347`.'
+  context: []
+acceptance: []
+deliverables: []
+dependencies:
+- task: task-347
+  type: related
+  note: Reported while viewing this task.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-06T04:13:39.926285Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created ready by Jeff Posey.
+  data:
+    lifecycle: ready
+    operation:
+      id: fa214f05-589c-4cb8-b541-01a995f2883a
+      kind: create
+      fingerprint: 886e3a3e591eebd1bcd72a843a635c8d
+  attachments:
+  - path: attachments/task-353/9e83710ff5433393912e3820c608f65e0235ac257fc73f7251dbd15f497ad0fa.png
+    media_type: image/png
+    sha256: 9e83710ff5433393912e3820c608f65e0235ac257fc73f7251dbd15f497ad0fa
+    size_bytes: 63245
+    label: image.png
