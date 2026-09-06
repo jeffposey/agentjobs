@@ -101,6 +101,27 @@ function disclosure(page: Page, taskId: string) {
   return page.getByRole("button", { name: new RegExp(`^(Fold|Unfold) ${taskId},`) });
 }
 
+/**
+ * A task whose row is wholly inside the list's scrollport right now.
+ *
+ * Clicking one that is not makes Playwright scroll it into view first, which moves the
+ * scroll offset a test about scroll offsets is trying to hold still.
+ */
+async function rowInPort(page: Page) {
+  const taskId = await page.evaluate(() => {
+    const region = document.querySelector('[data-region="list"]');
+    if (!region) throw new Error("No list region.");
+    const port = region.getBoundingClientRect();
+    const row = [...document.querySelectorAll("[data-task]")].find((candidate) => {
+      const box = candidate.getBoundingClientRect();
+      return box.top >= port.top && box.bottom <= port.bottom;
+    });
+    return row?.getAttribute("data-task") ?? null;
+  });
+  expect(taskId, "no task row is wholly inside the scrolled list").not.toBeNull();
+  return taskId as string;
+}
+
 /** What the browser says currently holds focus, as a poller. */
 function focusedId(page: Page) {
   return () => page.evaluate(() => document.activeElement?.id ?? "");
@@ -278,7 +299,14 @@ test.describe("the task list as a sidebar tree", () => {
 
     // A click first: the defect this epic exists to remove used to unmount the list and
     // throw the offset away, and the tree must not have brought it back.
-    const row = page.locator("[data-task] a[href*='/tasks/']").first();
+    //
+    // **The row clicked has to be one already inside the scrollport.** Playwright scrolls
+    // an off-screen target into view before clicking it, so clicking a row above the fold
+    // moves the very offset this test is about -- and the failure looks exactly like the
+    // application losing the scroll. It did not show until task-356 shrank the column's
+    // header from 358px to 135px: before that the first row was still on screen at 250,
+    // and `.first()` happened to be a visible row by luck rather than by construction.
+    const row = page.locator(`[data-task="${await rowInPort(page)}"] a[href*='/tasks/']`).first();
     const href = await row.getAttribute("href");
     await row.click();
     await expect.poll(() => new URL(page.url()).pathname).toBe(href);

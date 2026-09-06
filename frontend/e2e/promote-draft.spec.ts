@@ -47,13 +47,20 @@ test("walks the whole drafts loop: create, find through the dashboard, promote",
   // The unconditional route used to be the "+N in backlog" link under the statistics
   // card. task-294 took that card off the Dashboard, and this is the route that
   // replaced it: the Active tasks section's "View all" link, which is unconditional for
-  // the same reason, and then the Tasks surface's own Status filter. Two clicks rather
-  // than one, and every step of it is a control a person can see.
+  // the same reason, and then the Tasks surface's own Status filter. Three clicks rather
+  // than one since task-356 put that filter behind a button, and every step of it is a
+  // control a person can see.
   await page.goto("/app/");
   await page.getByRole("link", { name: /^View all/ }).click();
   await expect(page).toHaveURL(/\/tasks$/);
+  await page.getByRole("button", { name: /^Filters/ }).click();
   await page.getByLabel("Status").selectOption("draft");
   await expect(page).toHaveURL(/\/tasks\?status=draft$/);
+  // The popover stays open across a change, so two filters are one visit rather than
+  // two; it sits over the top of the list while it is, and dismissing it is the gesture
+  // a person makes next. Escape rather than a click on the row underneath -- clicking
+  // through a popover is not a thing a person can do either.
+  await page.keyboard.press("Escape");
   await page.getByRole("link", { name: /Draft to promote/ }).click();
 
   const panel = page.getByRole("region", { name: "Draft actions" });

@@ -79,6 +79,27 @@ async function region(page: Page, name: "list" | "detail") {
   }, name);
 }
 
+/**
+ * A task whose row is wholly inside the list's scrollport right now.
+ *
+ * Clicking one that is not makes Playwright scroll it into view first, which moves the
+ * scroll offset a test about scroll offsets is trying to hold still.
+ */
+async function rowInPort(page: Page) {
+  const taskId = await page.evaluate(() => {
+    const region_ = document.querySelector('[data-region="list"]');
+    if (!region_) throw new Error("No list region.");
+    const port = region_.getBoundingClientRect();
+    const row = [...document.querySelectorAll("[data-task]")].find((candidate) => {
+      const box = candidate.getBoundingClientRect();
+      return box.top >= port.top && box.bottom <= port.bottom;
+    });
+    return row?.getAttribute("data-task") ?? null;
+  });
+  expect(taskId, "no task row is wholly inside the scrolled list").not.toBeNull();
+  return taskId as string;
+}
+
 test("the list and the record sit side by side, and the page itself does not scroll", async ({
   page,
   request,
@@ -151,7 +172,13 @@ test("selecting another task changes the record and leaves the list scrolled whe
     const list = document.querySelector('[data-region="list"]')!;
     list.scrollTop = 200;
   });
-  const row = page.locator("[data-task] a[href*='/tasks/']").first();
+  // **A row already inside the scrollport**, not simply the first one. Playwright
+  // scrolls an off-screen target into view before it clicks, which would move the very
+  // offset this test holds still, and the failure reads exactly like the application
+  // losing the scroll. It did not show until task-356 shrank the list's own header from
+  // 358px to 135px: before that the first row was still on screen at 200, so `.first()`
+  // was a visible row by luck rather than by construction.
+  const row = page.locator(`[data-task="${await rowInPort(page)}"] a[href*='/tasks/']`).first();
   const href = await row.getAttribute("href");
   await row.click();
   await expect.poll(() => new URL(page.url()).pathname).toBe(href);
