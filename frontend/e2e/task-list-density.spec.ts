@@ -109,10 +109,16 @@ async function fixture(
   };
 }
 
-/** The rows this spec put on screen, with the height a person would see. */
+/**
+ * The rows this spec put on screen, with the height a person would see.
+ *
+ * By `[data-task]` rather than by `tbody tr`, because since task-238 the same rows are
+ * a table in the full-width shell and a list in the sidebar, and every claim in this
+ * file is about the row rather than about the element it happens to be.
+ */
 async function rowHeights(page: Page) {
   return page.evaluate(() =>
-    [...document.querySelectorAll("tbody tr")].map((row) => ({
+    [...document.querySelectorAll("[data-task]")].map((row) => ({
       task: (row as HTMLElement).dataset.task ?? "",
       height: Math.round(row.getBoundingClientRect().height),
     })),
@@ -240,49 +246,52 @@ test.describe("the task list fits the screen it is on", () => {
   });
 
   /**
-   * task-237: what the same rows do once the list is a region rather than the page.
+   * task-238: what the same rows do once the list is a region rather than the page.
    *
-   * The regression this guards is specific and was found the hard way. A
-   * `table-layout: fixed` table gives its one flexible column whatever the fixed ones
-   * leave over, and five fixed columns asking for 39.5rem leave a ~430px region
-   * nothing at all -- so the task title collapses to zero pixels, Chromium reports the
-   * cell as `hidden`, and every spec that clicks a task by its title fails at once
-   * while the page still looks populated. A container query restacks the rows into
-   * cards instead; this asserts the rows have real boxes and their labels with them.
+   * The regression this guards started as a layout failure and became a component
+   * choice. A `table-layout: fixed` table gives its one flexible column whatever the
+   * fixed ones leave over, and five fixed columns asking for 39.5rem leave a ~430px
+   * region nothing at all -- so the task title collapsed to zero pixels, Chromium
+   * reported the cell as `hidden`, and every spec that clicks a task by its title
+   * failed at once while the page still looked populated. task-237 restacked the rows
+   * into cards to stop the bleeding; task-238 replaced them with a tree, which is what
+   * a master column actually wants. What has to stay true through both is the same
+   * sentence: **every row has a title with a real box, and the region absorbs its own
+   * width.**
    *
-   * The cards are tall, and deliberately not asserted to be short. Fitting a task row
-   * to a narrow column is task-238's subject; leaving the columns unreachable was not
-   * an option this task could hand it.
+   * The row heights are asserted here and were not under the cards, because that was
+   * the thing task-237 could not hand this task: six labelled lines per row is a card,
+   * and a column you pick from is a row.
    */
-  test("the rows restack into cards once the list is a region, with nothing collapsed", async ({
+  test("the rows become a tree once the list is a region, with a title in every one", async ({
     page,
   }) => {
     await page.setViewportSize(TWO_REGION);
     await page.goto(`/app/p/_local/tasks?q=${TOKEN}`);
-    const row = page.locator(`tbody tr[data-task="${fixtures[0].id}"]`);
+    const row = page.locator(`[data-task="${fixtures[0].id}"]`);
     await expect(row).toBeVisible();
 
-    const layout = await page.evaluate(() => {
-      const table = document.querySelector(".responsive-table")!;
-      const cell = document.querySelector("tbody td")!;
-      return {
-        table: getComputedStyle(table).display,
-        cell: getComputedStyle(cell).display,
-        label: getComputedStyle(cell, "::before").content,
-      };
-    });
-    expect(layout.table).toBe("block");
-    expect(layout.cell).toBe("grid");
-    expect(layout.label).toContain("Queue");
+    // A list, not a table: the six-column grid is gone from this region entirely, so
+    // there is nothing left to squeeze a title to zero.
+    expect(
+      await page.evaluate(() => document.querySelectorAll('[data-region="list"] table').length),
+    ).toBe(0);
 
     // The defect in one assertion: the title has a box a person can see and click.
-    const title = page.locator(`tbody tr[data-task="${fixtures[0].id}"] [title]`).first();
+    const title = page.locator(`[data-task="${fixtures[0].id}"] [title]`).first();
     await expect(title).toBeVisible();
     const box = await title.boundingBox();
     expect(box, "the task title has no box at all").not.toBeNull();
     expect(box!.width, "the task title collapsed to nothing").toBeGreaterThan(100);
 
-    // And the region absorbs its own width: nothing pushes the page sideways.
+    // And no row is sized by a `ball_prompt` here either. The second fixture is parked
+    // on review with three paragraphs in its prompt; the tree row does not print it.
+    for (const measured of await rowHeights(page)) {
+      expect(measured.height, `${measured.task} is ${measured.height}px tall`).toBeLessThanOrEqual(
+        ROW_MAX_PX,
+      );
+    }
+
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

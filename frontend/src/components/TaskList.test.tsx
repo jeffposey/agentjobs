@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Priority, QueueProblemRead, TaskRead } from "../api/types";
 import { TaskList, type ReorderHandlers } from "./TaskList";
@@ -758,5 +758,380 @@ describe("TaskList notice ordering", () => {
     rejectFirst(new Error("409"));
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
     expect(renderedOrder()).toEqual(["task-c", "task-a", "task-b"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// task-238 -- the same list as a master column: a tree you select from
+// ---------------------------------------------------------------------------
+
+/**
+ * What these are, and what they are deliberately not.
+ *
+ * jsdom lays nothing out, so nothing here is evidence about a 320px column, about
+ * `scrollIntoView`, or about a gesture a hand makes -- those are `e2e/task-tree.spec.ts`
+ * and the by-hand check on the record. What jsdom *can* settle is the arithmetic and
+ * the wiring: which rows are drawn, what the disclosure announces, where an arrow key
+ * lands, what survives a refetch and a remount, and that folding a parent changes
+ * nothing about where Alt+Up puts a task.
+ *
+ * The reorder tests below re-press without re-focusing, for the reason task-207 records:
+ * a test that focuses the handle before every keypress cannot see focus being lost.
+ */
+
+function epic() {
+  return [
+    queued("task-parent", 100),
+    task("task-child-a", { parent: "task-parent", priority: "high", queue_position: 150 }),
+    task("task-child-b", { parent: "task-parent", priority: "high", queue_position: 160 }),
+    queued("task-after", 200),
+  ];
+}
+
+function renderTree(
+  tasks: Array<TaskRead>,
+  options: { entry?: string; reorder?: ReorderHandlers | null } = {},
+) {
+  return render(
+    <MemoryRouter initialEntries={[options.entry ?? "/p/inbox/tasks"]}>
+      <TaskList
+        tasks={tasks}
+        projectId="inbox"
+        variant="tree"
+        reorder={options.reorder ?? null}
+      />
+      <LocationProbe />
+    </MemoryRouter>,
+  );
+}
+
+/** The disclosure on a parent row, by what it currently offers to do. */
+function fold(taskId: string) {
+  return screen.getByRole("button", { name: new RegExp(`^(Fold|Unfold) ${taskId},`) });
+}
+
+function rowLink(taskId: string) {
+  return document.getElementById(`task-row-${taskId}`) as HTMLElement;
+}
+
+function currentPath() {
+  return screen.getByTestId("location").textContent ?? "";
+}
+
+describe("TaskList as a sidebar tree", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  it("groups children under their parent at the default filter, where the table is flat", () => {
+    // The table flattens as soon as any filter is set, and `open` is a filter -- so the
+    // wide list has never grouped at its own default. The tree groups the *matching*
+    // tasks instead, which is what lets it stay a tree here.
+    renderTree(epic());
+
+    expect(renderedOrder()).toEqual(["task-parent", "task-child-a", "task-child-b", "task-after"]);
+    expect(rowFor("task-child-a").getAttribute("data-depth")).toBe("1");
+    expect(rowFor("task-parent").getAttribute("data-depth")).toBe("0");
+  });
+
+  it("starts unfolded, and the disclosure says what folding would hide", () => {
+    renderTree(epic());
+
+    const control = fold("task-parent");
+    expect(control).toHaveAttribute("aria-expanded", "true");
+    expect(control).toHaveAccessibleName("Fold task-parent, 2 sub-tasks, 2 open");
+  });
+
+  it("folds and unfolds from the pointer, and says so out loud", () => {
+    renderTree(epic());
+
+    fireEvent.click(fold("task-parent"));
+
+    expect(renderedOrder()).toEqual(["task-parent", "task-after"]);
+    expect(fold("task-parent")).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("task-parent folded, hiding 2 sub-tasks, 2 open.")).toBeInTheDocument();
+
+    fireEvent.click(fold("task-parent"));
+    expect(renderedOrder()).toEqual(["task-parent", "task-child-a", "task-child-b", "task-after"]);
+  });
+
+  it("folds with Left and unfolds with Right, as a tree does", () => {
+    renderTree(epic());
+
+    fireEvent.keyDown(rowLink("task-parent"), { key: "ArrowLeft" });
+    expect(renderedOrder()).toEqual(["task-parent", "task-after"]);
+
+    fireEvent.keyDown(rowLink("task-parent"), { key: "ArrowRight" });
+    expect(renderedOrder()).toEqual(["task-parent", "task-child-a", "task-child-b", "task-after"]);
+  });
+
+  it("counts every descendant a fold hides, not just the direct children", () => {
+    // Folding the top of a three-deep epic hides the grandchild too. A badge reading
+    // "1 sub-task" over two hidden rows is the silent hiding this exists to prevent.
+    renderTree([
+      queued("task-top", 100),
+      task("task-mid", { parent: "task-top", priority: "high", queue_position: 110 }),
+      task("task-leaf", { parent: "task-mid", priority: "high", queue_position: 120 }),
+    ]);
+
+    fireEvent.click(fold("task-top"));
+
+    expect(renderedOrder()).toEqual(["task-top"]);
+    expect(within(rowFor("task-top")).getByText("2 folded, 2 open")).toBeVisible();
+    expect(fold("task-top")).toHaveAccessibleName("Unfold task-top, 2 sub-tasks, 2 open");
+  });
+
+  it("keeps a fold across a refetch and across leaving the list and coming back", () => {
+    // Two different mechanisms, and this row exists to prove both. A refetch replaces
+    // the task array and must not disturb the fold; a navigation unmounts the list
+    // entirely, which is why the fold is written to storage rather than held in state.
+    const { rerender, unmount } = renderTree(epic());
+    fireEvent.click(fold("task-parent"));
+    expect(renderedOrder()).toEqual(["task-parent", "task-after"]);
+
+    // A live update: the same tasks as new objects, which is how react-query hands
+    // them over.
+    rerender(
+      <MemoryRouter initialEntries={["/p/inbox/tasks"]}>
+        <TaskList tasks={epic().map((entry) => ({ ...entry }))} projectId="inbox" variant="tree" />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+    expect(renderedOrder()).toEqual(["task-parent", "task-after"]);
+
+    unmount();
+    renderTree(epic());
+    expect(renderedOrder()).toEqual(["task-parent", "task-after"]);
+    expect(fold("task-parent")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("keeps one project's folds out of another's", () => {
+    renderTree(epic());
+    fireEvent.click(fold("task-parent"));
+    expect(renderedOrder()).toEqual(["task-parent", "task-after"]);
+
+    cleanup();
+    render(
+      <MemoryRouter initialEntries={["/p/other/tasks"]}>
+        <TaskList tasks={epic()} projectId="other" variant="tree" />
+      </MemoryRouter>,
+    );
+
+    expect(renderedOrder()).toEqual(["task-parent", "task-child-a", "task-child-b", "task-after"]);
+  });
+
+  it("unfolds a deep link's ancestors instead of selecting something invisible", () => {
+    renderTree(epic());
+    fireEvent.click(fold("task-parent"));
+    expect(renderedOrder()).toEqual(["task-parent", "task-after"]);
+    cleanup();
+
+    // The fold is in storage and the URL points inside it, which is what pasting a link
+    // to a child of a folded epic into a fresh tab does.
+    renderTree(epic(), { entry: "/p/inbox/tasks/task-child-b" });
+
+    expect(renderedOrder()).toEqual(["task-parent", "task-child-a", "task-child-b", "task-after"]);
+    expect(rowLink("task-child-b")).toHaveAttribute("aria-current", "page");
+  });
+
+  it("leaves the fold alone when a reader folds the parent of the task they are reading", () => {
+    // The unfold is keyed on the *selection* changing, not on the fold state. An effect
+    // that simply reconciled the two would spring the parent back open under the hand
+    // that had just closed it.
+    renderTree(epic(), { entry: "/p/inbox/tasks/task-child-b" });
+
+    fireEvent.click(fold("task-parent"));
+
+    expect(renderedOrder()).toEqual(["task-parent", "task-after"]);
+  });
+
+  it("marks the open record's row as current, and keeps it across a refetch", () => {
+    const { rerender } = renderTree(epic(), { entry: "/p/inbox/tasks/task-child-a" });
+
+    expect(rowLink("task-child-a")).toHaveAttribute("aria-current", "page");
+    expect(rowLink("task-after")).not.toHaveAttribute("aria-current");
+    expect(rowFor("task-child-a").getAttribute("data-selected")).toBe("true");
+
+    rerender(
+      <MemoryRouter initialEntries={["/p/inbox/tasks/task-child-a"]}>
+        <TaskList tasks={epic().map((entry) => ({ ...entry }))} projectId="inbox" variant="tree" />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+    expect(rowLink("task-child-a")).toHaveAttribute("aria-current", "page");
+  });
+
+  it("moves the selection with Up and Down, and takes focus with it", () => {
+    renderTree(epic(), { entry: "/p/inbox/tasks/task-parent" });
+
+    fireEvent.keyDown(rowLink("task-parent"), { key: "ArrowDown" });
+
+    expect(currentPath()).toBe("/p/inbox/tasks/task-child-a");
+    expect(rowLink("task-child-a")).toHaveAttribute("aria-current", "page");
+    // Focus follows, so the *next* press moves from the row that was just selected
+    // rather than from the row the reader started on.
+    expect(document.activeElement).toBe(rowLink("task-child-a"));
+
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowUp" });
+    expect(currentPath()).toBe("/p/inbox/tasks/task-parent");
+  });
+
+  it("steps over a folded subtree rather than into it", () => {
+    renderTree(epic(), { entry: "/p/inbox/tasks/task-parent" });
+    fireEvent.click(fold("task-parent"));
+
+    fireEvent.keyDown(rowLink("task-parent"), { key: "ArrowDown" });
+
+    expect(currentPath()).toBe("/p/inbox/tasks/task-after");
+  });
+
+  it("does nothing at either end of the list", () => {
+    renderTree(epic(), { entry: "/p/inbox/tasks/task-parent" });
+
+    fireEvent.keyDown(rowLink("task-parent"), { key: "ArrowUp" });
+
+    expect(currentPath()).toBe("/p/inbox/tasks/task-parent");
+  });
+
+  it("still steps a task through its band when the sibling above it is hidden", () => {
+    // Collision case 2, settled: a step is computed over the band by `queueOrder.ts`
+    // and never over the rows on screen, so folding changes what a reader sees and
+    // nothing at all about where Alt+Up puts a task. The live region is what makes the
+    // move legible when the neighbour it passed is not rendered.
+    const handlers = accepting();
+    renderTree(epic(), { reorder: handlers });
+    fireEvent.click(fold("task-parent"));
+    expect(renderedOrder()).toEqual(["task-parent", "task-after"]);
+
+    fireEvent.keyDown(grip("task-after"), { key: "ArrowUp", altKey: true });
+
+    // task-child-b is the row above it *in the band*, and is not on screen at all.
+    expect(handlers.moves).toEqual([["task-after", { before: "task-child-b" }]]);
+    expect(
+      screen.getByText("task-after moved ahead of task-child-b in the high band."),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps focus on the handle, so a second Alt+Up moves the same task", async () => {
+    const handlers = accepting();
+    renderTree([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], {
+      reorder: handlers,
+    });
+
+    grip("task-c").focus();
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+    await waitFor(() => expect(renderedOrder()).toEqual(["task-a", "task-c", "task-b"]));
+    expect(document.activeElement).toBe(grip("task-c"));
+
+    // Pressed again without touching anything, which is the only way to see this.
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowUp", altKey: true });
+    await waitFor(() => expect(renderedOrder()).toEqual(["task-c", "task-a", "task-b"]));
+    expect(handlers.moves.map(([id]) => id)).toEqual(["task-c", "task-c"]);
+  });
+
+  it("treats a drop on a folded parent as an ordinary move, never a reparent", async () => {
+    // Collision case 3, settled. Not "nothing", which would make a folded row a hole in
+    // the list, and not unfold-on-hover, which moves every row under the pointer
+    // mid-gesture. Reparenting is a real feature and its own task.
+    const handlers = accepting();
+    renderTree(epic(), { reorder: handlers });
+    fireEvent.click(fold("task-parent"));
+
+    fireEvent.dragStart(grip("task-after"));
+    fireEvent.drop(rowFor("task-parent"));
+
+    await waitFor(() => expect(handlers.moves).toHaveLength(1));
+    expect(handlers.moves[0]).toEqual(["task-after", { before: "task-parent" }]);
+    // The parent is where it was, still folded, and still nobody's parent but its own.
+    expect(fold("task-parent")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("draws a child whose parent the filter removed at the root, and says where it came from", () => {
+    renderTree([
+      task("task-closed-parent", {
+        lifecycle: "closed",
+        ball: null,
+        ball_reason: null,
+        outcome: "completed",
+        display_status: "Completed",
+      }),
+      task("task-orphan", { parent: "task-closed-parent" }),
+    ]);
+
+    expect(renderedOrder()).toEqual(["task-orphan"]);
+    expect(rowFor("task-orphan").getAttribute("data-depth")).toBe("0");
+    expect(screen.getByText("part of task-closed-parent")).toBeVisible();
+  });
+
+  it("carries the row's place in line, so a reorder is a visible change", () => {
+    renderTree(epic(), { reorder: accepting() });
+
+    expect(rowFor("task-after").getAttribute("data-queue-position")).toBe("200");
+    expect(rowFor("task-after").querySelector('[data-field="queue"]')).toHaveTextContent("200");
+  });
+});
+
+describe("TaskList selection keeps the filters", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  /**
+   * Opening a task used to drop the query string, and beside the record that is not
+   * cosmetic.
+   *
+   * Found in Chromium, pressing Down twice: the first press emptied the search, the
+   * list re-rendered from three rows to the whole backlog, the row that had just been
+   * selected was reinserted somewhere else, the browser dropped focus from the node it
+   * moved -- and the second press did nothing at all. Exactly task-207's failure
+   * reached through a different door.
+   */
+  it("carries the search and the filters into the row's own link", () => {
+    render(
+      <MemoryRouter initialEntries={["/p/inbox/tasks?q=058&status=all&priority=high"]}>
+        <TaskList tasks={[task("task-058", { priority: "high" })]} projectId="inbox" variant="tree" />
+      </MemoryRouter>,
+    );
+
+    const href = (document.getElementById("task-row-task-058") as HTMLAnchorElement).getAttribute(
+      "href",
+    );
+    expect(href).toContain("/p/inbox/tasks/task-058");
+    expect(href).toContain("q=058");
+    expect(href).toContain("status=all");
+    expect(href).toContain("priority=high");
+  });
+
+  it("leaves the full-width table's links exactly as they were", () => {
+    // The split is deliberate rather than incidental. The table has no selection to
+    // lose and no list left on screen to re-render, so it keeps the bare path it has
+    // always had -- which is this task's constraint: below the device-class threshold
+    // the list renders as it does today.
+    render(
+      <MemoryRouter initialEntries={["/p/inbox/tasks?q=058&status=all"]}>
+        <TaskList tasks={[task("task-058")]} projectId="inbox" />
+      </MemoryRouter>,
+    );
+
+    const link = screen.getByRole("link", { name: /task-058/ });
+    expect(link).toHaveAttribute("href", "/p/inbox/tasks/task-058");
+  });
+
+  it("carries them through an arrow-key selection too", () => {
+    render(
+      <MemoryRouter initialEntries={["/p/inbox/tasks/task-a?q=queue&status=all"]}>
+        <TaskList
+          tasks={[task("task-a", { title: "queue one" }), task("task-b", { title: "queue two" })]}
+          projectId="inbox"
+          variant="tree"
+        />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    fireEvent.keyDown(document.getElementById("task-row-task-a") as HTMLElement, {
+      key: "ArrowDown",
+    });
+
+    const url = screen.getByTestId("location").textContent ?? "";
+    expect(url).toContain("/p/inbox/tasks/task-b");
+    expect(url).toContain("q=queue");
+    expect(url).toContain("status=all");
   });
 });
