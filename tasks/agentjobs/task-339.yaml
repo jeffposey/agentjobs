@@ -4,14 +4,11 @@ title: 'The gate is launched six to nine times per task at seven to twelve minut
   each under contention: one gate per handoff, and a core budget shared between concurrent
   gates'
 created: '2026-09-05T20:49:03.656961Z'
-updated: '2026-09-06T00:40:10.219805Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-09-06T00:40:38.403622Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 2
 category: developer_experience
 tags:
 - cycle-time
@@ -22,7 +19,6 @@ tags:
 effort: 'a day: Part 1 is prose plus two small check.py and run_report.py changes;
   Part 2 is an hour of measurement and one worker rule'
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'A dispatched task still pays 20 to 46 minutes of gate after task-233 made
@@ -213,7 +209,8 @@ dependencies: []
 links: []
 branches:
 - name: perf/task-339-one-gate-per-handoff
-  status: active
+  status: merged
+  merged_at: '2026-09-06T00:40:38.355206Z'
 log:
 - id: 1
   ts: '2026-09-05T20:49:04.300216Z'
@@ -548,3 +545,28 @@ log:
     merge_commit: 070ea5d14bae2c8fd9d7edfbf230563e17e2f2b3
     branch: perf/task-339-one-gate-per-handoff
     base: main
+- id: 13
+  ts: '2026-09-06T00:40:38.403442Z'
+  actor: finisher
+  type: transition
+  body: "Merged `perf/task-339-one-gate-per-handoff` into `main` as `070ea5d1` and\
+    \ verified live. Finished by the scripted path with no agent session (task-241).\
+    \ No human reviewed this merge: posture `autonomous` (from the dispatch) releases\
+    \ the merge gate (task-021), and run run_86ee86be ran the finish. What authorised\
+    \ it is the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.2s  perf/task-339-one-gate-per-handoff at 0a6217a4\
+    \ in C:\\projects\\worktrees\\agentjobs-339\n  runway     ok         0.0s  taken\
+    \ immediately\n  rebase     ok         0.3s  perf/task-339-one-gate-per-handoff\
+    \ onto main: 0a6217a4 -> d8c19ef2\n  gate       ok       419.6s  scripts/check.py\
+    \ green\n  catch_up   skipped    0.0s  main did not move during the gate\n  merge\
+    \      ok         0.7s  --no-ff into main as 070ea5d14bae2c8fd9d7edfbf230563e17e2f2b3\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         1.4s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving 06860bbf, which contains the merge\
+    \ 070ea5d1, from C:\\projects\\agentjobs (started 2026-09-06T00:40:22.632314+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
