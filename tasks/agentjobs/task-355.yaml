@@ -2,11 +2,10 @@ schema: 2
 id: task-355
 title: Approve on a task with no recorded branch silently merges nothing
 created: '2026-09-06T05:21:36.827904Z'
-updated: '2026-09-06T05:24:06.989362Z'
-lifecycle: active
+updated: '2026-09-06T05:26:48.949744Z'
+lifecycle: ready
 ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball_reason: available
 archived: false
 priority: high
 queue_position: 15300
@@ -18,7 +17,6 @@ tags:
 - merge
 effort: medium
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: Jeff approved task-354 in the web UI and nothing merged. Its branches[]
@@ -209,3 +207,18 @@ log:
       id: c4d5e6f7-8091-4a2b-9c3d-4e5f60718293
       kind: log_append
       fingerprint: b11ae15ca68b63f612f3de5071ad9aa4
+- id: 6
+  ts: '2026-09-06T05:26:48.949576Z'
+  actor: claude
+  type: transition
+  body: Released after Jeff looked at the interactive-run card. The claim was only
+    ever a probe for task-354's visibility check, not an attempt to work this task.
+    Findings are in log entry 5; the task is unstarted.
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: 7d2e9f10-3b4c-4a5d-8e6f-90a1b2c3d4e5
+      kind: release
+      fingerprint: 93e901746c33bbae7b110f2d702ee43c
