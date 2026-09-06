@@ -101,7 +101,7 @@ describe("in-app links keep the router basename", () => {
   it("task list rows link inside the app", () => {
     const { container } = render(
       <MemoryRouter basename={BASENAME} initialEntries={["/app/p/inbox/tasks"]}>
-        <TaskList tasks={[task("task-001"), task("task-002")]} brokenFiles={[]} projectId="inbox" />
+        <TaskList tasks={[task("task-001"), task("task-002")]} projectId="inbox" />
       </MemoryRouter>,
     );
 
@@ -111,7 +111,7 @@ describe("in-app links keep the router basename", () => {
   it("a task list row points at the React task detail page, prefix included", () => {
     const { container } = render(
       <MemoryRouter basename={BASENAME} initialEntries={["/app/p/inbox/tasks"]}>
-        <TaskList tasks={[task("task-001")]} brokenFiles={[]} projectId="inbox" />
+        <TaskList tasks={[task("task-001")]} projectId="inbox" />
       </MemoryRouter>,
     );
 

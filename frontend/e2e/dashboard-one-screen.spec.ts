@@ -323,13 +323,17 @@ test("the count-tile strip is gone, and everything else is still on the page", a
   );
 });
 
-test("the frame is the Dashboard's alone: every other surface still scrolls its document", async ({
+test("the frame is not the shell's: an unframed surface still scrolls its document", async ({
   page,
   request,
 }) => {
-  // The decision this task took was to frame one surface, not the shell, so that
-  // `dragAutoScroll.ts` keeps the window as its scroller on the Tasks page. That is a
-  // property of the running app, and this is what holds it.
+  // The decision this task took was to frame one surface rather than the shell. That is
+  // still what holds, and it is still a property of the running app rather than of a
+  // class name -- but "every other surface" is no longer the right phrase for it.
+  // task-237 frames the Tasks surface too, at the viewports where it renders as two
+  // regions, and moved `dragAutoScroll.ts` off `window.scrollBy` to the box around the
+  // dragged row so that framing it costs nothing. A phone gets the stacked shell there,
+  // which is the case this measures.
   const paragraph =
     "A paragraph of the working specification, repeated until the detail page is " +
     "taller than the window it is read in. ";
@@ -351,7 +355,11 @@ test("the frame is the Dashboard's alone: every other surface still scrolls its 
 
   await page.setViewportSize(VIEWPORTS.phone);
   await page.goto(`${DASHBOARD}/tasks/${taskId}`);
-  await expect(page.getByRole("banner")).toBeVisible();
+  // The record, not the banner. `goto` returns on load and the record arrives one fetch
+  // later, so waiting for the header measures a page whose content has not arrived --
+  // which used to scroll anyway, because the loading card demanded a screen's worth of
+  // height inside a region only one screen tall (task-237 took that height away).
+  await expect(page.getByRole("region", { name: "Task log" })).toBeAttached();
 
   const scroll = await documentScroll(page);
   expect(

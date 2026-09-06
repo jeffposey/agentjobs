@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
-import type { BrokenTaskFile, Priority, QueueProblemRead, TaskRead } from "../api/types";
+import type { Priority, QueueProblemRead, TaskRead } from "../api/types";
 import { TaskList, type ReorderHandlers } from "./TaskList";
 import type { QueueMove } from "./queueOrder";
 
@@ -31,10 +31,10 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}{location.search}</output>;
 }
 
-function renderList(tasks: Array<TaskRead>, entry = "/p/inbox/tasks", brokenFiles: Array<BrokenTaskFile> = []) {
+function renderList(tasks: Array<TaskRead>, entry = "/p/inbox/tasks") {
   render(
     <MemoryRouter initialEntries={[entry]}>
-      <TaskList tasks={tasks} brokenFiles={brokenFiles} projectId="inbox" />
+      <TaskList tasks={tasks} projectId="inbox" />
       <LocationProbe />
     </MemoryRouter>,
   );
@@ -116,18 +116,6 @@ describe("TaskList filtering", () => {
     expect(within(table).queryByText("Done")).not.toBeInTheDocument();
   });
 
-  it("surfaces unreadable task files above the list", () => {
-    renderList([], "/p/inbox/tasks", [{
-      task_id: "task-broken",
-      path: "C:/project/tasks/task-broken.yaml",
-      filename: "task-broken.yaml",
-      reason: "schema: Input should be 2",
-    }]);
-
-    const warning = screen.getByRole("region", { name: "Unreadable task files" });
-    expect(warning).toHaveTextContent("task-broken.yaml — schema: Input should be 2");
-  });
-
   it("explains dependency blocks in words on the task row", () => {
     renderList([task("task-blocked", {
       actionable: false,
@@ -174,11 +162,9 @@ function renderQueue(
     <MemoryRouter initialEntries={[options.entry ?? "/p/inbox/tasks"]}>
       <TaskList
         tasks={tasks}
-        brokenFiles={[]}
         projectId="inbox"
         reorder={options.reorder ?? null}
         queueProblems={options.problems ?? []}
-        repairCommand="agentjobs queue repair"
         reorderUnavailable={options.unavailable ?? null}
       />
     </MemoryRouter>,
@@ -521,7 +507,7 @@ describe("TaskList queue order", () => {
     expect(dataTransfer.setData).not.toHaveBeenCalledWith("text/plain", expect.anything());
   });
 
-  it("names the broken queue and refuses to offer an order it cannot justify", () => {
+  it("refuses to offer an order it cannot justify", () => {
     renderQueue([queued("task-a", 100), queued("task-b", 100)], {
       reorder: accepting(),
       problems: [
@@ -535,11 +521,11 @@ describe("TaskList queue order", () => {
       ],
     });
 
-    const banner = screen.getByRole("alert", { name: "Queue is broken" });
-    expect(banner).toHaveTextContent("band 'high' position 100 is claimed by task-a, task-b");
-    expect(banner).toHaveTextContent("agentjobs queue repair");
-    // Every gesture places a task relative to a neighbour, and corruption is exactly
-    // what makes a neighbour's position untrustworthy.
+    // The banner naming the problem belongs to the surface now, not to this list --
+    // it is asserted in App.shell.test.tsx, where it renders outside both scroll
+    // regions. What the list still owes is this: every gesture places a task relative
+    // to a neighbour, and corruption is exactly what makes a neighbour's position
+    // untrustworthy.
     expect(screen.queryByRole("button", { name: /^Reorder task-a,/ })).not.toBeInTheDocument();
   });
 

@@ -2,16 +2,13 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import type {
-  BrokenTaskFile,
   QueueMovePlacement,
   QueueMoveWarning,
   QueueProblemRead,
   TaskRead,
 } from "../api/types";
-import { BrokenFiles } from "./BrokenFiles";
 import { DependencyState } from "./DependencyState";
 import { startDragAutoScroll } from "./dragAutoScroll";
-import { QueueBroken } from "./QueueBroken";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 import {
   applyMove,
@@ -203,18 +200,14 @@ type BandChange = { taskId: string; from: string; to: string; before: string };
 
 export function TaskList({
   tasks,
-  brokenFiles,
   projectId,
   queueProblems = [],
-  repairCommand = "agentjobs queue repair",
   reorder = null,
   reorderUnavailable = null,
 }: {
   tasks: Array<TaskRead>;
-  brokenFiles: Array<BrokenTaskFile>;
   projectId: string;
   queueProblems?: Array<QueueProblemRead>;
-  repairCommand?: string;
   reorder?: ReorderHandlers | null;
   reorderUnavailable?: string | null;
 }) {
@@ -245,6 +238,8 @@ export function TaskList({
   const [dragging, setDragging] = useState<string | null>(null);
   // The task whose handle should hold focus after the next render.
   const restoreFocus = useRef<string | null>(null);
+  // This list's own root, so a drag can find the box it is scrolling inside.
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const search = params.get("q") ?? "";
   const status = filterValue(params, "status", STATUS_FILTERS, "open");
@@ -285,7 +280,11 @@ export function TaskList({
   // if this state were somehow left set.
   useEffect(() => {
     if (!dragging) return;
-    return startDragAutoScroll();
+    // `within` is what tells the loop which box to move. On the two-region Tasks
+    // surface that is the list's own scroll container and the page does not scroll at
+    // all; in the stacked shell there is no scrollable ancestor and it falls back to
+    // the window, which is what it always did.
+    return startDragAutoScroll({ within: rootRef.current });
   }, [dragging]);
 
   // Put focus back on the handle of the task that just moved.
@@ -421,11 +420,18 @@ export function TaskList({
   };
 
   return (
-    <div className="space-y-6">
-      <BrokenFiles files={brokenFiles} />
-      <QueueBroken problems={queueProblems} repairCommand={repairCommand} />
-      <section className="rounded-lg border border-dark-border bg-dark-surface p-4" aria-label="Task filters">
-        <div className="grid gap-3 min-[820px]:grid-cols-[minmax(16rem,1fr)_repeat(3,minmax(9rem,auto))]">
+    <div className="space-y-6" ref={rootRef}>
+      {/* `@container`, so the row below asks its own box rather than the window whether
+          there is room for one line. The four controls have a combined minimum of
+          43rem, so the viewport rule this replaces put them in a row inside a 350px
+          region and hung a horizontal scrollbar off the whole list. The question was
+          always about this box; until task-237 the box was the window. task-356
+          replaces the row with a filter button, at which point this goes away. */}
+      <section
+        className="@container rounded-lg border border-dark-border bg-dark-surface p-4"
+        aria-label="Task filters"
+      >
+        <div className="grid gap-3 @min-[43rem]:grid-cols-[minmax(16rem,1fr)_repeat(3,minmax(9rem,auto))]">
           <label className="sr-only" htmlFor="task-search">Search tasks</label>
           <input
             id="task-search"
@@ -560,7 +566,7 @@ export function TaskList({
       <output aria-live="polite" className="sr-only">{announcement}</output>
 
       <section className="overflow-hidden rounded-lg border border-dark-border bg-dark-surface" aria-label="Tasks">
-        <ResponsiveTable columns={TASK_COLUMNS}>
+        <ResponsiveTable columns={TASK_COLUMNS} stackWhenNarrow>
           <thead><tr><th scope="col">Queue</th><th scope="col">Task</th><th scope="col">Status</th><th scope="col">Priority</th><th scope="col">Assigned</th><th scope="col">Updated</th></tr></thead>
           <tbody>
             {visibleRows.map((row) => {

@@ -17,11 +17,23 @@ import { expect, test, type APIRequestContext, type Page } from "@playwright/tes
  *
  * So both assertions are measured rectangles from a real browser. ENGINEERING.md,
  * Verification.
+ *
+ * **The viewports moved in task-237 and the claims did not.** The task list is now a
+ * region on a two-region surface at any viewport 600px on its short side, and six
+ * columns totalling 39.5rem do not fit a region a third of a screen wide -- so there
+ * the rows are cards, and "every column is on screen" is a claim about the card, not
+ * about a table. The table form is still exactly what a full-width list renders, and
+ * still what these three tests are about; they ask for it at a *short* window, which
+ * the device-class rule treats as a phone and gives the stacked shell. The two-region
+ * geometry has its own test at the bottom of this file.
  */
 
-const DESKTOP = { width: 1280, height: 800 };
+/** Wide, and short enough that the device-class rule gives it the stacked shell. */
+const FULL_WIDTH = { width: 1280, height: 560 };
 /** The narrow end of the table layout: below 820px the rows become cards instead. */
-const NARROW_DESKTOP = { width: 840, height: 800 };
+const NARROW_FULL_WIDTH = { width: 840, height: 560 };
+/** A landscape window that gets the list and a record side by side. */
+const TWO_REGION = { width: 1280, height: 800 };
 /** iPhone 14/15 CSS pixels, which is where this app is read over Tailscale. */
 const PHONE = { width: 390, height: 844 };
 
@@ -138,7 +150,7 @@ test.describe("the task list fits the screen it is on", () => {
   });
 
   test("every column is on screen, and no row is sized by a ball_prompt", async ({ page }) => {
-    await page.setViewportSize(DESKTOP);
+    await page.setViewportSize(FULL_WIDTH);
     await page.goto(`/app/p/_local/tasks?q=${TOKEN}`);
     await expect(page.locator(`tbody tr[data-task="${fixtures[0].id}"]`)).toBeVisible();
 
@@ -152,7 +164,7 @@ test.describe("the task list fits the screen it is on", () => {
       expect(box, `${label} has no box`).not.toBeNull();
       expect(box!.x, `${label} starts off the left edge`).toBeGreaterThanOrEqual(0);
       expect(box!.x + box!.width, `${label} runs past the right edge`).toBeLessThanOrEqual(
-        DESKTOP.width,
+        FULL_WIDTH.width,
       );
     }
 
@@ -162,7 +174,7 @@ test.describe("the task list fits the screen it is on", () => {
   });
 
   test("a long title is cut inside its column instead of widening it", async ({ page }) => {
-    await page.setViewportSize(DESKTOP);
+    await page.setViewportSize(FULL_WIDTH);
     await page.goto(`/app/p/_local/tasks?q=${TOKEN}`);
     const title = page.locator(`tbody tr[data-task="${fixtures[0].id}"] [title]`).first();
     await expect(title).toBeVisible();
@@ -182,7 +194,7 @@ test.describe("the task list fits the screen it is on", () => {
   });
 
   test("the columns still fit at the narrow end of the table layout", async ({ page }) => {
-    await page.setViewportSize(NARROW_DESKTOP);
+    await page.setViewportSize(NARROW_FULL_WIDTH);
     await page.goto(`/app/p/_local/tasks?q=${TOKEN}`);
     await expect(page.locator(`tbody tr[data-task="${fixtures[0].id}"]`)).toBeVisible();
 
@@ -220,6 +232,57 @@ test.describe("the task list fits the screen it is on", () => {
     expect(layout.cell).toBe("grid");
     expect(layout.label).toContain("Queue");
 
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+    ).toBe(0);
+  });
+
+  /**
+   * task-237: what the same rows do once the list is a region rather than the page.
+   *
+   * The regression this guards is specific and was found the hard way. A
+   * `table-layout: fixed` table gives its one flexible column whatever the fixed ones
+   * leave over, and five fixed columns asking for 39.5rem leave a ~430px region
+   * nothing at all -- so the task title collapses to zero pixels, Chromium reports the
+   * cell as `hidden`, and every spec that clicks a task by its title fails at once
+   * while the page still looks populated. A container query restacks the rows into
+   * cards instead; this asserts the rows have real boxes and their labels with them.
+   *
+   * The cards are tall, and deliberately not asserted to be short. Fitting a task row
+   * to a narrow column is task-238's subject; leaving the columns unreachable was not
+   * an option this task could hand it.
+   */
+  test("the rows restack into cards once the list is a region, with nothing collapsed", async ({
+    page,
+  }) => {
+    await page.setViewportSize(TWO_REGION);
+    await page.goto(`/app/p/_local/tasks?q=${TOKEN}`);
+    const row = page.locator(`tbody tr[data-task="${fixtures[0].id}"]`);
+    await expect(row).toBeVisible();
+
+    const layout = await page.evaluate(() => {
+      const table = document.querySelector(".responsive-table")!;
+      const cell = document.querySelector("tbody td")!;
+      return {
+        table: getComputedStyle(table).display,
+        cell: getComputedStyle(cell).display,
+        label: getComputedStyle(cell, "::before").content,
+      };
+    });
+    expect(layout.table).toBe("block");
+    expect(layout.cell).toBe("grid");
+    expect(layout.label).toContain("Queue");
+
+    // The defect in one assertion: the title has a box a person can see and click.
+    const title = page.locator(`tbody tr[data-task="${fixtures[0].id}"] [title]`).first();
+    await expect(title).toBeVisible();
+    const box = await title.boundingBox();
+    expect(box, "the task title has no box at all").not.toBeNull();
+    expect(box!.width, "the task title collapsed to nothing").toBeGreaterThan(100);
+
+    // And the region absorbs its own width: nothing pushes the page sideways.
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

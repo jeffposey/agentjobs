@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import {
+  Link,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useMatch,
+  useNavigate,
+  useOutlet,
+  useParams,
+} from "react-router-dom";
 
 import {
   appendLogEntryApiProjectsProjectIdTasksTaskIdLogPostMutation,
@@ -38,6 +48,7 @@ import {
   requireSupportedTaskSchemas,
   UnsupportedTaskSchemaError,
 } from "./api/schema-version";
+import { BrokenFiles } from "./components/BrokenFiles";
 import { Dashboard } from "./components/Dashboard";
 import { ConnectionUnavailable } from "./components/ConnectionUnavailable";
 import {
@@ -58,7 +69,9 @@ import { LiveRunCount, LiveRunsPage, useLiveRuns } from "./components/LiveRuns";
 import { Playbooks, type PlaybookRunRequest } from "./components/Playbooks";
 import { AttentionBadge, useHumanAttention } from "./components/AttentionBadge";
 import { PrimaryNav } from "./components/PrimaryNav";
+import { QueueBroken } from "./components/QueueBroken";
 import { QueueDispatch, QueueDispatchGate } from "./components/QueueDispatch";
+import { useWideShell } from "./components/shellLayout";
 import { SlotBoard } from "./components/SlotBoard";
 
 function ProjectRedirect() {
@@ -259,12 +272,10 @@ function TaskListPage({ projectId }: { projectId: string }) {
       return tasks;
     },
   });
-  const brokenQuery = useQuery(
-    listBrokenTasksApiProjectsProjectIdTasksBrokenGetOptions({ path: { project_id: projectId } }),
-  );
-  // Read for `problems` and `repair_command` alone -- the order itself comes with the
-  // tasks. This endpoint reports rather than raising, which is exactly why the banner
-  // reads it: it is the one queue surface that still answers while the queue is broken.
+  // Read for `problems` alone -- the order itself comes with the tasks, and the banner
+  // that names the problems belongs to the surface rather than to this list (task-237).
+  // What is left here is the one thing the list itself has to know: which bands it must
+  // stop offering to reorder.
   const queueQuery = useQuery(
     getQueueApiProjectsProjectIdQueueGetOptions({ path: { project_id: projectId } }),
   );
@@ -279,8 +290,8 @@ function TaskListPage({ projectId }: { projectId: string }) {
   if (tasksQuery.error instanceof UnsupportedTaskSchemaError) {
     return <StatusCard title="Unsupported task schema"><p>{tasksQuery.error.message}</p><p className="mt-4">Upgrade the UI before viewing this project.</p></StatusCard>;
   }
-  if (tasksQuery.isPending || brokenQuery.isPending) return <StatusCard title="Opening tasks...">Loading current task data.</StatusCard>;
-  if (!tasksQuery.data || !brokenQuery.data) return <ConnectionUnavailable offline={false} />;
+  if (tasksQuery.isPending) return <StatusCard title="Opening tasks...">Loading current task data.</StatusCard>;
+  if (!tasksQuery.data) return <ConnectionUnavailable offline={false} />;
 
   const tasks = tasksQuery.data;
   const revisionOf = (taskId: string) => tasks.find((task) => task.id === taskId)?.updated;
@@ -351,10 +362,8 @@ function TaskListPage({ projectId }: { projectId: string }) {
   return (
     <TaskList
       tasks={tasks}
-      brokenFiles={brokenQuery.data}
       projectId={projectId}
       queueProblems={queueQuery.data?.problems ?? []}
-      repairCommand={queueQuery.data?.repair_command ?? "agentjobs queue repair"}
       reorder={reorder}
       reorderUnavailable={
         actor
@@ -362,6 +371,124 @@ function TaskListPage({ projectId }: { projectId: string }) {
           : "Reordering is off because this request does not resolve to a person, and every queue move is recorded against one. Open a task to see the reason and the file to change: either this project configures no human actor, or it configures several and nothing said which of them you are."
       }
     />
+  );
+}
+
+/**
+ * The Tasks surface: a persistent list region and a detail region beside it.
+ *
+ * This is the shape task-235 decided and the only surface that has it. The Dashboard,
+ * Create and Dispatch keep the full width, and the header nav remains the way you move
+ * between them -- the region on the left is a *master column over tasks*, not a
+ * navigation rail, so it belongs only where tasks are the subject.
+ *
+ * Three properties are load-bearing rather than stylistic:
+ *
+ *  - **`tasks` and `tasks/:taskId` are one route, not two.** They were siblings, which
+ *    is precisely why opening a task unmounted the list, threw its scroll position away
+ *    and made comparing two records a browser round trip. The child renders into the
+ *    outlet here, so selecting a task changes only the right-hand region.
+ *  - **Each region owns its scrolling and the page owns none.** Two regions that scroll
+ *    the page as one unit is the failure mode that makes a sidebar layout feel wrong:
+ *    reading to the bottom of a record would carry the list off the top of the screen.
+ *    `ProjectApp` gives this surface the viewport's height for the same reason.
+ *  - **The banners are outside both regions.** `BrokenFiles` and `QueueBroken` say the
+ *    corpus is unreadable or the order is untrustworthy. Inside a scrollport either
+ *    could be scrolled past, and neither would be visible at all from the other region.
+ *
+ * Below the device-class threshold this renders what it rendered before the two regions
+ * existed: one thing at a time, the list until a task is chosen and the record after.
+ * That is the phone default of task-235's rule -- the list is hidden, not absent -- and
+ * task-238 adds the control that opens it at any width.
+ */
+function TasksSurface({ projectId }: { projectId: string }) {
+  const outlet = useOutlet();
+  const wide = useWideShell();
+  // The same two queries the list used to make for these banners, so react-query serves
+  // both callers from one cache entry and the surface costs no extra request.
+  const brokenQuery = useQuery(
+    listBrokenTasksApiProjectsProjectIdTasksBrokenGetOptions({ path: { project_id: projectId } }),
+  );
+  const queueQuery = useQuery(
+    getQueueApiProjectsProjectIdQueueGetOptions({ path: { project_id: projectId } }),
+  );
+  const banners = (
+    <>
+      <BrokenFiles files={brokenQuery.data ?? []} />
+      <QueueBroken
+        problems={queueQuery.data?.problems ?? []}
+        repairCommand={queueQuery.data?.repair_command ?? "agentjobs queue repair"}
+      />
+    </>
+  );
+
+  if (!wide) {
+    return (
+      <div className="space-y-6" data-shell="stacked">
+        {banners}
+        {outlet ?? <TaskListPage projectId={projectId} />}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-4" data-shell="two-region">
+      {banners}
+      {/* A share of the width rather than a fixed column: 20rem is the floor a task row
+          needs, and a third of a 2560px monitor is a readable list where a fixed 24rem
+          would leave the same margin this epic exists to reclaim. Capped so the list
+          stops growing at the point where it has stopped helping. */}
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(20rem,min(34%,36rem))_minmax(0,1fr)] gap-6">
+        <aside
+          aria-label="Task list"
+          data-region="list"
+          className="min-h-0 overflow-y-auto pr-1"
+        >
+          <TaskListPage projectId={projectId} />
+        </aside>
+        <section aria-label="Task detail" data-region="detail" className="min-h-0 overflow-y-auto">
+          {/* The detail region takes what the list leaves, but a record is prose and
+              tables: given a 2560px monitor it would otherwise be set in 200-character
+              lines, which is not an improvement on the centred column it replaced. */}
+          <div className="mx-auto w-full max-w-5xl">
+            {outlet ?? <NoTaskSelected projectId={projectId} />}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What the detail region holds before anything is selected.
+ *
+ * Deliberately a prompt rather than a summary or the queue's next task. The one thing a
+ * reader landing on `/tasks` does not know is that this region is now *theirs* -- that
+ * picking a task fills it and leaves the list where it is -- and a panel of content
+ * would answer a question nobody asked while hiding the one thing they need to be told
+ * once. Rendering the next task here was the alternative and was rejected: the
+ * Dashboard's next-up panel already answers it, two surfaces naming different tasks is
+ * how they drift apart, and it would add a query to a region whose whole job is to be
+ * replaced by the first click.
+ */
+function NoTaskSelected({ projectId }: { projectId: string }) {
+  return (
+    <section
+      aria-label="No task selected"
+      className="rounded-2xl border border-dashed border-dark-border p-8"
+    >
+      <h2 className="text-lg font-semibold text-dark-text">No task selected</h2>
+      <p className="mt-2 max-w-prose text-sm text-dark-muted">
+        Choose a task in the list and its record opens here. The list stays where it is,
+        so you can read one task against another without losing your place in the queue.
+      </p>
+      <Link
+        to={projectPath(projectId, "/tasks/new")}
+        className="mt-6 inline-block font-semibold text-blue-300 hover:text-blue-200"
+      >
+        File a new task
+      </Link>
+    </section>
   );
 }
 
@@ -777,24 +904,60 @@ export function isDashboardPath(pathname: string, projectId: string): boolean {
   return pathname === base || pathname === `${base}/`;
 }
 
+/**
+ * Whether the current URL is the Tasks surface, which is the one surface that becomes
+ * two regions.
+ *
+ * `useMatch` against absolute patterns rather than the routes below, because a layout
+ * route's `useParams` stops at its own segment and would never see `:taskId`. `new` is
+ * excluded by hand: route ranking sends `/tasks/new` to `TaskCreatePage` -- a static
+ * segment outscores a dynamic one -- but a raw pattern match has no ranking and would
+ * call the Create page a task detail.
+ */
+function useTasksSurface(): boolean {
+  const index = useMatch("/p/:projectId/tasks");
+  const detail = useMatch("/p/:projectId/tasks/:taskId");
+  return Boolean(index) || (detail !== null && detail.params.taskId !== "new");
+}
+
 function ProjectApp() {
   const { projectId = "" } = useParams<{ projectId: string }>();
   /**
-   * The Dashboard is framed; every other surface keeps the document scroll (task-294).
+   * Two surfaces are framed to exactly one viewport; every other one keeps the document
+   * scroll.
    *
    * A frame of exactly one viewport, with `overflow-hidden` so nothing inside can push
    * the document past it, is what makes "never scrolls" a property of the layout rather
-   * than a property of today's data. It is applied to this one route rather than to the
-   * shell as a whole because `dragAutoScroll.ts` scrolls the backlog with
-   * `window.scrollBy`, which becomes a silent no-op the moment the document stops being
-   * the scroller -- and the Tasks surface is the one that renders it. The decision entry
-   * on task-294 records the alternative and why it was not taken.
+   * than a property of today's data. `dvh`, never `vh`: `100vh` on a phone is the height
+   * *without* the retracting URL bar, so a `100vh` frame is taller than the visible
+   * viewport and the page scrolls by exactly the bar's height. That is also why the
+   * unframed shell is `min-h-dvh`.
    *
-   * `dvh`, never `vh`: `100vh` on a phone is the height *without* the retracting URL
-   * bar, so a `100vh` frame is taller than the visible viewport and the page scrolls by
-   * exactly the bar's height. That is also why the unframed shell is `min-h-dvh` now.
+   * The Dashboard is framed at every viewport (task-294). The Tasks surface is framed
+   * when it renders as two regions (task-237), so that each region scrolls itself and
+   * reading a record cannot carry the list off the top of the screen; on the stacked
+   * phone shell it is one thing at a time and the document scrolls as it always did.
+   *
+   * **task-294 deliberately did not frame the Tasks surface, and the reason it gave has
+   * since been removed rather than overruled.** `dragAutoScroll.ts` scrolled the backlog
+   * with `window.scrollBy`, which is a silent no-op the moment the document stops being
+   * the scroller. It now finds the scrollable box around the row it was given and drives
+   * that, so the frame no longer takes the gesture away.
    */
-  const framed = isDashboardPath(useLocation().pathname, projectId);
+  const dashboardFrame = isDashboardPath(useLocation().pathname, projectId);
+  // Both read unconditionally: `&&` would skip a hook on the Dashboard.
+  const onTasksSurface = useTasksSurface();
+  const wide = useWideShell();
+  const twoRegion = onTasksSurface && wide;
+  const framed = dashboardFrame || twoRegion;
+  // `min-h-0` is the load-bearing half of both framed layouts. A flex child refuses to
+  // shrink below its content by default, so without it the frame would be one viewport
+  // tall and its contents would push straight through the bottom of it. The Tasks
+  // surface also drops the centred `max-w-7xl`: two regions is what it uses the width
+  // for, and the reading measure moves inside the detail region.
+  let layout = "mx-auto max-w-7xl flex-1 py-8";
+  if (dashboardFrame) layout = "mx-auto max-w-7xl flex min-h-0 flex-1 flex-col py-3";
+  if (twoRegion) layout = "flex min-h-0 flex-1 flex-col py-4";
   return (
     <div
       className={`flex flex-col bg-dark-bg text-dark-text ${
@@ -802,20 +965,18 @@ function ProjectApp() {
       }`}
     >
       <ProjectShellNav projectId={projectId} />
-      <main
-        className={`mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 ${
-          // `min-h-0` is the load-bearing half. A flex child refuses to shrink below
-          // its content by default, so without it the frame would be one viewport tall
-          // and its contents would push straight through the bottom of it.
-          framed ? "flex min-h-0 flex-1 flex-col py-3" : "flex-1 py-8"
-        }`}
-      >
+      <main className={`w-full px-4 sm:px-6 lg:px-8 ${layout}`}>
         <LiveUpdateStatus projectId={projectId} />
         <Routes>
           <Route index element={<DashboardPage projectId={projectId} />} />
-          <Route path="tasks" element={<TaskListPage projectId={projectId} />} />
           <Route path="tasks/new" element={<TaskCreatePage projectId={projectId} />} />
-          <Route path="tasks/:taskId" element={<TaskDetailPage projectId={projectId} />} />
+          {/* One route with a child, not two siblings. The list region belongs to the
+              parent and the record renders into its outlet, which is what lets a task
+              open without the list unmounting. A deep-linked
+              /p/{project}/tasks/{taskId} therefore arrives with both on screen. */}
+          <Route path="tasks" element={<TasksSurface projectId={projectId} />}>
+            <Route path=":taskId" element={<TaskDetailPage projectId={projectId} />} />
+          </Route>
           <Route path="dispatch" element={<DispatchSettingsPage projectId={projectId} />} />
           <Route path="playbooks" element={<PlaybooksPage projectId={projectId} />} />
           {/* Inside the project shell for its chrome, machine-wide in its content:
@@ -838,14 +999,25 @@ function projectPath(projectId: string | undefined, path = "") {
   return `/p/${encodeURIComponent(projectId ?? "")}${path}`;
 }
 
+/**
+ * A whole-screen state -- loading, unreachable, unsupported -- as one card.
+ *
+ * `min-h-full`, not `min-h-dvh`, and top-aligned rather than centred. These render
+ * inside the Tasks surface's regions as well as on their own, and a region is exactly as
+ * tall as the window: a card demanding a screen's worth of height inside one overflows
+ * it, so opening the surface put a scrollbar on each region for as long as the two
+ * queries took to answer, with the card floating in the middle of the empty space it had
+ * made. Against an indefinite height `min-h-full` resolves to nothing, which is what the
+ * standalone uses want.
+ */
 function StatusCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-xl items-center px-4 py-10">
+    <div className="mx-auto flex min-h-full max-w-xl items-start px-4 py-10">
       <section className="w-full rounded-2xl border border-dark-border bg-dark-surface p-6">
         <h1 className="text-2xl font-bold text-dark-text">{title}</h1>
         <div className="mt-3 text-dark-muted">{children}</div>
       </section>
-    </main>
+    </div>
   );
 }
 

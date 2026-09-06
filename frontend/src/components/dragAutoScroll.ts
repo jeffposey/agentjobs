@@ -1,5 +1,5 @@
 /**
- * Scroll the page while a drag is held near the top or bottom of the window.
+ * Scroll the list while a drag is held near the top or bottom of its scrollport.
  *
  * A browser does not do this for you. Chrome autoscrolls a scrollable *element* the
  * drag is inside, and does nothing for the document itself, so a list taller than the
@@ -7,6 +7,14 @@
  * started. task-207 shipped drag as the accelerator for reordering the backlog and
  * that made the common move -- pull a task from the bottom of the list to the top of
  * its band -- the one move drag could not perform.
+ *
+ * **The scrollport is not always the window** (task-237). On the two-region Tasks
+ * surface the list has a scroll container of its own and the page does not scroll at
+ * all, so a loop hard-wired to `window.scrollBy` would move nothing and the feature
+ * would be gone on exactly the screens it was built for. `within` names an element
+ * inside the list; the loop finds the scrollable box around it and drives that,
+ * falling back to the window when there is none -- which is the stacked phone shell,
+ * where the page is still the scroller.
  *
  * The loop is deliberately independent of how often `dragover` fires. It records the
  * pointer's Y whenever an event arrives and keeps scrolling from that reading until a
@@ -55,11 +63,42 @@ export function edgeScrollVelocity(clientY: number, viewportHeight: number): num
 export type DragAutoScrollDeps = {
   /** Where the drag events are listened for. Defaults to the document. */
   events?: Pick<Document, "addEventListener" | "removeEventListener">;
+  /**
+   * An element inside the list being dragged. The nearest scrollable box around it is
+   * what the loop moves; with none, or with nothing passed, it moves the window.
+   */
+  within?: Element | null;
   scrollBy?: (dy: number) => void;
+  /** Where the scrollport starts in viewport coordinates. Zero for the window. */
+  viewportTop?: () => number;
   viewportHeight?: () => number;
   requestFrame?: (callback: (time: number) => void) => number;
   cancelFrame?: (handle: number) => void;
 };
+
+/**
+ * The scrollable box `element` sits in, or `null` for "the window".
+ *
+ * Both halves of the test are needed. An ancestor whose `overflow-y` is `auto` but
+ * whose content fits is not scrolling anything, and driving it would silently do
+ * nothing; an ancestor taller than its box but with `overflow: visible` is not a
+ * scrollport at all, it just overflows.
+ */
+export function nearestScroller(element: Element | null | undefined): Element | null {
+  if (typeof window === "undefined" || typeof window.getComputedStyle !== "function") return null;
+  let candidate = element?.parentElement ?? null;
+  while (candidate && candidate !== document.body && candidate !== document.documentElement) {
+    const overflow = window.getComputedStyle(candidate).overflowY;
+    if (
+      (overflow === "auto" || overflow === "scroll") &&
+      candidate.scrollHeight > candidate.clientHeight
+    ) {
+      return candidate;
+    }
+    candidate = candidate.parentElement;
+  }
+  return null;
+}
 
 /**
  * Start the loop. Returns the teardown, which is idempotent.
@@ -72,8 +111,20 @@ export type DragAutoScrollDeps = {
  */
 export function startDragAutoScroll(deps: DragAutoScrollDeps = {}): () => void {
   const events = deps.events ?? document;
-  const scrollBy = deps.scrollBy ?? ((dy: number) => window.scrollBy(0, dy));
-  const viewportHeight = deps.viewportHeight ?? (() => window.innerHeight);
+  // Resolved once, at the start of the gesture: the box is not going to change under a
+  // drag, and re-walking the ancestors on every frame would cost a layout read a frame.
+  const scroller = nearestScroller(deps.within);
+  const scrollBy =
+    deps.scrollBy ??
+    (scroller
+      ? (dy: number) => {
+          scroller.scrollTop += dy;
+        }
+      : (dy: number) => window.scrollBy(0, dy));
+  const viewportTop =
+    deps.viewportTop ?? (scroller ? () => scroller.getBoundingClientRect().top : () => 0);
+  const viewportHeight =
+    deps.viewportHeight ?? (scroller ? () => scroller.clientHeight : () => window.innerHeight);
   const requestFrame =
     deps.requestFrame ?? ((callback: (time: number) => void) => window.requestAnimationFrame(callback));
   const cancelFrame = deps.cancelFrame ?? ((handle: number) => window.cancelAnimationFrame(handle));
@@ -89,7 +140,9 @@ export function startDragAutoScroll(deps: DragAutoScrollDeps = {}): () => void {
     const elapsed = previous === null ? 0 : Math.min(time - previous, MAX_FRAME_MS);
     previous = time;
     if (pointerY === null || elapsed <= 0) return;
-    const velocity = edgeScrollVelocity(pointerY, viewportHeight());
+    // `clientY` is viewport-relative and the zones are scrollport-relative, so a
+    // scroller that does not start at the top of the window has to be subtracted out.
+    const velocity = edgeScrollVelocity(pointerY - viewportTop(), viewportHeight());
     if (velocity !== 0) scrollBy((velocity * elapsed) / 1000);
   };
 

@@ -5,6 +5,7 @@ import {
   MAX_SPEED_PX_PER_SEC,
   MIN_SPEED_PX_PER_SEC,
   edgeScrollVelocity,
+  nearestScroller,
   startDragAutoScroll,
 } from "./dragAutoScroll";
 
@@ -223,5 +224,69 @@ describe("startDragAutoScroll", () => {
     } finally {
       vi.restoreAllMocks();
     }
+  });
+});
+
+/**
+ * task-237 put the list in a region of its own, and the page under it stopped
+ * scrolling. A loop wired to `window.scrollBy` would then move nothing at all on the
+ * one shell the feature exists for, and would do it silently.
+ *
+ * jsdom lays nothing out, so `scrollHeight`/`clientHeight` and the box are stubbed:
+ * what is under test is which element the loop picks and where it puts the edge zones,
+ * not whether a browser overflows. The browser half is `e2e/tasks-shell.spec.ts`.
+ */
+describe("the box the loop scrolls", () => {
+  function scrollport(options: { overflowY: string; scrollHeight: number; top?: number }) {
+    const element = document.createElement("div");
+    const inner = document.createElement("div");
+    element.appendChild(inner);
+    document.body.appendChild(element);
+    element.style.overflowY = options.overflowY;
+    Object.defineProperty(element, "scrollHeight", { value: options.scrollHeight });
+    Object.defineProperty(element, "clientHeight", { value: 400 });
+    element.getBoundingClientRect = () =>
+      ({ top: options.top ?? 100, bottom: (options.top ?? 100) + 400, height: 400 }) as DOMRect;
+    return { element, inner };
+  }
+
+  it("finds the scrollable ancestor the dragged row is inside", () => {
+    const { element, inner } = scrollport({ overflowY: "auto", scrollHeight: 2000 });
+    expect(nearestScroller(inner)).toBe(element);
+  });
+
+  it("ignores an ancestor whose content already fits, and one that is not a scrollport", () => {
+    expect(nearestScroller(scrollport({ overflowY: "auto", scrollHeight: 400 }).inner)).toBeNull();
+    expect(
+      nearestScroller(scrollport({ overflowY: "visible", scrollHeight: 2000 }).inner),
+    ).toBeNull();
+  });
+
+  it("scrolls that box, with the edge zones measured from the box rather than the window", () => {
+    const { element, inner } = scrollport({ overflowY: "auto", scrollHeight: 2000, top: 100 });
+    const frames: Array<(time: number) => void> = [];
+    const requestFrame = (callback: (time: number) => void) => frames.push(callback);
+    const stop = startDragAutoScroll({
+      within: inner,
+      requestFrame,
+      cancelFrame: () => {},
+    });
+
+    // 260px down the window is 160px into a 400px box: the middle of it, and nowhere
+    // near an edge. A loop still measuring against an 768px-tall jsdom window would
+    // read it as 500px from the bottom and also do nothing, so the next case is the
+    // one that separates them.
+    document.dispatchEvent(new MouseEvent("dragover", { clientY: 260 }));
+    frames.shift()?.(0);
+    frames.shift()?.(16);
+    expect(element.scrollTop).toBe(0);
+
+    // 495px down the window is 5px from the bottom of the box, and 273px from the
+    // bottom of the window -- so this moves only if the box is what is being measured.
+    document.dispatchEvent(new MouseEvent("dragover", { clientY: 495 }));
+    frames.shift()?.(32);
+    frames.shift()?.(48);
+    expect(element.scrollTop).toBeGreaterThan(0);
+    stop();
   });
 });
