@@ -2,20 +2,25 @@ schema: 2
 id: task-341
 title: Stop wasting all the GUI space
 created: '2026-09-05T21:35:24.982038Z'
-updated: '2026-09-06T03:42:20.611149Z'
+updated: '2026-09-06T03:58:26.870739Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Look at it, then approve or say what to change.\n\nSandbox, seeded and\
-  \ throwaway \u2014 click anything:\nhttp://127.0.0.1:8341/app/p/sandbox-density/tasks\
-  \ \u2014 the rows that broke it\nhttp://127.0.0.1:8341/app/p/sandbox-ordinary/tasks\
-  \ \u2014 the control\nhttp://127.0.0.1:8341/app/p/sandbox-drafts \u2014 the Dashboard's\
-  \ table\nStop it with: taskkill /F /PID (the python running scripts/task_list_density_sandbox.py\
-  \ 8341)\n\nOn the real backlog: 0 rows on the first screen before, 12 after; tallest\
-  \ row 2091px \u2192 91px; no sideways scroll.\n\nBranch fix/task-341-task-list-density\
-  \ @ f6f4233. Log entry 8: the gate ran all 10 stages and is red on one test that\
-  \ is main's, not this branch's \u2014 filed as task-351, which has to land before\
-  \ this can merge."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.
+
+
+  Note from Jeff Posey:
+
+
+  are you kidding me, I have 3 sandboxes to review to confirm you know that a gigantic
+  empty space is bad? I hope you you are better than that, APPROVED. of course they
+  look ok now, make sure they always do, finish this
+
+
+  That note is context to carry into the merge, not another review round: you are
+  still cleared to merge.'
 archived: false
 priority: medium
 queue_position: 8900
@@ -300,3 +305,44 @@ log:
     outcome: completed
     duration_seconds: 3355.552819
     log_path: C:\Users\jpose\.agentjobs\runs\run_286a044a
+- id: 11
+  ts: '2026-09-06T03:53:42.855740Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    are you kidding me, I have 3 sandboxes to review to confirm you know that a gigantic
+    empty space is bad? I hope you you are better than that, APPROVED. of course they
+    look ok now, make sure they always do, finish this'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 12
+  ts: '2026-09-06T03:53:49.504496Z'
+  actor: finisher
+  type: progress
+  body: 'Queued for this repository''s merge runway, held by fin_fb600ff5, pid 3436020
+    started at 22:51:18, 2m ago.
+
+
+    **This is the queue working, not a stall.** Children of an epic fly in parallel
+    and land one at a time, because a gate is only evidence about the base it ran
+    against. Nothing here is rebased, gated or merged until the runway is free.'
+  data:
+    finish_step: runway_queued
+    finish_id: fin_e47790de
+- id: 13
+  ts: '2026-09-06T03:58:26.870548Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-341-task-list-density` (f6f4233c).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-341.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_e47790de\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-341-task-list-density
+    finish_id: fin_e47790de
