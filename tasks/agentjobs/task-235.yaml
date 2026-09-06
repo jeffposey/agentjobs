@@ -2,13 +2,12 @@ schema: 2
 id: task-235
 title: Adopt the list-and-detail shell every other app on the screen already uses
 created: '2026-08-22T00:38:02.564268Z'
-updated: '2026-09-06T19:58:58.749538Z'
+updated: '2026-09-06T20:01:47.925665Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: Run run_4f483ef2 ended `cancelled` and nobody was told what this task
-  needs. Read the dispatch_result entry, then either dispatch again or take it on
-  yourself.
+ball: agent
+ball_reason: answer
+ball_prompt: It was broken, that's why I cancelled it. Even after logging in, those
+  sessions didn't want to work anymore.
 archived: false
 priority: critical
 queue_position: 293
@@ -2147,3 +2146,127 @@ log:
   data:
     ball: human
     ball_reason: decision
+- id: 57
+  ts: '2026-09-06T19:59:07.860224Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    It was broken, that''s why I cancelled it. Even after logging in, those sessions
+    didn''t want to work anymore.'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 58
+  ts: '2026-09-06T19:59:27.964234Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 59
+  ts: '2026-09-06T19:59:29.631287Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_4f483ef2` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_31322a89
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 58
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_31322a89\session-settings.json
+    - --name
+    - agentjobs/task-235@31322a89
+    - --resume
+    - 1ba5f38e-b39a-470c-adbc-8eef2d399130
+    cwd: C:\projects\agentjobs
+    git_head: 4d9cb91
+    session_id: 72bb0b45
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 60
+  ts: '2026-09-06T20:01:47.925317Z'
+  actor: claude
+  type: progress
+  body: "**Supervision resumed as `run_31322a89`, 2026-09-06 20:00 UTC, after an expired\
+    \ login took down both this run and task-356's. State accounted for against disk;\
+    \ nothing is lost.**\n\n## What I left, and what is actually there\n\nChecked\
+    \ rather than assumed, because a resumed supervisor claiming continuity is exactly\
+    \ the claim that should be verified:\n\n| | my account | on disk |\n|---|---|---|\n\
+    | task-237 | merged, closed | `closed`/`completed` \u2713 |\n| task-238 | merged,\
+    \ closed | `closed`/`completed` \u2713 |\n| task-239 | merged, closed | `closed`/`completed`\
+    \ \u2713 |\n| task-356 | in flight, unmerged | `active`, branch `feat/task-356-filter-popover`\
+    \ at `5d77e40`, worktree `C:/projects/worktrees/agentjobs-356` intact \u2713 |\n\
+    | task-240 | blocked on 356 | `ready`/`agent`/`available` \u2713 |\n\n`main` is\
+    \ at `4d9cb91`. I hold no worktree and never did \u2014 correct for a supervisor\
+    \ \u2014 so there was nothing of mine to lose. **The record matches; no recovery\
+    \ was improvised.**\n\n## What actually broke\n\nNot the work. Session `7cc385d9`\
+    \ (task-356) stopped at 11:10 on *\"Login expired \xB7 Please run /login\"*, and\
+    \ this supervisor run was parked on the same cause four times over the following\
+    \ hours before being swept `cancelled`. Jeff logged in again at 19:57, found the\
+    \ sessions would not resume \u2014 `stop 7cc385d9` even exited 1, unable to confirm\
+    \ the stop \u2014 and cancelled them. His words: *\"It was broken, that's why\
+    \ I cancelled it. Even after logging in, those sessions didn't want to work anymore.\"\
+    *\n\nThat is the dispatcher's own second branch, and it held: entry 13 on task-356\
+    \ warned that a live-but-stuck session and a dead credential store look identical,\
+    \ and that once the credential is gone, re-logging-in does not revive the session.\
+    \ **Jeff hit exactly that. Cancelling was the right call, not a workaround.**\n\
+    \n## task-356 is already moving again, and one thing about it has changed\n\n\
+    Jeff re-dispatched it himself at 19:58 as **`run_99a38627`** (session `7cd17d04`),\
+    \ alive and writing as of 20:00:25. Its record carries **7 of 8 acceptance criteria\
+    \ `met`**, its deliverable `done`, and the branch already rebased onto `main`\
+    \ \u2014 so a fresh session has a real base to finish from, which is why the resume\
+    \ is cheap.\n\n**Its posture is `auto`, from the project default, not the `autonomous`\
+    \ Jeff chose for this epic.** So task-356 will *stop at the merge gate and hand\
+    \ Jeff a review request* rather than merging itself, unlike children 1, 2 and\
+    \ 4. **This supervisor run came back `auto` for the same reason.** Nothing in\
+    \ this epic self-merges from here. Not a problem \u2014 but Jeff should expect\
+    \ a review request on task-356 rather than a merge notification, and it is a real\
+    \ consequence of resuming rather than re-dispatching: **a resumed run does not\
+    \ inherit the posture the human originally authorised, it takes the project default.**\n\
+    \n## Why the finish had gone red before any of this\n\nWorth separating from the\
+    \ login failure, because they are unrelated and only one of them is about the\
+    \ code. task-356's finish stopped in the **`e2e`** stage at 11:00 with `ConnectionResetError:\
+    \ [WinError 10054]` from the Playwright webServer \u2014 581s, nothing merged,\
+    \ branch left rebased and untouched.\n\n**That is the third e2e webServer failure\
+    \ in this epic under load**, and none of the three was the branch's fault: task-239's\
+    \ own gate died on `Timed out waiting 30000ms from config.webServer` while competing\
+    \ with a sandbox and two Chromium runs, then merged cleanly on retry. The pattern\
+    \ is the stage's uvicorn losing its port fight under contention, and it costs\
+    \ a full gate every time it happens.\n\n## What I am doing\n\nNot touching task-356\
+    \ \u2014 it has a live session and a supervisor that reaches into a child is the\
+    \ failure this protocol exists to prevent. Watching its record for a terminal\
+    \ state or a handoff to Jeff, with a 20-minute heartbeat so the stall detector\
+    \ does not fire on a correctly-quiet supervisor (entry 20). When it lands I relaunch\
+    \ the walk for task-240, the last child, which stands the shell up on a sandbox\
+    \ for Jeff to drive."
+  data:
+    operation:
+      id: e3b17f45-8d02-4c96-b7a1-51fa6e208c37
+      kind: log_append
+      fingerprint: a1b71f0157abf9b8466ecefe8dbcf6ba
