@@ -2,16 +2,11 @@ schema: 2
 id: task-092-dashboard-design-pass
 title: 'The Dashboard is a slot board: one card per concurrent run'
 created: '2026-08-11T08:01:24.843122Z'
-updated: '2026-09-06T03:57:48.027947Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-09-06T03:58:23.607452Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 4
 category: ux
 tags:
 - gui
@@ -22,7 +17,6 @@ tags:
 - react
 effort: a design pass that is now mostly decided, then medium
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'Jeff, 2026-09-05: the Dashboard becomes a board of exactly `max_concurrent_runs`
@@ -251,7 +245,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-092-dashboard-slot-board
-  status: active
+  status: merged
+  merged_at: '2026-09-06T03:58:23.517140Z'
 log:
 - id: 1
   ts: '2026-08-13T02:22:18.761186Z'
@@ -1205,3 +1200,25 @@ log:
     merge_commit: e06b356219a974f05c6b23e9f6b257c72de30e29
     branch: feat/task-092-dashboard-slot-board
     base: main
+- id: 33
+  ts: '2026-09-06T03:58:23.607222Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-092-dashboard-slot-board` into `main` as `e06b3562` and\
+    \ verified live. Finished by the scripted path with no agent session (task-241).\
+    \ Approved by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         1.2s  feat/task-092-dashboard-slot-board\
+    \ at 9359d3b0 in C:\\projects\\worktrees\\agentjobs-092\n  runway     ok     \
+    \    0.0s  taken immediately\n  rebase     ok         0.6s  feat/task-092-dashboard-slot-board\
+    \ onto main: 9359d3b0 -> 0db0a93d\n  gate       ok       388.0s  scripts/check.py\
+    \ green\n  catch_up   skipped    0.0s  main did not move during the gate\n  merge\
+    \      ok         0.4s  --no-ff into main as e06b356219a974f05c6b23e9f6b257c72de30e29\n\
+    \  rebuild    ok         7.3s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         1.0s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     ok         0.0s  http://127.0.0.1:8876 is serving f37fa274, which contains\
+    \ the merge e06b3562, from C:\\projects\\agentjobs (started 2026-09-06T03:58:08.078467+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
