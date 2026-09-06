@@ -154,10 +154,17 @@ class TestStaleness:
 class TestWhatTheGateDoesWithIt:
     """The join between the budget and the pytest command."""
 
+    @staticmethod
+    def only_command(stage: object, **options: int) -> "tuple[list[str], str | None]":
+        """A stage's single command. Every stage the budget touches has exactly one."""
+        commands, note = check.commands_for(stage, "npm.cmd", **options)
+        assert len(commands) == 1
+        return commands[0], note
+
     def test_a_lone_gate_runs_pytest_at_n_auto(self, home: Path) -> None:
         stage = next(stage for stage in check.stages() if stage.name == "pytest")
 
-        command, note = check.command_for(stage, "npm.cmd")
+        command, note = self.only_command(stage)
 
         assert command[command.index("-n") + 1] == "auto"
         assert note is None
@@ -167,7 +174,7 @@ class TestWhatTheGateDoesWithIt:
 
         with gate_slots.hold(ROOT):
             with gate_slots.hold(ROOT):
-                command, note = check.command_for(stage, "npm.cmd")
+                command, note = self.only_command(stage)
 
         value = command[command.index("-n") + 1]
         assert value != "auto" and int(value) >= gate_slots.MIN_WORKERS
@@ -178,13 +185,13 @@ class TestWhatTheGateDoesWithIt:
         ``@workers`` on the command line, which is the one way this could break a gate
         that is not pytest."""
         for stage in check.stages():
-            command, _ = check.command_for(stage, "npm.cmd")
-            assert check.WORKERS_TOKEN not in command
+            for command in check.commands_for(stage, "npm.cmd")[0]:
+                assert check.WORKERS_TOKEN not in command
 
     def test_serial_carries_no_token_and_needs_no_budget(self, home: Path) -> None:
         stage = next(stage for stage in check.stages(parallel=False) if stage.name == "pytest")
 
-        command, note = check.command_for(stage, "npm.cmd")
+        command, note = self.only_command(stage)
 
         assert "-n" not in command
         assert note is None
@@ -201,7 +208,7 @@ class TestWhatTheGateDoesWithIt:
         monkeypatch.setattr(check.gate_slots, "active", explode)
         stage = next(stage for stage in check.stages() if stage.name == "pytest")
 
-        command, note = check.command_for(stage, "npm.cmd")
+        command, note = self.only_command(stage)
 
         assert command[command.index("-n") + 1] == "auto"
         assert note is None
