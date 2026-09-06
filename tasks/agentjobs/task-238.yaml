@@ -2,7 +2,7 @@ schema: 2
 id: task-238
 title: "Shell 3: the task sidebar \u2014 a collapsible tree you select from"
 created: '2026-08-22T00:39:57.272889Z'
-updated: '2026-09-06T10:18:28.127580Z'
+updated: '2026-09-06T10:18:51.161468Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -506,3 +506,17 @@ log:
     If either gesture turns out to be broken, the fix is cheap: nothing was pushed,
     so `git revert` of this merge is available.'
   data: {}
+- id: 11
+  ts: '2026-09-06T10:18:51.161257Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-238-sidebar-task-tree` (9a7a8d1b).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-238.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_593c5f26\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-238-sidebar-task-tree
+    finish_id: fin_593c5f26
