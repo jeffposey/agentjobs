@@ -425,7 +425,7 @@ export type DashboardResponse = {
     /**
      * Queue Preview
      *
-     * The head of the claimable queue, in the queue's own order, capped at `QUEUE_PREVIEW_LIMIT`. `next_task` is its first element. Sent as a list because the next-up panel offers a way to *start* each of them, and a machine that runs several agents at once can usefully start more than one.
+     * The head of the claimable queue, in the queue's own order. `next_task` is its first element. Sent as a list because the slot board offers a way to *start* each of them, one per free run slot -- so it is at least `QUEUE_PREVIEW_LIMIT` long and grows with this machine's `max_concurrent_runs`, which is what decides how many cells the board has.
      */
     queue_preview?: Array<TaskReadOutput>;
     /**
@@ -4197,7 +4197,7 @@ export type DashboardResponseWritable = {
     /**
      * Queue Preview
      *
-     * The head of the claimable queue, in the queue's own order, capped at `QUEUE_PREVIEW_LIMIT`. `next_task` is its first element. Sent as a list because the next-up panel offers a way to *start* each of them, and a machine that runs several agents at once can usefully start more than one.
+     * The head of the claimable queue, in the queue's own order. `next_task` is its first element. Sent as a list because the slot board offers a way to *start* each of them, one per free run slot -- so it is at least `QUEUE_PREVIEW_LIMIT` long and grows with this machine's `max_concurrent_runs`, which is what decides how many cells the board has.
      */
     queue_preview?: Array<TaskReadOutputWritable>;
     /**

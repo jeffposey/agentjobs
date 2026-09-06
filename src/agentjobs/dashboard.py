@@ -43,12 +43,19 @@ class DashboardSnapshot(TypedDict):
 
 
 QUEUE_PREVIEW_LIMIT = 3
-"""How many claimable tasks the "next up" panel offers.
+"""The floor on how many claimable tasks the dashboard offers.
 
 Three, because the panel's job is to make *starting work* a single gesture, and a machine
 whose ``max_concurrent_runs`` is greater than one can usefully start more than one. It is
 deliberately not a task list -- ``/tasks`` is that -- and a preview long enough to need
 scanning has become the thing this panel was introduced to replace (task-337).
+
+A **floor** rather than the whole answer since task-092: the slot board draws one cell
+per run slot and each free cell offers a *different* task, so a machine with a ceiling
+above three needs more than three. ``build_dashboard_snapshot`` takes a ``preview_limit``
+and the API route passes the machine's ceiling; nothing shrinks below this number, so a
+caller that knows nothing about the machine -- the legacy Jinja view, a test -- gets
+exactly what it got before.
 
 ``next_task`` is its head, and stays in the contract: it is what ``agentjobs next``
 answers, what the why-this-one disclosure explains, and what several callers already read.
@@ -160,8 +167,20 @@ def _next_action(
     return "empty_project" if total == 0 else "nothing_claimable"
 
 
-def build_dashboard_snapshot(manager: TaskManager) -> DashboardSnapshot:
-    """Compute every dashboard value once for all presentation clients."""
+def build_dashboard_snapshot(
+    manager: TaskManager, *, preview_limit: Optional[int] = None
+) -> DashboardSnapshot:
+    """Compute every dashboard value once for all presentation clients.
+
+    ``preview_limit`` is how many claimable tasks the caller can put in front of a
+    person. It is a machine fact rather than a project one -- the slot board offers one
+    task per free run slot -- so the API route reads it from ``machine_ceiling`` and
+    passes it here rather than this module reaching for the dispatch config, which would
+    make a projection over task files depend on a file in the user's home. Clamped up to
+    :data:`QUEUE_PREVIEW_LIMIT`, so no caller can ask for less than the panel has always
+    shown, and ``None`` means exactly that number.
+    """
+    limit = max(QUEUE_PREVIEW_LIMIT, preview_limit or 0)
     tasks = manager.list_tasks()
     waiting_tasks = _inbox_order([task for task in tasks if blocks_human(task)])
     backlog_tasks = _inbox_order([task for task in tasks if awaits_human_input(task)])
@@ -177,7 +196,7 @@ def build_dashboard_snapshot(manager: TaskManager) -> DashboardSnapshot:
         # two: `get_next_task` *is* `claimable_tasks()[0]`, so asking for both would run
         # the same scan twice and -- worse -- give the panel and the disclosure beside it
         # two chances to disagree about what is first.
-        queue_preview = manager.claimable_tasks()[:QUEUE_PREVIEW_LIMIT]
+        queue_preview = manager.claimable_tasks()[:limit]
     except QueueCorruptionError as error:
         queue_preview = []
         queue_broken = {

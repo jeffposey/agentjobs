@@ -28,7 +28,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from agentjobs.dispatch.config import DispatchError, load_dispatch_config
+from agentjobs.dispatch.config import machine_ceiling
 from agentjobs.dispatch.finish_status import read_finish_status
 from agentjobs.dispatch.ledger import (
     KIND_FINISH,
@@ -159,18 +159,15 @@ def _home() -> Path:
 
 
 def _ceiling() -> tuple[int, bool]:
-    """``(max_concurrent_runs, configured)``, never raising at a reader.
+    """``(max_concurrent_runs, configured)`` for this server's machine.
 
-    A machine with no dispatch config has no runs either, so the honest answer is the
-    default ceiling and a flag saying nobody chose it -- not a 500 on a status page.
+    The reading itself lives in :func:`machine_ceiling` rather than here, because the
+    dashboard endpoint now needs the same number -- it sizes its queue preview from it
+    so that a board of N cells has N *different* tasks to offer (task-092) -- and two
+    copies of the fallback are two chances for the two surfaces to disagree about how
+    big the board is.
     """
-    try:
-        config = load_dispatch_config(_home())
-    except DispatchError:
-        return 1, False
-    if config is None:
-        return 1, False
-    return config.limits.max_concurrent_runs, True
+    return machine_ceiling(_home())
 
 
 def _projects_by_id(principal: Optional[Principal]) -> Dict[str, Project]:
