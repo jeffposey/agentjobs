@@ -2533,9 +2533,10 @@ def park_for_human(
         ball_prompt=(
             "The approval ran the scripted finish, it stopped, and **no agent was "
             f"started to take it from there**: {outcome.detail}\n\n"
-            "The entry above this one says what stopped it and how far it got. Nothing "
-            "further will happen to this task until somebody acts, so this is here to "
-            "make sure somebody knows. Either fix the cause and re-run the finish:\n\n"
+            "The finisher's newest progress entry says what stopped it and how far it "
+            "got. Nothing further will happen to this task until somebody acts, so this "
+            "is here to make sure somebody knows. Either fix the cause and re-run the "
+            "finish:\n\n"
             f"```\nagentjobs finish {task_id} --project {project_id}\n```\n\n"
             "or click Dispatch on the task page to put a session on the repair."
         ),
