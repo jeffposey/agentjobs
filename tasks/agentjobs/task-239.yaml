@@ -3,7 +3,7 @@ id: task-239
 title: 'Shell 4: fit the detail panel to the main region, and check the full-width
   surfaces still hold up'
 created: '2026-08-22T00:40:27.040648Z'
-updated: '2026-09-06T10:38:51.543972Z'
+updated: '2026-09-06T10:48:18.183344Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -443,3 +443,21 @@ log:
     finish_step: started
     branch: feat/task-239-fit-detail-panel
     finish_id: fin_76d2c516
+- id: 15
+  ts: '2026-09-06T10:48:18.183165Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-239-fit-detail-panel` into `main` as `81f83542`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-239
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    epic) releases the merge gate (task-021), and run run_393e1094 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 81f835420c2c1bfe1abf02caa5d5e65bdee786a4
+    branch: feat/task-239-fit-detail-panel
+    base: main
