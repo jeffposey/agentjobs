@@ -3,16 +3,11 @@ id: task-354
 title: 'A task worked by an interactive session is invisible: no run, no session log,
   and a Dispatch button'
 created: '2026-09-06T04:19:07.624287Z'
-updated: '2026-09-06T05:18:41.473378Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-09-06T05:19:16.589043Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 293
 category: ux
 tags:
 - gui
@@ -22,7 +17,6 @@ tags:
 - react
 effort: medium
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'task-352 was being worked by a Claude Code desktop session on 2026-09-06
@@ -130,7 +124,8 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-354-interactive-session-runs
-  status: active
+  status: merged
+  merged_at: '2026-09-06T05:19:16.552964Z'
 log:
 - id: 1
   ts: '2026-09-06T04:19:08.307077Z'
@@ -373,3 +368,25 @@ log:
     merge_commit: 848be8792cf20afea3fce9f6a1f74d2866aec9d7
     branch: feat/task-354-interactive-session-runs
     base: main
+- id: 10
+  ts: '2026-09-06T05:19:16.588908Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-354-interactive-session-runs` into `main` as `848be879`\
+    \ and verified live. Finished by the scripted path with no agent session (task-241).\
+    \ Approved by a human; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         2.4s  feat/task-354-interactive-session-runs\
+    \ at cfd4ad90 in C:\\projects\\worktrees\\agentjobs-354\n  runway     ok     \
+    \    0.0s  taken immediately\n  rebase     ok         0.9s  feat/task-354-interactive-session-runs\
+    \ onto main: cfd4ad90 -> f9a3ba48\n  gate       ok       339.8s  scripts/check.py\
+    \ green\n  catch_up   skipped    0.0s  main did not move during the gate\n  merge\
+    \      ok         0.4s  --no-ff into main as 848be8792cf20afea3fce9f6a1f74d2866aec9d7\n\
+    \  rebuild    ok         6.5s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         1.4s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     ok         0.0s  http://127.0.0.1:8876 is serving 8f88cb4c, which contains\
+    \ the merge 848be879, from C:\\projects\\agentjobs (started 2026-09-06T05:19:03.000832+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
