@@ -2,30 +2,13 @@ schema: 2
 id: task-092-dashboard-design-pass
 title: 'The Dashboard is a slot board: one card per concurrent run'
 created: '2026-08-11T08:01:24.843122Z'
-updated: '2026-09-06T03:46:54.184241Z'
+updated: '2026-09-06T03:51:18.756173Z'
 lifecycle: active
-ball: human
-ball_reason: approval
-ball_prompt: 'Gate is green again: exit 0, all 10 of 10 stages, 496s, **receipt for
-  `9359d3b`**, e2e 47/47. Clean tree, rebased, nothing merged.
-
-
-  What stopped your finish was **not the board** -- it was `attach-screenshot.spec.ts`,
-  a spec this branch does not touch, reading an image''s `naturalWidth` once before
-  the browser had decoded it. It lost one run in four; the board''s own e2e cases
-  passed throughout. Entry 27 has the full diagnosis.
-
-
-  **Why you are being asked again rather than me just re-running the finish:** the
-  branch has one commit on it that you have not approved -- `9359d3b`, which makes
-  that assertion poll instead of reading once. It is three lines, in somebody else''s
-  test, and I verified it still fails on an image that genuinely cannot decode. But
-  it is outside this task''s scope and it landed after your approval, so it is yours
-  to wave through.
-
-
-  Approve and the finish re-runs. Nothing else is outstanding: ac-1 to ac-8 are all
-  met.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: critical
 queue_position: 4
@@ -1184,3 +1167,25 @@ log:
     outcome: completed
     duration_seconds: 1254.620045
     log_path: C:\Users\jpose\.agentjobs\runs\run_bb5a348d
+- id: 30
+  ts: '2026-09-06T03:51:16.493294Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 31
+  ts: '2026-09-06T03:51:18.755864Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-092-dashboard-slot-board` (9359d3b0).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-092.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_fb600ff5\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-092-dashboard-slot-board
+    finish_id: fin_fb600ff5
