@@ -428,6 +428,20 @@ Everything else is genuinely independent: `black`, `ruff`, `mypy`, `icons` and `
 only read, and nothing in the gate depends on `pytest`.
 """
 
+EXPERIMENTAL = (
+    "EXPERIMENTAL RUN: --concurrent. This is not the gate, whatever it says below, and\n"
+    "it writes no receipt: three clean contended runs are what promote it (task-268).\n"
+    "Gate the branch with `scripts/check.py`, no arguments, before handing off."
+)
+"""Printed at both ends of a `--concurrent` run, for the same reason `PARTIAL RUN` is.
+
+The failure mode a flag like this introduces is not a slow gate; it is a green that
+reads exactly like the gate's. `--only` already had that problem and solved it by
+saying so twice and refusing a receipt, and the same two devices apply here -- the
+receipt especially, because `--since-gate` would otherwise later trust a green whose
+scheduling nobody has finished evidencing.
+"""
+
 CONCURRENT_RESERVE = 4
 """Cores a concurrent gate holds back from its own suite for the lane beside it.
 
@@ -916,6 +930,11 @@ def main(argv: list[str] | None = None) -> int:
     else:
         scope = gate_scope.render(scope_result, names)
         kind = "necessity" if scope_result.reduced else "full"
+    if args.concurrent:
+        # Recorded under its own scope so nothing downstream mistakes it for the gate:
+        # `already_green` only recognises a `full` record, and so does the receipt.
+        kind = "concurrent"
+        scope = f"{EXPERIMENTAL}\n\n{scope}"
     print(f"\n{scope}", flush=True)
 
     if not selected:
@@ -987,9 +1006,12 @@ def main(argv: list[str] | None = None) -> int:
 
     # A receipt is earned by a run that skipped nothing it was not entitled to skip: a
     # full run, or a --since-gate run whose skips were derived from an earlier receipt.
-    # An --only/--from run never earns one, which is the same rule PARTIAL RUN states.
+    # An --only/--from run never earns one, which is the same rule PARTIAL RUN states,
+    # and neither does a --concurrent one -- see EXPERIMENTAL.
     receipt = ""
-    if kind == "full":
+    if args.concurrent:
+        receipt = "\nNo gate receipt written: --concurrent is not the gate (task-268)."
+    elif kind == "full":
         receipt = f"\n{issue_receipt(None)}"
     elif kind == "necessity":
         receipt = f"\n{issue_receipt(scope_result.commit if scope_result else None)}"

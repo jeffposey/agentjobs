@@ -42,6 +42,7 @@ source rather than a neighbouring one's.
     ```bash
     poetry run python scripts/check.py --coverage   # the gate, plus coverage and htmlcov/
     poetry run python scripts/check.py --serial     # one process, for readable output
+    poetry run python scripts/check.py --concurrent # experimental, not the gate: no receipt
     ```
 
     **Quote a command and a date, never a bare count.** A suite grows every week and a
@@ -59,10 +60,9 @@ source rather than a neighbouring one's.
     enforces is a statement of intent. Both arguments, with the incidents behind them, are
     in [docs/performance.md](docs/performance.md#why-the-cheap-stages-run-first) and in
     `scripts/check.py`.
--   Two orderings are real dependencies rather than preferences, and stay: `build` writes
-    the bundle `e2e` drives, and `api` exports the OpenAPI document before anything
-    compares a generated client against it. Every other stage's position is purely a
-    question of what it costs.
+-   Two orderings are real dependencies and stay: `build` writes the bundle `e2e` drives,
+    and `api` exports the document a generated client is compared against. Every other
+    stage's position is a question of what it costs.
 -   **Resume; do not re-run.** A failure names the stage it happened in, and every stage
     is addressable:
     ```bash
@@ -154,10 +154,9 @@ tree — commit, patch and untracked files alike — says so at the top of its o
 -   Two tools, both documented in [docs/performance.md](docs/performance.md):
     `scripts/bench.py` times the API, the CLI and the browser's open-a-task interaction;
     `scripts/run_report.py` says where dispatched agent time goes.
--   **A change that claims to be faster states a before/after pair from one of them**,
-    and **a cycle-time claim is a before/after or it is an anecdote**. Prefer asserting
-    on task files parsed rather than on wall-clock time: the parse count means the same
-    thing on every machine, and a timing threshold does not.
+-   **A speed claim, cycle time included, is a before/after pair from one of them or it
+    is an anecdote.** Prefer asserting on task files parsed rather than on wall-clock
+    time: the parse count means the same thing on every machine, and a threshold does not.
 -   **Do not measure a run by grepping `transcript.log`.** It is a raw TTY capture, so a
     line appears in it as many times as the terminal repainted it and every count derived
     from it is an artefact of that (task-233).

@@ -890,3 +890,42 @@ class TestConcurrentStages:
         monkeypatch.setattr(check.sys, "stdout", Utf8Stdout())
 
         assert check.printable("all done \u2728") == "all done \u2728"
+
+    def test_a_concurrent_run_says_it_is_not_the_gate_at_both_ends(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The same device ``PARTIAL RUN`` uses, for the same failure: a green that reads
+        exactly like the gate's."""
+        self.record_runs(monkeypatch)
+
+        check.main(["--concurrent"])
+
+        printed = capsys.readouterr().out
+        assert printed.count("EXPERIMENTAL RUN") == 2
+
+    def test_a_concurrent_run_earns_no_receipt(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        no_receipt_from_a_simulated_gate: list[object],
+    ) -> None:
+        """``--since-gate`` would otherwise later trust a green whose scheduling nobody
+        has finished evidencing."""
+        self.record_runs(monkeypatch)
+
+        check.main(["--concurrent"])
+
+        assert no_receipt_from_a_simulated_gate == []
+        assert "No gate receipt written" in capsys.readouterr().out
+
+    def test_a_concurrent_run_is_recorded_under_its_own_scope(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """So a later gate's ALREADY GREEN notice cannot rest on one."""
+        from agentjobs.dispatch.phases import read_phases
+
+        self.record_runs(monkeypatch)
+        directory = TestPhaseRecords.in_a_run(tmp_path, monkeypatch)
+
+        assert check.main(["--concurrent"]) == 0
+        assert read_phases(directory)[-1]["scope"] == "concurrent"
