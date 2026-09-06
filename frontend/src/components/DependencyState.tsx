@@ -94,14 +94,29 @@ export function dependencyState(task: TaskRead) {
 
 export function DependencyState({ task, compact = false }: { task: TaskRead; compact?: boolean }) {
   const state = dependencyState(task);
+  // Most of these reasons are a `ball_prompt`, which is written for someone who has the
+  // task open -- routinely several paragraphs. In a list column that is not a summary,
+  // it is the column: one task parked on review wrapped to 2070px inside a 194px cell
+  // and made its row 2091px tall, against a median of 77px, so the first screen of the
+  // task list rendered as an empty void with that one row's prose off to the right.
+  // Compact joins the reasons into one line of prose and clamps it to two lines. The
+  // full text stays reachable -- on hover here, and unclamped on the task's own page,
+  // which is where a reader who wants to act on it is going anyway. task-341.
+  const summary = state.reasons.join(" · ");
   return (
     <div className={compact ? "space-y-1" : "space-y-2"}>
       <span className={`inline-flex rounded border px-2 py-1 text-xs font-medium ${STATE_CLASSES[state.kind]}`}>
         {state.label}
       </span>
-      {state.reasons.map((reason) => (
-        <p className="break-words text-xs leading-5 text-dark-muted" key={reason}>{reason}</p>
-      ))}
+      {compact
+        ? summary !== "" && (
+            <p className="line-clamp-2 break-words text-xs leading-5 text-dark-muted" title={summary}>
+              {summary}
+            </p>
+          )
+        : state.reasons.map((reason) => (
+            <p className="break-words text-xs leading-5 text-dark-muted" key={reason}>{reason}</p>
+          ))}
     </div>
   );
 }
