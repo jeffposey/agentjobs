@@ -92,6 +92,7 @@ from agentjobs.dispatch.ledger import (
     acquire_run_lock,
     acquire_runway_lock,
     find_run,
+    live_runs,
     read_lock_holder,
     run_lock_path,
 )
@@ -268,6 +269,13 @@ class FinishResult:
     directory: Optional[Path] = None
     merge_commit: Optional[str] = None
     dispatched_run_id: Optional[str] = None
+    escalation_dispatch: str = ""
+    """Why an escalation started a run, or did not (task-340). ``EscalationDispatch.reason``.
+
+    Empty on every path that did not escalate. Carried out of the finish rather than only
+    written to the finish directory because the CLI's exit message is the one place a
+    person running this by hand learns whether anything is now going to happen.
+    """
 
     @property
     def finished(self) -> bool:
@@ -394,6 +402,108 @@ def tail(text: str, lines: int = 25) -> str:
     """The last few lines of a command's output, for a log entry that must stay readable."""
     kept = [line for line in (text or "").splitlines() if line.strip()][-lines:]
     return "\n".join(kept)
+
+
+STAGE_MARKER = "Failed at stage '"
+"""What ``scripts/check.py`` prints when a stage goes red, verbatim.
+
+Read rather than re-derived because the gate is the only thing that knows which of its
+ten stages it was in, and it already says so in one unambiguous line. Recognising its
+per-stage banners instead would be a second implementation of the gate's own bookkeeping,
+free to disagree with it.
+"""
+
+FAILURE_PREFIXES = ("FAILED ", "ERROR ")
+"""pytest's short-summary prefixes. One line per failing test, each naming it in full.
+
+Deliberately not the ``E   `` traceback lines. A short-summary line already carries the
+first line of the exception after ``- ``, which is the assertion in the overwhelmingly
+common case, and it carries it *with* the test's own id -- which is the thing a reader
+needs and a bare ``E   assert 3 == 4`` does not have.
+"""
+
+SALIENT_LIMIT = 12
+"""How many failing tests to name before saying only that there are more.
+
+A suite that goes red in fifty places is a different kind of problem from one that goes
+red in two, and reaching this limit says which; naming all fifty would rebuild the wall
+of output this exists to replace.
+"""
+
+
+def failing_stage(output: str) -> Optional[str]:
+    """Which gate stage went red, taken from the gate's own sentence about it."""
+    for line in reversed((output or "").splitlines()):
+        start = line.find(STAGE_MARKER)
+        if start == -1:
+            continue
+        rest = line[start + len(STAGE_MARKER) :]
+        end = rest.find("'")
+        if end > 0:
+            return rest[:end]
+    return None
+
+
+def failing_tests(output: str, limit: int = SALIENT_LIMIT) -> List[str]:
+    """pytest's short-summary lines, in order, without repeats.
+
+    Deduplicated because a rerun or a second reporting section prints the same line
+    again, and a list that names one test twice reads as two failures.
+    """
+    seen: List[str] = []
+    for raw in (output or "").splitlines():
+        line = raw.strip()
+        if not line.startswith(FAILURE_PREFIXES):
+            continue
+        if line not in seen:
+            seen.append(line)
+        if len(seen) >= limit:
+            break
+    return seen
+
+
+def lead_with_the_cause(output: str, *, log: Path) -> str:
+    """The dispositive lines of a red gate first, then the pointer to the rest.
+
+    **What this repairs is a reading failure** (task-340). Until now an escalation
+    embedded ``tail(output, 30)``, and for a red pytest those thirty lines are thirty
+    ``DeprecationWarning``s: the ``FAILED`` line naming the test sits above them, outside
+    the window. Jeff's first question about the task-337 incident was "is it stuck?",
+    which is what somebody asks when the record does not tell them what broke.
+
+    So the stage and the failing tests go first, then the log path. **The raw tail is
+    kept only when nothing could be extracted**, because that is the only case where it
+    is the best available answer. Once a test has been named, thirty further lines of
+    warnings are exactly the noise this removes, and the whole output is on disk.
+    """
+    stage = failing_stage(output)
+    tests = failing_tests(output)
+    pointer = "Full output: " + str(log)
+    fence = "```" + chr(10) + tail(output, 30) + chr(10) + "```"
+    if stage is None and not tests:
+        return pointer + chr(10) * 2 + fence
+
+    headline = f"It stopped in the `{stage}` stage." if stage else "It did not name a stage."
+    if not tests:
+        return headline + " " + pointer + chr(10) * 2 + fence
+
+    more = ""
+    if len(tests) >= SALIENT_LIMIT:
+        more = chr(10) + f"... and possibly more; {log.name} has all of them."
+    listed = chr(10).join(tests)
+    return (
+        headline
+        + " What failed:"
+        + chr(10) * 2
+        + "```"
+        + chr(10)
+        + listed
+        + more
+        + chr(10)
+        + "```"
+        + chr(10) * 2
+        + pointer
+    )
 
 
 # ----- reading the world ------------------------------------------------------
@@ -822,11 +932,11 @@ def run_gate(plan: Plan, directory: FinishDirectory, settings: FinishSettings) -
         raise Escalate(
             "gate",
             "gate_failed",
-            f"`scripts/check.py` failed on {plan.branch} after the rebase "
-            f"({seconds:.0f}s, exit {result.returncode}). A red gate never merges. The "
-            f"branch is rebased onto {plan.base} and is otherwise untouched; nothing was "
-            f"merged. Full output: {log}\n\n"
-            f"```\n{tail(result.stdout + result.stderr, 30)}\n```",
+            f"`scripts/check.py` went red on {plan.branch}. "
+            f"{lead_with_the_cause(result.stdout + result.stderr, log=log)}\n\n"
+            f"That took {seconds:.0f}s and exited {result.returncode}. A red gate never "
+            f"merges. The branch is rebased onto {plan.base} and is otherwise untouched; "
+            "nothing was merged.",
         )
     return seconds
 
@@ -864,12 +974,13 @@ def run_reduced_gate(
         raise Escalate(
             "catch_up",
             "catch_up_gate_failed",
-            f"`scripts/check.py --only {','.join(stages)}` failed on {plan.branch} after "
-            f"rebasing onto the moved {plan.base} ({seconds:.0f}s, exit "
-            f"{result.returncode}). The full gate had been green; what the base moved "
-            "under it was not. Nothing was merged. This is the case the catch-up exists "
-            f"to find, so read it before assuming it is noise. Full output: {log}\n\n"
-            f"```\n{tail(result.stdout + result.stderr, 30)}\n```",
+            f"`scripts/check.py --only {','.join(stages)}` went red on {plan.branch} "
+            f"after rebasing onto the moved {plan.base}. "
+            f"{lead_with_the_cause(result.stdout + result.stderr, log=log)}\n\n"
+            f"That took {seconds:.0f}s and exited {result.returncode}. The full gate had "
+            "been green; what the base moved under it was not. Nothing was merged. This "
+            "is the case the catch-up exists to find, so read it before assuming it is "
+            "noise.",
         )
     return seconds
 
@@ -1550,18 +1661,50 @@ def record_merge(
     )
 
 
+def where_the_work_is(task: Task, root: Path) -> str:
+    """One sentence naming the branch and the worktree this task's work lives in.
+
+    Written for the session that is dispatched *after* the escalation (task-340). A woken
+    session already knows both and is told below not to trust that memory; a cold one is
+    handed ``PROMPT_STUB``, which tells every agent to take a fresh worktree -- correct
+    for a task being started and wrong for one that already has a branch in flight. The
+    record is the only place that difference can be stated, so it is stated here rather
+    than by making the generic prompt conditional on something it cannot see.
+
+    Read from git and the task's own ``branches[]``, never guessed from the naming
+    convention: a worktree somewhere unexpected is exactly the case where a guess sends
+    an agent to the wrong directory.
+    """
+    branches = active_branches(task)
+    if not branches:
+        return "This task's record names no active branch."
+    located = worktree_paths(root)
+    described = []
+    for name in branches:
+        path = located.get(name)
+        described.append(f"`{name}` in {path}" if path else f"`{name}` (no worktree checked out)")
+    return "The work is on " + ", ".join(described) + ". Use it; do not take a new one."
+
+
 def escalate_on_record(
     manager: TaskManager,
     task_id: str,
     failure: Escalate,
     steps: Sequence[StepResult],
     merge_commit: Optional[str],
+    root: Optional[Path] = None,
 ) -> None:
     """Say exactly how far the finish got, then hand the ball to the agent.
 
     The prompt is written for a session that may be *resumed* -- it remembers its branch
     and its worktree and is confident about both -- so it leads with what changed
     underneath that memory rather than with a request.
+
+    **The stop leads, on both surfaces** (task-340). ``failure.detail`` now begins with
+    the dispositive lines -- for a red gate, the stage and the failing tests -- so putting
+    it second on a two-line preamble puts the cause inside the first screen of the
+    dashboard. The step table goes last: it is evidence for a reader who is already
+    oriented, and it was previously between the reader and the answer.
     """
     account = "\n".join(step.render() for step in steps)
     merged = (
@@ -1570,8 +1713,8 @@ def escalate_on_record(
         else "**Nothing was merged.**"
     )
     body = (
-        f"The scripted finish stopped at `{failure.step}` ({failure.reason}).\n\n"
-        f"{merged}\n\n{failure.detail}\n\n```\n{account}\n```"
+        f"The scripted finish stopped at `{failure.step}` ({failure.reason}). {merged}\n\n"
+        f"{failure.detail}\n\nEverything it did get through:\n\n```\n{account}\n```"
     )
     manager.add_log_entry(
         task_id,
@@ -1585,6 +1728,10 @@ def escalate_on_record(
             "merged": merge_commit is not None,
         },
     )
+    task = manager.get_task(task_id)
+    whereabouts = ""
+    if task is not None and root is not None:
+        whereabouts = "\n\n" + where_the_work_is(task, root)
     manager.handoff(
         task_id,
         actor=FINISHER,
@@ -1593,10 +1740,11 @@ def escalate_on_record(
         ball_prompt=(
             f"The approval ran the scripted finish and it stopped at `{failure.step}`. "
             f"{merged}\n\n{failure.detail}\n\n"
-            "Take it from here by hand. Check the tree against what is written above "
+            "Take it from here. Check the tree against what is written above "
             "before acting on anything you remember: if your worktree, your branch or "
             "your account of this task no longer matches what is on disk, say so on the "
             "record and hand the ball back rather than improvising a recovery."
+            f"{whereabouts}"
         ),
     )
 
@@ -1857,7 +2005,7 @@ def finish_task(
             finished_at=datetime.now(timezone.utc).isoformat(),
             seconds=round(time.monotonic() - started, 2),
         )
-        escalate_on_record(manager, task_id, exc, steps, merge_commit)
+        escalate_on_record(manager, task_id, exc, steps, merge_commit, root=project.root)
         commit_task_record(
             manager,
             task_id,
@@ -1878,15 +2026,31 @@ def finish_task(
         # whatever stopped this finish will want to merge, and holding the strip while
         # asking somebody to land on it is a deadlock with a one-hour timeout on it.
         runway.release()
-        run_id = dispatch_after_escalation(
+        taken_over = dispatch_after_escalation(
             manager=manager,
             project=project,
             project_config=project.load_config(),
+            settings=settings,
             task_id=task_id,
             home=resolved_home,
             api_base=api_base,
         )
-        directory.write_meta(dispatched_run_id=run_id)
+        # The one thing that must not survive this handler: an open task whose ball says
+        # `agent` with no agent anywhere (task-340). `escalate_on_record` wrote that ball
+        # a moment ago, correctly -- it is what a woken session is handed -- and this is
+        # where it is taken back if nothing was woken.
+        if taken_over.unattended:
+            park_for_human(manager, task_id, project.id, taken_over)
+            commit_task_record(
+                manager,
+                task_id,
+                subject=f"hand {task_id} to a human: the escalation started no run",
+                actor=FINISHER,
+            )
+        directory.write_meta(
+            dispatched_run_id=taken_over.run_id,
+            escalation_dispatch=taken_over.reason,
+        )
         return FinishResult(
             task_id=task_id,
             outcome=ESCALATED,
@@ -1896,7 +2060,8 @@ def finish_task(
             finish_id=directory.finish_id,
             directory=directory.path,
             merge_commit=merge_commit,
-            dispatched_run_id=run_id,
+            dispatched_run_id=taken_over.run_id,
+            escalation_dispatch=taken_over.reason,
         )
     finally:
         runway.release()
@@ -2209,45 +2374,119 @@ def newest_human_entry(task: Task, project_config: Dict[str, Any]) -> Optional[i
     return None
 
 
+@dataclass(frozen=True)
+class EscalationDispatch:
+    """What became of the escalation's attempt to put an agent on the task.
+
+    Three-valued rather than two, and the third value is the one that matters. A run
+    started and *an agent is already there* are both fine; **no agent at all** is the
+    state task-340 exists to remove, and it is the only one that has to move the ball.
+    """
+
+    run_id: Optional[str] = None
+    reason: str = "dispatched"
+    detail: str = ""
+    #: Whether nobody is going to pick this up, so the ball must leave ``agent``.
+    unattended: bool = False
+
+
 def dispatch_after_escalation(
     *,
     manager: TaskManager,
     project: Project,
     project_config: Dict[str, Any],
+    settings: FinishSettings,
     task_id: str,
     home: Optional[Path],
     api_base: Optional[str],
-) -> Optional[str]:
-    """Start the session that takes over, when this machine allows an approval to.
+) -> EscalationDispatch:
+    """Start the session that takes over, spending the approval that started this finish.
 
-    Gated on ``auto_dispatch``, which is the same switch and the same meaning it has
-    everywhere else: *may a human's approval start a run without a second click*. It is
-    not widened here. With it off -- which is this repository's own setting -- an
-    escalation leaves the task at ``agent``/``work`` carrying a prompt that names the
-    step that stopped, and the human's existing Dispatch click resumes the session that
-    did the work. That is the pre-task-241 flow with a much better prompt in it, and it
-    costs nothing to fall back to.
+    **Gated on the finish's own switches, not on ``auto_dispatch``** (task-340). The two
+    questions are genuinely different. ``auto_dispatch`` asks whether an approval may
+    start a run with no second click; this asks whether machinery *the approval already
+    started* may continue after it could not finish. Conflating them is what left
+    task-337 at ``agent``/``work`` for an evening with no agent: the finish escalated
+    correctly, wrote a good record, called this, and this declined on a switch about a
+    different act. Jeff's ruling, 2026-09-05 -- *the fix is the process, not running
+    `agentjobs finish` by hand*.
 
-    Never raises. An escalation that has already been written to the record must not
-    turn into a crash because a run could not start.
+    So the gate is ``finish.enabled`` and ``finish.dispatch_on_escalation``, the second
+    defaulting to on. Nothing else moves: ``assert_dispatch_permitted`` still has to pass,
+    the machine's concurrency ceiling and the per-task spend caps are still enforced
+    inside ``dispatch_task``, and the run is still attributed to the human's own approval
+    entry rather than to anything the finisher wrote. This widens one gate; it does not
+    touch the safety argument, and it cannot loop: the run it starts ends at a review
+    handoff, and the next finish needs another approval.
+
+    Never raises, and never returns silently. An escalation already written to the record
+    must not become a crash because a run could not start -- and it must not become a
+    task that reads ``agent`` with nobody on it either, which is why every path out of
+    here says which of the three things happened.
     """
-    from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
+    from agentjobs.dispatch.guards import DispatchRequest, dispatch_task, resolve_machine_home
     from agentjobs.dispatch.runner import DispatchRunError
     from agentjobs.models_v2 import DispatchTrigger
 
+    if not settings.enabled:  # pragma: no cover - a finish cannot escalate with it off
+        return EscalationDispatch(
+            reason="finish_disabled",
+            detail=f"{project.id} has no `finish.enabled: true` on this machine.",
+            unattended=True,
+        )
+    if not settings.dispatch_on_escalation:
+        return EscalationDispatch(
+            reason="escalation_dispatch_off",
+            detail=(
+                f"This machine sets `finish.dispatch_on_escalation: false` for "
+                f"{project.id}, so a stopped finish deliberately starts nothing."
+            ),
+            unattended=True,
+        )
+
     try:
         resolution = assert_dispatch_permitted(project.id, home)
-    except DispatchError:
-        return None
-    if not resolution.settings.auto_dispatch:
-        return None
+    except DispatchError as exc:
+        return EscalationDispatch(
+            reason="dispatch_not_permitted",
+            detail=f"This machine will not dispatch {project.id}: {exc}",
+            unattended=True,
+        )
 
     task = manager.get_task(task_id)
     if task is None or not task.is_open:
-        return None
+        # Nothing to hand to anybody: a closed task has no ball. Reachable when the
+        # escalation happened after the close, which is the post-delivery stops.
+        return EscalationDispatch(
+            reason="not_open", detail=f"{task_id} is closed or missing.", unattended=False
+        )
+
+    # Before asking, because asking would be refused for this reason anyway and the
+    # refusal is the one case where the ball must *not* move. `finish_task` calls this
+    # with the lock still held when a run is finishing itself (task-022): that run is
+    # alive, holds the ball, and is the agent the handoff is addressed to.
+    for run in live_runs(resolve_machine_home(home, resolution)):
+        if run.task_id == task_id:
+            return EscalationDispatch(
+                run_id=run.run_id,
+                reason="live_run",
+                detail=(
+                    f"{run.run_id} is already live on {task_id}; it is the session this "
+                    "escalation is addressed to."
+                ),
+                unattended=False,
+            )
+
     caused_by = newest_human_entry(task, project_config)
     if caused_by is None:
-        return None
+        return EscalationDispatch(
+            reason="no_human_entry",
+            detail=(
+                f"{task_id} has no log entry written by anyone this project configures "
+                "as a human, so there is no approval to attribute a run to."
+            ),
+            unattended=True,
+        )
 
     try:
         handle = dispatch_task(
@@ -2260,9 +2499,48 @@ def dispatch_after_escalation(
             home=home,
             api_base=api_base,
         )
-    except (DispatchError, DispatchRunError):
-        return None
-    return handle.run_id
+    except (DispatchError, DispatchRunError) as exc:
+        return EscalationDispatch(
+            reason="dispatch_refused",
+            detail=f"Dispatch was refused: {exc}",
+            unattended=True,
+        )
+    return EscalationDispatch(run_id=handle.run_id, reason="dispatched")
+
+
+def park_for_human(
+    manager: TaskManager, task_id: str, project_id: str, outcome: EscalationDispatch
+) -> None:
+    """Move the ball off an agent that does not exist, and say what the human's move is.
+
+    **An open task names who acts next, and ``agent`` with nobody dispatched is a lie the
+    schema cannot catch** (task-340). Every earlier escalation wrote ``agent``/``work``
+    unconditionally, on the assumption that a Dispatch click was coming; task-337 spent an
+    evening proving that nothing tells anybody the click is needed. A task at
+    ``human``/``decision`` is on the review surface the moment it is written.
+
+    Deliberately a second handoff rather than a branch inside ``escalate_on_record``. The
+    escalation's own prompt is what a woken session is handed verbatim, so it has to be
+    written before the dispatch is attempted -- and the attempt is what decides this. The
+    extra entry is not noise: it is the record of an attempt that failed, which is the
+    thing that was missing.
+    """
+    manager.handoff(
+        task_id,
+        actor=FINISHER,
+        ball=Ball.HUMAN,
+        ball_reason=BallReason.DECISION,
+        ball_prompt=(
+            "The approval ran the scripted finish, it stopped, and **no agent was "
+            f"started to take it from there**: {outcome.detail}\n\n"
+            "The finisher's newest progress entry says what stopped it and how far it "
+            "got. Nothing further will happen to this task until somebody acts, so this "
+            "is here to make sure somebody knows. Either fix the cause and re-run the "
+            "finish:\n\n"
+            f"```\nagentjobs finish {task_id} --project {project_id}\n```\n\n"
+            "or click Dispatch on the task page to put a session on the repair."
+        ),
+    )
 
 
 # ----- starting one from a request that must not wait for it ------------------

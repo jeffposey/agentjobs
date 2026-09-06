@@ -40,11 +40,15 @@ from agentjobs.dispatch.finish import (
     ESCALATED,
     FINISHED,
     POSTURE,
+    SALIENT_LIMIT,
     Escalate,
     Plan,
     active_branches,
     delete_branch,
+    failing_stage,
+    failing_tests,
     finish_task,
+    lead_with_the_cause,
     reachable_stages,
     verify_live,
     worktree_paths,
@@ -53,7 +57,15 @@ from agentjobs.dispatch.finish_status import read_finish_status
 from agentjobs.dispatch.ledger import LockHolder
 from agentjobs.dispatch.phases import RUN_ID_ENV
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Ball, BranchStatus, DispatchPosture, Lifecycle, Outcome
+from agentjobs.models_v2 import (
+    Ball,
+    BallReason,
+    BranchStatus,
+    DispatchPosture,
+    Lifecycle,
+    LogEntryType,
+    Outcome,
+)
 from agentjobs.projects import Project
 from agentjobs.storage import TaskStorage
 
@@ -290,6 +302,20 @@ def merged_into(root: Path, branch: str, base: str = "main") -> bool:
         ).returncode
         == 0
     )
+
+
+def escalation(task: Any) -> Any:
+    """The entry the finish wrote about the step it stopped at.
+
+    Found by its own ``finish_step`` marker rather than counted back from the end of the
+    log. Since task-340 an escalation writes either two entries or three -- the second
+    handoff exists exactly when no run could be started -- so an index that was right for
+    one shape is silently wrong for the other, which is worse than either.
+    """
+    for entry in reversed(task.log):
+        if entry.data.get("finish_step") and entry.data.get("finish_step") != "started":
+            return entry
+    raise AssertionError("no escalation entry on the record")
 
 
 def landed(root: Path, result: Any, base: str = "main") -> bool:
@@ -619,10 +645,13 @@ class TestBeforeTheMerge:
         task = world["manager"].get_task(world["task_id"])
         assert task is not None
         assert task.is_open
-        assert task.ball is Ball.AGENT
-        assert "Nothing was merged" in (task.ball_prompt or "")
-        assert "rebase" in (task.ball_prompt or "")
-        entry = task.log[-2]
+        # Not `agent`: this world has no dispatch config, so the escalation could start
+        # no run, and a ball on an agent that does not exist is the state task-340
+        # removed. What the agent would have been handed is in the entry below.
+        assert task.ball is Ball.HUMAN
+        entry = escalation(task)
+        assert "Nothing was merged" in entry.body
+        assert "rebase" in entry.body
         assert entry.data.get("merged") is False
         assert entry.data.get("finish_step") == "rebase"
 
@@ -639,7 +668,7 @@ class TestBeforeTheMerge:
         assert not merged_into(world["root"], world["branch"])
         task = world["manager"].get_task(world["task_id"])
         assert task is not None and task.is_open
-        assert "red gate never merges" in (task.ball_prompt or "")
+        assert "red gate never merges" in escalation(task).body
 
     def test_a_red_gate_keeps_its_output_where_a_person_can_read_it(
         self, world: Dict[str, Any]
@@ -926,10 +955,10 @@ class TestAfterTheMerge:
         assert task is not None
         assert task.is_open, "closing before delivery would call this completed"
         assert task.outcome is None
-        assert "The merge is done" in (task.ball_prompt or "")
+        assert "The merge is done" in escalation(task).body
         merge_entry = next(entry for entry in task.log if entry.data.get("finish_step") == "merge")
         assert merge_entry.data["merge_commit"] == result.merge_commit
-        assert task.log[-2].data.get("merged") is True
+        assert escalation(task).data.get("merged") is True
 
     def test_a_merge_touching_no_served_code_needs_no_restart(self, world: Dict[str, Any]) -> None:
         """The other half of the same rule: an honest finish with nothing to restart."""
@@ -1186,7 +1215,10 @@ class TestTheUnexpected:
         task = world["manager"].get_task(world["task_id"])
         assert task is not None
         assert task.is_open
-        assert task.ball is Ball.AGENT
+        # Somebody is named, and it is a somebody who exists: no dispatch config here,
+        # so no run could be started and the ball is a person's (task-340).
+        assert task.ball is Ball.HUMAN
+        assert "something nobody thought about" in escalation(task).body
 
     def test_a_decline_is_not_swallowed_as_an_unexpected_error(self, world: Dict[str, Any]) -> None:
         """The guard sits outside the sequence, so its own signals pass through it."""
@@ -2122,3 +2154,366 @@ class TestTheRunway:
         mine.release()
         holder = read_lock_holder(path)
         assert holder is not None and holder.finish_id == "fin_b"
+
+
+# ----- what happens after it stops: somebody is always on the task -------------
+
+
+DISPATCHABLE_CONFIG: Dict[str, Any] = {
+    "project_name": "Demo",
+    "tasks_directory": "tasks",
+    "actors": [
+        {"name": "Jeff Posey", "kind": "human"},
+        {"name": "claude", "kind": "agent"},
+    ],
+    "default_user": "Jeff Posey",
+}
+
+
+def make_dispatchable(
+    world: Dict[str, Any],
+    tmp_path: Path,
+    *,
+    auto_dispatch: bool = False,
+    require_clean_tree: bool = False,
+) -> Path:
+    """Give the world a machine that *can* dispatch, with ``auto_dispatch`` off.
+
+    Off is the configuration this whole class is about: it is what this repository runs,
+    and until task-340 it was also what stopped an escalation starting anything. A test
+    that turned it on to make a run appear would be asserting the old behaviour under a
+    new name.
+
+    The runner exits immediately. What is under test is whether a run is *started* and
+    what it is attributed to, not what an agent does once it is running.
+    """
+    runner = tmp_path / "runner.py"
+    runner.write_text("print('started')\n", encoding="utf-8")
+    (world["home"] / "dispatch.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "enabled": True,
+                "runners": {
+                    "fake": {
+                        "argv": [_interpreter(), str(runner), "{prompt}"],
+                        "actor": "claude",
+                    }
+                },
+                "projects": {
+                    "demo": {
+                        "enabled": True,
+                        "runner": "fake",
+                        "auto_dispatch": auto_dispatch,
+                        "require_clean_tree": require_clean_tree,
+                    }
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    root = world["root"]
+    (root / ".agentjobs").mkdir(parents=True, exist_ok=True)
+    (root / ".agentjobs" / "config.yaml").write_text(
+        yaml.safe_dump(DISPATCHABLE_CONFIG), encoding="utf-8"
+    )
+    (root / ".gitignore").write_text(".agentjobs/\n", encoding="utf-8")
+    git(root, "add", "--", ".gitignore")
+    git(root, "commit", "-m", "chore: ignore the machine-local config")
+    return runner
+
+
+def approve(world: Dict[str, Any]) -> int:
+    """The human act every finish descends from, written as a person would leave it.
+
+    Returned rather than assumed to be the last entry: the point of the assertions below
+    is that the run is attributed to *this* id and not to whatever the finisher wrote
+    afterwards, and hard-coding the number would test the fixture.
+    """
+    manager: TaskManager = world["manager"]
+    manager.add_log_entry(
+        world["task_id"],
+        actor="Jeff Posey",
+        type=LogEntryType.NOTE,
+        body="Approved. Merge it.",
+    )
+    task = manager.get_task(world["task_id"])
+    assert task is not None
+    git(world["root"], "add", "--", "tasks")
+    git(world["root"], "commit", "-m", "chore(tasks): the approval")
+    return task.log[-1].id
+
+
+def break_the_gate(world: Dict[str, Any], output: str = "vitest failed") -> None:
+    """A branch whose gate goes red, in its own worktree."""
+    script = f"import sys\nprint({output!r})\nsys.exit(1)\n"
+    (world["worktree"] / "scripts" / "check.py").write_text(script, encoding="utf-8")
+    git(world["worktree"], "commit", "-am", "break the gate")
+
+
+PYTEST_SHAPED_GATE = """\
+import sys
+
+print("============================= test session starts =============================")
+for i in range(40):
+    print("  DeprecationWarning: something in a dependency is deprecated (%d)" % i)
+print("FAILED tests/test_validate.py::TestRealCorpus::test_the_drift - AssertionError: drifted")
+print("FAILED tests/test_other.py::test_two - assert 3 == 4")
+for i in range(40):
+    print("  DeprecationWarning: and again after it (%d)" % i)
+print("\\nFailed at stage 'pytest'.", file=sys.stderr)
+sys.exit(1)
+"""
+
+
+class TestTheEscalationStartsTheRepair:
+    """task-340. An approval is the human act; a red gate is work for an agent.
+
+    The incident is task-337 on 2026-09-05: an approved task whose finish went red at the
+    gate, handed the ball to ``agent``/``work``, dispatched nobody because
+    ``auto_dispatch`` was off, notified nobody, and sat there all evening. Every
+    assertion in this class is one sentence of that incident.
+    """
+
+    def test_a_red_gate_starts_a_run_with_auto_dispatch_off(
+        self, world: Dict[str, Any], tmp_path: Path
+    ) -> None:
+        """ac-1. The whole of it: no ``auto_dispatch``, no second click, a run exists."""
+        make_dispatchable(world, tmp_path)
+        approve(world)
+        break_the_gate(world)
+
+        result = run(world)
+
+        assert result.outcome == ESCALATED
+        assert result.reason == "gate_failed"
+        assert result.dispatched_run_id, result.render()
+        assert result.escalation_dispatch == "dispatched"
+
+    def test_the_run_is_attributed_to_the_humans_approval(
+        self, world: Dict[str, Any], tmp_path: Path
+    ) -> None:
+        """Not to anything the finisher wrote, which is by then the newest entry."""
+        make_dispatchable(world, tmp_path)
+        approval = approve(world)
+        break_the_gate(world)
+
+        run(world)
+
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        dispatch = next(
+            entry for entry in reversed(task.log) if entry.type is LogEntryType.DISPATCH
+        )
+        assert dispatch.data.get("caused_by") == approval
+        assert dispatch.data.get("trigger") == "auto"
+
+    def test_the_ball_stays_on_the_agent_that_was_started(
+        self, world: Dict[str, Any], tmp_path: Path
+    ) -> None:
+        """The half of ac-2 that is *not* a handoff: a run exists, so `agent` is true."""
+        make_dispatchable(world, tmp_path)
+        approve(world)
+        break_the_gate(world)
+
+        run(world)
+
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        assert task.ball is Ball.AGENT
+        assert "scripts/check.py" in (task.ball_prompt or "")
+
+    def test_switching_it_off_leaves_the_task_on_a_human_not_on_an_agent(
+        self, world: Dict[str, Any], tmp_path: Path
+    ) -> None:
+        """ac-2. The knob exists, and turning it off does not recreate the incident."""
+        make_dispatchable(world, tmp_path)
+        approve(world)
+        break_the_gate(world)
+
+        result = run(world, dispatch_on_escalation=False)
+
+        assert result.dispatched_run_id is None
+        assert result.escalation_dispatch == "escalation_dispatch_off"
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None and task.is_open
+        assert task.ball is Ball.HUMAN
+        assert task.ball_reason is BallReason.DECISION
+        assert "no agent was started" in (task.ball_prompt or "")
+        assert "dispatch_on_escalation" in (task.ball_prompt or "")
+        assert f"agentjobs finish {world['task_id']} --project demo" in (task.ball_prompt or "")
+
+    def test_a_machine_that_cannot_dispatch_at_all_also_lands_on_a_human(
+        self, world: Dict[str, Any]
+    ) -> None:
+        """No dispatch config whatsoever -- the shape every other test in this file has."""
+        break_the_gate(world)
+
+        result = run(world)
+
+        assert result.escalation_dispatch == "dispatch_not_permitted"
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        assert task.ball is Ball.HUMAN
+        assert task.ball_reason is BallReason.DECISION
+
+    def test_no_human_entry_is_a_human_decision_rather_than_a_silent_stop(
+        self, world: Dict[str, Any], tmp_path: Path
+    ) -> None:
+        """The approval cannot be found, so there is nothing to spend. Say so."""
+        make_dispatchable(world, tmp_path)
+        break_the_gate(world)
+
+        result = run(world)
+
+        assert result.dispatched_run_id is None
+        assert result.escalation_dispatch == "no_human_entry"
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        assert task.ball is Ball.HUMAN
+        assert "no approval" in (task.ball_prompt or "").lower()
+
+    def test_a_refused_dispatch_is_named_rather_than_swallowed(
+        self, world: Dict[str, Any], tmp_path: Path
+    ) -> None:
+        """Somebody is working in the shared clone. The ball still names a real person.
+
+        A dirty tree rather than a stubbed exception, because it is the refusal an
+        escalation is most likely to meet in real life: the finish only runs when a task
+        is ready to merge, and the clone it merges into is shared.
+        """
+        make_dispatchable(world, tmp_path, require_clean_tree=True)
+        approve(world)
+        break_the_gate(world)
+        (world["root"] / "shared.txt").write_text(
+            "somebody else is editing this\n", encoding="utf-8"
+        )
+
+        result = run(world)
+
+        assert result.dispatched_run_id is None
+        assert result.escalation_dispatch == "dispatch_refused"
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        assert task.ball is Ball.HUMAN
+        assert "uncommitted changes" in (task.ball_prompt or "")
+
+    def test_the_escalation_prompt_reaches_the_run_that_was_started(
+        self, world: Dict[str, Any], tmp_path: Path
+    ) -> None:
+        """The prompt is the escalation's, not a fresh "work task-NNN".
+
+        Asserted on the argv the dispatch recorded, because that is what the process was
+        actually given. A cold start carries a pointer to the record by design
+        (``PROMPT_STUB``), so what is checked here is that the record it points at holds
+        the escalation -- and that the prompt names this task rather than describing some
+        other work.
+        """
+        make_dispatchable(world, tmp_path)
+        approve(world)
+        break_the_gate(world)
+
+        run(world)
+
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        dispatch = next(
+            entry for entry in reversed(task.log) if entry.type is LogEntryType.DISPATCH
+        )
+        argv = dispatch.data.get("argv") or []
+        prompt = "\n".join(str(word) for word in argv)
+        assert task.id in prompt
+        # And the record the prompt points at is the escalation, not the original brief.
+        assert "scripts/check.py" in (task.ball_prompt or "")
+
+    def test_the_prompt_names_the_branch_and_worktree_the_work_is_already_in(
+        self, world: Dict[str, Any], tmp_path: Path
+    ) -> None:
+        """A cold session is otherwise told to take a *new* worktree. This is the fix."""
+        make_dispatchable(world, tmp_path)
+        approve(world)
+        break_the_gate(world)
+
+        run(world)
+
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        prompt = task.ball_prompt or ""
+        assert world["branch"] in prompt
+        assert str(world["worktree"]) in prompt
+        assert "do not take a new one" in prompt
+
+
+class TestLeadingWithTheCause:
+    """ac-3. Which test failed, in the first screen -- not two hundred lines down."""
+
+    def test_the_stage_and_the_failing_tests_come_before_the_noise(
+        self, world: Dict[str, Any]
+    ) -> None:
+        (world["worktree"] / "scripts" / "check.py").write_text(
+            PYTEST_SHAPED_GATE, encoding="utf-8"
+        )
+        git(world["worktree"], "commit", "-am", "a gate that fails like pytest does")
+
+        result = run(world)
+
+        assert result.reason == "gate_failed"
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        body = escalation(task).body
+        head = body[: body.index("Everything it did get through")]
+        assert "`pytest` stage" in head
+        assert "TestRealCorpus::test_the_drift" in head
+        assert "AssertionError: drifted" in head
+        assert "test_other.py::test_two" in head
+        # The whole point: the warnings that used to fill the window are gone from the
+        # record entirely, and the log on disk is where they still are.
+        assert "DeprecationWarning" not in body
+        assert "gate.log" in body
+
+    def test_the_failing_test_is_in_the_first_lines_a_reader_sees(
+        self, world: Dict[str, Any]
+    ) -> None:
+        """The dashboard shows the top of an entry, so position is the property."""
+        (world["worktree"] / "scripts" / "check.py").write_text(
+            PYTEST_SHAPED_GATE, encoding="utf-8"
+        )
+        git(world["worktree"], "commit", "-am", "a gate that fails like pytest does")
+
+        run(world)
+
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        first = escalation(task).body.splitlines()[:6]
+        assert any("TestRealCorpus::test_the_drift" in line for line in first), first
+
+    def test_a_gate_that_names_no_test_still_shows_its_output(self, world: Dict[str, Any]) -> None:
+        """Nothing to extract is the one case where the raw tail is the best answer."""
+        break_the_gate(world, output="oxlint: 3 problems")
+
+        run(world)
+
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        assert "oxlint: 3 problems" in escalation(task).body
+
+    def test_reading_the_stage_and_the_failures_out_of_gate_output(self) -> None:
+        """The two readers, directly, including the shapes that must return nothing."""
+        assert failing_stage("noise\nFailed at stage 'vitest'.\nmore noise") == "vitest"
+        assert failing_stage("nothing said about a stage") is None
+        assert failing_stage("Failed at stage 'unterminated") is None
+        assert failing_tests("FAILED a::b - boom\nFAILED a::b - boom\nERROR c") == [
+            "FAILED a::b - boom",
+            "ERROR c",
+        ]
+        assert failing_tests("the word FAILED in the middle of a line") == []
+
+    def test_a_flood_of_failures_is_capped_and_says_it_was(self, tmp_path: Path) -> None:
+        output = "\n".join(f"FAILED tests/t.py::test_{i}" for i in range(40))
+        rendered = lead_with_the_cause(
+            output + "\nFailed at stage 'pytest'.", log=tmp_path / "gate.log"
+        )
+        assert rendered.count("FAILED") == SALIENT_LIMIT
+        assert "and possibly more" in rendered
+        assert "gate.log" in rendered

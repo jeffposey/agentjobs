@@ -253,6 +253,7 @@ default_group: standard
 #       base_branch: main
 #       restart: []
 #       verify_base: null
+#       dispatch_on_escalation: true
 #
 #       The scripted post-approval finish. With it on, clicking Approve rebases the
 #       task's branch, runs the project's full gate in that branch's own worktree,
@@ -260,8 +261,14 @@ default_group: standard
 #       verifies the running process is actually serving the merge, and closes the
 #       task. No agent is started at all. It stops at the first thing it cannot do
 #       safely -- a conflicting rebase, a red gate, a server it cannot show is live --
-#       writes where it stopped onto the task, and hands the ball back for a session to
-#       take over.
+#       writes where it stopped onto the task, and starts a session to take it over.
+#
+#       `dispatch_on_escalation` is that last clause, and it is deliberately not
+#       `auto_dispatch` (task-340). A stop is not a new dispatch decision: the approval
+#       already started this machinery, and the run being asked for repairs what the
+#       machinery could not finish. Turn it off if you would rather see every red gate
+#       yourself -- the task then lands on a human, naming why, and never on an agent
+#       that does not exist.
 #
 #       Off by default because what it does is run `git merge` in a shared clone in
 #       response to an HTTP request. Nobody should get that without asking for it.
