@@ -122,9 +122,11 @@ test("shows the position it is about to change", async ({ page, request }) => {
   await page.goto("/app/p/_local/tasks");
   const row = page.locator(`[data-task="${first}"]`);
   // The number a person is changing, rendered as a value rather than implied by where
-  // the row happens to sit.
+  // the row happens to sit. `data-field` rather than the table's `data-label`, because
+  // since task-238 the same row renders as a tree row in the sidebar and as a cell in
+  // the full-width table, and the claim is about both.
   await expect(row).toHaveAttribute("data-queue-position", /^\d+$/);
-  await expect(row.locator('[data-label="Queue"]')).toContainText(/\d+/);
+  await expect(row.locator('[data-field="queue"]')).toContainText(/\d+/);
 });
 
 // The dashboard's "Why this one?" disclosure is deliberately not covered here. Which
@@ -191,7 +193,7 @@ async function listScrollRoom(page: Page) {
 
 async function dragOnto(page: Page, sourceId: string, targetId: string) {
   const grip = page.locator(`[id="queue-grip-${sourceId}"]`);
-  const target = page.locator(`[data-task="${targetId}"] [data-label="Status"]`);
+  const target = page.locator(`[data-task="${targetId}"] [data-field="status"]`);
   // `page.mouse` takes viewport coordinates and scrolls nothing, so both ends of the
   // gesture have to be on screen -- and clear of the pinned header (task-292), which
   // covers the top 65px of every page. Two `scrollIntoViewIfNeeded` calls used to do
@@ -211,7 +213,7 @@ async function dragOnto(page: Page, sourceId: string, targetId: string) {
       ) => Element | null;
       const gripElement = document.getElementById(gripId as string);
       const targetElement = document.querySelector(
-        `[data-task="${taskId}"] [data-label="Status"]`,
+        `[data-task="${taskId}"] [data-field="status"]`,
       );
       const header = document.querySelector("header");
       if (!gripElement || !targetElement || !header) return null;
