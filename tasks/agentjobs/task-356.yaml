@@ -3,12 +3,18 @@ id: task-356
 title: 'Shell 6: the filter controls hide behind a filter button instead of sitting
   on screen permanently'
 created: '2026-09-06T05:25:14.813338Z'
-updated: '2026-09-06T20:00:21.061030Z'
+updated: '2026-09-06T20:14:47.454082Z'
 lifecycle: active
-ball: agent
-ball_reason: answer
-ball_prompt: It was broken, that's why I cancelled it. Even after logging in, those
-  sessions didn't want to work anymore.
+ball: human
+ball_reason: review
+ball_prompt: "Ready to merge. `feat/task-356-filter-popover`, head `28d78cb`, gate\
+  \ green on that exact commit \u2014 all ten stages, exit 0.\n\n**Look at it first:\
+  \ http://127.0.0.1:8909/app/** \u2014 a sandbox with throwaway data, three states\
+  \ seeded. The one that matters is `?status=closed&priority=critical`: an empty list\
+  \ where the button carries a 2. If your eye reads \"no work here\" before it reads\
+  \ the badge, say so and I will make the badge louder.\n\nAll eight acceptance criteria\
+  \ met; the evidence is in entries 21 and 22. Approve and the scripted finish merges,\
+  \ rebuilds and restarts. I will stop the sandbox afterwards."
 archived: false
 priority: critical
 queue_position: 743
@@ -119,12 +125,12 @@ acceptance:
   status: met
 - id: ac-8
   text: scripts/check.py is green, with the filter tests updated rather than deleted.
-  status: pending
+  status: met
 deliverables:
 - path: frontend/src/components/TaskList.tsx
-  note: Filter controls behind a button, with an active-filter indicator. Delivered
-    on feat/task-356-filter-popover (f6b8dcc), with frontend/src/components/TaskList.test.tsx
-    and a new frontend/e2e/filter-popover.spec.ts.
+  note: Filter controls behind a button, with an active-filter indicator. On feat/task-356-filter-popover
+    (head 28d78cb), with TaskList.test.tsx, a new e2e/filter-popover.spec.ts, three
+    e2e specs updated, and scripts/filter_popover_sandbox.py for the review.
   status: done
 dependencies:
 - task: task-238
@@ -664,3 +670,78 @@ log:
       id: d5e93a17-2f48-4c60-b7a1-38e6c04b9d25
       kind: log_append
       fingerprint: 14ab992ba165768102eb6fc3b1390699
+- id: 22
+  ts: '2026-09-06T20:14:28.936593Z'
+  actor: claude
+  type: progress
+  body: "**The gate is green on the rebased branch.** `scripts/check.py`, no arguments,\
+    \ exit 0,\nall ten stages, receipt written for `28d78cbc` \u2014 which is the\
+    \ branch head. 243.7s.\n\nBranch: `feat/task-356-filter-popover`, three commits,\
+    \ zero behind `main`.\n\n| | |\n|---|---|\n| `3ffa0d0` | the popover itself \u2014\
+    \ `TaskList.tsx` and its vitest suite |\n| `5788b2e` | the three e2e specs it\
+    \ broke, fixed (entry 21) |\n| `28d78cb` | `scripts/filter_popover_sandbox.py`,\
+    \ for the review below |\n\n**One red gate on the way, and it was not this branch.**\
+    \ The first full run stopped at\n`pytest`: `test_dispatch_api.py::TestDispatchRuns::test_cancelling_a_live_run_stops_it_and_marks_it_cancelled`,\n\
+    `assert 'failed' == 'cancelled'`. That test spawns a real `time.sleep(120)` subprocess\
+    \ and\ncancels it; it passed in isolation immediately afterwards and passed in\
+    \ both later full\nruns. **This branch touches zero `.py` files** \u2014 `git\
+    \ diff main --name-only | grep -c '\\.py$'`\nis 0 \u2014 so it cannot be the cause.\
+    \ Recorded rather than swallowed: it is a process-lifecycle\ntest that went red\
+    \ under gate contention, and if it recurs it is worth its own task. I did\nnot\
+    \ re-run to make it go away; I re-ran because the gate has to be green on the\
+    \ tree being\nhanded over, and the second and third runs both were.\n\n**A sandbox\
+    \ is up, because none of the above answers the question this change turns on.**\n\
+    The tests prove the popover opens, closes, keeps the URL and returns focus. What\
+    \ they\ncannot prove is whether the badge *works on a person* \u2014 whether a\
+    \ list hiding most of the\nbacklog still reads as filtered rather than as empty.\
+    \ All three states are seeded and\nverified rendering as intended, measured at\
+    \ 700x800:\n\n| URL | badge | rows | |\n|---|---|---|---|\n| `\u2026/tasks` |\
+    \ none | 22 | what almost every visit looks like |\n| `\u2026/tasks?status=closed&priority=critical`\
+    \ | **2** | 0 | \"No tasks match these filters\" \u2014 the case the badge exists\
+    \ for |\n| `\u2026/tasks?priority=high` | **1** | 6 | a filtered list that looks\
+    \ perfectly normal |\n\nAccessible names read `Filters, none set` / `Filters,\
+    \ 2 set: Status closed, Priority\ncritical` / `Filters, 1 set: Priority high`.\
+    \ The popover's box measures x=84 to x=340\ninside the 320px column, so it does\
+    \ not escape the sidebar.\n\nPort 8909, its own temporary `AGENTJOBS_HOME`, deleted\
+    \ when the process stops. Nothing\nin it touches the live corpus or the 8876 dashboard,\
+    \ so every control on it including the\ndestructive ones is safe to press. **I\
+    \ will stop it myself once the review is done** \u2014\nthat is mine to clean\
+    \ up, not something to hand over as a command.\n\nac-8 met. Handing off for review:\
+    \ this dispatch is posture `auto`, so the merge is not\nmine to make."
+  data:
+    operation:
+      id: 7e4b1c60-9d33-4a52-8f17-c2b6045a8e91
+      kind: log_append
+      fingerprint: 0de93a54fe9c51991f0c339e863c9ff0
+- id: 23
+  ts: '2026-09-06T20:14:38.932049Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, deliverables.
+  data:
+    fields:
+    - acceptance
+    - deliverables
+    operation:
+      id: b2f81d47-6a09-4e35-91c3-5d7e0a3f2c68
+      kind: update_content
+      fingerprint: a4c79e18e104fc25337f415f0f590509
+- id: 24
+  ts: '2026-09-06T20:14:47.453854Z'
+  actor: claude
+  type: handoff
+  body: "Ready to merge. `feat/task-356-filter-popover`, head `28d78cb`, gate green\
+    \ on that exact commit \u2014 all ten stages, exit 0.\n\n**Look at it first: http://127.0.0.1:8909/app/**\
+    \ \u2014 a sandbox with throwaway data, three states seeded. The one that matters\
+    \ is `?status=closed&priority=critical`: an empty list where the button carries\
+    \ a 2. If your eye reads \"no work here\" before it reads the badge, say so and\
+    \ I will make the badge louder.\n\nAll eight acceptance criteria met; the evidence\
+    \ is in entries 21 and 22. Approve and the scripted finish merges, rebuilds and\
+    \ restarts. I will stop the sandbox afterwards."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: c9a05f31-84d7-4e26-b013-6f2917ac5b40
+      kind: handoff
+      fingerprint: c39ac518d633ccb99ec0d665ab47baa5
