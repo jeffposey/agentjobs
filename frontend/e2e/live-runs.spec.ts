@@ -36,7 +36,11 @@ test("an idle machine says so, in the badge and on both surfaces", async ({ page
   // one that has stopped polling, which is the failure mode this number exists to rule
   // out.
   await expect(badge(page)).toHaveText("0");
-  await expect(page.getByTestId("machine-capacity")).toContainText("nothing running");
+  // The slot board, drawn from the machine's own ceiling (task-092). Two cells because
+  // this machine's `max_concurrent_runs` is two, and neither of them is a run.
+  await expect(page.getByTestId("slot-board-capacity")).toContainText("0 of 2 slots busy");
+  await expect(page.getByTestId("slot-cell")).toHaveCount(2);
+  await expect(page.locator("[data-slot-state='run']")).toHaveCount(0);
 
   await openRunsTab(page);
   await expect(page.getByTestId("no-live-runs")).toBeVisible();
@@ -69,6 +73,17 @@ test("a real run appears on both surfaces without a reload, and leaves when it e
   // The badge is in the header of the page already open. Nothing here reloads it: if
   // this passes, the machine-wide query is polling on its own clock.
   await expect(badge(page)).toHaveText("1", { timeout: 15_000 });
+
+  // The board, on the real page, filling one of its two cells with the run and leaving
+  // the other one a cell rather than collapsing (task-092, ac-1 and ac-2). Asserted on
+  // rendered values -- the health word a person reads, and the task's own title.
+  await page.goto(project);
+  const occupied = page.locator("[data-slot-state='run']");
+  await expect(occupied).toHaveCount(1, { timeout: 15_000 });
+  await expect(occupied).toContainText("Watch me run");
+  await expect(occupied).toContainText("Working");
+  await expect(page.getByTestId("slot-cell")).toHaveCount(2);
+  await expect(page.getByTestId("slot-board-capacity")).toContainText("1 of 2 slots busy");
 
   await openRunsTab(page);
   const row = page.getByRole("row").filter({ hasText: "Watch me run" });
