@@ -116,17 +116,31 @@ test("a step that would not move anything writes nothing", async ({ page, reques
   expect(record.log.filter((entry: { type: string }) => entry.type === "queue_move")).toHaveLength(0);
 });
 
-test("shows the position it is about to change", async ({ page, request }) => {
+test("names the position it is about to change without printing it on the row", async ({
+  page,
+  request,
+}) => {
   const [first] = await seed(request, ["Positioned", "Second in line"]);
 
   await page.goto("/app/p/_local/tasks");
   const row = page.locator(`[data-task="${first}"]`);
-  // The number a person is changing, rendered as a value rather than implied by where
-  // the row happens to sit. `data-field` rather than the table's `data-label`, because
-  // since task-238 the same row renders as a tree row in the sidebar and as a cell in
-  // the full-width table, and the claim is about both.
+  // The seam stays, and carries the value the reorder gestures below are moving.
   await expect(row).toHaveAttribute("data-queue-position", /^\d+$/);
-  await expect(row.locator('[data-field="queue"]')).toContainText(/\d+/);
+  const position = await row.getAttribute("data-queue-position");
+
+  // task-362: the sidebar row does not print it. This viewport is the two-region
+  // shell, so this is the tree row -- the surface the epic exists to give back to the
+  // title. The full-width table keeps its labelled Queue column, which is a column a
+  // reader opted into rather than width taken from a 320px one.
+  await expect(row.locator('[data-field="queue"]')).toHaveCount(0);
+  await expect(row.locator("a")).not.toContainText(String(position));
+
+  // Where it went instead: the grip's accessible name, which is what announces a
+  // keyboard reorder to somebody who cannot see the row move.
+  await expect(page.locator(`[id="queue-grip-${first}"]`)).toHaveAttribute(
+    "aria-label",
+    new RegExp(`^Reorder ${first}, .+ band, position ${position}$`),
+  );
 });
 
 // The dashboard's "Why this one?" disclosure is deliberately not covered here. Which

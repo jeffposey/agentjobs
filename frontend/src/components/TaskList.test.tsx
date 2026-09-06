@@ -1232,11 +1232,25 @@ describe("TaskList as a sidebar tree", () => {
     expect(screen.getByText("part of task-closed-parent")).toBeVisible();
   });
 
-  it("carries the row's place in line, so a reorder is a visible change", () => {
+  /**
+   * task-362 took the number off the row and left it where it informs an action.
+   *
+   * The assertion is absence rather than a deleted test, because "the sidebar does not
+   * print `queue_position`" is the requirement -- a test that simply stopped looking
+   * would pass again the day somebody put it back. The seam and the accessible name are
+   * asserted in the same place so the removal cannot quietly take either with it.
+   */
+  it("keeps its place in line off the row, in the seam and in the grip's name", () => {
     renderTree(epic(), { reorder: accepting() });
 
-    expect(rowFor("task-after").getAttribute("data-queue-position")).toBe("200");
-    expect(rowFor("task-after").querySelector('[data-field="queue"]')).toHaveTextContent("200");
+    const row = rowFor("task-after");
+    expect(row.getAttribute("data-queue-position")).toBe("200");
+    expect(row.querySelector('[data-field="queue"]')).toBeNull();
+    expect(row.textContent).not.toContain("200");
+    expect(grip("task-after")).toHaveAttribute(
+      "aria-label",
+      "Reorder task-after, high band, position 200",
+    );
   });
 });
 

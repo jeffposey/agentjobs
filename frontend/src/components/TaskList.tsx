@@ -808,17 +808,20 @@ export function TaskList({
                 aria-current={selected ? "page" : undefined}
                 className="block overflow-hidden"
               >
+                {/* The raw `queue_position` is deliberately not on this row (task-362).
+                    It is a gapped band coordinate rather than an ordinal, so a reader
+                    who tries to act on it is misled either way, and the list's own
+                    order already carries the ordering exactly. It stays where it
+                    informs something: the grip's accessible name, which is how a
+                    keyboard reorder is announced, and `NextExplanation`, which says
+                    "position X of the Y" in a sentence that explains it. This
+                    partially reverses task-207, which shipped the ordering (kept) and
+                    the coordinate behind it (removed). */}
                 <span className="flex items-baseline gap-2">
                   <span className="font-mono text-xs text-blue-400">{task.id}</span>
                   {orphanedFrom && (
                     <span className="truncate text-xs text-dark-muted">part of {orphanedFrom}</span>
                   )}
-                  <span
-                    data-field="queue"
-                    className="ml-auto shrink-0 font-mono text-xs text-dark-muted"
-                  >
-                    {task.queue_position ?? "—"}
-                  </span>
                 </span>
                 {/* The title is the one line that gets cut, and the full text stays in
                     the tooltip and on the record this row opens. */}
