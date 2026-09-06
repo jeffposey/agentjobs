@@ -3,7 +3,7 @@ id: task-268
 title: 'Gate speed, safely: copy the mypy cache into worktrees, add --durations, drop
   nested poetry run, then prototype concurrent stages behind a flag'
 created: '2026-08-22T18:58:37.392234Z'
-updated: '2026-09-06T22:11:31.671972Z'
+updated: '2026-09-06T22:39:51.148115Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -306,3 +306,37 @@ log:
       id: 7f3a1c20-9b41-4d2e-8f55-1a2b3c4d5e60
       kind: update_content
       fingerprint: 36a36947fb878972960558edde8b99d6
+- id: 10
+  ts: '2026-09-06T22:39:51.147883Z'
+  actor: claude
+  type: decision
+  body: "Proposal 1 (copy `.mypy_cache` into a fresh worktree) is **rejected on measurement**,\
+    \ and ac-1's premise with it. Not implemented.\n\nThe estimate was \"~17s on every\
+    \ dispatched run's first gate, near-zero risk\", resting on the model that a cold\
+    \ worktree pays ~19s re-analysing what the main clone has already analysed. Measured\
+    \ in a genuinely fresh `worktrees/agentjobs-268` on 2026-09-06, `mypy .` via the\
+    \ interpreter `bootstrap.py` printed:\n\n| Cache the worktree started with | run\
+    \ 1 | run 2 | run 3 | run 4 |\n|---|---|---|---|---|\n| none | 15s | 14s | 2s\
+    \ | 1s |\n| the main clone's, copied in (`cp -r`, 2.5s) | 14s | 14s | 1s | 2s\
+    \ |\n\nThe copy buys nothing. A harsher variant of the same probe \u2014 copy\
+    \ a *warm* cache to a new directory and point `--cache-dir` at it \u2014 was **slower\
+    \ than no cache at all**: 30s, then 10s.\n\nThe cost is not analysis and the copy\
+    \ cannot touch it. `mypy -v` in the copied-cache worktree reports **1288 metadata\
+    \ entries fresh and one not found**, so the cache is being read and believed;\
+    \ the 14s is first-touch I/O over ~5,000 newly written JSON files (62 MB), which\
+    \ on this machine is paid whoever writes them. That is also why it takes two runs\
+    \ to converge rather than one: runs 2 and 3 have identical cache state \u2014\
+    \ 260 metas, one miss, 798 fresh SCCs \u2014 and cost 11s and 2s.\n\nThe one true\
+    \ thing the estimate rested on: the entry that is never cached is `tests/test_mcp_server.py`,\
+    \ absent from the main clone's cache too, and one stale module in a 1289-node\
+    \ graph forces mypy to deserialise 798 SCCs it would otherwise skip. Fixing *that*\
+    \ would be worth more than any copy, and is not this task.\n\nRejected alternative:\
+    \ shipping the copy anyway as harmless. It is not harmless \u2014 it adds 2.5s\
+    \ to every bootstrap and 62 MB per worktree to buy nothing measurable, and a documented\
+    \ optimisation that does not optimise is worse than none, because the next reader\
+    \ believes it."
+  data:
+    operation:
+      id: c4e7a911-0b62-4f38-9a0e-2d7c6b5e4f31
+      kind: log_append
+      fingerprint: df03a2c46071a7643aea91d8b4dd3ec4
