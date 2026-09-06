@@ -16,11 +16,22 @@ Every one of them is throwaway. Press anything, including the destructive contro
 nothing here touches the live corpus, the 8876 dashboard, or its registry. The data
 lives under a temporary directory this process deletes when it stops.
 
-    python scripts/review_links_sandbox.py [port]
+    python scripts/review_links_sandbox.py [port] [host] [advertised base URL]
 
 Stop it with Ctrl-C, or by killing the process. It defaults to a port of its own so it
 cannot be confused with the real dashboard: a second server on the usual port silently
 serves stale code from a process nobody restarts.
+
+**To review this on a phone**, which is the screen the change is for, put a proxy in
+front rather than widening the bind -- a request arriving from another device has no
+proven identity and loses every verb (see ``DEFAULT_HOST``). The third argument is what
+the seeded handoffs will call the sandbox, and behind a proxy that is the proxy's name:
+
+    tailscale serve --bg --https=8443 http://127.0.0.1:8913
+    python scripts/review_links_sandbox.py 8913 127.0.0.1 https://<host>.ts.net:8443
+
+Turn the proxy off with ``tailscale serve --https=8443 off`` when the review is done;
+``--bg`` persists across reboots until you do.
 
 What to look for, since "it renders" is not the property under review:
 
@@ -60,6 +71,30 @@ from typing import Any, Dict, List
 import yaml
 
 DEFAULT_PORT = 8913
+
+#: Loopback, because that is where a sandbox belongs: it carries no authentication, and
+#: the tailnet front door -- which does, and which refuses the three routes that turn
+#: the API into arbitrary code execution -- is in front of the *real* server, not this
+#: one. See docs/tailnet-front-door.md.
+#:
+#: **Do not widen this to reach a phone.** It looks like the fix and it is not: a
+#: connection from another device resolves to no proven identity at all, because
+#: ``principals.is_local`` is loopback and nothing else (task-363, measured). The
+#: reviewer would get a page they can read and no verb they can press -- worse than no
+#: sandbox, because it looks like the feature is broken. Put a proxy in front instead,
+#: so the request reaches this process from loopback:
+#:
+#:     tailscale serve --bg --https=8443 http://127.0.0.1:8913
+DEFAULT_HOST = "127.0.0.1"
+
+#: What the seeded handoffs call this sandbox, which is **not** always where it is
+#: bound. Behind a proxy the two differ, and the addresses this sandbox writes into its
+#: own task records have to be the ones the reviewer's browser can resolve -- on a
+#: phone, the proxy's name, never ``127.0.0.1``. Getting this wrong is invisible on the
+#: desktop that started it and total on the device it was stood up for.
+#:
+#:     python scripts/review_links_sandbox.py 8913 127.0.0.1 https://host.ts.net:8443
+DEFAULT_BASE = ""
 
 #: The task-240 review request of 2026-09-06 rewritten to the convention: every
 #: address on its own named line, and the prose referring to them by name.
@@ -276,7 +311,9 @@ STATES = [
 
 def main() -> None:
     port = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PORT
-    base = f"http://127.0.0.1:{port}"
+    host = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_HOST
+    advertised = sys.argv[3] if len(sys.argv) > 3 else DEFAULT_BASE
+    base = advertised.rstrip("/") or f"http://{host}:{port}"
     root = Path(tempfile.mkdtemp(prefix="agentjobs-review-links-"))
     home = root / "home"
     home.mkdir()
@@ -304,7 +341,7 @@ def main() -> None:
     print(f"[review] throwaway data under {root}", flush=True)
     print("[review] stop with Ctrl-C; the data is deleted with the process.", flush=True)
     try:
-        uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+        uvicorn.run(app, host=host, port=port, log_level="warning")
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
