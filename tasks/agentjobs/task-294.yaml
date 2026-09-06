@@ -2,15 +2,11 @@ schema: 2
 id: task-294
 title: The Dashboard fits one screen, and never scrolls
 created: '2026-08-23T20:39:32.963071Z'
-updated: '2026-09-06T08:19:31.837853Z'
-lifecycle: active
-ball: agent
-ball_reason: answer
-ball_prompt: Finishing a task failed yet again. The dispatch run never knew it had
-  finished and passed the ball and that blocked the finish.
+updated: '2026-09-06T08:20:15.750991Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 193
 category: ux
 tags:
 - frontend
@@ -18,7 +14,6 @@ tags:
 - react
 - dashboard
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: Bound the Dashboard to a viewport-height frame, decide what earns a place
@@ -223,7 +218,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-294-dashboard-one-screen
-  status: active
+  status: merged
+  merged_at: '2026-09-06T08:20:15.627462Z'
 log:
 - id: 1
   ts: '2026-08-23T20:39:33.413373Z'
@@ -735,3 +731,26 @@ log:
     merge_commit: 397e78ec02f4d262d5fc8ef962a5be1abcfc9c9a
     branch: feat/task-294-dashboard-one-screen
     base: main
+- id: 25
+  ts: '2026-09-06T08:20:15.750577Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-294-dashboard-one-screen` into `main` as `397e78ec` and\
+    \ verified live. Finished by the scripted path with no agent session (task-241).\
+    \ Approved by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         2.3s  feat/task-294-dashboard-one-screen\
+    \ at 899d2e98 in C:\\projects\\worktrees\\agentjobs-294\n  runway     ok     \
+    \    0.0s  taken immediately\n  rebase     ok         0.2s  feat/task-294-dashboard-one-screen\
+    \ onto main: 899d2e98 -> f11456e8\n  gate       ok       584.9s  scripts/check.py\
+    \ green\n  catch_up   ok       362.9s  main moved e309171e -> 9f39aa99 in 2 classified\
+    \ path(s); rebased to 8bd7b2f1 and re-ran pytest\n  merge      ok         1.6s\
+    \  --no-ff into main as 397e78ec02f4d262d5fc8ef962a5be1abcfc9c9a\n  rebuild  \
+    \  ok         7.9s  rebuilt the bundle in C:\\projects\\agentjobs\\frontend\n\
+    \  restart    ok         0.9s  ran powershell -NoProfile -ExecutionPolicy Bypass\
+    \ -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify   \
+    \  ok         0.0s  http://127.0.0.1:8876 is serving a974d209, which contains\
+    \ the merge 397e78ec, from C:\\projects\\agentjobs (started 2026-09-06T08:19:55.963225+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
