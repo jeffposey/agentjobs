@@ -3,7 +3,7 @@ id: task-356
 title: 'Shell 6: the filter controls hide behind a filter button instead of sitting
   on screen permanently'
 created: '2026-09-06T05:25:14.813338Z'
-updated: '2026-09-06T20:14:47.454082Z'
+updated: '2026-09-06T20:15:06.867630Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -745,3 +745,13 @@ log:
       id: c9a05f31-84d7-4e26-b013-6f2917ac5b40
       kind: handoff
       fingerprint: c39ac518d633ccb99ec0d665ab47baa5
+- id: 25
+  ts: '2026-09-06T20:15:06.867431Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 20
+  data:
+    run_id: run_99a38627
+    outcome: completed
+    duration_seconds: 975.724246
+    log_path: C:\Users\jpose\.agentjobs\runs\run_99a38627
