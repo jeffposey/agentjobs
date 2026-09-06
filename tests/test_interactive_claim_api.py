@@ -86,9 +86,7 @@ def _live(client: TestClient) -> Dict[str, Any]:
 
 
 class TestTheClaimMakesTheWorkVisible:
-    def test_a_session_that_claims_is_running_on_the_machine_wide_surface(
-        self, served
-    ) -> None:
+    def test_a_session_that_claims_is_running_on_the_machine_wide_surface(self, served) -> None:
         # The defect, stated as a test: this exact sequence used to leave the dashboard
         # saying nothing was running while the task read active/agent/work.
         client, _, task_id = served
@@ -124,10 +122,14 @@ class TestTheClaimMakesTheWorkVisible:
 
     def test_claiming_twice_leaves_one_run(self, served) -> None:
         client, _, task_id = served
-        _claim(client, task_id, session_id=SESSION, operation_id="11111111-1111-4111-8111-111111111111")
+        _claim(
+            client, task_id, session_id=SESSION, operation_id="11111111-1111-4111-8111-111111111111"
+        )
 
         # A replay of the same operation, which the API answers from its record.
-        _claim(client, task_id, session_id=SESSION, operation_id="11111111-1111-4111-8111-111111111111")
+        _claim(
+            client, task_id, session_id=SESSION, operation_id="11111111-1111-4111-8111-111111111111"
+        )
 
         assert len(_live(client)["runs"]) == 1
 

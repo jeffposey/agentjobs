@@ -155,9 +155,7 @@ def settle_for_task(home: Path, task: Optional[Task], task_id: str) -> List[Swee
     for record in live_runs(home):
         if record.task_id != task_id or not record.is_interactive:
             continue
-        conclude_interactive(
-            home, record, DispatchOutcome.COMPLETED, detail=_why_over(task)
-        )
+        conclude_interactive(home, record, DispatchOutcome.COMPLETED, detail=_why_over(task))
         results.append(SweepResult(record.run_id, True, _why_over(task)))
     return results
 

@@ -356,9 +356,7 @@ def _write_transcript(tmp_path: Path, bench, monkeypatch, *, age_seconds: int) -
     from agentjobs.dispatch.transcript import project_slug
 
     root = tmp_path / "claude-projects"
-    monkeypatch.setattr(
-        "agentjobs.dispatch.transcript.claude_projects_dir", lambda home=None: root
-    )
+    monkeypatch.setattr("agentjobs.dispatch.transcript.claude_projects_dir", lambda home=None: root)
     store = root / project_slug(Path(bench["root"]))
     store.mkdir(parents=True, exist_ok=True)
     path = store / f"{SESSION}.jsonl"
