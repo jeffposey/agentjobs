@@ -454,10 +454,14 @@ function TasksSurface({ projectId }: { projectId: string }) {
           <TaskListPage projectId={projectId} variant="tree" />
         </aside>
         <section aria-label="Task detail" data-region="detail" className="min-h-0 overflow-y-auto">
-          {/* The detail region takes what the list leaves, but a record is prose and
-              tables: given a 2560px monitor it would otherwise be set in 200-character
-              lines, which is not an improvement on the centred column it replaced. */}
-          <div className="mx-auto w-full max-w-5xl">
+          {/* The region is the width the list leaves, and the reading measure is not
+              here (task-239). It was, for one commit: a single `max-w-5xl` around the
+              whole record, which fixed the 200-character line and took the same width
+              back from the dependency graph, the log and the run transcript -- the
+              parts of a record that are *better* wide. `TaskDetail` now caps its own
+              prose and lets the wide blocks run, so this wrapper only has to be full
+              width and let it. */}
+          <div className="w-full">
             {outlet ?? <NoTaskSelected projectId={projectId} />}
           </div>
         </section>
@@ -482,7 +486,7 @@ function NoTaskSelected({ projectId }: { projectId: string }) {
   return (
     <section
       aria-label="No task selected"
-      className="rounded-2xl border border-dashed border-dark-border p-8"
+      className="max-w-4xl rounded-2xl border border-dashed border-dark-border p-8"
     >
       <h2 className="text-lg font-semibold text-dark-text">No task selected</h2>
       <p className="mt-2 max-w-prose text-sm text-dark-muted">

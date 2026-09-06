@@ -34,7 +34,7 @@ export function NoteComposer({ identity, busy = false, error = null, onAddNote }
 
   return (
     <section
-      className="space-y-3 rounded-xl border border-dark-border bg-dark-surface p-4 min-[820px]:p-6"
+      className="space-y-3 rounded-xl border border-dark-border bg-dark-surface p-4 @min-[768px]:p-6"
       aria-label="Notes"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
