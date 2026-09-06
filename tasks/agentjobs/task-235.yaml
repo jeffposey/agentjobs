@@ -2,7 +2,7 @@ schema: 2
 id: task-235
 title: Adopt the list-and-detail shell every other app on the screen already uses
 created: '2026-08-22T00:38:02.564268Z'
-updated: '2026-09-06T22:24:21.227914Z'
+updated: '2026-09-06T22:24:54.256122Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -2546,3 +2546,13 @@ log:
       id: b30f7a92-6c41-4e85-a17d-52d9c8e60b13
       kind: close
       fingerprint: 7e90f989d51fb813397a767771d8304c
+- id: 71
+  ts: '2026-09-06T22:24:54.255596Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 68
+  data:
+    run_id: run_1506104a
+    outcome: completed
+    duration_seconds: 209.524338
+    log_path: C:\Users\jpose\.agentjobs\runs\run_1506104a
