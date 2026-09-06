@@ -2,18 +2,13 @@ schema: 2
 id: task-294
 title: The Dashboard fits one screen, and never scrolls
 created: '2026-08-23T20:39:32.963071Z'
-updated: '2026-09-06T07:53:08.479203Z'
+updated: '2026-09-06T07:59:37.646857Z'
 lifecycle: active
 ball: human
-ball_reason: review
-ball_prompt: "Drive it, then approve or say what to change.\n\nSandboxes are up now,\
-  \ throwaway data, forty open tasks:\n  calm   http://127.0.0.1:8908/app/p/sandbox-crowded\n\
-  \  alarm  http://127.0.0.1:8909/app/p/sandbox-crowded\nResize the window or use\
-  \ Chrome's device toolbar \u2014 the window never scrolls. The\nTasks tab on the\
-  \ same server still scrolls, deliberately.\n\nBranch feat/task-294-dashboard-one-screen,\
-  \ gate green on 899d2e98.\nOne judgement call worth your eye: the drafts link went\
-  \ with the count strip, so\ndrafts are now two clicks (View all \u2192 Status: Draft).\
-  \ Entry 13 says why."
+ball_reason: decision
+ball_prompt: Run run_07f7ea67 ended `cancelled` and nobody was told what this task
+  needs. Read the dispatch_result entry, then either dispatch again or take it on
+  yourself.
 archived: false
 priority: critical
 queue_position: 193
@@ -619,3 +614,31 @@ log:
       id: d3a70b58-9c14-4e2f-8b06-51fa9e2c74d3
       kind: handoff
       fingerprint: 4429bb5c502a9c39c55cbd213d8dbcb8
+- id: 17
+  ts: '2026-09-06T07:54:30.516176Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 18
+  ts: '2026-09-06T07:59:37.599268Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: stopped session a3770b79
+  re: 10
+  data:
+    run_id: run_07f7ea67
+    outcome: cancelled
+    duration_seconds: 5074.417614
+    log_path: C:\Users\jpose\.agentjobs\runs\run_07f7ea67
+- id: 19
+  ts: '2026-09-06T07:59:37.646642Z'
+  actor: dispatcher
+  type: handoff
+  body: Run run_07f7ea67 ended `cancelled` and nobody was told what this task needs.
+    Read the dispatch_result entry, then either dispatch again or take it on yourself.
+  data:
+    ball: human
+    ball_reason: decision
