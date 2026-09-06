@@ -171,6 +171,9 @@ export const FINISH_STEP_LABELS: Record<string, string> = {
   close: "Closing the task",
   worktree: "Removing the worktree",
   branch: "Deleting the branch",
+  // The server's word for a finish whose record it could not read: the lock is held,
+  // the step is unknown.
+  merging: "Merging",
 };
 
 export function finishStepLabel(detail: string | undefined): string {
