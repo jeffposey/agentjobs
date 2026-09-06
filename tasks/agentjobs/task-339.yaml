@@ -4,7 +4,7 @@ title: 'The gate is launched six to nine times per task at seven to twelve minut
   each under contention: one gate per handoff, and a core budget shared between concurrent
   gates'
 created: '2026-09-05T20:49:03.656961Z'
-updated: '2026-09-06T00:32:58.905718Z'
+updated: '2026-09-06T00:33:09.435100Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -516,3 +516,17 @@ log:
       id: 2f6d84b1-9c37-4e50-a1f8-6b3d7e0c5a93
       kind: update_content
       fingerprint: e4b3cffe6523a7d30709ae49eb068daa
+- id: 11
+  ts: '2026-09-06T00:33:09.434857Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `perf/task-339-one-gate-per-handoff` (0a6217a4).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-339.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_dd98ce1f\gate.log.'
+  data:
+    finish_step: started
+    branch: perf/task-339-one-gate-per-handoff
+    finish_id: fin_dd98ce1f
