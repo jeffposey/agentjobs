@@ -9,7 +9,10 @@ import {
   LiveRunCount,
   LiveRunsPage,
   capacitySentence,
+  liveFinishes,
   liveRunsPollInterval,
+  runningCount,
+  unexplainedRunways,
 } from "./LiveRuns";
 
 /**
@@ -110,6 +113,39 @@ describe("the capacity sentence", () => {
       "Dispatch is not configured on this machine",
     );
   });
+
+  it("says a merge is in progress, without counting it as a slot", () => {
+    // task-352: "0 of 3 slots busy" on its own, beside a five-minute gate, read as
+    // nothing happening. The slot count is still the guard's number and still zero.
+    expect(capacitySentence(body({ holders: [holder()] }))).toBe("0 of 3 slots busy · 1 merging");
+    expect(
+      capacitySentence(body({ holders: [holder(), holder({ lock_name: "task-003" })] })),
+    ).toBe("0 of 3 slots busy · 2 merging");
+  });
+
+  it("does not count the runway as a second merge", () => {
+    const holders = [holder(), holder({ kind: "runway", lock_name: "runway-abc", task_id: "" })];
+    expect(capacitySentence(body({ holders }))).toBe("0 of 3 slots busy · 1 merging");
+  });
+});
+
+describe("what counts as running", () => {
+  it("counts dispatched runs and finishes, and nothing else", () => {
+    const holders = [holder(), holder({ kind: "runway", lock_name: "runway-abc", task_id: "" })];
+    expect(runningCount(body({ runs: [run()], occupied: 1, holders }))).toBe(2);
+    expect(runningCount(null)).toBe(0);
+    expect(liveFinishes(body({ holders }))).toHaveLength(1);
+  });
+
+  it("explains a runway by the finish holding it", () => {
+    // The runway is the same finish's lock on the repository, so it is not a second
+    // thing happening -- unless no listed finish holds it, when it is still worth a line.
+    const held = holder({ kind: "runway", lock_name: "runway-abc", task_id: "", finish_id: "fin_abc" });
+    expect(unexplainedRunways(body({ holders: [holder(), held] }))).toEqual([]);
+    expect(unexplainedRunways(body({ holders: [held] }))).toEqual([held]);
+    const other = holder({ kind: "runway", lock_name: "runway-def", task_id: "", finish_id: "fin_zzz" });
+    expect(unexplainedRunways(body({ holders: [holder(), other] }))).toEqual([other]);
+  });
 });
 
 describe("the nav badge", () => {
@@ -121,6 +157,12 @@ describe("the nav badge", () => {
   it("reads zero when nothing is running, rather than holding a stale number", () => {
     renderIn(<LiveRunCount body={body()} />);
     expect(screen.getByTestId("live-run-count")).toHaveTextContent("0");
+  });
+
+  it("counts a finish in progress as running", () => {
+    // task-352: the badge read 0 through the whole of task-092's gate.
+    renderIn(<LiveRunCount body={body({ holders: [holder()] })} />);
+    expect(screen.getByTestId("live-run-count")).toHaveTextContent("1");
   });
 
   it("reads zero before the first answer arrives", () => {
@@ -173,16 +215,48 @@ describe("the Runs tab", () => {
     expect(screen.getByTestId("no-live-runs")).toBeInTheDocument();
   });
 
-  it("lists a merge in progress separately from the run slots", () => {
-    renderIn(<LiveRunsPage body={body({ holders: [holder()] })} />);
-    const section = screen.getByRole("heading", { name: "Also on this machine" }).closest("section");
-    expect(section).not.toBeNull();
-    expect(within(section as HTMLElement).getByText(/Finishing task-002/)).toBeInTheDocument();
-    // Not counted as an occupied slot: it holds a lock, not a run slot.
-    expect(screen.getByTestId("capacity-sentence")).toHaveTextContent("0 of 3 slots busy");
+  it("lists a finish in progress as a run, with its task, its step and its time", () => {
+    // task-352: this exact body -- one finish, no runs -- rendered "Nothing is running
+    // on this machine right now" with the finish in a footnote under it.
+    renderIn(<LiveRunsPage body={body({ holders: [holder({ detail: "gate" })] })} />);
+
+    expect(screen.queryByTestId("no-live-runs")).toBeNull();
+    const row = screen.getByRole("link", { name: /task-002/ }).closest("tr");
+    expect(row).not.toBeNull();
+    expect(screen.getByRole("link", { name: /task-002/ })).toHaveAttribute(
+      "href",
+      "/p/alpha/tasks/task-002",
+    );
+    expect(within(row as HTMLElement).getByText("Finishing")).toHaveAttribute(
+      "data-finish-step",
+      "gate",
+    );
+    expect(within(row as HTMLElement).getByText("Running the gate")).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByText("30s")).toBeInTheDocument();
+    // Still not an occupied slot: it holds a lock, not a run slot -- and the sentence
+    // says which.
+    expect(screen.getByTestId("capacity-sentence")).toHaveTextContent(
+      "0 of 3 slots busy · 1 merging",
+    );
+    expect(screen.queryByRole("heading", { name: "Also on this machine" })).toBeNull();
   });
 
-  it("names the repository a merge runway is blocking", () => {
+  it("says a finish queued for the runway is queued, in words", () => {
+    renderIn(<LiveRunsPage body={body({ holders: [holder({ detail: "runway" })] })} />);
+    expect(screen.getByText("Queued for the merge runway")).toBeInTheDocument();
+  });
+
+  it("does not list the runway a listed finish is holding", () => {
+    const holders = [
+      holder(),
+      holder({ kind: "runway", lock_name: "runway-abc", task_id: "", task_url: "" }),
+    ];
+    renderIn(<LiveRunsPage body={body({ holders })} />);
+    expect(screen.queryByText(/Merge runway/)).toBeNull();
+    expect(screen.getAllByRole("row")).toHaveLength(2); // the header and the finish
+  });
+
+  it("names the repository a merge runway is blocking when no finish explains it", () => {
     renderIn(
       <LiveRunsPage
         body={body({

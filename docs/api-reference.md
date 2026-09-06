@@ -269,7 +269,11 @@ Two fields are worth reading carefully:
 - **`holders` is not `runs`.** A scripted finish and a repository's merge runway hold
   locks rather than run slots, so they are real machine activity with no run record.
   They are listed separately and are deliberately **not** in `occupied`, which counts
-  exactly what the concurrency guard counts.
+  exactly what the concurrency guard counts. The React app nonetheless *shows* a finish
+  as running -- in the Runs badge, the Runs table and as a card on the slot board
+  (task-352) -- because a gate running for a task is running, whatever it holds; a
+  client of this endpoint should read `runs` plus the `finish` holders as "what is
+  running", and `occupied` as "how many slots are taken", which are different questions.
 
 ### The two readings of one run
 

@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { listLiveRunsApiRunsLiveGetOptions } from "../api/generated/@tanstack/react-query.gen";
-import type { LiveRunView, LiveRunsView, MachineHolderView } from "../api/types";
+import type { LiveRunsView, MachineHolderView } from "../api/types";
 import { formatElapsed } from "./DispatchPanel";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 
@@ -105,16 +105,109 @@ export function HealthBadge({ health }: { health: string }) {
   );
 }
 
-/** "2 of 3 slots busy", or the honest version of it on an unconfigured machine. */
+/**
+ * The finishes in progress, which every surface here counts and lists as running
+ * (task-352).
+ *
+ * A scripted finish holds locks rather than a run slot, which is why the server leaves
+ * it out of `occupied` and must go on doing so: that number is the concurrency guard's,
+ * and a browser that disagreed with it would offer a Dispatch button the server refuses.
+ * But the question this surface exists to answer is "what is running on this machine",
+ * and a finish spending five minutes in the gate for a task is the plain answer to it.
+ * task-092's own finish sat under a heading saying nothing was running, with the badge
+ * at zero, and that is how task-352 came to be filed.
+ *
+ * So the split is: `occupied` is slots, and stays the server's word; what is *running*
+ * is the runs plus these. The runway holder is never a second item -- it is the same
+ * finish's lock on the repository, and a finish that holds it is counted once.
+ */
+export function liveFinishes(body: LiveRunsView): MachineHolderView[] {
+  return body.holders.filter((holder) => holder.kind === "finish");
+}
+
+/**
+ * Runway locks whose finish is not otherwise listed.
+ *
+ * Almost always empty: a finish takes its task lock before the runway, so a runway in
+ * hand means a finish row above it. The exception is a runway whose holder's finish
+ * record cannot be read, and that one is still worth a line -- every other merge in
+ * that repository is queued behind it.
+ */
+export function unexplainedRunways(body: LiveRunsView): MachineHolderView[] {
+  const listed = new Set(
+    liveFinishes(body)
+      .map((finish) => finish.finish_id ?? "")
+      .filter((id) => id.length > 0),
+  );
+  return body.holders.filter(
+    (holder) => holder.kind === "runway" && !(holder.finish_id && listed.has(holder.finish_id)),
+  );
+}
+
+/** What the badge counts: dispatched runs plus finishes in progress. */
+export function runningCount(body: LiveRunsView | null): number {
+  if (!body) return 0;
+  return body.runs.length + liveFinishes(body).length;
+}
+
+/**
+ * The finish's step, in words for somebody watching their task merge.
+ *
+ * `detail` is the step name from the finish's own vocabulary -- `gate`, `runway` -- and
+ * "runway" means nothing to a person reading a table. These are shorter than the
+ * sentences `dispatch/finish_status.py` keeps for the same steps, because they render
+ * in a table cell and on a card with four lines of room.
+ */
+export const FINISH_STEP_LABELS: Record<string, string> = {
+  preflight: "Checking the branch",
+  runway: "Queued for the merge runway",
+  rebase: "Rebasing onto main",
+  gate: "Running the gate",
+  catch_up: "Re-verifying after main moved",
+  merge: "Merging",
+  rebuild: "Rebuilding the frontend",
+  restart: "Restarting the server",
+  verify: "Checking the merge is live",
+  close: "Closing the task",
+  worktree: "Removing the worktree",
+  branch: "Deleting the branch",
+};
+
+export function finishStepLabel(detail: string | undefined): string {
+  if (!detail) return "Merging";
+  return FINISH_STEP_LABELS[detail] ?? detail;
+}
+
+/** The state word for a finish, styled apart from a run's health: it is not a session. */
+export function FinishBadge({ finish }: { finish: MachineHolderView }) {
+  return (
+    <span
+      data-finish-step={finish.detail}
+      className="whitespace-nowrap rounded bg-violet-900 px-2 py-1 text-xs text-violet-200"
+    >
+      Finishing
+    </span>
+  );
+}
+
+/**
+ * "2 of 3 slots busy", or the honest version of it on an unconfigured machine.
+ *
+ * With a finish in progress the sentence says so -- "0 of 3 slots busy · 1 merging" --
+ * because the slot count on its own, read beside a five-minute gate, is the sentence
+ * that made task-092's finish look like nothing was happening (task-352).
+ */
 export function capacitySentence(body: LiveRunsView): string {
+  const merging = liveFinishes(body).length;
+  const suffix = merging > 0 ? ` · ${merging} merging` : "";
   if (!body.dispatch_configured) {
-    return body.occupied > 0
-      ? `${body.occupied} running`
-      : "Dispatch is not configured on this machine";
+    const head =
+      body.occupied > 0 ? `${body.occupied} running` : "Dispatch is not configured on this machine";
+    return `${head}${suffix}`;
   }
   return `${body.occupied} of ${body.max_concurrent_runs} ${
     body.max_concurrent_runs === 1 ? "slot" : "slots"
-  } busy`;
+  } busy${suffix}`;
 }
 
 /*
@@ -128,9 +221,14 @@ export function capacitySentence(body: LiveRunsView): string {
  * renders, and the link to the Runs tab is the board's "Running now →".
  */
 
-/** The nav badge. Always a number, so zero reads as zero rather than as stale. */
+/**
+ * The nav badge. Always a number, so zero reads as zero rather than as stale.
+ *
+ * It counts what is running, not what holds a slot: a finish in the gate is a one here
+ * (task-352). The slot count is the capacity sentence's job.
+ */
 export function LiveRunCount({ body }: { body: LiveRunsView | null }) {
-  const count = body?.runs.length ?? 0;
+  const count = runningCount(body);
   return (
     <span
       data-testid="live-run-count"
@@ -143,30 +241,67 @@ export function LiveRunCount({ body }: { body: LiveRunsView | null }) {
   );
 }
 
-function HolderRow({ holder }: { holder: MachineHolderView }) {
-  const what =
-    holder.kind === "runway"
-      ? `Merge runway — ${holder.project_name || "a checkout"}`
-      : `Finishing ${holder.task_id}${holder.task_title ? `: ${holder.task_title}` : ""}`;
-  const body = (
-    <>
-      <span className="font-medium text-dark-text">{what}</span>
+/** A runway lock with no finish row to explain it. See `unexplainedRunways`. */
+function RunwayRow({ holder }: { holder: MachineHolderView }) {
+  return (
+    <li className="p-4 text-sm">
+      <span className="font-medium text-dark-text">
+        Merge runway — {holder.project_name || "a checkout"}
+      </span>
       <span className="text-dark-muted"> — {holder.detail}</span>
       {holder.elapsed_seconds !== null && holder.elapsed_seconds !== undefined && (
         <span className="text-dark-muted"> · {formatElapsed(holder.elapsed_seconds)}</span>
       )}
+    </li>
+  );
+}
+
+/**
+ * A finish, as a row of the same table the runs are in.
+ *
+ * The Task cell links where a run's does, and falls back to plain text for a finish
+ * whose project the server could not attribute: the row is still worth having, and a
+ * link to nowhere is worse than no link.
+ */
+function FinishRow({ finish }: { finish: MachineHolderView }) {
+  const name = (
+    <>
+      <span className="font-mono text-xs">{finish.task_id || finish.lock_name}</span>
+      {finish.task_title && (
+        <span className="ml-2 text-sm text-dark-text">{finish.task_title}</span>
+      )}
     </>
   );
   return (
-    <li className="p-4 text-sm">
-      {holder.task_url ? (
-        <Link to={holder.task_url} className="hover:text-blue-300">
-          {body}
-        </Link>
-      ) : (
-        body
-      )}
-    </li>
+    <ResponsiveTableRow
+      data-finish-id={finish.finish_id}
+      data-task-id={finish.task_id}
+    >
+      <ResponsiveCell label="Task">
+        {finish.task_url ? (
+          <Link to={finish.task_url} className="text-blue-400 hover:text-blue-300">
+            {name}
+          </Link>
+        ) : (
+          <span className="text-dark-text">{name}</span>
+        )}
+      </ResponsiveCell>
+      <ResponsiveCell label="Project" className="text-sm text-dark-muted">
+        {finish.project_name}
+      </ResponsiveCell>
+      <ResponsiveCell label="State">
+        <span className="inline-flex flex-wrap items-center gap-2">
+          <FinishBadge finish={finish} />
+          <span className="text-xs text-dark-muted">{finishStepLabel(finish.detail)}</span>
+        </span>
+      </ResponsiveCell>
+      <ResponsiveCell label="Running for" className="text-sm text-dark-muted">
+        {formatElapsed(finish.elapsed_seconds)}
+      </ResponsiveCell>
+      <ResponsiveCell label="Posture" className="text-xs text-dark-muted">
+        scripted finish
+      </ResponsiveCell>
+    </ResponsiveTableRow>
   );
 }
 
@@ -188,6 +323,9 @@ export function LiveRunsPage({ body }: { body: LiveRunsView | null }) {
     );
   }
 
+  const finishes = liveFinishes(body);
+  const runways = unexplainedRunways(body);
+
   return (
     <div className="space-y-6">
       <section className="rounded-lg border border-dark-border bg-dark-surface p-6">
@@ -208,7 +346,7 @@ export function LiveRunsPage({ body }: { body: LiveRunsView | null }) {
         <div className="border-b border-dark-border p-6">
           <h2 className="text-lg font-semibold">Runs</h2>
         </div>
-        {body.runs.length === 0 ? (
+        {body.runs.length === 0 && finishes.length === 0 ? (
           <p className="p-6 text-sm text-dark-muted" data-testid="no-live-runs">
             Nothing is running on this machine right now.
           </p>
@@ -254,25 +392,30 @@ export function LiveRunsPage({ body }: { body: LiveRunsView | null }) {
                     </ResponsiveCell>
                   </ResponsiveTableRow>
                 ))}
+                {/* Finishes after the runs: a finish is what happens to a task once
+                    its run is over, so it reads as the later thing. It holds no slot,
+                    which the capacity sentence above already says. */}
+                {finishes.map((finish) => (
+                  <FinishRow key={`finish-${finish.lock_name}`} finish={finish} />
+                ))}
               </tbody>
             </ResponsiveTable>
           </div>
         )}
       </section>
 
-      {body.holders.length > 0 && (
+      {runways.length > 0 && (
         <section className="rounded-lg border border-dark-border bg-dark-surface">
           <div className="border-b border-dark-border p-6">
             <h2 className="text-lg font-semibold">Also on this machine</h2>
             <p className="mt-1 text-xs text-dark-muted">
-              Merges in progress. They hold locks rather than run slots, so they are not
-              in the count above — but a task cannot be dispatched while one holds it,
-              and a repository&apos;s merges queue behind its runway.
+              A merge runway held by a finish this page could not read. Every other merge
+              in that repository is queued behind it.
             </p>
           </div>
           <ul className="divide-y divide-dark-border">
-            {body.holders.map((holder) => (
-              <HolderRow key={`${holder.kind}-${holder.lock_name}`} holder={holder} />
+            {runways.map((holder) => (
+              <RunwayRow key={`runway-${holder.lock_name}`} holder={holder} />
             ))}
           </ul>
         </section>

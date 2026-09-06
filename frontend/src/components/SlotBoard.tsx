@@ -2,7 +2,14 @@ import { Link } from "react-router-dom";
 
 import type { LiveRunView, LiveRunsView, MachineHolderView, TaskRead } from "../api/types";
 import { formatElapsed } from "./DispatchPanel";
-import { HealthBadge, capacitySentence } from "./LiveRuns";
+import {
+  FinishBadge,
+  HealthBadge,
+  capacitySentence,
+  finishStepLabel,
+  liveFinishes,
+  unexplainedRunways,
+} from "./LiveRuns";
 
 /**
  * The Dashboard as a board of run slots (task-092).
@@ -49,10 +56,18 @@ export const BOARD_CELL_LIMIT = 6;
  * lists only the visible ones (task-333). The slot is genuinely taken, so drawing it
  * free -- with a Dispatch button the server would refuse -- would make the browser the
  * one place in the system able to disagree with the concurrency guard.
+ *
+ * `finish` is a card for a scripted finish in progress (task-352). It is drawn in the
+ * board because a finish running a five-minute gate is this machine working on a task,
+ * and a board that said "0 of 3 slots busy" over three free cells while it ran was read
+ * as nothing happening. It holds no slot, so it is *added* to the board rather than
+ * taking a cell from it: the free cells and their Dispatch buttons are exactly what
+ * they would be without it.
  */
 export type SlotCell =
   | { kind: "run"; key: string; run: LiveRunView }
   | { kind: "opaque"; key: string }
+  | { kind: "finish"; key: string; finish: MachineHolderView }
   | { kind: "queued"; key: string; task: TaskRead }
   | { kind: "empty"; key: string };
 
@@ -94,6 +109,20 @@ export function orderedRuns(runs: LiveRunView[]): LiveRunView[] {
   });
 }
 
+/** The same stability rule for finish cards: start order, lock name breaking ties. */
+export function orderedFinishes(finishes: MachineHolderView[]): MachineHolderView[] {
+  return [...finishes].sort((left, right) => {
+    const a = left.started_at;
+    const b = right.started_at;
+    if (a !== b) {
+      if (!a) return 1;
+      if (!b) return -1;
+      return a < b ? -1 : 1;
+    }
+    return left.lock_name < right.lock_name ? -1 : left.lock_name > right.lock_name ? 1 : 0;
+  });
+}
+
 /**
  * Turn one machine answer and one project queue into the cells to draw.
  *
@@ -122,15 +151,27 @@ export function boardLayout(
     );
   }
 
+  // Finishes after the runs and before the free cells: busy things first, and a finish
+  // is what happens to a task after its run. They are not counted against `slots` --
+  // `free` below is computed from `busy` alone -- so a board with a finish on it has
+  // one more card than the ceiling, and that is the honest shape: three slots, none
+  // taken, and a merge grinding beside them.
+  const finishes = orderedFinishes(liveFinishes(body));
+  for (const finish of finishes) {
+    cells.push({ kind: "finish", key: `finish-${finish.lock_name}`, finish });
+  }
+
   // A task already holding a cell is not offered a second one. The two lists come from
   // two endpoints and nothing reconciles them: a run whose task was released back to
   // `ready` while its process is still alive is live *and* claimable, and the board
   // would then show it twice with a Dispatch button under the second copy. Scoped to
   // this project, because a task id is only unique within one -- `task-101` here and
   // `task-101` elsewhere are two different tasks and only one of them is on this queue.
-  const running = new Set(
-    body.runs.filter((item) => item.project_id === projectId).map((item) => item.task_id),
-  );
+  // A task being finished is held the same way: its finish card is its cell.
+  const running = new Set([
+    ...body.runs.filter((item) => item.project_id === projectId).map((item) => item.task_id),
+    ...finishes.filter((item) => item.project_id === projectId).map((item) => item.task_id),
+  ]);
   const offerable = queue.filter((task) => !running.has(task.id));
 
   // A free cell per remaining slot, each offering a *different* task. When the queue is
@@ -226,6 +267,51 @@ function RunCell({ run, projectId }: { run: LiveRunView; projectId: string }) {
   );
 }
 
+/**
+ * A scripted finish, drawn as a card of the board (task-352).
+ *
+ * Same shape as a run cell: state and elapsed on the first line, the task linked
+ * beneath, and the foot saying what it is -- the finish step, in words, where a run
+ * shows its posture. The step is the one thing a person watching a merge wants to know
+ * and the one thing the footnote this replaced did not say.
+ */
+function FinishCell({ finish, projectId }: { finish: MachineHolderView; projectId: string }) {
+  const elsewhere = Boolean(finish.project_id) && finish.project_id !== projectId;
+  const name = (
+    <>
+      <div className="truncate font-mono text-xs text-blue-400">
+        {finish.task_id || finish.lock_name}
+      </div>
+      <div className="line-clamp-2 text-sm font-medium text-dark-text">
+        {finish.task_title || finish.finish_id || "A merge in progress"}
+      </div>
+    </>
+  );
+  return (
+    <div className={`${CELL_BASE} border-violet-900/70 bg-dark-bg`}>
+      <div className="min-w-0">
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <FinishBadge finish={finish} />
+          <span className="shrink-0 text-xs text-dark-muted">
+            {formatElapsed(finish.elapsed_seconds)}
+          </span>
+        </div>
+        {finish.task_url ? (
+          <Link to={finish.task_url} className="block min-w-0 hover:text-blue-300">
+            {name}
+          </Link>
+        ) : (
+          <div className="min-w-0">{name}</div>
+        )}
+      </div>
+      <div className="flex items-center justify-between gap-2 text-xs text-dark-muted">
+        <span className="truncate">{finishStepLabel(finish.detail)}</span>
+        {elsewhere && <span className="shrink-0">{finish.project_name}</span>}
+      </div>
+    </div>
+  );
+}
+
 function OpaqueCell() {
   return (
     <div className={`${CELL_BASE} border-dark-border bg-dark-bg`}>
@@ -309,36 +395,29 @@ function EmptyCell({ projectId, quiet }: { projectId: string; quiet: boolean }) 
 }
 
 /**
- * Merges and finishes, under the board rather than in it.
+ * Runway locks with no finish card to explain them, under the board.
  *
- * A scripted finish and the merge runway are this machine working, they hold locks
- * rather than run slots, and a cell for either would make the count wrong -- `occupied`
- * is counted by exactly the expression the concurrency guard uses and does not include
- * them. But a board announcing "3 slots free" while a merge grinds is answering a
- * question nobody asked, so they are adjacent and labelled with what they hold.
+ * Until task-352 every finish was down here too, as "finishing task-092 · 4m" in a
+ * footnote under three free cells, and the footnote was read as nothing happening. A
+ * finish is now a card. What is left for this strip is a runway whose finish record the
+ * server could not read -- rare, and still worth a line, because every other merge in
+ * that repository is queued behind it.
  */
-function HoldersStrip({ holders }: { holders: MachineHolderView[] }) {
+function RunwayStrip({ holders }: { holders: MachineHolderView[] }) {
   if (holders.length === 0) return null;
-  const shown = holders.slice(0, 2);
-  const rest = holders.length - shown.length;
   return (
     <p data-testid="slot-board-holders" className="mt-3 text-xs text-dark-muted">
       <span className="font-medium text-dark-text">Also on this machine: </span>
-      {shown
+      {holders
         .map((holder) => {
-          const what =
-            holder.kind === "runway"
-              ? `merge runway — ${holder.project_name || "a checkout"}`
-              : `finishing ${holder.task_id}`;
           const elapsed =
             holder.elapsed_seconds === null || holder.elapsed_seconds === undefined
               ? ""
               : ` · ${formatElapsed(holder.elapsed_seconds)}`;
-          return `${what}${elapsed}`;
+          return `merge runway — ${holder.project_name || "a checkout"}${elapsed}`;
         })
         .join(", ")}
-      {rest > 0 ? `, +${rest} more` : ""}. Locks, not run slots — so they are not in the
-      count above, but a merge queues behind them.
+      . A lock, not a run slot — every other merge in that repository queues behind it.
     </p>
   );
 }
@@ -383,7 +462,8 @@ export function SlotBoard({
   if (!body) return null;
 
   const layout = boardLayout(body, queue, projectId);
-  if (layout.cells.length === 0 && body.holders.length === 0) return null;
+  const runways = unexplainedRunways(body);
+  if (layout.cells.length === 0 && runways.length === 0) return null;
 
   let firstFree = true;
 
@@ -436,6 +516,18 @@ export function SlotBoard({
                   <OpaqueCell />
                 </div>
               );
+            case "finish":
+              return (
+                <div
+                  key={cell.key}
+                  data-testid="slot-cell"
+                  data-slot-state="finish"
+                  data-finish-id={cell.finish.finish_id}
+                  data-task-id={cell.finish.task_id}
+                >
+                  <FinishCell finish={cell.finish} projectId={projectId} />
+                </div>
+              );
             case "queued": {
               const disclosure = firstFree ? renderWhyThisOne : undefined;
               firstFree = false;
@@ -483,7 +575,7 @@ export function SlotBoard({
         </p>
       )}
       {!statusOnly && renderQueueGate?.()}
-      <HoldersStrip holders={body.holders} />
+      <RunwayStrip holders={runways} />
     </section>
   );
 }

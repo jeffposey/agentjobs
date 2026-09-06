@@ -286,18 +286,56 @@ describe("the board a person reads", () => {
     expect(within(first).getByText("Because it is first in the high band.")).toBeVisible();
   });
 
-  it("shows lock holders beside the board rather than as cells in it", () => {
-    // ac-6: a finish and the merge runway are this machine working and hold no run
-    // slot, so a cell for either would make the count wrong -- but a board reporting
-    // three free slots through a three-minute merge answers the wrong question.
+  it("draws a finish as a card, without taking a free cell from the board", () => {
+    // task-352: a finish was a footnote under three free cells, and the footnote was
+    // read as nothing happening. It is a card now -- and an *extra* one, because it
+    // holds no slot: every free cell and its Dispatch button is still there.
     renderBoard(
-      <SlotBoard body={body({ holders: [holder()] })} queue={[]} projectId="alpha" />,
+      <SlotBoard
+        body={body({ holders: [holder({ detail: "gate" })] })}
+        queue={[task("task-one"), task("task-two"), task("task-three")]}
+        projectId="alpha"
+        renderQueueAction={(item) => <button type="button">Dispatch {item.id}</button>}
+      />,
     );
 
-    expect(cellStates()).toEqual(["empty", "empty", "empty"]);
-    const strip = screen.getByTestId("slot-board-holders");
-    expect(strip).toHaveTextContent("finishing task-002");
-    expect(strip).toHaveTextContent("Locks, not run slots");
+    expect(cellStates()).toEqual(["finish", "queued", "queued", "queued"]);
+    expect(screen.getAllByRole("button", { name: /^Dispatch/ })).toHaveLength(3);
+    const card = screen.getAllByTestId("slot-cell")[0]!;
+    expect(within(card).getByText("Finishing")).toHaveAttribute("data-finish-step", "gate");
+    expect(within(card).getByText("Running the gate")).toBeVisible();
+    expect(within(card).getByText("30s")).toBeVisible();
+    expect(within(card).getByRole("link", { name: /task-002/ })).toHaveAttribute(
+      "href",
+      "/p/alpha/tasks/task-002",
+    );
+    expect(screen.getByTestId("slot-board-capacity")).toHaveTextContent(
+      "0 of 3 slots busy · 1 merging",
+    );
+    // The runway it holds is not a second thing, and no footnote is left to hold it.
+    expect(screen.queryByTestId("slot-board-holders")).toBeNull();
+  });
+
+  it("keeps the runs ahead of a finish and the free cells behind it", () => {
+    const layout = boardLayout(
+      body({ occupied: 1, runs: [run()], holders: [holder()] }),
+      [task("task-next")],
+      "alpha",
+    );
+
+    expect(layout.cells.map((cell) => cell.kind)).toEqual(["run", "finish", "queued", "empty"]);
+  });
+
+  it("does not offer a task that is being finished", () => {
+    const layout = boardLayout(
+      body({ holders: [holder({ task_id: "task-two", project_id: "alpha" })] }),
+      [task("task-two"), task("task-three")],
+      "alpha",
+    );
+
+    expect(layout.cells.map((cell) => (cell.kind === "queued" ? cell.task.id : cell.kind))).toEqual(
+      ["finish", "task-three", "empty", "empty"],
+    );
   });
 
   it("renders nothing at all until the machine has answered", () => {
@@ -308,7 +346,9 @@ describe("the board a person reads", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("keeps a merge visible even when there is no board to draw", () => {
+  it("keeps a runway visible even when there is no board to draw", () => {
+    // A runway with no finish card to explain it -- its finish record was unreadable --
+    // still gets a line: every other merge in that repository is queued behind it.
     renderBoard(
       <SlotBoard
         body={body({ dispatch_configured: false, holders: [holder({ kind: "runway", task_id: "" })] })}
@@ -319,6 +359,18 @@ describe("the board a person reads", () => {
 
     expect(screen.queryAllByTestId("slot-cell")).toHaveLength(0);
     expect(screen.getByTestId("slot-board-holders")).toHaveTextContent("merge runway");
+  });
+
+  it("draws a finish on a machine with no configured ceiling", () => {
+    renderBoard(
+      <SlotBoard
+        body={body({ dispatch_configured: false, holders: [holder()] })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    expect(cellStates()).toEqual(["finish"]);
   });
 
   it("links to the long form on both the header and the overflow line", () => {
