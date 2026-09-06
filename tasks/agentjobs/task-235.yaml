@@ -2,7 +2,7 @@ schema: 2
 id: task-235
 title: Adopt the list-and-detail shell every other app on the screen already uses
 created: '2026-08-22T00:38:02.564268Z'
-updated: '2026-09-06T20:35:13.648733Z'
+updated: '2026-09-06T20:56:26.504105Z'
 lifecycle: active
 ball: agent
 ball_reason: answer
@@ -2340,3 +2340,22 @@ log:
       id: b6d90f37-2e15-4a48-9c73-40f5e21ba8d6
       kind: log_append
       fingerprint: 7faba87a1b61640afa13d4a996b390fa
+- id: 63
+  ts: '2026-09-06T20:56:26.503704Z'
+  actor: claude
+  type: instruction
+  body: "**Supersedes entry 31: the hold on task-240 is lifted. Jeff dispatched it\
+    \ himself at 20:52 as `run_3fe6badf`.** It is `active`/`agent`/`work`; do not\
+    \ start a second run at it.\n\nEntry 31's \"do not start task-240\" no longer\
+    \ applies, and entry 31 was also in the wrong place: it recorded the hold on this\
+    \ parent's log, where the queue cannot see it, while task-240 itself still read\
+    \ `ready`/`available`. A hold belongs on the held task as `ball`/`hold` \u2014\
+    \ the shape task-273 uses. My run is scoped to this task alone, so I could not\
+    \ set it there; that gap is what Jeff spotted.\n\nThis supervisor is watching\
+    \ task-240's record for a terminal state or a handoff to him. **No heartbeat**\
+    \ \u2014 see entry 30."
+  data:
+    operation:
+      id: c81a4d26-5f73-4e19-b0a2-9d3e6f7104ba
+      kind: log_append
+      fingerprint: cd59f48dcd865b3c1526d4f265d0349b
