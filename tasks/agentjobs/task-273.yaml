@@ -2,20 +2,16 @@ schema: 2
 id: task-273
 title: Build authoritative SQLite task storage alongside the AgentJobs server
 created: '2026-08-22T19:00:47.987602Z'
-updated: '2026-09-06T06:28:34.562368Z'
+updated: '2026-09-06T06:32:30.093967Z'
 lifecycle: draft
 ball: agent
-ball_reason: work
-ball_prompt: 'Draft the physical schema and bring back choices, not a blank spec.
+ball_reason: hold
+ball_prompt: 'Parked. Nobody is on this and nothing should start it yet.
 
 
-  The owner declined to finish this spec himself and was right to: the previous prompt
-  asked him to write the working specification, which is the agent''s job. Everything
-  he needs to decide is a table layout or a trade-off an agent can lay out and recommend.
-
-
-  Produce the schema proposal, then hand back with the two or three real forks as
-  tappable questions with recommendations. Do not hand back a document to review.'
+  It sits third behind task-294 and the task-235 shell epic. When it does start: draft
+  the physical schema, then hand back the two or three real forks as tappable questions.
+  Do not ask the owner to write the spec.'
 archived: false
 priority: critical
 queue_position: 893
@@ -340,3 +336,23 @@ log:
       id: a7c1de40-8b52-4f63-9074-2d6e0f9a5b31
       kind: handoff
       fingerprint: e82eadc7982ec51f44cadbac0754dae4
+- id: 11
+  ts: '2026-09-06T06:32:30.093776Z'
+  actor: claude
+  type: handoff
+  body: 'Corrected the ball an hour after setting it wrong. `agent`/`work` renders
+    as "In progress", which said an agent was working this when none was. `agent`/`hold`
+    renders "On hold", which is true: parked behind two epics with nobody on it.
+
+
+    Neither state is quite right, and that is a gap rather than a mistake to repeat:
+    for a draft whose spec is the agent''s to write but which nobody has started,
+    the vocabulary offers only `work` (reads as in progress), `available` (reads as
+    "Ready", wrong for a draft) or `hold`. `hold` is the least misleading of the three.'
+  data:
+    ball: agent
+    ball_reason: hold
+    operation:
+      id: b8d2ef51-9c63-4a74-8085-3e7f1a0b6c42
+      kind: handoff
+      fingerprint: e06e44313ed8398dc7a7af47331d386b
