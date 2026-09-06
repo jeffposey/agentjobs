@@ -3,11 +3,29 @@ id: task-237
 title: 'Shell 2: give the Tasks surface two regions and nest the detail route inside
   it'
 created: '2026-08-22T00:39:16.236145Z'
-updated: '2026-09-06T08:54:17.497987Z'
+updated: '2026-09-06T08:54:22.551557Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball_prompt: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
+  \ was merged.**\n\n`scripts/check.py` went red on feat/task-237-two-region-tasks-shell.\
+  \ Full output: C:\\Users\\jpose\\.agentjobs\\finishes\\fin_ff9f5de9\\gate.log\n\n\
+  ```\nRan every stage (10 of 10).\n> C:\\Users\\jpose\\AppData\\Local\\pypoetry\\\
+  Cache\\virtualenvs\\agentjobs-03joIzyB-py3.13\\Scripts\\python.exe -m black --check\
+  \ .\n> C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-03joIzyB-py3.13\\\
+  Scripts\\python.exe -m ruff check .\n> C:\\Users\\jpose\\AppData\\Local\\pypoetry\\\
+  Cache\\virtualenvs\\agentjobs-03joIzyB-py3.13\\Scripts\\python.exe -m mypy .\ntests\\\
+  test_mcp_server.py:599: \e[94mnote:\e[0m By default the bodies of untyped functions\
+  \ are not checked, consider using --check-untyped-defs  [annotation-unchecked]\e\
+  [0m\n\e[1m\e[92mSuccess: no issues found in 266 source files\e[0m\nAll done! \\\
+  u2728 \\U0001f370 \\u2728\n266 files would be left unchanged.\n```\n\nThat took\
+  \ 4s and exited 1. A red gate never merges. The branch is rebased onto main and\
+  \ is otherwise untouched; nothing was merged.\n\nTake it from here. Check the tree\
+  \ against what is written above before acting on anything you remember: if your\
+  \ worktree, your branch or your account of this task no longer matches what is on\
+  \ disk, say so on the record and hand the ball back rather than improvising a recovery.\n\
+  \nThe work is on `feat/task-237-two-region-tasks-shell` in C:\\projects\\worktrees\\\
+  agentjobs-237. Use it; do not take a new one."
 archived: false
 priority: critical
 queue_position: 493
@@ -462,3 +480,58 @@ log:
     finish_step: started
     branch: feat/task-237-two-region-tasks-shell
     finish_id: fin_ff9f5de9
+- id: 14
+  ts: '2026-09-06T08:54:22.500641Z'
+  actor: finisher
+  type: progress
+  body: "The scripted finish stopped at `gate` (gate_failed). **Nothing was merged.**\n\
+    \n`scripts/check.py` went red on feat/task-237-two-region-tasks-shell. Full output:\
+    \ C:\\Users\\jpose\\.agentjobs\\finishes\\fin_ff9f5de9\\gate.log\n\n```\nRan every\
+    \ stage (10 of 10).\n> C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\\
+    agentjobs-03joIzyB-py3.13\\Scripts\\python.exe -m black --check .\n> C:\\Users\\\
+    jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-03joIzyB-py3.13\\\
+    Scripts\\python.exe -m ruff check .\n> C:\\Users\\jpose\\AppData\\Local\\pypoetry\\\
+    Cache\\virtualenvs\\agentjobs-03joIzyB-py3.13\\Scripts\\python.exe -m mypy .\n\
+    tests\\test_mcp_server.py:599: \e[94mnote:\e[0m By default the bodies of untyped\
+    \ functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]\e\
+    [0m\n\e[1m\e[92mSuccess: no issues found in 266 source files\e[0m\nAll done! \\\
+    u2728 \\U0001f370 \\u2728\n266 files would be left unchanged.\n```\n\nThat took\
+    \ 4s and exited 1. A red gate never merges. The branch is rebased onto main and\
+    \ is otherwise untouched; nothing was merged.\n\nEverything it did get through:\n\
+    \n```\n  preflight  ok         1.8s  feat/task-237-two-region-tasks-shell at 04b99dbc\
+    \ in C:\\projects\\worktrees\\agentjobs-237\n  runway     ok         0.0s  taken\
+    \ immediately\n  rebase     ok         0.6s  feat/task-237-two-region-tasks-shell\
+    \ onto main: 04b99dbc -> b8b27624\n  gate       STOPPED    0.0s  `scripts/check.py`\
+    \ went red on feat/task-237-two-region-tasks-shell. Full output: C:\\Users\\jpose\\\
+    .agentjobs\\finishes\\fin_ff9f5de9\\gate.log\n```"
+  data:
+    finish_step: gate
+    finish_reason: gate_failed
+    merge_commit: null
+    merged: false
+- id: 15
+  ts: '2026-09-06T08:54:22.551404Z'
+  actor: finisher
+  type: handoff
+  body: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
+    \ was merged.**\n\n`scripts/check.py` went red on feat/task-237-two-region-tasks-shell.\
+    \ Full output: C:\\Users\\jpose\\.agentjobs\\finishes\\fin_ff9f5de9\\gate.log\n\
+    \n```\nRan every stage (10 of 10).\n> C:\\Users\\jpose\\AppData\\Local\\pypoetry\\\
+    Cache\\virtualenvs\\agentjobs-03joIzyB-py3.13\\Scripts\\python.exe -m black --check\
+    \ .\n> C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-03joIzyB-py3.13\\\
+    Scripts\\python.exe -m ruff check .\n> C:\\Users\\jpose\\AppData\\Local\\pypoetry\\\
+    Cache\\virtualenvs\\agentjobs-03joIzyB-py3.13\\Scripts\\python.exe -m mypy .\n\
+    tests\\test_mcp_server.py:599: \e[94mnote:\e[0m By default the bodies of untyped\
+    \ functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]\e\
+    [0m\n\e[1m\e[92mSuccess: no issues found in 266 source files\e[0m\nAll done! \\\
+    u2728 \\U0001f370 \\u2728\n266 files would be left unchanged.\n```\n\nThat took\
+    \ 4s and exited 1. A red gate never merges. The branch is rebased onto main and\
+    \ is otherwise untouched; nothing was merged.\n\nTake it from here. Check the\
+    \ tree against what is written above before acting on anything you remember: if\
+    \ your worktree, your branch or your account of this task no longer matches what\
+    \ is on disk, say so on the record and hand the ball back rather than improvising\
+    \ a recovery.\n\nThe work is on `feat/task-237-two-region-tasks-shell` in C:\\\
+    projects\\worktrees\\agentjobs-237. Use it; do not take a new one."
+  data:
+    ball: agent
+    ball_reason: work
