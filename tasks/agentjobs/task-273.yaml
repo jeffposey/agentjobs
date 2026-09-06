@@ -2,14 +2,14 @@ schema: 2
 id: task-273
 title: Build authoritative SQLite task storage alongside the AgentJobs server
 created: '2026-08-22T19:00:47.987602Z'
-updated: '2026-09-05T21:56:10.271427Z'
+updated: '2026-09-06T06:08:55.783960Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
 ball_prompt: Finish specifying this task.
 archived: false
-priority: high
-queue_position: 14000
+priority: critical
+queue_position: 893
 category: infrastructure
 tags:
 - big-dawg-audit
@@ -17,6 +17,7 @@ tags:
 - decision
 assignment:
   eligible: []
+parent: task-358
 spec:
   summary: Replace canonical task YAML with authoritative SQLite on the AgentJobs
     server host, outside code worktrees. Preserve managed workflow semantics and make
@@ -271,3 +272,28 @@ log:
       id: c3f7a0d9-8e21-4b5c-a6f4-1d9e7b3c5a02
       kind: log_append
       fingerprint: 8c0febab364a1168efa38d703e6103bb
+- id: 7
+  ts: '2026-09-06T06:08:22.694348Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the high band into the bottom of the critical band.
+  data:
+    band: critical
+    from: 14000
+    to: 1493
+    placement:
+      kind: bottom
+    from_band: high
+- id: 8
+  ts: '2026-09-06T06:08:22.694365Z'
+  actor: claude
+  type: note
+  body: Updated parent, priority.
+  data:
+    fields:
+    - parent
+    - priority
+    operation:
+      id: c1e5fd83-2a74-4b96-8158-5f9c3e7d2a68
+      kind: update_content
+      fingerprint: 0d4319f11828b1495a638da12c4dbd92

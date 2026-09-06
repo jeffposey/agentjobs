@@ -3,7 +3,7 @@ id: task-212
 title: 'Analytics page: move the count tiles off the dashboard and grow them into
   trends'
 created: '2026-08-21T02:34:12.460054Z'
-updated: '2026-09-06T05:46:34.838158Z'
+updated: '2026-09-06T05:57:32.771680Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -18,7 +18,6 @@ tags:
 - epic
 assignment:
   eligible: []
-parent: task-294
 spec:
   summary: "The dashboard carries a five-tile count strip (Needs you / In Progress\
     \ / Blocked / Completed / Total) in the middle of the page. It is a point-in-time\
@@ -120,6 +119,15 @@ dependencies:
   type: related
 - task: task-311
   type: related
+- task: task-357
+  type: related
+  note: 'Owns the Dashboard-side removal of the count-tile strip as of 2026-09-06.
+    Read it before doing step 1 of this task: the strip may already be gone, and this
+    task''s sc-1 already satisfied, by the time this starts.'
+- task: task-294
+  type: related
+  note: The Dashboard-fits-one-screen epic. This task was briefly a child of it on
+    2026-09-06 and was unparented the same day -- see log. It is context, not a parent.
 links: []
 branches: []
 log:
@@ -175,3 +183,58 @@ log:
       id: d4b7e91c-5a20-4c83-9e17-2b6f8c0d3a51
       kind: update_content
       fingerprint: 144d84dcc5bd33cefd71f671b586a6ab
+- id: 5
+  ts: '2026-09-06T05:57:15.802470Z'
+  actor: claude
+  type: note
+  body: Updated dependencies, parent.
+  data:
+    fields:
+    - dependencies
+    - parent
+    operation:
+      id: e1c4fa83-2b97-4d3a-8156-9c0d7e2b4f38
+      kind: update_content
+      fingerprint: 102065e967d7ebb354bb01fed7dd6ea7
+- id: 6
+  ts: '2026-09-06T05:57:32.771491Z'
+  actor: claude
+  type: decision
+  body: 'Unparented from task-294 the same day it was parented, on Jeff''s instruction.
+    The Dashboard epic needs the count-tile strip *gone*; it does not need the analytics
+    page *built*, and this task is the latter.
+
+
+    Why it was wrong as a child: this task''s own sequencing puts the Dashboard removal
+    last -- "design -> backend history/metrics API -> the page and its charts -> the
+    dashboard removal and the link" -- behind the SQLite history contract accepted
+    on 2026-09-05 (task-273 backend, task-311 migration). Parented under task-294,
+    that made the Dashboard fitting on one screen wait on a storage migration it has
+    nothing to do with. Jeff, 2026-09-06: *"yes it needs to be removed, just make
+    sure this is not forcing work on it in this epic."*
+
+
+    **What moved.** The Dashboard-side removal of the `<section aria-label="Task statistics">`
+    strip is now task-357''s, as part of deciding what earns a place on a bounded
+    Dashboard. That task also decides what happens to the counts in the interim, since
+    this page will not exist yet.
+
+
+    **What this means for this task.** Step 1 ("Relocate") may already be done when
+    this starts. Read task-357''s record first: if the strip is gone, sc-1 is satisfied
+    and this task is purely step 2 -- build the page, and put the entry point wherever
+    task-357 left room for it. The sequencing sentence in the description above is
+    superseded to that extent; the rest of it stands.
+
+
+    **Rejected: splitting this into a removal task and an analytics task.** Tempting,
+    and it would have let a piece of it stay under the epic. Against it: the removal
+    is one JSX deletion and a decision about the counts, which is smaller than the
+    task boundary costs (a worktree, a bootstrap, a gate, a review, a merge, a cleanup)
+    -- and task-357 has to make that decision anyway because it is the task deciding
+    what fits. A separate task would have two records deciding the same thing.'
+  data:
+    operation:
+      id: f2d5ab94-3c08-4e1b-9267-ad1e8f3c5b49
+      kind: log_append
+      fingerprint: 64ee61de84d5be8ddcc207688024c207

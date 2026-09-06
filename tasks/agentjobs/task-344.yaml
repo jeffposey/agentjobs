@@ -2,7 +2,7 @@ schema: 2
 id: task-344
 title: Change how many runs this machine may make at once, from the browser
 created: '2026-09-06T00:54:21.369147Z'
-updated: '2026-09-06T05:46:41.059689Z'
+updated: '2026-09-06T06:02:58.253497Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -20,7 +20,6 @@ effort: 'medium: a round-tripping config writer, one endpoint, one control, and 
   authorization test'
 assignment:
   eligible: []
-parent: task-294
 spec:
   summary: '`limits.max_concurrent_runs` is machine-level and lives in ~/.agentjobs/dispatch.yaml,
     so changing it means hand-editing a file on the host. Once the Dashboard becomes
@@ -200,6 +199,11 @@ dependencies:
   type: related
   note: The slot board, which is what makes this number visible enough to want a control.
     Either order works; the board can ship reading the ceiling.
+- task: task-357
+  type: related
+  note: Bounds the Dashboard to one screen and is measured across a range of ceiling
+    values, so the board is already known to survive whatever this control lets a
+    person set.
 links: []
 branches: []
 log:
@@ -226,3 +230,53 @@ log:
       id: e5c8fa2d-6b31-4d94-af28-3c7e9b1e4f62
       kind: update_content
       fingerprint: 144d84dcc5bd33cefd71f671b586a6ab
+- id: 3
+  ts: '2026-09-06T06:02:41.491604Z'
+  actor: claude
+  type: note
+  body: Updated dependencies, parent.
+  data:
+    fields:
+    - dependencies
+    - parent
+    operation:
+      id: c5b8de27-6f1a-4e3c-9052-7d3f1a6b8e04
+      kind: update_content
+      fingerprint: 8e684cfbafafa6220d8f32224b134095
+- id: 4
+  ts: '2026-09-06T06:02:58.253304Z'
+  actor: claude
+  type: decision
+  body: 'Unparented from task-294 the same day it was parented, on Jeff''s instruction.
+    Jeff, 2026-09-06: *"its part of the dashboard experience probably but so are a
+    million things, and none of them are child tasks of task-294 yet."*
+
+
+    The test task-294 states for its own children is whether the Dashboard has to
+    change for a task, or whether the task merely touches the Dashboard. This one
+    fails it. What it builds is a config writer and an endpoint; the Dashboard changes
+    only in that a control appears somewhere. Nothing about bounding the Dashboard
+    to one screen waits on it.
+
+
+    It also carried a real cost as a child: this task `needs` task-198 (the comment-preserving
+    `dispatch.yaml` writer), so parenting it here made a config-file bug fix a prerequisite
+    for the Dashboard fitting on a phone.
+
+
+    **What replaces it.** task-357 measures the frame at more than one value of `max_concurrent_runs`
+    (its ac-7), setting the value by hand in `dispatch.yaml`. So the board is known
+    to survive the range before this control exists, and this task cannot break a
+    bound that was proved across it.
+
+
+    **Rejected: keeping it as a child and letting task-198 gate the epic.** It would
+    have kept the "set of four" Jeff grouped on 2026-09-05 intact as a hierarchy.
+    Against it: that grouping was a statement about attention order, not about one
+    piece of work containing another, and a queue adjacency already expresses it without
+    making an unrelated bug fix block a layout change.'
+  data:
+    operation:
+      id: d6c9ef38-7a2b-4f5d-8163-9e4a2b7c6d15
+      kind: log_append
+      fingerprint: b237ba75603eac0b9c879950530f1ccb

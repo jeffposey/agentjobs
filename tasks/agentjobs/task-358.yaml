@@ -1,0 +1,190 @@
+schema: 2
+id: task-358
+title: Task state moves to SQLite on the server
+created: '2026-09-06T06:08:06.698982Z'
+updated: '2026-09-06T06:08:55.810283Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 843
+category: migration
+tags:
+- storage
+- sqlite
+- migration
+- epic
+assignment:
+  eligible: []
+spec:
+  summary: 'Umbrella for retiring task YAML as the source of truth in favour of authoritative
+    SQLite hosted with the AgentJobs server. Two children: build the store, then migrate
+    onto it and retire the Git workflows around task state.'
+  intent: 'Owner decision, 2026-09-05. Nearly every structural problem this project
+    has hit lately traces to task state being files in a git repository: the checked-out
+    branch decides what the dashboard shows, task records have to be committed to
+    `main` separately from the code they describe, concurrent agents collide on writes,
+    and no historical question can be answered without parsing the whole corpus. Each
+    has been worked around individually. SQLite removes the category.
+
+
+    It is third in line deliberately. The Dashboard and the Tasks surface are what
+    AgentJobs is judged on and both are mid-flight; this is the next big rock behind
+    them.'
+  description: "## What this is\n\nA parent. It takes no worktree and writes no code.\
+    \ **Whoever claims it starts one session per child and supervises** \u2014 see\
+    \ [ALLAGENTS.md, You do not work the children](../../ALLAGENTS.md).\n\n## The\
+    \ children, in order\n\n1. **task-273 \u2014 build authoritative SQLite task storage\
+    \ alongside the server.** The store itself: physical schema designed around real\
+    \ queries rather than one opaque JSON blob, indexed columns for the fields that\
+    \ get filtered and grouped, relational rows for dependencies, tags and the append-only\
+    \ log, structured before/after history so historical counts can be reconstructed.\
+    \ Optimistic conflicts, atomic claim, idempotent retries and queue semantics all\
+    \ preserved.\n2. **task-311 \u2014 migrate onto it and retire the task-state Git\
+    \ workflows.** The cutover, and everything that stops being true afterwards: the\
+    \ commit-task-records-to-`main` rule, the branch-decides-what-the-dashboard-shows\
+    \ hazard, the worktree coordination workarounds.\n\n**task-311 `needs` task-273**\
+    \ \u2014 this is a genuine prerequisite, not an ordering preference: there is\
+    \ nothing to migrate onto until the store exists. Confirm that edge is recorded\
+    \ on task-311 before running the walk.\n\n## Before this can start\n\n**task-273\
+    \ is a `draft` with the ball on a human for spec** \u2014 its `ball_prompt` is\
+    \ *\"Finish specifying this task.\"* A dispatch walk will not start it in that\
+    \ state, and should not: the physical schema is the whole decision here and it\
+    \ is not settled. Finishing that spec is the first thing this epic needs, and\
+    \ it is a human's call, not a child session's.\n\n## Why this is not bigger than\
+    \ it looks\n\nThree tasks currently sit downstream of this store and are `related`\
+    \ rather than children, because each is its own subject and none of them is the\
+    \ migration:\n\n- **task-212 / task-213** \u2014 the analytics page, which needs\
+    \ the timestamped history this store provides. It cannot answer \"is the backlog\
+    \ growing\" from current rows.\n- **task-247** \u2014 atomic task-file writes\
+    \ and stale task-lock reclaim. A fix to the file storage this epic retires; whoever\
+    \ picks it up first should check whether it is still worth doing.\n- **task-272**\
+    \ \u2014 a `migrate-schema` re-run corrupting queue positions on a half-migrated\
+    \ corpus. Same question.\n\nDeciding whether those two file-storage fixes survive\
+    \ the migration is a legitimate thing for this epic to record, and cheaper to\
+    \ decide once here than twice in their own sessions.\n\n## What closing this means\n\
+    \nNot \"both children are closed\". Closing this means task state is actually\
+    \ being served from SQLite, the YAML path is gone or explicitly retained with\
+    \ a recorded reason, and the process documents that assume files \u2014 `ENGINEERING.md`'s\
+    \ \"Task files live on `main`, always\" and the worktree rules that exist because\
+    \ of it \u2014 say what is true afterwards."
+  constraints: "- Supervisor's seat: no worktree, no branch, no code on this task.\n\
+    - Do not start task-273 while it is a draft with the ball on a human. Its spec\
+    \ is the decision.\n- Each child merges on its own terms \u2014 an explicit human\
+    \ approval of that child, or its own green gate at posture `autonomous`. A supervisor\
+    \ approves nothing.\n- The process documents are part of this epic's completion,\
+    \ not a follow-up. A migration that leaves `ENGINEERING.md` instructing agents\
+    \ to commit task YAML to `main` has not landed.\n- No push. Nothing in AgentJobs\
+    \ runs `git push`, and a storage migration is the last change that should be the\
+    \ exception."
+  out_of_scope: "- Doing either child's work.\n- The analytics page and its charts\
+    \ \u2014 task-212, task-213. They consume this store; they are not part of building\
+    \ it.\n- Cross-project or multi-tenant storage. One SQLite store per the existing\
+    \ project model.\n- Replacing SQLite with a database server. SQLite is embedded\
+    \ in AgentJobs deliberately.\n- Re-deciding the 2026-09-05 owner decision that\
+    \ SQLite is authoritative rather than a disposable index over canonical YAML.\
+    \ That is settled; task-273's spec records it."
+  context:
+  - path: tasks/agentjobs/task-273.yaml
+    why: "Child 1: the store. Currently a draft with the ball on a human for spec\
+      \ \u2014 read its ball_prompt before assuming it can be dispatched."
+  - path: tasks/agentjobs/task-311.yaml
+    why: 'Child 2: the migration and the retirement of the task-state Git workflows.'
+  - path: ENGINEERING.md
+    why: '"Task files live on `main`, always" and the worktree rules exist because
+      task state is files in git. They are part of what this epic changes.'
+  - path: ALLAGENTS.md
+    why: 'The parent-task protocol: a session per child, the supervisor is thin, and
+      the walk does not close the parent.'
+acceptance:
+- id: ac-1
+  text: Both children (task-273, task-311) are closed `completed`, or a decision entry
+    here records what was dropped and why.
+  status: pending
+- id: ac-2
+  text: "Task state is served from SQLite in the running server, verified by reading\
+    \ and writing a task through the UI and the CLI with the YAML path unavailable\
+    \ \u2014 not by a passing test suite alone."
+  status: pending
+- id: ac-3
+  text: A decision entry states whether task-247 and task-272 (file-storage fixes)
+    still need doing after the migration, with the reasoning.
+  status: pending
+- id: ac-4
+  text: 'ENGINEERING.md and ALLAGENTS.md describe what is true after the migration:
+    the task-records-to-`main` rule, the branch-decides-the-dashboard hazard, and
+    the worktree guidance that follows from them are corrected or removed.'
+  status: pending
+- id: ac-5
+  text: "A decision entry states what historical coverage the migrated store has,\
+    \ and how pre-migration unknowns are distinguished from zero \u2014 the question\
+    \ task-212 will ask of it first."
+  status: pending
+deliverables: []
+dependencies:
+- task: task-212
+  type: related
+  note: "Consumes this store's history. Downstream, not a child \u2014 the analytics\
+    \ page is its own subject."
+- task: task-247
+  type: related
+  note: 'Atomic task-file writes and stale-lock reclaim: a fix to the storage this
+    epic retires. Decide once, here, whether it survives.'
+- task: task-272
+  type: related
+  note: migrate-schema corrupting queue positions on a half-migrated corpus. Same
+    question as task-247.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-06T06:08:07.444115Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: b0d4ec72-1f63-4a85-9357-4e8a2d6c1b90
+      kind: create
+      fingerprint: 74c5333357e12b21b498fd3c1e40b2f9
+- id: 2
+  ts: '2026-09-06T06:08:55.810134Z'
+  actor: claude
+  type: queue_move
+  body: 'Third in the critical band, on Jeff''s instruction 2026-09-06: the SQL storage
+    migration comes after the Dashboard epic (task-294) and the Tasks-surface epic
+    (task-235 and its Shell children, ending at task-240), and ahead of everything
+    else.
+
+
+    Both children moved with it and were promoted from `high` to `critical`. Promoting
+    them is the point rather than a side effect: a parent with an open child is skipped
+    by `agentjobs next`, so leaving task-273 and task-311 in the `high` band would
+    have put the epic third and its actual work thirtieth.
+
+
+    It lands ahead of task-212 and task-213 deliberately -- the analytics page needs
+    the timestamped history this store provides and cannot answer a historical question
+    without it, so building the store first is the order the dependency already implies.'
+  data:
+    band: critical
+    from: 1393
+    to: 843
+    placement:
+      kind: after
+      target: task-240
+    moved_with:
+    - task-273
+    - task-311
+    warnings:
+    - kind: promoted_unclaimable
+      message: 'task-358 cannot be claimed where you have just put it: has 2 open
+        children. The queue will skip past it.'
+      tasks:
+      - task-358
+    operation:
+      id: e3a7bf05-4c96-4db8-8371-7f1e5a9c4d80
+      kind: queue_move
+      fingerprint: 8524ce9d2cc2ecbefe7cb87d5a5cccd2

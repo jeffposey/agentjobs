@@ -2,13 +2,11 @@ schema: 2
 id: task-357
 title: 'Bound the Dashboard to one viewport: the non-scrolling frame'
 created: '2026-09-06T05:46:23.984654Z'
-updated: '2026-09-06T05:48:57.777389Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-09-06T06:06:53.995667Z'
+lifecycle: closed
+outcome: duplicate
 archived: false
 priority: critical
-queue_position: 96
 category: ux
 tags:
 - frontend
@@ -17,7 +15,6 @@ tags:
 - dashboard
 assignment:
   eligible: []
-parent: task-294
 spec:
   summary: 'The hands-on half of task-294: bound the Dashboard to a viewport-height
     frame, decide what earns a place on it, and prove by measured geometry that it
@@ -33,60 +30,74 @@ spec:
     \ in passing while answering a question about the header, and filed as task-294\
     \ rather than folded into that task, which is about the top bar on every surface.\n\
     \n**This task is task-294's child and carries the whole of its original hands-on\
-    \ scope**, unchanged. task-294 became an umbrella on 2026-09-06 so that the sibling\
-    \ tasks which change *what has to fit* \u2014 task-212, task-344 \u2014 sit under\
-    \ one roof with it; the umbrella supervises and this task does the work. If you\
-    \ are reading only one of the two, read this one.\n\n## Two halves, and the second\
-    \ is the interesting one\n\n**The mechanical half.** `frontend/src/App.tsx` renders\
-    \ the shell as `flex min-h-screen flex-col` with `<main>` in the normal flow,\
-    \ so the **document** scrolls. A surface that must not scroll wants the opposite:\
-    \ a frame of exactly the viewport height, with the scroll \u2014 where there is\
-    \ any \u2014 living inside a region rather than on the page.\n\n```\n<div className=\"\
-    flex h-dvh flex-col\">        {/* the frame, exactly one viewport */}\n  <header\
-    \ \u2026 />                                {/* fixed height, no sticky needed\
-    \ */}\n  <main className=\"min-h-0 flex-1 overflow-y-auto\">\u2026</main>\n  <footer\
-    \ \u2026 />\n</div>\n```\n\n`dvh` rather than `vh` deliberately: `100vh` on a\
-    \ mobile browser is the height *without* the retracting URL bar, so a `100vh`\
-    \ frame is taller than the visible viewport on a phone and the page scrolls by\
-    \ exactly the bar's height \u2014 the classic version of this bug.\n\n**This structure\
-    \ was considered and deliberately rejected by task-292**, whose decision entry\
-    \ records why. It is the better long-term shape \u2014 it would pin the header\
-    \ with no `sticky` and no z-index, and hand task-237 its non-scrolling Tasks page\
-    \ \u2014 but it has a cost that belongs in *this* task's scope rather than a header\
-    \ task's:\n\n> `frontend/src/components/dragAutoScroll.ts` scrolls the backlog\
-    \ during a drag with `window.scrollBy`, which becomes a no-op the moment the document\
-    \ stops being the scroller.\n\nDrag-to-reorder has already cost task-207, task-225\
-    \ and task-229. The helper is already dependency-injected (`scrollBy`, `viewportHeight`\
-    \ are both `DragAutoScrollDeps` fields), so pointing it at a scroll container\
-    \ instead of the window is a small change \u2014 but it must be **verified by\
-    \ a hand on a real mouse**, not by Playwright, for the reason task-225 records.\
-    \ Budget for that, or scope the frame to the Dashboard alone and leave the other\
-    \ surfaces on document scroll.\n\nWhich of those two you do is a decision to take\
-    \ and record: a frame for the whole app, or a frame for one surface.\n\n## The\
-    \ half that is a real decision: what fits\n\nAt 844px of phone height, minus a\
-    \ 65px pinned header and a footer, there is not much. So this task cannot be done\
-    \ without deciding what the Dashboard is *for* and cutting what does not serve\
-    \ it. Read these before deciding:\n\n- **task-092** is **settled and closed**\
+    \ scope**, unchanged. task-294 became an umbrella on 2026-09-06; the umbrella\
+    \ supervises and this task does the work. If you are reading only one of the two,\
+    \ read this one.\n\n## Two halves, and the second is the interesting one\n\n**The\
+    \ mechanical half.** `frontend/src/App.tsx` renders the shell as `flex min-h-screen\
+    \ flex-col` with `<main>` in the normal flow, so the **document** scrolls. A surface\
+    \ that must not scroll wants the opposite: a frame of exactly the viewport height,\
+    \ with the scroll \u2014 where there is any \u2014 living inside a region rather\
+    \ than on the page.\n\n```\n<div className=\"flex h-dvh flex-col\">        {/*\
+    \ the frame, exactly one viewport */}\n  <header \u2026 />                   \
+    \             {/* fixed height, no sticky needed */}\n  <main className=\"min-h-0\
+    \ flex-1 overflow-y-auto\">\u2026</main>\n  <footer \u2026 />\n</div>\n```\n\n\
+    `dvh` rather than `vh` deliberately: `100vh` on a mobile browser is the height\
+    \ *without* the retracting URL bar, so a `100vh` frame is taller than the visible\
+    \ viewport on a phone and the page scrolls by exactly the bar's height \u2014\
+    \ the classic version of this bug.\n\n**This structure was considered and deliberately\
+    \ rejected by task-292**, whose decision entry records why. It is the better long-term\
+    \ shape \u2014 it would pin the header with no `sticky` and no z-index, and hand\
+    \ task-237 its non-scrolling Tasks page \u2014 but it has a cost that belongs\
+    \ in *this* task's scope rather than a header task's:\n\n> `frontend/src/components/dragAutoScroll.ts`\
+    \ scrolls the backlog during a drag with `window.scrollBy`, which becomes a no-op\
+    \ the moment the document stops being the scroller.\n\nDrag-to-reorder has already\
+    \ cost task-207, task-225 and task-229. The helper is already dependency-injected\
+    \ (`scrollBy`, `viewportHeight` are both `DragAutoScrollDeps` fields), so pointing\
+    \ it at a scroll container instead of the window is a small change \u2014 but\
+    \ it must be **verified by a hand on a real mouse**, not by Playwright, for the\
+    \ reason task-225 records. Budget for that, or scope the frame to the Dashboard\
+    \ alone and leave the other surfaces on document scroll.\n\nWhich of those two\
+    \ you do is a decision to take and record: a frame for the whole app, or a frame\
+    \ for one surface.\n\n## The count-tile strip is yours to remove\n\nAdded 2026-09-06\
+    \ on Jeff's instruction. The five-tile count strip \u2014 `<section aria-label=\"\
+    Task statistics\">` in `frontend/src/components/Dashboard.tsx` \u2014 comes off\
+    \ the Dashboard **in this task**. It is the single largest thing standing between\
+    \ the Dashboard and one screen.\n\n**It does not come with the analytics page.**\
+    \ task-212 builds that, and its own sequencing puts it behind the SQLite history\
+    \ work (task-273, task-311). Waiting for a storage migration to reclaim vertical\
+    \ space is exactly the coupling this split exists to break, so task-212 is `related`\
+    \ here and **not** a prerequisite: it was briefly parented under task-294 on 2026-09-06\
+    \ and unparented the same day for this reason.\n\nSo you must decide, and record,\
+    \ **what happens to the counts in the interim** \u2014 between this task removing\
+    \ them and task-212 giving them a home. Legitimate answers include: gone entirely\
+    \ until the analytics page exists; collapsed into a single line that fits; or\
+    \ a placeholder route holding the same snapshot the strip shows today. Leaving\
+    \ a link to a route that 404s is not one. Whatever you choose, say what task-212\
+    \ inherits: where the entry point goes, and whether its `sc-1` is already satisfied.\n\
+    \n## The half that is a real decision: what fits\n\nAt 844px of phone height,\
+    \ minus a 65px pinned header and a footer, there is not much. So this task cannot\
+    \ be done without deciding what the Dashboard is *for* and cutting what does not\
+    \ serve it. Read these before deciding:\n\n- **task-092** is **settled and closed**\
     \ as of 2026-09-05: the Dashboard is a slot board of one card per concurrent run.\
     \ That is the thing that has to fit, and it changes the answer \u2014 read it\
-    \ first, not last.\n- **task-212** (sibling) moves the count tiles off the Dashboard\
-    \ onto an analytics page. If that lands first, most of the fitting problem is\
-    \ already solved and this task is small. It is a sibling rather than a prerequisite\
-    \ because either order works; **state which world this landed in.**\n- **task-344**\
-    \ (sibling) makes `max_concurrent_runs` settable from the browser, so the number\
-    \ of cards on the board is a value a person can change after this ships. The frame\
-    \ has to survive that.\n- **task-081** built the next-action panel that is the\
-    \ Dashboard's centre of gravity.\n\nState plainly what is dropped, moved or collapsed,\
-    \ and where it went. A Dashboard that fits because something important was quietly\
-    \ deleted is not the goal.\n\n## What \"never scrolls\" has to mean to be testable\n\
-    \nNot \"usually fits on Jeff's monitor\". Name the viewports it must fit and assert\
-    \ on rendered geometry, in Playwright \u2014 `document.documentElement.scrollHeight\
+    \ first, not last.\n- **task-344** (sibling under task-294) makes `max_concurrent_runs`\
+    \ settable from the browser, so the number of cards on the board becomes a value\
+    \ a person can change after this ships. It is not a prerequisite: read the current\
+    \ ceiling from `GET /api/runs/live` and make the frame survive the range, rather\
+    \ than waiting for the control.\n- **task-081** built the next-action panel that\
+    \ is the Dashboard's centre of gravity.\n\nState plainly what is dropped, moved\
+    \ or collapsed, and where it went. A Dashboard that fits because something important\
+    \ was quietly deleted is not the goal.\n\n## What \"never scrolls\" has to mean\
+    \ to be testable\n\nNot \"usually fits on Jeff's monitor\". Name the viewports\
+    \ it must fit and assert on rendered geometry, in Playwright \u2014 `document.documentElement.scrollHeight\
     \ <= window.innerHeight`, at each. A phone in **landscape** is the hard case:\
     \ ~400px tall, which is where a design that fits a 844px portrait phone and a\
     \ 800px desktop still fails.\n\nDecide and record whether landscape phone is in\
     \ or out. If it is out, say what happens there instead \u2014 a scrolling fallback\
     \ is a legitimate answer, an unreadable clipped panel is not."
-  constraints: "- Frontend only. No API, schema or CLI change.\n- No new npm dependency;\
+  constraints: "- Frontend only. No API, schema or CLI change. In particular, no history\
+    \ storage and no new analytics endpoint \u2014 if reclaiming the strip's space\
+    \ seems to need one, you have crossed into task-212.\n- No new npm dependency;\
     \ Tailwind's flex and overflow utilities are enough.\n- The header stays pinned\
     \ and stays one row (task-292). If this task adopts the non-scrolling frame, `sticky\
     \ top-0` becomes redundant on that surface \u2014 remove it only if it is removed\
@@ -95,28 +106,34 @@ spec:
     \ `TaskList`, `dragAutoScroll.ts` moves with it and drag-to-reorder is re-verified\
     \ by a person's hand on a real mouse \u2014 task-225, task-229.\n- `100dvh`, never\
     \ `100vh`, for any full-viewport frame.\n- Nothing currently reachable from the\
-    \ Dashboard may become unreachable. Count what is there before and after, and\
-    \ put both counts in the record.\n- Acceptance asserts measured geometry at named\
-    \ viewports, never the presence of a class \u2014 ENGINEERING.md, Verification.\n\
-    - Take a worktree and bootstrap it before anything else; `scripts/check.py` green\
-    \ with no arguments before the handoff.\n- Jeff drives it in a browser on his\
-    \ own screen before it merges. Sandbox on its own port with seeded throwaway data,\
-    \ per the standing UI-review rule.\n- Log the outcome onto this task, not onto\
-    \ task-294. The parent closes on this task's evidence."
-  out_of_scope: "- The Tasks, Create, Dispatch and Playbooks surfaces. They may scroll;\
+    \ Dashboard may become unreachable **without a recorded decision saying so and\
+    \ where it went**. The count tiles are the expected exception; count what is there\
+    \ before and after, and put both counts in the record.\n- Acceptance asserts measured\
+    \ geometry at named viewports, never the presence of a class \u2014 ENGINEERING.md,\
+    \ Verification.\n- Take a worktree and bootstrap it before anything else; `scripts/check.py`\
+    \ green with no arguments before the handoff.\n- Jeff drives it in a browser on\
+    \ his own screen before it merges. Sandbox on its own port with seeded throwaway\
+    \ data, per the standing UI-review rule.\n- Log the outcome onto this task, not\
+    \ onto task-294. The parent closes on this task's evidence."
+  out_of_scope: "- **Building the analytics page, its charts, or any history behind\
+    \ them \u2014 task-212, and its storage dependencies task-273 and task-311.**\
+    \ This task removes the strip; it does not replace it. Nothing here waits on that\
+    \ work.\n- The Tasks, Create, Dispatch and Playbooks surfaces. They may scroll;\
     \ only the Dashboard is being bounded. If the app-wide frame is the chosen route,\
     \ those surfaces keep an internal scroll region and their behaviour is unchanged\
-    \ to a user.\n- The analytics page itself \u2014 task-212 and task-213.\n- Re-deciding\
-    \ the slot board's contents beyond what fitting forces \u2014 task-092 settled\
-    \ that and its decisions are binding.\n- Making `max_concurrent_runs` settable\
-    \ \u2014 task-344.\n- The header's contents or breakpoint \u2014 task-292 settled\
-    \ those, task-167/task-168 own what is in it.\n- Visual restyling: colours, typography,\
-    \ the spacing scale.\n- The Tasks surface's two-region shell \u2014 task-235's\
-    \ children."
+    \ to a user.\n- Re-deciding the slot board's contents beyond what fitting forces\
+    \ \u2014 task-092 settled that and its decisions are binding.\n- Making `max_concurrent_runs`\
+    \ settable \u2014 task-344.\n- The header's contents or breakpoint \u2014 task-292\
+    \ settled those, task-167/task-168 own what is in it.\n- Visual restyling: colours,\
+    \ typography, the spacing scale.\n- The Tasks surface's two-region shell \u2014\
+    \ task-235's children."
   context:
   - path: frontend/src/App.tsx
     why: The shell (`flex min-h-screen flex-col`) that makes the document the scroll
       container, and `DashboardPage`, the surface being bounded.
+  - path: frontend/src/components/Dashboard.tsx
+    why: Holds the `<section aria-label="Task statistics">` count strip this task
+      removes, and the next-action ladder that stays.
   - path: frontend/src/components/dragAutoScroll.ts
     why: Scrolls with `window.scrollBy`, so it breaks silently if the document stops
       being the scroller. Already dependency-injected, which is what makes the fix
@@ -125,8 +142,9 @@ spec:
     why: 'Closed 2026-09-05 and binding: the Dashboard is a slot board of one card
       per concurrent run. That is what has to fit.'
   - path: tasks/agentjobs/task-212.yaml
-    why: Sibling. Moves the count tiles off the Dashboard. If it lands first, most
-      of the fitting problem is solved before this starts.
+    why: "Builds the analytics page the counts eventually go to. Related, never a\
+      \ prerequisite \u2014 read its log entry 6 for why the removal was split out\
+      \ to here."
   - path: tasks/agentjobs/task-292.yaml
     why: Its decision entry records why the non-scrolling frame was rejected there
       and left for this task, and the measurement of what the header costs in height.
@@ -150,20 +168,30 @@ acceptance:
     reasoning.
   status: pending
 - id: ac-4
-  text: A decision entry states what was dropped, moved or collapsed to make it fit,
-    and where each thing went. Nothing reachable from the Dashboard before is unreachable
-    after; both counts are in the record.
+  text: The five-tile count strip no longer renders in the Dashboard body, and the
+    next-action ladder, Active Tasks and Recent Updates are unchanged.
   status: pending
 - id: ac-5
-  text: "The record states which world this landed in with respect to task-212 \u2014\
-    \ whether the count tiles were still on the Dashboard when it was bounded."
+  text: "A decision entry states what happens to the counts between this task and\
+    \ task-212 \u2014 removed outright, collapsed, or held on a placeholder route\
+    \ \u2014 and what task-212 inherits: where its entry point goes, and whether its\
+    \ `sc-1` is now satisfied. No link points at a route that does not exist."
   status: pending
 - id: ac-6
+  text: A decision entry states what else was dropped, moved or collapsed to make
+    it fit, and where each thing went. Nothing else reachable from the Dashboard before
+    is unreachable after; both counts are in the record.
+  status: pending
+- id: ac-7
+  text: The frame is measured at more than one value of `max_concurrent_runs`, so
+    it is known to survive the card count changing when task-344 ships.
+  status: pending
+- id: ac-8
   text: If the scroll container moved on any surface rendering TaskList, drag-to-reorder
     and its edge auto-scroll still work, verified by a person's hand on a real mouse
     and recorded as such.
   status: pending
-- id: ac-7
+- id: ac-9
   text: '`scripts/check.py` green with no arguments on a clean tree, and Jeff has
     driven it in a browser on his own screen.'
   status: pending
@@ -179,12 +207,13 @@ dependencies:
     and left for this task.
 - task: task-212
   type: related
-  note: Sibling under task-294. Either order works; this task must say which world
-    it landed in.
+  note: 'Builds the analytics page. Deliberately NOT a prerequisite: this task removes
+    the count strip and decides what happens to the counts in the interim, so the
+    Dashboard is not waiting on a storage migration to reclaim its space.'
 - task: task-344
   type: related
-  note: Sibling under task-294. Makes the card count a value a person can change,
-    so the frame has to survive that.
+  note: Sibling under task-294. Makes the card count a value a person can change;
+    not a prerequisite, but the frame must survive the range.
 links: []
 branches: []
 log:
@@ -246,3 +275,65 @@ log:
       id: d0b3ef72-1a86-4c29-a47d-8b2c4a6e9f17
       kind: update_content
       fingerprint: b74ba7042c829c14ea54c9b444d90e2b
+- id: 4
+  ts: '2026-09-06T05:58:29.052255Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, dependencies, spec.
+  data:
+    fields:
+    - acceptance
+    - dependencies
+    - spec
+    operation:
+      id: a3e6bc05-4d19-4f2c-8378-be2f0a4d6c51
+      kind: update_content
+      fingerprint: 0a14bdec5ed501d82c3bd8246264f5b4
+- id: 5
+  ts: '2026-09-06T06:06:41.949040Z'
+  actor: claude
+  type: note
+  body: Updated parent.
+  data:
+    fields:
+    - parent
+    operation:
+      id: f8b2ca50-9d41-4e6a-8375-2c6e1b4d9a37
+      kind: update_content
+      fingerprint: 051f75eb64d9d09d1a02c8f2be1fc542
+- id: 6
+  ts: '2026-09-06T06:06:53.995503Z'
+  actor: claude
+  type: transition
+  body: 'Folded back into task-294 on Jeff''s instruction, hours after being split
+    out of it. Work this on **task-294**; nothing here is unfinished.
+
+
+    This task existed for about twenty minutes as the hands-on child of task-294 while
+    that task was an umbrella. Once task-212 and task-344 were both unparented for
+    failing the "does the Dashboard have to change for it" test, task-294 had one
+    child, which is an indirection rather than an epic: a supervisor''s seat supervising
+    a single task, costing a session boundary and taking the parent out of `agentjobs
+    next` for no benefit.
+
+
+    **Everything written here moved to task-294, and two things were gained on the
+    way** -- the count-tile strip removal is now explicitly in scope, and the frame
+    is measured across a range of `max_concurrent_runs` rather than at one value.
+    Neither was in task-294''s original spec. Do not treat this record as the live
+    one; task-294 supersedes it in full.
+
+
+    **Rejected: closing task-294 and keeping this task instead.** It was the tidier
+    option on the merits -- this record was the better-specified of the two by the
+    end. Against it: task-294 is the id Jeff moved to the head of the critical band
+    on 2026-09-05, the id task-292, task-291, task-235, task-328 and task-295 all
+    cite by name, and the id he has been talking about all week. Renaming the thing
+    everything already points at, to save one merge of text, is a bad trade.'
+  data:
+    lifecycle: closed
+    outcome: duplicate
+    operation:
+      id: a9c3db61-0e52-4f7d-8246-3d7f2c5e8b19
+      kind: close
+      fingerprint: cef3fd8d6808b22acc92e0154aaed429

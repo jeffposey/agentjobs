@@ -2,14 +2,14 @@ schema: 2
 id: task-311
 title: Migrate tasks to server-hosted SQLite and retire task-state Git workflows
 created: '2026-08-24T00:55:20.126619Z'
-updated: '2026-09-05T20:17:05.024700Z'
+updated: '2026-09-06T06:09:46.253811Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: high
-queue_position: 14400
-category: architecture
+priority: critical
+queue_position: 943
+category: migration
 tags:
 - storage
 - architecture
@@ -18,6 +18,7 @@ tags:
 effort: Estimate after storage contract and migration inventory
 assignment:
   eligible: []
+parent: task-358
 spec:
   summary: Cut over existing projects to the authoritative SQLite backend from task-273,
     preserving their complete task history. Remove routine task-state Git commits
@@ -178,3 +179,40 @@ log:
       id: d3ba1a89-852f-4fbd-9a16-708a412f5826
       kind: log_append
       fingerprint: 35dca2dfe94d61dd2efb399a6d33b39c
+- id: 4
+  ts: '2026-09-06T06:08:28.735101Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the high band into the bottom of the critical band.
+  data:
+    band: critical
+    from: 14400
+    to: 1593
+    placement:
+      kind: bottom
+    from_band: high
+- id: 5
+  ts: '2026-09-06T06:08:28.735121Z'
+  actor: claude
+  type: note
+  body: Updated parent, priority.
+  data:
+    fields:
+    - parent
+    - priority
+    operation:
+      id: d2f6ae94-3b85-4ca7-9269-6e0d4f8e3b79
+      kind: update_content
+      fingerprint: 0d4319f11828b1495a638da12c4dbd92
+- id: 6
+  ts: '2026-09-06T06:09:46.253657Z'
+  actor: claude
+  type: note
+  body: Updated category.
+  data:
+    fields:
+    - category
+    operation:
+      id: a5c9db27-6e18-4f0a-8493-9b3f7c1e6d02
+      kind: update_content
+      fingerprint: 30ee5b98d4b7500fe62557674f3cd34b
