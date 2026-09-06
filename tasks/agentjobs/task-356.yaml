@@ -3,7 +3,7 @@ id: task-356
 title: 'Shell 6: the filter controls hide behind a filter button instead of sitting
   on screen permanently'
 created: '2026-09-06T05:25:14.813338Z'
-updated: '2026-09-06T10:50:56.372558Z'
+updated: '2026-09-06T10:51:09.399079Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -368,3 +368,17 @@ log:
       id: a4c07d31-8b52-4e19-9f60-2d8a1c6b5e93
       kind: update_content
       fingerprint: 9c133cf93a66bbccb085192500b51555
+- id: 10
+  ts: '2026-09-06T10:51:09.398882Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-356-filter-popover` (f6b8dccd).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-356.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_17a246aa\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-356-filter-popover
+    finish_id: fin_17a246aa
