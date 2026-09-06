@@ -3,7 +3,7 @@ id: task-167-agentjobs-menu
 title: 'The AgentJobs menu: one reusable control for every frontend, and forms fast
   enough to fill on a phone'
 created: '2026-08-19T17:34:04.201284Z'
-updated: '2026-08-21T16:58:00.425224Z'
+updated: '2026-09-06T01:12:48.770418Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -260,3 +260,36 @@ log:
       id: a5d38b16-7f24-4e90-b3c8-61e07a2d4f95
       kind: update_content
       fingerprint: 630205e21c49cacedab9eed69d5fb2ac
+- id: 4
+  ts: '2026-09-06T01:12:48.770241Z'
+  actor: claude
+  type: decision
+  body: "Jeff made the call this epic's constraints were holding open, on 2026-09-05,\
+    \ looking at the top bar: \"the only real thing that should be on a top bar or\
+    \ burger bar is dashboard and tasks probably ... api docs, playbooks, dispatch\
+    \ settings, should be buried in config/etc menus ... Create should be merged with\
+    \ Report Issue and put in a better place, maybe always on screen but a small icon\
+    \ in top bar ... Runs is basically getting moved into Dashboard, and should only\
+    \ remain as a 'full runs' view\".\n\n**Decided.** The primary nav keeps Dashboard,\
+    \ Tasks and Runs. API Docs, Playbooks and the Dispatch settings route move behind\
+    \ this epic's menu. Create leaves the row and merges with Report issue into one\
+    \ always-present capture control.\n\nThe epic's constraint said the Dispatch nav\
+    \ link \"is not removed by any child of this epic; if it should go, that is Jeff's\
+    \ call, raised as a question\" \u2014 this is that call, so the constraint is\
+    \ satisfied rather than broken. **What it protected does not relax**: the machine-wide\
+    \ kill switch has to stay one interaction from every page, so moving it is conditional\
+    \ on the menu genuinely rendering everywhere the bar does. A child that finds\
+    \ otherwise leaves Dispatch in the bar and says so.\n\n**Rejected:** dropping\
+    \ the Tasks entry as well, which Jeff's own message half-suggests (\"I bet you\
+    \ I dont even click Tasks link that often\"). He is probably right about the click\
+    \ counts, and it is still the only route to a task you cannot name, plus the surface\
+    \ task-237's sidebar will live on. Testing the suspicion needs usage data this\
+    \ product does not collect (task-213), and removing a destination on a guess is\
+    \ the more expensive mistake.\n\n**Two children added:** task-345 (the bar's contents)\
+    \ and task-346 (the merged capture control). 346 takes over where Report issue\
+    \ lives, which task-168 currently owns \u2014 recorded there too."
+  data:
+    operation:
+      id: 8b2c3d4e-5f60-4b7c-9d8e-0a1b2c3d4e03
+      kind: log_append
+      fingerprint: d03204389c8cce8b78912d207a6402a8

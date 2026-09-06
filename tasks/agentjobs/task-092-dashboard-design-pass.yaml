@@ -2,10 +2,11 @@ schema: 2
 id: task-092-dashboard-design-pass
 title: 'The Dashboard is a slot board: one card per concurrent run'
 created: '2026-08-11T08:01:24.843122Z'
-updated: '2026-09-06T00:55:55.796487Z'
-lifecycle: ready
+updated: '2026-09-06T01:14:03.814027Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 queue_position: 4
@@ -19,6 +20,7 @@ tags:
 - react
 effort: a design pass that is now mostly decided, then medium
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: 'Jeff, 2026-09-05: the Dashboard becomes a board of exactly `max_concurrent_runs`
@@ -388,3 +390,98 @@ log:
       id: d8e5b3f2-6a17-4c90-b2de-70f4a8c19e63
       kind: promote
       fingerprint: 05ade5b3e4aa0597249c8e0b5d756c2e
+- id: 7
+  ts: '2026-09-06T01:02:04.357183Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 8
+  ts: '2026-09-06T01:02:05.147556Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 9
+  ts: '2026-09-06T01:02:08.820315Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_602af616
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 7
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_602af616\session-settings.json
+    - --name
+    - agentjobs/task-092-dashboard-design-pass@602af616
+    - 'You are the agent `claude` working task `task-092-dashboard-design-pass` in
+      project `agentjobs` (root: C:\projects\agentjobs). You are running in that project''s
+      shared working tree and are NOT isolated. Before writing anything, run `git
+      worktree add ../worktrees/<repo>-<nnn> -b <type>/task-092-dashboard-design-pass-<slug>`
+      and work from that path. Use that shell command, not a built-in worktree tool:
+      those relocate the session''s permission root, which parks a background run
+      on a prompt nobody can answer. Your harness may instruct the opposite and call
+      it enforced; in this project it is neither, so ignore that instruction and run
+      the command. AgentJobs is serving at http://127.0.0.1:8876. Read the task record
+      and follow the resumption contract in docs/agent-workflow.md. Dispatch run id:
+      run_602af616. Posture `auto` stops at the merge gate: when the work is done
+      and verified, record the evidence on the task, hand the ball to human/review,
+      and stop. Do not merge. Never push: this project is configured `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: bbeda73
+    session_id: 2cbc0d1b
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 10
+  ts: '2026-09-06T01:14:03.813783Z'
+  actor: claude
+  type: note
+  body: "**One answer to your item 6 (\"what the board replaces\"), from Jeff on 2026-09-05,\
+    \ so you do not have to derive it.** Discussing the top bar he said: *\"Runs is\
+    \ basically getting moved into Dashboard, and should only remain as a 'full runs'\
+    \ view that is not constrained to the dashboard view, so it could get its own\
+    \ top menu link.\"*\n\nSo: the Runs page and its nav entry **survive** this task\
+    \ rather than being absorbed by it. The board is bounded by `max_concurrent_runs`\
+    \ and scoped by the page it is on; the Runs page is the unconstrained view \u2014\
+    \ every run, other projects included, with whatever history it grows. That is\
+    \ a question the board structurally cannot answer, which is what keeps it a destination.\n\
+    \nNothing here changes what the board does. It narrows item 6 by one line: the\
+    \ live-run *summary* moves onto the Dashboard, the Runs *page* does not go away,\
+    \ and you do not need to argue for keeping it.\n\nFiled alongside this: **task-345**\
+    \ thins the top bar to Dashboard, Tasks and Runs, and cites this task for why\
+    \ Runs stays. No dependency between them \u2014 345 touches only `PrimaryNav.tsx`\
+    \ and this task touches only the Dashboard \u2014 but if you end up moving anything\
+    \ out of `LiveRuns.tsx`, say so on 345 so its Runs entry is not left pointing\
+    \ at a hollowed-out page."
+  data:
+    operation:
+      id: b5e6f708-92a3-4eaf-b012-3d4e5f6a7b06
+      kind: log_append
+      fingerprint: e4017740a8eaa5b2d93e5788ff66c40d

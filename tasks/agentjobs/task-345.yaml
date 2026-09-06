@@ -1,0 +1,194 @@
+schema: 2
+id: task-345
+title: 'The top bar carries navigation only: Dashboard, Tasks, Runs'
+created: '2026-09-06T01:11:23.010593Z'
+updated: '2026-09-06T01:11:23.709325Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 15000
+category: ux
+tags:
+- frontend
+- react-frontend
+- navigation
+- menu
+- mobile
+- design
+effort: medium
+assignment:
+  eligible: []
+parent: task-167-agentjobs-menu
+spec:
+  summary: "The primary nav currently holds seven destinations \u2014 Dashboard, Tasks,\
+    \ Create, Dispatch, Playbooks, Runs, API Docs \u2014 and Jeff's call on 2026-09-05\
+    \ is that only the first two and Runs are navigation at all. API Docs, Playbooks\
+    \ and Dispatch settings move behind the actions menu task-168 builds; Create leaves\
+    \ the bar as a text link and becomes the always-present capture control of task-346.\
+    \ What is left is a short row that fits a phone."
+  intent: "Jeff, 2026-09-05, looking at the bar:\n\n    \"the top bar design is awful\
+    \ ... the only real thing that should be on a top bar\n    or burger bar is dashboard\
+    \ and tasks probably ... api docs, playbooks, dispatch\n    settings, should be\
+    \ buried in config/etc menus ... Create should be merged with\n    Report Issue\
+    \ and put in a better place, maybe always on screen but a small icon\n    in top\
+    \ bar ... Runs is basically getting moved into Dashboard, and should only\n  \
+    \  remain as a 'full runs' view that is not constrained to the dashboard view,\
+    \ so\n    it could get its own top menu link ... I bet you I dont even click Tasks\
+    \ link\n    that often, I bet I get there most often by clicking a task link from\
+    \ the dashboard\"\n\nThe row has been added to one entry at a time and never subtracted\
+    \ from: task-292 pinned it, task-328 added Runs, task-336 gave it a current-page\
+    \ marker, task-338 hung an attention badge beside the switcher. Each was right\
+    \ on its own and the compound result is a bar whose contents are the *union* of\
+    \ every feature that wanted a link, sorted by nothing. The measured consequence\
+    \ is in `NAV_INLINE_MIN_PX`, which has climbed 955 \u2192 1090 \u2192 1140: the\
+    \ bar no longer fits a landscape tablet, so on the surface Jeff actually reads\
+    \ it over Tailscale every destination is already behind a burger.\n\nThinning\
+    \ the row is the fix that makes the breakpoint recede rather than being re-measured\
+    \ again next quarter. It is also the honest one: a settings page, a reference\
+    \ document and a launcher are not places you navigate to while working, and putting\
+    \ them beside the two that are makes the two harder to see."
+  description: "## What the bar holds afterwards\n\nExactly three destinations, in\
+    \ this order:\n\n- **Dashboard** \u2014 where work starts. After task-092 it is\
+    \ the slot board.\n- **Tasks** \u2014 the task surface. Jeff's suspicion that\
+    \ he reaches tasks from the Dashboard rather than from this link is probably right\
+    \ and is **not** a reason to remove it: it is the only route to a task you cannot\
+    \ name, and it is where the sidebar of task-237 will live. Keep it; if anyone\
+    \ wants to test the suspicion, that needs usage data this product does not collect\
+    \ (task-213), not a guess.\n- **Runs** \u2014 kept as its own entry precisely\
+    \ because task-092 is absorbing live runs into the Dashboard. The board shows\
+    \ `max_concurrent_runs` cells; the Runs page is the unconstrained view \u2014\
+    \ every run, other projects' included, with history \u2014 and a view that answers\
+    \ a question the board structurally cannot is a destination. It keeps the live-run\
+    \ badge (task-328).\n\n## What leaves, and where each thing goes\n\n- **API Docs**\
+    \ \u2192 the actions menu. task-168 already plans this and says why: *\"A link\
+    \ to the API docs, which currently occupies a slot in the primary nav that a menu\
+    \ can hold better.\"* Note it is an `<a href=\"/docs\">`, FastAPI's route and\
+    \ not one this app owns, which is exactly the shape of thing that does not belong\
+    \ beside a router destination.\n- **Playbooks** \u2192 the actions menu. A playbook\
+    \ run *is* a dispatch (the comment in `PrimaryNav.tsx` says so), so it belongs\
+    \ beside Dispatch wherever Dispatch ends up, not in the navigation row.\n- **Dispatch**\
+    \ (the settings route) \u2192 the actions menu. **This is the constraint task-167\
+    \ flagged as Jeff's call, and he made it on 2026-09-05.** The reachability requirement\
+    \ it protects does not relax: `PrimaryNav.tsx` and `App.tsx` both carry the comment\
+    \ that the machine-wide kill switch lives on that route and *a switch you cannot\
+    \ reach is not one*. Moving it is only acceptable while the menu is genuinely\
+    \ present on every page and the switch is one interaction from any of them. If\
+    \ task-168's menu turns out not to render somewhere the bar does, the switch stays\
+    \ in the bar and you say so on the record rather than shipping a kill switch you\
+    \ have to hunt for.\n- **Create** \u2192 out of the row entirely. It becomes the\
+    \ small always-present control task-346 designs, merged with Report issue. **Sequencing\
+    \ matters here**: do not delete the Create entry until that control exists, or\
+    \ the app loses its only route to authoring a task. If task-346 has not shipped\
+    \ when this one runs, leave Create in the row, ship the rest, and say on the record\
+    \ that the entry is waiting on 346.\n\n## The breakpoint moves down, and is measured\n\
+    \n`NAV_INLINE_MIN_PX` is documented as a measurement of the row's contents, and\
+    \ the contents are changing. Re-measure it the way its docstring describes \u2014\
+    \ in a browser, with the project switcher pinned to its 224px `max-w-56` maximum,\
+    \ which is the case it has to hold for \u2014 and update both the constant and\
+    \ the `min-[\u2026]` literals the test checks against it. State the new number\
+    \ and how it was obtained.\n\nThe prize is worth stating: a three-entry row plus\
+    \ the switcher plus the attention badge may well fit a phone in portrait, in which\
+    \ case the burger stops being the phone's normal experience. Do not assume that\
+    \ \u2014 measure it, and if it does not fit, say what it did.\n\n## What the current-page\
+    \ marker does about routes with no entry\n\ntask-336 made the bar say where you\
+    \ are, and `currentDestinationPath` works by longest match with Dashboard's `\"\
+    \"` as the fallback. Once `/playbooks` and `/dispatch` are not entries, visiting\
+    \ them will light up **Dashboard**, which is the exact bug task-336 was filed\
+    \ to fix wearing a different hat. Decide what happens \u2014 no entry marked,\
+    \ or something in the menu trigger showing you are on one of its pages \u2014\
+    \ and record the rejected alternative. `currentDestinationPath` is exported for\
+    \ direct testing; use it.\n\n## Verification\n\nStand up a review server on its\
+    \ own port with seeded throwaway data, per the standing rule. Show the bar at\
+    \ a desktop width, at the new breakpoint's boundary, and at 375px. Jeff will look\
+    \ at it on his phone over the tailnet."
+  constraints: "- **No route is deleted.** Every URL that works today still works;\
+    \ this is a chrome change and nothing else. `/dispatch`, `/playbooks` and `/docs`\
+    \ keep their addresses and anything already linking to them keeps working.\n-\
+    \ **The dispatch kill switch stays one interaction from every page.** See the\
+    \ description; this is task-167's constraint and it survives the move.\n- Do not\
+    \ restyle the bar. Its look \u2014 pinning, the current-page treatment, the badge\
+    \ \u2014 was settled by task-292/336/338. This task changes *what is in it*.\n\
+    - `NAV_INLINE_MIN_PX` is re-measured, not guessed, and its docstring says with\
+    \ what contents. A number nobody measured is what this constant's history warns\
+    \ about.\n- The e2e specs that address the bar by label \u2014 `pinned-header.spec.ts`,\
+    \ `nav-current.spec.ts` \u2014 are updated rather than deleted, and still assert\
+    \ on rendered values.\n- Touch targets keep the `touch-target` convention; note\
+    \ the specificity trap already documented in `PrimaryNav.tsx` around `min-[1140px]:hidden`.\n\
+    - Take a worktree and bootstrap it. One unqualified `scripts/check.py` on the\
+    \ rebased branch before the handoff."
+  out_of_scope: "- Designing or building the merged Create/Report control \u2014 task-346.\n\
+    - The actions menu itself \u2014 task-168 builds it; this task only moves entries\
+    \ into it, and depends on it existing.\n- The Tasks-surface sidebar (task-235/236/237).\n\
+    - The Dashboard slot board (task-092) and the Runs page's own contents (task-328).\n\
+    - The iOS safe-area inset (task-295) and the task list's density (task-341).\n\
+    - Collecting usage data to test Jeff's suspicion about the Tasks link (task-213\
+    \ owns analytics)."
+  context:
+  - path: frontend/src/components/PrimaryNav.tsx
+    why: The whole change. DESTINATIONS, the API Docs anchor, NAV_INLINE_MIN_PX and
+      its measurement note, currentDestinationPath, and the comments arguing why Dispatch
+      is in the row.
+  - path: frontend/src/App.tsx
+    why: The routes that must all keep working, and the second copy of the kill-switch
+      comment.
+  - path: frontend/e2e/pinned-header.spec.ts
+    why: Addresses the bar by label; the exact-text lookup is why each label is its
+      own span.
+  - path: frontend/e2e/nav-current.spec.ts
+    why: task-336's current-page assertions, which ac-4 changes.
+  - path: tasks/agentjobs/task-168-menu-shell.yaml
+    why: The menu that receives API Docs, Playbooks and Dispatch, and the source of
+      the API-Docs-belongs-in-a-menu argument.
+  - path: tasks/agentjobs/task-167-agentjobs-menu.yaml
+    why: The constraint that kept Dispatch in the bar pending Jeff's call, which this
+      task carries out.
+acceptance:
+- id: ac-1
+  text: "PrimaryNav renders exactly three destinations \u2014 Dashboard, Tasks, Runs\
+    \ \u2014 and no API Docs anchor. Asserted on rendered labels, not on markup."
+  status: pending
+- id: ac-2
+  text: API Docs, Playbooks and Dispatch settings are each reachable in at most two
+    interactions from any page, at 375px width as well as desktop, and the reachability
+    is demonstrated rather than asserted.
+  status: pending
+- id: ac-3
+  text: NAV_INLINE_MIN_PX is re-measured for the new contents with the project switcher
+    at its 224px maximum; the constant, the Tailwind literals and the test that checks
+    them agree, and the docstring states the new measurement and how it was taken.
+  status: pending
+- id: ac-4
+  text: Visiting a route with no bar entry (/dispatch, /playbooks) does not mark Dashboard
+    as the current page; the chosen behaviour and its rejected alternative are recorded
+    as a decision entry.
+  status: pending
+- id: ac-5
+  text: The Runs entry keeps its live-run badge and the attention badge keeps its
+    position outside the collapsible group.
+  status: pending
+- id: ac-6
+  text: Jeff has seen the new bar on a review server on its own port with seeded data,
+    at desktop and phone widths, and approved it.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-168-menu-shell
+  type: needs
+  note: The menu is the container three of these entries move into. Removing them
+    from the bar first would make them unreachable.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-06T01:11:23.708437Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 6f0f8f5a-3f6c-4b2e-9d51-1a2c3d4e5f01
+      kind: create
+      fingerprint: bc2dd16cbce55db08ab5e467f6aab714
