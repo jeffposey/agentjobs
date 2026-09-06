@@ -2,47 +2,21 @@ schema: 2
 id: task-347
 title: 'Rehearsal: a red gate must start its own repair run (task-340 ac-5)'
 created: '2026-09-06T01:13:25.072947Z'
-updated: '2026-09-06T02:18:53.321772Z'
+updated: '2026-09-06T02:57:01.199459Z'
 lifecycle: active
-ball: external
-ball_reason: dependency
-ball_prompt: 'Blocked on task-340, and deliberately not on a human until it is not.
-  Nothing to do here yet.
+ball: human
+ball_reason: decision
+ball_prompt: 'task-340 is merged and the server restarted, so this is ready: click
+  Approve.
 
 
-  This is task-340''s ac-5 rehearsal, staged and waiting. The finish runs the *serving*
-  clone''s interpreter, so approving this before task-340 merges would rehearse the
-  code on `main` and prove nothing.
+  The gate will go red at `pytest` on purpose and nothing can merge. What to watch
+  for: a run starts against this task with no second click, and the entry names the
+  failing test.
 
 
-  **Everything is already in place**: branch `chore/task-347-escalation-rehearsal`
-  in `../worktrees/agentjobs-347`, bootstrapped, carrying one deliberately failing
-  test (`tests/test_task_347_rehearsal.py`) so the gate goes red at `pytest` and nothing
-  can merge.
-
-
-  When task-340 merges and the server restarts, this becomes one click: Approve, and
-  watch a run start against this task with no second click. The finish entry should
-  name the run id and open with `FAILED tests/test_task_347_rehearsal.py::test_the_rehearsal_gate_is_red_on_purpose`.
-  Then stop that run, and:
-
-
-  ```
-
-  git worktree remove ../worktrees/agentjobs-347
-
-  git branch -D chore/task-347-escalation-rehearsal
-
-  ```
-
-
-  (`-D`, not `-d`: this branch is never merged.) Close this, and mark task-340''s
-  ac-5 met with the run id.
-
-
-  If the run is not worth spending, close this as rejected and run the two commands
-  above -- task-340''s suite drives the same path with a stub runner, so this is confirmation
-  rather than proof.'
+  Then stop that run and clean up (commands in the entry below), or close this as
+  rejected if the run is not worth spending.'
 archived: false
 priority: low
 queue_position: 600
@@ -215,3 +189,20 @@ log:
   data:
     ball: external
     ball_reason: dependency
+- id: 7
+  ts: '2026-09-06T02:57:01.199298Z'
+  actor: claude
+  type: handoff
+  body: 'task-340 is merged and the server restarted, so this is ready: click Approve.
+
+
+    The gate will go red at `pytest` on purpose and nothing can merge. What to watch
+    for: a run starts against this task with no second click, and the entry names
+    the failing test.
+
+
+    Then stop that run and clean up (commands in the entry below), or close this as
+    rejected if the run is not worth spending.'
+  data:
+    ball: human
+    ball_reason: decision
