@@ -3,10 +3,15 @@ id: task-167-agentjobs-menu
 title: 'The AgentJobs menu: one reusable control for every frontend, and forms fast
   enough to fill on a phone'
 created: '2026-08-19T17:34:04.201284Z'
-updated: '2026-09-06T01:12:48.770418Z'
+updated: '2026-09-06T06:18:41.466774Z'
 lifecycle: ready
-ball: agent
-ball_reason: available
+ball: human
+ball_reason: decision
+ball_prompt: 'One question, below. It has been open since 2026-08-19 with the ball
+  still reading agent/available, so nothing ever showed it to you.
+
+
+  Only task-169 is waiting on it. The rest of this epic is unblocked either way.'
 archived: false
 priority: high
 queue_position: 8900
@@ -293,3 +298,61 @@ log:
       id: 8b2c3d4e-5f60-4b7c-9d8e-0a1b2c3d4e03
       kind: log_append
       fingerprint: d03204389c8cce8b78912d207a6402a8
+- id: 5
+  ts: '2026-09-06T06:18:32.245849Z'
+  actor: claude
+  type: handoff
+  body: 'Ball moved to you because entry 2 has been an unanswered question since 2026-08-19
+    while the record said `agent`/`available`. Nothing surfaces a question unless
+    the ball is on a human, so it was invisible for eighteen days. That gap is now
+    task-359''s to fix.
+
+
+    Re-asked here as a tappable question rather than leaving you to read entry 2''s
+    four paragraphs.'
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: e9a3bc62-0f74-4d85-8396-4d8e2f1a7b53
+      kind: handoff
+      fingerprint: f725076e75de41d2832fc600f3c8e864
+- id: 6
+  ts: '2026-09-06T06:18:32.245941Z'
+  actor: claude
+  type: question
+  body: The AgentJobs menu and task-141's host-app launcher menu are the same component
+    approached from two directions. Which task builds it?
+  re: 5
+  data:
+    options:
+    - label: task-169 builds it, task-141 narrows
+      description: task-141 becomes "integrate the shared menu into a host app"; task-169
+        owns building the shared component. The menu is AgentJobs chrome first and
+        embeddable second, and building it where it gets exercised daily is the cheaper
+        order. The embedding epic's groundwork children (138, 139, 140) stay as written.
+      recommended: true
+    - label: task-141 builds it, close task-169
+      description: Keeps the embedding epic whole, at the cost of blocking every visible
+        piece of this epic behind four children of another epic.
+      recommended: false
+    - label: Both build their own
+      description: "Two launchers \u2014 the failure this epic's constraints exist\
+        \ to prevent. Listed only because it was considered."
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 7
+  ts: '2026-09-06T06:18:41.466589Z'
+  actor: claude
+  type: answer
+  body: "Superseded, not answered. Re-asked as entry 6 with the three options as buttons\
+    \ \u2014 answer it there.\n\nClosed here only so the panel shows one question\
+    \ instead of two. Entry 2's reasoning still stands and is worth reading if the\
+    \ options are not enough."
+  re: 2
+  data:
+    operation:
+      id: f0b4cd73-1a85-4e96-9307-5e9f3a2b8c64
+      kind: log_append
+      fingerprint: 292e601f336a6cd0e497ce4d64fb2471
