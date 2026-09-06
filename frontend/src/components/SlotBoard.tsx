@@ -99,7 +99,6 @@ export function orderedRuns(runs: LiveRunView[]): LiveRunView[] {
  *
  * Pure, and separate from the rendering, because every rule worth arguing about is in
  * here: how many cells there are, which are busy, and what fills the rest.
- *
  */
 export function boardLayout(
   body: LiveRunsView,
@@ -137,7 +136,9 @@ export function boardLayout(
   // A free cell per remaining slot, each offering a *different* task. When the queue is
   // shorter than the free slots the rest are `empty`: the honest answer there is a slot
   // with nothing to put in it, not the same task repeated into three cells.
-  const free = unconfigured ? offerable.length : Math.max(0, slots - busy);
+  const free = unconfigured
+    ? Math.min(offerable.length, BOARD_CELL_LIMIT)
+    : Math.max(0, slots - busy);
   for (let index = 0; index < free; index += 1) {
     const task = offerable[index];
     cells.push(
