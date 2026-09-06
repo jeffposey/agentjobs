@@ -3,18 +3,13 @@ id: task-356
 title: 'Shell 6: the filter controls hide behind a filter button instead of sitting
   on screen permanently'
 created: '2026-09-06T05:25:14.813338Z'
-updated: '2026-09-06T20:15:06.867630Z'
+updated: '2026-09-06T20:33:46.725331Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Ready to merge. `feat/task-356-filter-popover`, head `28d78cb`, gate\
-  \ green on that exact commit \u2014 all ten stages, exit 0.\n\n**Look at it first:\
-  \ http://127.0.0.1:8909/app/** \u2014 a sandbox with throwaway data, three states\
-  \ seeded. The one that matters is `?status=closed&priority=critical`: an empty list\
-  \ where the button carries a 2. If your eye reads \"no work here\" before it reads\
-  \ the badge, say so and I will make the badge louder.\n\nAll eight acceptance criteria\
-  \ met; the evidence is in entries 21 and 22. Approve and the scripted finish merges,\
-  \ rebuilds and restarts. I will stop the sandbox afterwards."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: critical
 queue_position: 743
@@ -755,3 +750,25 @@ log:
     outcome: completed
     duration_seconds: 975.724246
     log_path: C:\Users\jpose\.agentjobs\runs\run_99a38627
+- id: 26
+  ts: '2026-09-06T20:33:45.090770Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 27
+  ts: '2026-09-06T20:33:46.725073Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-356-filter-popover` (28d78cbc).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-356.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_18c5b6e1\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-356-filter-popover
+    finish_id: fin_18c5b6e1
