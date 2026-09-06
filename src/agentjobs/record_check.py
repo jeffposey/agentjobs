@@ -30,6 +30,7 @@ The corpus-wide view still exists for whoever is auditing rather than authoring:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Dict, FrozenSet, List, Optional, Sequence, Tuple
 
@@ -40,9 +41,12 @@ __all__ = [
     "DEFAULT_BALL_PROMPTS",
     "LOG_APPENDING_VERBS",
     "LONG_SUMMARY",
+    "PROMPT_WRITING_VERBS",
     "SPEC_WRITING_VERBS",
     "SUMMARY_WORD_CEILING",
+    "UNNAMED_REVIEW_LINK",
     "WARNING_KINDS",
+    "unnamed_review_links",
     "RecordWarning",
     "check_record",
     "summary_words",
@@ -57,8 +61,12 @@ LONG_SUMMARY = "long_summary"
 #: has said what it is actually waiting on.
 DEFAULT_BALL_PROMPT = "default_ball_prompt"
 
+#: A handoff to a human names an address the review panel cannot put in its card, or
+#: can only put there unnamed.
+UNNAMED_REVIEW_LINK = "unnamed_review_link"
+
 #: Every kind this module can produce. The closed set a caller may branch on.
-WARNING_KINDS: Tuple[str, ...] = (LONG_SUMMARY, DEFAULT_BALL_PROMPT)
+WARNING_KINDS: Tuple[str, ...] = (LONG_SUMMARY, DEFAULT_BALL_PROMPT, UNNAMED_REVIEW_LINK)
 
 #: Where a summary stops being one or two sentences. The audit's number, and the one
 #: it measured the corpus against; two long sentences fit comfortably under it.
@@ -85,6 +93,25 @@ SPEC_WRITING_VERBS: FrozenSet[str] = frozenset({"create", "update_content"})
 #: caused a default prompt to survive: the claim that wrote it was doing its job, and
 #: ``handoff`` cannot leave one behind because the schema makes it state an ask.
 LOG_APPENDING_VERBS: FrozenSet[str] = frozenset({"log_append"})
+
+#: Verbs that write the ask a human is about to read. Only these can have written an
+#: address into it, so only these raise the link convention.
+PROMPT_WRITING_VERBS: FrozenSet[str] = frozenset({"handoff"})
+
+#: A **link line**: an address alone on its line, optionally introduced by a name and a
+#: colon, optionally bulleted. The review panel lifts these into its "Links for this
+#: review" card, titles each row with the name, and takes the line out of the prose so
+#: the address is on screen once rather than twice (task-363).
+#:
+#: This restates a rule that also lives in ``frontend/src/components/ReviewLinks.tsx``,
+#: because the two run in different runtimes and neither can call the other. The
+#: duplication is deliberate and bounded: ``tests/test_record_check.py`` pins the exact
+#: prompt shapes both are expected to agree on, so a change to one that is not made to
+#: the other fails rather than drifting.
+LINK_LINE = re.compile(r"^\s*(?:[-*•]\s*)?(?:(?P<name>[^:\n]{1,60}):\s*)?(?P<url>https?://\S+)\s*$")
+
+#: Any address at all, for the "is this prompt even about links" question.
+ANY_URL = re.compile(r"https?://\S+")
 
 
 @dataclass(frozen=True)
@@ -134,7 +161,34 @@ def check_record(task: Task, *, verb: Optional[str] = None) -> List[RecordWarnin
         warnings.extend(_check_summary(task))
     if verb is None or verb in LOG_APPENDING_VERBS:
         warnings.extend(_check_ball_prompt(task))
+    if verb is None or verb in PROMPT_WRITING_VERBS:
+        warnings.extend(_check_review_links(task))
     return warnings
+
+
+def unnamed_review_links(prompt: str) -> List[str]:
+    """Addresses in ``prompt`` the review panel cannot show as a named card row.
+
+    Two shapes qualify, and they are the two halves of the same complaint about the
+    first pass: an address the panel cannot lift out of the prose at all, and one it
+    can lift but cannot title. Both leave the reviewer worse off -- the first puts a
+    60-character URL in the middle of a sentence on a phone, the second gives them a
+    row that does not say where it goes.
+
+    An address inside a sentence is deliberately *not* rewritten by anything: the panel
+    leaves it where it was written rather than deleting it or duplicating it, so the
+    only place this can be resolved is here, by the agent writing the handoff.
+    """
+    unnamed: List[str] = []
+    for line in prompt.splitlines():
+        if not ANY_URL.search(line):
+            continue
+        match = LINK_LINE.match(line)
+        if match is None:
+            unnamed.extend(ANY_URL.findall(line))
+        elif not (match.group("name") or "").strip():
+            unnamed.append(match.group("url"))
+    return unnamed
 
 
 def _check_summary(task: Task) -> List[RecordWarning]:
@@ -174,6 +228,34 @@ def _check_ball_prompt(task: Task) -> List[RecordWarning]:
             "been added since. A session resuming this task reads ball_prompt "
             "before anything else and would learn nothing from it. Hand off, or say "
             "what the task is waiting on now.",
+        )
+    ]
+
+
+def _check_review_links(task: Task) -> List[RecordWarning]:
+    """Addresses handed to a human that the review panel cannot name (task-363).
+
+    Only for a ball going to a **human**: that is the panel with the card in it, and an
+    address handed to another agent is prose like any other. Silent on the ordinary
+    handoff, which names no address at all.
+    """
+    if task.ball is not Ball.HUMAN:
+        return []
+    unnamed = unnamed_review_links(task.ball_prompt or "")
+    if not unnamed:
+        return []
+    shown = ", ".join(unnamed[:3]) + (", ..." if len(unnamed) > 3 else "")
+    subject = "This address is" if len(unnamed) == 1 else f"These {len(unnamed)} addresses are"
+    return [
+        RecordWarning(
+            UNNAMED_REVIEW_LINK,
+            f"{subject} in ball_prompt where the review panel cannot name them: "
+            f"{shown}. The panel lifts an address into its 'Links for this review' "
+            "card only when the address is alone on its line, and titles the row with "
+            "the 'Name: ' in front of it -- so write review links as their own lines, "
+            "'Desktop shell: http://127.0.0.1:8910/app/', and refer to them in the "
+            "prose by name. An address left mid-sentence stays there, which on a phone "
+            "is several lines of a small screen and a row nobody can label.",
         )
     ]
 

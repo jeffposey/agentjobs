@@ -6,10 +6,11 @@ dead text a phone cannot tap, the addresses a reviewer needed were buried in the
 paragraph of the prose, and a question card drew the fieldset's top border straight
 through its own heading and numbered it twice.
 
-    task-301  the task-240 handoff verbatim -- three sandbox addresses in the prompt
+    task-301  three named link lines -- the convention, and what the card is for
     task-302  five questions: one self-numbered, one long enough to wrap, one bare
     task-303  no addresses in the prose, two in `links[]` as `pr` and `build`
     task-304  a review with no addresses at all -- the card must not appear
+    task-305  the task-240 handoff as it was really written, before the convention
 
 Every one of them is throwaway. Press anything, including the destructive controls --
 nothing here touches the live corpus, the 8876 dashboard, or its registry. The data
@@ -23,10 +24,15 @@ serves stale code from a process nobody restarts.
 
 What to look for, since "it renders" is not the property under review:
 
-  * **task-301, on the phone.** Every address in the prompt is a link, and the sentence
-    that ends in one did not swallow its full stop. Above them, a "Links for this
-    review" card holds the same three -- that card is the first thing to reach for, and
-    the test of it is whether you ever have to read the prose to find where to go.
+  * **task-301, on the phone.** The three addresses are in the card, named, and
+    **nowhere else** -- the prose refers to them by name and carries no URL at all.
+    That card is the first thing to reach for, and the test of it is whether you ever
+    have to read the prose to find where to go, or read the same address twice.
+  * **task-305 beside it**, which is the same handoff written the old way, with an
+    address in the middle of check 3. It stays in the sentence, because lifting it
+    would leave a hole and duplicating it is the thing this pass removes. Compare the
+    two: 301 is what the convention buys, and `task_handoff` warns an agent that
+    writes 305.
   * **task-302, at phone width.** Question 2 is long enough to wrap its heading to two
     or three lines. The fieldset's border must run unbroken above it, not through it --
     that is the defect. Question 3 begins with its own "3." and must render as one
@@ -55,10 +61,27 @@ import yaml
 
 DEFAULT_PORT = 8913
 
-#: The task-240 review request of 2026-09-06, which is the screenshot that filed
-#: task-363. Three addresses -- a desktop shell, a tablet one, and the specific task
-#: page the third check needed -- every one of them dead text at the time.
-TASK_240_PROMPT = """The Tasks-surface shell sandbox is up, on its own port, with throwaway data.
+#: The task-240 review request of 2026-09-06 rewritten to the convention: every
+#: address on its own named line, and the prose referring to them by name.
+NAMED_PROMPT = """The Tasks-surface shell sandbox is up, on its own port, with throwaway data.
+
+Three checks, and the third needs a specific task rather than the list:
+
+  1. Open a task from the sidebar and confirm the list keeps its scroll position.
+  2. Narrow the window to phone width; the panel should restack, not scroll sideways.
+  3. Open the task page below and confirm the log expands.
+
+Nothing here is live. Stop it with Ctrl-C when you are done, and say whether the shell
+is worth keeping before I merge the branch.
+
+Desktop shell: {base}/app/
+Tablet: {base}/app/?w=1024
+Task page for check 3: {base}/app/p/sandbox-shell/tasks/task-143"""
+
+#: The same handoff as it was really written, which is the screenshot that filed
+#: task-363: one address per line with a bare label, and one in the middle of a
+#: sentence. Kept so the two can be looked at side by side.
+UNNAMED_PROMPT = """The Tasks-surface shell sandbox is up, on its own port, with throwaway data.
 
 Desktop: {base}/app/
 Tablet:  {base}/app/?w=1024
@@ -158,7 +181,7 @@ def seed(manager: Any, *, base: str) -> None:
         actor="claude",
         ball=Ball.HUMAN,
         ball_reason=BallReason.REVIEW,
-        ball_prompt=TASK_240_PROMPT.format(base=base),
+        ball_prompt=NAMED_PROMPT.format(base=base),
     )
 
     make("task-302", "A review with five open questions")
@@ -169,7 +192,9 @@ def seed(manager: Any, *, base: str) -> None:
         ball_reason=BallReason.DECISION,
         ball_prompt=(
             "The branch is green and rebased. Five decisions before I can carry on; "
-            f"the sandbox is at {base}/app/ if you want to look while you answer."
+            "the shell below is worth having open while you answer.\n"
+            "\n"
+            f"Shell to answer against: {base}/app/"
         ),
         questions=QUESTIONS,
     )
@@ -215,6 +240,15 @@ def seed(manager: Any, *, base: str) -> None:
         ),
     )
 
+    make("task-305", "The same request, written before the link convention")
+    manager.handoff(
+        "task-305",
+        actor="claude",
+        ball=Ball.HUMAN,
+        ball_reason=BallReason.REVIEW,
+        ball_prompt=UNNAMED_PROMPT.format(base=base),
+    )
+
 
 def build(root: Path, *, project_id: str, name: str, base: str) -> Path:
     from agentjobs.manager import TaskManager
@@ -232,10 +266,11 @@ def build(root: Path, *, project_id: str, name: str, base: str) -> Path:
 
 
 STATES = [
-    ("task-301", "three addresses", "linkified prose, and the card above the verbs"),
+    ("task-301", "named link lines", "the card carries all three; the prose carries none"),
     ("task-302", "five questions", "one wraps, one numbered itself, one has no options"),
     ("task-303", "links[] only", "pr and build hoisted; the doc link stays below"),
     ("task-304", "no addresses", "no card at all -- the state that must stay quiet"),
+    ("task-305", "the old way", "one address stuck in a sentence; compare with 301"),
 ]
 
 

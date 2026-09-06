@@ -816,6 +816,42 @@ At any human-decision point:
    signal; all substance belongs in the task record.
 5. Stop. Do not merge or make the decision on the human's behalf.
 
+#### Name your links, and write them on their own lines
+
+**An address in a `ball_prompt` goes on a line of its own, introduced by a name and a
+colon, and the prose refers to it by that name** (task-363):
+
+```
+Three checks; the third needs a task page rather than the list.
+  1. Open a task from the sidebar and confirm the list keeps its scroll position.
+  2. Narrow the window to phone width; the panel should restack.
+  3. Open the task page below and confirm the log expands.
+
+Desktop shell: http://127.0.0.1:8910/app/
+Tablet: http://127.0.0.1:8910/app/?w=1024
+Task page for check 3: http://127.0.0.1:8910/app/p/sandbox-shell/tasks/task-143
+```
+
+The review panel reads exactly that shape. A **link line** — an address alone on its
+line, optionally `Name: ` in front of it, optionally bulleted — is lifted into a "Links
+for this review" card above the questions and the verbs, titled with the name, and
+**removed from the prose**, so the address is a target rather than something to retype
+and is on screen once instead of twice. `links[]` entries whose `rel` is `pr` or
+`build` join the card too, titled by their own `title`.
+
+Two shapes the panel cannot help with, both of which `task_handoff` warns about:
+
+- **An address inside a sentence** stays where you wrote it. Lifting it would leave a
+  hole in the sentence and duplicating it puts a 60-character URL on a small screen
+  twice, so neither happens — the fix is yours, at the moment you write the handoff.
+- **A bare address on its own line** is lifted but cannot be titled, so the reviewer
+  gets a row that does not say where it goes. Only you know that one of three
+  identical-looking ports is the tablet one.
+
+The first version of the card showed every address in both places. Reviewed on
+2026-09-06: it "wastes too much space", and the state that read best was the one where
+the links were only in the card. That is the rule this convention exists to satisfy.
+
 **Ask in options, not in paragraphs** (task-017). A handoff may carry `questions[]`,
 each a question with the answers you are offering and which one you recommend, written
 in the same mutation as the handoff:
