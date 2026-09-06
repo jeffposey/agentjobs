@@ -1,0 +1,60 @@
+schema: 2
+id: task-351
+title: 'main is red: task-350 points at files that only exist on an unmerged branch'
+created: '2026-09-06T03:30:53.556092Z'
+updated: '2026-09-06T03:30:54.371810Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 15200
+category: infrastructure
+tags: []
+assignment:
+  eligible: []
+spec:
+  summary: The repository's gate is red on main and therefore on every branch. task-350's
+    context pointers name two files that live only on feat/task-092-dashboard-slot-board,
+    which has not merged, so tests/test_task_corpus.py::test_agentjobs_context_paths_exist
+    fails against a clean main.
+  description: "Measured 2026-09-05 on a clean main clone, with no branch involved:\n\
+    \n    pytest tests/test_task_corpus.py::test_agentjobs_context_paths_exist\n \
+    \   AssertionError: context pointers name paths that do not exist:\n      task-350\
+    \ -> frontend/src/components/SlotBoard.tsx,\n      task-350 -> scripts/slot_board_sandbox.py\n\
+    \nBoth files exist only on `feat/task-092-dashboard-slot-board` (4 commits ahead\
+    \ of main, unmerged; its scripted finish stopped at its own gate). task-350 was\
+    \ filed on main in d5424a5 as a follow-up to task-092 and points at its parent's\
+    \ not-yet-merged output.\n\nBecause `tasks/` maps to the pytest stage, this turns\
+    \ the gate red for **every** branch in the repository, not just task-092's. task-341\
+    \ hit it on an otherwise clean branch: 4069 passed, this one failed, and the branch\
+    \ changes no task record at all (`git diff main...HEAD -- tasks/` is empty).\n\
+    \nThe test already has the right escape hatch \u2014 a task's own *pending deliverables*\
+    \ are exempt \u2014 and task-350 does not use it. So the fix is one of:\n\n  -\
+    \ merge task-092, after which the pointers resolve and the red clears by itself;\n\
+    \  - declare the two paths as pending deliverables on task-350, if they are things\
+    \ task-350 will produce;\n  - drop the two pointers until task-092 merges, keeping\
+    \ the third (which resolves today).\n\nWhoever owns task-350 should pick. This\
+    \ is a recurrence of task-166 (\"The repository's own gate is red on main\") through\
+    \ a new door: a follow-up task filed against an unmerged branch's output. Worth\
+    \ asking whether the corpus test should tolerate a pointer whose task has an open\
+    \ `needs` dependency on the task that produces it, rather than only a pointer\
+    \ at its own deliverable."
+  context: []
+acceptance: []
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-06T03:30:54.370790Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 6a1f2c3d-8b47-4e19-9c2a-5d0e7f314a20
+      kind: create
+      fingerprint: 406c3ab8d8548bcaff41320c4906f3b5
