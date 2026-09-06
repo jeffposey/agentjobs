@@ -2,7 +2,7 @@ schema: 2
 id: task-294
 title: The Dashboard fits one screen, and never scrolls
 created: '2026-08-23T20:39:32.963071Z'
-updated: '2026-09-06T08:20:15.750991Z'
+updated: '2026-09-06T08:44:08.024682Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -754,3 +754,13 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 26
+  ts: '2026-09-06T08:44:08.024455Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 22
+  data:
+    run_id: run_f92f9363
+    outcome: completed
+    duration_seconds: 2595.812943
+    log_path: C:\Users\jpose\.agentjobs\runs\run_f92f9363
