@@ -3,16 +3,11 @@ id: task-363
 title: 'A review the human cannot act on: URLs are not tappable, and the question
   cards are broken'
 created: '2026-09-06T21:21:55.330267Z'
-updated: '2026-09-06T23:40:01.136240Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-09-06T23:40:21.374458Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 568
 category: frontend
 tags:
 - gui
@@ -20,7 +15,6 @@ tags:
 - questions
 - usability
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: The review panel renders a handoff's URLs as dead text, so the human has
@@ -160,7 +154,8 @@ links:
   title: SANDBOX 5 - no addresses at all, so no card
 branches:
 - name: fix/task-363-review-panel-links-questions
-  status: active
+  status: merged
+  merged_at: '2026-09-06T23:40:21.265864Z'
 log:
 - id: 1
   ts: '2026-09-06T21:21:56.018309Z'
@@ -945,3 +940,26 @@ log:
     merge_commit: 202128400551cca76dcefc77de0558c5216c2462
     branch: fix/task-363-review-panel-links-questions
     base: main
+- id: 31
+  ts: '2026-09-06T23:40:21.374199Z'
+  actor: finisher
+  type: transition
+  body: "Merged `fix/task-363-review-panel-links-questions` into `main` as `20212840`\
+    \ and verified live. Finished by the scripted path with no agent session (task-241).\
+    \ Approved by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         1.0s  fix/task-363-review-panel-links-questions\
+    \ at 95e31552 in C:\\projects\\worktrees\\agentjobs-363\n  runway     ok     \
+    \  123.2s  taken after queuing\n  rebase     ok         0.3s  fix/task-363-review-panel-links-questions\
+    \ onto main: 95e31552 -> e1989315\n  gate       ok       267.0s  scripts/check.py\
+    \ green\n  catch_up   ok        84.2s  main moved 01c3b27a -> 25b0aa15 in 1 classified\
+    \ path(s); rebased to 8963c6ed and re-ran pytest\n  merge      ok         0.3s\
+    \  --no-ff into main as 202128400551cca76dcefc77de0558c5216c2462\n  rebuild  \
+    \  ok         4.2s  rebuilt the bundle in C:\\projects\\agentjobs\\frontend\n\
+    \  restart    ok         0.4s  ran powershell -NoProfile -ExecutionPolicy Bypass\
+    \ -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify   \
+    \  ok         0.0s  http://127.0.0.1:8876 is serving d9175016, which contains\
+    \ the merge 20212840, from C:\\projects\\agentjobs (started 2026-09-06T23:40:10.050273+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
