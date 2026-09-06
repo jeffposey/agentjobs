@@ -2,7 +2,7 @@ schema: 2
 id: task-344
 title: Change how many runs this machine may make at once, from the browser
 created: '2026-09-06T00:54:21.369147Z'
-updated: '2026-09-06T00:54:22.069630Z'
+updated: '2026-09-06T05:46:41.059689Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -20,6 +20,7 @@ effort: 'medium: a round-tripping config writer, one endpoint, one control, and 
   authorization test'
 assignment:
   eligible: []
+parent: task-294
 spec:
   summary: '`limits.max_concurrent_runs` is machine-level and lives in ~/.agentjobs/dispatch.yaml,
     so changing it means hand-editing a file on the host. Once the Dashboard becomes
@@ -213,3 +214,15 @@ log:
       id: 3f6c1a92-7d84-4b1e-9a03-2c5e8f41b7d0
       kind: create
       fingerprint: fc888d66774feb94c230ac414bae0e2b
+- id: 2
+  ts: '2026-09-06T05:46:41.059528Z'
+  actor: claude
+  type: note
+  body: Updated parent.
+  data:
+    fields:
+    - parent
+    operation:
+      id: e5c8fa2d-6b31-4d94-af28-3c7e9b1e4f62
+      kind: update_content
+      fingerprint: 144d84dcc5bd33cefd71f671b586a6ab

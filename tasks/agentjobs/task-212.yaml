@@ -3,7 +3,7 @@ id: task-212
 title: 'Analytics page: move the count tiles off the dashboard and grow them into
   trends'
 created: '2026-08-21T02:34:12.460054Z'
-updated: '2026-09-06T05:25:52.058556Z'
+updated: '2026-09-06T05:46:34.838158Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -18,6 +18,7 @@ tags:
 - epic
 assignment:
   eligible: []
+parent: task-294
 spec:
   summary: "The dashboard carries a five-tile count strip (Needs you / In Progress\
     \ / Blocked / Completed / Total) in the middle of the page. It is a point-in-time\
@@ -162,3 +163,15 @@ log:
       id: 52f7a92c-6a13-4869-8325-c73dd7f088d2
       kind: update_content
       fingerprint: 986a92aea867a1481f9fda0eacdb4983
+- id: 4
+  ts: '2026-09-06T05:46:34.838014Z'
+  actor: claude
+  type: note
+  body: Updated parent.
+  data:
+    fields:
+    - parent
+    operation:
+      id: d4b7e91c-5a20-4c83-9e17-2b6f8c0d3a51
+      kind: update_content
+      fingerprint: 144d84dcc5bd33cefd71f671b586a6ab
