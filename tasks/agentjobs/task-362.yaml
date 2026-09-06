@@ -2,7 +2,7 @@ schema: 2
 id: task-362
 title: 'Shell 7: the sidebar row stops showing the raw queue position'
 created: '2026-09-06T21:02:35.472560Z'
-updated: '2026-09-06T21:57:06.166222Z'
+updated: '2026-09-06T22:07:37.225967Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -111,7 +111,7 @@ spec:
   - path: frontend/src/components/TaskList.test.tsx
     why: Asserts against queue positions in several places; these need updating rather
       than deleting.
-  - path: tasks/agentjobs/task-207-queue-position-react-list.yaml
+  - path: tasks/agentjobs/task-207.yaml
     why: The task that added the number. Its decision is being partially reversed,
       so read what it was actually asked to deliver before changing it.
 acceptance:
@@ -147,11 +147,13 @@ deliverables:
   note: Visible queue-position text removed; aria-label and data attributes intact.
   status: pending
 dependencies:
-- task: task-207-queue-position-react-list
+- task: task-207
   type: related
   note: Shipped the number this removes. Keeps its ordering and keyboard-move behaviour.
 links: []
-branches: []
+branches:
+- name: fix/task-362-hide-queue-position
+  status: active
 log:
 - id: 1
   ts: '2026-09-06T21:02:36.123947Z'
@@ -292,3 +294,28 @@ log:
       id: a2d7c481-5e93-4f60-b1c8-2e4f9a63d105
       kind: log_append
       fingerprint: 9b7978e46b4f9d9f42336b103473bc79
+- id: 8
+  ts: '2026-09-06T22:06:50.035082Z'
+  actor: claude
+  type: note
+  body: Updated branches, dependencies.
+  data:
+    fields:
+    - branches
+    - dependencies
+    operation:
+      id: 3f2a9c14-6b8d-4e57-9a02-7c1d5e8f4b60
+      kind: update_content
+      fingerprint: 71d18ffde70662b3afc247c3b0f3fa0c
+- id: 9
+  ts: '2026-09-06T22:07:37.225756Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 8d41b7e2-05fc-4a93-b6e1-3c92d7a850f4
+      kind: update_content
+      fingerprint: 7f6fefc5accf1f5befd1115286dcb18d
