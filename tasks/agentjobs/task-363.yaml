@@ -3,36 +3,13 @@ id: task-363
 title: 'A review the human cannot act on: URLs are not tappable, and the question
   cards are broken'
 created: '2026-09-06T21:21:55.330267Z'
-updated: '2026-09-06T22:52:51.916234Z'
+updated: '2026-09-06T22:56:43.887286Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Links are now in the card only, each named by the agent who wrote the
-  handoff. This prompt is written to that convention, so the panel is showing you
-  its own rule.
-
-
-  Open 301 and 305 side by side: same request, new shape and old. Gate green, all
-  10 stages, on the rebased branch; the rework and its rejected alternatives are in
-  log entries 15 and 16.
-
-
-  Note: this run was dispatched `autonomous` but its resumed prompt carried no posture
-  clause, so I stopped at the merge gate rather than merging.
-
-
-  Named link lines (the new shape): http://127.0.0.1:8913/app/p/sandbox-links/tasks/task-301
-
-  The same request written the old way: http://127.0.0.1:8913/app/p/sandbox-links/tasks/task-305
-
-  A card above five question cards: http://127.0.0.1:8913/app/p/sandbox-links/tasks/task-302
-
-  links[] only, no addresses in the prose: http://127.0.0.1:8913/app/p/sandbox-links/tasks/task-303
-
-  No addresses at all, so no card: http://127.0.0.1:8913/app/p/sandbox-links/tasks/task-304
-
-
-  Stop the sandbox with `Stop-Process -Id 43096`.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: critical
 queue_position: 568
@@ -684,3 +661,25 @@ log:
     outcome: completed
     duration_seconds: 1182.611418
     log_path: C:\Users\jpose\.agentjobs\runs\run_499f844d
+- id: 19
+  ts: '2026-09-06T22:56:40.644821Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 20
+  ts: '2026-09-06T22:56:43.886965Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-363-review-panel-links-questions` (f2f1b2d1).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-363.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_ece60b21\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-363-review-panel-links-questions
+    finish_id: fin_ece60b21
