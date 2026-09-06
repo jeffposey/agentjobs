@@ -2,11 +2,49 @@ schema: 2
 id: task-092-dashboard-design-pass
 title: 'The Dashboard is a slot board: one card per concurrent run'
 created: '2026-08-11T08:01:24.843122Z'
-updated: '2026-09-06T01:14:03.814027Z'
+updated: '2026-09-06T01:53:38.015089Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "The Dashboard is a slot board. Branch `feat/task-092-dashboard-slot-board`,\
+  \ five commits, gate green (10 of 10 stages, receipt for `023ceed`). ac-1 to ac-7\
+  \ are met with evidence in the progress entry below; **ac-8 needs you in a browser**,\
+  \ which is the only thing left.\n\n**Six sandboxes are standing, seeded and throwaway**\
+  \ -- click anything, including Dispatch. All at `/app/p/sandbox-here`:\n\n- **http://127.0.0.1:8916**\
+  \ two runs, one of them in another project, one free cell, a merge holding a lock\n\
+  - **http://127.0.0.1:8917** idle -- three free cells, three different tasks, three\
+  \ buttons\n- **http://127.0.0.1:8918** a task blocked on you -- alert on top, board\
+  \ below with its buttons withheld\n- **http://127.0.0.1:8919** ceiling 9 -- draws\
+  \ six and says what it did not draw\n- **http://127.0.0.1:8920** ceiling 1 -- the\
+  \ board as a single full-width panel\n- **http://127.0.0.1:8921** no dispatch config\
+  \ -- degrades to a queue, refuses to draw slots\n\nThey die with the dispatched\
+  \ session that started them. Restart any of them from the worktree at `C:/projects/worktrees/agentjobs-092`:\n\
+  \n    poetry run python scripts/slot_board_sandbox.py 8916\n    poetry run python\
+  \ scripts/slot_board_sandbox.py 8917 --idle\n    poetry run python scripts/slot_board_sandbox.py\
+  \ 8918 --alarm\n    poetry run python scripts/slot_board_sandbox.py 8919 --idle\
+  \ --ceiling 9\n    poetry run python scripts/slot_board_sandbox.py 8921 --idle --unconfigured\n\
+  \nStop each with Ctrl-C; each one deletes its own temporary home on exit. **None\
+  \ of them touches the 8876 dashboard or the real corpus.**\n\n**Three things worth\
+  \ your eyes specifically**, because they are judgement rather than correctness:\n\
+  \n1. **8918 -- the alarming board.** I changed my mind here mid-build. The first\
+  \ implementation hid the free cells entirely under an alarm, which is the strict\
+  \ reading of task-081. I reversed it: something is waiting on you most days, so\
+  \ a board that shrank whenever that was true is a board you would rarely see whole.\
+  \ It now keeps every cell and withholds only the *buttons*. Reasoning and both rejected\
+  \ alternatives are in log entry 15. **If you disagree, this is the one to say so\
+  \ about** -- it is a one-line change either way.\n2. **8917 -- press Dispatch.**\
+  \ I could only click it programmatically: `mcp__claude-in-chrome`'s `left_click`\
+  \ at the button's measured centre delivered no events at all (task-225's failure\
+  \ mode), so I have proof the handler works and no proof a hand does. It is a real\
+  \ sleeper runner; the cell should flip to a run and the other two should not move.\n\
+  3. **The board's height.** Three cells is 636px on a 390x844 phone. That is honest\
+  \ rather than broken, but it is most of a screen, and task-294 inherits it. Nothing\
+  \ to fix here unless you think three cells is already too much.\n\n**One thing I\
+  \ could not do:** log entry 10 asked me to tell task-345 whether `LiveRuns.tsx`\
+  \ was hollowed out. The API refused -- a run may act only on its own task (task-332,\
+  \ working as designed). The answer is **no**, and the paragraph to paste is at the\
+  \ end of the progress entry.\n\nApprove and the scripted finish takes it from here;\
+  \ or say what to change and hand it back."
 archived: false
 priority: critical
 queue_position: 4
@@ -192,34 +230,34 @@ acceptance:
   text: The Dashboard renders exactly `max_concurrent_runs` cells, driven by the value
     in `GET /api/runs/live` and not by any count computed in the browser -- asserted
     at more than one ceiling value.
-  status: pending
+  status: met
 - id: ac-2
   text: An occupied cell shows the run's task, its health in task-328's vocabulary,
     its elapsed time and a working link into the task -- including when the run belongs
     to a different project than the one being viewed, where it links into that project.
-  status: pending
+  status: met
 - id: ac-3
   text: N free cells offer N different tasks in queue order, and dispatching one re-fills
     the board without duplicating a task into two cells.
-  status: pending
+  status: met
 - id: ac-4
   text: 'Cell order is stable across polls: a board watched through a run starting
     and a run ending does not reorder the cells that did not change.'
-  status: pending
+  status: met
 - id: ac-5
   text: 'A decision entry records what happens at the edges -- ceiling of 1, `dispatch_configured:
     false`, and a ceiling large enough that the cards would not fit -- with the bound
     and what is shown past it.'
-  status: pending
+  status: met
 - id: ac-6
   text: A decision entry records where lock holders (finish, runway) appear, given
     that they are this machine working and hold no run slot.
-  status: pending
+  status: met
 - id: ac-7
   text: A decision entry records what the board replaced or absorbed, where anything
     dropped went, and how an alarming state still outranks the board rather than sitting
     in it as one more card.
-  status: pending
+  status: met
 - id: ac-8
   text: '`scripts/check.py` green with no arguments on a clean rebased tree, and Jeff
     has driven it in a browser on his own screen with both an idle board and a board
@@ -247,7 +285,9 @@ dependencies:
   note: Shipped the next-up panel with its Dispatch button and the capacity row. The
     board is that panel once per free slot; this task says which of the two survives.
 links: []
-branches: []
+branches:
+- name: feat/task-092-dashboard-slot-board
+  status: active
 log:
 - id: 1
   ts: '2026-08-13T02:22:18.761186Z'
@@ -485,3 +525,334 @@ log:
       id: b5e6f708-92a3-4eaf-b012-3d4e5f6a7b06
       kind: log_append
       fingerprint: e4017740a8eaa5b2d93e5788ff66c40d
+- id: 11
+  ts: '2026-09-06T01:39:11.040992Z'
+  actor: claude
+  type: decision
+  body: "Cell order, and the fiction that makes cells possible at all (spec decision\
+    \ 1, ac-4).\n\n**There is no such thing as slot 3, and the board does not pretend\
+    \ otherwise.** Nothing\nin AgentJobs allocates, numbers or identifies a run slot;\
+    \ `live_runs` answers with a\nlist. So the cells are a fiction the page maintains,\
+    \ and the only thing that makes the\nfiction usable is that it is stable. The\
+    \ rule, written down rather than falling out of a\n`map` \u2014 it is `orderedRuns`\
+    \ and `boardLayout` in `frontend/src/components/SlotBoard.tsx`:\n\n- **Occupied\
+    \ cells first, in start order** (`started_at` ascending, `run_id` breaking\n \
+    \ ties, a run with no start time last). Start order is the one ordering a poll\
+    \ cannot\n  permute: a run that begins is appended after every run already going,\
+    \ and a run that\n  ends is removed while the rest keep their order. Sorting on\
+    \ anything the poll\n  recomputes \u2014 health, elapsed seconds, the ledger's\
+    \ own scan order \u2014 would shuffle the\n  board every two seconds, which is\
+    \ the failure this rule exists to prevent.\n- **Free cells after, in queue order**,\
+    \ from `queue_preview`.\n- **React keys are the run id and the task id**, so a\
+    \ cell that did not change is the\n  same DOM node it was two seconds ago.\n\n\
+    **A busy cell is counted off `occupied`, never off `runs.length`.** They are different\n\
+    numbers on purpose (task-333): the count is machine-wide and includes runs in\
+    \ projects\nthis caller may not see, while the list is only the visible ones.\
+    \ A cell for the\ndifference exists and says so \u2014 `Busy \u2014 a run in a\
+    \ project this view cannot show`. The\nalternative, drawing those slots free,\
+    \ would put a Dispatch button on a slot the\nconcurrency guard knows is taken,\
+    \ which is precisely the browser disagreeing with\n`dispatch/guards.py` that the\
+    \ endpoint's docstring forbids.\n\n**Rejected: sorting the cells by health so\
+    \ the alarming ones come first.** It reads well\nin a screenshot and is unusable\
+    \ in motion \u2014 a run going from `working` to `parked` would\njump its card\
+    \ across the board while the reader was aiming at it.\n\n**One thing the spec\
+    \ did not name, found by building the fixture: a task can be in two\ncells.**\
+    \ The two halves come from two endpoints and nothing reconciles them, so a run\n\
+    whose task was released back to `ready` while its process lives is live *and*\
+    \ claimable,\nand the naive board draws it as a run and then offers a Dispatch\
+    \ button under a second\ncopy of it. `boardLayout` filters the queue against the\
+    \ task ids of runs **in this\nproject** \u2014 scoped, because a task id is unique\
+    \ only within a project and suppressing\n`task-101` here because Elsewhere is\
+    \ running its own `task-101` would silently drop work\noff the board. Both directions\
+    \ are pinned in `SlotBoard.test.tsx`."
+  data:
+    operation:
+      id: 7f3a1c02-9b45-4d18-8e6a-0c21b7d5f401
+      kind: log_append
+      fingerprint: 05e2b554da7dc7add1f4720fcae46a80
+- id: 12
+  ts: '2026-09-06T01:39:33.050380Z'
+  actor: claude
+  type: decision
+  body: "Whose queue fills the free cells, and where the N tasks come from (spec decisions\
+    \ 2 and 3, ac-3).\n\n**The project you are looking at fills the free cells.**\
+    \ The occupied half is machine-wide\nand stays that way \u2014 every occupied\
+    \ cell carries its own project name and the server-built\n`task_url`, exactly\
+    \ as task-328 does on the Runs page, so a cell holding another project's\nrun\
+    \ links into that project. The free half is asymmetric and this is the asymmetry:\n\
+    \n- The button on a free cell posts to `POST /api/projects/{project_id}/tasks/{task_id}/dispatch`.\n\
+    \  A cell offering another project's task would be a control acting outside the\
+    \ page's own\n  scope, from a page whose every other control is scoped.\n- **There\
+    \ is no cross-project order to merge.** `queue_position` is unique per band *within\n\
+    \  a project*; nothing in AgentJobs ranks one project's `critical` against another's.\
+    \ A\n  merged board would have to invent that ranking in TypeScript and would\
+    \ then be the only\n  place in the system with an opinion about it.\n\n**Rejected:\
+    \ filling free cells from every visible project's queue**, on the argument that\n\
+    the slots are the machine's so the offers should be too. It is the more interesting\
+    \ board\nand it is not buildable without inventing the ranking above. Reopen it\
+    \ only if a\ncross-project order becomes a real thing the server can answer for.\n\
+    \n**The server answers with N tasks, not the browser slicing three.** `queue_preview`\
+    \ was\ncapped at `QUEUE_PREVIEW_LIMIT = 3`; that constant is now a **floor**,\
+    \ and\n`build_dashboard_snapshot` takes a `preview_limit` which the dashboard\
+    \ route reads from\n`machine_ceiling()` \u2014 the same function `GET /api/runs/live`\
+    \ reports the ceiling with. Two\nreasons this is on the server rather than in\
+    \ the page:\n\n1. The exclusions have to stay exclusions. `claimable_tasks()`\
+    \ is what applies them; a\n   browser padding a short list from `active_tasks`\
+    \ would put a task on the board that the\n   queue deliberately withheld.\n2.\
+    \ The board's cell count and the supply of tasks for it now come from **one**\
+    \ reading of\n   one file. Two readings would be two chances to disagree about\
+    \ how big the board is, and\n   the symptom would be a permanently empty last\
+    \ cell nobody could explain.\n\nA floor rather than a plain substitution because\
+    \ a ceiling of one must not shrink the\npreview: a single-slot machine still wants\
+    \ to see what is behind the task it is about to\nstart. `tests/test_slot_board_supply.py`\
+    \ pins both directions, and asserts the two\nendpoints against *each other* rather\
+    \ than each against a literal.\n\n**The server does not pad.** Two claimable tasks\
+    \ and six slots is two cards and four\n`empty` ones; what an empty cell says is\
+    \ decided in the browser."
+  data:
+    operation:
+      id: 2b8e4f11-3c07-4a92-b5d6-18e0c7a3f902
+      kind: log_append
+      fingerprint: c3fd3a5411ec62336a786ce4abce0216
+- id: 13
+  ts: '2026-09-06T01:40:35.443103Z'
+  actor: claude
+  type: decision
+  body: "What the board does at the edges (spec decision 4, ac-5).\n\n**Ceiling of\
+    \ 1 \u2014 one cell, full width.** The board is a panel there, and `boardColumns()`\n\
+    caps the grid's columns at the cell count for exactly this reason: the first build\
+    \ drew a\nsingle card occupying a third of the panel with two thirds of empty\
+    \ card beside it, which\nreads as a board that failed to load. A one-slot board\
+    \ is a panel and a panel is full\nwidth. Seen at `--ceiling 1` in the sandbox.\n\
+    \n**`dispatch_configured: false` \u2014 no cells at all.** The ceiling there is\
+    \ a default nobody\nchose, so cells drawn from it would be a fiction on top of\
+    \ a fiction, and four confident\nempty slots would assert a capacity that does\
+    \ not exist. The board degrades to what is\nstill true: the heading becomes **Next\
+    \ up**, the header carries `capacitySentence`'s\nhonest sentence (*\"Dispatch\
+    \ is not configured on this machine\"*), and the cells are the\nclaimable queue\
+    \ with no padding and no slot framing. The cell label changes with it \u2014\n\
+    `Next up` rather than `Slot free`, because slot language on a page that has just\
+    \ said it\ndoes not know the slots is the same lie in smaller type. Dispatch buttons\
+    \ are absent\nwithout a special case: `QueueDispatch` already renders nothing\
+    \ on an unconfigured\nmachine.\n\n**Ceiling above the bound \u2014 draw the bound\
+    \ and say the rest out loud.** `BOARD_CELL_LIMIT`\nis **6**. Past it the board\
+    \ draws six cells and a line naming what it did not draw:\n*\"+3 more slots this\
+    \ machine allows, N of them busy. The board draws 6 so the page still\nfits a\
+    \ screen; Running now is the long form.\"* It never smuggles a scroll into the\
+    \ page\nwhose whole point is not scrolling, and it never silently truncates \u2014\
+    \ the omission is\nstated with a link to the surface that has room.\n\nWhy six:\
+    \ at three columns from 1024px that is two rows, and it is the last count that\n\
+    leaves room for the sections under it. A ceiling above six is also a number worth\n\
+    *stating* rather than illustrating \u2014 this machine's own gate already divides\
+    \ its cores\nbetween the runs it can see (task-339), so the seventh slot is not\
+    \ a seventh agent\nworking, it is a seventh agent queueing.\n\n**Rejected: never\
+    \ hiding a busy cell, by growing the board past the bound when\n`occupied > 6`.**\
+    \ It sounds safer and it is not: it makes the page's height a function of\nhow\
+    \ busy the machine is, which is the one thing task-294 is trying to bound. The\
+    \ overflow\nline carries the busy count instead, so nothing is concealed.\n\n\
+    **Measured, since a constraint asks for geometry rather than an opinion** (Chrome,\
+    \ a\n390x844 iframe, 2026-09-05): a three-cell board with two runs and one free\
+    \ cell is\n**636px tall**, sitting at y=97 to y=733. Hiding the free cell's summary\
+    \ below 820px was\ntried and reverted \u2014 it bought **36px** and cost the line\
+    \ the spec asks for (\"enough of\nits spec to judge it\"). That measurement is\
+    \ task-294's to act on; it is recorded here so\nthat task starts with a number\
+    \ rather than a re-measurement."
+  data:
+    operation:
+      id: 9d41c6a3-70b2-4e58-9f13-6a2d0b84e103
+      kind: log_append
+      fingerprint: 3d6b8ea450a72972169d8e5a648e0e05
+- id: 14
+  ts: '2026-09-06T01:40:48.261776Z'
+  actor: claude
+  type: decision
+  body: "Lock holders sit under the board, not in it (spec decision 5, ac-6).\n\n\
+    A scripted finish and the merge runway are this machine working, and they hold\
+    \ **locks\nrather than run slots**. `occupied` is counted by exactly the expression\
+    \ the concurrency\nguard uses and does not include them, so a cell for either\
+    \ would make the count wrong in\nthe one place the task's constraints say it must\
+    \ never be wrong.\n\n**They render as one line immediately under the grid**, inside\
+    \ the same card:\n\n> **Also on this machine:** merge runway \u2014 Elsewhere\
+    \ \xB7 3m 41s, finishing task-502 \xB7 3m 41s.\n> Locks, not run slots \u2014\
+    \ so they are not in the count above, but a merge queues behind them.\n\nThe sentence\
+    \ carries its own disambiguation, because a reader who has just counted the\n\
+    cells needs to be told why these are not among them. Two are shown by name and\
+    \ the rest\nbecome `+N more`; the Runs page's \"Also on this machine\" section\
+    \ is the long form and the\nboard's header links to it.\n\n**Rejected: a ghost\
+    \ cell, greyed out, for each holder.** It answers \"is this machine\nbusy?\" better\
+    \ than a line does, and it makes \"how many slots are free?\" unanswerable \u2014\
+    \nwhich is the question the board exists to answer. Two visual grammars in one\
+    \ grid is worse\nthan one line of prose.\n\n**Rejected: leaving them to the Runs\
+    \ page.** A board announcing \"3 slots free\" through a\nthree-minute merge is\
+    \ answering the wrong question confidently, which is exactly what the\nspec called\
+    \ out.\n\nThe strip renders **even when there are no cells to draw** \u2014 an\
+    \ unconfigured machine with\na merge in flight still says so, which is the case\
+    \ where the omission would be most\nmisleading. `SlotBoard.test.tsx` pins both."
+  data:
+    operation:
+      id: 4c07e2b8-51d9-4736-a8f1-93b2c6104d05
+      kind: log_append
+      fingerprint: 4b2d23ded20feff3b76e6fe1ae4e145c
+- id: 15
+  ts: '2026-09-06T01:41:09.556411Z'
+  actor: claude
+  type: decision
+  body: "What the board replaced, and how an alarm still outranks it (spec decision\
+    \ 6, ac-7).\n\n**Absorbed \u2014 the `next_up` rung.** The ladder's calm rung\
+    \ that offered the head of the\nqueue with a Dispatch button on each row *is*\
+    \ the board's free half, one cell per free\nslot instead of a list of three. `next_action:\
+    \ \"next_up\"` stays in the endpoint's\nvocabulary \u2014 it is still the honest\
+    \ name for \"there is claimable work\", and `Dashboard`\nreads it \u2014 but the\
+    \ panel it drew now returns `null` and the board draws that offer.\nNothing it\
+    \ carried was lost: the queue, the per-task Dispatch buttons, the closed-gate\n\
+    line and the why-this-one disclosure all moved into the board, the disclosure\
+    \ into the\nfirst free cell for the same reason task-337 put it in the first row.\n\
+    \n**Absorbed \u2014 the machine capacity row** (`MachineCapacityRow`, task-337/task-328).\
+    \ It was\none line at the foot of the statistics card saying \"2 of 3 slots busy\"\
+    \ and naming what was\nrunning. The board's header says the same sentence \u2014\
+    \ literally, it calls the same\n`capacitySentence` \u2014 one card higher, with\
+    \ the runs drawn instead of listed, and its\n\"Running now \u2192\" is the same\
+    \ link. Keeping both would have been the same sentence twice on\nthe page that\
+    \ has to fit one viewport. The component and its tests are deleted rather than\n\
+    left as a dead export.\n\n**Survives untouched \u2014 every other rung**, and\
+    \ its strictness: `blocked`, `queue_broken`,\n`backlog`, `nothing_claimable`,\
+    \ `empty_project`, plus the broken-queue banner and the\n\"+N in backlog\" link\
+    \ that keeps the backlog traceable (task-080). The Runs page survives\ntoo and\
+    \ is unchanged \u2014 log entry 10 above, and the board's header is a route into\
+    \ it.\n\n**How an alarm outranks the board.** The board is **not a rung**; it\
+    \ is the machine's\nshape and it shows beside whichever rung won. The two alarming\
+    \ rungs \u2014 `blocked` and\n`queue_broken` \u2014 get two things from it:\n\n\
+    1. **Position.** On an alarming day the alarm renders first and the board below\
+    \ it; on a\n   calm day the board is first and the surviving rung follows. `empty_project`\
+    \ gets no\n   board at all, since six empty cells above \"Getting Started\" would\
+    \ be the loudest thing\n   on the page saying nothing.\n2. **Silence.** While\
+    \ an alarm holds the page the board is `statusOnly`: every Dispatch\n   button\
+    \ is withheld, the closed-gate line is withheld, and the empty cell's \"Create\n\
+    \   task\" link is withheld. task-081's rule is that an alarm must never compete\
+    \ with a\n   **call to action**, and that is precisely what is removed.\n\n**Rejected,\
+    \ and this is the one I changed my mind about: hiding the free cells entirely\n\
+    under an alarm.** It is the stricter reading of task-081 and it was the first\n\
+    implementation. It is wrong for this page: something is waiting on Jeff most days,\
+    \ so a\nboard that shrank to its occupied cells whenever that was true is a board\
+    \ he would rarely\nsee whole \u2014 and he asked for a board. A cell that names\
+    \ a task and links to it is not a\ncall to action; the Active Tasks list under\
+    \ the board has been exactly that since before\nthe ladder existed. Withholding\
+    \ the *buttons* keeps the rule and keeps the board.\n\n**Rejected: suppressing\
+    \ the board entirely under an alarm** (the strictest reading, and\nthe closest\
+    \ to today's behaviour, since the `next_up` panel is already suppressed by\n`blocked`).\
+    \ Same objection, harder: it would also hide what is *running*, which is the\n\
+    half of the board that is pure status and the thing most worth knowing on a bad\
+    \ day.\n\n`Dashboard.test.tsx` pins the placement and the `statusOnly` flag for\
+    \ each rung, and\n`SlotBoard.test.tsx` pins what `statusOnly` removes."
+  data:
+    operation:
+      id: 6e2a08f4-4b7d-4c31-a05e-27f19b6d8a07
+      kind: log_append
+      fingerprint: 9f55d9d033de52d7b5f473e4bf4da64e
+- id: 16
+  ts: '2026-09-06T01:52:38.034556Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 8b6d3f52-14ce-4a09-9d70-52e4a7b3c60b
+      kind: update_content
+      fingerprint: 8884cb0d2bc70447d7417b4046050a40
+- id: 17
+  ts: '2026-09-06T01:53:14.923146Z'
+  actor: claude
+  type: progress
+  body: "Built, gated and driven in a browser. Branch `feat/task-092-dashboard-slot-board`,\
+    \ five commits on top of `main` at `430d870`.\n\n## What changed\n\n**Server**\
+    \ (`0d4eefe`) \u2014 the board's cell count and its supply of tasks now come from\
+    \ one\nreading of one file.\n\n- `machine_ceiling(home)` is new in `dispatch/config.py`:\
+    \ `(max_concurrent_runs,\n  configured)`, never raising at a reader. `runs.py`'s\
+    \ `_ceiling()` delegates to it.\n- `build_dashboard_snapshot(manager, *, preview_limit=None)`\
+    \ clamps up to\n  `QUEUE_PREVIEW_LIMIT`, so it is a floor. The dashboard route\
+    \ passes the machine ceiling.\n- `openapi.json` and `frontend/src/api/generated/`\
+    \ regenerated (the description of\n  `queue_preview` changed).\n\n**Frontend**\
+    \ (`884c24b`, `023ceed`) \u2014 `frontend/src/components/SlotBoard.tsx` is new.\n\
+    \n- `orderedRuns()` and `boardLayout()` are pure and exported, so every rule the\
+    \ decision\n  entries argue about is testable without a DOM: cell count, which\
+    \ cells are busy, what\n  fills the rest, and no task in two cells. `boardColumns()`\
+    \ caps the grid at the cell\n  count.\n- `Dashboard.tsx` sheds `renderWhyThisOne`,\
+    \ `renderMachineCapacity`, `renderQueueAction`,\n  `renderQueueGate` and `machineIdle`\
+    \ and gains one `renderSlotBoard(statusOnly)`. The\n  `next_up` case returns `null`\
+    \ with a comment saying where it went; every other rung is\n  byte-identical.\n\
+    - `LiveRuns.tsx` loses `MachineCapacityRow` and `runName`, exports `HealthBadge`,\
+    \ and\n  leaves a comment where the row was saying what absorbed it. `LiveRunsPage`\
+    \ is untouched.\n- `App.tsx` wires the board and keeps the `next_task` fallback\
+    \ for a pre-task-337 server.\n\n**Fixtures** (`2f4d8ef`) \u2014 `scripts/slot_board_sandbox.py`\
+    \ is new; the e2e machine's\nceiling is 2 so one browser can see a run cell and\
+    \ a free cell at once; `live-runs.spec.ts`\nasserts the board instead of the deleted\
+    \ capacity row.\n\n## Verification\n\n**The gate, unqualified, on the rebased\
+    \ branch: exit 0, all 10 of 10 stages, 442.1s,\nreceipt written for `023ceed`.**\
+    \ black 0.8s \xB7 ruff 0.6s \xB7 mypy 3.2s \xB7 api 7.6s \xB7 icons\n3.7s \xB7\
+    \ oxlint 0.9s \xB7 pytest 293.5s \xB7 vitest 14.4s \xB7 build 6.2s \xB7 e2e 111.1s\
+    \ (47 passed).\n\nOne gate, and it is the second launch rather than the first:\
+    \ the first was killed at ~40%\nof pytest because I made a cosmetic edit while\
+    \ it ran, which would have made its green a\nreceipt for a tree that no longer\
+    \ existed.\n\nNew tests: `frontend/src/components/SlotBoard.test.tsx` (24) and\n\
+    `tests/test_slot_board_supply.py` (6). Deleted: the `MachineCapacityRow` block\
+    \ in\n`LiveRuns.test.tsx`, and the three `Dashboard.test.tsx` tests that belonged\
+    \ to the\nabsorbed `next_up` rung \u2014 the two that survived in substance (the\
+    \ whole head of the queue,\nand the disclosure appearing exactly once) are re-stated\
+    \ against the board.\n\n**Driven in a browser** (Chrome, `scripts/slot_board_sandbox.py`,\
+    \ six ports):\n\n- **8916** two runs, one of them in *Elsewhere* \u2014 its cell\
+    \ names that project and links to\n  `/p/sandbox-elsewhere/tasks/task-501`; health\
+    \ reads `Waiting on you`; one free cell with\n  a Dispatch button; the holders\
+    \ line names a runway and a finish.\n- **8917** idle: three free cells, three\
+    \ *different* tasks, three buttons.\n- **8918** a task blocked on a human: the\
+    \ alert holds the top, the board keeps all three\n  cells below it, and the Dispatch\
+    \ button is gone.\n- **8919** ceiling 9: six cells and `+3 more slots this machine\
+    \ allows\u2026`.\n- **8920** ceiling 1: one full-width cell.\n- **8921** unconfigured:\
+    \ heading `Next up`, the honest sentence, no cells drawn.\n\n**Dispatching from\
+    \ a free cell works end to end** \u2014 on 8917 the first cell went from\n`data-slot-state=\"\
+    queued\" data-task-id=\"task-101\"` to `data-slot-state=\"run\"`, capacity\nwent\
+    \ `0 of 3 slots busy` to `1 of 3`, and cells 2 and 3 kept their tasks and their\
+    \ order.\n\n**The instrument, named as ENGINEERING.md requires.** That click was\n\
+    `button.click()` from `javascript_tool`, so it proves the handler, the mutation,\
+    \ the\ninvalidation and the re-render. It is **not** evidence that a person's\
+    \ gesture works: an\nearlier `mcp__claude-in-chrome` `left_click` at the button's\
+    \ measured centre delivered\nnothing at all, which is task-225's failure mode\
+    \ exactly. The gesture is Jeff's to make.\n\n## One thing I could not write where\
+    \ it belongs\n\nLog entry 10 asked me to tell **task-345** whether `LiveRuns.tsx`\
+    \ had been hollowed out.\nThe API refused \u2014 `Run run_602af616 ... may act\
+    \ on its own task and no other` \u2014 which is\ntask-332 working as designed,\
+    \ not a bug. The answer, for whoever relays it: **no.**\n`LiveRunsPage` and everything\
+    \ the Runs tab renders is untouched; what left `LiveRuns.tsx`\nis `MachineCapacityRow`,\
+    \ which was a *Dashboard* component that happened to live there.\nTwo new things\
+    \ point *at* the Runs page \u2014 the board header's permanent \"Running now \u2192\
+    \",\nand the overflow line past six cells, which is a state where the Runs page\
+    \ is the only\nplace the full answer exists. So a thinned top bar's Runs entry\
+    \ still points at a full\npage, and this task neither blocks nor changes task-345.\n\
+    \n## Left for task-294, with a number\n\nA three-cell board with two runs and\
+    \ one free cell measures **636px** on a 390x844 phone\n(y=97 to y=733), no horizontal\
+    \ overflow. That is the board being honest about three slots\nrather than a defect,\
+    \ but it is most of a phone screen and task-294 owns the consequence.\nRecorded\
+    \ in the edges decision, entry 13, along with the one compression I tried and\n\
+    reverted."
+  data:
+    operation:
+      id: 1f8c05d7-63ab-4e29-8b40-7c92da61f30b
+      kind: log_append
+      fingerprint: 20f9b1c23d28360107a46fa35e85739e
+- id: 18
+  ts: '2026-09-06T01:53:38.014785Z'
+  actor: claude
+  type: handoff
+  body: Handing off for review with the gate green and the browser half of ac-8 outstanding.
+    Everything a fresh reader needs is in the progress entry above and the five decision
+    entries before it; the ball_prompt names the sandboxes and the three things that
+    are a matter of judgement rather than correctness.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 3d90a7f1-58b6-4e02-9c14-6b41f80d95c2
+      kind: handoff
+      fingerprint: 8e8338f805526ff45b85bf4bd599728e
