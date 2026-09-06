@@ -2,7 +2,7 @@ schema: 2
 id: task-092-dashboard-design-pass
 title: 'The Dashboard is a slot board: one card per concurrent run'
 created: '2026-08-11T08:01:24.843122Z'
-updated: '2026-09-06T02:20:08.398701Z'
+updated: '2026-09-06T03:08:41.251193Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -866,3 +866,51 @@ log:
     outcome: completed
     duration_seconds: 4681.251707
     log_path: C:\Users\jpose\.agentjobs\runs\run_602af616
+- id: 20
+  ts: '2026-09-06T03:08:41.250846Z'
+  actor: claude
+  type: progress
+  body: 'Review session with Jeff, 2026-09-05 evening (CDT). Findings so far, recorded
+    on his behalf.
+
+
+    **ac-8''s browser half is done.** Jeff pressed Dispatch by hand on a fresh idle
+    sandbox (port 8922). The cell flipped to a run and the other two cells stayed
+    put. That is the hand gesture the handoff could not prove; it is proved now.
+
+
+    **Why 8917 stopped being the idle demo.** The handoff''s programmatic click on
+    8917 at 01:36Z started a real sleeper run. It ended ten minutes later as `finished_without_handoff`,
+    which moved its task to `human/decision`. That is an alarm state, so the board
+    withheld all three Dispatch buttons and 8917 became a second copy of 8918. Not
+    a defect in the board; a stale sandbox. A fresh `--idle` on 8922 replaced it.
+
+
+    That accident is evidence for the 8918 decision (log entry 15): one stray run
+    blanked every button. Under the strict reading, which hides free cells too, it
+    would have collapsed the board entirely. Withholding only the buttons is the milder
+    failure.
+
+
+    **Sandbox state at handoff was six listed, four alive.** 8916 and 8920 had died
+    with the dispatched session; restarted from the worktree. The ball_prompt''s restart
+    list also omitted 8920''s command, which is `--idle --ceiling 1`.
+
+
+    **Review feedback from Jeff on 8920 (ceiling 1):** a single full-width cell wastes
+    the space for one task, and the "why this one first" expander barely fills it.
+    Whether this blocks approval or becomes a follow-up is his call, pending.
+
+
+    **Handoff said rebased; it was not.** Branch is nine commits behind main, all
+    task-record commits with no code overlap, so the scripted finish should rebase
+    cleanly.
+
+
+    Open for Jeff: the 8918 buttons-withheld choice, and whether 8920''s layout blocks
+    or follows up.'
+  data:
+    operation:
+      id: 6f2c1b8e-3a4d-4e7f-9b21-5c8d0e1f2a3b
+      kind: log_append
+      fingerprint: 76fa591c0ccfcf056b7b9c241fd3dd91
