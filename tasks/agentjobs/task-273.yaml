@@ -2,11 +2,20 @@ schema: 2
 id: task-273
 title: Build authoritative SQLite task storage alongside the AgentJobs server
 created: '2026-08-22T19:00:47.987602Z'
-updated: '2026-09-06T06:12:44.935423Z'
+updated: '2026-09-06T06:28:34.562368Z'
 lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Finish specifying this task.
+ball: agent
+ball_reason: work
+ball_prompt: 'Draft the physical schema and bring back choices, not a blank spec.
+
+
+  The owner declined to finish this spec himself and was right to: the previous prompt
+  asked him to write the working specification, which is the agent''s job. Everything
+  he needs to decide is a table layout or a trade-off an agent can lay out and recommend.
+
+
+  Produce the schema proposal, then hand back with the two or three real forks as
+  tappable questions with recommendations. Do not hand back a document to review.'
 archived: false
 priority: critical
 queue_position: 893
@@ -313,3 +322,21 @@ log:
       id: b6d0ec38-7f29-4a1b-8574-0c4e2f9d7a13
       kind: log_append
       fingerprint: e25918f0a7f7e281f1603f118530c3fc
+- id: 10
+  ts: '2026-09-06T06:28:34.562195Z'
+  actor: claude
+  type: handoff
+  body: "Ball taken off the owner. The prior prompt was \"Finish specifying this task\"\
+    , which asked a human to write a working specification \u2014 that is the agent's\
+    \ work, and asking for it was the mistake, not his refusal.\n\nThe decisions here\
+    \ are genuinely his: whether nested spec content is JSON or normalised, what historical\
+    \ coverage is promised, how the restart window behaves (already answered, entry\
+    \ 6 and 9). None of them require him to author prose. An agent drafts the schema\
+    \ and comes back with the forks as choices.\n\nNothing else on this task changed."
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: a7c1de40-8b52-4f63-9074-2d6e0f9a5b31
+      kind: handoff
+      fingerprint: e82eadc7982ec51f44cadbac0754dae4

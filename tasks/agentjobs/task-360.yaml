@@ -2,7 +2,7 @@ schema: 2
 id: task-360
 title: The draft question panel pastes a wall of text at the human
 created: '2026-09-06T06:16:39.658903Z'
-updated: '2026-09-06T06:16:40.349879Z'
+updated: '2026-09-06T06:27:41.725496Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -20,9 +20,9 @@ spec:
   summary: A question entry is rendered into the draft panel whole, whatever its length.
     A 300-word question fills the screen as one unbroken bold block above the answer
     box, and the reader cannot find the ask inside it.
-  intent: 'Jeff, 2026-09-06, looking at task-273''s question panel: *"sorry but your
-    wall of text is a fail. what?"* He could not tell what he was being asked, and
-    the question had in fact already been answered.
+  intent: 'Reported by the owner on 2026-09-06: looking at task-273''s question panel,
+    he could not tell what he was being asked. The question had in fact already been
+    answered.
 
 
     The panel is the one place in the app where the app asks the human for effort.
@@ -69,8 +69,9 @@ spec:
     - Take a worktree and bootstrap it; one unqualified `scripts/check.py` on the
     rebased branch before the handoff.
 
-    - Jeff drives it before it merges. Sandbox on its own port, seeded with a short
-    question and a long one so he can compare, per the standing UI-review rule.'
+    - The owner drives it before it merges. Sandbox on its own port, seeded with a
+    short question and a long one so the two can be compared, per the standing UI-review
+    rule.'
   out_of_scope: "- What closes a question thread \u2014 task-359.\n- Guidance to agents\
     \ about question length \u2014 task-359 owns the ALLAGENTS.md half.\n- The structured\
     \ multiple-choice question model \u2014 task-017.\n- Rendering of other long log\
@@ -82,8 +83,8 @@ spec:
     why: The draft/review panel that renders open questions above the answer box.
       Find the component that maps over `open_questions` before changing anything.
   - path: tasks/agentjobs/task-273.yaml
-    why: Entry 5 is the 300-word question that produced the screenshot. Use it as
-      the long-body fixture.
+    why: Entry 5 is the 300-word question that produced the report. Use it as the
+      long-body fixture.
   - path: tasks/agentjobs/task-359.yaml
     why: 'The other half: why that question was on screen at all. Shares the show-the-thread
       display change.'
@@ -110,8 +111,7 @@ acceptance:
     with phone portrait measured.
   status: pending
 - id: ac-6
-  text: Jeff has driven a sandbox seeded with both a short and a long question on
-    his own screen.
+  text: The owner has driven a sandbox seeded with both a short and a long question.
   status: pending
 - id: ac-7
   text: '`scripts/check.py` green with no arguments on a clean rebased tree.'
@@ -140,3 +140,16 @@ log:
       id: d8f2ac51-9e63-4b74-8285-3c7f6e1d9a42
       kind: create
       fingerprint: 1903b51898f2b158a8d66cf3d98c951f
+- id: 2
+  ts: '2026-09-06T06:27:41.725338Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, spec.
+  data:
+    fields:
+    - acceptance
+    - spec
+    operation:
+      id: e5a9bc28-6f30-4d41-8852-0d4e8f7a3b19
+      kind: update_content
+      fingerprint: 08dfb8eb8d75fb9d2c6b2af27709c81f
