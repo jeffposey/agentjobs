@@ -3,7 +3,7 @@ id: task-340
 title: A scripted finish that stops at the gate must start the session that repairs
   it, not wait for a Dispatch click
 created: '2026-09-05T21:33:27.249588Z'
-updated: '2026-09-06T02:56:26.150876Z'
+updated: '2026-09-06T02:57:09.470717Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -786,3 +786,13 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 23
+  ts: '2026-09-06T02:57:09.470544Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 6
+  data:
+    run_id: run_7f8b8193
+    outcome: completed
+    duration_seconds: 7952.431953
+    log_path: C:\Users\jpose\.agentjobs\runs\run_7f8b8193
