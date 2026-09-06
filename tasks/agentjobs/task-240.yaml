@@ -3,14 +3,19 @@ id: task-240
 title: 'Shell 5: stand the new layout up on a sandbox and have Jeff drive it before
   it merges'
 created: '2026-08-22T00:40:59.806337Z'
-updated: '2026-09-06T20:55:22.650310Z'
+updated: '2026-09-06T21:13:12.135468Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Drive the shell sandbox and answer the nine questions below \u2014 that\
+  \ is the review.\n\nDesktop: http://127.0.0.1:8910/app/p/sandbox-shell/tasks\nTablet:\
+  \  https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-shell/tasks\nCheck 3 wants\
+  \ this link after you fold task-100: http://127.0.0.1:8910/app/p/sandbox-shell/tasks/task-143\n\
+  \nEverything on it is throwaway \u2014 press anything. I stop the sandbox and take\
+  \ the tailnet proxy down once you are done."
 archived: false
 priority: critical
-queue_position: 793
+queue_position: 1393
 category: testing
 tags:
 - frontend
@@ -123,7 +128,9 @@ dependencies:
     shell without it means reviewing a sidebar that still carries a four-control filter
     row.
 links: []
-branches: []
+branches:
+- name: chore/task-240-shell-sandbox
+  status: active
 log:
 - id: 1
   ts: '2026-08-22T00:41:00.160948Z'
@@ -243,3 +250,383 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 8
+  ts: '2026-09-06T20:57:57.609092Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: Moved to the bottom of the band.
+  data:
+    band: critical
+    from: 793
+    to: 1393
+    placement:
+      kind: bottom
+    operation:
+      id: febcdfa6-ff4c-4783-972b-56951051a4c6
+      kind: queue_move
+      fingerprint: e3d7b4d6735abd8c387e66b20d924f41
+- id: 9
+  ts: '2026-09-06T20:57:59.010930Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: Moved to the top of the band.
+  data:
+    band: critical
+    from: 1393
+    to: 146
+    placement:
+      kind: top
+    warnings:
+    - kind: promoted_unclaimable
+      message: 'task-240 cannot be claimed where you have just put it: not ready (active,
+        held by agent). The queue will skip past it.'
+      tasks:
+      - task-240
+    - kind: demoted_blocker
+      message: This pushed task-273 (1 open task needs it) down the 'critical' band.
+        Other open work is waiting on it.
+      tasks:
+      - task-273
+    undo:
+      kind: after
+      target: task-247
+    operation:
+      id: 4cffdf46-387f-45f2-9499-855b9cbb1fdf
+      kind: queue_move
+      fingerprint: 0892b3a01a29c51822ae3370f058f23d
+- id: 10
+  ts: '2026-09-06T20:58:06.474224Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: Moved to the top of the band.
+  data:
+    band: critical
+    from: 146
+    to: 146
+    placement:
+      kind: top
+    warnings:
+    - kind: no_op
+      message: 'Nothing moved: task-240 came out of the ''critical'' band in the place
+        it went in, so the queue will hand out exactly what it would have handed out
+        before.'
+      tasks:
+      - task-240
+    operation:
+      id: 0c893dc1-f181-4142-bfa4-0cb7dcf6aafc
+      kind: queue_move
+      fingerprint: 0892b3a01a29c51822ae3370f058f23d
+- id: 11
+  ts: '2026-09-06T20:58:07.778495Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: Moved to the bottom of the band.
+  data:
+    band: critical
+    from: 146
+    to: 1393
+    placement:
+      kind: bottom
+    operation:
+      id: 43f7021f-7e81-4528-9060-c7d2434a7a0d
+      kind: queue_move
+      fingerprint: e3d7b4d6735abd8c387e66b20d924f41
+- id: 12
+  ts: '2026-09-06T20:58:09.047261Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: Moved to the top of the band.
+  data:
+    band: critical
+    from: 1393
+    to: 146
+    placement:
+      kind: top
+    warnings:
+    - kind: promoted_unclaimable
+      message: 'task-240 cannot be claimed where you have just put it: not ready (active,
+        held by agent). The queue will skip past it.'
+      tasks:
+      - task-240
+    - kind: demoted_blocker
+      message: This pushed task-273 (1 open task needs it) down the 'critical' band.
+        Other open work is waiting on it.
+      tasks:
+      - task-273
+    undo:
+      kind: after
+      target: task-247
+    operation:
+      id: c5714944-fa37-405f-abfe-60645959397c
+      kind: queue_move
+      fingerprint: 0892b3a01a29c51822ae3370f058f23d
+- id: 13
+  ts: '2026-09-06T20:58:10.382104Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: Moved to the bottom of the band.
+  data:
+    band: critical
+    from: 146
+    to: 1393
+    placement:
+      kind: bottom
+    operation:
+      id: 953daa30-5144-4a7a-9cea-d8165e3f5137
+      kind: queue_move
+      fingerprint: e3d7b4d6735abd8c387e66b20d924f41
+- id: 14
+  ts: '2026-09-06T21:12:23.600410Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 6f2a1c4e-9b3d-4a71-8e52-1c7d0f9a4b10
+      kind: update_content
+      fingerprint: 9d2f64e88d85bd9e0bad218d7173c1e9
+- id: 15
+  ts: '2026-09-06T21:12:46.407864Z'
+  actor: claude
+  type: progress
+  body: "The sandbox is up and waiting to be driven.\n\n**Where it is**\n\n| | |\n\
+    | --- | --- |\n| Desktop | http://127.0.0.1:8910/app/p/sandbox-shell/tasks |\n\
+    | Tablet | https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-shell/tasks\
+    \ |\n| Dashboard | http://127.0.0.1:8910/app/p/sandbox-shell |\n| The epic | http://127.0.0.1:8910/app/p/sandbox-shell/tasks/task-100\
+    \ |\n| The deep link (check 3) | http://127.0.0.1:8910/app/p/sandbox-shell/tasks/task-143\
+    \ |\n\nPort 8910, not 8876 and not 8765. Its own `AGENTJOBS_HOME` under a temp\n\
+    directory, so `/api/projects` on it returns the sandbox project and nothing\n\
+    else \u2014 the live corpus is not reachable through either address. Every\ncontrol\
+    \ is safe to press.\n\nThe tablet address is the workstation's own MagicDNS name\
+    \ on a spare port\nvia `tailscale serve`, deliberately not the `svc:agentjobs`\
+    \ Service the live\ndashboard answers on, so the two can never be confused.\n\n\
+    **Stopping it** (I will do this once the review is finished; here in case\nyou\
+    \ want it sooner):\n\n    Get-CimInstance Win32_Process -Filter \"Name='python.exe'\"\
+    \ |\n      Where-Object { $_.CommandLine -like '*shell_sandbox.py*' } |\n    \
+    \  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }\n    tailscale serve\
+    \ --https=8443 off\n\n**What is seeded** \u2014 `scripts/shell_sandbox.py`, on\
+    \ branch\n`chore/task-240-shell-sandbox`. 62 task files, of which:\n\n- **task-100**,\
+    \ the epic: 13 children and 5 grandchildren, so a fold hides\n  two levels rather\
+    \ than one. Its record carries a 40-entry log, several\n  hundred words per spec\
+    \ field, and an unbreakable 400-character token.\n- **A wide dependency graph**\
+    \ on that record: measured in the browser at\n  1190px inside a 724px frame with\
+    \ `overflow-x-auto`, and\n  `document.scrollWidth === window.innerWidth`, so it\
+    \ scrolls inside itself\n  rather than widening the panel.\n- **A scrolling list\
+    \ region**: 59 rows, `scrollHeight` 4796 against\n  `clientHeight` 1044.\n- **A\
+    \ broken file**, `task-666.yaml`, shaped like a bad merge. The\n  \"1 task file\
+    \ could not be loaded\" banner renders above both regions.\n- **task-102** parked\
+    \ on human/review, which is what the Dashboard's\n  \"1 Task Blocked on You\"\
+    \ panel points at \u2014 the task to click for check 8.\n\n**What I did not verify,\
+    \ and why.** None of the nine checks. Five of them\nare gestures, and this session's\
+    \ browser tool reported a successful\n`resize_window` that left `window.innerWidth`\
+    \ at 1278 \u2014 the same class of\nsilent no-op as task-225. So I confirmed the\
+    \ fixtures render and left every\ngesture to a hand. ENGINEERING.md's rule, and\
+    \ the reason this task exists.\n\n**Gate**: green, all 10 stages, on 8a1d60a (the\
+    \ rebased branch). The only\nchange on the branch is the new script; nothing under\
+    \ `frontend/` or\n`src/agentjobs/` is touched.\n\n**ac-6, in advance**: all five\
+    \ siblings are already merged. The 8876 server\nis serving bundle `index-UUR3wrQq.js`,\
+    \ byte-identical to a fresh\n`npm run build` of `main`, and no Python differs\
+    \ between its `source_commit`\nand `HEAD`. Checked in a browser at 8876: `data-shell=\"\
+    two-region\"`, both\n`data-region` nodes present, and the Filters button rendering.\
+    \ So the merged\nshell is live already; nothing needs rebuilding or restarting."
+  data:
+    operation:
+      id: 8b41d7c2-3e56-4f19-92a4-7c0e5d3b8a21
+      kind: log_append
+      fingerprint: 7680fd679a6b05d82855a410e469d8b1
+- id: 16
+  ts: '2026-09-06T21:13:12.134518Z'
+  actor: claude
+  type: handoff
+  body: The sandbox is up on port 8910 and on the tailnet. Entry 15 has what is seeded,
+    how it was measured, and the stop command. Nothing merges on this task; the questions
+    are the review.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: c40e9a15-72b8-4d33-b6f1-5a9e2c81d074
+      kind: handoff
+      fingerprint: 971eefc1ae8e11c227b50f957a7fd059
+- id: 17
+  ts: '2026-09-06T21:13:12.134686Z'
+  actor: claude
+  type: question
+  body: "1. Open a task from the sidebar. Does the sidebar stay put \u2014 same scroll\
+    \ position, same rows?"
+  re: 16
+  data:
+    options:
+    - label: Stays put
+      description: null
+      recommended: false
+    - label: It moves or resets
+      description: null
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 18
+  ts: '2026-09-06T21:13:12.134708Z'
+  actor: claude
+  type: question
+  body: 2. Fold task-100, then reload the page. Is it still folded?
+  re: 16
+  data:
+    options:
+    - label: Still folded
+      description: null
+      recommended: false
+    - label: It came back open
+      description: null
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 19
+  ts: '2026-09-06T21:13:12.134756Z'
+  actor: claude
+  type: question
+  body: 3. With task-100 folded, paste the task-143 link. Does it reveal that grandchild
+    and select it?
+  re: 16
+  data:
+    options:
+    - label: Revealed and selected
+      description: null
+      recommended: false
+    - label: "No \u2014 say what happened"
+      description: null
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 20
+  ts: '2026-09-06T21:13:12.134808Z'
+  actor: claude
+  type: question
+  body: 4. Arrow-key down the sidebar. Does the record beside it keep up?
+  re: 16
+  data:
+    options:
+    - label: Keeps up
+      description: null
+      recommended: false
+    - label: It lags or stops
+      description: null
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 21
+  ts: '2026-09-06T21:13:12.134835Z'
+  actor: claude
+  type: question
+  body: 5. Alt+Up twice on the same row, without clicking between. Does it move two
+    places? (task-207's exact defect.)
+  re: 16
+  data:
+    options:
+    - label: Moved two places
+      description: null
+      recommended: false
+    - label: Only moved once
+      description: null
+      recommended: false
+    - label: Did not move at all
+      description: null
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 22
+  ts: '2026-09-06T21:13:12.134857Z'
+  actor: claude
+  type: question
+  body: 6. Drag a row by its grip with the mouse. Does it land where you dropped it?
+  re: 16
+  data:
+    options:
+    - label: 'Yes'
+      description: null
+      recommended: false
+    - label: "No \u2014 I will restart with --trace so the gesture is recorded"
+      description: null
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 23
+  ts: '2026-09-06T21:13:12.134878Z'
+  actor: claude
+  type: question
+  body: 7. Resize the window across the breakpoint, both directions. Does the shell
+    change cleanly each way?
+  re: 16
+  data:
+    options:
+    - label: Clean both ways
+      description: null
+      recommended: false
+    - label: Broken one way
+      description: null
+      recommended: false
+    - label: Broken both ways
+      description: null
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 24
+  ts: '2026-09-06T21:13:12.134899Z'
+  actor: claude
+  type: question
+  body: "8. Dashboard: full width, no sidebar \u2014 and does clicking a task from\
+    \ it land in Tasks with that task selected?"
+  re: 16
+  data:
+    options:
+    - label: Both right
+      description: null
+      recommended: false
+    - label: Full width, but the click is wrong
+      description: null
+      recommended: false
+    - label: It has a sidebar
+      description: null
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 25
+  ts: '2026-09-06T21:13:12.134920Z'
+  actor: claude
+  type: question
+  body: 9. On the tablet, landscape and portrait. Does it hold up in both?
+  re: 16
+  data:
+    options:
+    - label: Both fine
+      description: null
+      recommended: false
+    - label: Portrait is wrong
+      description: null
+      recommended: false
+    - label: Landscape is wrong
+      description: null
+      recommended: false
+    - label: Both wrong
+      description: null
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 26
+  ts: '2026-09-06T21:13:12.134942Z'
+  actor: claude
+  type: question
+  body: Anything you would stop the epic for?
+  re: 16
+  data:
+    options:
+    - label: "No \u2014 approve, the shell is good"
+      description: null
+      recommended: false
+    - label: "Yes \u2014 I will describe it"
+      description: null
+      recommended: false
+    multi_select: false
+    placeholder: null
