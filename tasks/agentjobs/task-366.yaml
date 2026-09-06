@@ -1,0 +1,120 @@
+schema: 2
+id: task-366
+title: On a phone there is no way to open the task list without leaving the record
+created: '2026-09-06T21:33:36.449827Z'
+updated: '2026-09-06T21:33:37.127265Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 15900
+category: ux
+tags:
+- frontend
+- layout
+- react
+- mobile
+effort: medium
+assignment:
+  eligible: []
+parent: task-235
+spec:
+  summary: Below the device-class threshold the shell shows the list or the record,
+    never both, and the only way back to the list is a link that drops the record.
+    The owner asked for the list to open from a burger control instead, over whatever
+    is on screen.
+  intent: Browsing is the thing a phone loses in this shell. On a desktop the list
+    is always there to glance at; on a phone, comparing two tasks or finding the next
+    one costs a full navigation each way, and the record you were reading is gone
+    when you get back.
+  description: "## The finding\n\nFrom task-240's by-hand review: the phone aspect\
+    \ ratio is fine on the task window,\nbut you lose the ability to browse a condensed\
+    \ list \u2014 there is no sidebar, and the\nlist should open from a burger click\
+    \ at phone portrait sizes.\n\n## What is there today\n\n`App.tsx`, `TasksSurface`.\
+    \ Below `WIDE_SHELL_QUERY` the stacked branch is:\n\n    <div data-shell=\"stacked\"\
+    >\n      {banners}\n      {outlet ?? <TaskListPage projectId={projectId} />}\n\
+    \    </div>\n\nOne or the other, with no control between them. The only route\
+    \ from a record back to\nthe list is `TaskDetail`'s `\u2190 Back to Tasks` link,\
+    \ which navigates to `/tasks` and\ntherefore drops the selection: coming back\
+    \ means finding the task again.\n\n**The comment above that branch is wrong and\
+    \ should be corrected in the same change.**\nIt reads *\"the list is hidden, not\
+    \ absent \u2014 and task-238 adds the control that opens\nit at any width.\"*\
+    \ No such control exists anywhere in the frontend; task-238's\nacceptance criteria\
+    \ do not mention one either. A comment describing a feature nobody\nbuilt is worse\
+    \ than no comment, because the next reader stops looking.\n\n## What to build\n\
+    \nA control that opens the list **over** the record rather than instead of it,\
+    \ at any\nwidth where the stacked shell is in force:\n\n- Reachable from the record,\
+    \ near the existing `\u2190 Back to Tasks` affordance, and\n  labelled for a screen\
+    \ reader.\n- Opens a panel holding the same `TaskListPage` tree the wide shell\
+    \ puts in its list\n  region \u2014 the same component, not a second implementation\
+    \ of a task list.\n- Choosing a task closes it and shows that record. Escape and\
+    \ a tap outside close it\n  without changing the selection.\n- Focus goes into\
+    \ the panel when it opens and back to the control when it closes.\n\nWhether it\
+    \ is a drawer sliding from the edge or a full-screen sheet is a design call\n\
+    for whoever takes this; record which and why. Both orientations, since the device-class\n\
+    rule is deliberately orientation-independent.\n\n## Verification\n\nWiring, focus\
+    \ and Escape in jsdom; the panel appearing and the selection surviving in\nPlaywright\
+    \ at a phone viewport. **Then a person on a real phone**, because whether a\n\
+    control is findable is not a property a harness can report on. task-106 covers\n\
+    physical-device PWA checks separately and this should not duplicate it."
+  constraints: "- The device-class rule from task-236 stands: a phone gets one thing\
+    \ at a time. This\n  adds a way to summon the list, it does not put the two-region\
+    \ shell on a phone.\n- Reuse `TaskListPage`. A second, phone-only task list would\
+    \ drift from the real one.\n- Fix the stale comment in `App.tsx` as part of this\
+    \ change."
+  out_of_scope: '- Changing the breakpoint or the device-class rule.
+
+    - The top-bar navigation menu, which is task-167''s family and a different control.
+
+    - The other two findings from task-240''s review, which have their own tasks.'
+  context:
+  - path: frontend/src/App.tsx
+    why: TasksSurface's stacked branch, and the comment that claims a control exists.
+  - path: frontend/src/components/shellLayout.ts
+    why: WIDE_SHELL_QUERY and task-236's binding reasoning for why it tests both dimensions.
+  - path: frontend/src/components/TaskDetail.tsx
+    why: "The \u2190 Back to Tasks link, which is the only route back today and where\
+      \ the new control belongs."
+  - path: tasks/agentjobs/task-106-physical-device-pwa-verification.yaml
+    why: The separate physical-device verification, so the two do not duplicate each
+      other.
+acceptance:
+- id: ac-1
+  text: A labelled control on the record opens the task list over it, in the stacked
+    shell, in both orientations.
+  status: pending
+- id: ac-2
+  text: Choosing a task from that panel closes it and shows that record; Escape and
+    an outside tap close it leaving the selection alone.
+  status: pending
+- id: ac-3
+  text: Focus enters the panel when it opens and returns to the control when it closes.
+  status: pending
+- id: ac-4
+  text: The panel renders TaskListPage rather than a second list implementation.
+  status: pending
+- id: ac-5
+  text: The stale App.tsx comment about a control that opens the list at any width
+    is corrected.
+  status: pending
+- id: ac-6
+  text: A person has used it on a real phone and said the list is findable. The record
+    names who.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-06T21:33:37.126554Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c3d90b58-7e2f-4c8a-9b64-5a1e7c283d63
+      kind: create
+      fingerprint: e89d6de6fec9481c91111ea680bdd140

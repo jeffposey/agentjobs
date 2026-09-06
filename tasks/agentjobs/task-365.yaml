@@ -1,0 +1,114 @@
+schema: 2
+id: task-365
+title: A drag carries the grip glyph rather than the row, and nothing shows where
+  it will land
+created: '2026-09-06T21:33:07.400118Z'
+updated: '2026-09-06T21:33:08.080877Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 15800
+category: ux
+tags:
+- frontend
+- layout
+- react
+- accessibility
+effort: small
+assignment:
+  eligible: []
+parent: task-235
+spec:
+  summary: "Dragging a sidebar row works \u2014 it lands where you drop it \u2014\
+    \ but you cannot see that while you are doing it. The thing under the pointer\
+    \ is the six-dot handle, the row you are moving looks untouched, and no marker\
+    \ says where the drop will go."
+  intent: 'A reorder gesture that gives no feedback is one a reader has to perform
+    on faith and then check afterwards. That is also why a working drag reads as a
+    broken one: the only way to find out what happened is to let go.'
+  description: "## The finding\n\nFrom task-240's by-hand review, in the owner's own\
+    \ words: the drag lands where you\ndrop it, but it is unclear \u2014 it should\
+    \ move a ghosted version of the task as you\ndrag, so you can see where it will\
+    \ land when you release.\n\n## Why it looks like that\n\nIn `TaskList.tsx`, `renderGrip`:\n\
+    \n- **`draggable` is on the grip `<button>`**, so the browser's default drag image\
+    \ is a\n  picture of that button \u2014 the `\u283F` glyph and its padding, roughly\
+    \ 20px square. There\n  is no `setDragImage` call anywhere in the file.\n- **`dragging`\
+    \ never changes how anything looks.** The state is set on `dragStart` and\n  cleared\
+    \ on `dragEnd`, and it is read in exactly two places: the autoscroll effect,\n\
+    \  and `dragProps`' `onDragOver` to decide whether to accept. No row is styled\
+    \ from it,\n  so the row being moved looks identical to every other row for the\
+    \ whole gesture.\n- **No drop indicator.** `onDragOver` calls `preventDefault`\
+    \ and nothing else, so the\n  row the drop would land beside is not marked. `onRowDrop`\
+    \ already knows whether the\n  move is a `before` or an `after` from the two positions,\
+    \ which is the same fact an\n  insertion line would need.\n\n## What to build\n\
+    \nAt minimum the ghost the review asked for, and the landing place:\n\n1. **A\
+    \ drag image of the row**, not the handle \u2014 `setDragImage` with the row element\n\
+    \   (or a lightweight clone of it) on `dragStart`.\n2. **The source row visibly\
+    \ in flight** while `dragging` names it \u2014 reduced opacity is\n   the conventional\
+    \ and cheapest form.\n3. **Where it will land**: an insertion line on the row\
+    \ under the pointer, on the side\n   the drop would actually use. Reuse the `before`/`after`\
+    \ decision `onRowDrop`\n   already makes rather than inventing a second rule,\
+    \ so what is drawn and what\n   happens cannot disagree.\n\nKeep it in both list\
+    \ shapes if the grip renders in both.\n\n## Verification\n\nThe wiring \u2014\
+    \ that `setDragImage` is called, that the source row carries the in-flight\nclass,\
+    \ that the indicator follows the same before/after rule as the drop \u2014 is\n\
+    testable in jsdom and worth testing. **Whether it reads better is not**: that\
+    \ is a\nperson's eye on a real drag, in the sandbox, and the record should say\
+    \ who looked and\nwhat they saw. An automated drag is not evidence here (ENGINEERING.md,\
+    \ Verification;\ntask-225)."
+  constraints: "- Do not change what a drop does. The behaviour is right; only the\
+    \ feedback is missing.\n- The drag payload stays under its private MIME type \u2014\
+    \ the comment in `renderGrip`\n  explains why a queue position must not be droppable\
+    \ into another application.\n- No drop-target autoscroll or unfold-on-hover changes\
+    \ here; both are settled\n  decisions on task-229 and task-238."
+  out_of_scope: '- Touch drag on a phone, which the grip does not currently attempt.
+
+    - Reparenting by drag. Dropping on a folded parent stays an ordinary drop.
+
+    - The other two findings from task-240''s review, which have their own tasks.'
+  context:
+  - path: frontend/src/components/TaskList.tsx
+    why: "renderGrip, dragProps, onRowDrop and the dragging state \u2014 every part\
+      \ of the gesture is here."
+  - path: frontend/src/components/dragAutoScroll.ts
+    why: The one existing consumer of the dragging state, so a new one does not duplicate
+      it.
+  - path: scripts/shell_sandbox.py
+    why: The sandbox to look at it in. On branch chore/task-240-shell-sandbox until
+      that merges.
+  - path: scripts/review_drag_trace.js
+    why: The trace panel, if a gesture needs recording. `shell_sandbox.py --trace`
+      injects it.
+acceptance:
+- id: ac-1
+  text: The drag image is the row, not the grip glyph.
+  status: pending
+- id: ac-2
+  text: The row being moved is visibly in flight for the duration of the gesture.
+  status: pending
+- id: ac-3
+  text: An indicator shows where the drop will land, on the side the drop actually
+    uses, derived from the same before/after rule as onRowDrop.
+  status: pending
+- id: ac-4
+  text: A person has dragged a row with a real mouse and said the gesture now reads
+    clearly. The record names who and what they saw.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-06T21:33:08.080181Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: b2e8d40f-6c19-4a27-8d13-4f8a2b371c52
+      kind: create
+      fingerprint: d63acd765feb7aadf09b34afd8ab2443

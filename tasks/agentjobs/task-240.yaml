@@ -3,16 +3,17 @@ id: task-240
 title: 'Shell 5: stand the new layout up on a sandbox and have Jeff drive it before
   it merges'
 created: '2026-08-22T00:40:59.806337Z'
-updated: '2026-09-06T21:13:50.321360Z'
+updated: '2026-09-06T21:34:43.780045Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: "Drive the shell sandbox and answer the nine questions below \u2014 that\
-  \ is the review.\n\nDesktop: http://127.0.0.1:8910/app/p/sandbox-shell/tasks\nTablet:\
-  \  https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-shell/tasks\nCheck 3 wants\
-  \ this link after you fold task-100: http://127.0.0.1:8910/app/p/sandbox-shell/tasks/task-143\n\
-  \nEverything on it is throwaway \u2014 press anything. I stop the sandbox and take\
-  \ the tailnet proxy down once you are done."
+ball_prompt: "Three findings filed with the cause found for each: task-364 (fold lost\
+  \ on reload), task-365 (drag shows nothing), task-366 (no list on a phone). All\
+  \ three are children of task-235, so the epic is held open by them.\n\nEntry 41\
+  \ has the nine outcomes and the diagnoses. The sandbox is stopped and the tailnet\
+  \ proxy is off.\n\nApprove to merge `chore/task-240-shell-sandbox` \u2014 one new\
+  \ file, `scripts/shell_sandbox.py`, gate green. Merging it is what makes the sandbox\
+  \ available to the three follow-ups. Two questions below on how you want them ranked."
 archived: false
 priority: critical
 queue_position: 1393
@@ -640,3 +641,294 @@ log:
     outcome: completed
     duration_seconds: 1108.215594
     log_path: C:\Users\jpose\.agentjobs\runs\run_3fe6badf
+- id: 28
+  ts: '2026-09-06T21:27:52.910212Z'
+  actor: Jeff Posey
+  type: handoff
+  body: "Answered by Jeff Posey:\n\n1. Open a task from the sidebar. Does the sidebar\
+    \ stay put \u2014 same scroll position, same rows?\n-> Chose: Stays put\n\n2.\
+    \ Fold task-100, then reload the page. Is it still folded?\n-> Chose: It came\
+    \ back open\n\n3. With task-100 folded, paste the task-143 link. Does it reveal\
+    \ that grandchild and select it?\n-> Chose: Revealed and selected\n\n4. Arrow-key\
+    \ down the sidebar. Does the record beside it keep up?\n-> Chose: Keeps up\n\n\
+    5. Alt+Up twice on the same row, without clicking between. Does it move two places?\
+    \ (task-207's exact defect.)\n-> Chose: Moved two places\n\n6. Drag a row by its\
+    \ grip with the mouse. Does it land where you dropped it?\n-> I mean yes it does,\
+    \ but it's unclear, it should move a ghosted looking version of the task as you\
+    \ drag so you can see where it will land when you release.\n\n7. Resize the window\
+    \ across the breakpoint, both directions. Does the shell change cleanly each way?\n\
+    -> Phone aspect ratio is ok on task window but you lose ability to browse a condensed\
+    \ list, there is no sidebar, I feel like the sidebar should open up from a burger\
+    \ click in phone portrait resolutions\n\n8. Dashboard: full width, no sidebar\
+    \ \u2014 and does clicking a task from it land in Tasks with that task selected?\n\
+    -> Chose: Both right\n\n9. On the tablet, landscape and portrait. Does it hold\
+    \ up in both?\n-> Chose: Both fine\n\nAnything you would stop the epic for?\n\
+    -> Chose: Yes \u2014 I will describe it\n\nAddress the issues from these questions."
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 29
+  ts: '2026-09-06T21:27:52.910229Z'
+  actor: Jeff Posey
+  type: answer
+  body: 'Chose: Stays put'
+  re: 17
+  data:
+    selected:
+    - Stays put
+    other: null
+- id: 30
+  ts: '2026-09-06T21:27:52.910244Z'
+  actor: Jeff Posey
+  type: answer
+  body: 'Chose: It came back open'
+  re: 18
+  data:
+    selected:
+    - It came back open
+    other: null
+- id: 31
+  ts: '2026-09-06T21:27:52.910253Z'
+  actor: Jeff Posey
+  type: answer
+  body: 'Chose: Revealed and selected'
+  re: 19
+  data:
+    selected:
+    - Revealed and selected
+    other: null
+- id: 32
+  ts: '2026-09-06T21:27:52.910261Z'
+  actor: Jeff Posey
+  type: answer
+  body: 'Chose: Keeps up'
+  re: 20
+  data:
+    selected:
+    - Keeps up
+    other: null
+- id: 33
+  ts: '2026-09-06T21:27:52.910269Z'
+  actor: Jeff Posey
+  type: answer
+  body: 'Chose: Moved two places'
+  re: 21
+  data:
+    selected:
+    - Moved two places
+    other: null
+- id: 34
+  ts: '2026-09-06T21:27:52.910276Z'
+  actor: Jeff Posey
+  type: answer
+  body: I mean yes it does, but it's unclear, it should move a ghosted looking version
+    of the task as you drag so you can see where it will land when you release.
+  re: 22
+  data:
+    selected: []
+    other: I mean yes it does, but it's unclear, it should move a ghosted looking
+      version of the task as you drag so you can see where it will land when you release.
+- id: 35
+  ts: '2026-09-06T21:27:52.910283Z'
+  actor: Jeff Posey
+  type: answer
+  body: Phone aspect ratio is ok on task window but you lose ability to browse a condensed
+    list, there is no sidebar, I feel like the sidebar should open up from a burger
+    click in phone portrait resolutions
+  re: 23
+  data:
+    selected: []
+    other: Phone aspect ratio is ok on task window but you lose ability to browse
+      a condensed list, there is no sidebar, I feel like the sidebar should open up
+      from a burger click in phone portrait resolutions
+- id: 36
+  ts: '2026-09-06T21:27:52.910290Z'
+  actor: Jeff Posey
+  type: answer
+  body: 'Chose: Both right'
+  re: 24
+  data:
+    selected:
+    - Both right
+    other: null
+- id: 37
+  ts: '2026-09-06T21:27:52.910298Z'
+  actor: Jeff Posey
+  type: answer
+  body: 'Chose: Both fine'
+  re: 25
+  data:
+    selected:
+    - Both fine
+    other: null
+- id: 38
+  ts: '2026-09-06T21:27:52.910306Z'
+  actor: Jeff Posey
+  type: answer
+  body: "Chose: Yes \u2014 I will describe it"
+  re: 26
+  data:
+    selected:
+    - "Yes \u2014 I will describe it"
+    other: null
+- id: 39
+  ts: '2026-09-06T21:28:07.811626Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 40
+  ts: '2026-09-06T21:28:09.653514Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_3fe6badf` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_9a965040
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 39
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_9a965040\session-settings.json
+    - --name
+    - agentjobs/task-240@9a965040
+    - --resume
+    - 834e29f9-cb0d-4ee5-8434-78c6a64784b7
+    cwd: C:\projects\agentjobs
+    git_head: 51814ea
+    session_id: 0fa2a908
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 41
+  ts: '2026-09-06T21:34:21.777390Z'
+  actor: claude
+  type: progress
+  body: "The nine checks, driven by hand on 2026-09-06, and what each one answered\
+    \ (ac-4).\n\n| # | Check | Outcome |\n| --- | --- | --- |\n| 1 | Sidebar stays\
+    \ put when a task is opened | **Pass** |\n| 2 | Fold survives a reload | **Fail**\
+    \ \u2192 task-364 |\n| 3 | Deep link reveals and selects a hidden grandchild |\
+    \ **Pass** |\n| 4 | Arrow keys, record keeps up | **Pass** |\n| 5 | Alt+Up twice\
+    \ moves two places (task-207's defect) | **Pass** |\n| 6 | Mouse drag lands where\
+    \ dropped | **Pass, but unreadable** \u2192 task-365 |\n| 7 | Resize across the\
+    \ breakpoint, both directions | **Pass on layout, fails on access** \u2192 task-366\
+    \ |\n| 8 | Dashboard full width, click lands selected in Tasks | **Pass** |\n\
+    | 9 | Tablet, landscape and portrait | **Pass** |\n\nInstrument: a person's hand\
+    \ and eye, desktop and the Galaxy Tab S7, against the\nsandbox on 8910 and its\
+    \ tailnet address. Not a harness.\n\n**Check 5 is worth calling out.** Alt+Up\
+    \ twice on the same row moved two places, by\nhand, on the tree row shape. That\
+    \ is task-207's exact defect confirmed absent on the\nshape task-238 introduced,\
+    \ which is what task-361 (still a draft) was filed to check.\nThe drag half of\
+    \ task-361 is answered too, though only the \"it lands where you drop\nit\" half\
+    \ \u2014 nobody checked whether the order survives a reload, so that one stays\n\
+    open. task-361 is not mine to write on; this entry is where the evidence is.\n\
+    \n**Check 2, diagnosed rather than reported.** Reproduced with Playwright in four\
+    \ arms\ndiffering only in what the URL selects: with nothing selected, or the\
+    \ epic itself, the\nfold survives; with a child or a grandchild selected, the\
+    \ fold is lost **and\n`localStorage` is rewritten to `[]`**. The cause is the\
+    \ reveal effect in\n`TaskList.tsx` \u2014 it unfolds the selected task's ancestors\
+    \ and writes that through, and\nits in-session guard is a ref that a reload resets.\
+    \ task-238's ac-2 test reloads\n`/tasks` with nothing selected, which is the one\
+    \ arm where the effect cannot fire, so\nthe criterion is green and the behaviour\
+    \ is broken. Full table and three candidate\nfixes are on task-364.\n\n**Check\
+    \ 6, diagnosed.** `draggable` sits on the grip button, so the browser's drag\n\
+    image is the `\u283F` glyph; there is no `setDragImage`; the `dragging` state\
+    \ never changes\nhow any row looks; and `onDragOver` marks nothing. So the gesture\
+    \ works and shows\nnothing while it works. task-365.\n\n**Check 7, diagnosed.**\
+    \ The stacked shell renders the list *or* the record with no\ncontrol between\
+    \ them, and the only route back is `\u2190 Back to Tasks`, which drops the\nselection.\
+    \ Also: the comment above that branch in `App.tsx` claims task-238 added a\ncontrol\
+    \ that opens the list at any width. It did not \u2014 no such control exists\n\
+    anywhere in the frontend. task-366 fixes both.\n\n**Filed** (all three as children\
+    \ of task-235, since the answer to \"anything you would\nstop the epic for\" was\
+    \ yes): task-364 the fold defect, task-365 the drag affordance,\ntask-366 the\
+    \ phone list control. I did not fix any of them here \u2014 this task's\n`out_of_scope`\
+    \ says findings become a new task or a reopened sibling, not this one.\n\n**Sandbox\
+    \ stopped** (ac-5). Both python processes killed and `tailscale serve\n--https=8443\
+    \ off` run; 8910 and the tailnet address both refuse connections, and\n`tailscale\
+    \ serve status` reports no serve config. The 8876 dashboard was never touched\n\
+    and still answers. `python scripts/shell_sandbox.py` brings it all back when the\
+    \ three\nfollow-ups need it."
+  data:
+    operation:
+      id: d5a2f861-90c4-4b73-a218-6e2c93f47a85
+      kind: log_append
+      fingerprint: 1881aae4d371a312e20119fe3c5943d9
+- id: 42
+  ts: '2026-09-06T21:34:43.779582Z'
+  actor: claude
+  type: handoff
+  body: Review answered, findings diagnosed and filed, sandbox torn down. The branch
+    carries only the sandbox script and is ready to merge.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: e7b31f26-8a45-4d90-b2c7-19f6a3c58e07
+      kind: handoff
+      fingerprint: 2149b6ced6acbfa5c19780715f6a70c3
+- id: 43
+  ts: '2026-09-06T21:34:43.779680Z'
+  actor: claude
+  type: question
+  body: Do all three findings have to land before task-235 closes, or can the epic
+    close on the fold defect alone?
+  re: 42
+  data:
+    options:
+    - label: All three block the epic
+      description: task-364, task-365 and task-366 all close before task-235 does.
+        This is how I filed them.
+      recommended: true
+    - label: Only task-364 blocks it
+      description: The fold defect is a regression against a shipped criterion; the
+        drag ghost and the phone list become follow-ups outside the epic.
+      recommended: false
+    - label: Only 364 and 366 block it
+      description: The drag affordance ships later; losing the list on a phone does
+        not.
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 44
+  ts: '2026-09-06T21:34:43.779703Z'
+  actor: claude
+  type: question
+  body: Where should the three sit in the queue? They went in at the bottom of the
+    high band.
+  re: 42
+  data:
+    options:
+    - label: Top of high, in order 364, 365, 366
+      description: I move them there next turn.
+      recommended: true
+    - label: Top of critical
+      description: Ahead of everything else open.
+      recommended: false
+    - label: Leave them where they are
+      description: Bottom of the high band; they get picked up in turn.
+      recommended: false
+    multi_select: false
+    placeholder: null
