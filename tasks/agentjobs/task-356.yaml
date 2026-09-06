@@ -3,16 +3,11 @@ id: task-356
 title: 'Shell 6: the filter controls hide behind a filter button instead of sitting
   on screen permanently'
 created: '2026-09-06T05:25:14.813338Z'
-updated: '2026-09-06T20:39:51.941837Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-09-06T20:40:16.649347Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 743
 category: ux
 tags:
 - frontend
@@ -21,7 +16,6 @@ tags:
 - accessibility
 effort: small
 assignment:
-  owner: claude
   eligible: []
 parent: task-235
 spec:
@@ -139,7 +133,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-356-filter-popover
-  status: active
+  status: merged
+  merged_at: '2026-09-06T20:40:16.580616Z'
 log:
 - id: 1
   ts: '2026-09-06T05:25:15.529729Z'
@@ -788,3 +783,26 @@ log:
     merge_commit: ad5275036708ef55e645ef0d46f7f2dc3835d53c
     branch: feat/task-356-filter-popover
     base: main
+- id: 29
+  ts: '2026-09-06T20:40:16.649131Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-356-filter-popover` into `main` as `ad527503` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). Approved\
+    \ by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         1.0s  feat/task-356-filter-popover\
+    \ at 28d78cbc in C:\\projects\\worktrees\\agentjobs-356\n  runway     ok     \
+    \    0.0s  taken immediately\n  rebase     ok         0.2s  feat/task-356-filter-popover\
+    \ onto main: 28d78cbc -> a320a4e0\n  gate       ok       253.6s  scripts/check.py\
+    \ green\n  catch_up   ok       110.7s  main moved 6053cce8 -> 82c45ce8 in 1 classified\
+    \ path(s); rebased to 581a5880 and re-ran pytest\n  merge      ok         0.4s\
+    \  --no-ff into main as ad5275036708ef55e645ef0d46f7f2dc3835d53c\n  rebuild  \
+    \  ok         6.5s  rebuilt the bundle in C:\\projects\\agentjobs\\frontend\n\
+    \  restart    ok         0.5s  ran powershell -NoProfile -ExecutionPolicy Bypass\
+    \ -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify   \
+    \  ok         0.0s  http://127.0.0.1:8876 is serving 2d9cfc5a, which contains\
+    \ the merge ad527503, from C:\\projects\\agentjobs (started 2026-09-06T20:40:02.914943+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
