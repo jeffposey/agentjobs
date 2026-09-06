@@ -54,16 +54,12 @@ import { TaskCreate } from "./components/TaskCreate";
 import { IssueReporter } from "./components/IssueReporter";
 import { NextExplanation } from "./components/NextExplanation";
 import { invalidateProjectTaskQueries, LiveUpdateStatus } from "./components/LiveUpdates";
-import {
-  LiveRunCount,
-  LiveRunsPage,
-  MachineCapacityRow,
-  useLiveRuns,
-} from "./components/LiveRuns";
+import { LiveRunCount, LiveRunsPage, useLiveRuns } from "./components/LiveRuns";
 import { Playbooks, type PlaybookRunRequest } from "./components/Playbooks";
 import { AttentionBadge, useHumanAttention } from "./components/AttentionBadge";
 import { PrimaryNav } from "./components/PrimaryNav";
 import { QueueDispatch, QueueDispatchGate } from "./components/QueueDispatch";
+import { SlotBoard } from "./components/SlotBoard";
 
 function ProjectRedirect() {
   const navigate = useNavigate();
@@ -100,13 +96,11 @@ function ProjectRedirect() {
 
 function DashboardPage({ projectId }: { projectId: string }) {
   const dispatch = useDashboardDispatch(projectId);
+  // Null until the machine-wide answer arrives, and the board draws nothing until then:
+  // it is the ceiling in this body that decides how many cells there are, and a board
+  // that guessed a shape and corrected it one poll later would be worse than one that
+  // arrives a moment late.
   const liveRuns = useLiveRuns();
-  // Null until the machine-wide answer arrives. The next-up panel prints a different
-  // sentence for each of the three, and silence is the honest one while it does not
-  // know -- see `machineSentence`. Holders count: a scripted finish is this machine
-  // working even though it occupies no run slot.
-  const machineIdle =
-    liveRuns === null ? null : liveRuns.occupied === 0 && liveRuns.holders.length === 0;
   const dashboardQuery = useQuery({
     ...getDashboardApiProjectsProjectIdDashboardGetOptions({
       path: { project_id: projectId },
@@ -141,29 +135,47 @@ function DashboardPage({ projectId }: { projectId: string }) {
 
   const identity = dashboardQuery.data.identity;
 
+  // `queue_preview` is the claimable frontier and `next_task` is its first element, so
+  // the fallback is for one case only: a client reading a server that predates
+  // task-337. Preferring the list everywhere else means the board and the why-this-one
+  // disclosure inside its first free cell cannot name different tasks.
+  const queue = dashboardQuery.data.queue_preview?.length
+    ? dashboardQuery.data.queue_preview
+    : dashboardQuery.data.next_task
+      ? [dashboardQuery.data.next_task]
+      : [];
+
   return (
     <Dashboard
       dashboard={dashboardQuery.data}
       projectId={projectId}
-      machineIdle={machineIdle}
-      renderWhyThisOne={() => <NextExplanation projectId={projectId} />}
-      renderMachineCapacity={() => <DashboardMachineCapacity projectId={projectId} />}
-      renderQueueAction={(task) => (
-        <QueueDispatch
-          state={dispatch.state}
-          user={identity.ok ? identity.user : null}
-          identityDetail={identity.detail}
-          // The same expression the task page uses, against the same field the server
-          // checks. Drift between the two costs a link instead of a button, never a
-          // dispatch the server would refuse.
-          canBrief={Boolean(task.spec.description?.trim())}
-          taskHref={`/p/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.id)}`}
-          busy={dispatch.startingTaskId === task.id}
-          refusal={dispatch.refusal?.taskId === task.id ? dispatch.refusal.refusal : null}
-          onDispatch={() => void dispatch.start(task.id, identity.ok ? identity.user : null)}
+      renderSlotBoard={(statusOnly) => (
+        <SlotBoard
+          body={liveRuns}
+          queue={queue}
+          projectId={projectId}
+          statusOnly={statusOnly}
+          renderWhyThisOne={() => <NextExplanation projectId={projectId} />}
+          renderQueueAction={(task) => (
+            <QueueDispatch
+              state={dispatch.state}
+              user={identity.ok ? identity.user : null}
+              identityDetail={identity.detail}
+              // The same expression the task page uses, against the same field the
+              // server checks. Drift between the two costs a link instead of a button,
+              // never a dispatch the server would refuse.
+              canBrief={Boolean(task.spec.description?.trim())}
+              taskHref={`/p/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.id)}`}
+              busy={dispatch.startingTaskId === task.id}
+              refusal={dispatch.refusal?.taskId === task.id ? dispatch.refusal.refusal : null}
+              onDispatch={() => void dispatch.start(task.id, identity.ok ? identity.user : null)}
+            />
+          )}
+          renderQueueGate={() => (
+            <QueueDispatchGate state={dispatch.state} projectId={projectId} />
+          )}
         />
       )}
-      renderQueueGate={() => <QueueDispatchGate state={dispatch.state} projectId={projectId} />}
     />
   );
 }
@@ -232,17 +244,6 @@ function useDashboardDispatch(projectId: string) {
       }
     },
   };
-}
-
-/**
- * The Dashboard's capacity row, wired to the shared machine-wide query.
- *
- * Its own component so `Dashboard` stays pure presentation -- it is rendered straight
- * from a response object in its tests, and a query inside it would need a client and a
- * server there. Same shape, and the same reason, as `renderWhyThisOne`.
- */
-function DashboardMachineCapacity({ projectId }: { projectId: string }) {
-  return <MachineCapacityRow body={useLiveRuns()} projectId={projectId} />;
 }
 
 function LiveRunsRoute() {

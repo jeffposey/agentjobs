@@ -8,7 +8,6 @@ import {
   IDLE_POLL_MS,
   LiveRunCount,
   LiveRunsPage,
-  MachineCapacityRow,
   capacitySentence,
   liveRunsPollInterval,
 } from "./LiveRuns";
@@ -127,44 +126,6 @@ describe("the nav badge", () => {
   it("reads zero before the first answer arrives", () => {
     renderIn(<LiveRunCount body={null} />);
     expect(screen.getByTestId("live-run-count")).toHaveTextContent("0");
-  });
-});
-
-describe("the Dashboard capacity row", () => {
-  it("states capacity and names what is running", () => {
-    renderIn(<MachineCapacityRow projectId="alpha" body={body({ occupied: 1, runs: [run()] })} />);
-    const row = screen.getByTestId("machine-capacity");
-    expect(row).toHaveTextContent("1 of 3 slots busy");
-    expect(row).toHaveTextContent("Teach the queue to count");
-  });
-
-  it("caps the names it lists and says how many it left out", () => {
-    const runs = [
-      run({ run_id: "run_a", task_title: "First" }),
-      run({ run_id: "run_b", task_title: "Second" }),
-      run({ run_id: "run_c", task_title: "Third" }),
-    ];
-    renderIn(<MachineCapacityRow projectId="alpha" body={body({ occupied: 3, runs })} />);
-    const row = screen.getByTestId("machine-capacity");
-    expect(row).toHaveTextContent("First, Second +1 more");
-    expect(row).not.toHaveTextContent("Third");
-  });
-
-  it("still renders when the machine is idle", () => {
-    // A row that disappeared could not be told from one that had broken, and "nothing
-    // is running" is what a person opening the Dashboard most often wants to read.
-    renderIn(<MachineCapacityRow projectId="alpha" body={body()} />);
-    expect(screen.getByTestId("machine-capacity")).toHaveTextContent("nothing running");
-  });
-
-  it("renders nothing at all before the first answer", () => {
-    const { container } = renderIn(<MachineCapacityRow projectId="alpha" body={null} />);
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("links to the Runs tab of the project it is on", () => {
-    renderIn(<MachineCapacityRow projectId="alpha" body={body()} />);
-    expect(screen.getByTestId("machine-capacity")).toHaveAttribute("href", "/p/alpha/runs");
   });
 });
 

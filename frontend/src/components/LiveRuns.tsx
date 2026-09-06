@@ -92,7 +92,7 @@ export function healthLabel(health: string): string {
   return HEALTH_LABELS[health] ?? health;
 }
 
-function HealthBadge({ health }: { health: string }) {
+export function HealthBadge({ health }: { health: string }) {
   return (
     <span
       data-health={health}
@@ -117,65 +117,16 @@ export function capacitySentence(body: LiveRunsView): string {
   } busy`;
 }
 
-function runName(run: LiveRunView): string {
-  return run.task_title || run.task_id || run.run_id;
-}
-
-/**
- * The compact Dashboard panel: one row, at the foot of the statistics card.
+/*
+ * The Dashboard's capacity row lived here until task-092.
  *
- * **It is a row inside an existing card rather than a sixth top-level section**, and
- * that is the whole of what pays for it. task-294 requires the Dashboard to fit one
- * viewport, so a new panel is a claim on space something else has. A section of its own
- * would cost its own `space-y-6` gap (24px), its own border and its own padding before
- * rendering a single character -- about 110px. Slotted in beside the "+N in backlog"
- * link, which is already exactly this shape, it costs one line: measured at 41px on a
- * 390x844 phone.
- *
- * Nothing was cut to make room. The Dashboard's existing sections are unchanged and
- * everything reachable from it before is still reachable; what the row buys instead is
- * a link to a surface that did not exist.
- *
- * **It renders when idle too, rather than vanishing.** A capacity row that disappears
- * cannot be told from one that has broken, and "nothing is running" is the answer
- * somebody opening the Dashboard most often wants.
+ * It was one line at the foot of the statistics card saying "2 of 3 slots busy" and
+ * naming what was running. The slot board says all of that in its own header, one card
+ * higher and with the runs drawn rather than listed, so keeping the row would have been
+ * the same sentence twice on the page that has to fit one viewport (task-294). Nothing
+ * it offered was lost: the sentence is `capacitySentence`, which the board's header
+ * renders, and the link to the Runs tab is the board's "Running now →".
  */
-export function MachineCapacityRow({
-  body,
-  projectId,
-}: {
-  body: LiveRunsView | null;
-  projectId: string;
-}) {
-  if (!body) return null;
-  const busy = body.runs.length > 0;
-  const shown = body.runs.slice(0, 2);
-  const rest = body.runs.length - shown.length;
-
-  return (
-    <Link
-      // Absolute rather than relative: the Dashboard is an index route, so a bare
-      // "runs" resolves against the route rather than the URL and is a trap worth not
-      // setting for whoever nests this next.
-      to={`/p/${encodeURIComponent(projectId)}/runs`}
-      data-testid="machine-capacity"
-      className="touch-target flex w-full items-center justify-center gap-2 border-t border-dark-border px-3 text-xs text-dark-muted hover:bg-dark-border hover:text-blue-300"
-    >
-      <span
-        aria-hidden="true"
-        className={`h-2 w-2 shrink-0 rounded-full ${busy ? "bg-green-400" : "bg-dark-border"}`}
-      />
-      <span className="whitespace-nowrap font-medium text-dark-text">
-        {capacitySentence(body)}
-      </span>
-      <span className="min-w-0 truncate">
-        {busy
-          ? `${shown.map(runName).join(", ")}${rest > 0 ? ` +${rest} more` : ""}`
-          : "nothing running"}
-      </span>
-    </Link>
-  );
-}
 
 /** The nav badge. Always a number, so zero reads as zero rather than as stale. */
 export function LiveRunCount({ body }: { body: LiveRunsView | null }) {
