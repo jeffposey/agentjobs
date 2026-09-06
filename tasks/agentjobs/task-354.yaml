@@ -3,10 +3,29 @@ id: task-354
 title: 'A task worked by an interactive session is invisible: no run, no session log,
   and a Dispatch button'
 created: '2026-09-06T04:19:07.624287Z'
-updated: '2026-09-06T04:19:08.308378Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-09-06T05:03:18.686748Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: 'Review branch feat/task-354-interactive-session-runs at cfd4ad9 (gate
+  green, receipt written, rebased onto main).
+
+
+  Sandbox on 8910, throwaway data, `--attended`:
+
+  - http://127.0.0.1:8910/app/p/sandbox-here -- a chat session working task-101 draws
+  a "your session" card, and the three free cells keep their Dispatch buttons. Compare
+  with 8911 (`--idle`) if you want the before.
+
+  - http://127.0.0.1:8910/app/p/sandbox-here/tasks/task-101 -- no Dispatch button,
+  a note saying a session holds the task, and the session''s own transcript in the
+  Runs panel.
+
+
+  The judgement worth checking is that an interactive run holds its task but not a
+  slot: a dispatch is never refused because you are chatting, but a click aimed at
+  a task a session holds is. Approve to merge, or say what to change. I stop the sandbox
+  either way.'
 archived: false
 priority: critical
 queue_position: 293
@@ -19,6 +38,7 @@ tags:
 - react
 effort: medium
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: 'task-352 was being worked by a Claude Code desktop session on 2026-09-06
@@ -137,3 +157,183 @@ log:
       id: c5d7e9f1-3a4b-4c5d-8e6f-7a8b9c0d1e77
       kind: create
       fingerprint: 6481cda3c3f7cc49ba1747dc762d5692
+- id: 2
+  ts: '2026-09-06T04:26:41.849188Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: d4e5f6a7-b8c9-4d0e-8f1a-2b3c4d5e6fbb
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-09-06T04:31:31.953031Z'
+  actor: claude
+  type: decision
+  body: 'Design for interactive runs, decided after reading registration.py, poller.py,
+    ledger.py, guards.py and the claim route.
+
+
+    1. The claim writes the run record. `POST /tasks/{id}/claim` gains optional `session_id`
+    (the driver''s full session uuid) and `session_cwd`. The MCP server and the CLI
+    fill both from their own environment (Claude Code publishes `CLAUDE_CODE_SESSION_ID`;
+    the process cwd is the root it was launched in), so every session that claims
+    through either is visible with no extra step. A claim with no session identity,
+    or by a human actor, writes no run. Rejected: an explicit register step, because
+    ALLAGENTS.md already tells every session to register and this very session could
+    not (refused `session_unknown`, then would have been refused `session_interactive`);
+    a step agents must remember is a step half of them skip. `agentjobs run register`
+    stays for background sessions, and now adopts an interactive one through the same
+    code instead of refusing it.
+
+
+    2. Mode `interactive` (new DispatchMode value). Record: status running, session_id
+    = full uuid, cwd, driver, origin `claimed` or `registered`, no pid, no posture.
+    Ended by: handoff, release or close of the task (any actor, through the API routes
+    and the CLI verbs), which concludes the record `completed`; or the session disappearing
+    from the driver''s ledger, which the poller and startup reconcile detect by sessionId
+    and conclude `session_ended`. Rejected: ending it only at restart, because a session
+    Jeff closed at lunch would show as working until the next restart.
+
+
+    3. Never parked, stopped or settled. `poll_live_sessions` only ever applies the
+    session protections to mode `session`; an interactive record gets a presence check
+    and nothing else, and nothing writes onto the task. Cancelling an interactive
+    run from the GUI concludes the record and never calls the driver''s stop. The
+    registration module''s reason for refusing interactive sessions was exactly that
+    the poller would stop one; with a mode the poller cannot stop, the reason is gone.
+
+
+    4. Slots. An interactive run does not occupy a slot: the concurrency limit exists
+    to stop a click starting an agent the machine cannot afford, and a session Jeff
+    is typing into is not that. `slot_runs(home)` = live runs minus interactive; the
+    guard''s concurrency count and `occupied` on GET /api/runs/live both use it, so
+    they still agree. The per-task "one live run" check stays inclusive, so Dispatch
+    on a task an interactive session holds is refused `live_run_exists` -- which is
+    the fix for the Dispatch button in the common case.
+
+
+    5. Health for an interactive run: `working` if its transcript file changed in
+    the last ten minutes, else `idle` (new health word). Read off the transcript''s
+    mtime, which is what the task page already reads to show the log.
+
+
+    6. GUI: the badge and Runs tab count and list it (it is in `runs`), labelled interactive;
+    the slot board draws it as a card outside the slot cells, the way task-352 draws
+    a finish; the task page lists it in the Runs panel with its transcript, and shows
+    Dispatch disabled with the live-run reason. An active task with an owner and no
+    live run at all gets a "Dispatch anyway" button that says the task is claimed
+    with nothing running it.'
+  data:
+    operation:
+      id: 0a1b2c3d-4e5f-4a6b-8c7d-8e9f0a1b2ccc
+      kind: log_append
+      fingerprint: d29de766b49ba507584e5103d7a0f578
+- id: 4
+  ts: '2026-09-06T04:55:11.217610Z'
+  actor: claude
+  type: progress
+  body: 'Branch `feat/task-354-interactive-session-runs` at fc44c1f in C:/projects/worktrees/agentjobs-354,
+    rebased onto main after task-352 merged. Full gate running.
+
+
+    Built, as decided in entry 3:
+
+
+    - `session_identity.py`: `SessionIdentity.from_environment` reads `CLAUDE_CODE_SESSION_ID`,
+    and answers None inside a dispatched run (that session already has a record).
+
+    - `dispatch/interactive.py`: `start_interactive_run` (called by the claim), `settle_for_task`
+    (called after handoff/release/close), `sweep_interactive_runs` (called by the
+    poller). The sweep reads the *project''s own* runner ledger, not a default `claude`,
+    and `runner.ledger(scoped=False)` drops `--cwd` so a session working from a worktree
+    is still found.
+
+    - Ledger: `mode: interactive`, `cwd` and `origin` on RunRecord; `slot_runs()`;
+    `conclude_interactive()` which never writes to the task; health `idle` from the
+    transcript''s mtime past ten minutes; cancel and `stop_everything` close the record
+    and leave the session alone; reconcile checks presence only.
+
+    - Guards: the concurrency count uses `takes_slot`, the per-task check is unchanged
+    and its refusal now names an interactive holder.
+
+    - Claim route takes `session_id`/`session_cwd`; handoff, release and close settle.
+    The Python client fills both from the environment by default.
+
+    - Registration adopts an interactive session instead of refusing it, as an interactive
+    run.
+
+    - Frontend: `runKindLabel` ("your session"), health word `idle`, board draws it
+    as an extra card without taking a free cell, and the Dispatch panel withholds
+    the button with a status note when any run for the task is live.
+
+
+    Verified: 27 new backend tests (test_interactive_runs.py, test_interactive_claim_api.py),
+    99 in the two frontend suites, black/ruff/mypy/oxlint/vitest/build green. Seen
+    working in the sandbox on port 8910 (`--attended`): board card, three free cells
+    still dispatchable, no Dispatch button on the task, and the session''s own transcript
+    in the Runs panel.
+
+
+    Decision, recorded because it changes an existing rule: `registration.SessionInteractiveError`
+    is no longer raised, and its test now asserts adoption. The refusal existed because
+    the poller would stop such a session; a mode the poller cannot act on removes
+    the reason.'
+  data:
+    operation:
+      id: 2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5ddd
+      kind: log_append
+      fingerprint: 277c282ae9d738a2ce95a6d1c365b797
+- id: 5
+  ts: '2026-09-06T05:03:18.686468Z'
+  actor: claude
+  type: handoff
+  body: 'Gate green on cfd4ad9: 10 of 10 stages, receipt written, rebased onto main
+    at 7e903c2 (task-352''s close). 345s total.
+
+
+    Acceptance, by id:
+
+    - visible: met. `test_interactive_claim_api.py` claims over HTTP with a session
+    id and asserts `GET /api/runs/live` lists it with mode `interactive`, its title
+    and its task url; the board and task page were checked in the sandbox.
+
+    - never-stopped: met. `test_interactive_runs.py::TestThePollerLeavesItAlone` polls
+    with a ledger that would park a dispatched session and asserts the record is untouched
+    and nothing was written to the task; a second test asserts cancelling the record
+    leaves the session''s ledger row in place.
+
+    - no-blind-dispatch: met. `DispatchPanel.test.tsx` asserts the button is absent
+    with a live run and the note names which kind holds it, and returns once the run
+    is over.
+
+    - gate-green: met, above.
+
+
+    Three things a reviewer should weigh rather than take on trust:
+
+    1. `registration.SessionInteractiveError` is no longer raised. Its reason -- the
+    poller would stop an attended session -- does not apply to a mode the poller cannot
+    act on, and its test now asserts adoption. That is a deliberate reversal of an
+    existing decision.
+
+    2. An interactive run is excluded from `occupied` and from the concurrency count
+    (`slot_runs`), so the two still agree with each other. The per-task rule is unchanged.
+
+    3. Health for these comes from the transcript''s mtime, ten minutes to `idle`.
+    It is a word on a card and nothing acts on it.
+
+
+    Sandbox running from the worktree: port 8910, `scripts/slot_board_sandbox.py --attended`.
+    Stopped after the review.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7eee
+      kind: handoff
+      fingerprint: f9590e22659b9c81b369bc8f149427dd
