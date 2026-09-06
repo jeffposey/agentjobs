@@ -145,6 +145,43 @@ function withFold(exceptions: Set<string>, taskId: string, folded: boolean): Set
  */
 const REORDER_HELP_ID = "queue-reorder-help";
 
+/** The filter button, so Escape can put focus back where the popover was opened from. */
+const FILTER_BUTTON_ID = "task-filter-button";
+/** The popover's own id, named by `aria-controls` exactly while it exists. */
+const FILTER_POPOVER_ID = "task-filter-popover";
+
+/**
+ * The three selects behind the button, with the value each is at when nothing is set.
+ *
+ * One list read twice: it is what the closed button counts, and it is what "clear"
+ * clears. The point of the single list is that a fourth filter -- task-156's
+ * difficulty, when it lands -- is one entry rather than several edits that can end up
+ * disagreeing with each other.
+ */
+const POPOVER_FILTERS = [
+  { key: "status", label: "Status", fallback: "open" },
+  { key: "priority", label: "Priority", fallback: "all" },
+  { key: "scope", label: "Scope", fallback: "all" },
+] as const;
+
+/**
+ * Which filters the closed button has to confess to, as words.
+ *
+ * Given the **resolved** values rather than the raw parameters, because `filterValue()`
+ * ignores a value outside its allowed set: `?status=nonsense` filters nothing, and a
+ * badge counting it would be reporting a filter that is not being applied.
+ *
+ * The search box is deliberately **not** counted. It stays on screen with its text in
+ * it, so it says what it is doing without help; counting it would light the badge for a
+ * filter the reader can already see, which is the noise that makes an indicator stop
+ * being read.
+ */
+function activeFilterSummary(current: Record<string, string>): Array<string> {
+  return POPOVER_FILTERS.flatMap(({ key, label, fallback }) =>
+    current[key] !== fallback ? [`${label} ${current[key]}`] : [],
+  );
+}
+
 /** The reorder handle's own id, so focus can be put back on it after a step. */
 function gripId(taskId: string) {
   return `queue-grip-${taskId}`;
@@ -274,6 +311,15 @@ export function TaskList({
   const revealed = useRef<string | null>(null);
   // This list's own root, so a drag can find the box it is scrolling inside.
   const rootRef = useRef<HTMLDivElement>(null);
+  // Whether the filter popover is open. Component state and not the URL: which controls
+  // are on screen is not a property of the list a pasted link should reproduce, and a
+  // popover that reopened itself on every refetch would be its own defect.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  // The button and the popover together, so an outside click can be told from an
+  // inside one -- clicking the button while it is open must toggle rather than close
+  // and immediately reopen.
+  const filtersRef = useRef<HTMLDivElement>(null);
+  const firstFilterRef = useRef<HTMLSelectElement>(null);
 
   // Folds belong to a project, so switching project loads that project's own. Reading
   // during render rather than in an effect: an effect would paint one frame of the
@@ -288,6 +334,8 @@ export function TaskList({
   const priority = filterValue(params, "priority", PRIORITY_FILTERS, "all");
   const scope = filterValue(params, "scope", SCOPE_FILTERS, "all");
   const flattened = search.trim() !== "" || status !== "all" || priority !== "all" || scope !== "all";
+  const activeFilters = activeFilterSummary({ status, priority, scope });
+  const anyFilterSet = activeFilters.length > 0 || search !== "";
 
   const signature = useMemo(() => orderSignature(tasks), [tasks]);
   const ordered = pending && pending.signature === signature ? pending.tasks : tasks;
@@ -400,6 +448,51 @@ export function TaskList({
     else next.set(key, value);
     setParams(next, { replace: true });
   };
+
+  /**
+   * Back to the defaults, in one gesture and one navigation.
+   *
+   * The search box is cleared too. It is outside the popover, but it is a filter, and a
+   * "clear" that leaves a list still hiding most of it is the thing this whole task
+   * exists to prevent. One `setParams` rather than four `updateParam` calls: each of
+   * those reads `params` from this render, so four in a row would each undo the last.
+   */
+  const clearFilters = () => {
+    const next = new URLSearchParams(params);
+    next.delete("q");
+    for (const { key } of POPOVER_FILTERS) next.delete(key);
+    setParams(next, { replace: true });
+  };
+
+  // Opening moves focus into the popover, which is what makes it reachable at all from
+  // the keyboard: a `Space` on the button that left focus behind would leave a reader
+  // pressing Tab through the whole list to find three selects that just appeared.
+  useEffect(() => {
+    if (filtersOpen) firstFilterRef.current?.focus();
+  }, [filtersOpen]);
+
+  // The three things a hand-rolled popover forgets. Escape and an outside click both
+  // close it; only Escape moves focus, because an outside click has a target of its own
+  // and stealing focus back to the button would fight the thing being clicked.
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setFiltersOpen(false);
+      document.getElementById(FILTER_BUTTON_ID)?.focus();
+    };
+    const onPointerDown = (event: MouseEvent) => {
+      if (filtersRef.current?.contains(event.target as Node)) return;
+      setFiltersOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onPointerDown);
+    };
+  }, [filtersOpen]);
 
   const toggle = (id: string) => {
     setExpanded((current) => {
@@ -807,17 +900,13 @@ export function TaskList({
 
   return (
     <div className={tree ? "space-y-4" : "space-y-6"} ref={rootRef}>
-      {/* `@container`, so the row below asks its own box rather than the window whether
-          there is room for one line. The four controls have a combined minimum of
-          43rem, so the viewport rule this replaces put them in a row inside a 350px
-          region and hung a horizontal scrollbar off the whole list. The question was
-          always about this box; until task-237 the box was the window. task-356
-          replaces the row with a filter button, at which point this goes away. */}
-      <section
-        className="@container rounded-lg border border-dark-border bg-dark-surface p-4"
-        aria-label="Task filters"
-      >
-        <div className="grid gap-3 @min-[43rem]:grid-cols-[minmax(16rem,1fr)_repeat(3,minmax(9rem,auto))]">
+      {/* One line, at every width. What used to be here was a bordered card holding
+          four full-width controls, which is 200px of a phone's first screen and most
+          of the sidebar's -- spent permanently on selects whose defaults almost every
+          visit uses. The search box stays out here and the three selects moved behind
+          the button; the reasoning is on task-356 as a decision. */}
+      <section className="space-y-3" aria-label="Task filters">
+        <div className="flex items-center gap-2">
           <label className="sr-only" htmlFor="task-search">Search tasks</label>
           <input
             id="task-search"
@@ -825,26 +914,84 @@ export function TaskList({
             value={search}
             onChange={(event) => updateParam("q", event.target.value, "")}
             placeholder="Search title or id (e.g. 058)"
-            className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-4 text-dark-text focus:border-blue-500 focus:outline-none"
+            className="touch-target min-w-0 flex-1 rounded-lg border border-dark-border bg-dark-bg px-4 text-dark-text focus:border-blue-500 focus:outline-none"
           />
-          <label className="sr-only" htmlFor="status-filter">Status</label>
-          <select id="status-filter" aria-label="Status" value={status} onChange={(event) => updateParam("status", event.target.value, "open")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">
-            <option value="open">Open (not closed)</option><option value="all">All Status</option><option value="draft">Draft</option><option value="ready">Ready</option><option value="active">Active</option><option value="human">Needs Human</option><option value="external">Blocked</option><option value="closed">Closed</option>
-          </select>
-          <label className="sr-only" htmlFor="priority-filter">Priority</label>
-          <select id="priority-filter" aria-label="Priority" value={priority} onChange={(event) => updateParam("priority", event.target.value, "all")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">
-            <option value="all">All Priorities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
-          </select>
-          <label className="sr-only" htmlFor="scope-filter">Scope</label>
-          <select id="scope-filter" aria-label="Scope" value={scope} onChange={(event) => updateParam("scope", event.target.value, "all")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">
-            <option value="all">All Tasks</option><option value="project">Project Tasks</option><option value="test">Test/Examples</option>
-          </select>
+          <div className="relative shrink-0" ref={filtersRef}>
+            <button
+              type="button"
+              id={FILTER_BUTTON_ID}
+              aria-expanded={filtersOpen}
+              aria-haspopup="dialog"
+              aria-controls={filtersOpen ? FILTER_POPOVER_ID : undefined}
+              // The name carries what the badge shows, in words, so the state is
+              // announced rather than only drawn. Both halves are required: a screen
+              // reader gets the sentence, everyone else gets the count without opening
+              // anything -- a list quietly hiding two thirds of the backlog must not
+              // look like an empty backlog.
+              aria-label={
+                activeFilters.length === 0
+                  ? "Filters, none set"
+                  : `Filters, ${activeFilters.length} set: ${activeFilters.join(", ")}`
+              }
+              onClick={() => setFiltersOpen((open) => !open)}
+              className={`touch-target flex items-center gap-1.5 rounded-lg border px-3 text-sm ${
+                activeFilters.length > 0
+                  ? "border-blue-500 bg-blue-950/40 text-blue-200"
+                  : "border-dark-border bg-dark-bg text-dark-text hover:bg-dark-border"
+              }`}
+            >
+              <span aria-hidden="true">⌄</span>
+              <span>Filters</span>
+              {activeFilters.length > 0 && (
+                <span
+                  data-testid="active-filter-count"
+                  aria-hidden="true"
+                  className="rounded-full bg-blue-600 px-1.5 text-xs font-semibold text-white"
+                >
+                  {activeFilters.length}
+                </span>
+              )}
+            </button>
+            {filtersOpen && (
+              // Right-aligned and width-capped against the viewport, which is what
+              // keeps it on screen in a 320px sidebar and on a phone alike. Below the
+              // header's `z-30` on purpose: a control inside the scrolling list must
+              // not paint over the pinned bar above it.
+              <div
+                id={FILTER_POPOVER_ID}
+                role="dialog"
+                aria-label="Filters"
+                className="absolute right-0 top-full z-20 mt-2 w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-dark-border bg-dark-surface p-4 shadow-xl"
+              >
+                <label className="sr-only" htmlFor="status-filter">Status</label>
+                <select ref={firstFilterRef} id="status-filter" aria-label="Status" value={status} onChange={(event) => updateParam("status", event.target.value, "open")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">
+                  <option value="open">Open (not closed)</option><option value="all">All Status</option><option value="draft">Draft</option><option value="ready">Ready</option><option value="active">Active</option><option value="human">Needs Human</option><option value="external">Blocked</option><option value="closed">Closed</option>
+                </select>
+                <label className="sr-only" htmlFor="priority-filter">Priority</label>
+                <select id="priority-filter" aria-label="Priority" value={priority} onChange={(event) => updateParam("priority", event.target.value, "all")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">
+                  <option value="all">All Priorities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
+                </select>
+                <label className="sr-only" htmlFor="scope-filter">Scope</label>
+                <select id="scope-filter" aria-label="Scope" value={scope} onChange={(event) => updateParam("scope", event.target.value, "all")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">
+                  <option value="all">All Tasks</option><option value="project">Project Tasks</option><option value="test">Test/Examples</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  disabled={!anyFilterSet}
+                  className="touch-target w-full rounded-lg border border-dark-border px-3 text-sm text-dark-text hover:bg-dark-border disabled:opacity-50"
+                >
+                  Clear all filters
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         {/* One paragraph in the sidebar, not two. Every vertical pixel above the first
             row is a row a reader cannot see, and the four filter controls already
             take most of a phone's worth of them -- which is what task-356 is for. */}
         {tree ? (
-          <p id={REORDER_HELP_ID} className="mt-3 text-xs leading-5 text-dark-muted">
+          <p id={REORDER_HELP_ID} className="text-xs leading-5 text-dark-muted">
             <kbd>↑</kbd><kbd>↓</kbd> select · <kbd>←</kbd><kbd>→</kbd> fold,
             remembered for this project
             {handlers && (
@@ -858,7 +1005,7 @@ export function TaskList({
           </p>
         ) : (
           handlers && (
-            <p id={REORDER_HELP_ID} className="mt-3 text-xs text-dark-muted">
+            <p id={REORDER_HELP_ID} className="text-xs text-dark-muted">
               Rows are in queue order. Focus a task and press <kbd>Alt</kbd>+<kbd>↑</kbd> or{" "}
               <kbd>Alt</kbd>+<kbd>↓</kbd> to step it through its priority band, or{" "}
               <kbd>Alt</kbd>+<kbd>Home</kbd> and <kbd>Alt</kbd>+<kbd>End</kbd> for the ends.
@@ -867,7 +1014,7 @@ export function TaskList({
           )
         )}
         {!handlers && unavailableReason && (
-          <p className="mt-3 text-xs text-dark-muted">{unavailableReason}</p>
+          <p className="text-xs text-dark-muted">{unavailableReason}</p>
         )}
       </section>
 

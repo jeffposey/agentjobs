@@ -40,6 +40,23 @@ function renderList(tasks: Array<TaskRead>, entry = "/p/inbox/tasks") {
   );
 }
 
+/** The closed filter button, whose accessible name changes with what is set. */
+function filterButton() {
+  return screen.getByRole("button", { name: /^Filters/ });
+}
+
+/**
+ * Open the popover the way a reader does, and hand back the controls inside it.
+ *
+ * Every test that touches a select goes through here rather than reaching for a
+ * `combobox` directly, which is the point of task-356: those controls do not exist
+ * until this gesture has happened.
+ */
+function openFilters() {
+  fireEvent.click(filterButton());
+  return screen.getByRole("dialog", { name: "Filters" });
+}
+
 describe("TaskList filtering", () => {
   it("defaults to Open and excludes closed tasks", () => {
     renderList([
@@ -47,7 +64,7 @@ describe("TaskList filtering", () => {
       task("task-closed", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "completed", display_status: "Completed" }),
     ]);
 
-    expect(screen.getByRole("combobox", { name: "Status" })).toHaveValue("open");
+    expect(within(openFilters()).getByRole("combobox", { name: "Status" })).toHaveValue("open");
     expect(screen.getByText("task-open")).toBeVisible();
     expect(screen.queryByText("task-closed")).not.toBeInTheDocument();
   });
@@ -80,9 +97,10 @@ describe("TaskList filtering", () => {
     renderList([task("task-high", { priority: "high", tags: ["test"] })]);
 
     fireEvent.change(screen.getByRole("searchbox", { name: "Search tasks" }), { target: { value: "high" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), { target: { value: "all" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "Priority" }), { target: { value: "high" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "Scope" }), { target: { value: "test" } });
+    const filters = openFilters();
+    fireEvent.change(within(filters).getByRole("combobox", { name: "Status" }), { target: { value: "all" } });
+    fireEvent.change(within(filters).getByRole("combobox", { name: "Priority" }), { target: { value: "high" } });
+    fireEvent.change(within(filters).getByRole("combobox", { name: "Scope" }), { target: { value: "test" } });
 
     const url = screen.getByTestId("location").textContent ?? "";
     expect(url).toContain("q=high");
@@ -138,6 +156,159 @@ describe("TaskList filtering", () => {
     // copy said the children "must finish first", which the claim no longer requires.
     expect(screen.getByText(/2 open sub-tasks to finish\./)).toBeVisible();
     expect(screen.getByText(/Claim it to supervise them/)).toBeVisible();
+  });
+});
+
+describe("TaskList filter popover", () => {
+  it("renders no filter control at all until the button is pressed", () => {
+    renderList([task("task-open")]);
+
+    // Not merely hidden -- absent. The whole point of the change is the vertical space,
+    // and an `sr-only` or `hidden` panel would still be four controls in the document
+    // for a screen reader to walk past.
+    expect(screen.queryByRole("combobox", { name: "Status" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Priority" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Scope" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Filters" })).not.toBeInTheDocument();
+    expect(filterButton()).toHaveAttribute("aria-expanded", "false");
+
+    openFilters();
+
+    expect(screen.getByRole("combobox", { name: "Status" })).toBeVisible();
+    expect(filterButton()).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("says on the closed button that a filter is set, in the badge and in its name", () => {
+    // The defect this guards against is the one the spec calls worse than the one being
+    // fixed: a list hiding two thirds of the backlog looking like an empty backlog.
+    renderList([task("task-high", { priority: "high" })]);
+    expect(screen.queryByTestId("active-filter-count")).not.toBeInTheDocument();
+    expect(filterButton()).toHaveAccessibleName("Filters, none set");
+
+    fireEvent.change(within(openFilters()).getByRole("combobox", { name: "Priority" }), {
+      target: { value: "high" },
+    });
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.getByTestId("active-filter-count")).toHaveTextContent("1");
+    expect(filterButton()).toHaveAccessibleName("Filters, 1 set: Priority high");
+  });
+
+  it("counts only the filters the popover holds, never the visible search box", () => {
+    renderList([task("task-open")]);
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search tasks" }), {
+      target: { value: "queue" },
+    });
+
+    // The search box is on screen with its own text in it. Lighting the badge for a
+    // filter the reader can already read is the noise that stops an indicator working.
+    expect(screen.queryByTestId("active-filter-count")).not.toBeInTheDocument();
+    expect(filterButton()).toHaveAccessibleName("Filters, none set");
+  });
+
+  it("arrives filtered from a pasted URL, with the button saying so before it is opened", () => {
+    renderList(
+      [task("task-high", { priority: "high", tags: ["test"] }), task("task-plain")],
+      "/p/inbox/tasks?status=all&priority=high&scope=test",
+    );
+
+    expect(screen.getByTestId("active-filter-count")).toHaveTextContent("3");
+    expect(filterButton()).toHaveAccessibleName(
+      "Filters, 3 set: Status all, Priority high, Scope test",
+    );
+    expect(screen.getByText("task-high")).toBeVisible();
+    expect(screen.queryByText("task-plain")).not.toBeInTheDocument();
+
+    const filters = openFilters();
+    expect(within(filters).getByRole("combobox", { name: "Status" })).toHaveValue("all");
+    expect(within(filters).getByRole("combobox", { name: "Priority" })).toHaveValue("high");
+    expect(within(filters).getByRole("combobox", { name: "Scope" })).toHaveValue("test");
+  });
+
+  it("ignores a URL value outside the allowed set rather than counting it as a filter", () => {
+    // `filterValue()` falls back for an unknown value, so the list is not filtered. A
+    // badge counting it would be reporting a filter that is not being applied.
+    renderList([task("task-open")], "/p/inbox/tasks?priority=nonsense");
+
+    expect(screen.queryByTestId("active-filter-count")).not.toBeInTheDocument();
+  });
+
+  it("clears every filter, the search box included, in one gesture", () => {
+    renderList(
+      [task("task-high", { priority: "high", tags: ["test"] })],
+      "/p/inbox/tasks?q=high&status=all&priority=high&scope=test",
+    );
+
+    fireEvent.click(within(openFilters()).getByRole("button", { name: "Clear all filters" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/p/inbox/tasks");
+    expect(screen.getByTestId("location").textContent).not.toContain("?");
+    expect(screen.getByRole("searchbox", { name: "Search tasks" })).toHaveValue("");
+    expect(screen.queryByTestId("active-filter-count")).not.toBeInTheDocument();
+  });
+
+  it("offers nothing to clear when nothing is set", () => {
+    renderList([task("task-open")]);
+
+    expect(within(openFilters()).getByRole("button", { name: "Clear all filters" })).toBeDisabled();
+  });
+
+  it("moves focus into the popover on open and back to the button on Escape", () => {
+    renderList([task("task-open")]);
+
+    openFilters();
+    expect(document.activeElement).toBe(screen.getByRole("combobox", { name: "Status" }));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: "Filters" })).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(filterButton());
+    expect(filterButton()).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("closes on a click outside it and leaves the click its own target", () => {
+    renderList([task("task-open")]);
+    openFilters();
+
+    // `mousedown` and not `click`, because that is what the popover listens for: a
+    // reader clicking a task row must not have the row swallowed by a dismissal.
+    fireEvent.mouseDown(screen.getByRole("region", { name: "Tasks" }));
+
+    expect(screen.queryByRole("dialog", { name: "Filters" })).not.toBeInTheDocument();
+    // Focus is deliberately *not* pulled back here: the click has a target of its own.
+    expect(document.activeElement).not.toBe(filterButton());
+  });
+
+  it("stays open for a click on its own controls", () => {
+    renderList([task("task-open")]);
+    const filters = openFilters();
+
+    fireEvent.mouseDown(within(filters).getByRole("combobox", { name: "Priority" }));
+
+    expect(screen.getByRole("dialog", { name: "Filters" })).toBeVisible();
+  });
+
+  it("is a real button, which is what makes Enter and Space open it", () => {
+    // jsdom does not implement a button's own keyboard activation, so asserting a
+    // keypress here would be asserting a fact about jsdom. What can be checked is the
+    // property the browser's behaviour rests on; `e2e/filter-popover.spec.ts` presses
+    // the keys for real in Chromium.
+    renderList([task("task-open")]);
+
+    const button = filterButton();
+    expect(button.tagName).toBe("BUTTON");
+    expect(button).toHaveAttribute("type", "button");
+    expect(button).toHaveAttribute("aria-haspopup", "dialog");
+  });
+
+  it("closes again when the button is pressed a second time", () => {
+    renderList([task("task-open")]);
+    openFilters();
+
+    fireEvent.click(filterButton());
+
+    expect(screen.queryByRole("dialog", { name: "Filters" })).not.toBeInTheDocument();
   });
 });
 
