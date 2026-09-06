@@ -1,8 +1,8 @@
 schema: 2
 id: task-359
-title: A human's answer can be logged so it never closes the question
+title: A question can be asked without ever reaching the human
 created: '2026-09-06T06:16:04.002299Z'
-updated: '2026-09-06T06:16:04.753067Z'
+updated: '2026-09-06T06:19:39.970633Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -107,9 +107,9 @@ spec:
       closed it, entry 9 the hand-written answer that did.
 acceptance:
 - id: ac-1
-  text: 'A test reproduces the defect: a question with a `decision` threaded to it
-    by `re:` and no `answer` is reported open before the fix, and behaves as the chosen
-    design says after it.'
+  text: 'A test reproduces the closing defect: a question with a `decision` threaded
+    to it by `re:` and no `answer` is reported open before the fix, and behaves as
+    the chosen design says after it.'
   status: pending
 - id: ac-2
   text: "A decision entry records which of the three shapes was taken, and the rejected\
@@ -117,21 +117,29 @@ acceptance:
     \ and to which entry types."
   status: pending
 - id: ac-3
-  text: ALLAGENTS.md states which entry type records a human's reply to a question,
-    including the case where the reply is also a binding decision. The context-budget
-    test still passes.
+  text: "An open question directed at a human is visible on a surface Jeff already\
+    \ reads, without the ball having been moved by hand. Whether that is the ball\
+    \ moving automatically, a questions count on the task row, or a standing list,\
+    \ is the task's decision \u2014 but 'ask a question and the ball stays agent/available'\
+    \ must stop being a silent dead end."
   status: pending
 - id: ac-4
+  text: ALLAGENTS.md states which entry type records a human's reply to a question,
+    including the case where the reply is also a binding decision, and that raising
+    a question for a human means moving the ball. The context-budget test still passes.
+  status: pending
+- id: ac-5
   text: A question thread carrying a threaded reply displays that reply beneath the
     question in the draft panel, so a human is never asked cold about something already
     discussed.
   status: pending
-- id: ac-5
-  text: "Verified in a browser against a seeded task in each state \u2014 question\
-    \ with no reply, question with a threaded decision, question properly answered\
-    \ \u2014 not asserted from tests alone."
-  status: pending
 - id: ac-6
+  text: "Verified in a browser against a seeded task in each state \u2014 question\
+    \ with no reply, question with a threaded decision, question properly answered,\
+    \ and a question raised while the ball is on an agent \u2014 not asserted from\
+    \ tests alone."
+  status: pending
+- id: ac-7
   text: '`scripts/check.py` green with no arguments on a clean rebased tree.'
   status: pending
 deliverables: []
@@ -157,3 +165,55 @@ log:
       id: c7e1fb40-8d52-4a63-9174-2b6e5d0c8f31
       kind: create
       fingerprint: 3cd39f9132dad4403a11af4bf3f7616c
+- id: 2
+  ts: '2026-09-06T06:19:23.637209Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, title.
+  data:
+    fields:
+    - acceptance
+    - title
+    operation:
+      id: c3e7fa06-4d18-4b29-8630-8b2c6d5e1f97
+      kind: update_content
+      fingerprint: 57e90573f85c4e1fd5ecc25a1082e275
+- id: 3
+  ts: '2026-09-06T06:19:39.970470Z'
+  actor: claude
+  type: progress
+  body: "Scope widened within the hour it was filed. Retitled from \"A human's answer\
+    \ can be logged so it never closes the question\" \u2014 the closing bug is the\
+    \ second half, not the whole thing.\n\n**The first half, found 2026-09-06 minutes\
+    \ after filing.** A question can be raised while `ball: agent` / `ball_reason:\
+    \ available`, and nothing moves the ball or flags it anywhere. The question panel\
+    \ only renders when the ball is on a human, so the question is written to the\
+    \ record and never reaches anyone.\n\nTwo live instances, both found by grep rather\
+    \ than by any surface:\n\n- **task-063** \u2014 question raised 2026-08-11, invisible\
+    \ for **26 days**.\n- **task-167** \u2014 question raised 2026-08-19, invisible\
+    \ for **18 days**.\n\nBoth were handed to `human`/`decision` by hand in commit\
+    \ `a9ce5c7`, with the questions re-asked as tappable options. That is a repair,\
+    \ not a fix; the next question raised the same way disappears the same way.\n\n\
+    Jeff's reaction on being told about them in chat, which is the point: *\"how awesome,\
+    \ more questions, waiting on me, and the gui doesnt show it, you tell me and its\
+    \ not clear from your message.\"* An agent reporting open questions in conversation\
+    \ is the failure mode this whole system exists to remove \u2014 chat does not\
+    \ survive the session, and he should not be the one keeping the list.\n\n**So\
+    \ the two halves are one task.** A question that never reaches the human and a\
+    \ question that reaches them twice are the same loop broken at opposite ends,\
+    \ they touch the same code and the same ALLAGENTS.md sentences, and fixing one\
+    \ alone leaves the loop unreliable. ac-3 and the second clause of ac-4 are the\
+    \ new half.\n\n**Rejected: filing the ball half separately.** It would have been\
+    \ the third task filed in ten minutes about one panel, and the two fixes cannot\
+    \ be verified independently \u2014 the browser check in ac-6 has to exercise all\
+    \ four states in one sitting anyway.\n\n**Not decided here:** whether raising\
+    \ a question should move the ball automatically. Auto-moving is one answer and\
+    \ has a real cost \u2014 an agent mid-task that asks a clarifying question would\
+    \ hand the task away and stop being claimable. A questions count on the task row,\
+    \ or a standing \"questions waiting on you\" list, does not. ac-3 states the requirement\
+    \ and deliberately leaves the mechanism open."
+  data:
+    operation:
+      id: d4f8ab17-5e29-4c30-9741-9c3d7e6f2a08
+      kind: log_append
+      fingerprint: e980d43ccf032339133ed75fccc350fb
