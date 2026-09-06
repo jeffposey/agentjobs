@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import {
   appendLogEntryApiProjectsProjectIdTasksTaskIdLogPostMutation,
@@ -765,12 +765,51 @@ function ProjectShellNav({ projectId }: { projectId: string }) {
   );
 }
 
+/**
+ * Whether the path inside the project shell is the Dashboard's own index route.
+ *
+ * Exported because the shell's whole layout turns on it, and the rule -- "there is no
+ * segment after the project id" -- is worth asserting directly rather than through a
+ * rendered page. `/p/x` and `/p/x/` are the Dashboard; `/p/x/tasks` is not.
+ */
+export function isDashboardPath(pathname: string, projectId: string): boolean {
+  const base = `/p/${encodeURIComponent(projectId)}`;
+  return pathname === base || pathname === `${base}/`;
+}
+
 function ProjectApp() {
   const { projectId = "" } = useParams<{ projectId: string }>();
+  /**
+   * The Dashboard is framed; every other surface keeps the document scroll (task-294).
+   *
+   * A frame of exactly one viewport, with `overflow-hidden` so nothing inside can push
+   * the document past it, is what makes "never scrolls" a property of the layout rather
+   * than a property of today's data. It is applied to this one route rather than to the
+   * shell as a whole because `dragAutoScroll.ts` scrolls the backlog with
+   * `window.scrollBy`, which becomes a silent no-op the moment the document stops being
+   * the scroller -- and the Tasks surface is the one that renders it. The decision entry
+   * on task-294 records the alternative and why it was not taken.
+   *
+   * `dvh`, never `vh`: `100vh` on a phone is the height *without* the retracting URL
+   * bar, so a `100vh` frame is taller than the visible viewport and the page scrolls by
+   * exactly the bar's height. That is also why the unframed shell is `min-h-dvh` now.
+   */
+  const framed = isDashboardPath(useLocation().pathname, projectId);
   return (
-    <div className="flex min-h-screen flex-col bg-dark-bg text-dark-text">
+    <div
+      className={`flex flex-col bg-dark-bg text-dark-text ${
+        framed ? "h-dvh overflow-hidden" : "min-h-dvh"
+      }`}
+    >
       <ProjectShellNav projectId={projectId} />
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
+      <main
+        className={`mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 ${
+          // `min-h-0` is the load-bearing half. A flex child refuses to shrink below
+          // its content by default, so without it the frame would be one viewport tall
+          // and its contents would push straight through the bottom of it.
+          framed ? "flex min-h-0 flex-1 flex-col py-3" : "flex-1 py-8"
+        }`}
+      >
         <LiveUpdateStatus projectId={projectId} />
         <Routes>
           <Route index element={<DashboardPage projectId={projectId} />} />
@@ -785,7 +824,12 @@ function ProjectApp() {
           <Route path="*" element={<Navigate to="/not-found" replace />} />
         </Routes>
       </main>
-      <footer className="border-t border-dark-border bg-dark-surface"><div className="mx-auto max-w-7xl px-4 py-4 text-sm text-dark-muted sm:px-6 lg:px-8">AgentJobs © {new Date().getFullYear()}</div></footer>
+      {/* Dropped inside the frame. It is a copyright line with nothing reachable in it,
+          and it costs 53px of a phone's 844 -- 14% of a phone in landscape. Every
+          scrolling surface keeps it. */}
+      {!framed && (
+        <footer className="border-t border-dark-border bg-dark-surface"><div className="mx-auto max-w-7xl px-4 py-4 text-sm text-dark-muted sm:px-6 lg:px-8">AgentJobs © {new Date().getFullYear()}</div></footer>
+      )}
     </div>
   );
 }
@@ -796,7 +840,7 @@ function projectPath(projectId: string | undefined, path = "") {
 
 function StatusCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <main className="mx-auto flex min-h-screen max-w-xl items-center px-4 py-10">
+    <main className="mx-auto flex min-h-dvh max-w-xl items-center px-4 py-10">
       <section className="w-full rounded-2xl border border-dark-border bg-dark-surface p-6">
         <h1 className="text-2xl font-bold text-dark-text">{title}</h1>
         <div className="mt-3 text-dark-muted">{children}</div>

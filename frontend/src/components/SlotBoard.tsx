@@ -485,9 +485,9 @@ export function SlotBoard({
       data-cells={layout.cells.length}
       data-status-only={statusOnly ? "true" : "false"}
       aria-label="Run slots"
-      className="rounded-lg border border-dark-border bg-dark-surface p-4"
+      className="rounded-lg border border-dark-border bg-dark-surface p-3"
     >
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 className="text-sm font-medium text-dark-text">
           {layout.unconfigured ? "Next up" : "Run slots"}
         </h2>
@@ -504,7 +504,7 @@ export function SlotBoard({
         </div>
       </div>
 
-      <div className={`grid gap-3 ${boardColumns(layout.cells.length)}`}>
+      <div className={`grid gap-2 ${boardColumns(layout.cells.length)}`}>
         {layout.cells.map((cell) => {
           // `key` is what makes the ordering rule above visible to React: a cell keyed
           // on its run id survives a poll that reorders nothing, so the DOM node -- and

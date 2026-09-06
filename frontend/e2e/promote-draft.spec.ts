@@ -42,10 +42,17 @@ test("walks the whole drafts loop: create, find through the dashboard, promote",
   // Find it the way the dashboard invites. Not the drafts *panel*: since task-337 that
   // renders only when there is nothing claimable to offer instead, and this directory
   // shares one project across every spec -- so whether it is on screen depends on what
-  // ran before. The "+N in backlog" link on the statistics card is unconditional, which
-  // is precisely why it is the trace the ladder relies on, so this walks that instead.
+  // ran before.
+  //
+  // The unconditional route used to be the "+N in backlog" link under the statistics
+  // card. task-294 took that card off the Dashboard, and this is the route that
+  // replaced it: the Active tasks section's "View all" link, which is unconditional for
+  // the same reason, and then the Tasks surface's own Status filter. Two clicks rather
+  // than one, and every step of it is a control a person can see.
   await page.goto("/app/");
-  await page.getByRole("link", { name: /in backlog$/ }).click();
+  await page.getByRole("link", { name: /^View all/ }).click();
+  await expect(page).toHaveURL(/\/tasks$/);
+  await page.getByLabel("Status").selectOption("draft");
   await expect(page).toHaveURL(/\/tasks\?status=draft$/);
   await page.getByRole("link", { name: /Draft to promote/ }).click();
 
