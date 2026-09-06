@@ -3,7 +3,7 @@ id: task-239
 title: 'Shell 4: fit the detail panel to the main region, and check the full-width
   surfaces still hold up'
 created: '2026-08-22T00:40:27.040648Z'
-updated: '2026-09-06T10:49:00.359457Z'
+updated: '2026-09-06T10:49:54.490416Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -483,3 +483,14 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 17
+  ts: '2026-09-06T10:49:54.490209Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: stopped session 805f659f
+  re: 7
+  data:
+    run_id: run_393e1094
+    outcome: cancelled
+    duration_seconds: 4922.637906
+    log_path: C:\Users\jpose\.agentjobs\runs\run_393e1094
