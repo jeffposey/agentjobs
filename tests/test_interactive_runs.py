@@ -19,7 +19,7 @@ from typing import List
 import pytest
 import yaml
 
-from agentjobs.dispatch.guards import ConcurrencyLimitError, LiveRunExistsError, live_runs
+from agentjobs.dispatch.guards import LiveRunExistsError, live_runs
 from agentjobs.dispatch.interactive import (
     ORIGIN_CLAIMED,
     settle_for_task,
@@ -33,11 +33,9 @@ from agentjobs.dispatch.ledger import (
     list_runs,
     read_run,
     run_health,
-    runs_root,
     slot_runs,
 )
 from agentjobs.dispatch.poller import poll_live_sessions
-from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BallReason, DispatchMode, Lifecycle, Outcome
 from agentjobs.projects import ProjectRegistry
 from agentjobs.session_identity import SESSION_ID_ENV, SessionIdentity
