@@ -2,7 +2,7 @@ schema: 2
 id: task-362
 title: 'Shell 7: the sidebar row stops showing the raw queue position'
 created: '2026-09-06T21:02:35.472560Z'
-updated: '2026-09-06T22:14:08.684660Z'
+updated: '2026-09-06T22:19:13.949198Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -454,3 +454,21 @@ log:
     finish_step: started
     branch: fix/task-362-hide-queue-position
     finish_id: fin_e87bcf8d
+- id: 15
+  ts: '2026-09-06T22:19:13.949037Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-362-hide-queue-position` into `main` as `53827cae`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-362
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    dispatch) releases the merge gate (task-021), and run run_4b8ecff5 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 53827cae2bf9f001a1390ec9e70b52d6c5838142
+    branch: fix/task-362-hide-queue-position
+    base: main
