@@ -4,7 +4,7 @@ title: 'The gate is launched six to nine times per task at seven to twelve minut
   each under contention: one gate per handoff, and a core budget shared between concurrent
   gates'
 created: '2026-09-05T20:49:03.656961Z'
-updated: '2026-09-06T00:25:14.966320Z'
+updated: '2026-09-06T00:32:58.905718Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -184,31 +184,36 @@ acceptance:
   text: ALLAGENTS.md and ENGINEERING.md state the one-gate handoff sequence (iterate
     with --only, rebase, commit, one unqualified gate, hand off), and no sentence
     in either still reads as a full gate per commit.
-  status: pending
+  status: met
 - id: ac-2
   text: An unqualified check.py started on a tree that this run's ledger already holds
     a green unqualified gate for prints that receipt and its age at the top of the
     run; a --since-gate that falls back for want of a receipt names the untracked
     paths that blocked one. Both covered by tests.
-  status: pending
+  status: met
 - id: ac-3
   text: run_report.py reports gates that started and never finished as abandoned with
     their elapsed time, and task-336's run reads 8 launched rather than 6.
-  status: pending
+  status: met
 - id: ac-4
   text: Pytest stage time with one and with two concurrent unqualified gates is measured
     three runs each, before and after the chosen worker rule, and quoted in docs/performance.md's
     contention table with the date and command.
-  status: pending
+  status: met
 - id: ac-5
-  text: The closing entry quotes run_report.py --since 7 --split <merge> showing gates
-    launched per completed run and gate minutes per run both lower after the merge
-    than before.
+  text: 'The closing entry quotes run_report.py --since 7 --split <merge> showing
+    gates launched per completed run and gate minutes per run both lower after the
+    merge than before. NOT MET BY THIS RUN AND CANNOT BE: the after-window is empty
+    until dispatched runs happen on the merged rules. Pre-merge baseline recorded
+    in the closing entry (4.1 gates launched per run, 20.6m gate per run, --since
+    7 at 2026-09-06) with the command to complete it.'
   status: pending
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: perf/task-339-one-gate-per-handoff
+  status: active
 log:
 - id: 1
   ts: '2026-09-05T20:49:04.300216Z'
@@ -498,3 +503,16 @@ log:
       id: 7e4b1c93-2a86-4f07-b5d1-c0e29a63f814
       kind: log_append
       fingerprint: 518a2a0ca486a1f1cfdfb895b11b8aec
+- id: 10
+  ts: '2026-09-06T00:32:58.905366Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 2f6d84b1-9c37-4e50-a1f8-6b3d7e0c5a93
+      kind: update_content
+      fingerprint: e4b3cffe6523a7d30709ae49eb068daa
