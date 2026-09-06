@@ -1,0 +1,154 @@
+schema: 2
+id: task-363
+title: 'A review the human cannot act on: URLs are not tappable, and the question
+  cards are broken'
+created: '2026-09-06T21:21:55.330267Z'
+updated: '2026-09-06T21:21:56.019133Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 1593
+category: frontend
+tags:
+- gui
+- review
+- questions
+- usability
+assignment:
+  eligible: []
+spec:
+  summary: The review panel renders a handoff's URLs as dead text, so the human has
+    to retype a sandbox address by hand on a phone, and the open-question cards render
+    their heading through the fieldset border with a doubled number. Both were seen
+    on the task-240 review on 2026-09-06.
+  intent: The review panel is where the merge gate is actually exercised. Everything
+    else in this repository is arranged so that a human sees a complete review request
+    and answers it in one pass; a panel that hands them an address they must retype,
+    and questions whose text collides with its own border, spends that attention on
+    transcription instead of on judgement. This is the surface driven from a phone
+    and a tablet, where retyping "http://127.0.0.1:8910/app/p/sandbox-shell/tasks/task-143"
+    is not a minor inconvenience but the reason a review waits.
+  description: "Three defects, one screen. All three were visible in a single screenshot\
+    \ of the task-240 review panel taken 2026-09-06.\n\n**1. URLs in `ball_prompt`\
+    \ are not links.**\n\n`SpecText` (frontend/src/components/TaskDetail.tsx:113)\
+    \ renders every prompt and log body as `whitespace-pre-wrap break-words` plain\
+    \ text. The task-240 handoff named three sandbox addresses -- desktop, tablet,\
+    \ and the specific task page one of the checks needed -- and none of them could\
+    \ be tapped. On a phone that means reading a URL off the screen and typing it\
+    \ into another app.\n\nLinkify `http`/`https` URLs in the text `SpecText` renders:\
+    \ the review panel's prompt, the \"Current ask\" section, and log entry bodies.\
+    \ `rel=\"noopener noreferrer\"`, scheme allow-list, and **no** path that renders\
+    \ agent-authored text as markup -- linkification is not a licence to interpret\
+    \ Markdown or HTML from a task record.\n\n**2. Review links deserve a card of\
+    \ their own, above the questions.**\n\nEven linkified, three addresses buried\
+    \ in a paragraph of prose are not a target. The review panel should surface the\
+    \ links this review needs as their own labelled block, ahead of the question list\
+    \ and the verb row, so the first thing on the screen is \"here is the thing to\
+    \ go look at\".\n\nThe schema already has `links[]` with a `rel` vocabulary (`pr`\
+    \ / `issue` / `doc` / `design` / `build` / `other`), and TaskDetail.tsx:885 renders\
+    \ it as a \"Links\" section far down the page, below the whole spec -- effectively\
+    \ invisible during a review. Decide and record which of these you are doing:\n\
+    \n  - add a `rel` value for a review/sandbox link and hoist links with that `rel`\
+    \ into the review panel; or\n  - hoist the URLs found in the current `ball_prompt`\
+    \ into the card automatically.\n\nThe first is explicit and needs the agent writing\
+    \ the handoff to populate `links[]`; the second needs nothing of the author but\
+    \ guesses. A hybrid is acceptable. State the reasoning as a `decision` entry,\
+    \ including the rejected alternative, because the next reader cannot recover it\
+    \ from the diff.\n\n**3. The question cards render badly.**\n\nIn `QuestionForm`\
+    \ (frontend/src/components/QuestionForm.tsx), each question is a `<fieldset>`\
+    \ with a `<legend>`. Two things go wrong:\n\n  - The legend text sits **through**\
+    \ the fieldset's top border rather than clear of it -- a multi-line question heading\
+    \ is cut by the border line. Fix the presentation; a `fieldset`/`legend` pair\
+    \ is still the right semantics for a group of options, so keep the accessible\
+    \ grouping whatever you do to the visuals.\n  - The number is doubled. The form\
+    \ prepends the index to the question body, and an agent that numbered its own\
+    \ questions produces \"1. 1. Open a task from the sidebar...\". Either strip a\
+    \ leading ordinal from the body or stop prepending one; pick one and say why.\n\
+    \nWhile in there, look at the card with a reviewer's eye: the heading, the options,\
+    \ the \"Something else\" label and the textarea are all competing at similar weight,\
+    \ and the question itself should dominate.\n\n**Verification is a browser, not\
+    \ a test run.** Every one of these is a rendering defect that a passing suite\
+    \ did not catch, and #3 in particular is invisible to any test that reads a label\
+    \ rather than looking at where it is. Stand the review panel up on a sandbox with\
+    \ its own port and throwaway data, seed a task whose `ball_prompt` carries URLs\
+    \ and whose log carries several open questions -- including one whose body starts\
+    \ with its own number and one long enough to wrap the legend to two lines -- and\
+    \ look at it. Assert on rendered values, not on the presence of markup."
+  constraints: '- Linkify defensively: `http`/`https` only, `rel="noopener noreferrer"`,
+    and no path that renders agent-authored text as markup. A task record is agent-authored
+    text arriving from outside.
+
+    - In-app paths must stay routed. A raw anchor drops the react-router basename
+    and silently navigates out of the application to the legacy Jinja UI -- see frontend/src/components/InAppLinks.test.tsx,
+    which exists because that shipped once. An absolute `http://127.0.0.1:8910/...`
+    sandbox URL is external and a plain anchor is correct for it; a same-origin in-app
+    path is not.
+
+    - Keep the `fieldset`/`legend` grouping semantics for the options, whatever the
+    visual fix.
+
+    - Assert on rendered values, not on the presence of markup (ENGINEERING.md).'
+  out_of_scope: Rendering `ball_prompt` as Markdown -- task-326 already ruled that
+    out and this task does not reopen it. Redesigning the review panel's verb vocabulary
+    (task-231 settled it). Shortening the question payload itself, which is task-360.
+    Fixing the ball-reason rewrite half of task-326.
+  context:
+  - path: frontend/src/components/TaskDetail.tsx
+    why: SpecText (line 113) renders ball_prompt as plain pre-wrapped text, which
+      is why a URL in it cannot be tapped; line 885 is the existing Links section,
+      rendered below the whole spec where a reviewer never sees it.
+  - path: frontend/src/components/QuestionForm.tsx
+    why: The fieldset/legend markup whose heading crosses the border, and the index
+      prefix that doubles an agent's own numbering.
+  - path: frontend/src/components/InAppLinks.test.tsx
+    why: 'Why a raw anchor to an in-app path is a bug here: it drops the /app basename
+      and leaves the React application without an error.'
+  - path: tasks/agentjobs/task-326.yaml
+    why: Carries the same linkify requirement as a secondary half of a different bug.
+      Whoever works this task owns the linkify half; 326 keeps the ball-reason rewrite.
+  - path: tasks/agentjobs/task-017.yaml
+    why: The three rules the question form was built on -- free text always, nothing
+      preselected, selecting does not submit. A visual fix must not break any of them.
+acceptance:
+- id: ac-1
+  text: An http/https URL in a task's ball_prompt renders as a working link in the
+    review panel, the Current ask section and log entry bodies, with rel=noopener
+    noreferrer, and no agent-authored text is rendered as markup anywhere on that
+    path.
+  status: pending
+- id: ac-2
+  text: The review panel shows the links a review needs as their own labelled block
+    above the question list, and a decision entry records how a link gets there and
+    what was rejected.
+  status: pending
+- id: ac-3
+  text: A question heading of any length renders clear of the fieldset border, and
+    a question body that begins with its own ordinal does not render a doubled number.
+  status: pending
+- id: ac-4
+  text: The three cases above were driven in a browser on a sandbox seeded with a
+    wrapping question, a self-numbered question and a prompt carrying URLs -- not
+    asserted only from a test run -- and the evidence is on the record.
+  status: pending
+- id: ac-5
+  text: 'The task-017 rules still hold: free text on every question, nothing preselected,
+    one explicit Submit.'
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-06T21:21:56.018309Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: b81d47e2-3c0a-4d59-95a6-7fe1c2b4a903
+      kind: create
+      fingerprint: ee231e938aa81318c63eae4b2ea306ef

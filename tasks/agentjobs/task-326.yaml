@@ -3,7 +3,7 @@ id: task-326
 title: A review waiting on a human offers "Answer Questions" instead of Approve, and
   the sandbox URL it names is dead text
 created: '2026-09-04T01:16:47.468610Z'
-updated: '2026-09-04T01:17:24.527084Z'
+updated: '2026-09-06T21:22:17.567101Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -155,3 +155,18 @@ log:
       id: 7c1f2a90-4b3d-4e61-9a72-0d5c8e3f1a47
       kind: update_content
       fingerprint: a3cd5bf5ce86a786491bd85ebdf44f57
+- id: 3
+  ts: '2026-09-06T21:22:17.566969Z'
+  actor: claude
+  type: note
+  body: 'The linkify half of this task is now owned by task-363, filed critical after
+    the same defect blocked the task-240 review on 2026-09-06: three sandbox URLs
+    in a ball_prompt that had to be retyped by hand on a phone. task-363 covers linkifying
+    SpecText, a dedicated review-links card above the questions, and two rendering
+    defects in the question form. Whoever claims this task should do the ball_reason
+    rewrite guard only, and leave the linkify constraint here as background.'
+  data:
+    operation:
+      id: c4f0a1d7-8e52-4f0b-9c3a-6b7d5e2f1a84
+      kind: log_append
+      fingerprint: 405d73fa5744be0898a4d43f2cddf9e6
