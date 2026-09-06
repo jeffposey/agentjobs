@@ -3,7 +3,7 @@ id: task-237
 title: 'Shell 2: give the Tasks surface two regions and nest the detail route inside
   it'
 created: '2026-08-22T00:39:16.236145Z'
-updated: '2026-09-06T09:06:27.671776Z'
+updated: '2026-09-06T09:20:11.737743Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -549,3 +549,21 @@ log:
     finish_step: started
     branch: feat/task-237-two-region-tasks-shell
     finish_id: fin_1750621b
+- id: 17
+  ts: '2026-09-06T09:20:11.737563Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-237-two-region-tasks-shell` into `main` as `7c2ed7c9`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-237
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    epic) releases the merge gate (task-021), and run run_b34f8216 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 7c2ed7c9a4f310c8603ad1dfe717454b57f174d6
+    branch: feat/task-237-two-region-tasks-shell
+    base: main
