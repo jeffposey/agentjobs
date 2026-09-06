@@ -3,7 +3,7 @@ id: task-237
 title: 'Shell 2: give the Tasks surface two regions and nest the detail route inside
   it'
 created: '2026-08-22T00:39:16.236145Z'
-updated: '2026-09-06T09:21:27.171801Z'
+updated: '2026-09-06T09:27:35.318711Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -603,3 +603,14 @@ log:
       id: 4c9e1b28-7d06-45a1-9f83-2b6c0e51d7a3
       kind: log_append
       fingerprint: bef5bc2cc9a05e852f5d4db73fae168b
+- id: 20
+  ts: '2026-09-06T09:27:35.318506Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: stopped session 59028224
+  re: 7
+  data:
+    run_id: run_b34f8216
+    outcome: cancelled
+    duration_seconds: 7187.125818
+    log_path: C:\Users\jpose\.agentjobs\runs\run_b34f8216
