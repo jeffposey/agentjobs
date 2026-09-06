@@ -2,11 +2,20 @@ schema: 2
 id: task-341
 title: Stop wasting all the GUI space
 created: '2026-09-05T21:35:24.982038Z'
-updated: '2026-09-06T02:51:41.563493Z'
+updated: '2026-09-06T03:41:39.296581Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Look at it, then approve or say what to change.\n\nSandbox, seeded and\
+  \ throwaway \u2014 click anything:\nhttp://127.0.0.1:8341/app/p/sandbox-density/tasks\
+  \ \u2014 the rows that broke it\nhttp://127.0.0.1:8341/app/p/sandbox-ordinary/tasks\
+  \ \u2014 the control\nhttp://127.0.0.1:8341/app/p/sandbox-drafts \u2014 the Dashboard's\
+  \ table\nStop it with: taskkill /F /PID (the python running scripts/task_list_density_sandbox.py\
+  \ 8341)\n\nOn the real backlog: 0 rows on the first screen before, 12 after; tallest\
+  \ row 2091px \u2192 91px; no sideways scroll.\n\nBranch fix/task-341-task-list-density\
+  \ @ f6f4233. Log entry 8: the gate ran all 10 stages and is red on one test that\
+  \ is main's, not this branch's \u2014 filed as task-351, which has to land before\
+  \ this can merge."
 archived: false
 priority: medium
 queue_position: 8900
@@ -184,3 +193,100 @@ log:
       id: 6a1f2c3d-8b47-4e19-9c2a-5d0e7f314a14
       kind: update_content
       fingerprint: dd0f8dc11778ab6421eaa1850bb4db31
+- id: 7
+  ts: '2026-09-06T03:41:14.575955Z'
+  actor: claude
+  type: progress
+  body: "Done, on branch fix/task-341-task-list-density (3 commits, rebased onto main\
+    \ at a1b8d99, head f6f4233).\n\nTwo fixes, both in shared code.\n\n`table-layout:\
+    \ fixed` on `.responsive-table`, with a `<colgroup>` per table. Fixed layout is\
+    \ what stops one cell sizing a column, and it is also what makes `truncate` work\
+    \ \u2014 an ellipsis needs a box that will not grow, and this table never bounded\
+    \ one. The task list's five bounded columns are as wide as the widest thing they\
+    \ can hold (Queue 5rem, Status 12rem, Priority 6rem, Assigned 6rem, Updated 10.5rem,\
+    \ which keeps the timestamp on one line); Task takes the remainder. Dashboard\
+    \ and LiveRuns get colgroups too \u2014 not because either has been seen to break,\
+    \ but because both are unbounded in exactly the same way and were one long title\
+    \ from it. Without a colgroup, fixed layout divides the width equally, which would\
+    \ be worse than what it replaced.\n\n`DependencyState compact` joins its reasons\
+    \ into one paragraph, clamps it to two lines, and puts the whole text on the element's\
+    \ `title`. Nothing is dropped from the DOM and nothing is cut in JavaScript \u2014\
+    \ the clamp is CSS, and the unclamped version is on the task's own page. Not-compact\
+    \ is unchanged: a paragraph per reason, no clamp, no tooltip. The Task cell's\
+    \ title also gained a `title` attribute, since it is the line that gets cut.\n\
+    \nMeasured before and after on the real backlog, same viewport (1278px, scrollport\
+    \ 1197px):\n\n|                          | before | after |\n| ---           \
+    \           | ---    | ---   |\n| table width              | 1763px (566px past\
+    \ the edge) | 1197px (0) |\n| tallest row              | 2091px | 91px |\n| median\
+    \ row               | 77px   | 77px |\n| whole list               | 12874px |\
+    \ 9779px |\n| rows on the first screen | **0**  | **12** |\n\nThe first screen\
+    \ was empty because the 2091px row sat at the top of the queue with its own content\
+    \ off to the right \u2014 so the page rendered a header, filters, a column header\
+    \ row and then a void. That is the screenshot on this task.\n\nVerification. Four\
+    \ Playwright cases in `frontend/e2e/task-list-density.spec.ts`, all measured rectangles\
+    \ from a real browser: the table's overflow past its scrollport, every column's\
+    \ box against the viewport edges, every row's height, a title whose scrollWidth\
+    \ exceeds its clientWidth (which is what an ellipsis means), and a phone case\
+    \ asserting the card layout is what it always was. **Checked against the pre-fix\
+    \ code before being trusted** \u2014 570px of overflow at 1280px, 994px at 840px,\
+    \ and no `title` on the row at all. jsdom cannot see any of this: it has no table\
+    \ layout algorithm, `getBoundingClientRect()` is always zero, and a unit test\
+    \ asserting `class=\"truncate\"` passed throughout because the class was always\
+    \ there and had never had a bounded box to work in. Nine vitest cases cover the\
+    \ parts that are about rendered values rather than layout.\n\nLooked at, not just\
+    \ tested: the task list, the Runs table and the Dashboard's backlog table, all\
+    \ three on screen at 1278px, all three with zero overflow. The Dashboard one needed\
+    \ a drafts-only project to render at all, because the next-action ladder shows\
+    \ one panel and every other rung outranks the backlog \u2014 which is why the\
+    \ sandbox has a third project."
+  data:
+    operation:
+      id: 6a1f2c3d-8b47-4e19-9c2a-5d0e7f314a21
+      kind: log_append
+      fingerprint: e144d40ea22877eac093d8e8da4f9ed4
+- id: 8
+  ts: '2026-09-06T03:41:29.300315Z'
+  actor: claude
+  type: progress
+  body: "The gate. One unqualified `scripts/check.py` on the handoff commit f6f4233,\
+    \ clean tree. **Ran every stage (10 of 10), and it is red on one test \u2014 which\
+    \ is main's, not this branch's.**\n\n    FAILED tests/test_task_corpus.py::test_agentjobs_context_paths_exist\n\
+    \    AssertionError: context pointers name paths that do not exist:\n      task-350\
+    \ -> frontend/src/components/SlotBoard.tsx,\n      task-350 -> scripts/slot_board_sandbox.py\n\
+    \n4069 passed, 1 failed, 1 skipped. black, ruff, mypy, api, icons, oxlint all\
+    \ green; vitest (404), build and e2e (51, including this branch's 4) re-run green\
+    \ on this same tree with `--from vitest`.\n\nProven rather than assumed, three\
+    \ ways:\n\n1.  That one test run against **the main clone**, no branch of mine\
+    \ involved: same failure. main is red on its own.\n2.  `git diff main...HEAD --\
+    \ tasks/` is empty \u2014 this branch changes no task record, so it cannot have\
+    \ caused a corpus failure.\n3.  The two paths exist only on `feat/task-092-dashboard-slot-board`,\
+    \ which is 4 commits ahead of main and unmerged; its own scripted finish stopped\
+    \ at its own gate.\n\nSo every branch in this repository is currently ungateable,\
+    \ not just this one. Filed as **task-351** (high, infrastructure) with the three\
+    \ ways out \u2014 merge task-092, declare the paths as task-350's pending deliverables,\
+    \ or drop the two pointers until it merges. It is a recurrence of task-166 through\
+    \ a new door: a follow-up filed against an unmerged branch's output.\n\nI did\
+    \ not touch task-350 to clear it. Its pointers become correct the moment task-092\
+    \ merges, so deleting them would make that record worse, and it is another agent's\
+    \ live task.\n\n**What this means for approving this branch.** The scripted finish\
+    \ runs the full gate itself and will refuse to merge while main is red, however\
+    \ this task is approved. task-351 has to land first. Once it does, this branch\
+    \ needs no rework \u2014 re-run the finish and the same commit gates green."
+  data:
+    operation:
+      id: 6a1f2c3d-8b47-4e19-9c2a-5d0e7f314a22
+      kind: log_append
+      fingerprint: 0b146e36c86935ba3d20477f2f98d00f
+- id: 9
+  ts: '2026-09-06T03:41:39.296228Z'
+  actor: claude
+  type: handoff
+  body: Work complete and verified. Blocked on task-351 for the merge only, not for
+    the review.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 6a1f2c3d-8b47-4e19-9c2a-5d0e7f314a23
+      kind: handoff
+      fingerprint: 460e894ec848189f50f6a95380b92580
