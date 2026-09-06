@@ -3,13 +3,13 @@ id: task-365
 title: A drag carries the grip glyph rather than the row, and nothing shows where
   it will land
 created: '2026-09-06T21:33:07.400118Z'
-updated: '2026-09-06T21:33:08.080877Z'
+updated: '2026-09-06T21:43:15.446317Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 15800
+queue_position: 33
 category: ux
 tags:
 - frontend
@@ -112,3 +112,41 @@ log:
       id: b2e8d40f-6c19-4a27-8d13-4f8a2b371c52
       kind: create
       fingerprint: d63acd765feb7aadf09b34afd8ab2443
+- id: 2
+  ts: '2026-09-06T21:43:15.446190Z'
+  actor: claude
+  type: queue_move
+  body: 'Top of the high band at Jeff''s direction: the three findings from task-240''s
+    review block task-235, so they run before anything else in this band. Ordered
+    364, 365, 366.'
+  data:
+    band: high
+    from: 15800
+    to: 33
+    placement:
+      kind: top
+    warnings:
+    - kind: demoted_blocker
+      message: This pushed task-141-embed-launcher-and-project-link (4 open tasks
+        need it), task-168-menu-shell (4 open tasks need it), task-138-embed-distribution-decision
+        (3 open tasks need it), and 12 more down the 'high' band. Other open work
+        is waiting on them.
+      tasks:
+      - task-141-embed-launcher-and-project-link
+      - task-168-menu-shell
+      - task-138-embed-distribution-decision
+      - task-140-embed-server-surface
+      - task-139-reporter-host-agnostic-core
+      - task-144-embed-security-posture
+      - task-149-check-trigger
+      - task-161-project-level-dispatch
+      - task-171-voice-input-decision
+      - task-143-report-and-dispatch-from-host
+      - task-147-acceptance-check-schema
+      - task-148-check-evaluator
+      - task-172-dictation-control
+      - task-174-model-access-decision
+      - task-198
+    undo:
+      kind: after
+      target: task-364

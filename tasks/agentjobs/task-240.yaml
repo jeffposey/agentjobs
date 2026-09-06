@@ -3,17 +3,18 @@ id: task-240
 title: 'Shell 5: stand the new layout up on a sandbox and have Jeff drive it before
   it merges'
 created: '2026-08-22T00:40:59.806337Z'
-updated: '2026-09-06T21:35:23.220387Z'
+updated: '2026-09-06T21:44:10.566840Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: "Three findings filed with the cause found for each: task-364 (fold lost\
-  \ on reload), task-365 (drag shows nothing), task-366 (no list on a phone). All\
-  \ three are children of task-235, so the epic is held open by them.\n\nEntry 41\
-  \ has the nine outcomes and the diagnoses. The sandbox is stopped and the tailnet\
-  \ proxy is off.\n\nApprove to merge `chore/task-240-shell-sandbox` \u2014 one new\
-  \ file, `scripts/shell_sandbox.py`, gate green. Merging it is what makes the sandbox\
-  \ available to the three follow-ups. Two questions below on how you want them ranked."
+ball_prompt: "Both rulings applied. task-364, task-365 and task-366 are at the top\
+  \ of the high band in that order (16 / 33 / 67), and all three stay children of\
+  \ task-235, so the epic is held open until they close. Entry 51 records it, including\
+  \ the fifteen tasks the promotion pushed down.\n\nOne thing left on this task: Approve,\
+  \ so `chore/task-240-shell-sandbox` merges. One new file, `scripts/shell_sandbox.py`,\
+  \ gate green on 8a1d60a. Merging it is what puts the sandbox on `main` for the three\
+  \ follow-ups to work in.\n\nAfter that this task can close \u2014 every acceptance\
+  \ criterion is satisfied."
 archived: false
 priority: critical
 queue_position: 1393
@@ -942,3 +943,177 @@ log:
     outcome: completed
     duration_seconds: 434.086225
     log_path: C:\Users\jpose\.agentjobs\runs\run_9a965040
+- id: 46
+  ts: '2026-09-06T21:42:26.944054Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    Do all three findings have to land before task-235 closes, or can the epic close
+    on the fold defect alone?
+
+    -> Chose: All three block the epic
+
+
+    Where should the three sit in the queue? They went in at the bottom of the high
+    band.
+
+    -> Chose: Top of high, in order 364, 365, 366'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 47
+  ts: '2026-09-06T21:42:26.944072Z'
+  actor: Jeff Posey
+  type: answer
+  body: 'Chose: All three block the epic'
+  re: 43
+  data:
+    selected:
+    - All three block the epic
+    other: null
+- id: 48
+  ts: '2026-09-06T21:42:26.944085Z'
+  actor: Jeff Posey
+  type: answer
+  body: 'Chose: Top of high, in order 364, 365, 366'
+  re: 44
+  data:
+    selected:
+    - Top of high, in order 364, 365, 366
+    other: null
+- id: 49
+  ts: '2026-09-06T21:42:38.204715Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 50
+  ts: '2026-09-06T21:42:39.905164Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_9a965040` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_4beda7a9
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 49
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_4beda7a9\session-settings.json
+    - --name
+    - agentjobs/task-240@4beda7a9
+    - --resume
+    - 0fa2a908-4690-460d-b071-9c25892a92b8
+    cwd: C:\projects\agentjobs
+    git_head: d248ab0
+    session_id: f8ef910e
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 51
+  ts: '2026-09-06T21:44:00.414223Z'
+  actor: claude
+  type: decision
+  body: 'Both rulings from the review are in, and both are binding.
+
+
+    **All three findings block task-235.** The epic does not close until task-364,
+    task-365
+
+    and task-366 do. They were filed as its children, so nothing changed structurally
+    --
+
+    this entry is here so the next reader knows it was decided rather than inherited
+    from
+
+    how I happened to file them. The rejected alternative was closing the epic on
+    the fold
+
+    defect alone and letting the drag affordance and the phone list ship afterwards;
+    Jeff
+
+    declined it, on the reasoning that the shell is being adopted as *the* way you
+    read
+
+    this backlog and a shell you cannot browse from a phone is not adopted.
+
+
+    **They sit at the top of the high band, in order.** Moved with `agentjobs queue
+    move
+
+    --top`, in reverse so the order came out right:
+
+
+    | Task | Position |
+
+    | --- | --- |
+
+    | task-364 the fold defect | high/16 |
+
+    | task-365 the drag affordance | high/33 |
+
+    | task-366 the phone list control | high/67 |
+
+
+    Each move answered with the same warning, and it is expected rather than a problem:
+
+    promoting anything to the top of `high` pushes fifteen tasks down, several of
+    which
+
+    other open work is waiting on -- task-141, task-168 and task-138 among them. That
+    is
+
+    what "these three go first" means in a band this full, and it was the instruction.
+
+    Each move printed its own undo (`--after task-361` for task-364) if the cost turns
+    out
+
+    not to be worth it.
+
+
+    Nothing else on this task changed. The sandbox is still stopped and the branch
+    is
+
+    still unmerged.'
+  data:
+    operation:
+      id: f0c5a293-4e17-4b8d-a36f-72d94e0158b6
+      kind: log_append
+      fingerprint: b8800ca2fd8bab2e2f6fb5da52ceb977
+- id: 52
+  ts: '2026-09-06T21:44:10.566425Z'
+  actor: claude
+  type: handoff
+  body: Queue moves done and the epic-blocking decision recorded. The only outstanding
+    act is the merge approval for the sandbox branch.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 0b6e4d71-c852-4f39-a704-2d1863e9f5ca
+      kind: handoff
+      fingerprint: 47ab546fffc06810461113a6b71f9ce2

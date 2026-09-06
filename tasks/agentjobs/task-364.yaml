@@ -3,13 +3,13 @@ id: task-364
 title: A fold is thrown away on reload whenever a descendant of the folded parent
   is selected
 created: '2026-09-06T21:32:37.833768Z'
-updated: '2026-09-06T21:32:38.552789Z'
+updated: '2026-09-06T21:43:18.032783Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 15700
+queue_position: 16
 category: ux
 tags:
 - frontend
@@ -118,3 +118,41 @@ log:
       id: a1f7c93e-2d84-4b16-9c05-3e7f1a260b41
       kind: create
       fingerprint: 4d4297ede76b8343fc594f2c08966123
+- id: 2
+  ts: '2026-09-06T21:43:18.032659Z'
+  actor: claude
+  type: queue_move
+  body: 'Top of the high band at Jeff''s direction: the three findings from task-240''s
+    review block task-235, so they run before anything else in this band. Ordered
+    364, 365, 366.'
+  data:
+    band: high
+    from: 15700
+    to: 16
+    placement:
+      kind: top
+    warnings:
+    - kind: demoted_blocker
+      message: This pushed task-141-embed-launcher-and-project-link (4 open tasks
+        need it), task-168-menu-shell (4 open tasks need it), task-138-embed-distribution-decision
+        (3 open tasks need it), and 12 more down the 'high' band. Other open work
+        is waiting on them.
+      tasks:
+      - task-141-embed-launcher-and-project-link
+      - task-168-menu-shell
+      - task-138-embed-distribution-decision
+      - task-140-embed-server-surface
+      - task-139-reporter-host-agnostic-core
+      - task-144-embed-security-posture
+      - task-149-check-trigger
+      - task-161-project-level-dispatch
+      - task-171-voice-input-decision
+      - task-143-report-and-dispatch-from-host
+      - task-147-acceptance-check-schema
+      - task-148-check-evaluator
+      - task-172-dictation-control
+      - task-174-model-access-decision
+      - task-198
+    undo:
+      kind: after
+      target: task-361
