@@ -68,7 +68,20 @@ test("pastes a screenshot into a report and renders it back from the stored file
   await expect(shown).toBeVisible();
   await expect(shown).toHaveAttribute("src", new RegExp(`${attachment.sha256}\\.png$`));
   // Actually decoded by the browser, rather than a broken-image icon.
-  expect(await shown.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+  //
+  // Polled rather than read once. `toBeVisible` and the `src` check are both satisfied
+  // by an <img> that has a box and an attribute, neither of which waits for the bytes to
+  // arrive and decode -- so a single read of `naturalWidth` is a race, and it lost one
+  // run in four on this machine (task-092, 2026-09-05).
+  //
+  // **This does not weaken the assertion**, which is the reason to prefer it over a
+  // sleep or a `waitForLoadState`: a sidecar that is missing, truncated or not served
+  // leaves `naturalWidth` at 0 for good, so the poll still fails -- just at its timeout
+  // rather than immediately. What it removes is only the case where the image was going
+  // to decode a few milliseconds later anyway.
+  await expect
+    .poll(async () => shown.evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBeGreaterThan(0);
 });
 
 test("an oversized paste is refused and the typed prose survives", async ({ page }) => {
