@@ -3,7 +3,7 @@ id: task-268
 title: 'Gate speed, safely: copy the mypy cache into worktrees, add --durations, drop
   nested poetry run, then prototype concurrent stages behind a flag'
 created: '2026-08-22T18:58:37.392234Z'
-updated: '2026-09-06T22:39:51.148115Z'
+updated: '2026-09-06T23:25:26.549666Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -88,19 +88,28 @@ spec:
     why: The stage table and the contended-figure caveat to update
 acceptance:
 - id: ac-1
-  text: A fresh worktree's first gate runs mypy against a warm cache (measured before/after
-    in the log).
-  status: pending
+  text: 'A fresh worktree''s first gate runs mypy against a warm cache (measured before/after
+    in the log). DROPPED on measurement (log entry 10): a copied cache is not warm
+    -- 15/14/2/1s with no cache against 14/14/1/2s with one copied in, and mypy reports
+    1288 of 1289 entries fresh, so the cost is first-touch I/O over 62MB, which a
+    copy pays too.'
+  verify: docs/performance.md, 'The stages, and what each cost'
+  status: dropped
 - id: ac-2
   text: The gate prints the 15 slowest tests and the ledger records per-stage seconds.
-  status: pending
+  verify: poetry run python scripts/check.py --only pytest | grep 'slowest 15 durations'
+  status: met
 - id: ac-3
   text: No check stage starts a nested poetry run except Playwright's webServer.
-  status: pending
+  verify: pytest tests/test_check_gate.py -k no_nested_poetry_run
+  status: met
 - id: ac-4
   text: Any concurrency change ships behind a flag with three contended-run timings
-    recorded before it becomes the default; ENGINEERING.md's table is re-cut.
-  status: pending
+    recorded before it becomes the default; ENGINEERING.md's table is re-cut. The
+    table now lives in docs/performance.md, which ENGINEERING.md links to, and is
+    re-cut there.
+  verify: docs/performance.md, 'Running the stages concurrently (task-268)'
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -340,3 +349,72 @@ log:
       id: c4e7a911-0b62-4f38-9a0e-2d7c6b5e4f31
       kind: log_append
       fingerprint: df03a2c46071a7643aea91d8b4dd3ec4
+- id: 11
+  ts: '2026-09-06T23:25:01.063685Z'
+  actor: claude
+  type: progress
+  body: "Done, on `perf/task-268-gate-speed` (4 commits). Every number below is 2026-09-06\
+    \ on this machine; the tables are in docs/performance.md.\n\n**Proposal 2 \u2014\
+    \ `--durations=15` (ac-2).** On the pytest stage unconditionally, so `--serial`\
+    \ and `--coverage` report it too. The ledger already recorded per-stage seconds\
+    \ (task-321) and still does. First output: 4152 tests in 78.1s at `-n auto`, slowest\
+    \ single test **20.5s** (`TestProcessGroup::test_the_timeout_kills_the_grandchild_too`),\
+    \ top five 73.6s of worker time. **The tail was an inference and is now a measurement**,\
+    \ and it is two shapes: real subprocess timeouts, and four tests that parse the\
+    \ whole task corpus. That also settles proposal 9 in the negative, as its own\
+    \ text said it would.\n\n**Proposal 4 \u2014 no nested `poetry run` (ac-3).**\
+    \ `api` and `icons` run their Python halves with `sys.executable`; a stage is\
+    \ now a sequence of commands. Three interleaved reps against `main`'s own check.py\
+    \ in one worktree: the pair went **6.5 / 6.4 / 7.0s to 3.6 / 3.6 / 4.3s**. `frontend/package.json`\
+    \ is untouched \u2014 `npm run check` is a standalone gate with no interpreter\
+    \ handed to it. Playwright's `webServer` remains, as specified. Asserted by a\
+    \ test over the stage table.\n\n**Proposal 3 \u2014 `--dist worksteal`: measured,\
+    \ not adopted.** Six interleaved runs, same 4157 passing: default 76.5 / 77.2\
+    \ / 79.7s, worksteal 69.0 / **112.9** / 73.9s. The spread inside the worksteal\
+    \ arm is larger than the gap between the arms and the default arm's own spread\
+    \ is 3.2s, so three runs cannot tell a 6% effect from a neighbouring gate. Reopen\
+    \ with more reps on a quiet machine.\n\n**Proposals 5/6 \u2014 `--concurrent`,\
+    \ off by default (ac-4).** Runs each stage as `DEPENDENCIES` allows, captures\
+    \ output per stage, reserves `CONCURRENT_RESERVE = 4` cores from pytest for the\
+    \ frontend lane. Six contended gates in two worktrees of the same commit, **all\
+    \ green**:\n\n| Arm | Gates seen | `-n` | A | B |\n|---|---|---|---|---|\n| Alone,\
+    \ serial | 1 | auto | 254.3 / 245.8s | \u2014 |\n| Alone, `--concurrent` | 1 |\
+    \ 28 | **165.1 / 166.0s** | \u2014 |\n| Paired, serial | 2 | 16 | 325.4 / 375.7s\
+    \ | 352.8 / 403.6s |\n| Paired, `--concurrent` \xD73 | 3 / 2 / 3 | 6 / 12 / 6\
+    \ | **206.4 / 235.4 / 211.2s** | **201.2 / 234.6 / 211.6s** |\n\nAlone it is a\
+    \ 35% cut and the wall clock is exactly `api + build + e2e`. Paired it is ~45%,\
+    \ and there `pytest` becomes the critical path because `gate_slots` divides the\
+    \ machine and the reserve takes four more off the top. A third dispatched gate\
+    \ (`worktrees/agentjobs-363`) came and went during the run, so each row names\
+    \ the gate count its own budget line reported.\n\nIt stays a flag. It prints `EXPERIMENTAL\
+    \ RUN` at both ends, records its phases under scope `concurrent` so `already_green`\
+    \ cannot rest on one, and **writes no gate receipt** \u2014 the same three devices\
+    \ `PARTIAL RUN` uses, for the same failure.\n\n**One real defect found and fixed\
+    \ by running it**: the first `--concurrent` gate passed all ten stages and then\
+    \ died in `print` with `UnicodeEncodeError`, reporting nothing \u2014 Black writes\
+    \ an emoji and a redirected stdout here is cp1252. The serial gate never meets\
+    \ this because its children write to the inherited handle.\n\n**The re-cut table\
+    \ (ac-4).** The gate is now **bounded by `e2e` at 139s, not by `pytest` at 89s**,\
+    \ and one green unqualified run costs ~250s against the documented 95.8s. Every\
+    \ critical-path argument in docs/performance.md predates that, so both columns\
+    \ are kept and the new one is marked as the one to quote. ENGINEERING.md no longer\
+    \ holds the table \u2014 it points at docs/performance.md and `tests/test_context_budget.py`\
+    \ leaves 32 bytes of headroom \u2014 so it gets one line for the flag, paid for\
+    \ by tightening two sentences."
+  data:
+    operation:
+      id: 5a1f9d3c-77b2-4e18-93c6-8b0e2a4d6f72
+      kind: log_append
+      fingerprint: ccf2028fd77e69f538b7d89f61aa7118
+- id: 12
+  ts: '2026-09-06T23:25:26.549512Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 9e2b4c81-3d55-4a72-b0f6-6c1d8e9a2b35
+      kind: update_content
+      fingerprint: 23fa75a1fdf4db5116a910e8435e7e1c
