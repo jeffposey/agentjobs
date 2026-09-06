@@ -1,0 +1,49 @@
+schema: 2
+id: task-341
+title: Stop wasting all the GUI space
+created: '2026-09-05T21:35:24.982038Z'
+updated: '2026-09-05T21:35:25.793796Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+queue_position: 8900
+category: general
+tags:
+- reported-issue
+assignment:
+  eligible: []
+spec:
+  summary: Stop wasting all the GUI space
+  description: 'Stop doing this. This is not a full redesign task yet, just, please
+    do better than this in the meantime.
+
+
+    ---
+
+    Reported from the AgentJobs UI by Jeff Posey, at `/p/agentjobs/tasks`.'
+  context: []
+acceptance: []
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-05T21:35:25.792814Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created ready by Jeff Posey.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7116bac0-f0d1-476c-ae6e-e632aa18ffe8
+      kind: create
+      fingerprint: 7427b692b8cb6328d2510d10fe3dc58a
+  attachments:
+  - path: attachments/task-341/23272b9e60e9dfdc02b9f35e46d6607ee8462ad1cbec65193bd9f714cce71af7.png
+    media_type: image/png
+    sha256: 23272b9e60e9dfdc02b9f35e46d6607ee8462ad1cbec65193bd9f714cce71af7
+    size_bytes: 59483
+    label: image.png

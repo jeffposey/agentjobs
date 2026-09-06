@@ -1,0 +1,152 @@
+schema: 2
+id: task-347
+title: 'Rehearsal: a red gate must start its own repair run (task-340 ac-5)'
+created: '2026-09-06T01:13:25.072947Z'
+updated: '2026-09-06T01:16:53.628380Z'
+lifecycle: active
+ball: human
+ball_reason: decision
+ball_prompt: 'Throwaway, staged and waiting for one click. This exists only to exercise
+  task-340''s escalation dispatch for real on this machine.
+
+
+  Everything is ready: branch `chore/task-347-escalation-rehearsal` in `../worktrees/agentjobs-347`,
+  bootstrapped, carrying one deliberately failing test (`tests/test_task_347_rehearsal.py`)
+  so the gate goes red at the `pytest` stage and **nothing can merge**.
+
+
+  **Do this after task-340 merges and the server is restarted** (the finish runs the
+  serving clone''s code, so before that it would rehearse the old behaviour):
+
+
+  1. Approve this task from the task page.
+
+  2. Watch. The finish rebases, the gate goes red at `pytest`, and with task-340 in,
+  the escalation should start a run against this task **with no second click** --
+  the finish entry names the run id, and the entry leads with `FAILED tests/test_task_347_rehearsal.py::test_the_rehearsal_gate_is_red_on_purpose`.
+
+  3. Stop that run, then clean up:
+
+
+  ```
+
+  git worktree remove ../worktrees/agentjobs-347
+
+  git branch -D chore/task-347-escalation-rehearsal
+
+  ```
+
+
+  (`-D`, not `-d`: this branch is deliberately never merged.)
+
+
+  Then close this task and mark task-340''s ac-5 met, quoting the run id.
+
+
+  If you would rather not spend the run at all, close this as rejected and delete
+  the branch and worktree with the two commands above -- task-340''s own suite covers
+  the same path with a stub runner, and ac-5 is the live confirmation rather than
+  the proof.
+
+
+  Why this is not already done: running `agentjobs finish` by hand from the working
+  session was refused by the dispatch harness''s command classifier, and retrying
+  a blocked command reworded is not something to do. Approving from the page is the
+  same code and is yours to run.'
+archived: false
+priority: low
+queue_position: 600
+category: dispatch
+tags: []
+assignment:
+  owner: claude
+  eligible: []
+spec:
+  summary: 'Rehearsal: a red gate must start its own repair run (task-340 ac-5)'
+  description: 'Throwaway. Created by task-340 to exercise the escalation dispatch
+    for real on this machine. Its branch carries one deliberately failing test so
+    the scripted finish goes red at the gate and nothing merges. If you are an agent
+    reading this because you were dispatched at it: you are the evidence. Do nothing
+    to the repository. Write one progress entry saying you arrived, hand the ball
+    to human/review, and stop.'
+  context: []
+acceptance: []
+deliverables: []
+dependencies: []
+links: []
+branches:
+- name: chore/task-347-escalation-rehearsal
+  status: active
+log:
+- id: 1
+  ts: '2026-09-06T01:13:25.601105Z'
+  actor: claude
+  type: transition
+  body: Promoted by claude; the spec is finished and it is claimable.
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+- id: 2
+  ts: '2026-09-06T01:14:41.427082Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 3
+  ts: '2026-09-06T01:16:53.628287Z'
+  actor: claude
+  type: handoff
+  body: 'Throwaway, staged and waiting for one click. This exists only to exercise
+    task-340''s escalation dispatch for real on this machine.
+
+
+    Everything is ready: branch `chore/task-347-escalation-rehearsal` in `../worktrees/agentjobs-347`,
+    bootstrapped, carrying one deliberately failing test (`tests/test_task_347_rehearsal.py`)
+    so the gate goes red at the `pytest` stage and **nothing can merge**.
+
+
+    **Do this after task-340 merges and the server is restarted** (the finish runs
+    the serving clone''s code, so before that it would rehearse the old behaviour):
+
+
+    1. Approve this task from the task page.
+
+    2. Watch. The finish rebases, the gate goes red at `pytest`, and with task-340
+    in, the escalation should start a run against this task **with no second click**
+    -- the finish entry names the run id, and the entry leads with `FAILED tests/test_task_347_rehearsal.py::test_the_rehearsal_gate_is_red_on_purpose`.
+
+    3. Stop that run, then clean up:
+
+
+    ```
+
+    git worktree remove ../worktrees/agentjobs-347
+
+    git branch -D chore/task-347-escalation-rehearsal
+
+    ```
+
+
+    (`-D`, not `-d`: this branch is deliberately never merged.)
+
+
+    Then close this task and mark task-340''s ac-5 met, quoting the run id.
+
+
+    If you would rather not spend the run at all, close this as rejected and delete
+    the branch and worktree with the two commands above -- task-340''s own suite covers
+    the same path with a stub runner, and ac-5 is the live confirmation rather than
+    the proof.
+
+
+    Why this is not already done: running `agentjobs finish` by hand from the working
+    session was refused by the dispatch harness''s command classifier, and retrying
+    a blocked command reworded is not something to do. Approving from the page is
+    the same code and is yours to run.'
+  data:
+    ball: human
+    ball_reason: decision

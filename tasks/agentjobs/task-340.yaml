@@ -3,10 +3,11 @@ id: task-340
 title: A scripted finish that stops at the gate must start the session that repairs
   it, not wait for a Dispatch click
 created: '2026-09-05T21:33:27.249588Z'
-updated: '2026-09-05T21:33:52.299742Z'
-lifecycle: ready
+updated: '2026-09-06T01:17:46.259780Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 queue_position: 67
@@ -16,6 +17,7 @@ tags:
 - dispatch
 - process
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: When an approved task's scripted finish goes red at the gate, the finish
@@ -217,3 +219,247 @@ log:
       id: 9b8c7d6e-5f4a-4b3c-9d2e-1f0a9b8c7d6e
       kind: log_append
       fingerprint: d1fc2caf1783caa29e9d07534914017c
+- id: 4
+  ts: '2026-09-06T00:44:34.970338Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 5
+  ts: '2026-09-06T00:44:35.701735Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 6
+  ts: '2026-09-06T00:44:39.842203Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_7f8b8193
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 4
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_7f8b8193\session-settings.json
+    - --name
+    - agentjobs/task-340@7f8b8193
+    - 'You are the agent `claude` working task `task-340` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-340-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_7f8b8193. Posture `auto` stops at the merge gate: when
+      the work is done and verified, record the evidence on the task, hand the ball
+      to human/review, and stop. Do not merge. Never push: this project is configured
+      `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: '8528893'
+    session_id: b500efed
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 7
+  ts: '2026-09-06T01:14:09.863685Z'
+  actor: claude
+  type: progress
+  body: 'Built on `fix/task-340-escalation-dispatches` (worktree `../worktrees/agentjobs-340`),
+    commit f5ffa9a.
+
+
+    **1. The gate moved off `auto_dispatch`.** `dispatch_after_escalation` is now
+    gated on `finish.enabled` and a new `finish.dispatch_on_escalation`, defaulting
+    to true. `assert_dispatch_permitted`, the machine''s `max_concurrent_runs`, the
+    per-task spend caps inside `dispatch_task`, and the `caused_by` attribution to
+    the human''s own approval entry are all untouched.
+
+
+    **2. Nobody dispatched means nobody holds the ball.** `dispatch_after_escalation`
+    returns an `EscalationDispatch` (run_id, reason, detail, unattended) instead of
+    `Optional[str]`. Where nothing could be started -- dispatch not permitted, the
+    knob off, no human entry, any refusal out of `dispatch_task` -- `park_for_human`
+    hands the ball to `human`/`decision` naming why and giving both the command and
+    the click. The one case that keeps `agent` is a live run already on the task:
+    that is a run finishing itself (task-022), it is alive and it *is* the agent the
+    escalation addresses. Checked against `live_runs` before the dispatch is attempted
+    rather than inferred from its refusal.
+
+
+    **3. The record leads with the cause.** New `failing_stage` / `failing_tests`
+    / `lead_with_the_cause` in finish.py. The stage comes from the gate''s own `Failed
+    at stage ''<name>''.` line rather than from re-reading its banners; the failing
+    tests come from pytest''s `FAILED`/`ERROR` short-summary lines, deduplicated and
+    capped at 12 with a count when it caps. The raw 30-line tail now survives **only**
+    when nothing could be extracted -- for a red pytest it was thirty DeprecationWarnings
+    with the answer above the window. The escalation entry and ball prompt were also
+    reordered so the step table comes last.
+
+
+    **4. The prompt names the branch and worktree.** New `where_the_work_is`, read
+    from `branches[]` and `git worktree list`. A woken session knows both; a cold
+    one is handed PROMPT_STUB, which tells every agent to take a *fresh* worktree
+    -- correct for a task being started, wrong for one with a branch in flight. The
+    record is the only place that difference can be stated.
+
+
+    Also: `FinishResult.escalation_dispatch` carries the reason out, the `finish`
+    CLI says out loud when no run was started, `agentjobs dispatch config` reports
+    `finish_escalation=dispatches|parks`, and the `dispatch.yaml` scaffold documents
+    the knob.
+
+
+    **Verified.** 14 new tests in `tests/test_dispatch_finish.py` (`TestTheEscalationStartsTheRepair`,
+    `TestLeadingWithTheCause`), including a real dispatch with `auto_dispatch: false`
+    asserting the run exists and is attributed to the approval entry; the knob off,
+    no dispatch config, no human entry, and a dirty shared clone each landing on `human`/`decision`;
+    and the failing test appearing in the first six lines of the escalation entry.
+    Four existing tests were updated: their worlds have no dispatch config, so they
+    now correctly end on a human rather than on an agent that does not exist. `tests/test_dispatch_finish.py`,
+    `test_dispatch_config.py`, `test_auto_dispatch.py`: 202 passed. black, ruff, mypy
+    clean.
+
+
+    ac-5 (the real exercise on this machine) is running now against throwaway task-347.'
+  data:
+    branch: fix/task-340-escalation-dispatches
+    commit: f5ffa9a
+- id: 8
+  ts: '2026-09-06T01:17:45.728109Z'
+  actor: claude
+  type: decision
+  body: '**The escalation gets its own knob: `finish.dispatch_on_escalation`, defaulting
+    to true, gated behind `finish.enabled`.** The spec left this open.
+
+
+    **Rejected: gate on `finish.enabled` alone, no new field.** It is one line lighter
+    and it leaves nobody any recourse. An operator who wants the scripted close-out
+    but wants to look at every red gate themselves -- an expensive runner, a repository
+    where a red gate usually means something interesting -- would have to turn the
+    finish off entirely to get that, losing the good path with it. A field defaulting
+    to true costs a config line nobody has to write and buys back the whole of that.
+
+
+    Both halves are load-bearing. It follows `enabled` rather than `auto_dispatch`
+    because a machine that let an approval run `git merge` in a shared clone has already
+    answered the question `auto_dispatch` asks; and it is separable from `enabled`
+    because wanting the merge and wanting the repair are genuinely different wants.'
+  data: {}
+- id: 9
+  ts: '2026-09-06T01:17:46.067879Z'
+  actor: claude
+  type: decision
+  body: '**Nothing was added to ENGINEERING.md or ALLAGENTS.md, and the reason is
+    a measurement rather than a judgement.** The spec asked for ENGINEERING.md''s
+    "Steps 3 to 6 may already have happened" paragraph to be updated *if it changes
+    what a woken agent should expect*. It does -- an agent is now woken by the stop
+    itself, and the branch it is woken onto already exists, which is the opposite
+    of what `PROMPT_STUB` tells every agent to do.
+
+
+    But `tests/test_context_budget.py` measures the always-loaded bundle at **59,994
+    of 60,000 bytes**. Six bytes of headroom. An eight-line paragraph put it 605 over,
+    and the file''s own rule is that cutting to make room requires running `scripts/context_eval.py`
+    first -- tens of minutes and real money, for prose this change does not need.
+
+
+    **It does not need it, because the hazard is handled in the mechanism instead.**
+    `where_the_work_is` writes the branch and its worktree into the escalation''s
+    own `ball_prompt`, with "Use it; do not take a new one". A woken session is handed
+    that prompt verbatim by `WAKE_STUB`; a cold one is handed a pointer to the record
+    that holds it. A rule carried by the prompt that starts the run is strictly better
+    than a rule in a file every session pays for on every task, and this is the second
+    time that trade has come up in this repository''s favour.
+
+
+    **Rejected: raising `BUNDLE_BUDGET_BYTES`.** The test''s own message allows it
+    -- "a decision, not a fix: say in the commit which rule needed the room" -- and
+    no rule needed the room here. Every session pays 1% more for prose that duplicates
+    a prompt.
+
+
+    **Rejected: cutting 605 bytes from ALLAGENTS.md to fund it.** That is the case
+    the ablation suite exists for, and running it to make room for a redundant paragraph
+    is the wrong order of operations.
+
+
+    Also checked: `docs/agent-dispatch-design.md` is the **only** file in the repository
+    that describes the `auto_dispatch` fallback (`grep -rl auto_dispatch docs/ *.md`).
+    ac-4 is satisfied there.'
+  data: {}
+- id: 10
+  ts: '2026-09-06T01:17:46.259512Z'
+  actor: claude
+  type: decision
+  body: '**ac-5 is staged and not discharged, and I did not fake the human act it
+    needs.**
+
+
+    What is ready: throwaway **task-347**, branch `chore/task-347-escalation-rehearsal`
+    in `../worktrees/agentjobs-347`, bootstrapped, carrying one deliberately failing
+    test so the gate goes red at `pytest` and nothing can merge. Its ball is on a
+    human with the full procedure and the cleanup commands on it.
+
+
+    Two things stopped it going further, and the second is the interesting one.
+
+
+    **1. Running `agentjobs finish task-347` from this session was refused by the
+    dispatch harness''s command classifier.** Retrying a blocked command reworded
+    is not something to do -- three consecutive blocks park a `--bg` run -- so I stopped.
+
+
+    **2. It would have been the wrong rehearsal anyway, and this is worth knowing
+    before anyone repeats it.** The approve route spawns the finish as `sys.executable
+    -m agentjobs.cli finish`, and `sys.executable` is *the running server''s* interpreter
+    -- the main clone''s. So clicking Approve today rehearses the code on `main`,
+    not the code on this branch, whatever branch is checked out where. **The rehearsal
+    has to happen after this merges and the server restarts**, which is step 6 of
+    the merge gate and happens anyway.
+
+
+    **Rejected: writing an approval entry as "Jeff Posey" so `newest_human_entry`
+    would find one.** That is fabricating the one act the entire dispatch safety argument
+    rests on, in the record that is supposed to be the evidence for it. A rehearsal
+    that needs a forged approval is not a rehearsal of anything.
+
+
+    **Rejected: a synthetic project in `~/.agentjobs/dispatch.yaml` with a synthetic
+    human**, so nobody''s name is misused. Honest, and worth almost nothing: the suite
+    already drives this exact path with a stub runner and a real config, so the only
+    thing the synthetic project would add is a real `claude --bg` spawn against a
+    repository nobody cares about. That is tokens for no new information, and it edits
+    a machine-local file other agents read.
+
+
+    So ac-5 is one click after the merge, on task-347''s own record, and the run id
+    it produces is what closes it.'
+  data: {}
