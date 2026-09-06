@@ -144,8 +144,6 @@ function withFold(exceptions: Set<string>, taskId: string, folded: boolean): Set
  * which is also exactly when a handle exists, so the reference never dangles.
  */
 const REORDER_HELP_ID = "queue-reorder-help";
-/** The tree's own keys, which exist whether or not anything may be reordered. */
-const TREE_HELP_ID = "task-tree-help";
 
 /** The reorder handle's own id, so focus can be put back on it after a step. */
 function gripId(taskId: string) {
@@ -685,7 +683,7 @@ export function TaskList({
             {...dragProps(task)}
             // The indent stops growing at four levels: past that it is eating the title
             // in a 320px column to draw a depth nobody is counting.
-            style={{ paddingLeft: `${0.25 + Math.min(row.depth, 4) * 0.85}rem` }}
+            style={{ paddingLeft: `${0.25 + Math.min(row.depth, 4) * 1.1}rem` }}
             className={`flex gap-1 py-1 pr-2 ${selected ? "bg-blue-950/60" : "hover:bg-dark-bg/60"}`}
           >
             <div className="flex shrink-0 items-start">
@@ -839,22 +837,34 @@ export function TaskList({
             <option value="all">All Tasks</option><option value="project">Project Tasks</option><option value="test">Test/Examples</option>
           </select>
         </div>
-        {tree && (
-          <p id={TREE_HELP_ID} className="mt-3 text-xs text-dark-muted">
-            <kbd>↑</kbd> and <kbd>↓</kbd> move the selection and open that task beside the
-            list; <kbd>←</kbd> and <kbd>→</kbd> fold and unfold a parent. A fold is
-            remembered for this project.
-          </p>
-        )}
-        {handlers ? (
-          <p id={REORDER_HELP_ID} className="mt-3 text-xs text-dark-muted">
-            Rows are in queue order. Focus a task and press <kbd>Alt</kbd>+<kbd>↑</kbd> or{" "}
-            <kbd>Alt</kbd>+<kbd>↓</kbd> to step it through its priority band, or{" "}
-            <kbd>Alt</kbd>+<kbd>Home</kbd> and <kbd>Alt</kbd>+<kbd>End</kbd> for the ends.
-            Dragging a grip does the same thing.
+        {/* One paragraph in the sidebar, not two. Every vertical pixel above the first
+            row is a row a reader cannot see, and the four filter controls already
+            take most of a phone's worth of them -- which is what task-356 is for. */}
+        {tree ? (
+          <p id={REORDER_HELP_ID} className="mt-3 text-xs leading-5 text-dark-muted">
+            <kbd>↑</kbd><kbd>↓</kbd> select · <kbd>←</kbd><kbd>→</kbd> fold,
+            remembered for this project
+            {handlers && (
+              <>
+                {" · "}
+                <kbd>Alt</kbd>+<kbd>↑</kbd><kbd>↓</kbd> step a task through its priority
+                band, <kbd>Alt</kbd>+<kbd>Home</kbd>/<kbd>End</kbd> for the ends. Dragging a grip
+                does the same thing.
+              </>
+            )}
           </p>
         ) : (
-          unavailableReason && <p className="mt-3 text-xs text-dark-muted">{unavailableReason}</p>
+          handlers && (
+            <p id={REORDER_HELP_ID} className="mt-3 text-xs text-dark-muted">
+              Rows are in queue order. Focus a task and press <kbd>Alt</kbd>+<kbd>↑</kbd> or{" "}
+              <kbd>Alt</kbd>+<kbd>↓</kbd> to step it through its priority band, or{" "}
+              <kbd>Alt</kbd>+<kbd>Home</kbd> and <kbd>Alt</kbd>+<kbd>End</kbd> for the ends.
+              Dragging a grip does the same thing.
+            </p>
+          )
+        )}
+        {!handlers && unavailableReason && (
+          <p className="mt-3 text-xs text-dark-muted">{unavailableReason}</p>
         )}
       </section>
 
