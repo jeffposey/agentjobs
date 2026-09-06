@@ -655,6 +655,31 @@ class FinishSettings:
     restart that has actually failed and the wrong one for a slow boot.
     """
 
+    dispatch_on_escalation: bool = True
+    """Whether a finish that stops may spend the approval on a run that repairs it.
+
+    **Deliberately not ``auto_dispatch``, and defaulting to on** (task-340).
+    ``auto_dispatch`` answers a different question -- *may an approval start a run with
+    no second click* -- and it is off here, which is how task-337 came to sit at
+    ``agent``/``work`` all evening with no agent: the finish escalated, called the
+    post-escalation dispatch, and that dispatch declined because a switch about approvals
+    was off. But the approval had already started machinery. The run being asked for is
+    that same act continuing after the machinery could not finish it, not a second
+    dispatch a human never asked for.
+
+    So this follows ``enabled``: a machine that let an approval run ``git merge`` has
+    already said what it thinks about approvals starting things. It is a separate field
+    rather than a bare read of ``enabled`` because the two are genuinely separable -- an
+    operator who wants the scripted close-out but wants to look at every red gate
+    themselves has somewhere to say so, and their only alternative would otherwise be
+    turning off the finish entirely and losing the good path with it.
+
+    Nothing else is widened. ``assert_dispatch_permitted``, the machine's concurrency
+    ceiling, the per-task spend caps and the attribution to the human's own approval
+    entry all still apply, and where no run can be started the ball goes to a human
+    rather than sitting on an agent that does not exist.
+    """
+
     runway_timeout_seconds: int = 3600
     """How long to queue for this repository's finish runway before escalating (task-223).
 
@@ -1217,6 +1242,12 @@ def _parse_finish(raw: object, where: str, path: Path) -> FinishSettings:
             f"{where}.runway_timeout_seconds",
             path,
             defaults.runway_timeout_seconds,
+        ),
+        dispatch_on_escalation=_bool(
+            mapping.get("dispatch_on_escalation"),
+            f"{where}.dispatch_on_escalation",
+            path,
+            default=defaults.dispatch_on_escalation,
         ),
     )
 

@@ -1792,6 +1792,8 @@ def dispatch_show_config(
             f"max_posture={settings.ceiling.value}  "
             f"merge={settings.posture.merge_policy.value}  push={settings.push}  "
             f"finish={'on' if settings.finish.enabled else 'off'}  "
+            f"finish_escalation="
+            f"{'dispatches' if settings.finish.dispatch_on_escalation else 'parks'}  "
             f"clean_tree={settings.require_clean_tree}  auto={settings.auto_dispatch}"
         )
 
@@ -2515,6 +2517,14 @@ def finish(
         )
         if result.dispatched_run_id:
             typer.echo(f"   Escalated into run {result.dispatched_run_id}.")
+        elif result.escalation_dispatch:
+            # Said out loud because the silence is the failure task-340 repairs: from a
+            # shell, a stop that started nothing looked exactly like one that did.
+            typer.secho(
+                f"   No run was started ({result.escalation_dispatch}); the ball is on a "
+                "human and the task says what the next move is.",
+                fg=typer.colors.YELLOW,
+            )
         raise typer.Exit(code=1)
     typer.secho(f"✅ {result.detail}", fg=typer.colors.GREEN)
 

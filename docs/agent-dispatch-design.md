@@ -1947,8 +1947,10 @@ around it, in three ways worth being explicit about:
   One human act, one dispatch, unchanged. It attributes that dispatch to the human's own
   approval entry rather than to the newest one — by then the newest is the finisher's,
   and a dispatch defaulting to it would be refused as not human-clocked, correctly and
-  uselessly. It only dispatches at all where `auto_dispatch` is on; elsewhere it parks
-  the task at `agent`/`work` and the human's existing Dispatch click resumes the session.
+  uselessly. Since task-340 it is gated on `finish.dispatch_on_escalation` — default
+  true, following `finish.enabled` — and **not** on `auto_dispatch`; see
+  [what a stop starts](#what-a-stop-starts-task-340-2026-09-05) below for why those are
+  different questions, and for what happens when no run can be started at all.
 - **It writes as `finisher`, a reserved *agent* actor.** So an entry it wrote can never
   clock a later dispatch as a human act, exactly as `dispatcher` cannot. It is a separate
   id from `dispatcher` because the two make different claims: one says AgentJobs started
@@ -1990,11 +1992,86 @@ is the agent between the approval and the merge, not the approval.
   no session, no tokens — so `run_report.py` counts it in its own block rather than folding
   it into run statistics, which is what makes the saving attributable instead of showing up
   only as runs-per-task quietly falling.
+- When it stops it starts the session that repairs it, on the approval's own authorisation
+  (task-340), and where it cannot start one it hands the ball to a human naming why. The
+  task is never left reading `agent` with nothing dispatched.
 - When it stops, it writes the dispositive sentence onto the task itself: either "The merge
   is done: `<sha>`" (the merge landed, the delivery did not — finish that, do not re-merge)
   or "Nothing was merged", with which of the rebase or the gate failed, and for a conflict
   whether the branch was restored to the commit it was on, having read the tip back and
   compared.
+
+#### What a stop starts (task-340, 2026-09-05)
+
+**A human approval is the one human act the merge needs. Nothing after it should wait on
+a second one unless a judgement is genuinely required, and a red gate is not a
+judgement — it is work for an agent.**
+
+The incident is task-337. Jeff approved it; the finish rebased, ran the gate, and pytest
+went red on one test — a corpus check on another task's record, which `main` had already
+fixed by the time the gate finished. The branch's own code was fine. The finish did
+exactly what it was coded to do: wrote the escalation, handed the ball to `agent`/`work`
+with a prompt addressed to the session that would be resumed, and called the
+post-escalation dispatch. That returned without dispatching, because it was gated on
+`auto_dispatch`, which is off here and always has been. Nothing notified anybody. The
+task sat at `agent`/`work` with no agent for the rest of the evening, and the question
+that surfaced it was *"is task-337 stuck?"*.
+
+Three things changed, and they are separable.
+
+**1. The gate is the finish's, not auto-dispatch's.** `auto_dispatch` answers *may an
+approval start a run with no second click*. This asks something else: *may machinery the
+approval already started continue, after it could not finish?* Conflating them made a
+switch about approvals decide the fate of an approval that had already been given. The
+gate is now `finish.dispatch_on_escalation`, defaulting to true and following
+`finish.enabled` — which is the switch that let the approval run `git merge` in the first
+place, so a machine with it on has already said what it thinks about approvals starting
+things.
+
+It is a field rather than a bare read of `enabled` because the two are genuinely
+separable: an operator who wants the scripted close-out but wants to look at every red
+gate themselves needs somewhere to say so, and without it their only move would be
+turning the finish off entirely and losing the good path with it. The rejected
+alternative was exactly that — no knob, gate on `enabled` — and it was rejected for a
+recourse it did not leave anybody.
+
+Nothing else moved. `assert_dispatch_permitted` still has to pass, the machine's
+concurrency ceiling and the per-task spend caps are still enforced inside
+`dispatch_task`, the run is still attributed to the human's own approval entry, and push
+is still off. **It cannot loop**: the run this starts ends at a review handoff, and the
+next finish needs another approval. One human act still buys one dispatch.
+
+**2. An open task always names somebody who exists.** Every earlier escalation wrote
+`agent`/`work` unconditionally, on the assumption that a Dispatch click was coming.
+Where no run can be started — dispatch not permitted, the knob off, no human entry to
+attribute one to, a refusal from any of `dispatch_task`'s gates — the finish now hands
+the ball to `human`/`decision` instead, naming why nothing started and what the click or
+the command is. `agent` with no agent is a lie the schema cannot catch, and it is the
+whole of what went wrong on task-337.
+
+The one case that deliberately keeps `agent` is a live run already working the task: an
+autonomous run finishing *itself* is the caller, it holds the ball, and it is the agent
+the escalation is addressed to. That is checked before the dispatch is attempted rather
+than inferred from its refusal.
+
+**3. The record leads with the cause.** An escalation used to embed the gate's last
+thirty non-blank lines, which for a red pytest are thirty `DeprecationWarning`s; the
+`FAILED` line naming the test sat above them, outside the window. The escalation entry
+and the ball prompt now open with the stage `scripts/check.py` stopped in and the
+`FAILED` short-summary lines, then the path to `gate.log`. The raw tail survives only
+when nothing could be extracted, which is the one case where it is the best available
+answer.
+
+The stage is read from the gate's own `Failed at stage '<name>'.` line rather than
+re-derived from its banners: the gate is the only thing that knows which of its ten
+stages it was in, and a second implementation of that bookkeeping would be free to
+disagree with the first.
+
+**What is *not* here.** Retrying the gate without an agent when `main` has moved since
+the rebase would have merged task-337 for zero tokens, and it is a different decision —
+`catch_up` already does a bounded version of it, and widening that is a question about
+what a stale green is worth, not about who gets woken. It is a question on task-340's
+record rather than a change in this section.
 
 #### Watching one happen (task-321, 2026-08-27)
 
