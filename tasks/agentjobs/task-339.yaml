@@ -4,7 +4,7 @@ title: 'The gate is launched six to nine times per task at seven to twelve minut
   each under contention: one gate per handoff, and a core budget shared between concurrent
   gates'
 created: '2026-09-05T20:49:03.656961Z'
-updated: '2026-09-05T22:25:05.557881Z'
+updated: '2026-09-06T00:25:14.966320Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -388,3 +388,113 @@ log:
       id: c1a7f2d0-4b93-4e15-8a62-9d0f3c7e1b48
       kind: log_append
       fingerprint: 0609faf41180787ff36b649b1b801e02
+- id: 9
+  ts: '2026-09-06T00:25:14.964639Z'
+  actor: claude
+  type: decision
+  body: '**Part 2: the core budget is `-n <cores / active gates>`, and it is a reliability
+    change, not a speed-up.** Rejected alternatives and the evidence, all from `scripts/check.py`''s
+    own stage tables, 2026-09-05/06, this machine.
+
+
+    **The measurement, four arms plus a control.** Two checkouts of the same commit
+    in `worktrees/agentjobs-339-a` and `-b`, `python scripts/check.py` in each, started
+    together for the paired arms. pytest-stage seconds:
+
+
+    | Arm | Window UTC | `-n` | pytest |
+
+    |---|---|---|---|
+
+    | one gate | 22:16-22:23 | auto | 489.6 / 299.0 / 268.4 |
+
+    | two gates | 22:31-23:07 | auto | 648.2 / 553.3 / 520.0 / 519.9 / 465.1 / 466.8
+    |
+
+    | two gates | 23:09-23:44 | **16** | 465.2 / 465.5 / 445.5 / 443.5 / 461.6 / 460.5
+    |
+
+    | one gate | 23:45-00:00 | auto | 246.7 / 263.1 / 249.7 |
+
+    | two gates, **control** | 23:57-00:21 | auto | 432.9 / 399.8 / 448.0 / 459.9
+    |
+
+
+    **The naive before/after is wrong and I nearly shipped it.** Rows 2 and 3 read
+    as 529s -> 457s, a 14% win. The one-gate rows either side fell further (352s ->
+    253s): the machine got quieter over the evening and the gain was drift. The control
+    arm is the same paired gates forced back to `-n auto` an hour later -- done by
+    giving each gate its own `AGENTJOBS_HOME` so neither could see the other''s slot
+    file, which needs no code change and is therefore a fair control.
+
+
+    **Against the control the budget costs 5.0% of the pytest stage (435.2s -> 456.9s)
+    and 0.8% of the whole gate (626.8s -> 632.1s)**, the latter inside either arm''s
+    spread.
+
+
+    **What it buys, and why it is worth 5%.** Sampling `\Memory\Available MBytes`
+    and the `python` process set every 12s:
+
+
+    | Arm | peak procs | peak working set | lowest free memory | mean CPU |
+
+    |---|---|---|---|---|
+
+    | 1 gate, auto | 175 | 9.3 GB | 923 MB | 29% |
+
+    | 2 gates, auto (busy) | 282 | 15.9 GB | 159 MB | 39% |
+
+    | 2 gates, auto (quiet) | 213 | 10.7 GB | **6 MB** | 32% |
+
+    | 2 gates, `-n 16` | 146 | 6.4 GB | 1452 MB | 33% |
+
+
+    **Six megabytes free of 64 GB, twice, an hour apart, at a third of the CPU.**
+    Two gates under the budget cost the machine less than one gate did without it,
+    which is the property the rule was chosen for: N gates at 32/N workers is 32 workers
+    whatever N is. **task-233''s premise was wrong** -- it assumed cores ("two gates
+    now compete for the same 32"); at 32% CPU it is memory. The arithmetic happens
+    to be the same, which is why the rule is still right.
+
+
+    Contention also makes the suite *red*, not merely slow: `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`
+    failed with "pid 3393900 survived the timeout" in the unbudgeted paired arm. One
+    observation is not a flake rate and is not claimed as one, but a red gate costs
+    a whole extra launch, which is 100% against the budget''s 5%.
+
+
+    **Rejected: lowering `limits.max_concurrent_runs` to 1.** A real candidate, since
+    the cost being minimised is time-to-review of one task rather than throughput.
+    The numbers refuse it: a lone gate''s pytest stage is ~250s and a budgeted paired
+    one ~457s, so two tasks in parallel still reach review sooner than two in sequence.
+    It is also machine config in `~/.agentjobs/dispatch.yaml`, not this repository,
+    so not mine to change at this posture.
+
+
+    **Rejected: capping the single-gate worker count.** 923 MB free at `-n auto` with
+    no neighbour says there is something here, but `check.py`''s stage internals are
+    task-268''s, per this task''s own out-of-scope.
+
+
+    **Left unmeasured and said so: three concurrent gates**, which is what `max_concurrent_runs`
+    actually allows and where the budget should matter most (96 workers against 30).
+    Two arms of three runs each was already two hours of machine time. docs/performance.md
+    says to measure it rather than extrapolate from this.
+
+
+    **Verified live, not only in tests:** both paired gates printed `Sharing this
+    machine with 2 gates, so pytest runs at -n 16 rather than -n auto (32 cores)`
+    and ran `-m pytest -n 16`; the alone arm printed nothing and ran `-n auto`.
+
+
+    Also found and recorded: **a gate run by hand inside a dispatched session writes
+    into that run''s ledger.** Correct for a real gate, wrong for a measurement harness
+    -- the three alone-arm gates landed in run_86ee86be''s `phases.jsonl` before I
+    scrubbed `AGENTJOBS_RUN_*` for the remaining arms. That run''s gate figures are
+    therefore not a fair sample of its own work.'
+  data:
+    operation:
+      id: 7e4b1c93-2a86-4f07-b5d1-c0e29a63f814
+      kind: log_append
+      fingerprint: 518a2a0ca486a1f1cfdfb895b11b8aec
