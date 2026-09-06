@@ -71,6 +71,12 @@ def no_receipt_from_a_simulated_gate(monkeypatch: pytest.MonkeyPatch) -> list[ob
     monkeypatch.setattr(check.gate_scope, "write_receipt", record)
     monkeypatch.setattr(check.gate_scope, "head_commit", lambda root: "b" * 40)
     monkeypatch.setattr(check.gate_scope, "tree_is_clean", lambda root: True)
+    # Task-339 added two more git queries on the same path -- the tree fingerprint the
+    # ALREADY GREEN notice compares on, and the dirty paths a missing receipt names --
+    # and they go through the same stubbed ``subprocess.run``. Left real, each one adds
+    # commands to the list a test is counting, and the count is the assertion.
+    monkeypatch.setattr(check.gate_scope, "tree_fingerprint", lambda root: "fingerprint")
+    monkeypatch.setattr(check.gate_scope, "dirty_paths", lambda root: [])
     return written
 
 
@@ -217,8 +223,12 @@ class TestPytestOptions:
 
     The suite is 89% of the gate. Serial with coverage it was 540s on this machine;
     serial without, 343s; at ``-n auto``, 43s -- same commit, same 2538 passing. The
-    numbers are in ENGINEERING.md; what is guarded here is that the flags still mean
+    numbers are in docs/performance.md; what is guarded here is that the flags still mean
     what those numbers were measured under.
+
+    Since task-339 the ``-n`` *value* is a placeholder here and is resolved when pytest is
+    about to run, from how many gates share the machine -- see ``tests/test_gate_slots.py``.
+    These tests assert on the flag's presence for that reason, not by accident.
     """
 
     @staticmethod
@@ -604,11 +614,17 @@ class TestWhatEngineeringMdMustStillSay:
     def handbook() -> str:
         return (ROOT / "ENGINEERING.md").read_text(encoding="utf-8")
 
-    def test_every_stage_is_named(self) -> None:
-        """A stage the handbook does not mention is one nobody can ask for by name."""
-        text = self.handbook()
+    def test_every_stage_is_named_where_the_handbook_sends_a_reader(self) -> None:
+        """A stage nothing names is one nobody can ask for by name.
+
+        The list moved to docs/performance.md in task-339 -- the four always-loaded files
+        have a byte budget and a table of measured costs is a poor use of it -- so what is
+        asserted is the pair: the names are somewhere, and the handbook points there.
+        """
+        costs = (ROOT / "docs" / "performance.md").read_text(encoding="utf-8")
         for stage in check.stages():
-            assert f"`{stage.name}`" in text, f"ENGINEERING.md never names {stage.name}"
+            assert f"`{stage.name}`" in costs, f"docs/performance.md never names {stage.name}"
+        assert "docs/performance.md#what-the-gate-costs" in self.handbook()
 
     def test_the_selection_flags_are_documented_as_not_being_the_gate(self) -> None:
         text = self.handbook()
@@ -618,11 +634,34 @@ class TestWhatEngineeringMdMustStillSay:
     def test_the_gate_before_commit_contradiction_stays_resolved(self) -> None:
         """task-189 decided which side wins. Losing the sentence loses the decision.
 
+        The decision is that **no stage of the gate may require a commit**: the two
+        generated checks compare against the working tree, so the files have to be on
+        disk and need not be committed. Task-339 changed the *advice* that used to be
+        bolted onto it -- "run the gate, then commit" -- because a receipt is only issued
+        for a tree that is a commit, and gating the committed rebased branch once is what
+        earns one. The two do not conflict, and this asserts the half that is a decision.
+
         Whitespace is collapsed before matching: this asserts the decision, not the
         column the paragraph happens to wrap at. It used to pin the line break too, and
         task-305 rewrapped the paragraph without touching a word of the rule -- which
         failed the gate and said nothing useful about why.
         """
         text = " ".join(self.handbook().replace("**", "").split())
-        assert "The gate runs before the commit" in text
-        assert "regenerate, run the gate, then commit" in text
+        assert "No stage of the gate may require a commit" in text
+        assert "regenerate before you gate" in text
+        assert "compare against the working tree, never `HEAD`" in text
+
+    def test_the_one_gate_sequence_is_stated_in_order(self) -> None:
+        """task-339. The rule is the *order*, so a summary that loses it is not the rule.
+
+        Runs launched the gate six to nine times each and half of those went red; three
+        of task-336's eight launches are removed by iterating with ``--only`` while a
+        stage is red and gating the committed, rebased branch exactly once.
+        """
+        text = " ".join(self.handbook().replace("**", "").split())
+        assert "#### One gate per handoff" in self.handbook()
+        assert "A branch is gated once" in text
+        for step in ("iterate with `--only", "Commit, then rebase onto `main`", "Hand off"):
+            assert step in text, step
+        # And the sentence that used to read as one gate per commit.
+        assert "not a gate per commit" in text

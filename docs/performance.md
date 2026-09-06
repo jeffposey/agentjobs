@@ -135,11 +135,35 @@ actually run it.
 
 ## What the gate costs
 
-The stage table and the rules for running the gate are in
-[ENGINEERING.md §Testing](../ENGINEERING.md#testing). What follows is the measurement
-history behind the numbers quoted there — kept because a performance claim is only
-checkable if the run that produced it is on the record, and moved here because a session
-that is about to commit does not need it.
+The rules for *running* the gate are in
+[ENGINEERING.md §Testing](../ENGINEERING.md#testing). The stage table and the measurement
+history live here — kept because a performance claim is only checkable if the run that
+produced it is on the record, and here rather than there because a session that is about
+to commit does not need it, and because the four always-loaded files have a byte budget
+(`tests/test_context_budget.py`) that a table of numbers is a poor use of.
+
+### The stages, and what each cost
+
+One green `poetry run python scripts/check.py` on this machine, 2026-08-21, with nothing
+else competing for it. Read the bottom of your own run rather than quoting these; the
+gate prints the same table every time, which is the whole point of printing it.
+
+| # | Stage | What it checks | Cost |
+|---|---|---|---|
+| 1 | `black` | Python formatting | 0.6s |
+| 2 | `ruff` | Python lint | 0.1s |
+| 3 | `mypy` | Python types | 1.5s |
+| 4 | `api` | `openapi.json` and the generated client both match the app | 4.2s |
+| 5 | `icons` | the committed PWA icons match `assets/app-icon.svg` | 2.8s |
+| 6 | `oxlint` | frontend lint | 0.6s |
+| 7 | `pytest` | the Python suite, across every core | 52.1s |
+| 8 | `vitest` | the jsdom component tests | 5.2s |
+| 9 | `build` | `tsc --noEmit` and the production bundle | 3.7s |
+| 10 | `e2e` | the Playwright suite against a live server | 25.0s |
+| | | | **95.8s** |
+
+MyPy is the one stage whose cost moves for a reason unrelated to load: under two seconds
+against a warm cache, about nineteen seconds on the first run after a checkout.
 
 ### The three figures, and which to quote
 
@@ -212,6 +236,131 @@ Two conclusions follow from the parallel column:
 - **A run's summed gate time can exceed its own duration, and that is not a bug.**
   `run_report.py` reports what the phase records say; overlapping gates make the
   percentage a sum, not a share of a timeline. The report flags it when it happens.
+
+#### The core budget, before and after (task-339, 2026-09-05)
+
+Two checkouts of the same commit in `worktrees/agentjobs-339-a` and `-b`, each running
+the unqualified gate; for the paired arms both were started at the same moment and the
+per-stage figures come from each gate's own printed table. Three runs per arm, and the
+paired arms were run adjacent in time so machine drift is least able to explain the gap:
+
+```
+python scripts/check.py            # in each worktree, concurrently for the paired arms
+```
+
+| Arm | Window (UTC) | `-n` | pytest stage, seconds | Whole gate, seconds |
+|---|---|---|---|---|
+| One gate | 22:16–22:23 | auto (32) | 489.6 / 299.0 / 268.4 | 750.5 / 473.4 / 409.8 |
+| Two gates | 22:31–23:07 | auto (32) each | 648.2 / 553.3 / 520.0 / 519.9 / 465.1 / 466.8 | 666.1 / 818.3 / 727.2 / 727.3 / 666.2 / 666.4 |
+| Two gates | 23:09–23:44 | **16 each** | 465.2 / 465.5 / 445.5 / 443.5 / 461.6 / 460.5 | 654.6 / 651.6 / 613.2 / 619.1 / 624.1 / 624.2 |
+| One gate | 23:45–00:00 | auto (32) | 246.7 / 263.1 / 249.7 | 401.6 / 403.3 / 388.2 |
+| Two gates, **control** | 23:57–00:21 | auto (32) each | 432.9 / 399.8 / 448.0 / 459.9 | 606.4 / 609.0 / 643.2 / 645.5 |
+
+Six figures per paired arm because both gates in a pair are a measurement.
+
+**Read the control row, not the first two.** The naive before/after — rows 2 and 3 —
+shows the paired pytest stage falling 529s to 457s, and **that reading is wrong**: the
+one-gate rows either side of it fell by more (352s to 253s), so the machine simply got
+quieter over the evening and the apparent gain is drift. This is the failure this file
+exists to prevent, and it was nearly written down as a 14% win. The control arm is the
+same paired gates forced back to `-n auto` an hour later, on the machine as it then was.
+
+Against the control, the budget is:
+
+| | pytest stage, mean | Whole gate, mean | Lowest free memory |
+|---|---|---|---|
+| Two gates, `-n auto` | 435.2s | 626.8s | **6 MB** |
+| Two gates, `-n 16` | 456.9s (+5.0%) | 632.1s (+0.8%) | 1452 MB |
+
+**So this is a reliability change, not a speed-up, and it is priced accordingly.** It
+costs 5% of the pytest stage and nothing distinguishable on the whole gate — 626.8s
+against 632.1s, well inside either arm's own spread — and it buys back the machine:
+
+| Arm | Peak `python` processes | Peak working set | Lowest free memory | Mean CPU |
+|---|---|---|---|---|
+| One gate, `-n auto` | 175 | 9.3 GB | 923 MB | 29% |
+| Two gates, `-n auto` (busy machine) | 282 | 15.9 GB | 159 MB | 39% |
+| Two gates, `-n auto` (quiet machine) | 213 | 10.7 GB | **6 MB** | 32% |
+| Two gates, `-n 16` | **146** | **6.4 GB** | **1452 MB** | 33% |
+
+**Six megabytes free of 64 GB**, twice, an hour apart, at a third of the CPU. Two gates
+under the budget cost the machine less than one gate did without it, which is the
+property the rule was chosen for rather than a surprise: N gates at `32/N` workers is 32
+workers whatever N is. Sampling is every twelve seconds, so the peaks are floors.
+
+The 5% is worth it because the failure it removes is not gradual. A red gate costs a
+whole extra launch, and one of the six unbudgeted paired gates went red on
+`TestProcessGroup`'s timeout assertion — a timing test losing to a paging machine, not a
+defect in the code under it. One observation is not a flake rate, and it is not claimed
+as one; what is claimed is that a machine held at single-digit megabytes has no headroom
+for the third dispatched run this machine is configured to allow.
+
+**Not measured: three concurrent gates**, which is `limits.max_concurrent_runs` and where
+the budget should matter most — 96 workers unbudgeted against 30 budgeted. Two was
+measured because two arms of three runs each was already two hours of machine time. If
+the third slot is ever the case in question, measure it rather than extrapolating this.
+
+**What was rejected.** Lowering `limits.max_concurrent_runs` to 1 was a real candidate,
+since the cost being minimised is time to review of one task rather than machine
+throughput — and the numbers do not support it: a lone gate's pytest stage is ~250s and a
+budgeted paired one ~457s, so two tasks in parallel still reach review sooner than two in
+sequence. It is also machine-level configuration in `~/.agentjobs/dispatch.yaml`, not
+anything in this repository. Capping the *single*-gate worker count is a different lever
+with its own evidence above — 923 MB free at `-n auto` with no neighbour at all — and
+belongs to task-268.
+
+One correction to the row above it while we are here: **task-233 assumed the scarce
+resource was cores**, and said so — "`-n auto` asks for every core, so two gates now
+compete for the same 32". At 32% CPU and six megabytes of memory, it is not cores. That
+mattered for the shape of the fix: a fairness scheme dividing *cores* would have been
+guesswork, whereas capping the machine-wide worker count is the thing that bounds the
+memory, and the two happen to be the same arithmetic.
+
+The red test above is `tests/test_dispatch_runner.py::TestProcessGroup::
+test_the_timeout_kills_the_grandchild_too`, failing with "pid 3393900 survived the
+timeout" — worth naming because a reader who meets it should suspect the machine before
+the code.
+
+### How many gates a run launches (task-339)
+
+Task-233 made one gate cost 96s and the per-task gate bill did not fall, because the
+number nobody had counted was **how many times a run launches it**.
+
+`poetry run python scripts/run_report.py --since 14 --list`, 2026-09-05, completed runs
+with gate records:
+
+| Task | Run | Gates launched | Gate time |
+|---|---|---|---|
+| task-333 | 88m | 7 (3 failed) | 46.0m |
+| task-330 | 104m | 6 (3 failed) | 33.9m |
+| task-336 | 66m | 8 (2 failed, 2 abandoned) | 48.4m |
+| task-328 | 60m | 8 (5 failed) | 21.9m |
+| task-296 | 47m | 8 (3 failed) | 21.4m |
+| task-321 | 80m | 8 (5 failed) | 20.3m |
+| task-337 | 73m | 3 (1 failed) | 15.0m |
+| task-320 | 47m | 2 | 14.4m |
+| task-244 | 67m | 1 (1 failed) | 12.1m |
+
+**Six to nine launches per run, half of them red, 20 to 46 minutes of gate per task.**
+task-336's row reads 8 and 48.4m only since task-339 taught the report to count
+**abandoned** gates — a `gate_started` with no finish, which is a gate the session was
+killed inside or walked away from. It used to read 6 and 31.1m, and the two it dropped
+were the two longest single blocks in the run.
+
+The worked example, from `~/.agentjobs/runs/run_f401cd88/phases.jsonl`: task-336 added a
+tab indicator to the React app, **finished the code 25 minutes in**, and reached review at
+65. In between it ran a full gate on a stage it already knew was red, abandoned a second
+mid-`e2e`, ran a third green, ran a fourth green over identical code (chained by the agent
+as "wait for gate 3, then run the final gate"), then rebased and found `--since-gate`
+could not narrow anything because two untracked sandbox files had stopped gate 4 writing a
+receipt — and paid a sixth full gate for it.
+
+Every one of those is addressed by the sequence in
+[ENGINEERING.md §One gate per handoff](../ENGINEERING.md#one-gate-per-handoff), and the
+two that the prose alone would not have caught now announce themselves: an unqualified
+gate over a tree this run already has a green gate for prints `ALREADY GREEN` with the
+moment it passed, and both the run that fails to earn a receipt and the `--since-gate`
+that goes looking for one name the paths that blocked it.
 
 ### `--since-gate` is kept for the reasoning, not the saving
 

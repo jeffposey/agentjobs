@@ -27,31 +27,17 @@ Run the bootstrap in **any** fresh checkout — a clone or a worktree. It is wha
 source rather than a neighbouring one's.
 
 ### Testing
--   Run the complete repository check before every commit:
+-   The complete repository check is what verifies a branch, and it is run **once**, on
+    the committed rebased branch, immediately before the handoff. See
+    [One gate per handoff](#one-gate-per-handoff) for the sequence and what it costs to
+    get wrong:
     ```bash
     poetry run python scripts/check.py
     ```
--   The gate is ten named stages run **cheapest first**, and it prints what each one
-    cost. Costs below are from one green `poetry run python scripts/check.py` on this
-    machine, 2026-08-21, nothing else competing for it; the history behind them is in
-    [docs/performance.md](docs/performance.md#what-the-gate-costs):
-
-    | # | Stage | What it checks | Cost |
-    |---|---|---|---|
-    | 1 | `black` | Python formatting | 0.6s |
-    | 2 | `ruff` | Python lint | 0.1s |
-    | 3 | `mypy` | Python types | 1.5s |
-    | 4 | `api` | `openapi.json` and the generated client both match the app | 4.2s |
-    | 5 | `icons` | the committed PWA icons match `assets/app-icon.svg` | 2.8s |
-    | 6 | `oxlint` | frontend lint | 0.6s |
-    | 7 | `pytest` | the Python suite, across every core | 52.1s |
-    | 8 | `vitest` | the jsdom component tests | 5.2s |
-    | 9 | `build` | `tsc --noEmit` and the production bundle | 3.7s |
-    | 10 | `e2e` | the Playwright suite against a live server | 25.0s |
-    | | | | **95.8s** |
-
-    MyPy is the one stage whose cost moves: under two seconds against a warm cache, about
-    nineteen seconds on the first run after a checkout.
+-   The gate is ten named stages run **cheapest first**, and every run prints what each
+    one cost — so the current per-stage table is the bottom of any gate rather than a
+    number in this file. Stages, costs and history:
+    [docs/performance.md](docs/performance.md#what-the-gate-costs).
 
     ```bash
     poetry run python scripts/check.py --coverage   # the gate, plus coverage and htmlcov/
@@ -65,17 +51,14 @@ source rather than a neighbouring one's.
 
     Use focused pytest or npm commands while iterating, but do not substitute them for
     the gate. A hand-run `pytest` is serial and measures no coverage: `addopts` is empty,
-    and `-n auto` is passed by the gate rather than configured globally, because xdist
+    and `-n` is passed by the gate rather than configured globally, because xdist
     costs more than it saves on a small selection and its interleaved output is the wrong
     trade when you are reading one failure.
--   **The cheapest stage runs first, whatever the slowest one currently costs.**
-    Format, lint and types catch what pytest never will, and there is no reason to wait
-    on the test suite to be told about a misformatted file. The ordering costs nothing,
-    and the gap it exploits reappears the moment a slow stage is added (task-189,
-    task-233).
--   The checks are *in* the gate rather than only in the pre-commit list below because a
-    list nothing enforces is a statement of intent. Task-166 is the incident: a `mypy`
-    that aborted before checking a file, and a Black drift on `main`, both long-lived.
+-   **The cheapest stage runs first, whatever the slowest one currently costs**, and the
+    checks are *in* the gate rather than only in a pre-commit list, because a list nothing
+    enforces is a statement of intent. Both arguments, with the incidents behind them, are
+    in [docs/performance.md](docs/performance.md#why-the-cheap-stages-run-first) and in
+    `scripts/check.py`.
 -   Two orderings are real dependencies rather than preferences, and stay: `build` writes
     the bundle `e2e` drives, and `api` exports the OpenAPI document before anything
     compares a generated client against it. Every other stage's position is purely a
@@ -93,9 +76,9 @@ source rather than a neighbouring one's.
     both at the end — so a green from `--from e2e` cannot be reported as a green from the
     gate.
 -   **`--since-gate` is the one sanctioned exception to the sentence above, and its
-    boundary is narrow.** It answers "does this run need to happen at all" — the question
-    task-221 asked after a rebase brought in a single task YAML and cost a full six-minute
-    gate to re-establish something that could not have changed.
+    boundary is narrow.** It answers "does this run need to happen at all" — task-221's
+    question, and the [reasoning is kept](docs/performance.md#--since-gate-is-kept-for-the-reasoning-not-the-saving)
+    even though the sequence above has largely superseded the saving.
 
     ```bash
     poetry run python scripts/check.py --since-gate
@@ -117,33 +100,55 @@ source rather than a neighbouring one's.
         task file" is not a safe skip: `tests/test_validate.py::TestRealCorpus` loads this
         repository's own records, so a task YAML genuinely can turn the suite red — which
         is why `tasks/` maps to `pytest` rather than to nothing.
-    4.  **The output is the claim, in full.** A reduced run prints `NECESSITY RUN`, the
-        commit it diffed against, every changed path with the rule that matched it, and
-        every stage it skipped. It never prints "Ran every stage". An unchanged tree
-        prints `NOTHING CHANGED` and runs nothing.
+    4.  **The output is the claim, in full** — `NECESSITY RUN`, the commit it diffed
+        against, every changed path with the rule that matched it, every skipped stage.
+        It never prints "Ran every stage"; an unchanged tree prints `NOTHING CHANGED`.
 
     A green `--since-gate` on a clean tree issues its own receipt, naming the receipt it
     derived from, so a chain of them is auditable. `--only` and `--from` never issue one —
     a partial green is not the gate's green, which is the same rule `PARTIAL RUN` states.
--   **The gate runs before the commit, so no stage of it may require one.** The two
-    generated checks — `openapi.json` and `src/api/generated/` — compare against **the
-    working tree**, never `HEAD`: they ask whether the files on disk match what the
-    application produces (task-189). So: **regenerate, run the gate, then commit.** The
+-   **No stage of the gate may require a commit.** The two generated checks —
+    `openapi.json` and `src/api/generated/` — compare against **the working tree**, never
+    `HEAD`: they ask whether the files on disk match what the application produces
+    (task-189). So **regenerate before you gate**, whether or not you have committed. The
     `api` stage names `frontend/src/api/generated` when those files are uncommitted, and
     does not fail — `git add` takes explicit paths here, and generated output is what
     that habit forgets.
--   Budget **about a minute and a half when you have the machine to yourself**, and
-    **about two and a half when you do not** — several agents work this repository at
-    once and this machine allows three dispatched runs, so overlapping gates are the
-    normal case. Under three-way contention a gate has been measured at around six
-    minutes. Degradation here has always been gradual with no cliff, so **a gate taking
-    longer than you expected is working, not stuck**; the figures and how they were
-    obtained are in [docs/performance.md](docs/performance.md#what-the-gate-costs).
-
-    Concurrent gates are only safe at all because each checkout derives its own
-    Playwright and benchmark ports from its own path (task-187); if you see a port
-    collision, that is a bug and not a reason to serialise.
+-   **Overlapping gates are the normal case** — this machine allows three dispatched runs
+    — and a contended gate costs a multiple of a lone one, so **a gate taking longer than
+    you expected is working, not stuck**. Since task-339 the pytest stage divides the
+    machine between the gates it can see rather than each asking for all 32 cores; the
+    figures are in
+    [docs/performance.md](docs/performance.md#how-the-gate-degrades-under-contention).
+    Concurrency is safe at all only because each checkout derives its own Playwright and
+    benchmark ports from its path (task-187); a collision is a bug, not a reason to
+    serialise.
 -   Ensure high test coverage for core logic (`manager.py`, `storage.py`).
+
+#### One gate per handoff
+
+**A branch is gated once.** Task-339 measured the alternative across a fortnight of
+dispatched runs: **six to nine gate launches per run, half of them red**, and 20 to 46
+minutes of gate in every task —
+[the corpus](docs/performance.md#how-many-gates-a-run-launches-task-339).
+
+The sequence, in the order that costs one gate:
+
+1.  While a named stage is red, iterate with `--only <stage>`. Never a whole gate to
+    re-learn what you already know.
+2.  Commit, then rebase onto `main`.
+3.  `scripts/check.py`, no arguments, **once**, on the resulting clean tree.
+4.  Hand off.
+
+Committing *before* that run is deliberate: a receipt is only written for a tree that is
+a commit, so a green gate over a couple of scratch files earns nothing — both ends now
+name the files that blocked one.
+
+**"Tests pass before every commit" is not a gate per commit.** Keep commits green by
+running what your change can break; the one unqualified gate before the handoff speaks
+for the branch. A gate whose ledger already holds a green unqualified run on this exact
+tree — commit, patch and untracked files alike — says so at the top of its output and
+**runs anyway**: a refusal would be a new way to be stuck.
 
 ### Measuring performance
 -   Two tools, both documented in [docs/performance.md](docs/performance.md):
@@ -171,10 +176,10 @@ with one section cut out of the second arm. **Run it on a new model release too*
 that is load-bearing for one generation may be redundant with the next model's defaults,
 which is why a verdict here carries a model id and a date.
 
-It is deliberately **not** in `scripts/check.py` — it costs tens of minutes and real money,
-and a gate stage like that gets disabled within a week. Its cheap half is: `tests/test_context_eval.py`
-fails when a case's target heading has been renamed or its rule restated somewhere the
-ablation does not reach, which is how the suite would otherwise rot.
+It is deliberately **not** a gate stage: it costs tens of minutes and real money, and a
+stage like that gets disabled within a week. `tests/test_context_eval.py` is its cheap
+half, failing when a case's target has been renamed or its rule restated out of the
+ablation's reach.
 
 ### Code Style
 -   **Formatter**: Black
@@ -284,7 +289,8 @@ is missing something you expect, check what is checked out before filing anythin
     is your own mess when you are alone and someone else's work when you are not.
 -   One logical change per commit. If the commit message needs the word "and", it is
     probably two commits.
--   Tests pass before every commit, not just at the end of the branch.
+-   Tests pass before every commit — what your change can break, not the whole gate. The
+    branch is gated once, before the handoff; see [One gate per handoff](#one-gate-per-handoff).
 -   Keep mechanical changes (reformatting, renames) in their own commits so they do not
     bury reviewable logic.
 -   Explain *why* in the body when the change is not self-evident; the diff already

@@ -154,12 +154,16 @@ are not working it — you are supervising, you take no worktree, and
 3.  **Work**: Small, single-logical-change commits with tests green before each one.
     Stage explicit paths — never `git add -A`.
 4.  **Verify**: Run `poetry run pytest` and exercise the change the way a user would —
-    a passing suite is not by itself evidence the feature works. While iterating on a
-    late gate failure, `scripts/check.py --from <stage>` picks up where it stopped
-    instead of paying for the stages that already passed; `--list` names them. **Neither
-    that nor `--only` is the gate.** A partial run prints `PARTIAL RUN` and the stages it
-    skipped, at the start and again at the end, precisely so its green cannot be reported
-    as the gate's — before a commit, run `scripts/check.py` with no arguments.
+    a passing suite is not by itself evidence the feature works. While a named stage is
+    red, iterate with `scripts/check.py --only <stage>`; `--from <stage>` picks up where
+    a late failure stopped instead of paying for the stages above it, and `--list` names
+    them. **Neither is the gate.** A partial run prints `PARTIAL RUN` and every stage it
+    skipped, at both ends, so its green cannot be reported as the gate's.
+
+    **Then gate the branch once.** Commit, rebase onto `main` (step 5), and run
+    `scripts/check.py` with no arguments on the result — one unqualified gate per task,
+    before the handoff, never one per commit:
+    [One gate per handoff](ENGINEERING.md#one-gate-per-handoff).
 5.  **Hand off**: **rebase onto `main` first** — see
     [How long a branch should live](ENGINEERING.md#how-long-a-branch-should-live); your
     branch has probably been open for hours and a conflict is far cheaper now, while you

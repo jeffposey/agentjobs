@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 # collision, which is the failure task-166 spent a session on. `gate_scope` is checked on
 # its own merits as a top-level module either way.
 import gate_scope  # type: ignore[import-not-found] # noqa: E402
+import gate_slots  # type: ignore[import-not-found] # noqa: E402
 
 # The one setup problem an activated virtualenv can explain, and so the only one its
 # remedy should be offered for.
@@ -182,10 +184,22 @@ def remedy(problems: list[str]) -> str:
 PYTHON = "python"
 NPM = "npm"
 
-PARALLEL_ARGS = ("-n", "auto")
-"""Run the Python suite across every core, via pytest-xdist.
+WORKERS_TOKEN = "@workers"
+"""Stands in for the ``-n`` value until the moment pytest is about to be launched.
 
-The suite is 2538 tests and 89% of the gate. It is also, as of task-233, parallel-safe:
+The number depends on how many gates are running on this machine *then*, not on how many
+were running when this one started: the cheap block is seconds and pytest is minutes, so
+a neighbour that arrives during Black would otherwise be invisible to the only stage that
+cares. `stages()` therefore describes the pytest command without deciding this, and
+`command_for` fills it in. See `scripts/gate_slots.py`.
+"""
+
+PARALLEL_ARGS = ("-n", WORKERS_TOKEN)
+"""Run the Python suite across the cores this gate is entitled to, via pytest-xdist.
+
+The suite is the better part of the gate -- 3981 tests on 2026-09-05, against 2538 when
+task-233 measured it, which is why a bare count does not belong in prose. It is also,
+as of task-233, parallel-safe:
 `tests/conftest.py` gives every test its own project registry, its own Claude home and a
 stubbed reachability probe, and nothing in it binds a fixed port -- the four places that
 open a socket ask the kernel for port 0. Measured on this 32-core machine, same commit,
@@ -195,6 +209,14 @@ Parallelism lives here rather than in `pyproject.toml`'s `addopts` so that the *
 parallel while a hand-run `pytest -k something` stays serial. That is the right split in
 both directions: xdist costs more than it saves on a handful of tests, and its
 interleaved output is worse to read when you are debugging one.
+
+**`auto` is every core, and this machine runs three agents at once** (task-339). What two
+concurrent gates run out of is not cores but memory: measured 2026-09-05, two at `-n auto`
+drove free memory on this 64GB machine to **6MB** at 32% CPU. `gate_slots.workers`
+therefore resolves `@workers` to `auto` when this gate is alone -- byte for byte what it
+was -- and to a share of the machine when it is not, which holds the machine-wide worker
+count at one gate's however many are running. It buys reliability, not speed: 5% of this
+stage and 0.8% of the whole gate. See `scripts/gate_slots.py` and docs/performance.md.
 
 `--serial` turns it off for the case where the interleaving is the problem.
 """
@@ -276,6 +298,26 @@ def stages(*, coverage: bool = False, parallel: bool = True) -> list[Stage]:
         Stage("build", (NPM, "run", "build"), FRONTEND, "typecheck and production build"),
         Stage("e2e", (NPM, "run", "test:e2e"), FRONTEND, "Playwright, against a live server"),
     ]
+
+
+def command_for(stage: Stage, npm: str) -> tuple[list[str], str | None]:
+    """One stage's argv, with the worker budget decided as late as it can be.
+
+    Returns the command and, when the budget bit, a line saying so. Every failure inside
+    `gate_slots` lands here as the default: `-n auto`, which is what the gate did before
+    task-339. Instrumentation that can break the thing it measures is worse than none,
+    and a core budget that can refuse a gate is a new way for an agent to be stuck.
+    """
+    command = stage.command(npm)
+    if WORKERS_TOKEN not in command:
+        return command, None
+    try:
+        gates = gate_slots.active()
+        value = gate_slots.workers(gates=gates)
+        note = gate_slots.note(value, gates)
+    except Exception:  # noqa: BLE001 - see the docstring; never fail the gate over this
+        value, note = "auto", None
+    return [value if arg == WORKERS_TOKEN else arg for arg in command], note
 
 
 def select(all_stages: list[Stage], only: list[str], start: str | None) -> list[Stage]:
@@ -360,6 +402,90 @@ def record_phase(kind: str, **fields: object) -> None:
         return
 
 
+def own_phases() -> list[dict[str, object]]:
+    """This run's phase records, or an empty list when this is not a dispatched run.
+
+    Symmetrical with `record_phase`, and swallowing for the same reason: a gate that
+    could not read its own ledger should run, not stop.
+    """
+    try:
+        from agentjobs.dispatch.phases import current_run, read_phases
+
+        directory = current_run()
+        return [] if directory is None else read_phases(directory)
+    except Exception:  # noqa: BLE001 - see the docstring
+        return []
+
+
+def ago(when: str, now: datetime | None = None) -> str | None:
+    """How long ago an ISO timestamp was, in the coarsest unit that is still true.
+
+    The age is the number a reader acts on -- "six seconds ago" and "two hours ago" are
+    the difference between a wasted gate and a reasonable re-run -- and a bare timestamp
+    makes them do the arithmetic. Unparseable or in the future returns None rather than a
+    negative age, which would read as nonsense in the middle of a banner.
+    """
+    try:
+        moment = datetime.fromisoformat(when)
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    seconds = ((now or datetime.now(timezone.utc)) - moment).total_seconds()
+    if seconds < 0:
+        return None
+    if seconds < 90:
+        return f"{seconds:.0f} seconds ago"
+    if seconds < 5400:
+        return f"{seconds / 60:.0f} minutes ago"
+    return f"{seconds / 3600:.1f} hours ago"
+
+
+def already_green(
+    fingerprint: str | None,
+    records: list[dict[str, object]],
+    now: datetime | None = None,
+) -> str | None:
+    """Say when this run has already gated this exact tree and kept the answer.
+
+    task-336 ran a full gate at 20:00, a second full gate at 20:07 over identical code --
+    the agent chained them as "wait for gate 3, then run the final gate" -- and a sixth
+    at 20:20. Twelve of that run's sixty-five minutes bought a result it already had, and
+    nothing in the output of the later runs said so.
+
+    **This warns; it never refuses** (task-339's constraint). A gate that declines to run
+    is a new way for an agent to be stuck, and there are legitimate reasons to re-run one
+    -- a flake, a changed environment, a neighbour that has since gone away. The point is
+    that the transcript, and the reader of it, can see the sentence.
+
+    Scoped to unqualified runs on both sides. A partial run's green says nothing about
+    the tree, which is the same rule `PARTIAL RUN` states, and no receipt is issued for
+    one either.
+    """
+    if fingerprint is None:
+        return None
+    for record in reversed(records):
+        if record.get("kind") != "gate_finished":
+            continue
+        if record.get("scope") != "full" or not record.get("passed"):
+            continue
+        if record.get("tree") != fingerprint:
+            continue
+        when = str(record.get("ts") or "")
+        seconds = record.get("seconds")
+        detail = [part for part in (when, f"{seconds}s" if seconds else "") if part]
+        age = ago(when, now) if when else None
+        finished = f"It finished {age}" if age else "It finished earlier in this run"
+        return (
+            "ALREADY GREEN: this run's ledger holds a full gate that passed on this "
+            f"exact tree.\n{finished} ({', '.join(detail)}), and nothing tracked or "
+            "untracked has changed\nsince. Running anyway -- but see ENGINEERING.md, "
+            "'One gate per handoff': iterate\nwith --only while a stage is red, then gate "
+            "the rebased, committed branch once."
+        )
+    return None
+
+
 def issue_receipt(basis: str | None) -> str:
     """Attest that this checkout's gate is satisfied at HEAD, and say what happened.
 
@@ -375,10 +501,16 @@ def issue_receipt(basis: str | None) -> str:
     if commit is None:
         return "No gate receipt written: this is not a git checkout."
     if not gate_scope.tree_is_clean(ROOT):
-        return (
+        # Naming the paths is the whole of task-339's change here. task-336's fourth
+        # green gate wrote no receipt because two untracked sandbox files were lying
+        # about, said nothing, and the --since-gate seven minutes later fell back to all
+        # ten stages for want of the receipt it would have had.
+        lines = [
             "No gate receipt written: the working tree is dirty, so there is no commit "
-            "this green run attests to. Commit, then run the gate again to earn one."
-        )
+            "this green run attests to.",
+            *gate_scope.render_dirty(gate_scope.dirty_paths(ROOT)),
+        ]
+        return "\n".join(lines)
     if gate_scope.write_receipt(ROOT, commit, basis=basis) is None:
         return "No gate receipt written: the git directory is not writable."
     derived = f", derived from {basis[:8]}" if basis else ""
@@ -497,52 +629,72 @@ def main(argv: list[str] | None = None) -> int:
         # run and nothing new to attest to, so the existing receipt stands.
         return 0
 
+    # What this run is about to verify, identified exactly: the commit, the patch against
+    # it, and every untracked file's contents. Recorded on the finish so a later gate in
+    # the same run can recognise that it is being asked the same question twice.
+    fingerprint = gate_scope.tree_fingerprint(ROOT)
+    if kind == "full":
+        repeat = already_green(fingerprint, own_phases())
+        if repeat is not None:
+            print(f"\n{repeat}", flush=True)
+
     record_phase(
         "gate_started",
         scope=kind,
         stages=[stage.name for stage in selected],
         stages_total=len(all_stages),
+        tree=fingerprint,
     )
     began = time.perf_counter()
 
     timings: list[tuple[str, float]] = []
-    for position, stage in enumerate(selected, start=1):
-        started = time.perf_counter()
-        # One record per stage, so a watcher can say "pytest, 7 of 10" rather than
-        # "running". The gate is the better part of three minutes of a scripted finish
-        # and was, until task-321, one silent block from the outside: the only records
-        # were the two around the whole of it.
-        record_phase("gate_stage_started", stage=stage.name, index=position, total=len(selected))
-        try:
-            run(stage.command(npm), cwd=stage.cwd)
-        except subprocess.CalledProcessError as exc:
+    # The slot is held for the whole gate rather than for the pytest stage alone, so a
+    # neighbour deciding its own budget can see this gate coming while it is still in the
+    # cheap block. See `scripts/gate_slots.py`.
+    with gate_slots.hold(ROOT):
+        for position, stage in enumerate(selected, start=1):
+            started = time.perf_counter()
+            # One record per stage, so a watcher can say "pytest, 7 of 10" rather than
+            # "running". The gate is the better part of three minutes of a scripted
+            # finish and was, until task-321, one silent block from the outside: the only
+            # records were the two around the whole of it.
+            record_phase(
+                "gate_stage_started", stage=stage.name, index=position, total=len(selected)
+            )
+            command, budget = command_for(stage, npm)
+            if budget is not None:
+                print(f"\n{budget}", flush=True)
+            try:
+                run(command, cwd=stage.cwd)
+            except subprocess.CalledProcessError as exc:
+                timings.append((stage.name, time.perf_counter() - started))
+                record_phase(
+                    "gate_finished",
+                    scope=kind,
+                    passed=False,
+                    seconds=round(time.perf_counter() - began, 1),
+                    stages_run=len(timings),
+                    stages_total=len(all_stages),
+                    failed_stage=stage.name,
+                    tree=fingerprint,
+                )
+                print(f"\nFailed at stage '{stage.name}'.", file=sys.stderr)
+                if len(timings) > 1:
+                    print(
+                        f"Fix it, then resume with `--from {stage.name}` instead of paying "
+                        "for the stages above a second time.",
+                        file=sys.stderr,
+                    )
+                print(f"\n{format_timings(timings)}", flush=True)
+                return exc.returncode
             timings.append((stage.name, time.perf_counter() - started))
             record_phase(
-                "gate_finished",
-                scope=kind,
-                passed=False,
-                seconds=round(time.perf_counter() - began, 1),
-                stages_run=len(timings),
-                stages_total=len(all_stages),
-                failed_stage=stage.name,
+                "gate_stage_finished",
+                stage=stage.name,
+                index=position,
+                total=len(selected),
+                seconds=round(timings[-1][1], 1),
             )
-            print(f"\nFailed at stage '{stage.name}'.", file=sys.stderr)
-            if len(timings) > 1:
-                print(
-                    f"Fix it, then resume with `--from {stage.name}` instead of paying "
-                    "for the stages above a second time.",
-                    file=sys.stderr,
-                )
-            print(f"\n{format_timings(timings)}", flush=True)
-            return exc.returncode
-        timings.append((stage.name, time.perf_counter() - started))
-        record_phase(
-            "gate_stage_finished",
-            stage=stage.name,
-            index=position,
-            total=len(selected),
-            seconds=round(timings[-1][1], 1),
-        )
 
     record_phase(
         "gate_finished",
@@ -551,6 +703,7 @@ def main(argv: list[str] | None = None) -> int:
         seconds=round(time.perf_counter() - began, 1),
         stages_run=len(timings),
         stages_total=len(all_stages),
+        tree=fingerprint,
     )
 
     # A receipt is earned by a run that skipped nothing it was not entitled to skip: a

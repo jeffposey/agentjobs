@@ -26,7 +26,7 @@ ablate:
     - {file: ENGINEERING.md, pattern: "partial green"}
     - {file: ALLAGENTS.md, pattern: "unqualified"}
     - {file: ALLAGENTS.md, pattern: "PARTIAL RUN"}
-    - {file: ALLAGENTS.md, pattern: "nor `--only` is the gate"}
+    - {file: ALLAGENTS.md, pattern: "Neither is the gate"}
 
 residual_forbidden:
   - "unqualified"

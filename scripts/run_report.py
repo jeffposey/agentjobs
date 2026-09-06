@@ -53,7 +53,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -78,6 +78,7 @@ a constant; ``--gap-ceiling`` moves it when that stops being true.
 """
 
 HOME_ENV = "AGENTJOBS_HOME"
+GATE_STARTED = "gate_started"
 GATE_FINISHED = "gate_finished"
 FINISHES_DIRNAME = "finishes"
 
@@ -116,6 +117,16 @@ class Gate:
     stages_run: int
     stages_total: int
     failed_stage: Optional[str]
+
+    abandoned: bool = False
+    """Started and never finished: killed, timed out, or the session moved on (task-339).
+
+    Its ``seconds`` is a floor rather than a measurement -- the elapsed time to the next
+    thing the run did -- and every aggregate that uses it says so. Counting these is not
+    bookkeeping: task-336 launched eight gates and ``gate_finished`` recorded six, so the
+    report said 31.1 minutes of gate against the 48.4 the run actually paid, and the two
+    invisible gates were the two longest single blocks in the run.
+    """
 
 
 @dataclass(frozen=True)
@@ -186,8 +197,12 @@ class Run:
 
     @property
     def wasted_gate_seconds(self) -> float:
-        """Time in gate runs that failed. Real work, but not progress you keep."""
+        """Time in gate runs that failed or were abandoned. Not progress you keep."""
         return sum(gate.seconds for gate in self.gates if not gate.passed)
+
+    @property
+    def abandoned_gates(self) -> int:
+        return sum(1 for gate in self.gates if gate.abandoned)
 
     @property
     def gates_overlapped(self) -> bool:
@@ -203,34 +218,118 @@ class Run:
         return self.seconds is not None and self.gate_seconds > self.seconds
 
 
-def read_gates(directory: Path) -> List[Gate]:
-    """Every completed gate run recorded in a run directory.
+def _abandoned_seconds(records: Sequence[Dict[str, Any]], start: int, end: int) -> Optional[float]:
+    """How long a gate that never finished was demonstrably alive for.
 
-    A ``gate_started`` with no matching finish is a gate the run was killed in the
-    middle of. It contributes nothing here rather than being measured to the run's end:
-    reporting an unknown duration as a number is the failure mode
-    ``RunRecord.elapsed_seconds`` already refuses, and this should not reintroduce it
-    one directory over.
+    The floor is the elapsed time from its ``gate_started`` to the next thing the run
+    recorded -- normally the ``gate_started`` of whatever the session ran instead. It is
+    a floor and not a measurement, because nothing wrote down the moment the gate died;
+    what is known is that the run was inside it until the next record exists.
+
+    Checked against task-336: its abandoned gate at 19:50:12 is followed by a
+    ``gate_started`` at 20:00:24, giving 612s -- which is the Bash tool's 600-second cap
+    plus start-up, and matches the ten-minute hole in that run's timeline exactly.
     """
-    gates: List[Gate] = []
-    for record in read_phases(directory):
-        if record.get("kind") != GATE_FINISHED:
+    began = as_moment(records[start].get("ts"))
+    if began is None:
+        return None
+    after = records[end] if end < len(records) else (records[-1] if records else None)
+    ended = as_moment(after.get("ts")) if after is not None else None
+    if ended is None:
+        return None
+    seconds = (ended - began).total_seconds()
+    return seconds if seconds > 0 else None
+
+
+def read_gates(directory: Path) -> List[Gate]:
+    """Every gate run recorded in a run directory, finished or not.
+
+    A ``gate_started`` with no matching finish is a gate the run was killed in the middle
+    of, and until task-339 it contributed nothing at all. That was the safer of the two
+    errors -- ``RunRecord.elapsed_seconds`` refuses to report an unknown duration as a
+    number, and this should not reintroduce that one directory over -- but it was still
+    an error, and a large one: task-336's two abandoned gates were seventeen of its
+    forty-eight gate minutes, and the report said the run had launched six gates when it
+    had launched eight. A tool built to answer "where does the time go" cannot drop the
+    two longest blocks in the run.
+
+    So they are counted, with the duration marked as the floor it is: ``abandoned=True``,
+    and every aggregate that prints their seconds says which part of the total is a floor.
+    A gate whose start has no timestamp to measure from is still dropped; there the honest
+    answer really is that nothing is known.
+    """
+    records = read_phases(directory)
+    starts = [index for index, record in enumerate(records) if record.get("kind") == GATE_STARTED]
+    consumed: set[int] = set()
+    found: List[Tuple[int, Gate]] = []
+    for position, index in enumerate(starts):
+        end = starts[position + 1] if position + 1 < len(starts) else len(records)
+        finished = next(
+            (
+                offset
+                for offset in range(index + 1, end)
+                if records[offset].get("kind") == GATE_FINISHED
+            ),
+            None,
+        )
+        if finished is not None:
+            consumed.add(finished)
+            gate = _finished_gate(records[finished])
+            if gate is not None:
+                found.append((index, gate))
             continue
-        seconds = record.get("seconds")
-        if not isinstance(seconds, (int, float)):
+        elapsed = _abandoned_seconds(records, index, end)
+        if elapsed is None:
             continue
-        failed_stage = record.get("failed_stage")
-        gates.append(
-            Gate(
-                seconds=float(seconds),
-                passed=bool(record.get("passed")),
-                scope=str(record.get("scope") or "unknown"),
-                stages_run=int(record.get("stages_run") or 0),
-                stages_total=int(record.get("stages_total") or 0),
-                failed_stage=str(failed_stage) if failed_stage else None,
+        started = records[index]
+        # The stage it died in, which is the useful half of "it was killed": task-336's
+        # two both died in e2e, the tenth of ten, having paid for the other nine.
+        inside = [
+            str(records[offset].get("stage"))
+            for offset in range(index + 1, end)
+            if records[offset].get("kind") == "gate_stage_started"
+        ]
+        found.append(
+            (
+                index,
+                Gate(
+                    seconds=elapsed,
+                    passed=False,
+                    scope=str(started.get("scope") or "unknown"),
+                    stages_run=len(inside),
+                    stages_total=int(started.get("stages_total") or 0),
+                    failed_stage=inside[-1] if inside else None,
+                    abandoned=True,
+                ),
             )
         )
-    return gates
+    # A finish with no start in front of it is an old ledger, not a broken one: this
+    # script reads directories written by whatever version dispatched them. Counting it
+    # on the strength of its own record is what the tool did before task-339, and losing
+    # recorded history to a stricter reader would be a poor trade.
+    for index, record in enumerate(records):
+        if record.get("kind") != GATE_FINISHED or index in consumed:
+            continue
+        gate = _finished_gate(record)
+        if gate is not None:
+            found.append((index, gate))
+    return [gate for _, gate in sorted(found, key=lambda pair: pair[0])]
+
+
+def _finished_gate(record: Dict[str, Any]) -> Optional[Gate]:
+    """One ``gate_finished`` record as a ``Gate``, or None when it carries no duration."""
+    seconds = record.get("seconds")
+    if not isinstance(seconds, (int, float)):
+        return None
+    failed_stage = record.get("failed_stage")
+    return Gate(
+        seconds=float(seconds),
+        passed=bool(record.get("passed")),
+        scope=str(record.get("scope") or "unknown"),
+        stages_run=int(record.get("stages_run") or 0),
+        stages_total=int(record.get("stages_total") or 0),
+        failed_stage=str(failed_stage) if failed_stage else None,
+    )
 
 
 def read_run(directory: Path) -> Optional[Run]:
@@ -422,13 +521,30 @@ def summary(runs: List[Run], finishes: Sequence[Finish] = ()) -> str:
             if instrumented_total
             else 0.0
         )
+        abandoned = [gate for run in runs for gate in run.gates if gate.abandoned]
+        # The two per-run figures are the pair task-339 is judged on, so they are printed
+        # rather than left to be divided out of the two lines above. "Launched" is the
+        # word deliberately: it counts the gates that were abandoned as well, which is
+        # the whole of what changed here.
+        per_run = f"{gate_runs / len(instrumented):.1f}" if instrumented else "-"
+        per_run_minutes = minutes(gate_total / len(instrumented)) if instrumented else "-"
         lines += [
             "",
             f"  gate runs             {gate_runs} across {len(instrumented)} instrumented runs",
+            f"  gates launched /run   {per_run}",
             f"  gate time             {hours(gate_total)} "
             f"({share:.0f}% of all run time, {instrumented_share:.0f}% of instrumented)",
-            f"  gate time thrown away {hours(wasted)} in gate runs that failed",
+            f"  gate time /run        {per_run_minutes}",
+            f"  gate time thrown away {hours(wasted)} in gate runs that failed or were "
+            "abandoned",
         ]
+        if abandoned:
+            lines += [
+                f"  gates abandoned       {len(abandoned)} started and never finished, "
+                f"{hours(sum(gate.seconds for gate in abandoned))} at least",
+                "                        (elapsed to the next thing the run recorded, so "
+                "a floor)",
+            ]
         overlapped = [run for run in instrumented if run.gates_overlapped]
         if overlapped:
             lines += [
@@ -905,9 +1021,13 @@ def listing(runs: List[Run]) -> str:
         marker = " (resumed)" if run.resumed else ""
         elapsed = minutes(run.seconds) if run.seconds is not None else "-"
         if run.gates:
-            failed = sum(1 for gate in run.gates if not gate.passed)
-            gates = f"{len(run.gates)} ({minutes(run.gate_seconds)}"
-            gates += f", {failed} failed)" if failed else ")"
+            failed = sum(1 for gate in run.gates if not gate.passed and not gate.abandoned)
+            notes = [minutes(run.gate_seconds)]
+            if failed:
+                notes.append(f"{failed} failed")
+            if run.abandoned_gates:
+                notes.append(f"{run.abandoned_gates} abandoned")
+            gates = f"{len(run.gates)} ({', '.join(notes)})"
         else:
             gates = "-"
         lines.append(
