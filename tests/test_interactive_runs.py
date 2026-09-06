@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import pytest
 import yaml
@@ -27,6 +27,7 @@ from agentjobs.dispatch.interactive import (
     sweep_interactive_runs,
 )
 from agentjobs.dispatch.ledger import (
+    RunRecord,
     DispatchLedger,
     HEALTH_IDLE,
     HEALTH_WORKING,
@@ -87,7 +88,8 @@ def bench(machine):  # noqa: F811 - the poller's machine fixture, reused verbati
     }
 
 
-def _start(bench, *, session_id: str = SESSION, cwd: str = "") -> object:
+def _try_start(bench, *, session_id: str = SESSION, cwd: str = "") -> Optional[RunRecord]:
+    """Claim-time record for this bench's task, or None the way the real caller sees it."""
     task = bench["manager"].get_task(bench["task_id"])
     return start_interactive_run(
         home=bench["home"],
@@ -97,6 +99,13 @@ def _start(bench, *, session_id: str = SESSION, cwd: str = "") -> object:
         actor="claude",
         origin=ORIGIN_CLAIMED,
     )
+
+
+def _start(bench, *, session_id: str = SESSION, cwd: str = "") -> RunRecord:
+    """The same, for the tests that go on to read the record it wrote."""
+    record = _try_start(bench, session_id=session_id, cwd=cwd)
+    assert record is not None, "the fixture's task should have accepted a session"
+    return record
 
 
 def _ledger_rows(bench) -> List[dict]:
@@ -163,7 +172,7 @@ class TestTheRecordExists:
         # A replayed claim, or a dispatched agent claiming on arrival. One live run per
         # task, always -- the same rule the dispatch guard enforces.
         first = _start(bench)
-        assert _start(bench) is None
+        assert _try_start(bench) is None
         assert [run.run_id for run in live_runs(bench["home"])] == [first.run_id]
 
 
