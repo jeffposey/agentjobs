@@ -28,7 +28,7 @@ function TaskListHarness({ projectId }: { projectId: string }) {
   );
   if (tasksQuery.isPending) return <p>loading</p>;
   return (
-    <TaskList tasks={tasksQuery.data ?? []} brokenFiles={[]} projectId={projectId} />
+    <TaskList tasks={tasksQuery.data ?? []} projectId={projectId} />
   );
 }
 
