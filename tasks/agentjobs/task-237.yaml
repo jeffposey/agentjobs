@@ -3,7 +3,7 @@ id: task-237
 title: 'Shell 2: give the Tasks surface two regions and nest the detail route inside
   it'
 created: '2026-08-22T00:39:16.236145Z'
-updated: '2026-09-06T08:54:22.551557Z'
+updated: '2026-09-06T09:06:27.671776Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -535,3 +535,17 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 16
+  ts: '2026-09-06T09:06:27.671539Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-237-two-region-tasks-shell` (b8b27624).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-237.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_1750621b\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-237-two-region-tasks-shell
+    finish_id: fin_1750621b
