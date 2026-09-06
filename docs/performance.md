@@ -237,32 +237,89 @@ Two conclusions follow from the parallel column:
   `run_report.py` reports what the phase records say; overlapping gates make the
   percentage a sum, not a share of a timeline. The report flags it when it happens.
 
-#### What is actually scarce, measured (task-339, 2026-09-05)
+#### The core budget, before and after (task-339, 2026-09-05)
 
-Task-233 assumed cores. It is memory. Sampling `\Memory\Available MBytes` and the
-`python` process set every twelve seconds through the runs below, on a 64 GB machine:
+Two checkouts of the same commit in `worktrees/agentjobs-339-a` and `-b`, each running
+the unqualified gate; for the paired arms both were started at the same moment and the
+per-stage figures come from each gate's own printed table. Three runs per arm, and the
+paired arms were run adjacent in time so machine drift is least able to explain the gap:
 
-| | Peak `python` processes | Peak `python` working set | Lowest free memory | Mean CPU |
+```
+python scripts/check.py            # in each worktree, concurrently for the paired arms
+```
+
+| Arm | Window (UTC) | `-n` | pytest stage, seconds | Whole gate, seconds |
 |---|---|---|---|---|
-| One gate | 175 | 9.3 GB | 923 MB | 29% |
-| Two gates | 282 | 15.9 GB | **159 MB** | 43% |
+| One gate | 22:16–22:23 | auto (32) | 489.6 / 299.0 / 268.4 | 750.5 / 473.4 / 409.8 |
+| Two gates | 22:31–23:07 | auto (32) each | 648.2 / 553.3 / 520.0 / 519.9 / 465.1 / 466.8 | 666.1 / 818.3 / 727.2 / 727.3 / 666.2 / 666.4 |
+| Two gates | 23:09–23:44 | **16 each** | 465.2 / 465.5 / 445.5 / 443.5 / 461.6 / 460.5 | 654.6 / 651.6 / 613.2 / 619.1 / 624.1 / 624.2 |
+| One gate | 23:45–00:00 | auto (32) | 246.7 / 263.1 / 249.7 | 401.6 / 403.3 / 388.2 |
+| Two gates, **control** | 23:57–00:21 | auto (32) each | 432.9 / 399.8 / 448.0 / 459.9 | 606.4 / 609.0 / 643.2 / 645.5 |
 
-**159 MB free of 64 GB, at 43% CPU.** The machine is paging, not queueing for cores,
-which is why the degradation is worse than the 2x that dividing 32 cores between two
-gates would predict — and why the fix is a cap on the *total* number of xdist workers
-alive on the machine rather than a fairness scheme. `-n <cores / active gates>` gives
-exactly that: N gates at 32/N workers each is 32 workers however many gates there are,
-so the machine-wide footprint of the pytest stage stays what a single gate costs.
+Six figures per paired arm because both gates in a pair are a measurement.
 
-Two things fall out that are not about speed:
+**Read the control row, not the first two.** The naive before/after — rows 2 and 3 —
+shows the paired pytest stage falling 529s to 457s, and **that reading is wrong**: the
+one-gate rows either side of it fell by more (352s to 253s), so the machine simply got
+quieter over the evening and the apparent gain is drift. This is the failure this file
+exists to prevent, and it was nearly written down as a 14% win. The control arm is the
+same paired gates forced back to `-n auto` an hour later, on the machine as it then was.
 
-- **Contention makes the suite flaky, not merely slow.** In the two-gate before-arm,
-  `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`
-  failed with "pid 3393900 survived the timeout" — a timing assertion losing to a paging
-  machine. A red gate costs a whole extra launch, so this is part of the six-to-nine.
-- **One gate alone is already close to the edge here** (923 MB free at `-n auto`), with a
-  browser session holding several gigabytes. Lowering the single-gate worker count is a
-  separate lever and belongs to task-268, which owns `check.py`'s stage internals.
+Against the control, the budget is:
+
+| | pytest stage, mean | Whole gate, mean | Lowest free memory |
+|---|---|---|---|
+| Two gates, `-n auto` | 435.2s | 626.8s | **6 MB** |
+| Two gates, `-n 16` | 456.9s (+5.0%) | 632.1s (+0.8%) | 1452 MB |
+
+**So this is a reliability change, not a speed-up, and it is priced accordingly.** It
+costs 5% of the pytest stage and nothing distinguishable on the whole gate — 626.8s
+against 632.1s, well inside either arm's own spread — and it buys back the machine:
+
+| Arm | Peak `python` processes | Peak working set | Lowest free memory | Mean CPU |
+|---|---|---|---|---|
+| One gate, `-n auto` | 175 | 9.3 GB | 923 MB | 29% |
+| Two gates, `-n auto` (busy machine) | 282 | 15.9 GB | 159 MB | 39% |
+| Two gates, `-n auto` (quiet machine) | 213 | 10.7 GB | **6 MB** | 32% |
+| Two gates, `-n 16` | **146** | **6.4 GB** | **1452 MB** | 33% |
+
+**Six megabytes free of 64 GB**, twice, an hour apart, at a third of the CPU. Two gates
+under the budget cost the machine less than one gate did without it, which is the
+property the rule was chosen for rather than a surprise: N gates at `32/N` workers is 32
+workers whatever N is. Sampling is every twelve seconds, so the peaks are floors.
+
+The 5% is worth it because the failure it removes is not gradual. A red gate costs a
+whole extra launch, and one of the six unbudgeted paired gates went red on
+`TestProcessGroup`'s timeout assertion — a timing test losing to a paging machine, not a
+defect in the code under it. One observation is not a flake rate, and it is not claimed
+as one; what is claimed is that a machine held at single-digit megabytes has no headroom
+for the third dispatched run this machine is configured to allow.
+
+**Not measured: three concurrent gates**, which is `limits.max_concurrent_runs` and where
+the budget should matter most — 96 workers unbudgeted against 30 budgeted. Two was
+measured because two arms of three runs each was already two hours of machine time. If
+the third slot is ever the case in question, measure it rather than extrapolating this.
+
+**What was rejected.** Lowering `limits.max_concurrent_runs` to 1 was a real candidate,
+since the cost being minimised is time to review of one task rather than machine
+throughput — and the numbers do not support it: a lone gate's pytest stage is ~250s and a
+budgeted paired one ~457s, so two tasks in parallel still reach review sooner than two in
+sequence. It is also machine-level configuration in `~/.agentjobs/dispatch.yaml`, not
+anything in this repository. Capping the *single*-gate worker count is a different lever
+with its own evidence above — 923 MB free at `-n auto` with no neighbour at all — and
+belongs to task-268.
+
+One correction to the row above it while we are here: **task-233 assumed the scarce
+resource was cores**, and said so — "`-n auto` asks for every core, so two gates now
+compete for the same 32". At 32% CPU and six megabytes of memory, it is not cores. That
+mattered for the shape of the fix: a fairness scheme dividing *cores* would have been
+guesswork, whereas capping the machine-wide worker count is the thing that bounds the
+memory, and the two happen to be the same arithmetic.
+
+The red test above is `tests/test_dispatch_runner.py::TestProcessGroup::
+test_the_timeout_kills_the_grandchild_too`, failing with "pid 3393900 survived the
+timeout" — worth naming because a reader who meets it should suspect the machine before
+the code.
 
 ### How many gates a run launches (task-339)
 

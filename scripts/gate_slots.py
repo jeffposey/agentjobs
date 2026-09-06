@@ -9,18 +9,24 @@ exception here, they are the normal case, and the 96s figure in docs/performance
 machine this project never runs on. Task-336's gates measured 231 / 250 / 289 / 397 / 451
 seconds in the pytest stage against that documented 52.
 
-**What runs out is memory, not cores**, which is why the degradation is worse than the 2x
-that dividing 32 cores between two gates would predict. Sampled on 2026-09-05: one gate
-peaks at 175 ``python`` processes and 9.3GB of working set and leaves 923MB free on a 64GB
-machine; two peak at 282 and 15.9GB and leave **159MB**, with the CPU at 43%. The machine
-is paging. It also goes flaky rather than merely slow -- a timing assertion in
-``TestProcessGroup`` failed in the two-gate arm and cost that gate its whole run.
+**What runs out is memory, not cores**, which task-233 had no way to know: sampled on
+2026-09-05, two concurrent gates at ``-n auto`` drove free memory on this 64GB machine to
+**6MB**, twice, an hour apart, with the CPU at 32%. The suite also goes flaky rather than
+merely slow there -- a timing assertion in ``TestProcessGroup`` failed in that arm and
+cost the gate its whole run.
 
 The fix is a budget rather than a queue. Every gate leaves a small file behind for as long
 as it is running; the pytest stage divides the machine's cores by how many such files it
 can see and asks for that many workers. Nobody waits and nothing is refused. The property
 that matters is not fairness but the total: N gates at ``32/N`` workers each is 32 workers
-whatever N is, so the machine-wide footprint of the pytest stage stays what one gate costs.
+whatever N is, so the machine-wide footprint of the pytest stage stays what one gate costs
+-- 6.4GB and 1452MB free, against 10.7GB and 6MB.
+
+**This is a reliability change and not a speed-up, and it is priced accordingly.**
+Measured against a drift-controlled arm rather than against the earlier one -- the machine
+got quieter over the evening, and the naive before/after read as a 14% win that was not
+there -- it costs 5% of the pytest stage and 0.8% of the whole gate, which is inside
+either arm's own spread. ``docs/performance.md`` has both arms and the control.
 
 Four properties, each of which is a way this could have gone wrong:
 

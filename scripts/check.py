@@ -211,11 +211,12 @@ both directions: xdist costs more than it saves on a handful of tests, and its
 interleaved output is worse to read when you are debugging one.
 
 **`auto` is every core, and this machine runs three agents at once** (task-339). What two
-concurrent gates run out of is not cores but memory: sampled on 2026-09-05, one gate peaks
-at 175 `python` processes and 9.3GB, two peak at 282 and 15.9GB, and free memory on a 64GB
-machine bottoms out at **159MB** while the CPU sits at 43%. `gate_slots.workers` therefore
-resolves `@workers` to `auto` when this gate is alone and to a share of the machine when it
-is not, which holds the machine-wide worker count at one gate's however many are running.
+concurrent gates run out of is not cores but memory: measured 2026-09-05, two at `-n auto`
+drove free memory on this 64GB machine to **6MB** at 32% CPU. `gate_slots.workers`
+therefore resolves `@workers` to `auto` when this gate is alone -- byte for byte what it
+was -- and to a share of the machine when it is not, which holds the machine-wide worker
+count at one gate's however many are running. It buys reliability, not speed: 5% of this
+stage and 0.8% of the whole gate. See `scripts/gate_slots.py` and docs/performance.md.
 
 `--serial` turns it off for the case where the interleaving is the problem.
 """
