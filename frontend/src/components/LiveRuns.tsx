@@ -214,7 +214,10 @@ export function LiveRunsPage({ body }: { body: LiveRunsView | null }) {
           </p>
         ) : (
           <div className="p-2">
-            <ResponsiveTable aria-label="Live runs">
+            {/* Task, Project, State, Running for, Posture. Only the first holds a task
+                title, so only the first is unbounded; the rest are a project name, a
+                badge, an elapsed time and a word. */}
+            <ResponsiveTable aria-label="Live runs" columns={[null, "10rem", "8rem", "8rem", "9rem"]}>
               <thead>
                 <tr>
                   <th scope="col">Task</th>

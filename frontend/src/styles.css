@@ -54,12 +54,25 @@ a {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
+
+  /* The whole table used to be sized by its longest cell. `table-layout: auto` asks
+     every cell how wide it wants to be, so one long task title -- carrying `truncate`,
+     whose `white-space: nowrap` means "as wide as the whole string" -- claimed 1261px
+     of a 1197px viewport and pushed four columns off the right-hand edge, where a
+     horizontal scrollbar nobody looks for was the only way to reach them. Fixed layout
+     is what makes the widths in the `<colgroup>` the answer, and it is also what makes
+     `truncate` work at all: an ellipsis needs a box that will not grow. task-341. */
+  table-layout: fixed;
 }
 
 .responsive-table th,
 .responsive-table-cell {
   padding: 0.625rem 0.5rem;
   border-bottom: 1px solid var(--color-dark-border);
+
+  /* A fixed column will not widen for its content, so an unbreakable string -- a long
+     hyphen-free task id, a URL -- would spill over the cell beside it instead. */
+  overflow-wrap: break-word;
 }
 
 .responsive-table th {
@@ -88,7 +101,11 @@ a {
     display: block;
   }
 
-  .responsive-table thead {
+  .responsive-table thead,
+  /* The rows are cards down here, so there are no columns for a column group to
+     size. Left as `table-column-group` under a `display: block` parent it is a box
+     the browser has to invent a table around. */
+  .responsive-table colgroup {
     display: none;
   }
 

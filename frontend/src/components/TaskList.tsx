@@ -71,6 +71,17 @@ const PRIORITY_CLASSES: Record<string, string> = {
   low: "bg-slate-700 text-slate-200",
 };
 /**
+ * Queue, Task, Status, Priority, Assigned, Updated.
+ *
+ * Five of the six are as wide as the widest thing they will ever hold and no wider: a
+ * two-digit position and a grip, a state badge, a priority pill, an owner id, and a
+ * timestamp that has to stay on one line to be one line tall. Task takes the rest,
+ * which is the only column whose content has no natural width. 39.5rem is spoken for,
+ * so Task still gets 176px at the 820px floor of this layout -- narrow, and truncating
+ * inside its own column rather than shoving the other five off the screen.
+ */
+const TASK_COLUMNS = ["5rem", null, "12rem", "6rem", "6rem", "10.5rem"];
+/**
  * The drag payload's MIME type. Private on purpose -- see the `onDragStart` comment.
  */
 const DRAG_TYPE = "application/x-agentjobs-task-id";
@@ -549,7 +560,7 @@ export function TaskList({
       <output aria-live="polite" className="sr-only">{announcement}</output>
 
       <section className="overflow-hidden rounded-lg border border-dark-border bg-dark-surface" aria-label="Tasks">
-        <ResponsiveTable>
+        <ResponsiveTable columns={TASK_COLUMNS}>
           <thead><tr><th scope="col">Queue</th><th scope="col">Task</th><th scope="col">Status</th><th scope="col">Priority</th><th scope="col">Assigned</th><th scope="col">Updated</th></tr></thead>
           <tbody>
             {visibleRows.map((row) => {
@@ -609,7 +620,11 @@ export function TaskList({
                   <ResponsiveCell label="Task" style={!flattened ? { paddingLeft: `${0.5 + row.depth * 1.5}rem` } : undefined}>
                     <Link to={taskPath(projectId, row.task.id)} className="touch-target block overflow-hidden">
                       <span className="block font-mono text-xs text-blue-400">{row.task.id}</span>
-                      <span className="block truncate font-medium text-dark-text">{row.task.title}</span>
+                      {/* The title is the one line that gets cut, so it is the one that
+                          needs somewhere to say the rest. The id and the category below
+                          wrap instead: they are short, and truncating them would cut
+                          the mobile cards too, where there is no column to protect. */}
+                      <span className="block truncate font-medium text-dark-text" title={row.task.title}>{row.task.title}</span>
                       <span className="block text-xs text-dark-muted">
                         {row.task.category}
                         {flattened && row.ancestors.length > 0 ? ` · part of ${row.ancestors.at(-1)}` : ""}
@@ -624,7 +639,7 @@ export function TaskList({
                   <ResponsiveCell label="Status"><DependencyState task={row.task} compact /></ResponsiveCell>
                   <ResponsiveCell label="Priority"><span className={`rounded px-2 py-1 text-xs ${PRIORITY_CLASSES[row.task.priority ?? "medium"]}`}>{row.task.priority ?? "medium"}</span></ResponsiveCell>
                   <ResponsiveCell label="Assigned" className="text-sm">{row.task.assignment?.owner ?? "—"}</ResponsiveCell>
-                  <ResponsiveCell label="Updated" className="text-sm text-dark-muted"><time dateTime={row.task.updated}>{new Date(row.task.updated).toLocaleString([], { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</time></ResponsiveCell>
+                  <ResponsiveCell label="Updated" className="whitespace-nowrap text-sm text-dark-muted"><time dateTime={row.task.updated}>{new Date(row.task.updated).toLocaleString([], { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</time></ResponsiveCell>
                 </ResponsiveTableRow>
               );
             })}
