@@ -3,29 +3,13 @@ id: task-354
 title: 'A task worked by an interactive session is invisible: no run, no session log,
   and a Dispatch button'
 created: '2026-09-06T04:19:07.624287Z'
-updated: '2026-09-06T05:03:18.686748Z'
+updated: '2026-09-06T05:08:18.679887Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review branch feat/task-354-interactive-session-runs at cfd4ad9 (gate
-  green, receipt written, rebased onto main).
-
-
-  Sandbox on 8910, throwaway data, `--attended`:
-
-  - http://127.0.0.1:8910/app/p/sandbox-here -- a chat session working task-101 draws
-  a "your session" card, and the three free cells keep their Dispatch buttons. Compare
-  with 8911 (`--idle`) if you want the before.
-
-  - http://127.0.0.1:8910/app/p/sandbox-here/tasks/task-101 -- no Dispatch button,
-  a note saying a session holds the task, and the session''s own transcript in the
-  Runs panel.
-
-
-  The judgement worth checking is that an interactive run holds its task but not a
-  slot: a dispatch is never refused because you are chatting, but a click aimed at
-  a task a session holds is. Approve to merge, or say what to change. I stop the sandbox
-  either way.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: critical
 queue_position: 293
@@ -337,3 +321,11 @@ log:
       id: 5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7eee
       kind: handoff
       fingerprint: f9590e22659b9c81b369bc8f149427dd
+- id: 6
+  ts: '2026-09-06T05:08:18.679752Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
