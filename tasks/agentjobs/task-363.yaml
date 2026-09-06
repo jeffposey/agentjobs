@@ -3,24 +3,13 @@ id: task-363
 title: 'A review the human cannot act on: URLs are not tappable, and the question
   cards are broken'
 created: '2026-09-06T21:21:55.330267Z'
-updated: '2026-09-06T23:27:52.177734Z'
+updated: '2026-09-06T23:34:06.511094Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Open this on your phone. The sandbox is now published over the tailnet,\
-  \ so the links below work from anywhere, and tapping them is the test.\n\nOn *this*\
-  \ page they will render as dead text: the real dashboard runs `main`, which has\
-  \ none of this yet. That is the before. The after is the same panel in the sandbox\
-  \ \u2014 start at the first link.\n\nGate green, all 10 stages, on the rebased branch\
-  \ (`95e31552`). The earlier e2e failure was transient: `main` gained no code since,\
-  \ and it has gone green twice more since.\n\nThe new shape, named links, none in\
-  \ the prose: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-301\n\
-  The same request written the old way: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-305\n\
-  A card above five question cards: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-302\n\
-  links[] only, nothing in the prose: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-303\n\
-  No addresses at all, so no card: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-304\n\
-  \nTailnet exposure is on until you or I turn it off: `tailscale serve --https=8443\
-  \ off`."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: critical
 queue_position: 568
@@ -894,3 +883,35 @@ log:
       id: 6b0f2d94-8ac7-4e51-9e3b-1f7a4c25d803
       kind: update_content
       fingerprint: eca4e6850954ab6ce9b9a6bc9634f1f6
+- id: 26
+  ts: '2026-09-06T23:32:04.322230Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 27
+  ts: '2026-09-06T23:32:05.916815Z'
+  actor: finisher
+  type: progress
+  body: 'Queued for this repository''s merge runway, held by fin_d19d502f, pid 50068
+    started at 18:29:57, 2m ago.
+
+
+    **This is the queue working, not a stall.** Children of an epic fly in parallel
+    and land one at a time, because a gate is only evidence about the base it ran
+    against. Nothing here is rebased, gated or merged until the runway is free.'
+  data:
+    finish_step: runway_queued
+    finish_id: fin_0f112137
+- id: 28
+  ts: '2026-09-06T23:34:06.510588Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 23
+  data:
+    run_id: run_c1926ddf
+    outcome: completed
+    duration_seconds: 1878.953347
+    log_path: C:\Users\jpose\.agentjobs\runs\run_c1926ddf
