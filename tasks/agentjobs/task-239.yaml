@@ -3,7 +3,7 @@ id: task-239
 title: 'Shell 4: fit the detail panel to the main region, and check the full-width
   surfaces still hold up'
 created: '2026-08-22T00:40:27.040648Z'
-updated: '2026-09-06T09:27:52.623873Z'
+updated: '2026-09-06T09:34:56.845683Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -115,7 +115,9 @@ dependencies:
   type: needs
   note: There is no main region to fit into until the shell exists.
 links: []
-branches: []
+branches:
+- name: feat/task-239-fit-detail-panel
+  status: active
 log:
 - id: 1
   ts: '2026-08-22T00:40:27.413103Z'
@@ -244,3 +246,15 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 8
+  ts: '2026-09-06T09:34:56.845403Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 3a1f9c72-5d84-4b13-9e26-71c8ad0f5301
+      kind: update_content
+      fingerprint: cdfa9c6ddb1ff085dccea509ef644334
