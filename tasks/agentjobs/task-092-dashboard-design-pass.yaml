@@ -2,7 +2,7 @@ schema: 2
 id: task-092-dashboard-design-pass
 title: 'The Dashboard is a slot board: one card per concurrent run'
 created: '2026-08-11T08:01:24.843122Z'
-updated: '2026-09-06T03:08:41.251193Z'
+updated: '2026-09-06T03:13:34.881752Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -914,3 +914,33 @@ log:
       id: 6f2c1b8e-3a4d-4e7f-9b21-5c8d0e1f2a3b
       kind: log_append
       fingerprint: 76fa591c0ccfcf056b7b9c241fd3dd91
+- id: 21
+  ts: '2026-09-06T03:13:34.881440Z'
+  actor: Jeff Posey
+  type: decision
+  body: 'Jeff, 2026-09-05 (CDT), reviewing in the sandboxes. Two calls, both closing
+    the questions in entry 20.
+
+
+    **Under an alarm, keep the cells and withhold only the buttons.** Log entry 15''s
+    choice stands. The stray run on 8917 was the live demonstration: one run finishing
+    without a handoff blanked every Dispatch button, and under the strict reading
+    it would have collapsed the board too. Rejected: hiding the free cells under an
+    alarm.
+
+
+    **The ceiling-1 layout is a follow-up, not a blocker.** A single full-width cell
+    wastes the space for one task, and the "why this one first" expander barely fills
+    it. Filed as its own task rather than reworked here, because it is one ceiling
+    value and the board''s geometry is task-294''s subject. Rejected: holding this
+    merge for it.
+
+
+    ac-8 is met: gate green on `023ceed`, Dispatch pressed by hand on 8922 with the
+    other cells unmoved. Ready for Approve.'
+  re: 20
+  data:
+    operation:
+      id: a4e9d2c7-1b63-4f85-8d0a-2e7c5b9f6a14
+      kind: log_append
+      fingerprint: c1ac4f534190948eac6e97407930a605
