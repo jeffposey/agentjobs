@@ -3,7 +3,7 @@ id: task-363
 title: 'A review the human cannot act on: URLs are not tappable, and the question
   cards are broken'
 created: '2026-09-06T21:21:55.330267Z'
-updated: '2026-09-06T23:25:20.983223Z'
+updated: '2026-09-06T23:27:52.177734Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -153,7 +153,22 @@ acceptance:
   status: met
 deliverables: []
 dependencies: []
-links: []
+links:
+- url: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-301
+  rel: other
+  title: 'SANDBOX 1 - the new shape: named links, none in the prose'
+- url: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-305
+  rel: other
+  title: SANDBOX 2 - the same request written the old way, to compare
+- url: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-302
+  rel: other
+  title: SANDBOX 3 - a card above five question cards
+- url: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-303
+  rel: other
+  title: SANDBOX 4 - links[] only, nothing in the prose
+- url: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-304
+  rel: other
+  title: SANDBOX 5 - no addresses at all, so no card
 branches:
 - name: fix/task-363-review-panel-links-questions
   status: active
@@ -867,3 +882,15 @@ log:
       id: 4e19b7a3-62c0-4d85-9f31-7b0c53a1e6d8
       kind: handoff
       fingerprint: dfadd012f2993c6cba5ca5f9374416a9
+- id: 25
+  ts: '2026-09-06T23:27:52.177372Z'
+  actor: claude
+  type: note
+  body: Updated links.
+  data:
+    fields:
+    - links
+    operation:
+      id: 6b0f2d94-8ac7-4e51-9e3b-1f7a4c25d803
+      kind: update_content
+      fingerprint: eca4e6850954ab6ce9b9a6bc9634f1f6
