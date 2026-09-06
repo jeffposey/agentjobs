@@ -2,33 +2,15 @@ schema: 2
 id: task-341
 title: Stop wasting all the GUI space
 created: '2026-09-05T21:35:24.982038Z'
-updated: '2026-09-06T04:05:00.299809Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.
-
-
-  Note from Jeff Posey:
-
-
-  are you kidding me, I have 3 sandboxes to review to confirm you know that a gigantic
-  empty space is bad? I hope you you are better than that, APPROVED. of course they
-  look ok now, make sure they always do, finish this
-
-
-  That note is context to carry into the merge, not another review round: you are
-  still cleared to merge.'
+updated: '2026-09-06T04:05:41.506887Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
-queue_position: 8900
 category: general
 tags:
 - reported-issue
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: Stop wasting all the GUI space
@@ -66,7 +48,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-341-task-list-density
-  status: active
+  status: merged
+  merged_at: '2026-09-06T04:05:41.455614Z'
 log:
 - id: 1
   ts: '2026-09-05T21:35:25.792814Z'
@@ -362,3 +345,25 @@ log:
     merge_commit: e75683001e936a77eff7d9f66d1b3964aa82b73b
     branch: fix/task-341-task-list-density
     base: main
+- id: 15
+  ts: '2026-09-06T04:05:41.506593Z'
+  actor: finisher
+  type: transition
+  body: "Merged `fix/task-341-task-list-density` into `main` as `e7568300` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). Approved\
+    \ by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         5.7s  fix/task-341-task-list-density\
+    \ at f6f4233c in C:\\projects\\worktrees\\agentjobs-341\n  runway     ok     \
+    \  277.4s  taken after queuing\n  rebase     ok         0.4s  fix/task-341-task-list-density\
+    \ onto main: f6f4233c -> dcf8d675\n  gate       ok       390.9s  scripts/check.py\
+    \ green\n  catch_up   skipped    0.0s  main did not move during the gate\n  merge\
+    \      ok         1.9s  --no-ff into main as e75683001e936a77eff7d9f66d1b3964aa82b73b\n\
+    \  rebuild    ok         6.9s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         1.1s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     ok         0.0s  http://127.0.0.1:8876 is serving 0247df0e, which contains\
+    \ the merge e7568300, from C:\\projects\\agentjobs (started 2026-09-06T04:05:20.456865+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
