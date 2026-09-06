@@ -2,37 +2,29 @@ schema: 2
 id: task-347
 title: 'Rehearsal: a red gate must start its own repair run (task-340 ac-5)'
 created: '2026-09-06T01:13:25.072947Z'
-updated: '2026-09-06T01:55:52.372954Z'
+updated: '2026-09-06T02:18:53.321772Z'
 lifecycle: active
 ball: external
 ball_reason: dependency
-ball_prompt: 'Blocked on task-340: this rehearsal runs the serving clone''s finish
-  code, so nothing here can be exercised until task-340 is merged and the server restarted.
-  It was wrongly handed to Jeff at 01:16 with a "do this after task-340 merges" caveat;
-  a human handoff has to be actionable when it is read, so it sits here until then.
+ball_prompt: 'Blocked on task-340, and deliberately not on a human until it is not.
+  Nothing to do here yet.
 
 
-  Unblocking event: task-340 closed completed and the server restarted (merge-gate
-  step 6). Whoever delivers task-340 then hands this task to human/decision with the
-  procedure below, unchanged.
+  This is task-340''s ac-5 rehearsal, staged and waiting. The finish runs the *serving*
+  clone''s interpreter, so approving this before task-340 merges would rehearse the
+  code on `main` and prove nothing.
 
 
-  --- The procedure, for that handoff ---
-
-
-  Throwaway, staged and waiting for one click. Branch `chore/task-347-escalation-rehearsal`
+  **Everything is already in place**: branch `chore/task-347-escalation-rehearsal`
   in `../worktrees/agentjobs-347`, bootstrapped, carrying one deliberately failing
-  test (`tests/test_task_347_rehearsal.py`) so the gate goes red at the `pytest` stage
-  and nothing can merge.
+  test (`tests/test_task_347_rehearsal.py`) so the gate goes red at `pytest` and nothing
+  can merge.
 
 
-  1. Approve this task from the task page.
-
-  2. Watch. The finish rebases, the gate goes red at `pytest`, and the escalation
-  should start a run against this task with no second click. The finish entry names
-  the run id and leads with `FAILED tests/test_task_347_rehearsal.py::test_the_rehearsal_gate_is_red_on_purpose`.
-
-  3. Stop that run, then clean up:
+  When task-340 merges and the server restarts, this becomes one click: Approve, and
+  watch a run start against this task with no second click. The finish entry should
+  name the run id and open with `FAILED tests/test_task_347_rehearsal.py::test_the_rehearsal_gate_is_red_on_purpose`.
+  Then stop that run, and:
 
 
   ```
@@ -44,12 +36,13 @@ ball_prompt: 'Blocked on task-340: this rehearsal runs the serving clone''s fini
   ```
 
 
-  (`-D`, not `-d`: this branch is deliberately never merged.)
+  (`-D`, not `-d`: this branch is never merged.) Close this, and mark task-340''s
+  ac-5 met with the run id.
 
 
-  Then close this task and mark task-340''s ac-5 met, quoting the run id. If you would
-  rather not spend the run, close this as rejected and run the two commands above;
-  task-340''s own suite covers the same path with a stub runner.'
+  If the run is not worth spending, close this as rejected and run the two commands
+  above -- task-340''s suite drives the same path with a stub runner, so this is confirmation
+  rather than proof.'
 archived: false
 priority: low
 queue_position: 600
@@ -72,8 +65,8 @@ deliverables: []
 dependencies:
 - task: task-340
   type: needs
-  note: The rehearsal runs the serving clone's finish code, so it exercises nothing
-    until task-340 is merged and the server restarted.
+  note: The finish runs the serving clone code, so this rehearses nothing until task-340
+    has merged and the server has restarted.
 links: []
 branches:
 - name: chore/task-347-escalation-rehearsal
@@ -178,3 +171,47 @@ log:
       id: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e
       kind: handoff
       fingerprint: 05badc0f6804794ea286f4053a92c8cf
+- id: 6
+  ts: '2026-09-06T02:18:51.447902Z'
+  actor: claude
+  type: handoff
+  body: 'Blocked on task-340, and deliberately not on a human until it is not. Nothing
+    to do here yet.
+
+
+    This is task-340''s ac-5 rehearsal, staged and waiting. The finish runs the *serving*
+    clone''s interpreter, so approving this before task-340 merges would rehearse
+    the code on `main` and prove nothing.
+
+
+    **Everything is already in place**: branch `chore/task-347-escalation-rehearsal`
+    in `../worktrees/agentjobs-347`, bootstrapped, carrying one deliberately failing
+    test (`tests/test_task_347_rehearsal.py`) so the gate goes red at `pytest` and
+    nothing can merge.
+
+
+    When task-340 merges and the server restarts, this becomes one click: Approve,
+    and watch a run start against this task with no second click. The finish entry
+    should name the run id and open with `FAILED tests/test_task_347_rehearsal.py::test_the_rehearsal_gate_is_red_on_purpose`.
+    Then stop that run, and:
+
+
+    ```
+
+    git worktree remove ../worktrees/agentjobs-347
+
+    git branch -D chore/task-347-escalation-rehearsal
+
+    ```
+
+
+    (`-D`, not `-d`: this branch is never merged.) Close this, and mark task-340''s
+    ac-5 met with the run id.
+
+
+    If the run is not worth spending, close this as rejected and run the two commands
+    above -- task-340''s suite drives the same path with a stub runner, so this is
+    confirmation rather than proof.'
+  data:
+    ball: external
+    ball_reason: dependency
