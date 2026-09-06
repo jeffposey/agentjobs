@@ -3,7 +3,7 @@ id: task-356
 title: 'Shell 6: the filter controls hide behind a filter button instead of sitting
   on screen permanently'
 created: '2026-09-06T05:25:14.813338Z'
-updated: '2026-09-06T20:33:46.725331Z'
+updated: '2026-09-06T20:39:51.941837Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -772,3 +772,19 @@ log:
     finish_step: started
     branch: feat/task-356-filter-popover
     finish_id: fin_18c5b6e1
+- id: 28
+  ts: '2026-09-06T20:39:51.941614Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-356-filter-popover` into `main` as `ad527503`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-356
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: ad5275036708ef55e645ef0d46f7f2dc3835d53c
+    branch: feat/task-356-filter-popover
+    base: main
