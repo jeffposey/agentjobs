@@ -7,18 +7,23 @@ can construct by hand on a real machine -- you cannot make three agents run to o
 and you certainly cannot make one of them belong to a project you are not looking at --
 so this seeds each of them and hands over a URL.
 
-    python scripts/slot_board_sandbox.py [port] [--idle] [--alarm] [--ceiling N]
-                                         [--unconfigured]
+    python scripts/slot_board_sandbox.py [port] [--idle] [--finishing] [--alarm]
+                                         [--ceiling N] [--unconfigured]
 
-Five things to look at, and the comparison is the point:
+Six things to look at, and the comparison is the point:
 
     default            two runs in two different projects and one free cell. The
                        foreign run keeps its own project name and links into *that*
-                       project; a finish and the merge runway sit under the board as
-                       locks rather than as cells, because they hold no run slot.
+                       project; a finish in another project is a card of its own,
+                       beyond the three slots, because it holds no run slot (task-352).
     --idle             nothing running: three free cells offering three *different*
                        tasks, each with its own Dispatch button. This is the state the
                        board exists for.
+    --finishing        no runs, two finishes: one in the gate for a task in this
+                       project, one queued behind it on the merge runway. This is the
+                       state task-352 was filed from -- the badge read 0 and the Runs tab
+                       said nothing was running -- so it is the one to compare with
+                       ``--idle``: same three free cells, plus the two finish cards.
     --alarm            a task stopped on a human. The alert keeps the top of the page
                        and the board keeps its shape below it -- with every Dispatch
                        button withheld, which is task-081's rule stated for a grid.
@@ -143,6 +148,59 @@ def seed_lock(home: Path, name: str, text: str) -> None:
     (directory / f"{name}.lock").write_text(text, encoding="utf-8")
 
 
+def seed_finish(
+    home: Path,
+    *,
+    finish_id: str,
+    task_id: str,
+    project_id: str,
+    done_steps: Tuple[str, ...],
+    started_seconds_ago: int,
+) -> None:
+    """One finish record, far enough along that ``read_finish_status`` names its step.
+
+    The lock alone makes a finish appear; the record is what says *where* it is. A finish
+    infers the step in flight from the last one it recorded, so seeding preflight,
+    runway and rebase as done puts it in the gate, and seeding preflight alone leaves it
+    queued for the runway -- the two states worth looking at side by side.
+    """
+    import json
+
+    directory = home / "finishes" / finish_id
+    directory.mkdir(parents=True, exist_ok=True)
+    started = _ago(started_seconds_ago)
+    (directory / "meta.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "finish_id": finish_id,
+                "task_id": task_id,
+                "project_id": project_id,
+                "outcome": "running",
+                "started_at": started,
+            }
+        ),
+        encoding="utf-8",
+    )
+    lines = [
+        json.dumps(
+            {
+                "ts": started,
+                "kind": "finish_step",
+                "finish_id": finish_id,
+                "step": step,
+                "ok": True,
+                "skipped": False,
+                "detail": "seeded",
+                "seconds": 1.0,
+            }
+        )
+        for step in done_steps
+    ]
+    (directory / "phases.jsonl").write_text(
+        "".join(f"{line}\n" for line in lines), encoding="utf-8"
+    )
+
+
 HERE_TASKS = [
     ("task-101", "Teach the queue to explain itself"),
     ("task-102", "Collapse the two dependency banners into one"),
@@ -199,6 +257,7 @@ def dispatch_config(ceiling: int) -> Dict[str, Any]:
 def main() -> None:
     argv = sys.argv[1:]
     idle = "--idle" in argv
+    finishing = "--finishing" in argv
     alarm = "--alarm" in argv
     unconfigured = "--unconfigured" in argv
     ceiling = DEFAULT_CEILING
@@ -218,8 +277,13 @@ def main() -> None:
     from agentjobs.projects import ProjectRegistry
 
     registry = ProjectRegistry(home)
-    running_here = () if idle else ("task-101",)
-    running_elsewhere = () if idle else ("task-501",)
+    # A finish's task is claimed too: a task at the merge gate is `active`, not `ready`,
+    # and a free cell offering the task whose merge is on the card beside it would be
+    # the duplicate the board exists to avoid.
+    running_here: Tuple[str, ...] = ("task-102",) if finishing else () if idle else ("task-101",)
+    running_elsewhere: Tuple[str, ...] = (
+        ("task-501",) if finishing else () if idle else ("task-501",)
+    )
     here = build_project(
         root,
         project_id="sandbox-here",
@@ -242,6 +306,49 @@ def main() -> None:
         (home / "dispatch.yaml").write_text(
             yaml.safe_dump(dispatch_config(ceiling), sort_keys=False), encoding="utf-8"
         )
+
+    def seed_finishing() -> None:
+        """The state task-352 was filed from: no runs, one finish in the gate, one queued.
+
+        Both finishes are real enough for the server to read their step: the first has
+        preflight, runway and rebase behind it and is therefore in the gate, holding
+        the repository's runway; the second has only its preflight done and is waiting
+        for that runway. That is exactly the pair the live dashboard showed on
+        2026-09-06 -- task-092 gating, task-341 queued -- as "Nothing is running".
+        """
+        pid = os.getpid()
+        seed_finish(
+            home,
+            finish_id="fin_gating",
+            task_id="task-102",
+            project_id="sandbox-here",
+            done_steps=("preflight", "runway", "rebase"),
+            started_seconds_ago=250,
+        )
+        seed_lock(
+            home,
+            "task-102",
+            f"pid={pid} run= kind=finish finish=fin_gating started={_ago(250)}",
+        )
+        seed_lock(
+            home,
+            runway_lock_name(here),
+            f"pid={pid} run= kind=runway finish=fin_gating started={_ago(248)}",
+        )
+        seed_finish(
+            home,
+            finish_id="fin_queued",
+            task_id="task-501",
+            project_id="sandbox-elsewhere",
+            done_steps=("preflight",),
+            started_seconds_ago=110,
+        )
+        seed_lock(
+            home,
+            "task-501",
+            f"pid={pid} run= kind=finish finish=fin_queued started={_ago(110)}",
+        )
+        print("[board] seeded a finish in the gate and a finish queued for the runway", flush=True)
 
     def seed_activity() -> None:
         """Write the fake runs and locks, a moment after the server is up.
@@ -287,7 +394,9 @@ def main() -> None:
         )
         print("[board] seeded two live runs, a finish and a runway", flush=True)
 
-    if not idle:
+    if finishing:
+        threading.Timer(2.0, seed_finishing).start()
+    elif not idle:
         threading.Timer(2.0, seed_activity).start()
 
     import uvicorn
@@ -295,6 +404,8 @@ def main() -> None:
     from agentjobs.api.main import app
 
     shape = "idle -- every cell free" if idle else "two of the cells busy"
+    if finishing:
+        shape = "no runs -- one finish in the gate, one queued for the runway"
     if unconfigured:
         shape = "no dispatch config -- a queue rather than a board"
     if alarm:
@@ -307,6 +418,12 @@ def main() -> None:
         print(
             "[board]   Compare with the idle half: python scripts/slot_board_sandbox.py "
             f"{port + 1} --idle",
+            flush=True,
+        )
+    if not finishing:
+        print(
+            "[board]   And with a merge in progress: python scripts/slot_board_sandbox.py "
+            f"{port + 2} --finishing",
             flush=True,
         )
     try:
