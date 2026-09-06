@@ -3,7 +3,7 @@ id: task-340
 title: A scripted finish that stops at the gate must start the session that repairs
   it, not wait for a Dispatch click
 created: '2026-09-05T21:33:27.249588Z'
-updated: '2026-09-06T02:43:02.909551Z'
+updated: '2026-09-06T02:55:53.672098Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -751,3 +751,19 @@ log:
     finish_step: started
     branch: fix/task-340-escalation-dispatches
     finish_id: fin_50bd88de
+- id: 21
+  ts: '2026-09-06T02:55:53.671828Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-340-escalation-dispatches` into `main` as `aed06d9c`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-340
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: aed06d9cb44211d374df9cab260340817c608a11
+    branch: fix/task-340-escalation-dispatches
+    base: main
