@@ -3,18 +3,13 @@ id: task-240
 title: 'Shell 5: stand the new layout up on a sandbox and have Jeff drive it before
   it merges'
 created: '2026-08-22T00:40:59.806337Z'
-updated: '2026-09-06T21:45:33.243462Z'
+updated: '2026-09-06T21:47:36.002700Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Both rulings applied. task-364, task-365 and task-366 are at the top\
-  \ of the high band in that order (16 / 33 / 67), and all three stay children of\
-  \ task-235, so the epic is held open until they close. Entry 51 records it, including\
-  \ the fifteen tasks the promotion pushed down.\n\nOne thing left on this task: Approve,\
-  \ so `chore/task-240-shell-sandbox` merges. One new file, `scripts/shell_sandbox.py`,\
-  \ gate green on 8a1d60a. Merging it is what puts the sandbox on `main` for the three\
-  \ follow-ups to work in.\n\nAfter that this task can close \u2014 every acceptance\
-  \ criterion is satisfied."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: critical
 queue_position: 1393
@@ -1155,3 +1150,25 @@ log:
     outcome: completed
     duration_seconds: 173.850489
     log_path: C:\Users\jpose\.agentjobs\runs\run_4beda7a9
+- id: 55
+  ts: '2026-09-06T21:47:34.393209Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 56
+  ts: '2026-09-06T21:47:36.002235Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `chore/task-240-shell-sandbox` (8a1d60a9).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-240.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_64739990\gate.log.'
+  data:
+    finish_step: started
+    branch: chore/task-240-shell-sandbox
+    finish_id: fin_64739990
