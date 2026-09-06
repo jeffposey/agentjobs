@@ -3,7 +3,7 @@ id: task-340
 title: A scripted finish that stops at the gate must start the session that repairs
   it, not wait for a Dispatch click
 created: '2026-09-05T21:33:27.249588Z'
-updated: '2026-09-06T01:17:46.259780Z'
+updated: '2026-09-06T01:55:31.970710Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -463,3 +463,62 @@ log:
     So ac-5 is one click after the merge, on task-347''s own record, and the run id
     it produces is what closes it.'
   data: {}
+- id: 11
+  ts: '2026-09-06T01:27:54.070031Z'
+  actor: claude
+  type: progress
+  body: '**The first gate on this branch went red on exactly the failure this task
+    is about, which is worth writing down.**
+
+
+    `tests/test_task_corpus.py::test_agentjobs_context_paths_exist` failed: task-346''s
+    `spec.context` names `tasks/agentjobs/task-342.yaml`, and task-342 had been created
+    through the API -- which writes into the main clone''s working tree -- and never
+    committed. The file therefore exists in the clone and in no worktree, so every
+    gate anywhere else sees a dangling pointer. task-341 was in the same state, named
+    by task-345.
+
+
+    Nothing to do with this branch''s code, and the same shape as the task-337 incident
+    in the spec: a red gate caused by another task''s record, not by the branch under
+    it. Fixed on `main` in 430d870 by committing task-341, task-342 and task-347;
+    `tests/test_task_corpus.py` and `tests/test_validate.py` are 402 passed after
+    the rebase.
+
+
+    Two things follow from it. First, it is a live example of the class of red gate
+    this change hands to an agent rather than to Jeff -- the repair was two minutes
+    of reading and one `git add`. Second, it is more evidence for the open question
+    on entry 3: a finish that re-rebased onto a moved main before escalating would
+    have absorbed this one with no agent at all.'
+  data: {}
+- id: 12
+  ts: '2026-09-06T01:55:31.970486Z'
+  actor: claude
+  type: decision
+  body: '**task-347 is no longer on Jeff. It is blocked on this task instead, and
+    whoever delivers this task hands it back.**
+
+
+    Entry 10 staged task-347 at `human/decision` with a prompt that opened "do this
+    after task-340 merges and the server is restarted". That put a task in Jeff''s
+    Needs-you list that he could not act on: the merge it waits for is this one, which
+    is still mid-run. He raised it (2026-09-05 evening): a handoff to a human must
+    be actionable the moment they read it, or it is not a handoff yet.
+
+
+    So task-347 now carries `needs: task-340` and sits at `external/dependency`, with
+    the original procedure kept on its record. **The step this adds to this task''s
+    delivery**: after the merge lands and the server is restarted (merge-gate step
+    6), hand task-347 to `human/decision` with that procedure. Only then is there
+    a click Jeff can make.
+
+
+    Rejected: leaving it on `human/decision` with the "after task-340" caveat in the
+    prompt. The dashboard counts by ball, not by prose, so the caveat reaches him
+    only after he has already been called over.'
+  data:
+    operation:
+      id: 6d2f1c8e-3a4b-4c1d-9e7f-2b8a5d4c3e10
+      kind: log_append
+      fingerprint: 89db4df2dc0e51f943a6f3b3519e615b

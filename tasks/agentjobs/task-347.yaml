@@ -2,28 +2,35 @@ schema: 2
 id: task-347
 title: 'Rehearsal: a red gate must start its own repair run (task-340 ac-5)'
 created: '2026-09-06T01:13:25.072947Z'
-updated: '2026-09-06T01:16:53.628380Z'
+updated: '2026-09-06T01:55:52.372954Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: 'Throwaway, staged and waiting for one click. This exists only to exercise
-  task-340''s escalation dispatch for real on this machine.
+ball: external
+ball_reason: dependency
+ball_prompt: 'Blocked on task-340: this rehearsal runs the serving clone''s finish
+  code, so nothing here can be exercised until task-340 is merged and the server restarted.
+  It was wrongly handed to Jeff at 01:16 with a "do this after task-340 merges" caveat;
+  a human handoff has to be actionable when it is read, so it sits here until then.
 
 
-  Everything is ready: branch `chore/task-347-escalation-rehearsal` in `../worktrees/agentjobs-347`,
-  bootstrapped, carrying one deliberately failing test (`tests/test_task_347_rehearsal.py`)
-  so the gate goes red at the `pytest` stage and **nothing can merge**.
+  Unblocking event: task-340 closed completed and the server restarted (merge-gate
+  step 6). Whoever delivers task-340 then hands this task to human/decision with the
+  procedure below, unchanged.
 
 
-  **Do this after task-340 merges and the server is restarted** (the finish runs the
-  serving clone''s code, so before that it would rehearse the old behaviour):
+  --- The procedure, for that handoff ---
+
+
+  Throwaway, staged and waiting for one click. Branch `chore/task-347-escalation-rehearsal`
+  in `../worktrees/agentjobs-347`, bootstrapped, carrying one deliberately failing
+  test (`tests/test_task_347_rehearsal.py`) so the gate goes red at the `pytest` stage
+  and nothing can merge.
 
 
   1. Approve this task from the task page.
 
-  2. Watch. The finish rebases, the gate goes red at `pytest`, and with task-340 in,
-  the escalation should start a run against this task **with no second click** --
-  the finish entry names the run id, and the entry leads with `FAILED tests/test_task_347_rehearsal.py::test_the_rehearsal_gate_is_red_on_purpose`.
+  2. Watch. The finish rebases, the gate goes red at `pytest`, and the escalation
+  should start a run against this task with no second click. The finish entry names
+  the run id and leads with `FAILED tests/test_task_347_rehearsal.py::test_the_rehearsal_gate_is_red_on_purpose`.
 
   3. Stop that run, then clean up:
 
@@ -40,19 +47,9 @@ ball_prompt: 'Throwaway, staged and waiting for one click. This exists only to e
   (`-D`, not `-d`: this branch is deliberately never merged.)
 
 
-  Then close this task and mark task-340''s ac-5 met, quoting the run id.
-
-
-  If you would rather not spend the run at all, close this as rejected and delete
-  the branch and worktree with the two commands above -- task-340''s own suite covers
-  the same path with a stub runner, and ac-5 is the live confirmation rather than
-  the proof.
-
-
-  Why this is not already done: running `agentjobs finish` by hand from the working
-  session was refused by the dispatch harness''s command classifier, and retrying
-  a blocked command reworded is not something to do. Approving from the page is the
-  same code and is yours to run.'
+  Then close this task and mark task-340''s ac-5 met, quoting the run id. If you would
+  rather not spend the run, close this as rejected and run the two commands above;
+  task-340''s own suite covers the same path with a stub runner.'
 archived: false
 priority: low
 queue_position: 600
@@ -72,7 +69,11 @@ spec:
   context: []
 acceptance: []
 deliverables: []
-dependencies: []
+dependencies:
+- task: task-340
+  type: needs
+  note: The rehearsal runs the serving clone's finish code, so it exercises nothing
+    until task-340 is merged and the server restarted.
 links: []
 branches:
 - name: chore/task-347-escalation-rehearsal
@@ -150,3 +151,30 @@ log:
   data:
     ball: human
     ball_reason: decision
+- id: 4
+  ts: '2026-09-06T01:55:40.569725Z'
+  actor: claude
+  type: note
+  body: Updated dependencies.
+  data:
+    fields:
+    - dependencies
+    operation:
+      id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+      kind: update_content
+      fingerprint: 27885642b6ac56af299faaa031334cf7
+- id: 5
+  ts: '2026-09-06T01:55:52.372791Z'
+  actor: claude
+  type: handoff
+  body: 'Moved off the human. Jeff raised it 2026-09-05 evening: the previous handoff
+    asked him to do something that could not be done until task-340 merged, which
+    is a notification he cannot act on. It is now a stated dependency on task-340
+    and the ball is external until that closes.'
+  data:
+    ball: external
+    ball_reason: dependency
+    operation:
+      id: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e
+      kind: handoff
+      fingerprint: 05badc0f6804794ea286f4053a92c8cf
