@@ -3,7 +3,7 @@ id: task-354
 title: 'A task worked by an interactive session is invisible: no run, no session log,
   and a Dispatch button'
 created: '2026-09-06T04:19:07.624287Z'
-updated: '2026-09-06T05:12:36.275637Z'
+updated: '2026-09-06T05:12:59.809859Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -343,3 +343,17 @@ log:
       id: 7c1f2a94-3b6d-4e82-9a15-8d4c6b0f2e31
       kind: update_content
       fingerprint: 18d8870f3e4a495edb1e16c7cb73a3f3
+- id: 8
+  ts: '2026-09-06T05:12:59.809705Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-354-interactive-session-runs` (cfd4ad90).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-354.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_665eaf71\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-354-interactive-session-runs
+    finish_id: fin_665eaf71
