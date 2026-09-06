@@ -2,7 +2,7 @@ schema: 2
 id: task-341
 title: Stop wasting all the GUI space
 created: '2026-09-05T21:35:24.982038Z'
-updated: '2026-09-06T03:58:26.870739Z'
+updated: '2026-09-06T04:05:00.299809Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -346,3 +346,19 @@ log:
     finish_step: started
     branch: fix/task-341-task-list-density
     finish_id: fin_e47790de
+- id: 14
+  ts: '2026-09-06T04:05:00.299577Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `fix/task-341-task-list-density` into `main` as `e7568300`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-341
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: e75683001e936a77eff7d9f66d1b3964aa82b73b
+    branch: fix/task-341-task-list-density
+    base: main
