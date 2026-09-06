@@ -3,17 +3,13 @@ id: task-340
 title: A scripted finish that stops at the gate must start the session that repairs
   it, not wait for a Dispatch click
 created: '2026-09-05T21:33:27.249588Z'
-updated: '2026-09-06T02:36:29.277532Z'
+updated: '2026-09-06T02:43:02.909551Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Review `fix/task-340-escalation-dispatches` \u2014 worktree `../worktrees/agentjobs-340`,\
-  \ rebased to c307acd.\n\nGate green: all 10 stages, receipt written for c307acde.\n\
-  \nA finish that stops now starts the repair run itself instead of waiting on a Dispatch\
-  \ click, and moves the ball to a human when it can't start one. The escalation entry\
-  \ leads with the failing stage and test.\n\nac-1 to ac-4 met. ac-5 is task-347,\
-  \ blocked on this one.\n\nDetail, three decisions and two gate incidents are in\
-  \ the entries below."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 queue_position: 67
@@ -689,3 +685,69 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 16
+  ts: '2026-09-06T02:39:13.373854Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    For Jeff: should the finish also retry without an agent before escalating, when
+    the gate went red and main has moved since the rebase? In the task-337 incident
+    the branch''s code was fine; the red test was a corpus check on a task record
+    that main had already fixed by the time the finish finished. A single bounded
+    re-rebase-and-rerun of the failed stage, on the same logic the existing catch_up
+    step uses (only when moved paths are classified by gate_scope), would have merged
+    task-337 with zero tokens. Cost: a genuinely red branch pays one extra gate, up
+    to ~4 minutes under load. It is deliberately out of scope for this task so the
+    dispatch change is not held on it; say yes and it becomes a follow-up task, say
+    no and the answer is recorded here.
+
+    -> I don''t know, you decide'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 17
+  ts: '2026-09-06T02:39:13.373869Z'
+  actor: Jeff Posey
+  type: answer
+  body: I don't know, you decide
+  re: 3
+  data:
+    selected: []
+    other: I don't know, you decide
+- id: 18
+  ts: '2026-09-06T02:42:42.813998Z'
+  actor: claude
+  type: handoff
+  body: "Review `fix/task-340-escalation-dispatches` \u2014 worktree `../worktrees/agentjobs-340`,\
+    \ rebased to c307acd.\n\nGate green: all 10 stages, receipt written for c307acde.\n\
+    \nA finish that stops now starts the repair run itself instead of waiting on a\
+    \ Dispatch click, and moves the ball to a human when it can't start one.\n\nac-1\
+    \ to ac-4 met. ac-5 is task-347, blocked on this one. Your open question is answered\
+    \ and filed as task-348.\n\nDetail and the decisions are in the entries below."
+  data:
+    ball: human
+    ball_reason: review
+- id: 19
+  ts: '2026-09-06T02:43:00.519384Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 20
+  ts: '2026-09-06T02:43:02.909340Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-340-escalation-dispatches` (c307acde).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-340.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_50bd88de\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-340-escalation-dispatches
+    finish_id: fin_50bd88de
