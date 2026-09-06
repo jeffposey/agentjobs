@@ -2,7 +2,7 @@ schema: 2
 id: task-362
 title: 'Shell 7: the sidebar row stops showing the raw queue position'
 created: '2026-09-06T21:02:35.472560Z'
-updated: '2026-09-06T22:19:33.856962Z'
+updated: '2026-09-06T22:19:59.664547Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -494,3 +494,13 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 17
+  ts: '2026-09-06T22:19:59.664384Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 5
+  data:
+    run_id: run_4b8ecff5
+    outcome: completed
+    duration_seconds: 1458.070417
+    log_path: C:\Users\jpose\.agentjobs\runs\run_4b8ecff5
