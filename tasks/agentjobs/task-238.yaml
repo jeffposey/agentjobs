@@ -2,7 +2,7 @@ schema: 2
 id: task-238
 title: "Shell 3: the task sidebar \u2014 a collapsible tree you select from"
 created: '2026-08-22T00:39:57.272889Z'
-updated: '2026-09-06T09:26:28.092316Z'
+updated: '2026-09-06T10:18:28.127580Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -121,49 +121,89 @@ acceptance:
 - id: ac-1
   text: A parent row has a keyboard-reachable disclosure control with correct aria-expanded,
     and Left/Right collapse and expand it.
-  status: pending
+  verify: vitest -t "starts unfolded"; -t "folds with Left and unfolds with Right";
+    playwright e2e/task-tree.spec.ts "folding a parent hides its children"
+  status: met
 - id: ac-2
   text: Collapse state survives a live-update refetch and a navigation away and back;
     the record says where the state lives and why.
-  status: pending
+  verify: 'vitest -t "keeps a fold across a refetch and across leaving the list";
+    playwright asserts it across a full page reload. Where and why: the decision entry.'
+  status: met
 - id: ac-3
   text: A collapsed parent still shows that it has open children, and the default
     expand/collapse state is chosen with stated reasoning.
-  status: pending
+  verify: 'vitest -t "counts every descendant a fold hides" -- the row prints "N folded,
+    N open" and the control''s name repeats it. Default and reasoning: the decision
+    entry.'
+  status: met
 - id: ac-4
   text: Pasting a deep link to a child inside a collapsed parent expands its ancestors
     and selects it.
-  status: pending
+  verify: playwright e2e/task-tree.spec.ts "a deep link into a folded parent unfolds
+    it and marks the row current"
+  status: met
 - id: ac-5
   text: The task open in the detail panel is visibly selected, carries aria-current,
     and stays selected across a refetch.
-  status: pending
+  verify: vitest -t "marks the open record's row as current, and keeps it across a
+    refetch"
+  status: met
 - id: ac-6
   text: Up/Down move the selection and load the corresponding detail, scrolling the
     row into view only when it is off-screen.
-  status: pending
+  verify: playwright "Up and Down move the selection and open that record beside the
+    list", and the second half of "selecting a task leaves the column exactly where
+    it was scrolled" -- a step between two rows both already on screen moves the scrollport
+    by zero.
+  status: met
 - id: ac-7
   text: The column's scroll position survives selecting a task and navigating back.
-  status: pending
+  verify: playwright e2e/task-tree.spec.ts "selecting a task leaves the column exactly
+    where it was scrolled", and e2e/tasks-shell.spec.ts's own copy of the claim.
+  status: met
 - id: ac-8
   text: A row is legible and useful at 320px wide with no font shrinking.
-  status: pending
+  verify: playwright "a row reads at 320px, at the same size the full-width table
+    sets it" -- the column measured at 320, a title box over 140px, and a font size
+    compared against the full-width table's rather than against a constant.
+  status: met
 - id: ac-9
   text: Alt+Up pressed twice in a row moves a task two positions, verified by a person
     at a real keyboard, and the record names who verified and how.
+  verify: 'NOT MET BY THIS RUN, and it could not be: the run was unattended, and this
+    criterion asks for a person. What exists is e2e/queue-order.spec.ts pressing Alt+ArrowUp
+    twice without re-focusing, against the tree variant, green -- which this task''s
+    own constraints call supporting evidence rather than the evidence. The by-hand
+    check is filed as its own task.'
   status: pending
 - id: ac-10
   text: Drag-to-reorder still moves a row, verified by a person on a real mouse, with
     the record naming the instrument.
+  verify: 'NOT MET BY THIS RUN, same reason. Instrument that was used: Playwright''s
+    page.mouse down/move/move/up through Chromium''s own drag controller (Input.setInterceptDrags),
+    in e2e/queue-order.spec.ts, against the tree variant, green. That is not the operating
+    system''s drag loop -- task-225. The by-hand check is filed as its own task.'
   status: pending
 - id: ac-11
   text: 'The record answers all three collision cases: arrow-key meanings, reordering
     with a parent collapsed, and dragging onto a collapsed parent.'
-  status: pending
+  verify: 'The decision entry answers all three, and each has a test: -t "still steps
+    a task through its band when the sibling above it is hidden" and -t "treats a
+    drop on a folded parent as an ordinary move, never a reparent".'
+  status: met
 deliverables:
 - path: frontend/src/components/TaskList.tsx
-  note: Sidebar-capable list with selection and keyboard movement.
-  status: pending
+  note: Sidebar-capable list with selection and keyboard movement, behind variant="tree".
+  status: done
+- path: frontend/src/components/taskTree.ts
+  note: 'The tree''s pure half: grouping, descendant counts, the fold predicate, the
+    arrow-key neighbour, and the per-project fold storage.'
+  status: done
+- path: frontend/e2e/task-tree.spec.ts
+  note: 'The five claims a browser has to settle: the 320px column, the fold across
+    a reload, the deep link, the selection, and the scrollport.'
+  status: done
 dependencies:
 - task: task-237
   type: needs
@@ -300,3 +340,169 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 8
+  ts: '2026-09-06T10:17:14.632528Z'
+  actor: claude
+  type: decision
+  body: 'The four decisions this task asked to be made rather than defaulted into.
+
+
+    **1. Two components, not one that stretches.** `TaskList` takes `variant="table"
+    | "tree"`. The table is exactly what shipped -- six columns, restacking into labelled
+    cards when its own box is narrow -- and it is what the stacked shell below the
+    device-class threshold still renders, which is the constraint this task set. The
+    tree is a new row shape used only in the two-region shell''s list region. Rejected:
+    reusing `ResponsiveTable`''s restack, which task-237 already turned on here. It
+    stopped the title collapsing to zero pixels, and that is all it can do: a card
+    is six labelled lines you read, a master column is one indented row you pick from.
+    task-237''s own record says as much, and its e2e test deliberately did not assert
+    row height because "fitting a task row to a narrow column is task-238''s subject".
+
+
+    **2. The fold lives in `localStorage`, keyed per project, storing the exceptions
+    to a default of open.** Component state was rejected because it dies on the navigation
+    this shell exists to make cheap -- leaving the Tasks surface for the Dashboard
+    and coming back would unfold everything, and the list refetches constantly besides.
+    The URL was rejected because a fold is a property of a reader, not of a link:
+    pasting a task URL to somebody else would carry your folds into their browser,
+    and it would collide with the filter params already in there. Storing the *exceptions*
+    rather than the whole state is what makes an epic filed tomorrow arrive open with
+    no migration, and it is why flipping `FOLDED_BY_DEFAULT` in `TaskList.tsx` flips
+    every fold in one line, as the spec asked.
+
+
+    **3. The default is open.** All-collapsed hides most of the backlog behind a click,
+    including whatever `agentjobs next` would hand out, and a queue whose first screen
+    omits the work is not a queue. The spec''s counter-argument -- "all-expanded reproduces
+    today''s wall of rows" -- is answered by the row rather than by the default: the
+    wall was a flat six-column table, and these rows are indented, 79px tall as measured
+    against this repository''s own corpus, and grouped. Folding is therefore an act
+    a reader takes on a specific epic they are done with, which is exactly the thing
+    worth remembering across sessions.
+
+
+    **4. The three collision cases.**
+
+
+    *Arrow-key meanings.* Alt is the whole of the distinction, and it is checked first.
+    Up and Down move the selection and load that record; Left and Right fold and unfold,
+    or -- on a leaf, or an already-folded parent -- step out to the parent, as a tree
+    does. The same four keys **with Alt** move the task through its band, which is
+    what they already meant. Home and End without Alt go to the ends of the visible
+    list; with Alt they move the task to the ends of its band.
+
+
+    *Reordering with a parent folded.* The parent does not carry its subtree, and
+    Alt+Up steps past the sibling above it **in the band** whether or not that sibling
+    is on screen. This needed no code: `queueOrder.ts` has always computed a step
+    over the band and never over the rendered rows, precisely so that filtering or
+    grouping cannot change what a gesture means. Folding is one more thing that changes
+    what is rendered. What makes the move legible when the neighbour it passed is
+    invisible is the polite live region, which names that neighbour -- and that is
+    now covered by a test.
+
+
+    *Dragging onto a folded parent.* It is an ordinary drop: the dragged task is placed
+    beside that parent in its band, exactly as a drop on any other row would place
+    it. Rejected: doing nothing, which makes a folded row a hole in the list and is
+    indistinguishable from a broken drop target; and unfolding on hover, which moves
+    every row under the pointer mid-gesture and lands the drop somewhere nobody aimed
+    at. Reparenting is out of scope and is its own task.'
+  data: {}
+- id: 9
+  ts: '2026-09-06T10:17:14.782006Z'
+  actor: claude
+  type: progress
+  body: 'Built on `feat/task-238-sidebar-task-tree`, three commits, rebased onto `main`
+    at `f9c1de2`.
+
+
+    ## What is there
+
+
+    `frontend/src/components/taskTree.ts` is new and pure: the parent grouping (moved
+    out of `TaskList.tsx` unchanged), a descendant count per parent, the visible-rows
+    filter over a fold predicate, the arrow-key neighbour, and the per-project storage.
+    `queueOrder.ts` is untouched -- the tree sits beside it and the two never meet,
+    which is the point made in the decision entry above.
+
+
+    `TaskList.tsx` gains `variant="tree"`: one indented row per task carrying the
+    id, the title, the dependency-state badge, the priority pill and the place in
+    line; a disclosure on every parent with `aria-expanded` and a name that says what
+    folding would hide; a selected row driven by the route with `aria-current="page"`;
+    Up/Down to move the selection with focus following it, and Left/Right to fold.
+    `App.tsx` passes `variant="tree"` in the two-region shell''s list region and nothing
+    in the stacked one.
+
+
+    ## A real defect found in a browser, not by a test
+
+
+    Pressing Down twice in Chromium did nothing the second time. Opening a task dropped
+    the query string, so the first press emptied the search, the list re-rendered
+    from three rows to the whole backlog, React reinserted the row that had just been
+    selected somewhere else, and the browser dropped focus from the node it moved.
+    That is task-207''s failure reached through a different door, and it is now fixed
+    -- every row link and the arrow-key navigation carry the filters across -- with
+    two jsdom tests pinning it.
+
+
+    Worth recording because of how it was found: the jsdom test for two presses was
+    green throughout, because in jsdom the row never moves.
+
+
+    ## Verified
+
+
+    - **`scripts/check.py`, unqualified, on the rebased branch.** Green. (See the
+    entry that follows for the commit it verified.)
+
+    - **19 new jsdom tests** in `TaskList.test.tsx`, and a mutation check on the one
+    that matters most: stubbing out `writeCollapsed` turns the fold-survives-a-remount
+    test red, so it is not passing for an unrelated reason.
+
+    - **5 new Playwright tests** in `e2e/task-tree.spec.ts` against a live server:
+    the column measured at its 320px floor with a title box 140px+ wide and a font
+    no smaller than the full-width table''s; a fold that survives a reload; a deep
+    link into a folded parent unfolding its ancestors; Up/Down moving the selection
+    with focus following, asserted by *waiting* for focus rather than placing it;
+    and a scrollport that does not move under either a click or a step between two
+    rows already on screen.
+
+    - **The existing reorder specs now run against the tree**, because the default
+    Playwright viewport is 1280x720 and that is the two-region shell. `queue-order.spec.ts`
+    presses Alt+Up twice without re-focusing, and drags with `page.mouse` down/move/move/up,
+    both green.
+
+    - **By eye, against this repository''s own corpus**, on a server started from
+    this worktree on port 8917 (stopped afterwards): rows 79px tall, task-235''s four
+    children grouped and indented under it, the column exactly 320px at a 700x800
+    window with nothing pushed sideways, and the phone shell''s cards unchanged. Screenshots
+    at 320px, 413px and on a 390px phone.
+
+
+    ## Not verified, and it cannot be by an unattended run
+
+
+    ac-9 and ac-10 ask for **a person''s hand** on a real keyboard and a real mouse,
+    and this run had neither. The Playwright evidence above is what the task itself
+    calls supporting evidence, not the evidence: `page.keyboard` goes in below the
+    browser''s own shortcut handling and `page.mouse` drives Chromium''s drag controller
+    through `Input.setInterceptDrags`, which is not the operating system''s drag loop
+    (task-225). Those two criteria are left `pending` rather than claimed, and a follow-up
+    task holds the two-minute check.'
+  data: {}
+- id: 10
+  ts: '2026-09-06T10:18:28.127391Z'
+  actor: claude
+  type: note
+  body: 'ac-9 and ac-10 are held by **task-361**, filed as a draft so nothing dispatches
+    an agent at a check only a person can do. It is two gestures and about two minutes,
+    and it carries the steps, the mousedown probe, and what to do with either answer.
+    Everything else on this task is met and evidenced.
+
+
+    If either gesture turns out to be broken, the fix is cheap: nothing was pushed,
+    so `git revert` of this merge is available.'
+  data: {}

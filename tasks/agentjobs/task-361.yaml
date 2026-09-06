@@ -1,0 +1,137 @@
+schema: 2
+id: task-361
+title: 'By hand: the sidebar tree''s Alt+arrow reorder and its real-mouse drag'
+created: '2026-09-06T10:18:18.182145Z'
+updated: '2026-09-06T10:18:19.110329Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 15600
+category: ux
+tags:
+- frontend
+- verification
+- accessibility
+assignment:
+  eligible: []
+spec:
+  summary: 'task-238 turned the task list into a tree in the sidebar column, and two
+    of its acceptance criteria ask for a person''s hand rather than a harness. This
+    is that check: press Alt+Up twice in a row, and drag a row with a mouse. It is
+    a human-only task -- an agent cannot satisfy it, which is why it is filed rather
+    than claimed.'
+  intent: task-207 shipped the keyboard reorder with green jsdom and Playwright tests
+    and it worked exactly once per press, because React reorders rows by moving DOM
+    nodes and a browser drops focus from a node it reinserts. task-225 then lost an
+    afternoon to a defect that did not exist, because an automation tool reported
+    a drag that delivered no events at all. task-238 moved both gestures onto a different
+    row shape, so neither earlier by-hand check transfers.
+  description: '## Why this is not already done
+
+
+    task-238 ran unattended at posture `autonomous`. Its own constraints say **"Verification
+    is a person''s hand on a real mouse and a real keyboard; a Playwright pass is
+    supporting evidence, not the evidence"**, so the run left its ac-9 and ac-10 `pending`
+    rather than claiming them from a harness. Everything else on that task is met,
+    gated and merged.
+
+
+    What the harness does already cover, so this is a confirmation rather than an
+    exploration: `frontend/e2e/queue-order.spec.ts` presses `Alt+ArrowUp` twice **without
+    re-focusing between presses** and drags with `page.mouse` down/move/move/up, both
+    against the tree variant and both green. `page.keyboard` goes in below the browser''s
+    own shortcut handling and `page.mouse` drives Chromium''s drag controller through
+    `Input.setInterceptDrags`, which is not the operating system''s drag loop.
+
+
+    ## The check, about two minutes
+
+
+    Start the app and open the Tasks surface on a window at least 600px on its short
+    side, so it renders the two-region shell:
+
+
+    ```
+
+    poetry -P C:/projects/agentjobs run agentjobs open
+
+    ```
+
+
+    **Alt+Up twice (ac-1 here, ac-9 there).** Click a task row''s grip -- the six-dot
+    handle at the left of a row -- so it holds focus. Press `Alt`+`Up`. Press it again
+    **without clicking anything in between**. The same task must move two positions,
+    not one; if the second press moves a different task, or nothing, focus was lost
+    across the reorder and that is the defect. Its place in line is the number at
+    the right-hand end of the row''s first line.
+
+
+    **A real drag (ac-2 here, ac-10 there).** Press the mouse on a grip, drag the
+    row onto another row in the same priority band, and release. The row must move,
+    and the order must survive a page reload -- the reload is the assertion, because
+    an optimistic reorder makes any gesture look like it worked.
+
+
+    **Before filing anything as broken, prove the gesture reached the page.** In the
+    console:
+
+
+    ```js
+
+    document.addEventListener("mousedown", (e) => console.log("got", e.target.id),
+    true);
+
+    ```
+
+
+    An empty console means the instrument, not the application.
+
+
+    ## What to do with the answer
+
+
+    Both work: close this, and set ac-9 and ac-10 `met` on task-238 naming who checked
+    and how. Either fails: that is a real regression in merged code -- reopen it here
+    with what you saw, and note that `git revert` of the task-238 merge is available
+    and cheap, since nothing was pushed.'
+  constraints: '- A person does this. Do not dispatch an agent at it, and do not close
+    it on the strength of a Playwright run -- that evidence already exists and is
+    what this task is here to supplement.
+
+    - Name the instrument in the closing entry: which browser, which window size,
+    and whether the mousedown probe fired.'
+  out_of_scope: '- Any fix. If something is broken, this task reports it and the fix
+    is its own task or a revert.'
+  context:
+  - path: frontend/e2e/queue-order.spec.ts
+    why: What the harness already checks, and the comment explaining exactly what
+      a Playwright drag is and is not evidence for.
+  - path: frontend/src/components/TaskList.tsx
+    why: The component under test. `onTreeKeyDown` is where Alt is separated from
+      a bare arrow key; `restoreFocus` is what puts focus back after a reorder.
+acceptance:
+- id: ac-1
+  text: Alt+Up pressed twice in a row, without re-focusing between presses, moves
+    the same task two positions in the sidebar tree. The record names who checked
+    and in which browser.
+  status: pending
+- id: ac-2
+  text: A row dragged onto another with a real mouse moves, and the new order survives
+    a reload. The record names the instrument and says whether the mousedown probe
+    fired.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-06T10:18:19.109379Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
