@@ -2,13 +2,12 @@ schema: 2
 id: task-294
 title: The Dashboard fits one screen, and never scrolls
 created: '2026-08-23T20:39:32.963071Z'
-updated: '2026-09-06T07:59:37.646857Z'
+updated: '2026-09-06T08:03:40.522823Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: Run run_07f7ea67 ended `cancelled` and nobody was told what this task
-  needs. Read the dispatch_result entry, then either dispatch again or take it on
-  yourself.
+ball: agent
+ball_reason: answer
+ball_prompt: Finishing a task failed yet again. The dispatch run never knew it had
+  finished and passed the ball and that blocked the finish.
 archived: false
 priority: critical
 queue_position: 193
@@ -642,3 +641,81 @@ log:
   data:
     ball: human
     ball_reason: decision
+- id: 20
+  ts: '2026-09-06T08:00:36.845840Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    Finishing a task failed yet again. The dispatch run never knew it had finished
+    and passed the ball and that blocked the finish.'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 21
+  ts: '2026-09-06T08:00:50.403592Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. They chose
+    posture `autonomous` for this run, above this project''s `auto`. No extra instruction
+    was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 22
+  ts: '2026-09-06T08:00:53.270680Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_07f7ea67` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_f92f9363
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: dispatch
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 21
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --name
+    - agentjobs/task-294@f92f9363
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_f92f9363\session-settings.json
+    - --resume
+    - a3770b79-b113-4482-bfb3-d157c051f87e
+    cwd: C:\projects\agentjobs
+    git_head: c1f9f92
+    session_id: e84df7a7
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 23
+  ts: '2026-09-06T08:03:40.522572Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-294-dashboard-one-screen` (899d2e98).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-294.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_c62a3b4e\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-294-dashboard-one-screen
+    finish_id: fin_c62a3b4e
