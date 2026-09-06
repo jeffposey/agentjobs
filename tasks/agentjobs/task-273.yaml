@@ -2,7 +2,7 @@ schema: 2
 id: task-273
 title: Build authoritative SQLite task storage alongside the AgentJobs server
 created: '2026-08-22T19:00:47.987602Z'
-updated: '2026-09-06T06:08:55.783960Z'
+updated: '2026-09-06T06:12:44.935423Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -297,3 +297,19 @@ log:
       id: c1e5fd83-2a74-4b96-8158-5f9c3e7d2a68
       kind: update_content
       fingerprint: 0d4319f11828b1495a638da12c4dbd92
+- id: 9
+  ts: '2026-09-06T06:12:44.935212Z'
+  actor: claude
+  type: answer
+  body: "Answered by entry 6 \u2014 Jeff's decision of 2026-09-05. Clients retry with\
+    \ bounded backoff on the same operation_id; restarts drain gracefully and the\
+    \ front door returns 503; every CLI verb becomes a service client, so only the\
+    \ server opens the database.\n\nRecorded here as an `answer` because entry 6 was\
+    \ typed `decision`, and only an `answer` closes a question thread. The GUI kept\
+    \ asking Jeff a question he had already settled."
+  re: 5
+  data:
+    operation:
+      id: b6d0ec38-7f29-4a1b-8574-0c4e2f9d7a13
+      kind: log_append
+      fingerprint: e25918f0a7f7e281f1603f118530c3fc
