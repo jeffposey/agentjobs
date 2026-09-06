@@ -3,54 +3,17 @@ id: task-268
 title: 'Gate speed, safely: copy the mypy cache into worktrees, add --durations, drop
   nested poetry run, then prototype concurrent stages behind a flag'
 created: '2026-08-22T18:58:37.392234Z'
-updated: '2026-09-06T23:33:48.545538Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
-  \ was merged.**\n\n`scripts/check.py` went red on perf/task-268-gate-speed. It stopped\
-  \ in the `pytest` stage. Full output: C:\\Users\\jpose\\.agentjobs\\finishes\\fin_bc9f16f6\\\
-  gate.log\n\n```\n15.61s call     tests/test_validate.py::TestRealCorpus::test_the_tolerated_drift_is_only_taxonomy_and_serialization\n\
-  15.60s call     tests/test_migrate_schema.py::TestTheRealCorpus::test_every_real_task_converts_loads_and_loses_nothing\n\
-  14.93s call     tests/test_validate.py::TestRealCorpus::test_no_task_file_is_unloadable_or_points_at_nothing\n\
-  10.26s call     tests/test_principals.py::test_a_served_process_answers_the_same_as_the_pure_rule\n\
-  8.03s call     tests/test_task_corpus.py::test_open_ui_tasks_do_not_target_legacy_templates\n\
-  8.01s call     tests/test_task_corpus.py::test_agentjobs_task_ids_and_relationships_are_not_dangling\n\
-  7.72s call     tests/test_run_credentials.py::TestAgainstARealDispatchedRun::test_a_dispatched_run_is_its_run_and_leaves_no_credential_behind\n\
-  6.53s call     tests/test_mcp_server.py::TestPackagedCommand::test_stdout_carries_only_json_rpc\n\
-  6.50s call     tests/test_schema_generated_is_current.py::test_committed_json_schema_matches_source[agentjobs-v1]\n\
-  6.39s call     tests/test_dispatch_finish.py::TestAfterTheMerge::test_a_retry_after_an_escalation_finishes_its_own_merge\n\
-  6.27s call     tests/test_task_corpus.py::test_agentjobs_context_paths_exist\n5.68s\
-  \ setup    tests/test_mcp_server.py::TestPackagedCommand::test_initialize_over_real_stdio_publishes_name_version_and_instructions\n\
-  5.61s setup    tests/test_mcp_protocol.py::TestPackagedProtocol::test_initialize_reports_the_accepted_identity\n\
-  5.33s call     tests/test_mcp_protocol.py::TestPackagedProtocol::test_an_invalid_call_returns_a_structured_error_not_an_empty_result\n\
-  \e[36m\e[1m=========================== short test summary info ===========================\e\
-  [0m\n\e[31mFAILED\e[0m tests/test_dispatch_api.py::\e[1mTestDispatchRuns::test_cancelling_a_live_run_stops_it_and_marks_it_cancelled\e\
-  [0m - AssertionError: assert 'failed' == 'cancelled'\n\e[31m===== \e[31m\e[1m1 failed\e\
-  [0m, \e[32m4158 passed\e[0m, \e[33m1 skipped\e[0m, \e[33m221 warnings\e[0m\e[31m\
-  \ in 75.34s (0:01:15)\e[0m\e[31m ======\e[0m\n  black      1.0s\n  ruff       0.1s\n\
-  \  mypy       1.6s\n  api        2.4s\n  icons      1.2s\n  oxlint     0.4s\n  pytest\
-  \    91.8s\n  total     98.6s\nAll done! \\u2728 \\U0001f370 \\u2728\n269 files\
-  \ would be left unchanged.\nFailed to deliver webhook wh_f1468e64bc: All connection\
-  \ attempts failed\nFailed at stage 'pytest'.\nFix it, then resume with `--from pytest`\
-  \ instead of paying for the stages above a second time.\n```\n\nThat took 99s and\
-  \ exited 1. A red gate never merges. The branch is rebased onto main and is otherwise\
-  \ untouched; nothing was merged.\n\nTake it from here. Check the tree against what\
-  \ is written above before acting on anything you remember: if your worktree, your\
-  \ branch or your account of this task no longer matches what is on disk, say so\
-  \ on the record and hand the ball back rather than improvising a recovery.\n\nThe\
-  \ work is on `perf/task-268-gate-speed` in C:\\projects\\worktrees\\agentjobs-268.\
-  \ Use it; do not take a new one."
+updated: '2026-09-06T23:34:05.629009Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 705
 category: developer_experience
 tags:
 - big-dawg-audit
 - gate
 - performance
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "Big Dawg Audit, Jeff-weighted question (auditor 11 Part A). The real stage\
@@ -148,7 +111,8 @@ dependencies: []
 links: []
 branches:
 - name: perf/task-268-gate-speed
-  status: active
+  status: merged
+  merged_at: '2026-09-06T23:34:05.575653Z'
 log:
 - id: 1
   ts: '2026-08-22T18:58:37.997630Z'
@@ -602,3 +566,27 @@ log:
     merge_commit: 9e844c36e705693266320e5dd3112aaadaf1f0b0
     branch: perf/task-268-gate-speed
     base: main
+- id: 19
+  ts: '2026-09-06T23:34:05.628841Z'
+  actor: finisher
+  type: transition
+  body: "Merged `perf/task-268-gate-speed` into `main` as `9e844c36` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). No human\
+    \ reviewed this merge: posture `autonomous` (from the dispatch) releases the merge\
+    \ gate (task-021), and run run_06be509e ran the finish. What authorised it is\
+    \ the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.0s  perf/task-268-gate-speed at 922ba98b in C:\\\
+    projects\\worktrees\\agentjobs-268\n  runway     ok         0.0s  taken immediately\n\
+    \  rebase     ok         0.2s  perf/task-268-gate-speed onto main: 922ba98b ->\
+    \ a12f66f3\n  gate       ok       230.7s  scripts/check.py green\n  catch_up \
+    \  skipped    0.0s  main did not move during the gate\n  merge      ok       \
+    \  0.3s  --no-ff into main as 9e844c36e705693266320e5dd3112aaadaf1f0b0\n  rebuild\
+    \    skipped    0.0s  the merge touched no frontend/ path\n  restart    ok   \
+    \      0.5s  ran powershell -NoProfile -ExecutionPolicy Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -Force -NoOpen\n  verify     ok         0.0s  http://127.0.0.1:8876 is serving\
+    \ 434d20a8, which contains the merge 9e844c36, from C:\\projects\\agentjobs (started\
+    \ 2026-09-06T23:33:52.920387+00:00)\n```"
+  data:
+    lifecycle: closed
+    outcome: completed
