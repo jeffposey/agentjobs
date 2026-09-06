@@ -2,7 +2,7 @@ schema: 2
 id: task-235
 title: Adopt the list-and-detail shell every other app on the screen already uses
 created: '2026-08-22T00:38:02.564268Z'
-updated: '2026-09-06T10:35:52.930912Z'
+updated: '2026-09-06T10:50:37.429445Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1357,3 +1357,67 @@ log:
       id: 8c4f1e26-7b90-4d53-a1f8-3e206b9c75da
       kind: log_append
       fingerprint: c859aac8c91fdd28e76eef2194072cfb
+- id: 24
+  ts: '2026-09-06T10:50:37.429200Z'
+  actor: claude
+  type: progress
+  body: "**task-239 merged at 10:49. Its work is done and evidenced; its acceptance\
+    \ *statuses* were never flipped, and that distinction matters enough to write\
+    \ down.**\n\n## What the record looks like versus what happened\n\ntask-239 closed\
+    \ `completed` with **all seven acceptance criteria and its deliverable still reading\
+    \ `pending`** \u2014 zero `met`. On the dashboard, and to any future reader, that\
+    \ is a completed task with no acceptance evidence at all. It is what made me stop\
+    \ and read rather than wave it through.\n\n**The evidence is all there.** It is\
+    \ in log entries 9 and 10, and it is unusually good. Taking the criteria in order:\n\
+    \n- **ac-1 / ac-2, the two width extremes.** A measured table, region \u2192 prose\
+    \ \u2192 pinned-header height, at four viewports: `2560\xD71440 \u2192 1896/589/105`,\
+    \ `1280\xD7800 \u2192 779/589/141`, `900\xD7700 \u2192 508/458/133 (was 177)`,\
+    \ phone `390\xD7844` stacked and **unchanged**. Zero sideways overflow at every\
+    \ one.\n- **ac-3, the action count** \u2014 the criterion most likely to be fudged,\
+    \ and it was not. An *inventory* rather than a number, committed **before** any\
+    \ layout change so the \"before\" is genuine (`5d4df20`), reading every button,\
+    \ link, summary, input, textarea and select off the DOM with its accessible name\
+    \ across five panel states: **23 / 20 / 20 / 15 / 16**, identical after. Written\
+    \ longhand rather than snapshotted, on the stated grounds that a snapshot is one\
+    \ `-u` away from recording whatever the panel does next.\n- **ac-4.** After scrolling\
+    \ a 40-entry log 9081px at 900\xD7700, id, title and ball still pinned and readable.\n\
+    - **ac-5.** Found and fixed a real one: `whitespace-pre-wrap` breaks at whitespace\
+    \ only, so a 400-character unbroken token pushed the region **2097px** sideways.\
+    \ The first e2e pass missed it because the entry sat inside a collapsed `<details>`\
+    \ \u2014 the test now expands first. That is the failure mode ENGINEERING.md warns\
+    \ about, caught by the child itself.\n- **ac-6.** Dashboard, Create and Dispatch\
+    \ checked in a browser at 1600\xD7900: no list region, no detail region, `<main>`\
+    \ over 1200px, no sideways scroll.\n- **ac-7.** Decision entry 9: Create keeps\
+    \ the full width, with the measurement that decides it (the residual column is\
+    \ **508px** at a 900px window) and the rejected alternative.\n\nIt also stated\
+    \ its instrument without being asked \u2014 Playwright and `page.evaluate`, \"\
+    the browser doing its own layout, which is what a geometric claim needs\" \u2014\
+    \ and noted that `mcp__claude-in-chrome` would not navigate to the sandbox port\
+    \ at all across three attempts, so none of it leaned on that tool.\n\n**So this\
+    \ is a bookkeeping gap, not a substantive one.** I am recording it here rather\
+    \ than repairing it: a run's API writes are scoped to its own task, so I cannot\
+    \ flip another task's acceptance statuses, and hand-editing the YAML is both guarded\
+    \ and the wrong instrument.\n\n## The fifth finding\n\n**Nothing checks acceptance\
+    \ status before a merge.** ALLAGENTS.md says `acceptance[]` is what \"done\" means,\
+    \ and the scripted finish gates on `scripts/check.py` exiting 0 \u2014 an entirely\
+    \ different question. A child can therefore merge, close `completed`, and leave\
+    \ every criterion `pending`, with no gate anywhere objecting. task-238 left two\
+    \ `pending` *deliberately and correctly*; task-239 left seven `pending` by omission.\
+    \ **Nothing in the system can tell those two apart**, which is the actual problem:\
+    \ the honest case and the sloppy case are indistinguishable to every reader and\
+    \ every gate.\n\n## Corroboration for entry 16\n\ntask-239's entry 12 says its\
+    \ first finish attempt \"was killed by this session's harness, **which has killed\
+    \ every background command this run started**\". That is the same thing that killed\
+    \ my walk at 08:05. So the kill is systematic across `--bg` dispatched runs rather\
+    \ than a one-off, which strengthens entry 16: any epic supervised by a `--bg`\
+    \ run should expect its walk to die and be relaunched, and any child should expect\
+    \ its finish to need a retry. task-239's retry worked (`fin_76d2c516`, 614s, merge\
+    \ `81f8354`), and its first attempt had merged nothing \u2014 a queued finish\
+    \ holds no lock.\n\n## Standing\n\n`main` now carries children 1, 2 and 4. task-356\
+    \ is the last agent-workable child, running 15 minutes. Slot freed from task-239's\
+    \ session \u2014 third cancel, same pattern."
+  data:
+    operation:
+      id: d5a3910c-42e7-4b76-8ef1-3c96b2075e4a
+      kind: log_append
+      fingerprint: a2c9e7d218f3716370eeb14af906254f
