@@ -304,10 +304,17 @@ class DispatchTrigger(ValueEnum):
 
 
 class DispatchMode(ValueEnum):
-    """Which process lifecycle a run had (design doc section 4, task-077)."""
+    """Which process lifecycle a run had (design doc section 4, task-077).
+
+    ``interactive`` is a session a person is sitting in, recorded by the claim it made
+    rather than started by a dispatch (task-354). It is followed by nothing: the poller
+    never parks, stops or settles it, and it holds no run slot. It exists so the work
+    is visible.
+    """
 
     SESSION = "session"
     BATCH = "batch"
+    INTERACTIVE = "interactive"
 
 
 class DispatchPosture(ValueEnum):
@@ -344,6 +351,9 @@ class DispatchOutcome(ValueEnum):
     CANCELLED = "cancelled"
     CRASHED = "crashed"
     INTERRUPTED = "interrupted"
+    SESSION_ENDED = "session_ended"
+    """An interactive session left the driver's ledger while its task still read
+    active. Not a fault: the person closed the window. The task says what they did."""
 
 
 # ---------------------------------------------------------------------------

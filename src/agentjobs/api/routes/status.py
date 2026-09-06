@@ -27,12 +27,14 @@ from starlette.concurrency import run_in_threadpool
 from agentjobs.actors import UnknownActorError, validate_actor
 from agentjobs.dispatch.address import api_base_from_server
 from agentjobs.dispatch.config import DispatchError, Posture
-from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
+from agentjobs.dispatch.guards import DispatchRequest, actor_kind, dispatch_task
+from agentjobs.dispatch.interactive import settle_for_task, start_interactive_run
 from agentjobs.dispatch.runner import DispatchRunError
 from agentjobs.manager import MoveOutcome, TaskManager, TaskNotFoundError
 from agentjobs.models_v2 import Task
 from agentjobs.operations import OperationConflictError, RevisionConflictError
-from agentjobs.projects import Project
+from agentjobs.projects import Project, default_home
+from agentjobs.session_identity import SessionIdentity
 from agentjobs.storage import TaskLockTimeout
 
 from ..authorization import assert_actor_agrees
@@ -309,15 +311,45 @@ async def claim_task(
     manager: TaskManager = Depends(get_task_manager),
     project: Project = Depends(get_acting_project),
 ) -> Any:
-    """Claim a ready task: one winner, everyone else gets a 409."""
+    """Claim a ready task: one winner, everyone else gets a 409.
+
+    A claim that names its session also writes an interactive run record (task-354), so
+    the work shows as running on every surface that reads the ledger. Only after the
+    claim landed, only for an agent actor, and never a second one for a task that has a
+    live run -- which is what makes a replayed claim harmless.
+    """
     agent = acting_actor(request, project, payload.agent)
-    return _run(
+    result = _run(
         lambda: manager.claim_task(task_id, agent=agent, operation_id=payload.operation_id),
         task_id=task_id,
         project=project,
         operation_id=payload.operation_id,
         envelope=envelope,
     )
+    if payload.session_id and actor_kind(project_config(project), agent) != "human":
+        task = manager.get_task(task_id)
+        if task is not None and task.assignment.owner == agent:
+            start_interactive_run(
+                home=default_home(),
+                project=project,
+                task=task,
+                identity=SessionIdentity(
+                    session_id=payload.session_id,
+                    cwd=payload.session_cwd or str(project.root),
+                ),
+                actor=agent,
+                caused_by=task.log[-1].id if task.log else None,
+            )
+    return result
+
+
+def _settle_interactive(manager: TaskManager, task_id: str) -> None:
+    """After a verb that may have moved the ball: end the task's interactive runs if so.
+
+    The poller would catch it a tick later; doing it here is what makes the board drop
+    the card the moment the session hands off, rather than ten seconds after.
+    """
+    settle_for_task(default_home(), manager.get_task(task_id), task_id)
 
 
 @router.post("/{task_id}/handoff", response_model=MutationResponse, status_code=status.HTTP_200_OK)
@@ -331,7 +363,7 @@ async def handoff_task(
 ) -> Any:
     """Move the ball, with its ask."""
     actor = acting_actor(request, project, payload.actor)
-    return _run(
+    result = _run(
         lambda: manager.handoff(
             task_id,
             actor=actor,
@@ -348,6 +380,8 @@ async def handoff_task(
         operation_id=payload.operation_id,
         envelope=envelope,
     )
+    _settle_interactive(manager, task_id)
+    return result
 
 
 @router.post("/{task_id}/release", response_model=MutationResponse, status_code=status.HTTP_200_OK)
@@ -361,7 +395,7 @@ async def release_task(
 ) -> Any:
     """Return a claimed task to the pool."""
     actor = acting_actor(request, project, payload.actor)
-    return _run(
+    result = _run(
         lambda: manager.release_task(
             task_id, actor=actor, body=payload.body, operation_id=payload.operation_id
         ),
@@ -370,6 +404,8 @@ async def release_task(
         operation_id=payload.operation_id,
         envelope=envelope,
     )
+    _settle_interactive(manager, task_id)
+    return result
 
 
 @router.post("/{task_id}/close", response_model=MutationResponse, status_code=status.HTTP_200_OK)
@@ -383,7 +419,7 @@ async def close_task(
 ) -> Any:
     """End the task with an outcome."""
     actor = acting_actor(request, project, payload.actor)
-    return _run(
+    result = _run(
         lambda: manager.close_task(
             task_id,
             actor=actor,
@@ -398,6 +434,8 @@ async def close_task(
         operation_id=payload.operation_id,
         envelope=envelope,
     )
+    _settle_interactive(manager, task_id)
+    return result
 
 
 @router.post(

@@ -981,3 +981,34 @@ describe("enabling a project against a group", () => {
     );
   });
 });
+
+describe("a task that something is already working (task-354)", () => {
+  it("withholds the Dispatch button while a session is working the task", () => {
+    // The defect: a task claimed and being worked from a chat window showed a button
+    // offering to start a second agent on the same task and the same repository. The
+    // server refuses that with `live_run_exists`; the page now says so before the click.
+    renderPanel({ runs: [run({ mode: "interactive", live: true })] });
+
+    expect(screen.queryByRole("button", { name: /^▶ Dispatch/ })).toBeNull();
+    const note = screen.getByRole("status");
+    expect(note).toHaveAttribute("data-refusal-reason", "live_run_exists");
+    expect(note).toHaveTextContent("A session is working this task right now");
+    expect(note).toHaveTextContent("will not stop it");
+  });
+
+  it("says a dispatched run differently, because that one can be cancelled", () => {
+    renderPanel({ runs: [run({ mode: "session", live: true })] });
+
+    expect(screen.queryByRole("button", { name: /^▶ Dispatch/ })).toBeNull();
+    const note = screen.getByRole("status");
+    expect(note).toHaveTextContent("An agent is already running on this task");
+    expect(note).toHaveTextContent("Cancel it there");
+  });
+
+  it("offers the button again once the run is over", () => {
+    renderPanel({ runs: [run({ live: false, status: "finished", outcome: "completed" })] });
+
+    expect(screen.getByRole("button", { name: /^▶ Dispatch/ })).toBeInTheDocument();
+    expect(screen.queryByText(/already working/i)).toBeNull();
+  });
+});

@@ -26,7 +26,6 @@ from agentjobs.dispatch.registration import (
     DispatchedElsewhereError,
     RegistrationRunExistsError,
     RegistrationTaskClosedError,
-    SessionInteractiveError,
     SessionUnknownError,
     SessionUnnamedError,
     UnknownActorError,
@@ -239,18 +238,28 @@ class TestRefusals:
         assert "not live" in str(caught.value)
         _wrote_nothing(bench)
 
-    def test_an_interactive_session_is_refused_by_construction(self, bench) -> None:
-        """The constraint the whole design turns on: an attended session is not a fault.
+    def test_an_interactive_session_is_adopted_as_an_interactive_run(self, bench) -> None:
+        """An attended session gets a record the poller cannot act on (task-354).
 
-        Refused here rather than adopted-and-excused later, because an adopted one would
-        eventually be reported stalled, or be `stop`ped by the settle path, while a person
-        was typing into it.
+        This was a refusal until then, and the reason was sound at the time: a session
+        run's record buys the poller's protections, and one of them ``stop``s a session
+        that looks finished -- which, applied to a session somebody is typing into, ends
+        it mid-sentence. What changed is that ``mode: interactive`` is a record those
+        protections skip by construction, so the visibility can be had without them. The
+        cost of refusing was measured on 2026-09-06: a task being worked in a chat window
+        showed on the dashboard as *Runs 0*, with a Dispatch button offering to start a
+        second agent on it.
         """
         _set_ledger(bench["fake_cli"], [_row(kind="interactive")])
-        with pytest.raises(SessionInteractiveError) as caught:
-            _register(bench, session_id=FULL_SESSION)
-        assert "interactive" in str(caught.value)
-        _wrote_nothing(bench)
+
+        result = _register(bench, session_id=FULL_SESSION)
+
+        assert not result.already_known
+        record = read_run(Path(result.directory))
+        assert record.is_interactive
+        assert not record.takes_slot, "an attended session holds its task, not a slot"
+        assert record.session_id == FULL_SESSION
+        assert record.origin == "registered"
 
     def test_a_closed_task_is_refused(self, bench) -> None:
         bench["manager"].close_task(

@@ -133,8 +133,10 @@ class LiveRunsView(BaseModel):
         ...,
         description=(
             "Run slots in use. Counted exactly as the concurrency guard counts them -- "
-            "`len(live_runs(home))` -- so this surface and a refused dispatch can never "
-            "disagree. Finishes and the runway are not in it: they hold locks, not run "
+            "`len(slot_runs(home))` -- so this surface and a refused dispatch can never "
+            "disagree. An interactive run (mode `interactive`) is in `runs` and not in "
+            "this count: it holds its task, not a slot (task-354). Finishes and the "
+            "runway are not in it either: they hold locks, not run "
             "slots."
         ),
     )
@@ -371,8 +373,11 @@ async def list_live_runs(
     """
     home = _home()
     projects = _projects_by_id(principal)
-    occupied = live_runs(home)
-    records = [record for record in occupied if _may_see(record.project_id, projects, principal)]
+    every = live_runs(home)
+    records = [record for record in every if _may_see(record.project_id, projects, principal)]
+    # `occupied` is slots; `runs` is everything running. An interactive session is in
+    # the second and not the first, and the two answer different questions (task-354).
+    occupied = [record for record in every if record.takes_slot]
     ceiling, configured = _ceiling()
 
     runways = _runway_owners(projects)

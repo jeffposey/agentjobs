@@ -8,6 +8,7 @@ import {
   capacitySentence,
   finishStepLabel,
   liveFinishes,
+  runKindLabel,
   unexplainedRunways,
 } from "./LiveRuns";
 
@@ -63,6 +64,10 @@ export const BOARD_CELL_LIMIT = 6;
  * as nothing happening. It holds no slot, so it is *added* to the board rather than
  * taking a cell from it: the free cells and their Dispatch buttons are exactly what
  * they would be without it.
+ *
+ * An **interactive** run -- a session somebody is working the task in (task-354) -- is
+ * a `run` cell like any other and is added the same way, for the same reason: it is in
+ * `runs` and not in `occupied`, because it holds its task rather than a slot.
  */
 export type SlotCell =
   | { kind: "run"; key: string; run: LiveRunView }
@@ -135,7 +140,11 @@ export function boardLayout(
   projectId: string,
 ): BoardLayout {
   const unconfigured = !body.dispatch_configured;
-  const runs = orderedRuns(body.runs);
+  // Slot cells are filled from the runs that *hold* slots. An interactive session is in
+  // `runs` and not in `occupied` (task-354), so indexing the slot cells into the whole
+  // list would put a chat session in a slot cell and push a dispatched run out of one.
+  const slotted = orderedRuns(body.runs.filter((run) => run.mode !== "interactive"));
+  const attended = orderedRuns(body.runs.filter((run) => run.mode === "interactive"));
   // `occupied`, never `runs.length`. The count is the machine's and the list is this
   // caller's, and the cell that exists for the difference is `opaque`.
   const slots = unconfigured
@@ -145,17 +154,20 @@ export function boardLayout(
 
   const cells: SlotCell[] = [];
   for (let index = 0; index < busy; index += 1) {
-    const run = runs[index];
+    const run = slotted[index];
     cells.push(
       run ? { kind: "run", key: run.run_id, run } : { kind: "opaque", key: `opaque-${index}` },
     );
   }
 
-  // Finishes after the runs and before the free cells: busy things first, and a finish
-  // is what happens to a task after its run. They are not counted against `slots` --
-  // `free` below is computed from `busy` alone -- so a board with a finish on it has
-  // one more card than the ceiling, and that is the honest shape: three slots, none
-  // taken, and a merge grinding beside them.
+  // Then the things that are running and hold no slot, in the order a person meets
+  // them: a session working the task, then the merge that follows it. Neither is
+  // counted against `slots` -- `free` below is computed from `busy` alone -- so a board
+  // with either on it has more cards than the ceiling, and that is the honest shape:
+  // three slots, none taken, and work happening beside them.
+  for (const run of attended) {
+    cells.push({ kind: "run", key: run.run_id, run });
+  }
   const finishes = orderedFinishes(liveFinishes(body));
   for (const finish of finishes) {
     cells.push({ kind: "finish", key: `finish-${finish.lock_name}`, finish });
@@ -260,8 +272,8 @@ function RunCell({ run, projectId }: { run: LiveRunView; projectId: string }) {
         </Link>
       </div>
       <div className="flex items-center justify-between gap-2 text-xs text-dark-muted">
-        <span className="truncate">{elsewhere ? run.project_name : run.posture}</span>
-        {elsewhere && <span className="shrink-0">{run.posture}</span>}
+        <span className="truncate">{elsewhere ? run.project_name : runKindLabel(run)}</span>
+        {elsewhere && <span className="shrink-0">{runKindLabel(run)}</span>}
       </div>
     </div>
   );

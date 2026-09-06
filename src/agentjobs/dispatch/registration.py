@@ -280,14 +280,6 @@ def register_session(
 
     row = _live_row(runner, claimed)
     kind = session_kind(row)
-    if kind != "background":
-        raise SessionInteractiveError(
-            f"Session {claimed} is {kind}, not a background session. An attended session "
-            "is deliberately not adoptable: the protections a run record buys are for "
-            "sessions nobody is watching, and one of them stops a session that looks "
-            "finished -- which, applied to a session you are typing into, would end it "
-            "mid-sentence. Claiming the task is what records that you are working it."
-        )
 
     running = live_runs(machine_home)
     for run in running:
@@ -297,6 +289,46 @@ def register_session(
                 "is already being followed. One live run per task, always. If that run "
                 "is over and its record does not say so, cancel it and register again."
             )
+
+    if kind != "background":
+        # An attended session gets an *interactive* run (task-354): a record the poller
+        # never parks, stops or settles, which is what made refusing these necessary
+        # until then. Ordinarily the claim writes this record itself; registering is
+        # for a session that claimed some other way, or before that existed.
+        from agentjobs.dispatch.interactive import ORIGIN_REGISTERED, start_interactive_run
+        from agentjobs.session_identity import SessionIdentity
+
+        identity = SessionIdentity(
+            session_id=str(row.get("sessionId") or claimed),
+            cwd=str(row.get("cwd") or project.root),
+            driver=resolution.runner.driver.value,
+        )
+        record = start_interactive_run(
+            home=machine_home,
+            project=project,
+            task=task,
+            identity=identity,
+            actor=actor_id,
+            origin=ORIGIN_REGISTERED,
+        )
+        if record is None:
+            raise RegistrationRunExistsError(
+                f"{task.id} could not be given an interactive run: it is not active, or "
+                "something else holds it. Claim it first."
+            )
+        return Registration(
+            task_id=task.id,
+            run_id=record.run_id,
+            session_id=identity.session_id,
+            already_known=False,
+            detail=(
+                f"Session {claimed} is {kind}, so it is recorded as interactive run "
+                f"{record.run_id}: visible on the dashboard, followed by nothing, and "
+                "never stopped by the poller."
+            ),
+            directory=record.path,
+            started_at=record.started_at,
+        )
 
     # The machine's concurrency ceiling is deliberately NOT applied. It exists to stop a
     # click starting an agent the machine cannot afford; this session is already running,

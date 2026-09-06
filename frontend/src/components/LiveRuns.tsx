@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { listLiveRunsApiRunsLiveGetOptions } from "../api/generated/@tanstack/react-query.gen";
-import type { LiveRunsView, MachineHolderView } from "../api/types";
+import type { LiveRunView, LiveRunsView, MachineHolderView } from "../api/types";
 import { formatElapsed } from "./DispatchPanel";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 
@@ -77,6 +77,9 @@ export const HEALTH_LABELS: Record<string, string> = {
   silent: "No output",
   orphaned: "Process gone",
   unknown: "Unreadable",
+  // An interactive session whose transcript has not changed for a while (task-354).
+  // Not an alarm: a chat window left open is the most ordinary state there is.
+  idle: "Idle",
 };
 
 const HEALTH_CLASSES: Record<string, string> = {
@@ -86,7 +89,20 @@ const HEALTH_CLASSES: Record<string, string> = {
   silent: "bg-orange-900 text-orange-200",
   orphaned: "bg-red-900 text-red-200",
   unknown: "bg-red-900 text-red-200",
+  idle: "bg-slate-700 text-slate-200",
 };
+
+/**
+ * What kind of run this is, in one word, where a dispatched run shows its posture.
+ *
+ * An interactive run has no posture -- AgentJobs did not choose that session's
+ * permission envelope and cannot read it (task-354) -- so printing the field would print
+ * an empty cell. "You, in a chat window" is what the reader needs instead.
+ */
+export function runKindLabel(run: LiveRunView): string {
+  if (run.mode === "interactive") return "your session";
+  return `${run.posture}${run.session ? "" : " · batch"}`;
+}
 
 export function healthLabel(health: string): string {
   return HEALTH_LABELS[health] ?? health;
@@ -390,8 +406,7 @@ export function LiveRunsPage({ body }: { body: LiveRunsView | null }) {
                       {formatElapsed(run.elapsed_seconds)}
                     </ResponsiveCell>
                     <ResponsiveCell label="Posture" className="text-xs text-dark-muted">
-                      {run.posture}
-                      {run.session ? "" : " · batch"}
+                      {runKindLabel(run)}
                     </ResponsiveCell>
                   </ResponsiveTableRow>
                 ))}
