@@ -3,98 +3,17 @@ id: task-340
 title: A scripted finish that stops at the gate must start the session that repairs
   it, not wait for a Dispatch click
 created: '2026-09-05T21:33:27.249588Z'
-updated: '2026-09-06T02:27:17.766883Z'
+updated: '2026-09-06T02:36:29.277532Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: 'Ready for review. Branch `fix/task-340-escalation-dispatches`, worktree
-  `../worktrees/agentjobs-340`, rebased onto main at `c307acd`.
-
-
-  **Gate: green, unqualified, on the clean rebased tree.** `Ran every stage (10 of
-  10). Gate receipt written for c307acde.` 503.8s (pytest 315s, e2e 117s, the rest
-  under 20s each).
-
-
-  **What changed**
-
-
-  1. A stopped finish dispatches the repair session on `finish.dispatch_on_escalation`
-  -- new, defaults true, gated behind `finish.enabled` -- instead of on `auto_dispatch`.
-  `assert_dispatch_permitted`, `max_concurrent_runs`, the per-task spend caps and
-  the attribution to your own approval entry are all untouched. It cannot loop: the
-  run it starts ends at a review handoff, and the next finish needs another approval.
-
-  2. Where no run can start, the ball goes to `human`/`decision` naming why and giving
-  the command and the click. The one case that keeps `agent` is a run already live
-  on the task -- an autonomous run finishing itself, which *is* the agent the escalation
-  addresses.
-
-  3. The escalation entry and ball prompt lead with the cause: the stage `scripts/check.py`
-  stopped in and the `FAILED` lines, then `gate.log`. The thirty-line raw tail survives
-  only when nothing could be extracted.
-
-  4. The prompt names the branch and its worktree, since `PROMPT_STUB` otherwise tells
-  a cold session to take a fresh one.
-
-
-  **Where to look**: `dispatch_after_escalation` and `park_for_human` in `src/agentjobs/dispatch/finish.py`
-  are the behaviour change; `lead_with_the_cause` above them is the reading fix. `docs/agent-dispatch-design.md`
-  gains a "What a stop starts" section under 5a with the incident and both rejected
-  alternatives.
-
-
-  **Three decisions on this record worth your eye** (entries 8, 9, 10):
-
-
-  - **The knob is its own field** rather than a read of `finish.enabled`, so somebody
-  who wants the scripted merge but wants to see every red gate has a way to say so
-  that is not "turn the finish off".
-
-  - **Nothing was added to ENGINEERING.md or ALLAGENTS.md.** The always-loaded bundle
-  measured 59,994 of 60,000 bytes -- six bytes of headroom. The rule an agent needs
-  ("the branch already exists; do not take a new worktree") is carried by the escalation''s
-  own prompt instead, which is where the agent reads it anyway. I did not raise the
-  budget and did not cut anything to fund prose that would have been redundant.
-
-  - **ac-5 is staged, not discharged, and I did not fake the approval it needs.**
-  Details below.
-
-
-  **ac-1 to ac-4 are met.** 14 new tests in `tests/test_dispatch_finish.py` cover
-  a real dispatch with `auto_dispatch: false` attributed to the approval entry; the
-  knob off, no dispatch config, no human entry and a dirty shared clone each landing
-  on `human`/`decision`; and the failing test appearing within the first six lines
-  of the escalation entry. Four existing tests were updated -- their worlds have no
-  dispatch config, so they now correctly end on a human rather than on an agent that
-  does not exist.
-
-
-  **ac-5 is task-347**, which is now blocked on this task rather than sitting on you:
-  branch `chore/task-347-escalation-rehearsal` in `../worktrees/agentjobs-347`, bootstrapped,
-  one deliberately failing test so the gate goes red at `pytest` and nothing can merge.
-  It becomes one click the moment this merges and the server restarts -- the finish
-  runs the *serving* clone''s interpreter, so doing it sooner would rehearse the code
-  on `main`. Its own record has the procedure and the cleanup commands. Running `agentjobs
-  finish` by hand from this session was refused by the harness''s command classifier,
-  and retrying a blocked command reworded is not something to do.
-
-
-  **Two things that turned up while gating, neither in this branch''s code.** The
-  first gate went red on `test_agentjobs_context_paths_exist`: task-346 and task-345
-  name `task-342.yaml` and `task-341.yaml` in `spec.context`, and both had been created
-  through the API -- which writes into the main clone''s working tree -- and never
-  committed, so they exist in the clone and in no worktree. Committed on `main` in
-  430d870. The second went red on `test_dispatch_runner.py::TestBatchOutcomes::test_a_hang_past_the_timeout_is_terminated_and_reported`,
-  which allows 60s for a thread join; it passed in 4s in isolation and flaked with
-  six other worktrees gating concurrently. Worth knowing about, not fixed here.
-
-
-  **Your question from entry 3 is still open** -- should a finish re-rebase and re-run
-  the failed stage before escalating, when `main` moved under it? Deliberately out
-  of scope, and it is the fix that would have merged task-337 for zero tokens. The
-  first of the two red gates above is a second instance of exactly that shape. Say
-  yes and I will file it; say no and it is settled here.'
+ball_prompt: "Review `fix/task-340-escalation-dispatches` \u2014 worktree `../worktrees/agentjobs-340`,\
+  \ rebased to c307acd.\n\nGate green: all 10 stages, receipt written for c307acde.\n\
+  \nA finish that stops now starts the repair run itself instead of waiting on a Dispatch\
+  \ click, and moves the ball to a human when it can't start one. The escalation entry\
+  \ leads with the failing stage and test.\n\nac-1 to ac-4 met. ac-5 is task-347,\
+  \ blocked on this one.\n\nDetail, three decisions and two gate incidents are in\
+  \ the entries below."
 archived: false
 priority: high
 queue_position: 67
@@ -753,6 +672,20 @@ log:
     out of scope, and it is the fix that would have merged task-337 for zero tokens.
     The first of the two red gates above is a second instance of exactly that shape.
     Say yes and I will file it; say no and it is settled here.'
+  data:
+    ball: human
+    ball_reason: review
+- id: 15
+  ts: '2026-09-06T02:36:29.277372Z'
+  actor: claude
+  type: handoff
+  body: "Review `fix/task-340-escalation-dispatches` \u2014 worktree `../worktrees/agentjobs-340`,\
+    \ rebased to c307acd.\n\nGate green: all 10 stages, receipt written for c307acde.\n\
+    \nA finish that stops now starts the repair run itself instead of waiting on a\
+    \ Dispatch click, and moves the ball to a human when it can't start one. The escalation\
+    \ entry leads with the failing stage and test.\n\nac-1 to ac-4 met. ac-5 is task-347,\
+    \ blocked on this one.\n\nDetail, three decisions and two gate incidents are in\
+    \ the entries below."
   data:
     ball: human
     ball_reason: review
