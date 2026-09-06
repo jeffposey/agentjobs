@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useMatch, useNavigate, useSearchParams } from "react-router-dom";
 
 import type {
   QueueMovePlacement,
@@ -7,7 +7,7 @@ import type {
   QueueProblemRead,
   TaskRead,
 } from "../api/types";
-import { DependencyState } from "./DependencyState";
+import { DependencyState, dependencyState, STATE_CLASSES } from "./DependencyState";
 import { startDragAutoScroll } from "./dragAutoScroll";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 import {
@@ -20,14 +20,28 @@ import {
   type QueueMove,
   type StepDirection,
 } from "./queueOrder";
+import {
+  buildTaskRows,
+  descendantCounts,
+  neighbourRow,
+  readCollapsed,
+  unfoldedRows,
+  writeCollapsed,
+  type TaskRow,
+} from "./taskTree";
 
-type TaskRow = {
-  task: TaskRead;
-  depth: number;
-  ancestors: Array<string>;
-  childCount: number;
-  openChildren: number;
-};
+/**
+ * Which shape this list is rendering in.
+ *
+ * `table` is the full-width surface it has always been -- six columns, restacking into
+ * labelled cards when its own box is narrow. `tree` is the master column task-235's
+ * shell puts beside the record: one row per task, folded under its parent, with a
+ * selected row and arrow-key movement. They are the same data and the same queue
+ * gestures; what differs is that a column 320px wide is picked *from* rather than read
+ * across, so the row carries the two signals that decide what to click and the rest
+ * moves to the record beside it.
+ */
+export type TaskListVariant = "table" | "tree";
 
 /** What the queue-move check said about a move that has already landed. */
 export type MoveVerdict = {
@@ -90,59 +104,66 @@ const STEP_KEYS: Record<string, StepDirection> = {
 };
 
 /**
- * Rows in the order the server sent them, grouped under their parents.
+ * Whether a fresh reader finds the tree open or folded.
  *
- * **There is no sort here, deliberately.** Until task-207 this sorted by `updated`
- * descending and consulted priority only to break a tie, so the list a human read was
- * ordered by one rule while the scheduler answered by another — and neither rule had
- * been chosen by anybody. `manager.list_tasks` now settles the order in
- * `(band, queue_position)`, and the client's job is to not undo that.
- *
- * The parent grouping is a regrouping, not a re-sort: siblings keep the order they
- * arrived in, so within any one group the queue's order survives. It does move a child
- * away from its own band's run of rows, which is why the position column exists and
- * why every reorder gesture is computed over the band rather than over the rows on
- * screen. The default filters flatten the list anyway — grouping only appears when the
- * status filter is `all` and nothing else is set.
+ * **Open**, and it is one line to change if that turns out wrong. The alternative --
+ * fold every parent by default -- hides most of this backlog behind a click, including
+ * whatever `agentjobs next` would hand out, and a queue whose first screen omits the
+ * work is not a queue. Folding is therefore an act a reader takes on a specific epic
+ * they are done with, which is exactly the thing worth remembering across sessions;
+ * `taskTree.ts` stores the folds rather than the unfolds for the same reason. What the
+ * spec warned about -- "all-expanded reproduces today's wall of rows" -- is answered by
+ * the row rather than by the default: these rows are indented, three lines, and one
+ * screen of them is a tree, where today's wall was a flat six-column table.
  */
-export function buildTaskRows(tasks: Array<TaskRead>): Array<TaskRow> {
-  const byId = new Map(tasks.map((task) => [task.id, task]));
-  const children = new Map<string | null, Array<TaskRead>>();
+const FOLDED_BY_DEFAULT = false;
 
-  for (const task of tasks) {
-    const parent = task.parent && byId.has(task.parent) ? task.parent : null;
-    children.set(parent, [...(children.get(parent) ?? []), task]);
-  }
+/**
+ * Whether this parent is folded, given what the reader has recorded.
+ *
+ * The stored set holds the *exceptions* to {@link FOLDED_BY_DEFAULT}, so this is the
+ * one place the two are combined, and flipping the default flips every fold with it.
+ */
+function foldedIn(exceptions: Set<string>, taskId: string): boolean {
+  return exceptions.has(taskId) !== FOLDED_BY_DEFAULT;
+}
 
-  const rows: Array<TaskRow> = [];
-  const drawn = new Set<string>();
-  const walk = (task: TaskRead, ancestors: Array<string>) => {
-    if (drawn.has(task.id)) return;
-    const kids = children.get(task.id) ?? [];
-    rows.push({
-      task,
-      depth: ancestors.length,
-      ancestors,
-      childCount: kids.length,
-      openChildren: kids.filter((child) => child.lifecycle !== "closed").length,
-    });
-    drawn.add(task.id);
-    for (const child of kids) {
-      if (child.id === task.id || ancestors.includes(child.id)) continue;
-      walk(child, [...ancestors, task.id]);
-    }
-  };
+/** The stored exceptions with one parent's fold set to `folded`. */
+function withFold(exceptions: Set<string>, taskId: string, folded: boolean): Set<string> {
+  const next = new Set(exceptions);
+  if (folded !== FOLDED_BY_DEFAULT) next.add(taskId);
+  else next.delete(taskId);
+  return next;
+}
 
-  for (const root of children.get(null) ?? []) walk(root, []);
+/**
+ * The paragraph above the table describing the reorder keys.
+ *
+ * Every handle points at it with `aria-describedby` rather than carrying the
+ * instructions in its own name. It is rendered exactly when reordering is available,
+ * which is also exactly when a handle exists, so the reference never dangles.
+ */
+const REORDER_HELP_ID = "queue-reorder-help";
+/** The tree's own keys, which exist whether or not anything may be reordered. */
+const TREE_HELP_ID = "task-tree-help";
 
-  // Cycles have no root. Append every undrawn record flat so malformed ancestry can
-  // never make a task disappear from the list.
-  for (const task of tasks) {
-    if (!drawn.has(task.id)) {
-      rows.push({ task, depth: 0, ancestors: [], childCount: 0, openChildren: 0 });
-    }
-  }
-  return rows;
+/** The reorder handle's own id, so focus can be put back on it after a step. */
+function gripId(taskId: string) {
+  return `queue-grip-${taskId}`;
+}
+
+/** A row's link, so focus can be put on it after an arrow key moves the selection. */
+function rowLinkId(taskId: string) {
+  return `task-row-${taskId}`;
+}
+
+function taskPath(projectId: string, taskId: string) {
+  return `/p/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`;
+}
+
+/** A fingerprint of the order the server last sent, used to expire a prediction. */
+function orderSignature(tasks: Array<TaskRead>) {
+  return tasks.map((task) => `${task.id}:${task.queue_position ?? ""}`).join("|");
 }
 
 function matchesTask(task: TaskRead, search: string, status: string, priority: string, scope: string) {
@@ -172,31 +193,25 @@ function filterValue(params: URLSearchParams, key: string, allowed: Set<string>,
 }
 
 /**
- * The paragraph above the table describing the reorder keys.
+ * Bring a row into view **only if some of it is not**.
  *
- * Every handle points at it with `aria-describedby` rather than carrying the
- * instructions in its own name. It is rendered exactly when reordering is available,
- * which is also exactly when a handle exists, so the reference never dangles.
+ * `block: "nearest"` is the whole of that promise: a row already on screen is not
+ * moved, so keyboard movement down a visible list does not creep the scrollport, and a
+ * row past either edge is brought just inside it rather than centred. Guarded because
+ * jsdom implements no scrolling at all and would throw instead of doing nothing.
  */
-const REORDER_HELP_ID = "queue-reorder-help";
-
-/** The reorder handle's own id, so focus can be put back on it after a step. */
-function gripId(taskId: string) {
-  return `queue-grip-${taskId}`;
-}
-
-function taskPath(projectId: string, taskId: string) {
-  return `/p/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`;
-}
-
-/** A fingerprint of the order the server last sent, used to expire a prediction. */
-function orderSignature(tasks: Array<TaskRead>) {
-  return tasks.map((task) => `${task.id}:${task.queue_position ?? ""}`).join("|");
+function revealRow(element: HTMLElement) {
+  const row = element.closest("[data-task]");
+  if (row && typeof row.scrollIntoView === "function") {
+    row.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
 }
 
 type PendingMove = { signature: string; tasks: Array<TaskRead> };
 type MoveNotice = { taskId: string } & MoveVerdict;
 type BandChange = { taskId: string; from: string; to: string; before: string };
+/** Where focus goes after the next render, and whether to scroll it into view. */
+type FocusTarget = { elementId: string; reveal: boolean };
 
 export function TaskList({
   tasks,
@@ -204,15 +219,33 @@ export function TaskList({
   queueProblems = [],
   reorder = null,
   reorderUnavailable = null,
+  variant = "table",
 }: {
   tasks: Array<TaskRead>;
   projectId: string;
   queueProblems?: Array<QueueProblemRead>;
   reorder?: ReorderHandlers | null;
   reorderUnavailable?: string | null;
+  variant?: TaskListVariant;
 }) {
+  const tree = variant === "tree";
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  // Which task the record beside this list is showing, read from the route rather than
+  // held in state: a deep link, the back button and a click all have to arrive at the
+  // same selection, and a refetch must not disturb it. `tasks/new` is a sibling route
+  // rendered without this list, but the pattern matches it, so it is excluded here.
+  const routeMatch = useMatch("/p/:projectId/tasks/:taskId");
+  const routeTaskId = routeMatch?.params.taskId;
+  const selectedTaskId = routeTaskId && routeTaskId !== "new" ? routeTaskId : null;
+  // The table variant's disclosure: which parents a reader has *opened* on a list whose
+  // default is flat. The tree's is the mirror image below -- which parents they have
+  // folded on a list whose default is open -- and the two are deliberately separate
+  // states rather than one with a flipped sense, because they have different defaults,
+  // different persistence and different lifetimes.
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => readCollapsed(projectId));
+  const [collapsedFor, setCollapsedFor] = useState(projectId);
   // An optimistic reorder, kept beside a fingerprint of the data it was predicted
   // from. When the server's answer arrives the fingerprint no longer matches and the
   // prediction is dropped -- no effect, no timer, no second render pass -- so the
@@ -236,10 +269,21 @@ export function TaskList({
   const moveCount = useRef(0);
   const [bandChange, setBandChange] = useState<BandChange | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
-  // The task whose handle should hold focus after the next render.
-  const restoreFocus = useRef<string | null>(null);
+  // What should hold focus after the next render.
+  const restoreFocus = useRef<FocusTarget | null>(null);
+  // The selection whose ancestors have already been unfolded, so a reader who folds the
+  // parent of the task they are reading does not have it spring open again.
+  const revealed = useRef<string | null>(null);
   // This list's own root, so a drag can find the box it is scrolling inside.
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // Folds belong to a project, so switching project loads that project's own. Reading
+  // during render rather than in an effect: an effect would paint one frame of the
+  // previous project's folds over the new project's rows.
+  if (collapsedFor !== projectId) {
+    setCollapsedFor(projectId);
+    setCollapsed(readCollapsed(projectId));
+  }
 
   const search = params.get("q") ?? "";
   const status = filterValue(params, "status", STATUS_FILTERS, "open");
@@ -249,11 +293,30 @@ export function TaskList({
 
   const signature = useMemo(() => orderSignature(tasks), [tasks]);
   const ordered = pending && pending.signature === signature ? pending.tasks : tasks;
-  const rows = useMemo(() => buildTaskRows(ordered), [ordered]);
-  const visibleRows = rows.filter((row) => {
-    if (!matchesTask(row.task, search, status, priority, scope)) return false;
-    return flattened || row.ancestors.every((ancestor) => expanded.has(ancestor));
-  });
+
+  const matching = useMemo(
+    () => ordered.filter((task) => matchesTask(task, search, status, priority, scope)),
+    [ordered, search, status, priority, scope],
+  );
+  // Two groupings of the same rows, and the difference is *what is grouped*.
+  //
+  // The table groups the whole corpus and then hides the rows that do not match, which
+  // is why it has to flatten as soon as any filter is set: a matching child under a
+  // filtered-out parent would otherwise be indented under a row that is not there. The
+  // tree groups the matching tasks instead, so a child whose parent is closed is simply
+  // drawn at the root -- which is what lets it stay a tree at the default `open`
+  // filter, where the table has always been flat.
+  const tableRows = useMemo(() => buildTaskRows(ordered), [ordered]);
+  const treeRows = useMemo(() => buildTaskRows(matching), [matching]);
+  const rows = tree ? treeRows : tableRows;
+  const hidden = useMemo(() => descendantCounts(treeRows), [treeRows]);
+  const isFolded = (taskId: string) => foldedIn(collapsed, taskId);
+  const visibleRows = tree
+    ? unfoldedRows(treeRows, isFolded)
+    : tableRows.filter((row) => {
+        if (!matchesTask(row.task, search, status, priority, scope)) return false;
+        return flattened || row.ancestors.every((ancestor) => expanded.has(ancestor));
+      });
 
   // A band with two tasks on one number is not an order, so the list stops offering to
   // change *that* band: every gesture places a task relative to a neighbour, and a
@@ -272,7 +335,7 @@ export function TaskList({
   // it at more length than a footnote could.
   const unavailableReason = brokenBands.size > 0 ? null : reorderUnavailable;
 
-  // Scroll the page while a drag is held near the top or bottom of the window.
+  // Scroll the list while a drag is held near the top or bottom of the window.
   //
   // Keyed on `dragging`, so the loop exists only for a drag this list started: a link
   // or a file dragged in from outside never moves the page. `startDragAutoScroll` also
@@ -287,20 +350,51 @@ export function TaskList({
     return startDragAutoScroll({ within: rootRef.current });
   }, [dragging]);
 
-  // Put focus back on the handle of the task that just moved.
+  // Put focus back where the last gesture left it.
   //
-  // Without this the keyboard path works exactly once. React reorders the rows by
+  // Without this the keyboard reorder works exactly once. React reorders the rows by
   // moving their DOM nodes, and a browser drops focus from a node that is detached and
   // reinserted -- so the second Alt+Down of a two-step reorder either does nothing or,
   // worse, moves whichever task slid into the vacated row. Neither a jsdom test nor a
   // Playwright test that focuses the handle before every press can see this; it was
   // found by pressing the key twice in a real browser.
+  //
+  // Arrow-key selection uses the same channel for a different reason: the row it lands
+  // on has to be the one a further press moves from, and after a route change that row
+  // has just been re-rendered.
   useLayoutEffect(() => {
-    const taskId = restoreFocus.current;
-    if (!taskId) return;
+    const target = restoreFocus.current;
+    if (!target) return;
     restoreFocus.current = null;
-    document.getElementById(gripId(taskId))?.focus();
+    const element = document.getElementById(target.elementId);
+    if (!element) return;
+    // A selection scrolls only when the row is off-screen, so focus is told not to
+    // scroll and `revealRow` decides. A reorder keeps the browser's own behaviour.
+    element.focus(target.reveal ? { preventScroll: true } : undefined);
+    if (target.reveal) revealRow(element);
   });
+
+  // A deep link to a folded child unfolds its ancestors.
+  //
+  // Keyed on the selection *changing*, not on the fold state, so folding the parent of
+  // the task you are reading stays folded -- an effect that simply reconciled the two
+  // would fight the reader for the control. Nothing happens until the row exists, so a
+  // link pasted before the list has loaded is still honoured when it arrives.
+  useEffect(() => {
+    if (!tree || !selectedTaskId) return;
+    if (revealed.current === selectedTaskId) return;
+    const row = rows.find((candidate) => candidate.task.id === selectedTaskId);
+    if (!row) return;
+    revealed.current = selectedTaskId;
+    const folded = row.ancestors.filter((ancestor) => foldedIn(collapsed, ancestor));
+    if (folded.length === 0) return;
+    const next = folded.reduce(
+      (carry, ancestor) => withFold(carry, ancestor, false),
+      collapsed,
+    );
+    setCollapsed(next);
+    writeCollapsed(projectId, next);
+  }, [tree, selectedTaskId, rows, projectId, collapsed]);
 
   const updateParam = (key: string, value: string, fallback: string) => {
     const next = new URLSearchParams(params);
@@ -318,12 +412,47 @@ export function TaskList({
     });
   };
 
+  /** Fold or unfold one parent, remember it, and say what happened out loud. */
+  const setFolded = (row: TaskRow, folded: boolean) => {
+    const counts = hidden.get(row.task.id) ?? { total: 0, open: 0 };
+    const next = withFold(collapsed, row.task.id, folded);
+    setCollapsed(next);
+    writeCollapsed(projectId, next);
+    setAnnouncement(
+      folded
+        ? `${row.task.id} folded, hiding ${counts.total} sub-task${counts.total === 1 ? "" : "s"}, ${counts.open} open.`
+        : `${row.task.id} unfolded, showing ${counts.total} sub-task${counts.total === 1 ? "" : "s"}.`,
+    );
+  };
+
+  /**
+   * Where a row points, filters included.
+   *
+   * **The query string is carried across.** Opening a task used to drop it, which was
+   * invisible while the list was the whole page and a round trip away from the filter
+   * box. Beside the record it is not: an arrow key that quietly emptied the search
+   * would re-render the list from three rows to the whole backlog under the reader's
+   * hand, and the row they had just moved to would be reinserted somewhere else --
+   * taking the focus with it, so the next press did nothing. Found exactly that way,
+   * in Chromium, by pressing Down twice.
+   */
+  const rowTarget = (taskId: string) => ({
+    pathname: taskPath(projectId, taskId),
+    search: params.toString(),
+  });
+
+  /** Move the selection to a row: the record beside the list follows the route. */
+  const selectRow = (taskId: string) => {
+    restoreFocus.current = { elementId: rowLinkId(taskId), reveal: true };
+    navigate(rowTarget(taskId));
+  };
+
   const runMove = async (taskId: string, move: QueueMove | null) => {
     if (!handlers || !move) return;
     setMoveError(null);
     setNotice(null);
     const sequence = (moveCount.current += 1);
-    restoreFocus.current = taskId;
+    restoreFocus.current = { elementId: gripId(taskId), reveal: false };
     setPending({ signature, tasks: applyMove(ordered, taskId, move) });
     setAnnouncement(describeMove(ordered, taskId, move));
     try {
@@ -392,13 +521,71 @@ export function TaskList({
   const movableRow = (task: TaskRead) =>
     Boolean(handlers) && isInQueue(task) && !brokenBands.has(bandOf(task));
 
-  const onRowKeyDown = (event: React.KeyboardEvent<HTMLTableRowElement>, task: TaskRead) => {
+  const onRowKeyDown = (event: React.KeyboardEvent<HTMLElement>, task: TaskRead) => {
     const direction = STEP_KEYS[event.key];
     if (!event.altKey || !direction || !movableRow(task)) return;
     // Alt+Home and Alt+End would otherwise scroll the page away from the row that just
     // moved, and Alt+Arrow is back/forward in some browsers.
     event.preventDefault();
     void runMove(task.id, stepMove(ordered, task.id, direction));
+  };
+
+  /**
+   * The tree's own keys, sitting beside the reorder keys without colliding with them.
+   *
+   * **Alt is the whole of the distinction, and it is checked first.** Up and Down move
+   * the selection, Left and Right fold and unfold; the same four keys *with Alt* move
+   * the task itself, which is what they already did before this list had a selection.
+   * That is why a step gesture is still computed over the band by `queueOrder.ts` and
+   * never over the rows on screen: folding a parent changes what a reader can see and
+   * changes nothing about where Alt+Up puts a task, so a task can step past a sibling
+   * that is not rendered -- and the live region says whose place it took, which is the
+   * only part of the gesture folding could otherwise have made invisible.
+   */
+  const onTreeKeyDown = (event: React.KeyboardEvent<HTMLElement>, row: TaskRow) => {
+    if (event.altKey) {
+      onRowKeyDown(event, row.task);
+      return;
+    }
+    if (event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const foldable = (hidden.get(row.task.id)?.total ?? 0) > 0;
+    const folded = isFolded(row.task.id);
+
+    const move = (target: TaskRow | null | undefined) => {
+      if (!target) return;
+      event.preventDefault();
+      selectRow(target.task.id);
+    };
+
+    switch (event.key) {
+      case "ArrowDown":
+        return move(neighbourRow(visibleRows, row.task.id, 1));
+      case "ArrowUp":
+        return move(neighbourRow(visibleRows, row.task.id, -1));
+      case "Home":
+        return move(visibleRows[0]);
+      case "End":
+        return move(visibleRows[visibleRows.length - 1]);
+      case "ArrowRight":
+        // Open it, or -- already open -- step into it, which is what a tree does.
+        if (foldable && folded) {
+          event.preventDefault();
+          setFolded(row, false);
+          return;
+        }
+        if (foldable) return move(neighbourRow(visibleRows, row.task.id, 1));
+        return;
+      case "ArrowLeft":
+        // Close it, or -- already closed, or a leaf -- step out to its parent.
+        if (foldable && !folded) {
+          event.preventDefault();
+          setFolded(row, true);
+          return;
+        }
+        return move(visibleRows.find((candidate) => candidate.task.id === row.ancestors.at(-1)));
+      default:
+        return;
+    }
   };
 
   const onRowDrop = (task: TaskRead) => {
@@ -419,8 +606,206 @@ export function TaskList({
     void runMove(source.id, from < to ? { after: task.id } : { before: task.id });
   };
 
+  /**
+   * The grip, identical in both shapes.
+   *
+   * A drop onto a *folded* parent is an ordinary drop and deliberately nothing more:
+   * it places the dragged task beside that parent in its band. It does not reparent --
+   * that is a real feature and its own task -- and it does not unfold on hover, which
+   * would move every row under the pointer mid-gesture and land the drop somewhere
+   * nobody aimed at. So the answer to "what does dropping on a folded epic do" is "the
+   * same thing as dropping on any other row", which is a decision rather than an
+   * accident.
+   */
+  const renderGrip = (task: TaskRead) => (
+    <button
+      type="button"
+      id={gripId(task.id)}
+      draggable
+      onDragStart={(event) => {
+        // What is being dragged is held in state, not read back out of the payload: a
+        // browser hides `dataTransfer` data during dragover, which is exactly when the
+        // drop target has to decide whether it will accept.
+        //
+        // The payload is still set, because some browsers will not start a drag
+        // without one -- but under a private type rather than `text/plain`. As plain
+        // text the row could be dropped into any other application on the machine,
+        // which is not a thing anybody wants a queue position to do. A type nothing
+        // else understands leaves the gesture with nowhere to deposit itself outside
+        // this list.
+        setDragging(task.id);
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData(DRAG_TYPE, task.id);
+        }
+      }}
+      onDragEnd={() => setDragging(null)}
+      // The name says what this handle is and what it currently holds. The keys are
+      // `aria-keyshortcuts`, which is what that attribute is for -- a screen reader
+      // announces them as shortcuts, and announces them once, rather than reading a
+      // sentence of instructions on every row a person tabs through.
+      aria-label={`Reorder ${task.id}, ${bandOf(task)} band, position ${task.queue_position}`}
+      aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End"
+      aria-describedby={REORDER_HELP_ID}
+      className="touch-target cursor-grab rounded px-1 text-dark-muted hover:bg-dark-border hover:text-dark-text"
+    >
+      <span aria-hidden="true">⠿</span>
+    </button>
+  );
+
+  const dragProps = (task: TaskRead) => ({
+    onDragOver: (event: React.DragEvent) => {
+      if (movableRow(task) && dragging && dragging !== task.id) event.preventDefault();
+    },
+    onDrop: (event: React.DragEvent) => {
+      event.preventDefault();
+      onRowDrop(task);
+    },
+  });
+
+  const treeBody = (
+    <ul className="divide-y divide-dark-border">
+      {visibleRows.map((row) => {
+        const task = row.task;
+        const state = dependencyState(task);
+        const counts = hidden.get(task.id) ?? { total: 0, open: 0 };
+        const folded = isFolded(task.id);
+        const selected = task.id === selectedTaskId;
+        // A child whose parent did not survive the filter is drawn at the root, so the
+        // row says where it came from rather than silently losing its place.
+        const orphanedFrom = row.depth === 0 && task.parent ? task.parent : null;
+        return (
+          <li
+            key={task.id}
+            data-task={task.id}
+            data-queue-position={task.queue_position ?? ""}
+            data-depth={row.depth}
+            data-selected={selected ? "true" : undefined}
+            onKeyDown={(event) => onTreeKeyDown(event, row)}
+            {...dragProps(task)}
+            // The indent stops growing at four levels: past that it is eating the title
+            // in a 320px column to draw a depth nobody is counting.
+            style={{ paddingLeft: `${0.25 + Math.min(row.depth, 4) * 0.85}rem` }}
+            className={`flex gap-1 py-1 pr-2 ${selected ? "bg-blue-950/60" : "hover:bg-dark-bg/60"}`}
+          >
+            <div className="flex shrink-0 items-start">
+              {movableRow(task) ? renderGrip(task) : <span className="inline-block w-5" />}
+              {counts.total > 0 ? (
+                <button
+                  type="button"
+                  aria-expanded={!folded}
+                  aria-label={`${folded ? "Unfold" : "Fold"} ${task.id}, ${counts.total} sub-task${counts.total === 1 ? "" : "s"}, ${counts.open} open`}
+                  aria-keyshortcuts="ArrowLeft ArrowRight"
+                  onClick={() => setFolded(row, !folded)}
+                  className="touch-target rounded px-1 text-dark-muted hover:bg-dark-border hover:text-dark-text"
+                >
+                  <span aria-hidden="true">{folded ? "▸" : "▾"}</span>
+                </button>
+              ) : (
+                <span className="inline-block w-5" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1 py-1">
+              <Link
+                id={rowLinkId(task.id)}
+                to={rowTarget(task.id)}
+                // Announced, not merely coloured: a reader who cannot see the highlight
+                // is told which row the record beside the list belongs to.
+                aria-current={selected ? "page" : undefined}
+                className="block overflow-hidden"
+              >
+                <span className="flex items-baseline gap-2">
+                  <span className="font-mono text-xs text-blue-400">{task.id}</span>
+                  {orphanedFrom && (
+                    <span className="truncate text-xs text-dark-muted">part of {orphanedFrom}</span>
+                  )}
+                  <span
+                    data-field="queue"
+                    className="ml-auto shrink-0 font-mono text-xs text-dark-muted"
+                  >
+                    {task.queue_position ?? "—"}
+                  </span>
+                </span>
+                {/* The title is the one line that gets cut, and the full text stays in
+                    the tooltip and on the record this row opens. */}
+                <span className="block truncate font-medium text-dark-text" title={task.title}>
+                  {task.title}
+                </span>
+              </Link>
+              <div className="mt-1 flex flex-wrap items-center gap-1" data-field="status">
+                <span
+                  className={`inline-flex rounded border px-1.5 text-xs font-medium ${STATE_CLASSES[state.kind]}`}
+                >
+                  {state.label}
+                </span>
+                <span className={`rounded px-1.5 text-xs ${PRIORITY_CLASSES[task.priority ?? "medium"]}`}>
+                  {task.priority ?? "medium"}
+                </span>
+                {/* A fold must not hide work silently. The count is on the row itself,
+                    not only inside the control's accessible name, so a reader scanning
+                    a folded backlog can see that nine open tasks are under this one. */}
+                {folded && counts.total > 0 && (
+                  <span className="rounded border border-dark-border px-1.5 text-xs text-dark-muted">
+                    {counts.total} folded, {counts.open} open
+                  </span>
+                )}
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  const tableBody = (
+    <ResponsiveTable columns={TASK_COLUMNS} stackWhenNarrow>
+      <thead><tr><th scope="col">Queue</th><th scope="col">Task</th><th scope="col">Status</th><th scope="col">Priority</th><th scope="col">Assigned</th><th scope="col">Updated</th></tr></thead>
+      <tbody>
+        {visibleRows.map((row) => (
+          <ResponsiveTableRow
+            key={row.task.id}
+            data-task={row.task.id}
+            data-queue-position={row.task.queue_position ?? ""}
+            onKeyDown={(event) => onRowKeyDown(event, row.task)}
+            {...dragProps(row.task)}
+          >
+            <ResponsiveCell label="Queue" data-field="queue" className="text-sm">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs text-dark-muted">{row.task.queue_position ?? "—"}</span>
+                {movableRow(row.task) && renderGrip(row.task)}
+              </div>
+            </ResponsiveCell>
+            <ResponsiveCell label="Task" style={!flattened ? { paddingLeft: `${0.5 + row.depth * 1.5}rem` } : undefined}>
+              <Link to={rowTarget(row.task.id)} className="touch-target block overflow-hidden">
+                <span className="block font-mono text-xs text-blue-400">{row.task.id}</span>
+                {/* The title is the one line that gets cut, so it is the one that
+                    needs somewhere to say the rest. The id and the category below
+                    wrap instead: they are short, and truncating them would cut
+                    the mobile cards too, where there is no column to protect. */}
+                <span className="block truncate font-medium text-dark-text" title={row.task.title}>{row.task.title}</span>
+                <span className="block text-xs text-dark-muted">
+                  {row.task.category}
+                  {flattened && row.ancestors.length > 0 ? ` · part of ${row.ancestors.at(-1)}` : ""}
+                </span>
+              </Link>
+              {!flattened && row.childCount > 0 && (
+                <button type="button" aria-expanded={expanded.has(row.task.id)} onClick={() => toggle(row.task.id)} className="touch-target text-xs text-blue-400 hover:text-blue-300">
+                  {expanded.has(row.task.id) ? "▾" : "▸"} {row.childCount} sub-task{row.childCount === 1 ? "" : "s"}{row.openChildren ? `, ${row.openChildren} open` : ""}
+                </button>
+              )}
+            </ResponsiveCell>
+            <ResponsiveCell label="Status" data-field="status"><DependencyState task={row.task} compact /></ResponsiveCell>
+            <ResponsiveCell label="Priority"><span className={`rounded px-2 py-1 text-xs ${PRIORITY_CLASSES[row.task.priority ?? "medium"]}`}>{row.task.priority ?? "medium"}</span></ResponsiveCell>
+            <ResponsiveCell label="Assigned" className="text-sm">{row.task.assignment?.owner ?? "—"}</ResponsiveCell>
+            <ResponsiveCell label="Updated" className="whitespace-nowrap text-sm text-dark-muted"><time dateTime={row.task.updated}>{new Date(row.task.updated).toLocaleString([], { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</time></ResponsiveCell>
+          </ResponsiveTableRow>
+        ))}
+      </tbody>
+    </ResponsiveTable>
+  );
+
   return (
-    <div className="space-y-6" ref={rootRef}>
+    <div className={tree ? "space-y-4" : "space-y-6"} ref={rootRef}>
       {/* `@container`, so the row below asks its own box rather than the window whether
           there is room for one line. The four controls have a combined minimum of
           43rem, so the viewport rule this replaces put them in a row inside a 350px
@@ -454,6 +839,13 @@ export function TaskList({
             <option value="all">All Tasks</option><option value="project">Project Tasks</option><option value="test">Test/Examples</option>
           </select>
         </div>
+        {tree && (
+          <p id={TREE_HELP_ID} className="mt-3 text-xs text-dark-muted">
+            <kbd>↑</kbd> and <kbd>↓</kbd> move the selection and open that task beside the
+            list; <kbd>←</kbd> and <kbd>→</kbd> fold and unfold a parent. A fold is
+            remembered for this project.
+          </p>
+        )}
         {handlers ? (
           <p id={REORDER_HELP_ID} className="mt-3 text-xs text-dark-muted">
             Rows are in queue order. Focus a task and press <kbd>Alt</kbd>+<kbd>↑</kbd> or{" "}
@@ -561,96 +953,13 @@ export function TaskList({
         </p>
       )}
       {/* Polite and visually hidden. A reorder is often invisible on a filtered or
-          grouped list, because the neighbour a task stepped past may not be rendered
-          at all -- the sentence is what makes the gesture legible, not decoration. */}
+          folded list, because the neighbour a task stepped past may not be rendered
+          at all -- the sentence is what makes the gesture legible, not decoration. A
+          fold announces itself here too, for the same reason. */}
       <output aria-live="polite" className="sr-only">{announcement}</output>
 
       <section className="overflow-hidden rounded-lg border border-dark-border bg-dark-surface" aria-label="Tasks">
-        <ResponsiveTable columns={TASK_COLUMNS} stackWhenNarrow>
-          <thead><tr><th scope="col">Queue</th><th scope="col">Task</th><th scope="col">Status</th><th scope="col">Priority</th><th scope="col">Assigned</th><th scope="col">Updated</th></tr></thead>
-          <tbody>
-            {visibleRows.map((row) => {
-              const movable = movableRow(row.task);
-              return (
-                <ResponsiveTableRow
-                  key={row.task.id}
-                  data-task={row.task.id}
-                  data-queue-position={row.task.queue_position ?? ""}
-                  onKeyDown={(event) => onRowKeyDown(event, row.task)}
-                  onDragOver={(event) => { if (movable && dragging && dragging !== row.task.id) event.preventDefault(); }}
-                  onDrop={(event) => { event.preventDefault(); onRowDrop(row.task); }}
-                >
-                  <ResponsiveCell label="Queue" className="text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-dark-muted">{row.task.queue_position ?? "—"}</span>
-                      {movable && (
-                        <button
-                          type="button"
-                          id={gripId(row.task.id)}
-                          draggable
-                          onDragStart={(event) => {
-                            // What is being dragged is held in state, not read back out
-                            // of the payload: a browser hides `dataTransfer` data during
-                            // dragover, which is exactly when the drop target has to
-                            // decide whether it will accept.
-                            //
-                            // The payload is still set, because some browsers will not
-                            // start a drag without one -- but under a private type
-                            // rather than `text/plain`. As plain text the row could be
-                            // dropped into any other application on the machine, which
-                            // is not a thing anybody wants a queue position to do. A
-                            // type nothing else understands leaves the gesture with
-                            // nowhere to deposit itself outside this table.
-                            setDragging(row.task.id);
-                            if (event.dataTransfer) {
-                              event.dataTransfer.effectAllowed = "move";
-                              event.dataTransfer.setData(DRAG_TYPE, row.task.id);
-                            }
-                          }}
-                          onDragEnd={() => setDragging(null)}
-                          // The name says what this handle is and what it currently
-                          // holds. The keys are `aria-keyshortcuts`, which is what that
-                          // attribute is for -- a screen reader announces them as
-                          // shortcuts, and announces them once, rather than reading a
-                          // sentence of instructions on every row a person tabs through.
-                          aria-label={`Reorder ${row.task.id}, ${bandOf(row.task)} band, position ${row.task.queue_position}`}
-                          aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End"
-                          aria-describedby={REORDER_HELP_ID}
-                          className="touch-target cursor-grab rounded px-1 text-dark-muted hover:bg-dark-border hover:text-dark-text"
-                        >
-                          <span aria-hidden="true">⠿</span>
-                        </button>
-                      )}
-                    </div>
-                  </ResponsiveCell>
-                  <ResponsiveCell label="Task" style={!flattened ? { paddingLeft: `${0.5 + row.depth * 1.5}rem` } : undefined}>
-                    <Link to={taskPath(projectId, row.task.id)} className="touch-target block overflow-hidden">
-                      <span className="block font-mono text-xs text-blue-400">{row.task.id}</span>
-                      {/* The title is the one line that gets cut, so it is the one that
-                          needs somewhere to say the rest. The id and the category below
-                          wrap instead: they are short, and truncating them would cut
-                          the mobile cards too, where there is no column to protect. */}
-                      <span className="block truncate font-medium text-dark-text" title={row.task.title}>{row.task.title}</span>
-                      <span className="block text-xs text-dark-muted">
-                        {row.task.category}
-                        {flattened && row.ancestors.length > 0 ? ` · part of ${row.ancestors.at(-1)}` : ""}
-                      </span>
-                    </Link>
-                    {!flattened && row.childCount > 0 && (
-                      <button type="button" aria-expanded={expanded.has(row.task.id)} onClick={() => toggle(row.task.id)} className="touch-target text-xs text-blue-400 hover:text-blue-300">
-                        {expanded.has(row.task.id) ? "▾" : "▸"} {row.childCount} sub-task{row.childCount === 1 ? "" : "s"}{row.openChildren ? `, ${row.openChildren} open` : ""}
-                      </button>
-                    )}
-                  </ResponsiveCell>
-                  <ResponsiveCell label="Status"><DependencyState task={row.task} compact /></ResponsiveCell>
-                  <ResponsiveCell label="Priority"><span className={`rounded px-2 py-1 text-xs ${PRIORITY_CLASSES[row.task.priority ?? "medium"]}`}>{row.task.priority ?? "medium"}</span></ResponsiveCell>
-                  <ResponsiveCell label="Assigned" className="text-sm">{row.task.assignment?.owner ?? "—"}</ResponsiveCell>
-                  <ResponsiveCell label="Updated" className="whitespace-nowrap text-sm text-dark-muted"><time dateTime={row.task.updated}>{new Date(row.task.updated).toLocaleString([], { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</time></ResponsiveCell>
-                </ResponsiveTableRow>
-              );
-            })}
-          </tbody>
-        </ResponsiveTable>
+        {tree ? treeBody : tableBody}
         {tasks.length === 0 && <p className="p-6 text-sm text-dark-muted">No tasks have been created yet.</p>}
         {tasks.length > 0 && visibleRows.length === 0 && <p className="p-6 text-sm text-dark-muted">No tasks match these filters.</p>}
       </section>

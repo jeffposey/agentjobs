@@ -1,6 +1,6 @@
 import type { TaskRead } from "../api/types";
 
-const STATE_CLASSES = {
+export const STATE_CLASSES = {
   actionable: "border-emerald-700 bg-emerald-950/40 text-emerald-300",
   blocked: "border-red-700 bg-red-950/40 text-red-300",
   cycle: "border-amber-600 bg-amber-950/40 text-amber-200",

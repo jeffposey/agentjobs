@@ -59,7 +59,7 @@ import {
 } from "./components/DispatchPanel";
 import { DispatchRunOutput } from "./components/DispatchOutput";
 import { finishPollInterval } from "./components/FinishPanel";
-import { TaskList, type ReorderHandlers } from "./components/TaskList";
+import { TaskList, type ReorderHandlers, type TaskListVariant } from "./components/TaskList";
 import { TaskDetail } from "./components/TaskDetail";
 import { TaskCreate } from "./components/TaskCreate";
 import { IssueReporter } from "./components/IssueReporter";
@@ -263,7 +263,13 @@ function LiveRunsRoute() {
   return <LiveRunsPage body={useLiveRuns()} />;
 }
 
-function TaskListPage({ projectId }: { projectId: string }) {
+function TaskListPage({
+  projectId,
+  variant = "table",
+}: {
+  projectId: string;
+  variant?: TaskListVariant;
+}) {
   const queryClient = useQueryClient();
   const tasksQuery = useQuery({
     ...listTasksApiProjectsProjectIdTasksGetOptions({ path: { project_id: projectId } }),
@@ -363,6 +369,7 @@ function TaskListPage({ projectId }: { projectId: string }) {
     <TaskList
       tasks={tasks}
       projectId={projectId}
+      variant={variant}
       queueProblems={queueQuery.data?.problems ?? []}
       reorder={reorder}
       reorderUnavailable={
@@ -444,7 +451,7 @@ function TasksSurface({ projectId }: { projectId: string }) {
           data-region="list"
           className="min-h-0 overflow-y-auto pr-1"
         >
-          <TaskListPage projectId={projectId} />
+          <TaskListPage projectId={projectId} variant="tree" />
         </aside>
         <section aria-label="Task detail" data-region="detail" className="min-h-0 overflow-y-auto">
           {/* The detail region takes what the list leaves, but a record is prose and
