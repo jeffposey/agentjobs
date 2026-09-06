@@ -2,14 +2,11 @@ schema: 2
 id: task-362
 title: 'Shell 7: the sidebar row stops showing the raw queue position'
 created: '2026-09-06T21:02:35.472560Z'
-updated: '2026-09-06T22:19:13.949198Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-09-06T22:19:33.856962Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 1493
 category: ux
 tags:
 - frontend
@@ -17,7 +14,6 @@ tags:
 - react
 effort: small
 assignment:
-  owner: claude
   eligible: []
 parent: task-235
 spec:
@@ -154,7 +150,8 @@ dependencies:
 links: []
 branches:
 - name: fix/task-362-hide-queue-position
-  status: active
+  status: merged
+  merged_at: '2026-09-06T22:19:33.811804Z'
 log:
 - id: 1
   ts: '2026-09-06T21:02:36.123947Z'
@@ -472,3 +469,28 @@ log:
     merge_commit: 53827cae2bf9f001a1390ec9e70b52d6c5838142
     branch: fix/task-362-hide-queue-position
     base: main
+- id: 16
+  ts: '2026-09-06T22:19:33.856771Z'
+  actor: finisher
+  type: transition
+  body: "Merged `fix/task-362-hide-queue-position` into `main` as `53827cae` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). No human\
+    \ reviewed this merge: posture `autonomous` (from the dispatch) releases the merge\
+    \ gate (task-021), and run run_4b8ecff5 ran the finish. What authorised it is\
+    \ the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.0s  fix/task-362-hide-queue-position at eebb33a7\
+    \ in C:\\projects\\worktrees\\agentjobs-362\n  runway     ok         0.0s  taken\
+    \ immediately\n  rebase     ok         0.1s  fix/task-362-hide-queue-position\
+    \ onto main: eebb33a7 -> 794aba73\n  gate       ok       304.7s  scripts/check.py\
+    \ green\n  catch_up   skipped    0.0s  main did not move during the gate\n  merge\
+    \      ok         0.3s  --no-ff into main as 53827cae2bf9f001a1390ec9e70b52d6c5838142\n\
+    \  rebuild    ok         4.4s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         0.4s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     ok         0.0s  http://127.0.0.1:8876 is serving 9a16bf83, which contains\
+    \ the merge 53827cae, from C:\\projects\\agentjobs (started 2026-09-06T22:19:22.676104+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
