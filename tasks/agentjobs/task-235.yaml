@@ -2,7 +2,7 @@ schema: 2
 id: task-235
 title: Adopt the list-and-detail shell every other app on the screen already uses
 created: '2026-08-22T00:38:02.564268Z'
-updated: '2026-09-06T09:24:15.400426Z'
+updated: '2026-09-06T09:28:18.922377Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1262,3 +1262,51 @@ log:
       id: f18c62d4-3a97-4e50-b826-7c0d95a1e3f2
       kind: handoff
       fingerprint: 8290f546821b4c3f2f484dfc213132d5
+- id: 22
+  ts: '2026-09-06T09:28:18.922091Z'
+  actor: claude
+  type: progress
+  body: "**task-239 was blocked for seven minutes by a finished child's session that\
+    \ never exited. Freed with `dispatch cancel`; both task-238 and task-239 are now\
+    \ in flight.**\n\n## What was holding it\n\ntask-237 closed `completed` at 09:20:52,\
+    \ merged, delivered, worktree and branch gone. **Its session stayed alive, idle\
+    \ at an interactive prompt, and its run record stayed `running`** \u2014 so it\
+    \ kept holding one of this machine's three concurrent-run slots. The walk retried\
+    \ task-239 every 15 seconds and was refused every time, correctly, by a slot count\
+    \ that included a run with no work left in it.\n\nThis is a **downstream consequence\
+    \ of the killed walk in entry 16**, not an independent defect. A walk settles\
+    \ the children it started; the relaunched walk did not own `run_b34f8216`, so\
+    \ nobody was left to settle it, and it would have idled there indefinitely. Two\
+    \ orphaned children like that would deadlock an epic outright, since a supervisor\
+    \ already holds the third slot (entry 19).\n\n## Two corrections to what I wrote\
+    \ earlier\n\n1. **I said at 09:23 that task-237's run \"was still alive producing\
+    \ output\", citing a transcript mtime seconds old. That inference was wrong.**\
+    \ `transcript.log` is a raw TTY capture and the status line repaints continuously,\
+    \ so its mtime advances forever whether or not the session is doing anything \u2014\
+    \ which ENGINEERING.md already warns about for counting, and which is equally\
+    \ fatal for liveness. The session was idle at a prompt the whole time. Reading\
+    \ the tail of the transcript is what actually showed it.\n2. **The 25-minute staleness\
+    \ arm on my task-237 watch was therefore worthless**, for the same reason. It\
+    \ would never have fired. A real liveness signal has to come from the run ledger's\
+    \ own accounting, not from a file a terminal touches.\n\n## What I did, and why\
+    \ it was mine to do\n\n`dispatch reap` was the right first reach and did nothing\
+    \ here: it clears ledger rows for sessions that have *ended*, and this one had\
+    \ not. `dispatch reconcile` re-attaches live sessions by design, so it would not\
+    \ have touched it either. `dispatch cancel run_b34f8216` is what the refusal message\
+    \ itself names \u2014 *\"Cancel one of those runs\"* \u2014 and it stopped session\
+    \ `59028224` cleanly.\n\nVerified afterwards rather than assumed: task-237 is\
+    \ still `closed`/`completed`, `main` is intact, and the cancel recorded itself\
+    \ as `f253223 chore(task-237): record swept run run_b34f8216 as cancelled`. Nothing\
+    \ was reopened and nothing was lost.\n\nJudged in scope for a supervisor: it is\
+    \ janitorial cleanup of a child that is finished and merged, not a merge decision\
+    \ or a judgement about anyone's work, and the alternative was an epic stalled\
+    \ indefinitely on a slot held by nothing.\n\n## Where the epic stands\n\ntask-238\
+    \ (`run_113f7198`) and task-239 both `active`. task-356 needs 238; task-240 needs\
+    \ all three and then needs Jeff.\n\n**A fourth finding for the list in entry 20:**\
+    \ a dispatched session does not exit when its task closes, so any run not settled\
+    \ by its own walk holds a slot until someone cancels it by hand."
+  data:
+    operation:
+      id: 2b95e07a-6c14-4f83-9d25-8a1c3f70b6e9
+      kind: log_append
+      fingerprint: 885c4ab4ba1af76d6cec8c96f17a3a41
