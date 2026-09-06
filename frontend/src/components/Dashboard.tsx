@@ -53,16 +53,56 @@ function Badge({ children, className = "" }: { children: React.ReactNode; classN
   );
 }
 
+/**
+ * How many active tasks the Dashboard lists before it stops and links to the rest.
+ *
+ * `active_tasks` is uncapped by the server -- it is every open task in the project --
+ * and it used to be rendered in full. On this project that was forty cards, four
+ * thousand pixels of them, under a board that had already answered the question the
+ * page exists to answer (task-294). The count in the heading and the link beside it
+ * say what the four rows are a sample of.
+ */
+/**
+ * The floor under the tail region, so it cannot be squeezed out of existence.
+ *
+ * The glance takes the space it needs first, and on a phone at six slots it needs more
+ * than there is. Without a floor the tail would resolve to zero pixels and the two
+ * sections in it would be unreachable rather than merely short -- which is the one
+ * outcome task-294 rules out. Six rem is a section heading and the top of its first
+ * row: enough to see that there is something there and to scroll it.
+ */
+const TAIL_MIN = "min-h-[6rem]";
+
+const ACTIVE_PREVIEW = 3;
+
+/**
+ * How many of the ten log entries the server sends the Dashboard prints.
+ *
+ * Four, one line each. The feed is the least glance-like thing on the page and the
+ * furthest from a decision; nothing in it is a link, so a shorter list makes nothing
+ * unreachable -- every task it names is on the board, in the list above it, or a search
+ * away on the Tasks surface.
+ */
+const UPDATES_PREVIEW = 3;
+
+/**
+ * One active task, at the density a bounded frame can afford (task-294).
+ *
+ * `text-lg` over a full-width summary and `p-4` around it made each of these 100px
+ * tall, which is a seventh of a phone screen for one row of a list that is a sample.
+ * Everything a reader picks a row by is still here -- title, summary, priority and
+ * whether it is blocked -- on one line each.
+ */
 function TaskCard({ task, projectId }: { task: TaskRead; projectId: string }) {
   return (
     <Link
       to={projectPath(projectId, `/tasks/${encodeURIComponent(task.id)}`)}
-      className="touch-target block overflow-hidden rounded-lg border border-dark-border bg-dark-surface p-4 transition hover:border-blue-500"
+      className="touch-target block overflow-hidden rounded-lg border border-dark-border bg-dark-surface px-3 py-2 transition hover:border-blue-500"
     >
-      <div className="flex flex-col items-start justify-between gap-4 min-[820px]:flex-row min-[820px]:items-center">
+      <div className="flex flex-col items-start justify-between gap-1 min-[820px]:flex-row min-[820px]:items-center min-[820px]:gap-4">
         <div className="min-w-0">
-          <h3 className="truncate text-lg font-medium">{task.title}</h3>
-          <p className="mt-1 truncate text-sm text-dark-muted">{truncate(task.spec.summary, 120)}</p>
+          <h3 className="truncate text-sm font-medium">{task.title}</h3>
+          <p className="truncate text-xs text-dark-muted">{truncate(task.spec.summary, 120)}</p>
         </div>
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
           <Badge className={priorityClasses[task.priority ?? "medium"] ?? priorityClasses.medium}>
@@ -266,25 +306,45 @@ export function Dashboard({ dashboard, projectId, renderSlotBoard }: DashboardPr
    * alarm and with its free cells withheld, so the page keeps one call to action.
    */
   const alarming = dashboard.next_action === "blocked" || dashboard.next_action === "queue_broken";
-  const statTiles = [
-    ["Needs you", dashboard.stats.waiting_for_human, "text-orange-400"],
-    ["In Progress", dashboard.stats.in_progress, ""],
-    ["Blocked", dashboard.stats.blocked, "text-red-400"],
-    // "Completed", not "Done": the backend counts outcome == completed only, so a
-    // superseded or cancelled task is closed but is not in this number. Calling it
-    // Done invited the reader to subtract it from Total and find tasks missing.
-    ["Completed", dashboard.stats.completed, "text-green-400"],
-    ["Total", dashboard.stats.total, ""],
-  ] as const;
+  const conditions = dashboard.broken_files.length > 0 || Boolean(dashboard.queue_broken);
 
+  /**
+   * The Dashboard is a frame of exactly one viewport, and this is its inside (task-294).
+   *
+   * Three regions, and which one gets the space when there is not enough is the whole
+   * design:
+   *
+   * - **Conditions** -- an unreadable task file, a duplicated queue position. Pinned,
+   *   because these are states of the system rather than content, and a state that can
+   *   be scrolled out of the frame is one nobody acts on.
+   * - **The glance** -- the slot board and the one call to action. This is what the
+   *   page is *for* (task-092, task-081), so it is sized to its content and takes the
+   *   space it needs before anything else gets any.
+   * - **The tail** -- active tasks and recent updates. Whatever is left, with its own
+   *   scroll, never less than `TAIL_MIN` so it cannot vanish and take its content with
+   *   it. Both sections are samples that link to the surface holding the whole.
+   *
+   * `min-h-0` on the column and on the glance is the load-bearing half: a flex child's
+   * default `min-height: auto` refuses to shrink below its content, so without it a
+   * six-slot board on a phone would push straight through the frame and be clipped by
+   * the shell's `overflow-hidden` instead of scrolling inside its own region.
+   *
+   * Measured at 390x844 with a forty-task backlog: the board is 610px of the 747px
+   * inside the frame at three slots, which is why the tail is a remainder rather than a
+   * list that was going to fit if only it were shorter.
+   */
   return (
-    <div className="space-y-6">
-      <BrokenFiles files={dashboard.broken_files} />
-      {dashboard.queue_broken && (
-        <QueueBroken
-          problems={dashboard.queue_broken.problems ?? []}
-          repairCommand={dashboard.queue_broken.repair_command}
-        />
+    <div data-testid="dashboard" className="flex min-h-0 flex-1 flex-col gap-3">
+      {conditions && (
+        <div className="shrink-0 space-y-4">
+          <BrokenFiles files={dashboard.broken_files} />
+          {dashboard.queue_broken && (
+            <QueueBroken
+              problems={dashboard.queue_broken.problems ?? []}
+              repairCommand={dashboard.queue_broken.repair_command}
+            />
+          )}
+        </div>
       )}
       {/*
         Order, not just presence. On a calm day the board is the answer to "what do I do
@@ -293,63 +353,64 @@ export function Dashboard({ dashboard, projectId, renderSlotBoard }: DashboardPr
         no runs and no queue, so six empty cells above "Getting Started" would be the
         page's loudest element saying nothing.
       */}
-      {alarming ? (
-        <>
-          <NextAction dashboard={dashboard} projectId={projectId} />
-          {renderSlotBoard?.(true)}
-        </>
-      ) : (
-        <>
-          {dashboard.next_action !== "empty_project" && renderSlotBoard?.(false)}
-          <NextAction dashboard={dashboard} projectId={projectId} />
-        </>
-      )}
-      <section className="overflow-hidden rounded-lg border border-dark-border bg-dark-surface" aria-label="Task statistics">
-        <dl className="grid grid-cols-5 divide-x divide-dark-border">
-          {statTiles.map(([label, count, className]) => (
-            <div key={label} className="min-w-0 px-1 py-2 text-center min-[820px]:px-4 min-[820px]:py-3">
-              <dt className="truncate text-[10px] font-medium uppercase tracking-wide text-dark-muted min-[820px]:text-xs">{label}</dt>
-              <dd className={`mt-0.5 text-xl font-bold leading-none min-[820px]:text-2xl ${className}`}>{count}</dd>
-            </div>
-          ))}
-        </dl>
-        {dashboard.stats.awaiting_input > 0 && (
-          <Link
-            to={projectPath(projectId, "/tasks?status=draft")}
-            className="touch-target flex w-full justify-center border-t border-dark-border px-3 text-xs text-dark-muted hover:bg-dark-border hover:text-blue-300"
-          >
-            +{dashboard.stats.awaiting_input} in backlog
-          </Link>
+      <div
+        data-testid="dashboard-glance"
+        className="flex min-h-0 flex-col gap-3 overflow-y-auto"
+      >
+        {alarming ? (
+          <>
+            <NextAction dashboard={dashboard} projectId={projectId} />
+            {renderSlotBoard?.(true)}
+          </>
+        ) : (
+          <>
+            {dashboard.next_action !== "empty_project" && renderSlotBoard?.(false)}
+            <NextAction dashboard={dashboard} projectId={projectId} />
+          </>
         )}
-      </section>
-      <section className="rounded-lg border border-dark-border bg-dark-surface">
-        <div className="flex items-center justify-between border-b border-dark-border p-6">
-          <h2 className="text-xl font-semibold">Active Tasks</h2>
-          <Link to={projectPath(projectId, "/tasks")} className="touch-target text-sm text-blue-400 hover:text-blue-300">View all</Link>
-        </div>
-        <div className="space-y-4 p-4">
-          {dashboard.active_tasks.length > 0 ? dashboard.active_tasks.map((task) => (
-            <TaskCard key={task.id} task={task} projectId={projectId} />
-          )) : (
-            <div className="rounded-lg border border-dashed border-dark-border bg-dark-bg/40 p-6 text-center text-sm text-dark-muted">No active tasks right now. Enjoy the calm!</div>
-          )}
-        </div>
-      </section>
-      <section className="rounded-lg border border-dark-border bg-dark-surface">
-        <div className="border-b border-dark-border p-6"><h2 className="text-xl font-semibold">Recent Updates</h2></div>
-        <div className="divide-y divide-dark-border">
-          {dashboard.recent_updates.length > 0 ? dashboard.recent_updates.map((update, index) => (
-            <div className="p-4" key={`${update.task_id}-${update.timestamp}-${index}`}>
-              <div className="flex flex-wrap items-center gap-2 text-sm text-dark-muted">
-                <span className="font-medium text-dark-text">{update.task_title}</span><span>•</span>
-                <time dateTime={update.timestamp}>{new Date(update.timestamp).toLocaleString([], { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</time><span>•</span>
-                <span>{update.author}</span>
+      </div>
+      <div
+        data-testid="dashboard-tail"
+        className={`flex ${TAIL_MIN} flex-1 flex-col gap-3 overflow-y-auto`}
+      >
+        <section className="shrink-0 rounded-lg border border-dark-border bg-dark-surface">
+          <div className="flex items-baseline justify-between gap-4 border-b border-dark-border px-4 py-2">
+            <h2 className="text-sm font-medium text-dark-text">
+              Active tasks{" "}
+              <span className="font-normal text-dark-muted">({dashboard.active_tasks.length})</span>
+            </h2>
+            <Link to={projectPath(projectId, "/tasks")} className="touch-target text-xs text-blue-400 hover:text-blue-300">
+              {dashboard.active_tasks.length > ACTIVE_PREVIEW
+                ? `View all ${dashboard.active_tasks.length} →`
+                : "View all →"}
+            </Link>
+          </div>
+          <div className="space-y-2 p-2">
+            {dashboard.active_tasks.length > 0 ? dashboard.active_tasks.slice(0, ACTIVE_PREVIEW).map((task) => (
+              <TaskCard key={task.id} task={task} projectId={projectId} />
+            )) : (
+              <div className="rounded-lg border border-dashed border-dark-border bg-dark-bg/40 p-4 text-center text-sm text-dark-muted">No active tasks right now. Enjoy the calm!</div>
+            )}
+          </div>
+        </section>
+        <section className="shrink-0 rounded-lg border border-dark-border bg-dark-surface">
+          <div className="border-b border-dark-border px-4 py-2">
+            <h2 className="text-sm font-medium text-dark-text">Recent updates</h2>
+          </div>
+          <div className="divide-y divide-dark-border">
+            {dashboard.recent_updates.length > 0 ? dashboard.recent_updates.slice(0, UPDATES_PREVIEW).map((update, index) => (
+              <div className="px-4 py-2" key={`${update.task_id}-${update.timestamp}-${index}`}>
+                <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-dark-muted">
+                  <span className="font-medium text-dark-text">{update.task_title}</span>
+                  <time dateTime={update.timestamp}>{new Date(update.timestamp).toLocaleString([], { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</time>
+                  <span>{update.author}</span>
+                </div>
+                <p className="truncate text-xs text-dark-muted">{update.summary}</p>
               </div>
-              <p className="mt-2 text-sm text-dark-muted">{update.summary}</p>
-            </div>
-          )) : <div className="p-6 text-sm text-dark-muted">No recent updates. Check back soon.</div>}
-        </div>
-      </section>
+            )) : <div className="px-4 py-3 text-sm text-dark-muted">No recent updates. Check back soon.</div>}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

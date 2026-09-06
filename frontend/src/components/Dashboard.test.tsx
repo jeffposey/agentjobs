@@ -132,13 +132,16 @@ describe("Dashboard next-action ladder", () => {
     });
   }
 
-  it("keeps the backlog count linked while the blocked panel suppresses the backlog panel", () => {
+  it("no longer carries the count strip's backlog link, and does not leave a dead one", () => {
+    // The five-tile strip and the `+N in backlog` link under it came off the Dashboard
+    // in task-294. What replaces the link is the Tasks surface's own Status filter,
+    // which has a Draft option -- one click on from the "View all" link that stayed.
     renderDashboard(cases[0]!.response);
 
-    expect(screen.getByRole("link", { name: "+1 in backlog" })).toHaveAttribute(
-      "href",
-      "/p/inbox/tasks?status=draft",
-    );
+    expect(screen.queryByRole("link", { name: /in backlog/ })).not.toBeInTheDocument();
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.getAttribute("href")).not.toBe("/p/inbox/tasks?status=draft");
+    }
     expect(within(screen.getByTestId("next-action")).queryByText(/Backlog awaiting your input/)).not.toBeInTheDocument();
   });
 
@@ -182,7 +185,7 @@ describe("Dashboard supporting sections", () => {
     expect(screen.queryByRole("button", { name: /Reject/ })).not.toBeInTheDocument();
   });
 
-  it("keeps task statistics in one compact semantic summary", () => {
+  it("does not render the count-tile strip at all (task-294)", () => {
     renderDashboard(dashboard({
       stats: {
         total: 12,
@@ -194,12 +197,61 @@ describe("Dashboard supporting sections", () => {
       },
     }));
 
-    const statistics = screen.getByRole("region", { name: "Task statistics" });
-    expect(within(statistics).getAllByRole("definition")).toHaveLength(5);
-    expect(within(statistics).getByRole("link", { name: "+4 in backlog" })).toHaveAttribute(
+    // Five tiles of counts, and the single largest thing between this page and one
+    // screen. They go to task-212's analytics page; until it exists they are simply
+    // not here, and none of the five numbers is quoted anywhere else on the Dashboard.
+    expect(screen.queryByRole("region", { name: "Task statistics" })).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("definition")).toHaveLength(0);
+    for (const label of ["Needs you", "In Progress", "Blocked", "Completed", "Total"]) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
+    }
+  });
+
+  it("lists a sample of the active tasks and says what it is a sample of", () => {
+    // `active_tasks` is uncapped by the server. Rendering it whole is what made this
+    // page five thousand pixels tall; the heading carries the real count and the link
+    // beside it goes to the surface that holds them all.
+    renderDashboard(dashboard({
+      active_tasks: Array.from({ length: 9 }, (_, index) => task(`task-active-${index}`)),
+    }));
+
+    const heading = screen.getByRole("heading", { name: /Active tasks/ });
+    expect(heading).toHaveTextContent("Active tasks (9)");
+    expect(screen.getByRole("link", { name: "View all 9 →" })).toHaveAttribute(
       "href",
-      "/p/inbox/tasks?status=draft",
+      "/p/inbox/tasks",
     );
+    for (const index of [0, 1, 2]) {
+      expect(screen.getByText(`Title of task-active-${index}`)).toBeVisible();
+    }
+    expect(screen.queryByText("Title of task-active-3")).not.toBeInTheDocument();
+  });
+
+  it("splits the page into a pinned glance and a tail that takes what is left", () => {
+    // The two regions are the whole of task-294's layout decision: the board and the
+    // one call to action are sized to their content, and the lists below them are a
+    // remainder with their own scroll. Both are asserted here only for their presence
+    // and their contents -- jsdom does not lay out, so the geometry that matters is
+    // measured in `frontend/e2e/dashboard-one-screen.spec.ts` instead.
+    renderDashboard(dashboard({
+      active_tasks: [claimable],
+      recent_updates: [
+        {
+          task_id: "task-next",
+          task_title: "Title of task-next",
+          timestamp: "2026-08-13T09:00:00Z",
+          summary: "Claimed by claude.",
+          author: "claude",
+        },
+      ],
+    }));
+
+    const glance = screen.getByTestId("dashboard-glance");
+    const tail = screen.getByTestId("dashboard-tail");
+    expect(within(glance).getByTestId("next-action")).toBeVisible();
+    expect(within(tail).getByRole("heading", { name: /Active tasks/ })).toBeVisible();
+    expect(within(tail).getByRole("heading", { name: "Recent updates" })).toBeVisible();
+    expect(within(tail).getByText("Claimed by claude.")).toBeVisible();
   });
 
   it("surfaces unreadable task files with their exact filename and reason", () => {
