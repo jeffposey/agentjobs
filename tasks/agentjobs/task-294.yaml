@@ -2,7 +2,7 @@ schema: 2
 id: task-294
 title: The Dashboard fits one screen, and never scrolls
 created: '2026-08-23T20:39:32.963071Z'
-updated: '2026-09-06T08:03:40.522823Z'
+updated: '2026-09-06T08:19:31.837853Z'
 lifecycle: active
 ball: agent
 ball_reason: answer
@@ -719,3 +719,19 @@ log:
     finish_step: started
     branch: feat/task-294-dashboard-one-screen
     finish_id: fin_c62a3b4e
+- id: 24
+  ts: '2026-09-06T08:19:31.837546Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-294-dashboard-one-screen` into `main` as `397e78ec`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-294
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 397e78ec02f4d262d5fc8ef962a5be1abcfc9c9a
+    branch: feat/task-294-dashboard-one-screen
+    base: main
