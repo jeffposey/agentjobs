@@ -3,13 +3,11 @@ id: task-236
 title: 'Shell 1: settle the breakpoint, and whether the burger menu collides with
   the sidebar'
 created: '2026-08-22T00:38:43.664769Z'
-updated: '2026-09-06T05:25:52.125065Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-09-06T05:37:30.960066Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 393
 category: design
 tags:
 - frontend
@@ -206,3 +204,46 @@ log:
       id: e3507d83-075c-42a5-a502-a4384c4fd219
       kind: update_content
       fingerprint: 9a3de991a457a32ef7511b7ac0feaef6
+- id: 6
+  ts: '2026-09-06T05:37:30.959910Z'
+  actor: claude
+  type: transition
+  body: "Both questions now have durable answers; nothing is left for a session to\
+    \ work.\n\n**Question 2 (the burger menu) was answered on 2026-08-23** by task-292,\
+    \ which needed the answer for its own work and recorded it on task-168 as well\
+    \ as here \u2014 see log entry 3. Navigation left, actions right; they do not\
+    \ collide. ac-3 met.\n\n**Question 1 (the breakpoint) is answered by task-235\
+    \ log entry 9**, from Jeff on 2026-09-06. The short version, because a reader\
+    \ landing here should not have to go and fetch it: the sidebar exists at every\
+    \ viewport and is user-collapsible with the state persisted in `localStorage`;\
+    \ the viewport decides only the *default* when storage is empty; and the default\
+    \ is by device class \u2014 phone closed, tablet and desktop open \u2014 implemented\
+    \ as `(min-width: 600px) and (min-height: 600px)` because the short side is the\
+    \ only axis that separates a phone from a tablet in both orientations. ac-1 and\
+    \ ac-2 met, and ac-5 is met by construction since the rule is Jeff's own words\
+    \ rather than a proposal he was asked to ratify.\n\n**ac-4 \u2014 the docs/ note\
+    \ \u2014 is deliberately not done here, and is not lost.** It wanted one file\
+    \ the building children can read. Writing it needs a branch, which this task's\
+    \ constraints forbid (\"no worktree, no branch\"), and task-235 already carries\
+    \ `docs/` as a deliverable for exactly this note. task-237 is the first child\
+    \ that takes a worktree; the note lands there, drawn from task-235 log entries\
+    \ 3, 8 and 9. Filing a separate task for one markdown file would cost a worktree,\
+    \ a bootstrap, a gate and a review to produce forty lines.\n\n**A caution for\
+    \ whoever writes it.** The decided shape is now spread across three entries on\
+    \ task-235 \u2014 the shell (3), the filter popover and queue order (8), and the\
+    \ default-state rule (9). That is precisely the fragmentation ac-4 existed to\
+    \ prevent, so the note should supersede all three as the thing children read,\
+    \ and say so.\n\nRecorded here rather than only in chat: the framing this task\
+    \ shipped with was wrong in a way worth keeping. It asked \"at what viewport does\
+    \ the sidebar appear\", which presumes the sidebar is absent below some width.\
+    \ Jeff's rule presumes the opposite \u2014 it is always present, and the viewport\
+    \ picks a default. That turns the breakpoint from a load-bearing decision into\
+    \ a heuristic whose failures cost one tap, and it is why the 820-vs-960 measurement\
+    \ task-292 contributed, while sound, turned out not to decide anything."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: e51a7c02-3d88-4f19-b6a4-2c907ff1d8e9
+      kind: close
+      fingerprint: 063fb706e3b03b3e0ec1cac6f00557e4

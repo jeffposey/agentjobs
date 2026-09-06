@@ -2,7 +2,7 @@ schema: 2
 id: task-235
 title: Adopt the list-and-detail shell every other app on the screen already uses
 created: '2026-08-22T00:38:02.564268Z'
-updated: '2026-09-06T05:26:42.862269Z'
+updated: '2026-09-06T05:37:06.744410Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -344,3 +344,75 @@ log:
       id: 42bf9b8f-e3ee-408b-8d62-315c1d652e20
       kind: log_append
       fingerprint: d0e09c733de8d302136ba51d9e3baecb
+- id: 9
+  ts: '2026-09-06T05:37:06.744229Z'
+  actor: claude
+  type: decision
+  body: "**The sidebar's default state is decided by device class, not by a width\
+    \ breakpoint. Jeff's call, 2026-09-06. Binding on task-237 through task-240 and\
+    \ task-356.**\n\n## The rule\n\n> On a phone the sidebar is hidden by default.\
+    \ On a tablet or a desktop it is shown by default.\n\nJeff stated it in those\
+    \ words. Note what it is *not*: it is not \"the sidebar exists above X and does\
+    \ not exist below X\", which is how task-236 framed the question and how every\
+    \ prior draft of this epic assumed it. **The sidebar exists at every viewport.**\
+    \ The device class picks only its initial state, and the user's toggle overrides\
+    \ it from then on.\n\nThat reframing is the substance of this decision, and it\
+    \ makes the rest cheap. A phone user who wants the list can open it. A desktop\
+    \ user who wants the full width can close it. Getting the class wrong on some\
+    \ unforeseen device costs one tap, not a broken layout, which is why the implementation\
+    \ below is allowed to be a heuristic rather than a device database.\n\n## Collapse\
+    \ and persistence\n\n**User-collapsible at every viewport, and the collapsed/expanded\
+    \ state persists** across reloads (Jeff, same exchange). Persistence is per browser\
+    \ \u2014 `localStorage`, no server round trip and no account state. The device-class\
+    \ rule supplies the value only when storage holds nothing for this browser; once\
+    \ the user has toggled it even once, their choice wins forever and the media query\
+    \ is never consulted again.\n\nConcretely, for task-238: read `localStorage`;\
+    \ on a miss, evaluate the query below; write on every toggle.\n\n## Implementing\
+    \ \"phone vs tablet\"\n\n**Width alone cannot express Jeff's rule, and this is\
+    \ the trap task-236 was created to catch.** A phone in landscape is *wider* than\
+    \ a tablet in portrait:\n\n| Device | portrait | landscape | short side | class\
+    \ |\n|---|---|---|---|---|\n| iPhone 16 Pro Max | 440x956 | 956x440 | 440 | phone\
+    \ |\n| small Android | 360x800 | 800x360 | 360 | phone |\n| iPad mini | 744x1133\
+    \ | 1133x744 | 744 | tablet |\n| iPad 10.9 | 820x1180 | 1180x820 | 820 | tablet\
+    \ |\n\nAny pure `min-width` cut hands a sideways 956px phone the tablet layout\
+    \ while denying it to a 768px iPad in portrait \u2014 exactly backwards. The axis\
+    \ that separates the two classes, in **both** orientations, is the **short side**,\
+    \ and there is a wide empty gap between the largest phone (440) and the smallest\
+    \ tablet (744).\n\n**So the query is:**\n\n```css\n@media (min-width: 600px) and\
+    \ (min-height: 600px) { /* default: sidebar open */ }\n```\n\n600 sits in the\
+    \ middle of the 440-744 gap. Both dimensions are tested, so the answer is orientation-independent\
+    \ by construction and no `orientation:` query is needed. A short desktop window\
+    \ \u2014 a browser dragged to 500px tall \u2014 is treated as a phone and starts\
+    \ collapsed; that is acceptable and self-correcting, per the one-tap argument\
+    \ above.\n\n**Rejected: reusing 820 or 960.** Both are real numbers in this codebase\
+    \ \u2014 `min-[820px]:` in `TaskList.tsx` and the `max-width: 819px` restack in\
+    \ `styles.css`; `min-[960px]:` shipped by task-292 for the header nav \u2014 and\
+    \ reusing one would have been the cheap answer. Neither expresses device class:\
+    \ 820 catches no phone but also excludes the iPad mini in portrait (744), and\
+    \ 960 excludes every tablet in portrait. They stay as they are, governing what\
+    \ they already govern. **This is a third breakpoint, deliberately, because it\
+    \ answers a different question than either of them** \u2014 those two ask \"does\
+    \ this content fit on one line\", this one asks \"is this a phone\". Do not consolidate\
+    \ them.\n\n**Rejected: a user-agent or `pointer: coarse` check.** More precise\
+    \ in principle, wrong in practice \u2014 `pointer: coarse` is true for a touchscreen\
+    \ laptop and for an iPad with a trackpad attached, and UA sniffing needs maintenance\
+    \ forever. The short-side heuristic needs none and is wrong only in cases the\
+    \ toggle already fixes.\n\n## Consequence for the rest of the epic\n\n- **task-237**\
+    \ builds two regions that exist at all widths; it must not gate the sidebar region's\
+    \ existence on a media query.\n- **task-238** owns the toggle, the `localStorage`\
+    \ key, and the miss-path default. Its acceptance should include a phone-width\
+    \ case that starts collapsed and a tablet-width case that starts open, **and**\
+    \ a case proving a stored value beats the media query in both directions.\n- **task-239**\
+    \ should check the detail panel at ~700px, which is what a 1024px tablet leaves\
+    \ once the sidebar takes its width.\n- The reopen trigger this epic set for a\
+    \ global nav rail is untouched by this entry; task-292's measurement of it stands.\n\
+    \n## What this closes\n\nThis is the outstanding half of task-236. Its other half\
+    \ \u2014 whether task-168's burger collides with the sidebar \u2014 was already\
+    \ answered by task-292 on 2026-08-23 (navigation left, actions right; they do\
+    \ not collide) and recorded on task-168, as task-236's own log entry 3 records.\
+    \ Both of task-236's questions therefore now have durable answers and it is closed."
+  data:
+    operation:
+      id: 7c3f21a8-9b04-4d6e-8a52-1e6f0b93c471
+      kind: log_append
+      fingerprint: 79714dea820f5ee8d2f956e240603d81
