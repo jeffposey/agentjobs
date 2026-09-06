@@ -4,7 +4,7 @@ title: 'The gate is launched six to nine times per task at seven to twelve minut
   each under contention: one gate per handoff, and a core budget shared between concurrent
   gates'
 created: '2026-09-05T20:49:03.656961Z'
-updated: '2026-09-06T00:40:38.403622Z'
+updated: '2026-09-06T00:41:40.452332Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -570,3 +570,62 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 14
+  ts: '2026-09-06T00:41:40.452124Z'
+  actor: claude
+  type: progress
+  body: "**Closing entry. Merged as `070ea5d1` at 2026-09-06T00:40 UTC**, `agentjobs\
+    \ finish --posture-release`: rebase 0a6217a4 -> d8c19ef2, gate green in 419.6s,\
+    \ `--no-ff` merge, server restarted and verified serving the merge from `C:\\\
+    projects\\agentjobs`, task closed, worktree removed, branch deleted. Four commits\
+    \ on `perf/task-339-one-gate-per-handoff`, and I ran **one** full gate on the\
+    \ branch before handing it to the finisher -- the sequence this task adds, dogfooded.\n\
+    \n**ac-1 met.** ENGINEERING.md `#### One gate per handoff` + ALLAGENTS.md lifecycle\
+    \ step 4. The two sentences that read as a gate per commit are gone: Commit Hygiene\
+    \ now says \"what your change can break, not the whole gate\", and \xA7Testing's\
+    \ \"regenerate, run the gate, then commit\" is now \"no stage of the gate may\
+    \ require a commit -- regenerate before you gate\", which was task-189's actual\
+    \ decision and no longer contradicts committing first. `tests/test_check_gate.py::TestWhatEngineeringMdMustStillSay`\
+    \ asserts the sequence in order, so a later editor who trims it to its conclusions\
+    \ fails the gate.\n\n**ac-2 met.** `ALREADY GREEN` names the receipt, its age\
+    \ and its cost; `--since-gate` and the dirty-tree receipt refusal both name the\
+    \ paths. 34 tests in `tests/test_gate_repetition.py`, and probed for real against\
+    \ this worktree (fingerprint stable, changes on an untracked file's *contents*,\
+    \ returns to the original when it is removed; the banner rendered from a real\
+    \ `phases.jsonl`).\n\n**ac-3 met.** `run_report.py --task task-336 --list` reads\
+    \ `8 (48.4m, 2 failed, 2 abandoned)` against `6 (31.1m, 2 failed)`. Verified across\
+    \ `--since 14`: exactly one run changes and the other fourteen are byte-identical,\
+    \ which is the evidence it is not double-counting.\n\n**ac-4 met**, in docs/performance.md\
+    \ \"The core budget, before and after\" -- four arms plus a drift control, three\
+    \ runs each, commands and windows quoted. Headline: 5.0% of the pytest stage and\
+    \ 0.8% of the whole gate, buying free memory from **6 MB to 1452 MB**.\n\n**ac-5\
+    \ cannot be met by this run, and is left `pending` rather than claimed.** The\
+    \ after-window is empty by construction -- no dispatched run has *started* since\
+    \ the merge, and this one started before it. The pre-merge baseline, for whoever\
+    \ completes it:\n\n```\npoetry run python scripts/run_report.py --since 7 --split\
+    \ 2026-09-05T19:40:10-05:00\n```\n\nBEFORE: 18 runs, **4.1 gates launched per\
+    \ run**, **21.1m gate per run**, 26% of all run time, 1.6h thrown away in gates\
+    \ that failed or were abandoned. AFTER: \"Nothing on this side of the boundary.\"\
+    \ Re-run it after a handful of dispatched tasks; the prediction under test is\
+    \ that both bold figures fall, and the mechanism that should move them is the\
+    \ sequence rather than the budget.\n\n**Two things for the backlog, neither filed\
+    \ by me** (this task's scope was the two parts, and filing beyond it was not authorised):\n\
+    \n1. **The scripted finish's own gate is a second full gate per task, by design**\
+    \ (task-241), and it is not small: 13 finishes in this window at a mean of 7.6m.\
+    \ This task's out-of-scope said to note the cost if the measurements made it worth\
+    \ a separate task. They do -- 7.6m on every merged task, on top of the branch's\
+    \ own gate -- and the obvious lever is that the finisher rebases and re-gates\
+    \ a branch whose receipt already attests to the pre-rebase commit.\n2. **12 of\
+    \ 30 finishes escalated** rather than finishing (stopped at catch_up, gate, rebase\
+    \ or verify). Each is a merge that needed a human or a second run, which is exactly\
+    \ the cycle-time cost this family of tasks is about.\n\n**One correction on the\
+    \ record.** My first reading of the Part 2 measurement was a 14% speed-up and\
+    \ it was drift; the one-gate control arms either side moved further than the paired\
+    \ arms did. The docs now lead with the control and say so explicitly, because\
+    \ docs/performance.md exists to stop precisely that mistake and nearly recorded\
+    \ it."
+  data:
+    operation:
+      id: 9b52ce07-3d41-4a68-bf29-8e17d4a05c31
+      kind: log_append
+      fingerprint: 48e10820a1de57de31a2ef25ed3f3707
