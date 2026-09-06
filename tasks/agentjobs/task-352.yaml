@@ -2,7 +2,7 @@ schema: 2
 id: task-352
 title: 'A scripted finish is a run: count it, list it, and put it in the slot board'
 created: '2026-09-06T03:59:18.139739Z'
-updated: '2026-09-06T04:24:45.665904Z'
+updated: '2026-09-06T04:25:24.917099Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -224,3 +224,17 @@ log:
       id: a7b8c9d0-e1f2-4a3b-8c4d-5e6f7a8b9caa
       kind: handoff
       fingerprint: 64789d84917205f3730e09eb13901ef6
+- id: 7
+  ts: '2026-09-06T04:25:24.916953Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-352-finish-is-a-run` (9f418258).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-352.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_906f713e\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-352-finish-is-a-run
+    finish_id: fin_906f713e
