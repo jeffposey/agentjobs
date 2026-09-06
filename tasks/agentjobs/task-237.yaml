@@ -3,32 +3,11 @@ id: task-237
 title: 'Shell 2: give the Tasks surface two regions and nest the detail route inside
   it'
 created: '2026-08-22T00:39:16.236145Z'
-updated: '2026-09-06T09:20:11.737743Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
-  \ was merged.**\n\n`scripts/check.py` went red on feat/task-237-two-region-tasks-shell.\
-  \ Full output: C:\\Users\\jpose\\.agentjobs\\finishes\\fin_ff9f5de9\\gate.log\n\n\
-  ```\nRan every stage (10 of 10).\n> C:\\Users\\jpose\\AppData\\Local\\pypoetry\\\
-  Cache\\virtualenvs\\agentjobs-03joIzyB-py3.13\\Scripts\\python.exe -m black --check\
-  \ .\n> C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-03joIzyB-py3.13\\\
-  Scripts\\python.exe -m ruff check .\n> C:\\Users\\jpose\\AppData\\Local\\pypoetry\\\
-  Cache\\virtualenvs\\agentjobs-03joIzyB-py3.13\\Scripts\\python.exe -m mypy .\ntests\\\
-  test_mcp_server.py:599: \e[94mnote:\e[0m By default the bodies of untyped functions\
-  \ are not checked, consider using --check-untyped-defs  [annotation-unchecked]\e\
-  [0m\n\e[1m\e[92mSuccess: no issues found in 266 source files\e[0m\nAll done! \\\
-  u2728 \\U0001f370 \\u2728\n266 files would be left unchanged.\n```\n\nThat took\
-  \ 4s and exited 1. A red gate never merges. The branch is rebased onto main and\
-  \ is otherwise untouched; nothing was merged.\n\nTake it from here. Check the tree\
-  \ against what is written above before acting on anything you remember: if your\
-  \ worktree, your branch or your account of this task no longer matches what is on\
-  \ disk, say so on the record and hand the ball back rather than improvising a recovery.\n\
-  \nThe work is on `feat/task-237-two-region-tasks-shell` in C:\\projects\\worktrees\\\
-  agentjobs-237. Use it; do not take a new one."
+updated: '2026-09-06T09:20:52.762785Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 493
 category: ux
 tags:
 - frontend
@@ -37,7 +16,6 @@ tags:
 - routing
 effort: medium
 assignment:
-  owner: claude
   eligible: []
 parent: task-235
 spec:
@@ -159,7 +137,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-237-two-region-tasks-shell
-  status: active
+  status: merged
+  merged_at: '2026-09-06T09:20:52.709439Z'
 log:
 - id: 1
   ts: '2026-08-22T00:39:16.652299Z'
@@ -567,3 +546,29 @@ log:
     merge_commit: 7c2ed7c9a4f310c8603ad1dfe717454b57f174d6
     branch: feat/task-237-two-region-tasks-shell
     base: main
+- id: 18
+  ts: '2026-09-06T09:20:52.762524Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-237-two-region-tasks-shell` into `main` as `7c2ed7c9` and\
+    \ verified live. Finished by the scripted path with no agent session (task-241).\
+    \ No human reviewed this merge: posture `autonomous` (from the epic) releases\
+    \ the merge gate (task-021), and run run_b34f8216 ran the finish. What authorised\
+    \ it is the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         2.2s  feat/task-237-two-region-tasks-shell at b8b27624\
+    \ in C:\\projects\\worktrees\\agentjobs-237\n  runway     ok         0.0s  taken\
+    \ immediately\n  rebase     ok         0.6s  feat/task-237-two-region-tasks-shell\
+    \ onto main: b8b27624 -> 3adc19c9\n  gate       ok       533.9s  scripts/check.py\
+    \ green\n  catch_up   ok       287.9s  main moved 51b10682 -> cd8bd398 in 1 classified\
+    \ path(s); rebased to 8f8f2e01 and re-ran pytest\n  merge      ok         0.9s\
+    \  --no-ff into main as 7c2ed7c9a4f310c8603ad1dfe717454b57f174d6\n  rebuild  \
+    \  ok         7.7s  rebuilt the bundle in C:\\projects\\agentjobs\\frontend\n\
+    \  restart    ok         1.0s  ran powershell -NoProfile -ExecutionPolicy Bypass\
+    \ -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify   \
+    \  ok         0.0s  http://127.0.0.1:8876 is serving 561b7c2c, which contains\
+    \ the merge 7c2ed7c9, from C:\\projects\\agentjobs (started 2026-09-06T09:20:34.324809+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
