@@ -76,15 +76,35 @@ async function longTask(request: APIRequestContext) {
   return longTaskId;
 }
 
-/** Scroll the document to its end, refusing to pass on a page that never scrolled. */
+/**
+ * Scroll to the end of whatever this page actually scrolls, refusing to pass if
+ * nothing does.
+ *
+ * Usually that is the document. On the two-region Tasks surface it is not: task-237
+ * gives that surface the viewport's height exactly and each region scrolls inside
+ * itself, which is a stronger guarantee about the header than pinning it -- the bar
+ * cannot leave a page that does not move. A helper that only knew how to scroll the
+ * window would read that as a page which never scrolls and pass vacuously, so it falls
+ * through to the tallest scrollport on the page instead.
+ */
 async function scrollToEnd(page: Page) {
   const scrolled = await page.evaluate(() => {
     window.scrollTo(0, document.documentElement.scrollHeight);
-    return window.scrollY;
+    if (window.scrollY > 0) return window.scrollY;
+    let deepest: Element | null = null;
+    for (const element of document.querySelectorAll("*")) {
+      const overflow = getComputedStyle(element).overflowY;
+      if (overflow !== "auto" && overflow !== "scroll") continue;
+      if (element.scrollHeight - element.clientHeight < 1) continue;
+      if (!deepest || element.scrollHeight > deepest.scrollHeight) deepest = element;
+    }
+    if (!deepest) return 0;
+    deepest.scrollTop = deepest.scrollHeight;
+    return deepest.scrollTop;
   });
   // Without this the whole test is vacuous: a header is trivially at the top of a
   // page that has no scroll.
-  expect(scrolled, "the page under test must actually scroll").toBeGreaterThan(0);
+  expect(scrolled, "nothing on the page under test actually scrolled").toBeGreaterThan(0);
 }
 
 /**

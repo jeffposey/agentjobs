@@ -47,6 +47,17 @@ async function order(page: Page, seeded: Array<string>) {
   return rendered.filter((id) => seeded.includes(id));
 }
 
+/**
+ * Title fragments that narrow the list to one test's own rows.
+ *
+ * `?q=` searches title and id, so seeding a token and asking for it leaves a spec
+ * looking at exactly the rows it created. Necessary since task-237 rather than merely
+ * tidy: the list is a region of cards, so an unfiltered corpus puts far more pixels
+ * between two seeded rows than one raw-mouse drag can span.
+ */
+const DRAG_TOKEN = "gh237drag";
+const BAND_TOKEN = "gh237band";
+
 function grip(page: Page, taskId: string) {
   return page.getByRole("button", { name: new RegExp(`^Reorder ${taskId},`) });
 }
@@ -140,6 +151,44 @@ test("shows the position it is about to change", async ({ page, request }) => {
  * These catch a regression in the element, the handlers, the client call and the route.
  * They cannot stand in for a hand on a mouse -- see task-225.
  */
+/**
+ * The box the rows scroll inside, as an expression evaluated in the page.
+ *
+ * The list's own region on the two-region Tasks surface (task-237), where the document
+ * does not scroll at all, and `null` -- meaning the window -- in the stacked shell.
+ * Written as a string because three helpers below need it inside their own
+ * `page.evaluate`, and a function declared out here is not in scope in there.
+ */
+const FIND_SCROLLER = `(from) => {
+  let candidate = from ? from.parentElement : null;
+  while (candidate && candidate !== document.body && candidate !== document.documentElement) {
+    const overflow = getComputedStyle(candidate).overflowY;
+    if ((overflow === "auto" || overflow === "scroll")
+        && candidate.scrollHeight > candidate.clientHeight) return candidate;
+    candidate = candidate.parentElement;
+  }
+  return null;
+}`;
+
+/** How far the rows have been scrolled, wherever it is they scroll. */
+async function listScrollTop(page: Page) {
+  return page.evaluate(`(() => {
+    const findScroller = ${FIND_SCROLLER};
+    const scroller = findScroller(document.querySelector("[data-task]"));
+    return scroller ? scroller.scrollTop : window.scrollY;
+  })()`) as Promise<number>;
+}
+
+/** How much room those rows have left to scroll into. Zero means the list fits. */
+async function listScrollRoom(page: Page) {
+  return page.evaluate(`(() => {
+    const findScroller = ${FIND_SCROLLER};
+    const scroller = findScroller(document.querySelector("[data-task]"));
+    if (scroller) return scroller.scrollHeight - scroller.clientHeight;
+    return document.documentElement.scrollHeight - window.innerHeight;
+  })()`) as Promise<number>;
+}
+
 async function dragOnto(page: Page, sourceId: string, targetId: string) {
   const grip = page.locator(`[id="queue-grip-${sourceId}"]`);
   const target = page.locator(`[data-task="${targetId}"] [data-label="Status"]`);
@@ -150,8 +199,16 @@ async function dragOnto(page: Page, sourceId: string, targetId: string) {
   // whenever the rows are far apart, and the minimum for a row above the fold puts it
   // at y=0, underneath the header, where the press lands on the header instead. Both
   // failure modes were observed; this places the pair deliberately instead.
+  //
+  // Which box to move is now a question (task-237). On the two-region shell the rows
+  // scroll inside the list's region and the window scrolls nowhere, so scrolling the
+  // window would place nothing and leave the pair wherever it found them. The region
+  // also starts below the header, so nothing has to be subtracted for the bar there.
   const placed = await page.evaluate(
-    ([gripId, taskId]) => {
+    ([gripId, taskId, findScrollerSource]) => {
+      const findScroller = new Function(`return (${findScrollerSource})`)() as (
+        from: Element | null,
+      ) => Element | null;
       const gripElement = document.getElementById(gripId as string);
       const targetElement = document.querySelector(
         `[data-task="${taskId}"] [data-label="Status"]`,
@@ -159,15 +216,26 @@ async function dragOnto(page: Page, sourceId: string, targetId: string) {
       const header = document.querySelector("header");
       if (!gripElement || !targetElement || !header) return null;
       const boxes = [gripElement.getBoundingClientRect(), targetElement.getBoundingClientRect()];
-      const top = Math.min(...boxes.map((box) => box.top)) + window.scrollY;
-      const bottom = Math.max(...boxes.map((box) => box.bottom)) + window.scrollY;
+      const top = Math.min(...boxes.map((box) => box.top));
+      const bottom = Math.max(...boxes.map((box) => box.bottom));
+      const scroller = findScroller(gripElement);
+      if (scroller) {
+        const port = scroller.getBoundingClientRect();
+        const usable = scroller.clientHeight;
+        // Centre the pair in the region, in the region's own coordinates.
+        scroller.scrollTop += (top + bottom) / 2 - (port.top + usable / 2);
+        return { span: bottom - top, usable };
+      }
       const headerHeight = header.getBoundingClientRect().height;
       const usable = window.innerHeight - headerHeight;
       // Centre the pair in the band the header leaves behind.
-      window.scrollTo(0, Math.max(0, (top + bottom) / 2 - headerHeight - usable / 2));
+      window.scrollTo(
+        0,
+        Math.max(0, (top + bottom) / 2 + window.scrollY - headerHeight - usable / 2),
+      );
       return { span: bottom - top, usable };
     },
-    [`queue-grip-${sourceId}`, targetId],
+    [`queue-grip-${sourceId}`, targetId, FIND_SCROLLER],
   );
   if (!placed) throw new Error(`No grip or target for ${sourceId} -> ${targetId}.`);
   if (placed.span > placed.usable) {
@@ -176,8 +244,8 @@ async function dragOnto(page: Page, sourceId: string, targetId: string) {
     // it by auto-scrolling at the edge, which is a different test.
     throw new Error(
       `${sourceId} and ${targetId} are ${Math.round(placed.span)}px apart, more than the ` +
-        `${Math.round(placed.usable)}px this viewport leaves below the header, so one ` +
-        "raw-mouse drag cannot span them. Seed fewer rows between them, or use a taller viewport.",
+        `${Math.round(placed.usable)}px this scrollport leaves, so one raw-mouse drag ` +
+        "cannot span them. Seed fewer rows between them, or use a taller viewport.",
     );
   }
   const from = await grip.boundingBox();
@@ -199,14 +267,21 @@ test("drags one task onto another with a real mouse, and the server keeps the or
 }) => {
   // Taller than the 720px default, because a raw-mouse drag needs both rows on screen
   // at once and task-292's pinned header now takes 65px off the top of every page.
-  // The pair this spec seeds sits 677px apart, which fit in 720 and does not fit in
-  // 655. The height is a property of the harness, not a claim about the product: the
+  // The height is a property of the harness, not a claim about the product: the
   // gesture a person makes across a longer list is the auto-scroll one, covered below.
   await page.setViewportSize({ width: 1280, height: 900 });
-  const seeded = await seed(request, ["Drag first", "Drag second", "Drag third"]);
+  const seeded = await seed(request, [
+    `${DRAG_TOKEN} first`,
+    `${DRAG_TOKEN} second`,
+    `${DRAG_TOKEN} third`,
+  ]);
   const [first, second, third] = seeded;
 
-  await page.goto("/app/p/_local/tasks");
+  // Filtered to this spec's own rows. Not tidiness: the list is a region a third of
+  // the screen wide since task-237 and its rows are cards there, so whatever else the
+  // shared corpus holds between two seeded tasks is now four times as many pixels as
+  // it used to be, and a raw-mouse drag cannot reach across more than one scrollport.
+  await page.goto(`/app/p/_local/tasks?q=${DRAG_TOKEN}`);
   await expect.poll(() => order(page, seeded)).toEqual([first, second, third]);
 
   await dragOnto(page, third, first);
@@ -226,14 +301,14 @@ test("drags one task onto another with a real mouse, and the server keeps the or
 test("a cross-band drag asks before it reprioritises", async ({ page, request }) => {
   // Taller than the 720px default, because a raw-mouse drag needs both rows on screen
   // at once and task-292's pinned header now takes 65px off the top of every page.
-  // The pair this spec seeds sits 677px apart, which fit in 720 and does not fit in
-  // 655. The height is a property of the harness, not a claim about the product: the
-  // gesture a person makes across a longer list is the auto-scroll one, covered below.
   await page.setViewportSize({ width: 1280, height: 900 });
-  const [high] = await seed(request, ["Drag out of high"], "high");
-  const [low] = await seed(request, ["Drag onto low"], "low");
+  const [high] = await seed(request, [`${BAND_TOKEN} out of high`], "high");
+  const [low] = await seed(request, [`${BAND_TOKEN} onto low`], "low");
 
-  await page.goto("/app/p/_local/tasks");
+  // Filtered, and here it is load-bearing rather than a precaution: these two are at
+  // opposite ends of the queue, so unfiltered the whole backlog lies between them --
+  // 2794px of it once the list became a region of cards (task-237).
+  await page.goto(`/app/p/_local/tasks?q=${BAND_TOKEN}`);
   await expect.poll(() => order(page, [high, low])).toEqual([high, low]);
 
   await dragOnto(page, high, low);
@@ -269,11 +344,11 @@ test("a cross-band drag asks before it reprioritises", async ({ page, request })
  * when that distinction is forgotten. A hand on a mouse in the seeded sandbox is the
  * evidence for that, and it is recorded on task-229.
  */
-test("scrolls the page while a drag is held at the bottom edge, and stops on release", async ({
+test("scrolls the list while a drag is held at the bottom edge, and stops on release", async ({
   page,
   request,
 }) => {
-  // Enough rows that the document is taller than the window whatever else has been
+  // Enough rows that the list is taller than its scrollport whatever else has been
   // seeded, and in `low` so this does not crowd the bands the drags above assert over.
   await seed(
     request,
@@ -284,10 +359,14 @@ test("scrolls the page while a drag is held at the bottom edge, and stops on rel
   await page.goto("/app/p/_local/tasks");
   const grip = page.locator("[id^=queue-grip-]").first();
   await expect(grip).toBeVisible();
-  await page.evaluate(() => window.scrollTo(0, 0));
-  expect(
-    await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight),
-  ).toBeGreaterThan(200);
+  // Which box scrolls is the thing task-237 changed, and the whole claim here is that
+  // the loop moves whichever one it is. Asked of the page rather than assumed.
+  await page.evaluate(`(() => {
+    const findScroller = ${FIND_SCROLLER};
+    const scroller = findScroller(document.querySelector("[data-task]"));
+    if (scroller) scroller.scrollTop = 0; else window.scrollTo(0, 0);
+  })()`);
+  expect(await listScrollRoom(page)).toBeGreaterThan(200);
 
   const box = await grip.boundingBox();
   const viewport = page.viewportSize();
@@ -302,7 +381,7 @@ test("scrolls the page while a drag is held at the bottom edge, and stops on rel
 
   // Held still from here on. The loop must keep scrolling from the last reading rather
   // than needing a stream of events, because a held hand does not produce one.
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+  await expect.poll(() => listScrollTop(page)).toBeGreaterThan(100);
 
   await page.mouse.up();
   // Where the release happens to land is not this test's subject: the top row and the
@@ -312,7 +391,7 @@ test("scrolls the page while a drag is held at the bottom edge, and stops on rel
   const confirm = page.getByRole("alertdialog", { name: "Confirm a priority change" });
   if (await confirm.isVisible()) await confirm.getByRole("button", { name: "Cancel" }).click();
 
-  const settled = await page.evaluate(() => window.scrollY);
+  const settled = await listScrollTop(page);
   await page.waitForTimeout(300);
-  expect(await page.evaluate(() => window.scrollY)).toBe(settled);
+  expect(await listScrollTop(page)).toBe(settled);
 });
