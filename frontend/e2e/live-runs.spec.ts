@@ -89,9 +89,14 @@ test("a real run appears on both surfaces without a reload, and leaves when it e
   const row = page.getByRole("row").filter({ hasText: "Watch me run" });
   await expect(row).toContainText("Working");
   await expect(row).toContainText("End-to-end project");
+  // The task's *id*, taken from the path rather than from the end of the whole URL:
+  // since task-238 a row in the sidebar tree carries the reader's filters into the
+  // link it opens, so the last slash-separated piece of `taskUrl` is `task-014?status=all`
+  // and pasting that into a RegExp builds a pattern that matches nothing on purpose.
+  const taskId = new URL(taskUrl).pathname.split("/").pop();
   await expect(row.getByRole("link").first()).toHaveAttribute(
     "href",
-    new RegExp(`/p/_local/tasks/${taskUrl.split("/").pop()}$`),
+    new RegExp(`/p/_local/tasks/${taskId}$`),
   );
   await expect(page.getByTestId("capacity-sentence")).toContainText("1 of");
 

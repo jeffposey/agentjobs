@@ -424,20 +424,23 @@ export function TaskList({
   };
 
   /**
-   * Where a row points, filters included.
+   * Where a row points, filters included -- **in the tree only**.
    *
-   * **The query string is carried across.** Opening a task used to drop it, which was
-   * invisible while the list was the whole page and a round trip away from the filter
-   * box. Beside the record it is not: an arrow key that quietly emptied the search
-   * would re-render the list from three rows to the whole backlog under the reader's
-   * hand, and the row they had just moved to would be reinserted somewhere else --
-   * taking the focus with it, so the next press did nothing. Found exactly that way,
-   * in Chromium, by pressing Down twice.
+   * Opening a task drops the query string, which was invisible while the list was the
+   * whole page: the list unmounted anyway, and Back put the filters straight back.
+   * Beside the record it is neither. The list stays mounted, so an arrow key that
+   * quietly emptied the search re-renders it from three rows to the whole backlog under
+   * the reader's hand, React reinserts the row they had just moved to somewhere else,
+   * and the browser drops focus from the node it moved -- so the next press does
+   * nothing. That is task-207's defect reached through a different door, and it was
+   * found the same way task-207's was: by pressing the key twice in Chromium.
+   *
+   * The table keeps the bare path it has always had. It has no selection to lose and
+   * no list left on screen to re-render, and this task's constraint is that below the
+   * device-class threshold the list renders as it does today.
    */
-  const rowTarget = (taskId: string) => ({
-    pathname: taskPath(projectId, taskId),
-    search: params.toString(),
-  });
+  const rowTarget = (taskId: string) =>
+    tree ? { pathname: taskPath(projectId, taskId), search: params.toString() } : taskPath(projectId, taskId);
 
   /** Move the selection to a row: the record beside the list follows the route. */
   const selectRow = (taskId: string) => {

@@ -1098,6 +1098,21 @@ describe("TaskList selection keeps the filters", () => {
     expect(href).toContain("priority=high");
   });
 
+  it("leaves the full-width table's links exactly as they were", () => {
+    // The split is deliberate rather than incidental. The table has no selection to
+    // lose and no list left on screen to re-render, so it keeps the bare path it has
+    // always had -- which is this task's constraint: below the device-class threshold
+    // the list renders as it does today.
+    render(
+      <MemoryRouter initialEntries={["/p/inbox/tasks?q=058&status=all"]}>
+        <TaskList tasks={[task("task-058")]} projectId="inbox" />
+      </MemoryRouter>,
+    );
+
+    const link = screen.getByRole("link", { name: /task-058/ });
+    expect(link).toHaveAttribute("href", "/p/inbox/tasks/task-058");
+  });
+
   it("carries them through an arrow-key selection too", () => {
     render(
       <MemoryRouter initialEntries={["/p/inbox/tasks/task-a?q=queue&status=all"]}>
