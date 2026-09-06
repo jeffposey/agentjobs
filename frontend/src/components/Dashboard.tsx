@@ -163,7 +163,10 @@ function NextAction({ dashboard, projectId }: DashboardProps) {
           <p className="mb-4 text-xs text-dark-muted">
             Nothing is blocked by these. They are drafts that need a decision before they become work.
           </p>
-          <ResponsiveTable aria-label="Backlog awaiting your input">
+          {/* Task, Title, Reason. The id and the reason are short and bounded; the
+              title is neither, so under a fixed layout it is the column that should
+              absorb whatever width is going. */}
+          <ResponsiveTable aria-label="Backlog awaiting your input" columns={["9rem", null, "8rem"]}>
             <thead>
               <tr>
                 <th scope="col">Task</th>

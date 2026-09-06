@@ -97,3 +97,64 @@ describe("DependencyState on a held task", () => {
     expect(screen.queryByText("Blocked")).not.toBeInTheDocument();
   });
 });
+
+describe("DependencyState in a list column", () => {
+  const blocked: TaskRead = {
+    schema: 2,
+    id: "task-341-fixture",
+    title: "A task waiting on two others",
+    created: "2026-09-05T08:00:00Z",
+    updated: "2026-09-05T09:00:00Z",
+    lifecycle: "ready",
+    ball: "agent",
+    ball_reason: "work",
+    outcome: null,
+    display_status: "Ready",
+    priority: "medium",
+    category: "ux",
+    tags: [],
+    unmet_needs: ["task-042", "task-043"],
+    assignment: { eligible: [] },
+    spec: { summary: "Summary.", description: "Body." },
+  };
+
+  // A `ball_prompt` is written for someone who has the task open, so it is routinely
+  // several paragraphs. Rendered one `<p>` per reason in a 194px table column it made
+  // one row 2091px tall and emptied the first screen of the task list (task-341).
+  it("puts every reason in one paragraph so the column can clamp it", () => {
+    const { container } = render(<DependencyState task={blocked} compact />);
+
+    const paragraphs = container.querySelectorAll("p");
+    expect(paragraphs).toHaveLength(1);
+    expect(paragraphs[0]).toHaveTextContent("Waiting for task-042 · Waiting for task-043");
+  });
+
+  // Clamped, not truncated: the cut is CSS, and the whole text is still on the element
+  // for a reader who hovers it. Nothing is dropped from the DOM.
+  it("keeps the full text reachable on the element that shows the clamp", () => {
+    const { container } = render(<DependencyState task={blocked} compact />);
+
+    const paragraph = container.querySelector("p");
+    expect(paragraph).toHaveAttribute(
+      "title",
+      "Waiting for task-042 · Waiting for task-043",
+    );
+  });
+
+  // The task's own page has room for the whole thing, and is where a reader who wants
+  // to act on it is going. Only the list summarises.
+  it("still gives each reason its own paragraph when it is not compact", () => {
+    const { container } = render(<DependencyState task={blocked} />);
+
+    expect(container.querySelectorAll("p")).toHaveLength(2);
+    expect(container.querySelector("p")).not.toHaveAttribute("title");
+  });
+
+  it("renders no paragraph at all when there is nothing to say", () => {
+    const quiet = { ...blocked, unmet_needs: [], actionable: true };
+    const { container } = render(<DependencyState task={quiet} compact />);
+
+    expect(container.querySelectorAll("p")).toHaveLength(0);
+    expect(screen.getByText("Actionable now")).toBeVisible();
+  });
+});
