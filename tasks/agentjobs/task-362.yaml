@@ -2,7 +2,7 @@ schema: 2
 id: task-362
 title: 'Shell 7: the sidebar row stops showing the raw queue position'
 created: '2026-09-06T21:02:35.472560Z'
-updated: '2026-09-06T22:13:57.405987Z'
+updated: '2026-09-06T22:14:08.684660Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -440,3 +440,17 @@ log:
       id: e6b2905a-71d4-42cf-83c9-4f8a1d6027be
       kind: update_content
       fingerprint: 50ff79244a6283d24b1fd7676d398526
+- id: 14
+  ts: '2026-09-06T22:14:08.684456Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `fix/task-362-hide-queue-position` (eebb33a7).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-362.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_e87bcf8d\gate.log.'
+  data:
+    finish_step: started
+    branch: fix/task-362-hide-queue-position
+    finish_id: fin_e87bcf8d
