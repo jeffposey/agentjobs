@@ -458,6 +458,23 @@ def ready(pending: list[Stage], finished: set[str], wanted: set[str]) -> list[St
     ]
 
 
+def printable(text: str) -> str:
+    """Child output this process's own stdout can actually encode.
+
+    A captured stage's output is text the gate has to re-encode on the way out, and on
+    Windows a redirected stdout is cp1252. Black prints an emoji; the first concurrent
+    gate run on this machine got through all ten stages and then died in `print` with
+    `UnicodeEncodeError: 'charmap' codec can't encode character '\\ufffd'`, reporting
+    nothing. The serial gate never meets this because its children write to the inherited
+    handle themselves and the gate never sees the bytes.
+
+    Lossy on purpose. A mangled character in a passing stage's output is nothing; a
+    traceback in place of the gate's verdict is the whole run.
+    """
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+
+
 def run_captured(commands: list[list[str]], *, cwd: Path) -> tuple[int, str]:
     """Run one stage's commands in order, keeping their output to print in one block.
 
@@ -479,6 +496,9 @@ def run_captured(commands: list[list[str]], *, cwd: Path) -> tuple[int, str]:
             env=child_environment(),
             capture_output=True,
             text=True,
+            # The children write UTF-8 -- Black's emoji, npm's box drawing -- and the
+            # locale encoding this would otherwise use is cp1252 here.
+            encoding="utf-8",
             errors="replace",
         )
         chunks.extend(part for part in (result.stdout, result.stderr) if part)
@@ -605,7 +625,7 @@ def run_concurrently(selected: list[Stage], npm: str) -> tuple[list[tuple[str, f
                 elapsed[stage.name] = seconds
                 verdict = "passed" if code == 0 else f"FAILED ({code})"
                 print(
-                    f"\n=== {stage.name} {verdict} in {seconds:.1f}s ==={output}",
+                    printable(f"\n=== {stage.name} {verdict} in {seconds:.1f}s ==={output}"),
                     flush=True,
                 )
                 if code != 0:

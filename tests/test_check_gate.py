@@ -867,3 +867,26 @@ class TestConcurrentStages:
 
         assert alone[0][alone[0].index("-n") + 1] == "auto"
         assert reserved[0][reserved[0].index("-n") + 1] != "auto"
+
+    def test_captured_output_cannot_kill_the_run_it_is_reporting(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The first real concurrent gate on this machine passed all ten stages and then
+        died in ``print``: Black's emoji, re-encoded to a redirected cp1252 stdout."""
+
+        class Cp1252Stdout:
+            encoding = "cp1252"
+
+        monkeypatch.setattr(check.sys, "stdout", Cp1252Stdout())
+
+        assert check.printable("all done \u2728 \ufffd") == "all done ? ?"
+
+    def test_printable_leaves_text_the_terminal_can_take(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        class Utf8Stdout:
+            encoding = "utf-8"
+
+        monkeypatch.setattr(check.sys, "stdout", Utf8Stdout())
+
+        assert check.printable("all done \u2728") == "all done \u2728"
