@@ -2,7 +2,7 @@ schema: 2
 id: task-362
 title: 'Shell 7: the sidebar row stops showing the raw queue position'
 created: '2026-09-06T21:02:35.472560Z'
-updated: '2026-09-06T22:07:37.225967Z'
+updated: '2026-09-06T22:13:57.405987Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -118,34 +118,35 @@ acceptance:
 - id: ac-1
   text: No task row in the sidebar renders queue_position as visible text, at any
     viewport, and a test asserts its absence rather than having been deleted.
-  status: pending
+  status: met
 - id: ac-2
   text: The reorder grip's aria-label still names the band and the position, asserted
     by a test.
-  status: pending
+  status: met
 - id: ac-3
   text: NextExplanation still renders the position in its explanatory sentence.
-  status: pending
+  status: met
 - id: ac-4
   text: The data-queue-position attributes at TaskList.tsx:775 and :862 still exist,
     or the record names the grep proving each removed one was dead.
-  status: pending
+  status: met
 - id: ac-5
   text: 'The title gets the width back: the record states a measured title width at
     a sidebar width before and after, taken from a browser rather than asserted.'
-  status: pending
+  status: failed
 - id: ac-6
   text: Drag-to-reorder and Alt+Up/Alt+Down still move a row, with focus surviving
     the move; the record names the instrument and does not claim an automated gesture
     is a person's.
-  status: pending
+  status: met
 - id: ac-7
   text: scripts/check.py green, unqualified, on the rebased branch.
-  status: pending
+  status: met
 deliverables:
 - path: frontend/src/components/TaskList.tsx
-  note: Visible queue-position text removed; aria-label and data attributes intact.
-  status: pending
+  note: Visible queue-position text removed; aria-label and both data-queue-position
+    seams intact.
+  status: done
 dependencies:
 - task: task-207
   type: related
@@ -319,3 +320,123 @@ log:
       id: 8d41b7e2-05fc-4a93-b6e1-3c92d7a850f4
       kind: update_content
       fingerprint: 7f6fefc5accf1f5befd1115286dcb18d
+- id: 10
+  ts: '2026-09-06T22:12:51.898998Z'
+  actor: claude
+  type: progress
+  body: "Done on `fix/task-362-hide-queue-position` (eebb33a). Three files, 46 insertions,\
+    \ 15 deletions; no source outside `frontend/` touched.\n\n**The change.** `TaskList.tsx`\
+    \ \u2014 the tree row's `<span data-field=\"queue\">` is gone, and the reason\
+    \ it is gone is in a comment where the next reader will meet it rather than only\
+    \ in this record. The row's id line is now id + the \"part of task-NNN\" note;\
+    \ the title line is untouched. The table variant is untouched: its labelled Queue\
+    \ column is a column a reader opted into on a full-width surface, not width taken\
+    \ from a 320px one, and the spec scopes this to the sidebar.\n\n**What stayed,\
+    \ verified rather than assumed.**\n- `TaskList.tsx:741` grip `aria-label` \u2014\
+    \ `Reorder task-after, high band, position 200`, asserted verbatim in vitest and\
+    \ by regex in Playwright.\n- `NextExplanation.tsx:51` \"position X of the Y\"\
+    \ \u2014 untouched; its own suite green.\n- Both `data-queue-position` seams:\
+    \ `grep -n data-queue-position frontend/src/components/TaskList.tsx` \u2192 two\
+    \ hits, one per shape. Neither was dead, so neither was removed. Four existing\
+    \ assertions read them (`TaskList.test.tsx:466`, `:470`, the new tree test, `queue-order.spec.ts`).\n\
+    \n**Tests updated, not deleted.** `TaskList.test.tsx`'s \"carries the row's place\
+    \ in line\" became \"keeps its place in line off the row, in the seam and in the\
+    \ grip's name\": it asserts the seam still carries 200, that `[data-field=\"queue\"\
+    ]` is now absent from the row, that the row's text does not contain 200, and the\
+    \ grip's exact accessible name. Absence rather than silence, because a test that\
+    \ merely stopped looking would pass again the day the number came back. `queue-order.spec.ts`'s\
+    \ \"shows the position it is about to change\" got the same treatment end-to-end.\n\
+    \n**Verification.** `scripts/check.py`, unqualified, once, on the rebased branch:\
+    \ **green, all 10 stages, 268.4s, receipt written for eebb33a7**. 4137 pytest,\
+    \ 107 Playwright, vitest green.\n"
+  data:
+    operation:
+      id: c9e0a3b7-4f21-4d86-b5a3-1e7c60d29f83
+      kind: log_append
+      fingerprint: cc2dd01d9e1c49a4d6a73d5920154bfd
+- id: 11
+  ts: '2026-09-06T22:13:22.787609Z'
+  actor: claude
+  type: decision
+  body: "ac-5's premise is false, and the measurement says so. **The title gets no\
+    \ width back \u2014 zero pixels.** Recording it rather than quietly marking the\
+    \ criterion met, because the spec argued from it twice.\n\n**Instrument.** Playwright-driven\
+    \ Chromium at 1280x900, against the real corpus served from this branch's own\
+    \ bundle on a throwaway port 8899, measured with `getBoundingClientRect()` on\
+    \ the live DOM. Two builds of the same checkout: the \"before\" with `TaskList.tsx`\
+    \ stashed, the \"after\" with it applied. Server stopped afterwards.\n\n**Numbers,\
+    \ sidebar 413.44px both times:**\n\n| | before | after |\n|---|---|---|\n| title\
+    \ span width | 350.38px | 350.38px |\n| title `scrollWidth` (task-235) | 531px\
+    \ | 531px |\n| still truncated | yes | yes |\n\n**Why.** The number was never\
+    \ on the title's line. The tree row is two block lines inside the link \u2014\
+    \ `[id \xB7 \"part of task-NNN\"]` above, `[title]` below \u2014 and the removed\
+    \ span sat on the *first* one, `ml-auto`, hard right. The title is a block element\
+    \ already spanning the full content column, so its width is set by the column\
+    \ and nothing on the line above can touch it. The spec's fourth argument reads\
+    \ the screenshot as though 1393 sat *beside* \"\u2026on the screen alre\u2026\"\
+    ; it sat above it.\n\n**What was actually reclaimed**, measured the same way by\
+    \ probing an identically-classed span into the live id line: **34.4px** \u2014\
+    \ 26.4px of text plus the 8px flex gap \u2014 out of a 333.8px id line, **10.3%**\
+    \ of it. That line is where an orphaned row truncates \"part of task-NNN\", so\
+    \ that note is the one thing on screen that gains room.\n\n**The change still\
+    \ stands, on the other three arguments**, which the measurement does not touch:\
+    \ it is not ordinal, it duplicates the band chip beside it, and it advertises\
+    \ a field the workflow forbids hand-editing. Removing visual noise from a scanning\
+    \ surface is worth doing on its own. But \"it truncates the title\" should not\
+    \ be repeated by the next task in this epic \u2014 if a title needs width in the\
+    \ sidebar, the lever is the column, the indent or the three-line row, not this\
+    \ span.\n\n**Rejected alternative:** mark ac-5 met on the strength of the row\
+    \ looking cleaner. That is the failure mode ENGINEERING.md's verification section\
+    \ names \u2014 a check that would have caught nothing. The criterion asked for\
+    \ a browser measurement precisely so this could come out either way, and it came\
+    \ out the other way.\n"
+  data:
+    operation:
+      id: 5a7f28d0-31c6-4b94-8e0f-c2d4a9163e57
+      kind: log_append
+      fingerprint: 0905d1c174bdbf38219886bc74f46a27
+- id: 12
+  ts: '2026-09-06T22:13:38.945962Z'
+  actor: claude
+  type: progress
+  body: "ac-6, with the instrument named and its limits stated. **No person made these\
+    \ gestures. I am not claiming they did.**\n\n`queue-order.spec.ts`, all six tests\
+    \ green inside the gate's `e2e` stage (107 Playwright tests, 138.2s, from `scripts/check.py`\
+    \ on eebb33a7):\n\n- **Alt+ArrowUp, focus surviving the move** \u2014 \"reorders\
+    \ the backlog from the keyboard, and the server keeps the new order\". It focuses\
+    \ the grip once, presses twice, and asserts the second press moved *the same task*.\
+    \ That second press without re-focusing is the whole test: task-207's defect was\
+    \ focus not surviving a reinsertion, and the tests written to prove it worked\
+    \ were re-focusing before every keypress and so could not see it. A reload then\
+    \ re-asserts the order, so the moves are on the server rather than only in the\
+    \ DOM, and the record carries two `queue_move` entries.\n- **Drag onto another\
+    \ row** \u2014 \"drags one task onto another with a real mouse\": `page.mouse`\
+    \ down/move/up at computed viewport coordinates, plus the cross-band variant and\
+    \ the auto-scroll-at-the-edge one.\n\n**What that is and is not evidence of.**\
+    \ `page.keyboard.press` enters below the browser's own shortcut handling and Playwright's\
+    \ drag path is not the OS drag loop, so this is good evidence that the handlers,\
+    \ the client call and the `queue-move` route work end to end, and it is not evidence\
+    \ that a *person's* gesture works. task-225's afternoon went to a browser-automation\
+    \ tool reporting success while delivering no events at all, so the distinction\
+    \ is not pedantry. What makes the risk small here rather than absent: this change\
+    \ removes a static span from a sibling subtree, and touches neither the grip,\
+    \ its handlers, the row's `onKeyDown`, nor the focus-restoration path \u2014 `git\
+    \ diff` on `TaskList.tsx` is the removed span and a comment, nothing else.\n"
+  data:
+    operation:
+      id: b1c47e93-2a58-4f06-8d71-9e35c0b2a4d8
+      kind: log_append
+      fingerprint: 0963ae1d8d8b6166bdaed06f11c496e8
+- id: 13
+  ts: '2026-09-06T22:13:57.405607Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, deliverables.
+  data:
+    fields:
+    - acceptance
+    - deliverables
+    operation:
+      id: e6b2905a-71d4-42cf-83c9-4f8a1d6027be
+      kind: update_content
+      fingerprint: 50ff79244a6283d24b1fd7676d398526
