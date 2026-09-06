@@ -26,7 +26,7 @@ import { FinishPanel } from "./FinishPanel";
 import { identityHeadline } from "./identityProblem";
 import { linkSegments } from "./linkify";
 import { NoteComposer } from "./NoteComposer";
-import { ReviewLinks, reviewLinksFor } from "./ReviewLinks";
+import { ReviewLinks, cardUrls, reviewPromptFor } from "./ReviewLinks";
 import { useWideShell } from "./shellLayout";
 
 const PRIORITY_CLASSES: Record<string, string> = {
@@ -119,12 +119,25 @@ const PANEL_CONTAINER = "@container";
  * strings and URLs rather than markup, so nothing on this path renders agent-authored
  * text as HTML or Markdown, and every href it can produce is absolute and therefore
  * safe as a raw anchor (see linkify.ts, property 3, and InAppLinks.test.tsx).
+ *
+ * `plain` names the addresses that must **not** become anchors here because something
+ * else on the screen already offers them. The review panel passes the ones its card
+ * holds: an address on screen twice is the redundancy task-363's second pass exists to
+ * remove, and two tap targets for one destination is the worst version of it.
  */
-function SpecText({ children, muted = false }: { children: string; muted?: boolean }) {
+function SpecText({
+  children,
+  muted = false,
+  plain,
+}: {
+  children: string;
+  muted?: boolean;
+  plain?: Set<string>;
+}) {
   return (
     <div className={`whitespace-pre-wrap break-words text-sm leading-6 ${PROSE} ${muted ? "text-dark-muted" : "text-dark-text"}`}>
       {linkSegments(children).map((segment, index) =>
-        segment.kind === "link" ? (
+        segment.kind === "link" && !plain?.has(segment.href) ? (
           <a
             key={index}
             href={segment.href}
@@ -461,6 +474,7 @@ function ReviewPanel({
   if (detail.task.ball !== "human" && !held) return null;
 
   const working = Boolean(busy) || Boolean(promoteBusy);
+  const prompt = reviewPromptFor(detail.task);
   const verbs = verbsFor(detail.task, questions.length > 0);
   const reset = () => { setMode("none"); setSendVerb(null); setFeedback(""); setAttachments([]); };
   const toggle = (next: "promote" | "approve" | "resume" | "reject") => {
@@ -481,12 +495,15 @@ function ReviewPanel({
   return (
     <section className={`space-y-4 rounded-xl border-2 border-yellow-600/50 bg-yellow-950/30 p-4 @min-[768px]:p-6 ${MEASURE}`} aria-label={label}>
       <h2 className="text-lg font-semibold text-yellow-300">{held ? "On hold — nothing will run until you release it" : verbs.heading}</h2>
-      {detail.task.ball_prompt && <SpecText>{detail.task.ball_prompt}</SpecText>}
-      {/* Above the identity line and everything under it, so the first act this panel
-          offers is going to look at the thing. Outside the identity guard on purpose:
-          a reviewer whose identity is unresolved still wants the address, and being
-          unable to act yet is not a reason to hide where to look. */}
-      <ReviewLinks links={reviewLinksFor(detail.task)} />
+      {/* The prompt with its link lines taken out, and them, below it. The prose no
+          longer carries the addresses at all -- see ReviewLinks.tsx for the rule and
+          the review that produced it. Above the identity line and everything under it,
+          so the first act this panel offers is going to look at the thing; outside the
+          identity guard on purpose, because a reviewer whose identity is unresolved
+          still wants the address, and being unable to act yet is not a reason to hide
+          where to look. */}
+      {prompt.prose && <SpecText plain={cardUrls(prompt)}>{prompt.prose}</SpecText>}
+      <ReviewLinks links={prompt.links} />
       {detail.identity.ok && detail.identity.user ? (
         <>
           <p className="text-sm text-dark-muted">Acting as <strong className="text-dark-text">{detail.identity.user}</strong>. {held ? "Releasing puts the task back to work; nothing here runs git." : verbs.guidance}</p>
