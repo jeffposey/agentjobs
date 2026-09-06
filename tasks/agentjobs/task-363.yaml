@@ -3,53 +3,24 @@ id: task-363
 title: 'A review the human cannot act on: URLs are not tappable, and the question
   cards are broken'
 created: '2026-09-06T21:21:55.330267Z'
-updated: '2026-09-06T23:02:45.016297Z'
+updated: '2026-09-06T23:25:20.983223Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
-  \ was merged.**\n\n`scripts/check.py` went red on fix/task-363-review-panel-links-questions.\
-  \ It stopped in the `e2e` stage. Full output: C:\\Users\\jpose\\.agentjobs\\finishes\\\
-  fin_ece60b21\\gate.log\n\n```\n\e[2m[WebServer] \e[22mTraceback (most recent call\
-  \ last):\n\e[2m[WebServer] \e[22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\\
-  Python\\Python313\\Lib\\asyncio\\events.py\", line 89, in _run\n\e[2m[WebServer]\
-  \ \e[22m    self._context.run(self._callback, *self._args)\n\e[2m[WebServer] \e\
-  [22m    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22m\
-  \  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\asyncio\\\
-  proactor_events.py\", line 165, in _call_connection_lost\n\e[2m[WebServer] \e[22m\
-  \    self._sock.shutdown(socket.SHUT_RDWR)\n\e[2m[WebServer] \e[22m    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n\
-  \e[2m[WebServer] \e[22mConnectionResetError: [WinError 10054] An existing connection\
-  \ was forcibly closed by the remote host\n\e[1A\e[2K\e[2m[WebServer] \e[22mException\
-  \ in callback _ProactorBasePipeTransport._call_connection_lost()\n\e[2m[WebServer]\
-  \ \e[22mhandle: <Handle _ProactorBasePipeTransport._call_connection_lost()>\n\e\
-  [2m[WebServer] \e[22mTraceback (most recent call last):\n\e[2m[WebServer] \e[22m\
-  \  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\asyncio\\\
-  events.py\", line 89, in _run\n\e[2m[WebServer] \e[22m    self._context.run(self._callback,\
-  \ *self._args)\n\e[2m[WebServer] \e[22m    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
-  \e[2m[WebServer] \e[22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\\
-  Python313\\Lib\\asyncio\\proactor_events.py\", line 165, in _call_connection_lost\n\
-  \e[2m[WebServer] \e[22m    self._sock.shutdown(socket.SHUT_RDWR)\n\e[2m[WebServer]\
-  \ \e[22m    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22mConnectionResetError:\
-  \ [WinError 10054] An existing connection was forcibly closed by the remote host\n\
-  \e[1A\e[2K\e[2m[WebServer] \e[22mException in callback _ProactorBasePipeTransport._call_connection_lost()\n\
-  \e[2m[WebServer] \e[22mhandle: <Handle _ProactorBasePipeTransport._call_connection_lost()>\n\
-  \e[2m[WebServer] \e[22mTraceback (most recent call last):\n\e[2m[WebServer] \e[22m\
-  \  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\asyncio\\\
-  events.py\", line 89, in _run\n\e[2m[WebServer] \e[22m    self._context.run(self._callback,\
-  \ *self._args)\n\e[2m[WebServer] \e[22m    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
-  \e[2m[WebServer] \e[22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\\
-  Python313\\Lib\\asyncio\\proactor_events.py\", line 165, in _call_connection_lost\n\
-  \e[2m[WebServer] \e[22m    self._sock.shutdown(socket.SHUT_RDWR)\n\e[2m[WebServer]\
-  \ \e[22m    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22mConnectionResetError:\
-  \ [WinError 10054] An existing connection was forcibly closed by the remote host\n\
-  Failed at stage 'e2e'.\nFix it, then resume with `--from e2e` instead of paying\
-  \ for the stages above a second time.\n```\n\nThat took 360s and exited 1. A red\
-  \ gate never merges. The branch is rebased onto main and is otherwise untouched;\
-  \ nothing was merged.\n\nTake it from here. Check the tree against what is written\
-  \ above before acting on anything you remember: if your worktree, your branch or\
-  \ your account of this task no longer matches what is on disk, say so on the record\
-  \ and hand the ball back rather than improvising a recovery.\n\nThe work is on `fix/task-363-review-panel-links-questions`\
-  \ in C:\\projects\\worktrees\\agentjobs-363. Use it; do not take a new one."
+ball: human
+ball_reason: review
+ball_prompt: "Open this on your phone. The sandbox is now published over the tailnet,\
+  \ so the links below work from anywhere, and tapping them is the test.\n\nOn *this*\
+  \ page they will render as dead text: the real dashboard runs `main`, which has\
+  \ none of this yet. That is the before. The after is the same panel in the sandbox\
+  \ \u2014 start at the first link.\n\nGate green, all 10 stages, on the rebased branch\
+  \ (`95e31552`). The earlier e2e failure was transient: `main` gained no code since,\
+  \ and it has gone green twice more since.\n\nThe new shape, named links, none in\
+  \ the prose: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-301\n\
+  The same request written the old way: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-305\n\
+  A card above five question cards: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-302\n\
+  links[] only, nothing in the prose: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-303\n\
+  No addresses at all, so no card: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-304\n\
+  \nTailnet exposure is on until you or I turn it off: `tailscale serve --https=8443\
+  \ off`."
 archived: false
 priority: critical
 queue_position: 568
@@ -829,3 +800,70 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 23
+  ts: '2026-09-06T23:02:48.307909Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_499f844d` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_c1926ddf
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: auto
+    caused_by: 19
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_c1926ddf\session-settings.json
+    - --name
+    - agentjobs/task-363@c1926ddf
+    - --resume
+    - 4e866e1b-de61-4db9-be5f-c33f4e1530c7
+    cwd: C:\projects\agentjobs
+    git_head: 6755ee4
+    session_id: 98178aa8
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 24
+  ts: '2026-09-06T23:25:20.982901Z'
+  actor: claude
+  type: handoff
+  body: "Open this on your phone. The sandbox is now published over the tailnet, so\
+    \ the links below work from anywhere, and tapping them is the test.\n\nOn *this*\
+    \ page they will render as dead text: the real dashboard runs `main`, which has\
+    \ none of this yet. That is the before. The after is the same panel in the sandbox\
+    \ \u2014 start at the first link.\n\nGate green, all 10 stages, on the rebased\
+    \ branch (`95e31552`). The earlier e2e failure was transient: `main` gained no\
+    \ code since, and it has gone green twice more since.\n\nThe new shape, named\
+    \ links, none in the prose: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-301\n\
+    The same request written the old way: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-305\n\
+    A card above five question cards: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-302\n\
+    links[] only, nothing in the prose: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-303\n\
+    No addresses at all, so no card: https://coruscant.tailfed1df.ts.net:8443/app/p/sandbox-links/tasks/task-304\n\
+    \nTailnet exposure is on until you or I turn it off: `tailscale serve --https=8443\
+    \ off`."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 4e19b7a3-62c0-4d85-9f31-7b0c53a1e6d8
+      kind: handoff
+      fingerprint: dfadd012f2993c6cba5ca5f9374416a9
