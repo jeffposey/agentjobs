@@ -3,7 +3,7 @@ id: task-239
 title: 'Shell 4: fit the detail panel to the main region, and check the full-width
   surfaces still hold up'
 created: '2026-08-22T00:40:27.040648Z'
-updated: '2026-09-06T09:34:56.845683Z'
+updated: '2026-09-06T10:11:05.260812Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -258,3 +258,113 @@ log:
       id: 3a1f9c72-5d84-4b13-9e26-71c8ad0f5301
       kind: update_content
       fingerprint: cdfa9c6ddb1ff085dccea509ef644334
+- id: 9
+  ts: '2026-09-06T10:10:35.794111Z'
+  actor: claude
+  type: decision
+  body: "ac-7. **Create takes the whole width. It leaves the Tasks surface rather\
+    \ than rendering beside the list.**\n\nIt already does \u2014 `tasks/new` is a\
+    \ sibling route of `tasks`, not a child of it, and `useTasksSurface()` excludes\
+    \ `new` by hand \u2014 so the decision recorded here is to keep that and to pin\
+    \ it with a test rather than to change anything. `e2e/task-detail-fit.spec.ts`\
+    \ now clicks \"File a new task\" from the empty detail region and asserts the\
+    \ list column is gone and the header nav is still there, so a future refactor\
+    \ that nested the route would go red instead of quietly shipping.\n\nWhy, in the\
+    \ order the reasons actually weigh:\n\n1. **task-235 log entry 3 already decided\
+    \ it** and is binding on this epic: the sidebar belongs to the Tasks surface,\
+    \ and Dashboard, Create and Dispatch keep the full width. Create rendering into\
+    \ the residual column *is* giving Create a sidebar. Reopening that is reopening\
+    \ task-236, not a call for this child.\n2. **Measured, the residual column is\
+    \ 508px at a 900px window.** `TaskCreate` is a single column of labelled textareas\
+    \ capped at `max-w-3xl`; at 508px it would be narrower than the page it replaced,\
+    \ on the surface where somebody is most likely to be filing a task. task-167 is\
+    \ separately trying to make these forms fast to fill on a phone, and handing it\
+    \ a permanently phone-width column on a desktop makes that harder, not easier.\n\
+    3. **The list earns its place by being something to read *against*.** That is\
+    \ true of a record and false of an empty form: nothing in the queue changes what\
+    \ you type into a new spec. The one thing the list would give you \u2014 the id\
+    \ of a task to name as a parent or a dependency \u2014 is not offered by this\
+    \ form anyway.\n\n**Rejected: render Create into the main region beside the list.**\
+    \ The argument for it is real \u2014 you lose the list and your scroll position\
+    \ when you leave, and coming back re-mounts it. It loses on cost: it buys a 508px\
+    \ form to save one navigation, and task-238 makes the return cheap by remembering\
+    \ the list's collapse state. If it turns out people file tasks *from* a record\
+    \ often enough to feel the round trip, the right answer is a compose control that\
+    \ does not need the whole page, not a form squeezed into a third of one."
+  data:
+    operation:
+      id: b7e21d40-9c35-4f8a-a2d1-6e0f4b93c218
+      kind: log_append
+      fingerprint: 2a513dee43d64cabba58cb0b4e6d20d3
+- id: 10
+  ts: '2026-09-06T10:11:05.260440Z'
+  actor: claude
+  type: progress
+  body: "Built on `feat/task-239-fit-detail-panel`, two commits. Every figure below\
+    \ is a rectangle read from Chromium, in `frontend/e2e/task-detail-fit.spec.ts`\
+    \ or against `scripts/detail_fit_sandbox.py`, which this task adds and which seeds\
+    \ a record with 40 log entries, four children and prose in every field.\n\n**What\
+    \ changed.**\n\n1. *The measure moved onto the text.* task-237 wrapped the whole\
+    \ record in one `mx-auto max-w-5xl`, which fixed the 200-character line and cut\
+    \ the dependency graph, the log and the run transcript to the same 896px. Now\
+    \ `SpecText` caps at `78ch` wherever it appears; cards of prose-and-controls (review\
+    \ panel, Notes, Finish, Work state, Current ask, Full specification) cap at `max-w-4xl`;\
+    \ the metadata strip, the relationship cards, the dependency graph, the log's\
+    \ frame and the dispatch panel take the region. Blocks are left-aligned on one\
+    \ shared left edge rather than centred, so the wide ones simply run further right.\n\
+    2. *The header pins to the region that scrolls it* \u2014 id, title and the ball.\
+    \ Gated on `useWideShell()` rather than a width class, because the shell threshold\
+    \ tests height too: a short desktop window renders the stacked shell, where the\
+    \ document scrolls under a nav bar that is already pinned, and two pinned bars\
+    \ would fight for `top: 0`. Pinned, the bar is a row at every width; unpinned\
+    \ it keeps the stacked-then-row rule the phone renders.\n3. *The panel's breakpoints\
+    \ now ask the panel.* Every `min-[820px]:` in `TaskDetail`, `DependencyGraph`,\
+    \ `NoteComposer`, `FinishPanel` and `DispatchPanel` was a **window** query written\
+    \ when the panel was the window. At a 900px window the record has 508px and was\
+    \ still rendering its title at `text-3xl` \u2014 three lines, and the pinned bar\
+    \ came to 177px, a quarter of the viewport. Container queries at 768px, which\
+    \ is the content width 820 actually meant on the old full-width page (820 less\
+    \ two 24px gutters). `DispatchSettings` got its own `@container` because it is\
+    \ not inside the panel and a container query with no container matches nothing.\n\
+    4. *One defect the region exposed rather than caused.* `whitespace-pre-wrap` wraps\
+    \ at whitespace only, so one log entry holding a 400-character unbroken token\
+    \ pushed the region **2097px** sideways once expanded. `break-words` on `SpecText`.\
+    \ The first pass of the e2e missed it because the entry was inside a collapsed\
+    \ `<details>`; the test now clicks \"Expand all entries\" first.\n\n**Measured\
+    \ (detail region width \u2192 prose width \u2192 pinned header height):**\n\n\
+    | viewport | region | prose | header | sideways overflow |\n|---|---|---|---|---|\n\
+    | 2560\xD71440 | 1896 | 589 | 105 | 0 |\n| 1280\xD7800 | 779 | 589 | 141 | 0 |\n\
+    | 900\xD7700 | 508 | 458 | **133** (was 177) | 0 |\n| 390\xD7844 (phone) | n/a,\
+    \ stacked | 324 | 180, **unchanged** | 0 |\n\nAt 2560 the graph lays its four\
+    \ children out in one row, which it could not do inside the old 896px cap; the\
+    \ spec card is 896 and the log frame is 1896. After scrolling the record 9081px\
+    \ to the bottom of a 40-entry log at 900\xD7700, the header is still at the top\
+    \ of its region with `task-201`, the title and \"Needs review\" readable.\n\n\
+    **ac-3, the count.** Taken as an inventory rather than a number, in `frontend/src/components/TaskDetail.actions.test.tsx`,\
+    \ committed *before* any layout change so the lists are genuinely the \"before\"\
+    : render the panel in five states and read every `button`, `a[href]`, `summary`,\
+    \ `input`, `textarea` and `select` off the DOM with its accessible name. **23\
+    \ / 20 / 20 / 15 / 16** for human-review, draft, open-question, held, and agent-at-work-with-a-live-run.\
+    \ Identical after. Written out longhand rather than snapshotted, because a snapshot\
+    \ is one `-u` away from recording whatever the panel does afterwards.\n\n**ac-6.**\
+    \ Dashboard, Create and Dispatch checked in a browser at 1600\xD7900: no list\
+    \ region, no detail region, `<main>` still over 1200px, no sideways scroll on\
+    \ any of them. Asserted in the same spec so it stays true.\n\n**Instrument, stated\
+    \ rather than assumed.** Everything above is Playwright and `page.evaluate` \u2014\
+    \ the browser doing its own layout, which is what a geometric claim needs. Nothing\
+    \ here is a person's gesture and nothing claims to be; no acceptance criterion\
+    \ on this task is a gesture question. `mcp__claude-in-chrome` would not navigate\
+    \ to the sandbox port at all (three attempts, `navigate` timing out), so it was\
+    \ not used for any of it.\n\nNot done, and deliberately: the dispatch **output**\
+    \ panel's `overflow-x` (spec bullet 4) was already correct \u2014 `DispatchOutput`'s\
+    \ `<pre>` blocks carry `overflow-auto whitespace-pre-wrap break-words` and its\
+    \ transcript scroller `max-h-96 overflow-auto`. Reproducing it under test needs\
+    \ a live run, so it is covered by the existing `DispatchOutput` tests rather than\
+    \ by a new browser one. The dependency graph's `overflow-x-auto` was likewise\
+    \ already there; at 900px it scrolls 1190px inside a 470px frame, which the new\
+    \ spec does assert."
+  data:
+    operation:
+      id: 1c4d5e88-30ab-4b62-9f77-8d2e6a10c4f3
+      kind: log_append
+      fingerprint: ca356f480491225c57c2bb6947abaa87
