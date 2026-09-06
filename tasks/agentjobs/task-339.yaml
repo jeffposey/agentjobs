@@ -4,7 +4,7 @@ title: 'The gate is launched six to nine times per task at seven to twelve minut
   each under contention: one gate per handoff, and a core budget shared between concurrent
   gates'
 created: '2026-09-05T20:49:03.656961Z'
-updated: '2026-09-06T00:33:09.435100Z'
+updated: '2026-09-06T00:40:10.219805Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -530,3 +530,21 @@ log:
     finish_step: started
     branch: perf/task-339-one-gate-per-handoff
     finish_id: fin_dd98ce1f
+- id: 12
+  ts: '2026-09-06T00:40:10.219611Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `perf/task-339-one-gate-per-handoff` into `main` as `070ea5d1`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-339
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    dispatch) releases the merge gate (task-021), and run run_86ee86be ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 070ea5d14bae2c8fd9d7edfbf230563e17e2f2b3
+    branch: perf/task-339-one-gate-per-handoff
+    base: main
