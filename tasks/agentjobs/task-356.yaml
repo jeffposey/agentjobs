@@ -3,7 +3,7 @@ id: task-356
 title: 'Shell 6: the filter controls hide behind a filter button instead of sitting
   on screen permanently'
 created: '2026-09-06T05:25:14.813338Z'
-updated: '2026-09-06T10:35:14.173126Z'
+updated: '2026-09-06T10:50:56.372558Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -93,36 +93,38 @@ acceptance:
 - id: ac-1
   text: The filter controls are not rendered until a filter button in the list header
     is activated, at every viewport width.
-  status: pending
+  status: met
 - id: ac-2
   text: With any filter set to a non-default value, the closed button visibly says
     so, and a test fails if it does not.
-  status: pending
+  status: met
 - id: ac-3
   text: One gesture in the popover clears every filter back to its default.
-  status: pending
+  status: met
 - id: ac-4
   text: A pasted URL carrying status/priority/scope parameters still arrives filtered,
     with the button reflecting it.
-  status: pending
+  status: met
 - id: ac-5
   text: The popover opens on Enter or Space, closes on Escape and on an outside click,
     and focus returns to the button; the button carries aria-expanded.
-  status: pending
+  status: met
 - id: ac-6
   text: A decision entry states whether the search box stays visible beside the button
     or moves into the popover, and why.
-  status: pending
+  status: met
 - id: ac-7
   text: At the sidebar's narrowest width the first task row is visible without scrolling.
-  status: pending
+  status: met
 - id: ac-8
   text: scripts/check.py is green, with the filter tests updated rather than deleted.
   status: pending
 deliverables:
 - path: frontend/src/components/TaskList.tsx
-  note: Filter controls behind a button, with an active-filter indicator.
-  status: pending
+  note: Filter controls behind a button, with an active-filter indicator. Delivered
+    on feat/task-356-filter-popover (f6b8dcc), with frontend/src/components/TaskList.test.tsx
+    and a new frontend/e2e/filter-popover.spec.ts.
+  status: done
 dependencies:
 - task: task-238
   type: needs
@@ -133,7 +135,9 @@ dependencies:
   note: Adds a fifth filter later; it lands in the popover this task builds rather
     than back on the page.
 links: []
-branches: []
+branches:
+- name: feat/task-356-filter-popover
+  status: active
 log:
 - id: 1
   ts: '2026-09-06T05:25:15.529729Z'
@@ -251,3 +255,116 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 6
+  ts: '2026-09-06T10:48:04.075437Z'
+  actor: claude
+  type: decision
+  body: "The search box stays visible on the header line; the three selects go behind\
+    \ the button.\n\nThe spec named this the one open question and gave the default\
+    \ answer. Measurement\nsupports it rather than merely permitting it, so it is\
+    \ taken as decided:\n\n- Typing to find a task is the frequent gesture. A `?q=`\
+    \ is in most of the URLs this\n  list is reached by, where `status`/`priority`/`scope`\
+    \ sit at their defaults on almost\n  every visit. Putting search behind a click\
+    \ would tax the common case to save space\n  spent on the rare one.\n- The column\
+    \ holds both. At the sidebar's 320px floor the header line is one 44px row:\n\
+    \  a flexed `min-w-0 flex-1` input beside a shrink-0 button. Nothing was shrunk\
+    \ to fit --\n  the input keeps its `touch-target` height and the button keeps\
+    \ a 44px hit box, so the\n  \"shrink both until neither works\" failure the spec\
+    \ warned about does not arise and the\n  question of which gives way never had\
+    \ to be answered.\n\n**Rejected: search inside the popover too.** It would make\
+    \ the button the single entry\npoint, which is tidier, and it is what a 220px\
+    \ column would force. It loses the thing\nthe list is used for -- a reader who\
+    \ knows the task id types it, and behind a click that\nis two gestures and a lost\
+    \ focus. The reopen trigger is a real column narrower than\nabout 260px, which\
+    \ this layout does not currently produce.\n\n**Rejected: counting the search in\
+    \ the button's badge.** The search box is on screen\nwith its own text in it,\
+    \ so the badge would be lighting up for a filter the reader can\nalready read.\
+    \ An indicator that fires on things you can see is one people stop reading,\n\
+    which would cost the one case that matters -- a filtered list that looks empty.\
+    \ `Clear\nall filters` does clear the search, because a \"clear\" that leaves\
+    \ the list still hiding\nmost of it would be the same defect wearing a different\
+    \ hat."
+  data:
+    operation:
+      id: 3f2a91c4-7d16-4b0e-9a83-5c1e2d4b8a70
+      kind: log_append
+      fingerprint: 8f2ee1869bc2b1ae44f860246dad9b94
+- id: 7
+  ts: '2026-09-06T10:49:19.474969Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 6b1d5e28-4c93-4f27-b5a2-90e7c1a3d4f6
+      kind: update_content
+      fingerprint: 024e61cf2bfd3f5494c9aebc99c3b746
+- id: 8
+  ts: '2026-09-06T10:50:23.498443Z'
+  actor: claude
+  type: progress
+  body: "Built on `feat/task-356-filter-popover`, commit f6b8dcc. Three files.\n\n\
+    **What is there now.** `TaskList.tsx`'s bordered four-control card is gone. In\
+    \ its place\none header line: the search input flexed to fill, and a `Filters`\
+    \ button beside it. The\nthree selects and a `Clear all filters` button live in\
+    \ a popover the button opens. No\nnew dependency \u2014 a `relative`/`absolute`\
+    \ element, two document listeners and a ref.\n\n- **The indicator.** A count badge\
+    \ on the closed button, plus the filters in words in\n  its accessible name (`Filters,\
+    \ 2 set: Status all, Priority high`). Counted from the\n  **resolved** values\
+    \ rather than the raw parameters, so `?priority=nonsense` \u2014 which\n  `filterValue()`\
+    \ ignores, and which therefore filters nothing \u2014 does not light it.\n- **`POPOVER_FILTERS`**\
+    \ is the one list the badge and the clear button both read, so\n  task-156's difficulty\
+    \ filter is one entry rather than several edits that can disagree.\n- **Dismissal.**\
+    \ Escape closes and returns focus to the button; a `mousedown` outside\n  the\
+    \ button-plus-popover closes without stealing focus, because that click has a\
+    \ target\n  of its own. Opening moves focus to the first select. `aria-expanded`\
+    \ on the button,\n  `role=\"dialog\"` with a name on the panel, `aria-controls`\
+    \ exactly while it exists.\n- **URL unchanged.** Same four parameter names and\
+    \ values; `filterValue()`/`updateParam`\n  untouched. `clearFilters` is one `setParams`\
+    \ rather than four `updateParam` calls,\n  which would each have read this render's\
+    \ `params` and undone the last.\n\n**The measurement, which is the point of the\
+    \ task.** This spec run against both arms at\n700x800, the two-region shell at\
+    \ its 320px floor, 2026-09-06:\n\n| | space above the first task row |\n|---|---|\n\
+    | `main` | **358px** |\n| this branch | **135px** |\n\nThe e2e assertion is that\
+    \ figure against a 180px budget, and it prints the measurement\non the way past.\
+    \ The obvious assertion \u2014 \"row one is visible in an 800px window\" \u2014\
+    \npasses on `main` too and was rejected as decoration.\n\n**Verified.**\n\n- `vitest\
+    \ run` \u2014 37 files, 488 tests, all pass. `TaskList.test.tsx` is 72 of them,\n\
+    \  including 12 new ones for the popover; the existing filter tests were updated\
+    \ to open\n  it rather than deleted, through one `openFilters()` helper.\n- `npx\
+    \ playwright test e2e/filter-popover.spec.ts` \u2014 5 pass. New file. It carries\
+    \ the\n  claims jsdom cannot settle: the measured header cost above, Enter **and**\
+    \ Space really\n  opening it in Chromium, Escape really returning focus, the popover's\
+    \ box inside a\n  390x700 window with `elementFromPoint` confirming it paints\
+    \ above whatever is under it\n  rather than beneath the pinned header.\n- **Instrument\
+    \ named, per ENGINEERING.md.** The keyboard here is Chromium's own default\n \
+    \ action on a `<button>`, which `Input.dispatchKeyEvent` does drive \u2014 unlike\
+    \ an\n  application shortcut, which Playwright reaches below (task-225). The jsdom\
+    \ suite\n  therefore asserts the element is a real `<button type=\"button\">`\
+    \ and leaves the keys to\n  Playwright, rather than pretending jsdom activates\
+    \ buttons.\n- `tsc --noEmit` clean; `oxlint` clean over the changed files (the\
+    \ two warnings it prints\n  are pre-existing, in `App.tsx`).\n- `npm run build`\
+    \ clean.\n\nThe unqualified `scripts/check.py` has deliberately **not** been run\
+    \ here: this is an\nautonomous run, and `agentjobs finish --posture-release` runs\
+    \ it on the rebased branch\nand merges only on green. One gate per handoff (task-339).\
+    \ ac-8 stays pending until that\nrun reports."
+  data:
+    operation:
+      id: c81f47a9-2e05-4b3d-8f61-7a20d95c3e11
+      kind: log_append
+      fingerprint: 7b792ef95b26e99eb23bbce39526df49
+- id: 9
+  ts: '2026-09-06T10:50:56.372262Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, deliverables.
+  data:
+    fields:
+    - acceptance
+    - deliverables
+    operation:
+      id: a4c07d31-8b52-4e19-9f60-2d8a1c6b5e93
+      kind: update_content
+      fingerprint: 9c133cf93a66bbccb085192500b51555
