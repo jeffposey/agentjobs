@@ -3,7 +3,7 @@ id: task-268
 title: 'Gate speed, safely: copy the mypy cache into worktrees, add --durations, drop
   nested poetry run, then prototype concurrent stages behind a flag'
 created: '2026-08-22T18:58:37.392234Z'
-updated: '2026-09-06T23:28:00.745678Z'
+updated: '2026-09-06T23:29:48.630242Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -550,3 +550,23 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 16
+  ts: '2026-09-06T23:29:48.629937Z'
+  actor: claude
+  type: note
+  body: "The first `agentjobs finish --posture-release` stopped at the gate and merged\
+    \ nothing, on a failure that is not this branch's: `tests/test_dispatch_api.py::TestDispatchRuns::test_cancelling_a_live_run_stops_it_and_marks_it_cancelled`,\
+    \ `assert 'failed' == 'cancelled'`, on worker gw23 of 32. 4158 of 4159 passed;\
+    \ the two assertions before the failing one held, so the run *was* stopped and\
+    \ *was* not live \u2014 only the outcome word was wrong. It passes alone in 1.1s,\
+    \ and this branch touches nothing under `src/agentjobs/dispatch/`. Gate log: `~/.agentjobs/finishes/fin_bc9f16f6/gate.log`.\n\
+    \nFiled as [task-370](tasks/agentjobs/task-370.yaml) rather than fixed here: it\
+    \ is the exact race `runner.py`'s `_conclude_batch_run` docstring says it closed,\
+    \ and re-opening that argument inside a gate-speed branch is the scope widening\
+    \ ENGINEERING.md warns about. Retrying the finish.\n\nTwo follow-ups filed by\
+    \ this task in total: task-369 (Playwright is now the critical path) and task-370."
+  data:
+    operation:
+      id: 1d5e8b70-4c93-4a26-8e55-9f0a3c1b7d42
+      kind: log_append
+      fingerprint: e74da01a70dff7f18eecd19081a88ccb
