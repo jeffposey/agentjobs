@@ -3,27 +3,13 @@ id: task-356
 title: 'Shell 6: the filter controls hide behind a filter button instead of sitting
   on screen permanently'
 created: '2026-09-06T05:25:14.813338Z'
-updated: '2026-09-06T11:10:20.447959Z'
+updated: '2026-09-06T19:58:12.461986Z'
 lifecycle: active
 ball: human
-ball_reason: input
-ball_prompt: "Dispatched session `7cc385d9` stopped on an authentication failure at\
-  \ 2026-09-06T11:10:11.197000+00:00 and will not resume by itself. It said: \"Login\
-  \ expired \xB7 Please run /login\".\n\n**Find out which failure this is before doing\
-  \ anything \u2014 there are two and they look identical from here.** Either the\
-  \ credential store genuinely cannot authenticate, or it can and this session is\
-  \ stuck on a refresh that already failed. Nothing you can see distinguishes them:\
-  \ not this task, not the run ledger, and not `agents --json`. One command does,\
-  \ run as a **fresh process** rather than inside the stalled session:\n\n```\nclaude\
-  \ -p \"Reply with exactly: AUTH_OK\"\n```\n\n**If it answers**, the credential is\
-  \ fine and only the session is stuck. Send it a message to wake it, or attach with\
-  \ `claude attach 7cc385d9`. Logging in again changes nothing.\n\n**If it fails to\
-  \ authenticate**, the store is genuinely dead and no restart will clear it. Run\
-  \ `claude auth login` in a terminal on that machine, then wake the session the same\
-  \ way. Answering inside the session cannot work while this is true: the credential\
-  \ is already gone, so anything sent is retried against nothing and fails instantly.\n\
-  \nEither way the session resumes in place -- nothing is lost and this task does\
-  \ not need re-dispatching."
+ball_reason: decision
+ball_prompt: Run run_6d411283 ended `cancelled` and nobody was told what this task
+  needs. Read the dispatch_result entry, then either dispatch again or take it on
+  yourself.
 archived: false
 priority: critical
 queue_position: 743
@@ -526,3 +512,35 @@ log:
   data:
     ball: human
     ball_reason: input
+- id: 14
+  ts: '2026-09-06T19:57:17.020345Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    Logged in again.'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 15
+  ts: '2026-09-06T19:58:12.429051Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: "`stop 7cc385d9` exited 1: couldn't confirm 7cc385d9 was stopped \u2014 the\
+    \ background service may be restarting. Try again in a moment."
+  re: 5
+  data:
+    run_id: run_6d411283
+    outcome: cancelled
+    duration_seconds: 33779.585768
+    log_path: C:\Users\jpose\.agentjobs\runs\run_6d411283
+- id: 16
+  ts: '2026-09-06T19:58:12.461777Z'
+  actor: dispatcher
+  type: handoff
+  body: Run run_6d411283 ended `cancelled` and nobody was told what this task needs.
+    Read the dispatch_result entry, then either dispatch again or take it on yourself.
+  data:
+    ball: human
+    ball_reason: decision
