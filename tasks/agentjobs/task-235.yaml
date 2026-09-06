@@ -2,7 +2,7 @@ schema: 2
 id: task-235
 title: Adopt the list-and-detail shell every other app on the screen already uses
 created: '2026-08-22T00:38:02.564268Z'
-updated: '2026-09-06T20:14:22.096684Z'
+updated: '2026-09-06T20:35:13.648733Z'
 lifecycle: active
 ball: agent
 ball_reason: answer
@@ -2322,3 +2322,21 @@ log:
       id: 7a2c58e1-93b4-4f07-8c26-b1d9e0473f52
       kind: log_append
       fingerprint: fb4333a2650ff178cc501b548216dc44
+- id: 62
+  ts: '2026-09-06T20:35:13.648119Z'
+  actor: claude
+  type: instruction
+  body: "**Jeff, 2026-09-06: do not start task-240.** Binding until he says otherwise.\n\
+    \nHe approved task-356 and its scripted finish is running. task-240 stays `ready`\
+    \ and unclaimed \u2014 **no walk, no `dispatch child`, no session for it**, whoever\
+    \ reads this next. It is the last open child, so `agentjobs dispatch walk task-235`\
+    \ would start it immediately; that is exactly what must not happen.\n\nNo walk\
+    \ process is running (checked), so nothing will start it on its own. The only\
+    \ watch armed fires on task-356's record reaching a terminal state or coming back\
+    \ to him.\n\nAfter task-356 lands, the next thing is the park-commit cleanup,\
+    \ at his direction \u2014 not task-240 and not closing this parent."
+  data:
+    operation:
+      id: b6d90f37-2e15-4a48-9c73-40f5e21ba8d6
+      kind: log_append
+      fingerprint: 7faba87a1b61640afa13d4a996b390fa
