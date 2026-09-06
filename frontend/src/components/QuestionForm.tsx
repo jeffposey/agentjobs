@@ -109,6 +109,36 @@ function toggle(draft: Draft, label: string, multiSelect: boolean): Draft {
   return { ...draft, selected };
 }
 
+/**
+ * An ordinal an agent wrote at the front of its own question body.
+ *
+ * One or two digits and a `.` or `)`, then whitespace. Bounded at two digits so a
+ * question opening with a year -- "2026. was the plan" -- keeps its first word, and
+ * anchored so nothing mid-sentence is touched.
+ */
+const LEADING_ORDINAL = /^\s*\d{1,2}[.)]\s+/;
+
+/**
+ * The question's text with any ordinal the agent wrote stripped off (task-363).
+ *
+ * The form numbers the cards, and an agent that had already numbered its own questions
+ * produced "1. 1. Open a task from the sidebar...". Of the two available fixes -- strip
+ * the body's ordinal, or stop numbering here -- this keeps the form's number, because
+ * the form's is the *correct* one and the agent's often is not: the panel shows the
+ * questions with no answer threaded to them, so answering the second of four renumbers
+ * what is on screen while the bodies still say 1, 3, 4. Deferring to the body would
+ * print a list numbered 1, 3, 4 and invite a reviewer to answer "question 3" meaning
+ * the second card. Dropping the number entirely was rejected for the same reason in
+ * reverse: "3 open questions" above a list of unnumbered cards gives the reader no way
+ * to say which one they are talking about.
+ *
+ * A body that is *only* an ordinal keeps it, rather than rendering an empty heading.
+ */
+export function questionHeading(body: string): string {
+  const stripped = body.replace(LEADING_ORDINAL, "");
+  return stripped.trim() ? stripped : body;
+}
+
 function Option({
   question,
   option,
@@ -144,7 +174,7 @@ function Option({
             test that reads the label does not care where the label is. */}
         <span className="flex w-full flex-col items-start gap-1">
           <span className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold">{option.label}</span>
+            <span className="font-medium">{option.label}</span>
             {option.recommended && (
               <span className="rounded border border-blue-500/60 px-2 py-0.5 text-xs uppercase text-blue-300">
                 Recommended
@@ -187,39 +217,50 @@ export function QuestionForm({
             className="rounded-lg border border-dark-border bg-dark-surface p-3"
             data-question-id={question.id}
           >
-            <legend className="px-1 text-sm font-semibold">
-              {index + 1}. {question.body}
+            {/* `float-left w-full` is the fix for a heading cut by its own box
+                (task-363). A `legend` is laid out *in* the fieldset's top border by
+                default, so a one-line heading looks deliberate and a two-line one has
+                the border ruled through it -- which is what a real question does at
+                phone width. Floating it opts the element out of that special layout
+                and back into ordinary flow, above an unbroken border, still wrapping
+                to as many lines as it needs. The sibling below clears the float. The
+                fieldset/legend pair is kept because it is the correct grouping for a
+                set of options and a screen reader announces the question with each. */}
+            <legend className="float-left mb-2 w-full px-1 text-base font-semibold leading-snug">
+              {`${index + 1}. ${questionHeading(question.body)}`}
             </legend>
-            {question.multiSelect && (
-              <p className="px-1 pb-2 text-xs uppercase text-dark-muted">Choose any that apply</p>
-            )}
-            {question.options.length > 0 && (
-              <ul className="space-y-2">
-                {question.options.map((option) => (
-                  <Option
-                    key={option.label}
-                    question={question}
-                    option={option}
-                    draft={draft}
-                    disabled={disabled}
-                    onChange={(next) => onChange(question.id, next)}
-                  />
-                ))}
-              </ul>
-            )}
-            {/* Unconditional, and last so it reads as the escape from the list above it. */}
-            <label htmlFor={otherId} className="mt-3 block text-xs uppercase text-dark-muted">
-              {question.options.length > 0 ? "Something else" : "Your answer"}
-            </label>
-            <textarea
-              id={otherId}
-              rows={2}
-              disabled={disabled}
-              value={draft.other}
-              onChange={(event) => onChange(question.id, { ...draft, other: event.target.value })}
-              placeholder={question.placeholder ?? "Answer in your own words..."}
-              className="mt-1 w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none"
-            />
+            <div className="clear-left">
+              {question.multiSelect && (
+                <p className="px-1 pb-2 text-xs uppercase text-dark-muted">Choose any that apply</p>
+              )}
+              {question.options.length > 0 && (
+                <ul className="space-y-2">
+                  {question.options.map((option) => (
+                    <Option
+                      key={option.label}
+                      question={question}
+                      option={option}
+                      draft={draft}
+                      disabled={disabled}
+                      onChange={(next) => onChange(question.id, next)}
+                    />
+                  ))}
+                </ul>
+              )}
+              {/* Unconditional, and last so it reads as the escape from the list above it. */}
+              <label htmlFor={otherId} className="mt-3 block text-xs uppercase text-dark-muted">
+                {question.options.length > 0 ? "Something else" : "Your answer"}
+              </label>
+              <textarea
+                id={otherId}
+                rows={2}
+                disabled={disabled}
+                value={draft.other}
+                onChange={(event) => onChange(question.id, { ...draft, other: event.target.value })}
+                placeholder={question.placeholder ?? "Answer in your own words..."}
+                className="mt-1 w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none"
+              />
+            </div>
           </fieldset>
         );
       })}
