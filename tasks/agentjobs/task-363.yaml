@@ -3,13 +3,53 @@ id: task-363
 title: 'A review the human cannot act on: URLs are not tappable, and the question
   cards are broken'
 created: '2026-09-06T21:21:55.330267Z'
-updated: '2026-09-06T22:56:43.887286Z'
+updated: '2026-09-06T23:02:45.016297Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+ball_prompt: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
+  \ was merged.**\n\n`scripts/check.py` went red on fix/task-363-review-panel-links-questions.\
+  \ It stopped in the `e2e` stage. Full output: C:\\Users\\jpose\\.agentjobs\\finishes\\\
+  fin_ece60b21\\gate.log\n\n```\n\e[2m[WebServer] \e[22mTraceback (most recent call\
+  \ last):\n\e[2m[WebServer] \e[22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\\
+  Python\\Python313\\Lib\\asyncio\\events.py\", line 89, in _run\n\e[2m[WebServer]\
+  \ \e[22m    self._context.run(self._callback, *self._args)\n\e[2m[WebServer] \e\
+  [22m    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22m\
+  \  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\asyncio\\\
+  proactor_events.py\", line 165, in _call_connection_lost\n\e[2m[WebServer] \e[22m\
+  \    self._sock.shutdown(socket.SHUT_RDWR)\n\e[2m[WebServer] \e[22m    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n\
+  \e[2m[WebServer] \e[22mConnectionResetError: [WinError 10054] An existing connection\
+  \ was forcibly closed by the remote host\n\e[1A\e[2K\e[2m[WebServer] \e[22mException\
+  \ in callback _ProactorBasePipeTransport._call_connection_lost()\n\e[2m[WebServer]\
+  \ \e[22mhandle: <Handle _ProactorBasePipeTransport._call_connection_lost()>\n\e\
+  [2m[WebServer] \e[22mTraceback (most recent call last):\n\e[2m[WebServer] \e[22m\
+  \  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\asyncio\\\
+  events.py\", line 89, in _run\n\e[2m[WebServer] \e[22m    self._context.run(self._callback,\
+  \ *self._args)\n\e[2m[WebServer] \e[22m    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
+  \e[2m[WebServer] \e[22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\\
+  Python313\\Lib\\asyncio\\proactor_events.py\", line 165, in _call_connection_lost\n\
+  \e[2m[WebServer] \e[22m    self._sock.shutdown(socket.SHUT_RDWR)\n\e[2m[WebServer]\
+  \ \e[22m    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22mConnectionResetError:\
+  \ [WinError 10054] An existing connection was forcibly closed by the remote host\n\
+  \e[1A\e[2K\e[2m[WebServer] \e[22mException in callback _ProactorBasePipeTransport._call_connection_lost()\n\
+  \e[2m[WebServer] \e[22mhandle: <Handle _ProactorBasePipeTransport._call_connection_lost()>\n\
+  \e[2m[WebServer] \e[22mTraceback (most recent call last):\n\e[2m[WebServer] \e[22m\
+  \  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\asyncio\\\
+  events.py\", line 89, in _run\n\e[2m[WebServer] \e[22m    self._context.run(self._callback,\
+  \ *self._args)\n\e[2m[WebServer] \e[22m    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
+  \e[2m[WebServer] \e[22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\\
+  Python313\\Lib\\asyncio\\proactor_events.py\", line 165, in _call_connection_lost\n\
+  \e[2m[WebServer] \e[22m    self._sock.shutdown(socket.SHUT_RDWR)\n\e[2m[WebServer]\
+  \ \e[22m    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22mConnectionResetError:\
+  \ [WinError 10054] An existing connection was forcibly closed by the remote host\n\
+  Failed at stage 'e2e'.\nFix it, then resume with `--from e2e` instead of paying\
+  \ for the stages above a second time.\n```\n\nThat took 360s and exited 1. A red\
+  \ gate never merges. The branch is rebased onto main and is otherwise untouched;\
+  \ nothing was merged.\n\nTake it from here. Check the tree against what is written\
+  \ above before acting on anything you remember: if your worktree, your branch or\
+  \ your account of this task no longer matches what is on disk, say so on the record\
+  \ and hand the ball back rather than improvising a recovery.\n\nThe work is on `fix/task-363-review-panel-links-questions`\
+  \ in C:\\projects\\worktrees\\agentjobs-363. Use it; do not take a new one."
 archived: false
 priority: critical
 queue_position: 568
@@ -683,3 +723,109 @@ log:
     finish_step: started
     branch: fix/task-363-review-panel-links-questions
     finish_id: fin_ece60b21
+- id: 21
+  ts: '2026-09-06T23:02:44.923857Z'
+  actor: finisher
+  type: progress
+  body: "The scripted finish stopped at `gate` (gate_failed). **Nothing was merged.**\n\
+    \n`scripts/check.py` went red on fix/task-363-review-panel-links-questions. It\
+    \ stopped in the `e2e` stage. Full output: C:\\Users\\jpose\\.agentjobs\\finishes\\\
+    fin_ece60b21\\gate.log\n\n```\n\e[2m[WebServer] \e[22mTraceback (most recent call\
+    \ last):\n\e[2m[WebServer] \e[22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\\
+    Python\\Python313\\Lib\\asyncio\\events.py\", line 89, in _run\n\e[2m[WebServer]\
+    \ \e[22m    self._context.run(self._callback, *self._args)\n\e[2m[WebServer] \e\
+    [22m    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22m\
+    \  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\\
+    asyncio\\proactor_events.py\", line 165, in _call_connection_lost\n\e[2m[WebServer]\
+    \ \e[22m    self._sock.shutdown(socket.SHUT_RDWR)\n\e[2m[WebServer] \e[22m   \
+    \ ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22mConnectionResetError:\
+    \ [WinError 10054] An existing connection was forcibly closed by the remote host\n\
+    \e[1A\e[2K\e[2m[WebServer] \e[22mException in callback _ProactorBasePipeTransport._call_connection_lost()\n\
+    \e[2m[WebServer] \e[22mhandle: <Handle _ProactorBasePipeTransport._call_connection_lost()>\n\
+    \e[2m[WebServer] \e[22mTraceback (most recent call last):\n\e[2m[WebServer] \e\
+    [22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\\
+    asyncio\\events.py\", line 89, in _run\n\e[2m[WebServer] \e[22m    self._context.run(self._callback,\
+    \ *self._args)\n\e[2m[WebServer] \e[22m    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
+    \e[2m[WebServer] \e[22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\\
+    Python313\\Lib\\asyncio\\proactor_events.py\", line 165, in _call_connection_lost\n\
+    \e[2m[WebServer] \e[22m    self._sock.shutdown(socket.SHUT_RDWR)\n\e[2m[WebServer]\
+    \ \e[22m    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22mConnectionResetError:\
+    \ [WinError 10054] An existing connection was forcibly closed by the remote host\n\
+    \e[1A\e[2K\e[2m[WebServer] \e[22mException in callback _ProactorBasePipeTransport._call_connection_lost()\n\
+    \e[2m[WebServer] \e[22mhandle: <Handle _ProactorBasePipeTransport._call_connection_lost()>\n\
+    \e[2m[WebServer] \e[22mTraceback (most recent call last):\n\e[2m[WebServer] \e\
+    [22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\\
+    asyncio\\events.py\", line 89, in _run\n\e[2m[WebServer] \e[22m    self._context.run(self._callback,\
+    \ *self._args)\n\e[2m[WebServer] \e[22m    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
+    \e[2m[WebServer] \e[22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\\
+    Python313\\Lib\\asyncio\\proactor_events.py\", line 165, in _call_connection_lost\n\
+    \e[2m[WebServer] \e[22m    self._sock.shutdown(socket.SHUT_RDWR)\n\e[2m[WebServer]\
+    \ \e[22m    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22mConnectionResetError:\
+    \ [WinError 10054] An existing connection was forcibly closed by the remote host\n\
+    Failed at stage 'e2e'.\nFix it, then resume with `--from e2e` instead of paying\
+    \ for the stages above a second time.\n```\n\nThat took 360s and exited 1. A red\
+    \ gate never merges. The branch is rebased onto main and is otherwise untouched;\
+    \ nothing was merged.\n\nEverything it did get through:\n\n```\n  preflight  ok\
+    \         2.1s  fix/task-363-review-panel-links-questions at f2f1b2d1 in C:\\\
+    projects\\worktrees\\agentjobs-363\n  runway     ok         0.0s  taken immediately\n\
+    \  rebase     ok         0.5s  fix/task-363-review-panel-links-questions onto\
+    \ main: f2f1b2d1 -> ce6b4aa3\n  gate       STOPPED    0.0s  `scripts/check.py`\
+    \ went red on fix/task-363-review-panel-links-questions. It stopped in the `e2e`\
+    \ stage. Full output: C:\\Users\\jpose\\.agentjobs\\finishes\\fin_ece60b21\\gate.log\n\
+    ```"
+  data:
+    finish_step: gate
+    finish_reason: gate_failed
+    merge_commit: null
+    merged: false
+- id: 22
+  ts: '2026-09-06T23:02:45.015924Z'
+  actor: finisher
+  type: handoff
+  body: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
+    \ was merged.**\n\n`scripts/check.py` went red on fix/task-363-review-panel-links-questions.\
+    \ It stopped in the `e2e` stage. Full output: C:\\Users\\jpose\\.agentjobs\\finishes\\\
+    fin_ece60b21\\gate.log\n\n```\n\e[2m[WebServer] \e[22mTraceback (most recent call\
+    \ last):\n\e[2m[WebServer] \e[22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\\
+    Python\\Python313\\Lib\\asyncio\\events.py\", line 89, in _run\n\e[2m[WebServer]\
+    \ \e[22m    self._context.run(self._callback, *self._args)\n\e[2m[WebServer] \e\
+    [22m    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22m\
+    \  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\\
+    asyncio\\proactor_events.py\", line 165, in _call_connection_lost\n\e[2m[WebServer]\
+    \ \e[22m    self._sock.shutdown(socket.SHUT_RDWR)\n\e[2m[WebServer] \e[22m   \
+    \ ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22mConnectionResetError:\
+    \ [WinError 10054] An existing connection was forcibly closed by the remote host\n\
+    \e[1A\e[2K\e[2m[WebServer] \e[22mException in callback _ProactorBasePipeTransport._call_connection_lost()\n\
+    \e[2m[WebServer] \e[22mhandle: <Handle _ProactorBasePipeTransport._call_connection_lost()>\n\
+    \e[2m[WebServer] \e[22mTraceback (most recent call last):\n\e[2m[WebServer] \e\
+    [22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\\
+    asyncio\\events.py\", line 89, in _run\n\e[2m[WebServer] \e[22m    self._context.run(self._callback,\
+    \ *self._args)\n\e[2m[WebServer] \e[22m    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
+    \e[2m[WebServer] \e[22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\\
+    Python313\\Lib\\asyncio\\proactor_events.py\", line 165, in _call_connection_lost\n\
+    \e[2m[WebServer] \e[22m    self._sock.shutdown(socket.SHUT_RDWR)\n\e[2m[WebServer]\
+    \ \e[22m    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22mConnectionResetError:\
+    \ [WinError 10054] An existing connection was forcibly closed by the remote host\n\
+    \e[1A\e[2K\e[2m[WebServer] \e[22mException in callback _ProactorBasePipeTransport._call_connection_lost()\n\
+    \e[2m[WebServer] \e[22mhandle: <Handle _ProactorBasePipeTransport._call_connection_lost()>\n\
+    \e[2m[WebServer] \e[22mTraceback (most recent call last):\n\e[2m[WebServer] \e\
+    [22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\\
+    asyncio\\events.py\", line 89, in _run\n\e[2m[WebServer] \e[22m    self._context.run(self._callback,\
+    \ *self._args)\n\e[2m[WebServer] \e[22m    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
+    \e[2m[WebServer] \e[22m  File \"C:\\Users\\jpose\\AppData\\Local\\Programs\\Python\\\
+    Python313\\Lib\\asyncio\\proactor_events.py\", line 165, in _call_connection_lost\n\
+    \e[2m[WebServer] \e[22m    self._sock.shutdown(socket.SHUT_RDWR)\n\e[2m[WebServer]\
+    \ \e[22m    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n\e[2m[WebServer] \e[22mConnectionResetError:\
+    \ [WinError 10054] An existing connection was forcibly closed by the remote host\n\
+    Failed at stage 'e2e'.\nFix it, then resume with `--from e2e` instead of paying\
+    \ for the stages above a second time.\n```\n\nThat took 360s and exited 1. A red\
+    \ gate never merges. The branch is rebased onto main and is otherwise untouched;\
+    \ nothing was merged.\n\nTake it from here. Check the tree against what is written\
+    \ above before acting on anything you remember: if your worktree, your branch\
+    \ or your account of this task no longer matches what is on disk, say so on the\
+    \ record and hand the ball back rather than improvising a recovery.\n\nThe work\
+    \ is on `fix/task-363-review-panel-links-questions` in C:\\projects\\worktrees\\\
+    agentjobs-363. Use it; do not take a new one."
+  data:
+    ball: agent
+    ball_reason: work
