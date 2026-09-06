@@ -108,6 +108,7 @@ from agentjobs.playbooks.pointer import PlaybookPointer
 from agentjobs.models_v2 import (
     Ball,
     BallReason,
+    DispatchMode,
     DispatchTrigger,
     Lifecycle,
     LogEntry,
@@ -567,6 +568,24 @@ class LiveRun:
     project_id: str
     status: str
     path: Path
+    mode: str = ""
+
+    @property
+    def is_interactive(self) -> bool:
+        """A session a person is sitting in, recorded by its own claim (task-354)."""
+        return self.mode == DispatchMode.INTERACTIVE.value
+
+    @property
+    def takes_slot(self) -> bool:
+        """Whether this run counts against ``limits.max_concurrent_runs``.
+
+        Every run but an interactive one. That exemption is the whole of task-354's
+        argument about slots: the ceiling exists to stop a click starting an agent the
+        machine cannot afford, and a session somebody is already typing into is not a
+        cost this click is about to incur. It still holds its *task*, which is the check
+        directly above this one in ``dispatch_task``.
+        """
+        return not self.is_interactive
 
 
 def live_runs(home: Path) -> List[LiveRun]:
@@ -603,6 +622,7 @@ def live_runs(home: Path) -> List[LiveRun]:
                 project_id=str(meta.get("project_id") or ""),
                 status=status,
                 path=directory,
+                mode=str(meta.get("mode") or ""),
             )
         )
     return found
@@ -892,14 +912,18 @@ def dispatch_task(
     for run in running:
         if run.task_id == task.id:
             raise LiveRunExistsError(
-                f"{task.id} already has run {run.run_id} in state {run.status!r}. "
-                "One live run per task, always -- a second would have two agents "
+                f"{task.id} already has run {run.run_id} in state {run.status!r}"
+                + (" -- an interactive session is working it" if run.is_interactive else "")
+                + ". One live run per task, always -- a second would have two agents "
                 "editing the same repository with the same task record."
             )
-    if len(running) >= resolution.limits.max_concurrent_runs:
+    # Slots, not runs: an interactive session holds its task (above) but no slot
+    # (task-354), so it is not what stands between this click and a free machine.
+    holding = [run for run in running if run.takes_slot]
+    if len(holding) >= resolution.limits.max_concurrent_runs:
         raise ConcurrencyLimitError(
             f"This machine allows {resolution.limits.max_concurrent_runs} concurrent "
-            f"run(s) and {len(running)} are active: {describe_slot_holders(running)}. "
+            f"run(s) and {len(holding)} are active: {describe_slot_holders(holding)}. "
             "Refused rather than queued: a queue turns this click into a promise to "
             "spend money later, when nobody is watching. Cancel one of those runs, or "
             "dispatch this again once one finishes."

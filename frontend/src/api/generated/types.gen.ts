@@ -305,6 +305,18 @@ export type ClaimRequest = {
      * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
      */
     operation_id?: string | null;
+    /**
+     * Session Cwd
+     *
+     * The directory that session runs in. Where the driver keeps its transcript store, so the task page can show the session's log. Defaults to the project root.
+     */
+    session_cwd?: string | null;
+    /**
+     * Session Id
+     *
+     * The claiming session's own id, when the claim comes from an agent session AgentJobs did not start (task-354). With it, the claim writes an interactive run record so the work shows as running; without it, a claim is exactly what it was. Claude Code's MCP server and the CLI fill it from CLAUDE_CODE_SESSION_ID.
+     */
+    session_id?: string | null;
 };
 
 /**
@@ -1389,7 +1401,7 @@ export type LiveRunsView = {
     /**
      * Occupied
      *
-     * Run slots in use. Counted exactly as the concurrency guard counts them -- `len(live_runs(home))` -- so this surface and a refused dispatch can never disagree. Finishes and the runway are not in it: they hold locks, not run slots.
+     * Run slots in use. Counted exactly as the concurrency guard counts them -- `len(slot_runs(home))` -- so this surface and a refused dispatch can never disagree. An interactive run (mode `interactive`) is in `runs` and not in this count: it holds its task, not a slot (task-354). Finishes and the runway are not in it either: they hold locks, not run slots.
      */
     occupied: number;
     /**

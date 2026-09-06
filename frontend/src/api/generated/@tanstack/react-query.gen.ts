@@ -1323,6 +1323,11 @@ export const getAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetO
  * Claim Task
  *
  * Claim a ready task: one winner, everyone else gets a 409.
+ *
+ * A claim that names its session also writes an interactive run record (task-354), so
+ * the work shows as running on every surface that reads the ledger. Only after the
+ * claim landed, only for an agent actor, and never a second one for a task that has a
+ * live run -- which is what makes a replayed claim harmless.
  */
 export const claimTaskApiProjectsProjectIdTasksTaskIdClaimPostMutation = (options?: Partial<Options<ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostData>>): UseMutationOptions<ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostResponse, ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostError, Options<ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostData>> => {
     const mutationOptions: UseMutationOptions<ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostResponse, ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostError, Options<ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostData>> = {
@@ -2263,6 +2268,11 @@ export const getAttachmentApiTasksTaskIdAttachmentsFilenameGetOptions = (options
  * Claim Task
  *
  * Claim a ready task: one winner, everyone else gets a 409.
+ *
+ * A claim that names its session also writes an interactive run record (task-354), so
+ * the work shows as running on every surface that reads the ledger. Only after the
+ * claim landed, only for an agent actor, and never a second one for a task that has a
+ * live run -- which is what makes a replayed claim harmless.
  */
 export const claimTaskApiTasksTaskIdClaimPostMutation = (options?: Partial<Options<ClaimTaskApiTasksTaskIdClaimPostData>>): UseMutationOptions<ClaimTaskApiTasksTaskIdClaimPostResponse, ClaimTaskApiTasksTaskIdClaimPostError, Options<ClaimTaskApiTasksTaskIdClaimPostData>> => {
     const mutationOptions: UseMutationOptions<ClaimTaskApiTasksTaskIdClaimPostResponse, ClaimTaskApiTasksTaskIdClaimPostError, Options<ClaimTaskApiTasksTaskIdClaimPostData>> = {

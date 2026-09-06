@@ -735,6 +735,11 @@ export const getAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGet 
  * Claim Task
  *
  * Claim a ready task: one winner, everyone else gets a 409.
+ *
+ * A claim that names its session also writes an interactive run record (task-354), so
+ * the work shows as running on every surface that reads the ledger. Only after the
+ * claim landed, only for an agent actor, and never a second one for a task that has a
+ * live run -- which is what makes a replayed claim harmless.
  */
 export const claimTaskApiProjectsProjectIdTasksTaskIdClaimPost = <ThrowOnError extends boolean = false>(options: Options<ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostData, ThrowOnError>) => (options.client ?? client).post<ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostResponses, ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostErrors, ThrowOnError>({
     url: '/api/projects/{project_id}/tasks/{task_id}/claim',
@@ -1343,6 +1348,11 @@ export const getAttachmentApiTasksTaskIdAttachmentsFilenameGet = <ThrowOnError e
  * Claim Task
  *
  * Claim a ready task: one winner, everyone else gets a 409.
+ *
+ * A claim that names its session also writes an interactive run record (task-354), so
+ * the work shows as running on every surface that reads the ledger. Only after the
+ * claim landed, only for an agent actor, and never a second one for a task that has a
+ * live run -- which is what makes a replayed claim harmless.
  */
 export const claimTaskApiTasksTaskIdClaimPost = <ThrowOnError extends boolean = false>(options: Options<ClaimTaskApiTasksTaskIdClaimPostData, ThrowOnError>) => (options.client ?? client).post<ClaimTaskApiTasksTaskIdClaimPostResponses, ClaimTaskApiTasksTaskIdClaimPostErrors, ThrowOnError>({
     url: '/api/tasks/{task_id}/claim',

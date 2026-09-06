@@ -827,6 +827,13 @@ class RunRecord:
     finished_at: Optional[datetime] = None
     caused_by: Optional[int] = None
     argv: List[str] = field(default_factory=list)
+    cwd: str = ""
+    """Where the session runs, for an interactive run: the directory whose transcript
+    store holds its JSONL. Empty on every other kind of run, which start in the
+    project root."""
+    origin: str = ""
+    """``claimed`` or ``registered`` for a run AgentJobs did not start. Empty for a
+    dispatched one."""
 
     @property
     def is_live(self) -> bool:
@@ -836,6 +843,16 @@ class RunRecord:
     @property
     def is_session(self) -> bool:
         return self.mode == DispatchMode.SESSION.value
+
+    @property
+    def is_interactive(self) -> bool:
+        """A session a person is sitting in (task-354). Followed by nothing; holds no slot."""
+        return self.mode == DispatchMode.INTERACTIVE.value
+
+    @property
+    def takes_slot(self) -> bool:
+        """Whether this run counts against ``limits.max_concurrent_runs``."""
+        return not self.is_interactive
 
     def elapsed_seconds(self, now: Optional[datetime] = None) -> Optional[float]:
         """How long this run has been going, or how long it ran for.
@@ -925,6 +942,8 @@ def read_run(directory: Path) -> RunRecord:
         finished_at=_as_moment(meta.get("finished_at")),
         caused_by=_as_optional_int(meta.get("caused_by")),
         argv=[str(item) for item in argv] if isinstance(argv, list) else [],
+        cwd=str(meta.get("cwd") or ""),
+        origin=str(meta.get("origin") or ""),
     )
 
 
@@ -950,12 +969,67 @@ def live_runs(home: Path) -> List[RunRecord]:
     return [record for record in list_runs(home) if record.is_live]
 
 
+def slot_runs(home: Path) -> List[RunRecord]:
+    """The live runs that occupy a slot: everything ``live_runs`` answers, minus the
+    interactive ones (task-354).
+
+    This is the list the concurrency guard counts and the one ``GET /api/runs/live``
+    reports as ``occupied``. Keeping the two on one function is what keeps a refused
+    dispatch and the dashboard's "N of M slots busy" from ever disagreeing.
+    """
+    return [record for record in live_runs(home) if record.takes_slot]
+
+
+def conclude_interactive(
+    home: Path, record: RunRecord, outcome: DispatchOutcome, *, detail: str = ""
+) -> None:
+    """End an interactive run's record, and nothing else.
+
+    Not ``Ledger._conclude``: that writes a ``dispatch_result`` onto the task and hands
+    the ball to a human when the run ended without one, which is the right thing for a
+    run AgentJobs started and the wrong thing for a session a person was sitting in --
+    the person's own verbs are already on the record. The lock the claim took is
+    released here because nothing else ever will; it names a run that is now terminal.
+    """
+    write_status(
+        record,
+        status="finished",
+        outcome=outcome.value,
+        finished_at=datetime.now(timezone.utc).isoformat(),
+        ended=detail,
+    )
+    release_stale_locks(home)
+
+
 HEALTH_WORKING = "working"
 HEALTH_STARTING = "starting"
 HEALTH_PARKED = "parked"
 HEALTH_SILENT = "silent"
 HEALTH_ORPHANED = "orphaned"
 HEALTH_UNKNOWN = "unknown"
+HEALTH_IDLE = "idle"
+
+INTERACTIVE_IDLE_SECONDS = 600.0
+"""How long an interactive session's transcript may go unwritten before it reads as
+idle rather than working. Ten minutes: a person reading a long answer is not idle, and a
+session left open over lunch is. Nothing acts on it; it is a word on a card."""
+
+
+def _transcript_age_seconds(record: RunRecord) -> Optional[float]:
+    """Seconds since the session's own transcript last changed, or ``None``."""
+    if not record.session_id:
+        return None
+    from agentjobs.dispatch.transcript import find_session_transcript  # local: no cycle
+
+    cwd = Path(record.cwd) if record.cwd else record.path
+    path = find_session_transcript(record.session_id, cwd)
+    if path is None:
+        return None
+    try:
+        modified = path.stat().st_mtime
+    except OSError:
+        return None
+    return max(0.0, datetime.now(timezone.utc).timestamp() - modified)
 
 
 def run_health(record: RunRecord) -> str:
@@ -1000,6 +1074,13 @@ def run_health(record: RunRecord) -> str:
     if status == "starting":
         return HEALTH_STARTING
     if status == "running":
+        if record.is_interactive:
+            # No poller writes a status for these, so the one thing on disk that says
+            # whether the person is there is their transcript's modification time.
+            age = _transcript_age_seconds(record)
+            if age is not None and age > INTERACTIVE_IDLE_SECONDS:
+                return HEALTH_IDLE
+            return HEALTH_WORKING
         if not record.is_session and record.pid is not None and not process_alive(record.pid):
             return HEALTH_ORPHANED
         return HEALTH_WORKING
@@ -1128,6 +1209,29 @@ class DispatchLedger:
             loaded = loaded.get("agents") or loaded.get("sessions") or []
         return [row for row in loaded if isinstance(row, dict)]
 
+    def active_sessions(self) -> List[Dict[str, object]]:
+        """Every session the CLI currently lists, interactive ones included.
+
+        Without ``--all``: that flag adds *completed* background sessions, and the whole
+        point of this listing is that a session missing from it is over. Used by startup
+        reconciliation to decide whether an interactive run's session survived the
+        restart (task-354).
+        """
+        completed = self._session("agents", "--json")
+        if completed.returncode != 0:
+            raise LedgerError(
+                f"Could not read the session ledger: {(completed.stderr or '').strip()[:300]}"
+            )
+        import json
+
+        try:
+            loaded = json.loads(completed.stdout or "[]")
+        except json.JSONDecodeError as exc:
+            raise LedgerError(f"Session ledger was not JSON: {exc}") from exc
+        if isinstance(loaded, dict):
+            loaded = loaded.get("agents") or loaded.get("sessions") or []
+        return [row for row in loaded if isinstance(row, dict)]
+
     # ----- cancellation ------------------------------------------------------
 
     def cancel(self, run_id: str, *, actor: str = "dispatcher") -> StopResult:
@@ -1135,6 +1239,15 @@ class DispatchLedger:
         record = find_run(self.home, run_id)
         if not record.is_live:
             return StopResult(run_id, False, f"already {record.outcome or record.status}")
+        if record.is_interactive:
+            # The session belongs to a person, and cancelling the *record* must not reach
+            # into it. Nor does it write to the task: nothing about the work changed.
+            conclude_interactive(
+                self.home, record, DispatchOutcome.CANCELLED, detail=f"cancelled by {actor}"
+            )
+            return StopResult(
+                run_id, True, "interactive run closed; the session itself was left running"
+            )
         result = self._stop(record)
         self._conclude(record, DispatchOutcome.CANCELLED, actor=actor, body=result.detail)
         return result
@@ -1204,6 +1317,14 @@ class DispatchLedger:
         )
         results = []
         for record in live_runs(self.home):
+            if record.is_interactive:
+                # The panic button stops what AgentJobs started. A person's own session
+                # is not that; its record is closed so the board stops showing it.
+                conclude_interactive(
+                    self.home, record, DispatchOutcome.CANCELLED, detail="dispatch stop"
+                )
+                results.append(StopResult(record.run_id, True, "interactive run closed"))
+                continue
             result = self._stop(record)
             self._conclude(record, DispatchOutcome.CANCELLED, actor=actor, body=result.detail)
             results.append(result)
@@ -1219,8 +1340,40 @@ class DispatchLedger:
         """
         results: List[StopResult] = []
         sessions: Optional[Dict[str, Dict[str, object]]] = None
+        active: Optional[List[Dict[str, object]]] = None
 
         for record in live_runs(self.home):
+            if record.is_interactive:
+                # Presence is the only question. The task-state half of the sweep runs
+                # on the poller's first tick, seconds from now, and nothing here writes
+                # to a task.
+                if active is None:
+                    try:
+                        active = self.active_sessions()
+                    except LedgerError as exc:
+                        # Cannot tell whether the session survived, so leave it alone.
+                        results.append(
+                            StopResult(record.run_id, False, f"ledger unreadable: {exc}")
+                        )
+                        continue
+                if record.session_id and any(
+                    record.session_id in (str(row.get("sessionId") or ""), str(row.get("id") or ""))
+                    or str(row.get("sessionId") or "").startswith(record.session_id)
+                    for row in active
+                ):
+                    results.append(
+                        StopResult(record.run_id, False, "interactive session still open")
+                    )
+                    continue
+                conclude_interactive(
+                    self.home,
+                    record,
+                    DispatchOutcome.SESSION_ENDED,
+                    detail="not in the driver's ledger when AgentJobs restarted",
+                )
+                results.append(StopResult(record.run_id, True, "interactive session gone"))
+                continue
+
             if record.is_session:
                 if sessions is None:
                     try:

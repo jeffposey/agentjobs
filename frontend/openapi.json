@@ -367,6 +367,30 @@
             ],
             "description": "Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.",
             "title": "Operation Id"
+          },
+          "session_cwd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The directory that session runs in. Where the driver keeps its transcript store, so the task page can show the session's log. Defaults to the project root.",
+            "title": "Session Cwd"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The claiming session's own id, when the claim comes from an agent session AgentJobs did not start (task-354). With it, the claim writes an interactive run record so the work shows as running; without it, a claim is exactly what it was. Claude Code's MCP server and the CLI fill it from CLAUDE_CODE_SESSION_ID.",
+            "title": "Session Id"
           }
         },
         "required": [
@@ -1861,7 +1885,7 @@
             "type": "integer"
           },
           "occupied": {
-            "description": "Run slots in use. Counted exactly as the concurrency guard counts them -- `len(live_runs(home))` -- so this surface and a refused dispatch can never disagree. Finishes and the runway are not in it: they hold locks, not run slots.",
+            "description": "Run slots in use. Counted exactly as the concurrency guard counts them -- `len(slot_runs(home))` -- so this surface and a refused dispatch can never disagree. An interactive run (mode `interactive`) is in `runs` and not in this count: it holds its task, not a slot (task-354). Finishes and the runway are not in it either: they hold locks, not run slots.",
             "title": "Occupied",
             "type": "integer"
           },
@@ -8596,7 +8620,7 @@
     },
     "/api/projects/{project_id}/tasks/{task_id}/claim": {
       "post": {
-        "description": "Claim a ready task: one winner, everyone else gets a 409.",
+        "description": "Claim a ready task: one winner, everyone else gets a 409.\n\nA claim that names its session also writes an interactive run record (task-354), so\nthe work shows as running on every surface that reads the ledger. Only after the\nclaim landed, only for an agent actor, and never a second one for a task that has a\nlive run -- which is what makes a replayed claim harmless.",
         "operationId": "claim_task_api_projects__project_id__tasks__task_id__claim_post",
         "parameters": [
           {
@@ -10999,7 +11023,7 @@
     },
     "/api/tasks/{task_id}/claim": {
       "post": {
-        "description": "Claim a ready task: one winner, everyone else gets a 409.",
+        "description": "Claim a ready task: one winner, everyone else gets a 409.\n\nA claim that names its session also writes an interactive run record (task-354), so\nthe work shows as running on every surface that reads the ledger. Only after the\nclaim landed, only for an agent actor, and never a second one for a task that has a\nlive run -- which is what makes a replayed claim harmless.",
         "operationId": "claim_task_api_tasks__task_id__claim_post",
         "parameters": [
           {

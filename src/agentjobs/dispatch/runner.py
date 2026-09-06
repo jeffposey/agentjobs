@@ -2175,11 +2175,19 @@ class DispatchRunner:
             prefix = [self.runner.argv[0]]
         return [resolve_executable(prefix[0]), *prefix[1:]]
 
-    def ledger(self, *, include_finished: bool = False) -> List[Dict[str, object]]:
+    def ledger(
+        self, *, include_finished: bool = False, scoped: bool = True
+    ) -> List[Dict[str, object]]:
         """Background sessions this project owns, from ``<runner> agents --json --cwd``.
 
         ``--cwd`` scopes the listing to one project root, so an unrelated session
         elsewhere on the machine is never mistaken for a dispatched run.
+
+        ``scoped=False`` drops that flag, for one caller: the interactive sweep
+        (task-354), which asks only *is this exact session id still listed*. It matches
+        on the id rather than inferring ownership from a directory, and the directory
+        would be the wrong question anyway -- an interactive session working a task from
+        a worktree is listed under the worktree's path, not the project root's.
 
         The ledger command is derived from the runner's own executable rather than
         hardcoded to ``claude``. That is what "session mode" means operationally: a
@@ -2200,7 +2208,8 @@ class DispatchRunner:
         argv = [*self.executable_prefix(), "agents", "--json"]
         if include_finished:
             argv.append("--all")
-        argv += ["--cwd", str(self.project_root)]
+        if scoped:
+            argv += ["--cwd", str(self.project_root)]
         try:
             completed = subprocess.run(
                 argv,

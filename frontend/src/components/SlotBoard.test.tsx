@@ -422,3 +422,79 @@ describe("a task never lands in two cells", () => {
     expect(layout.cells.map((cell) => cell.kind)).toEqual(["run", "queued", "empty"]);
   });
 });
+
+describe("a session somebody is working in (task-354)", () => {
+  const attended = (overrides: Partial<LiveRunView> = {}) =>
+    run({
+      run_id: "run_chat",
+      mode: "interactive",
+      session: false,
+      posture: "",
+      task_id: "task-352",
+      task_title: "Worked in a chat window",
+      task_url: "/p/alpha/tasks/task-352",
+      ...overrides,
+    });
+
+  it("draws it as a card without taking a free cell from the board", () => {
+    // It is in `runs` and not in `occupied`: it holds its task, not a slot. So the
+    // three free cells and their Dispatch buttons are exactly what they were.
+    renderBoard(
+      <SlotBoard
+        body={body({ runs: [attended()] })}
+        queue={[task("task-one"), task("task-two"), task("task-three")]}
+        projectId="alpha"
+        renderQueueAction={(item) => <button type="button">Dispatch {item.id}</button>}
+      />,
+    );
+
+    expect(cellStates()).toEqual(["run", "queued", "queued", "queued"]);
+    expect(screen.getAllByRole("button", { name: /^Dispatch/ })).toHaveLength(3);
+    expect(screen.getByTestId("slot-board-capacity")).toHaveTextContent("0 of 3 slots busy");
+  });
+
+  it("says whose session it is where a dispatched run shows its posture", () => {
+    renderBoard(<SlotBoard body={body({ runs: [attended()] })} queue={[]} projectId="alpha" />);
+
+    const card = screen.getAllByTestId("slot-cell")[0]!;
+    expect(within(card).getByText("your session")).toBeVisible();
+    expect(within(card).getByText("Worked in a chat window")).toBeVisible();
+  });
+
+  it("does not let it displace a dispatched run from a slot cell", () => {
+    // The ordering trap: slot cells are filled from the runs that hold slots, so an
+    // interactive run in the middle of the list must not be indexed into one.
+    const layout = boardLayout(
+      body({
+        occupied: 1,
+        runs: [attended({ started_at: "2026-09-04T00:00:00Z" }), run()],
+      }),
+      [task("task-next")],
+      "alpha",
+    );
+
+    expect(layout.cells.map((cell) => (cell.kind === "run" ? cell.run.run_id : cell.kind))).toEqual(
+      ["run_a", "run_chat", "queued", "empty"],
+    );
+  });
+
+  it("does not offer a task its own session is working", () => {
+    const layout = boardLayout(
+      body({ runs: [attended({ task_id: "task-two", project_id: "alpha" })] }),
+      [task("task-two"), task("task-three")],
+      "alpha",
+    );
+
+    expect(layout.cells.map((cell) => (cell.kind === "queued" ? cell.task.id : cell.kind))).toEqual(
+      ["run", "task-three", "empty", "empty"],
+    );
+  });
+
+  it("reads an idle session as idle rather than as working", () => {
+    renderBoard(
+      <SlotBoard body={body({ runs: [attended({ health: "idle" })] })} queue={[]} projectId="alpha" />,
+    );
+
+    expect(screen.getByText("Idle")).toHaveAttribute("data-health", "idle");
+  });
+});

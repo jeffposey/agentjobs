@@ -19,6 +19,12 @@ Six things to look at, and the comparison is the point:
     --idle             nothing running: three free cells offering three *different*
                        tasks, each with its own Dispatch button. This is the state the
                        board exists for.
+    --attended         no dispatched runs, one chat session working task-101 (task-354).
+                       Compare with ``--idle``: the same three free cells and the same
+                       three Dispatch buttons, plus a card for the session -- because it
+                       holds its task, not a slot. Open task-101 to see the other half:
+                       the task page names the session and withholds the Dispatch button
+                       instead of offering to start a second agent on it.
     --finishing        no runs, two finishes: one in the gate for a task in this
                        project, one queued behind it on the merge runway. This is the
                        state task-352 was filed from -- the badge read 0 and the Runs tab
@@ -258,6 +264,7 @@ def main() -> None:
     argv = sys.argv[1:]
     idle = "--idle" in argv
     finishing = "--finishing" in argv
+    attended = "--attended" in argv
     alarm = "--alarm" in argv
     unconfigured = "--unconfigured" in argv
     ceiling = DEFAULT_CEILING
@@ -280,9 +287,11 @@ def main() -> None:
     # A finish's task is claimed too: a task at the merge gate is `active`, not `ready`,
     # and a free cell offering the task whose merge is on the card beside it would be
     # the duplicate the board exists to avoid.
-    running_here: Tuple[str, ...] = ("task-102",) if finishing else () if idle else ("task-101",)
+    running_here: Tuple[str, ...] = (
+        ("task-101",) if attended else ("task-102",) if finishing else () if idle else ("task-101",)
+    )
     running_elsewhere: Tuple[str, ...] = (
-        ("task-501",) if finishing else () if idle else ("task-501",)
+        () if attended else ("task-501",) if finishing else () if idle else ("task-501",)
     )
     here = build_project(
         root,
@@ -306,6 +315,31 @@ def main() -> None:
         (home / "dispatch.yaml").write_text(
             yaml.safe_dump(dispatch_config(ceiling), sort_keys=False), encoding="utf-8"
         )
+
+    def seed_attended() -> None:
+        """The state task-354 was filed from: a task being worked in a chat window.
+
+        Seeded as the claim itself writes it -- ``mode: interactive``, the session's own
+        id and directory, no posture and no pid -- so the board, the badge, the Runs tab
+        and the task page all read exactly what they would in the real thing. The point
+        of comparing this with ``--idle`` is that the three free cells are the same:
+        a session holds its task, not a slot.
+        """
+        seed_run(
+            home,
+            run_id="run_chat01",
+            task_id="task-101",
+            project_id="sandbox-here",
+            mode="interactive",
+            driver="claude",
+            agent="claude",
+            origin="claimed",
+            status="running",
+            session_id="0feedf93-6af3-40bf-832a-81f722fdb841",
+            cwd=str(here),
+            started_at=_ago(900),
+        )
+        print("[board] seeded a chat session working task-101", flush=True)
 
     def seed_finishing() -> None:
         """The state task-352 was filed from: no runs, one finish in the gate, one queued.
@@ -394,7 +428,9 @@ def main() -> None:
         )
         print("[board] seeded two live runs, a finish and a runway", flush=True)
 
-    if finishing:
+    if attended:
+        threading.Timer(2.0, seed_attended).start()
+    elif finishing:
         threading.Timer(2.0, seed_finishing).start()
     elif not idle:
         threading.Timer(2.0, seed_activity).start()
@@ -406,6 +442,8 @@ def main() -> None:
     shape = "idle -- every cell free" if idle else "two of the cells busy"
     if finishing:
         shape = "no runs -- one finish in the gate, one queued for the runway"
+    if attended:
+        shape = "no dispatched runs -- one chat session working a task"
     if unconfigured:
         shape = "no dispatch config -- a queue rather than a board"
     if alarm:

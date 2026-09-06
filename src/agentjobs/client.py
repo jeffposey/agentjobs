@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from .models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome, Priority, Task
 from .principals import RUN_CREDENTIAL_HEADER
 from .schema_tolerance import tolerant_enum_values
+from .session_identity import SessionIdentity
 
 logger = logging.getLogger(__name__)
 
@@ -818,11 +819,27 @@ class TaskOperations:
             expected_revision=expected_revision,
         )
 
-    def claim(self, task_id: str, *, actor: str, operation_id: str) -> MutationResult:
-        """Claim a ready task, safely under retry."""
-        return self._client._mutation(
-            f"/tasks/{task_id}/claim", {"agent": actor}, operation_id=operation_id
-        )
+    def claim(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        operation_id: str,
+        session: Optional[SessionIdentity] = None,
+    ) -> MutationResult:
+        """Claim a ready task, safely under retry.
+
+        The claim names the session making it when there is one to name (task-354):
+        by default, whatever :meth:`SessionIdentity.from_environment` finds, which is
+        this process's own Claude Code session and nothing at a human's keyboard. The
+        server then writes an interactive run record, so the work shows as running.
+        """
+        identity = session if session is not None else SessionIdentity.from_environment()
+        payload: Dict[str, Any] = {"agent": actor}
+        if identity is not None:
+            payload["session_id"] = identity.session_id
+            payload["session_cwd"] = identity.cwd
+        return self._client._mutation(f"/tasks/{task_id}/claim", payload, operation_id=operation_id)
 
     def release(
         self, task_id: str, *, actor: str, operation_id: str, body: Optional[str] = None

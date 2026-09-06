@@ -311,7 +311,11 @@ export function DispatchPanel({
     state && !state.can_dispatch && state.refusal
       ? { reason: state.refusal.reason, message: state.refusal.message }
       : null;
-  const offerButton = taskIsDispatchable && Boolean(state?.can_dispatch);
+  // A run for this task is going, so the server would refuse this click with
+  // `live_run_exists` (task-354). Withheld rather than pressable-into-a-refusal, for
+  // the same reason `finishLive` is: the reader can see what holds it, right above.
+  const liveRun = runs.find((run) => run.live) ?? null;
+  const offerButton = taskIsDispatchable && Boolean(state?.can_dispatch) && !liveRun;
   const user = identity.ok ? identity.user : null;
   // The special occasion, from either direction: the record looks insufficient here, or
   // the server said so when the button was pressed. Honouring the server's answer as
@@ -359,6 +363,30 @@ export function DispatchPanel({
             will not sign it for you.
           </p>
           <p className="mt-2 text-orange-200">{identity.detail}</p>
+        </div>
+      )}
+
+      {taskIsDispatchable && liveRun && (
+        // The state task-354 was filed for: a task somebody is working, which used to
+        // show a Dispatch button offering to start a second agent on the same task and
+        // the same repository. Status rather than alert -- it describes the world, not
+        // an act the reader just took.
+        <div
+          role="status"
+          data-refusal-reason="live_run_exists"
+          className="rounded-lg border border-sky-600/50 bg-sky-950/40 p-3 text-sm text-sky-100"
+        >
+          <p>
+            {liveRun.mode === "interactive"
+              ? "A session is working this task right now."
+              : "An agent is already running on this task."}{" "}
+            One run per task, so there is nothing to start.
+          </p>
+          <p className="mt-2 text-sky-200">
+            {liveRun.mode === "interactive"
+              ? "It is a chat session rather than a dispatched agent, so AgentJobs did not start it and will not stop it. It ends when the task is handed off, released or closed."
+              : "Watch it below. Cancel it there if you want to start a different one."}
+          </p>
         </div>
       )}
 

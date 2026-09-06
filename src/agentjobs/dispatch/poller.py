@@ -132,6 +132,15 @@ def poll_live_sessions(
     managers = managers or {}
     results: List[PollResult] = []
 
+    # Interactive runs first, and through their own sweep rather than `poll_session`
+    # (task-354): the sweep ends a record whose task moved on or whose session is gone,
+    # and never parks, stops or settles anything. `phase` is None because these have no
+    # session phase -- nothing observed them, something merely checked they exist.
+    from agentjobs.dispatch.interactive import sweep_interactive_runs  # local: same subsystem
+
+    for swept in sweep_interactive_runs(home, registry=registry, managers=managers):
+        results.append(PollResult(swept.run_id, None, swept.detail))
+
     for record in live_runs(home):
         if not record.is_session:
             continue

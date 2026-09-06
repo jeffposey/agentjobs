@@ -886,8 +886,13 @@ def _structured_transcript(
 
     A batch run has no session and therefore no such file; saying so is more useful than
     an empty panel, and the caller shows the captured output instead.
+
+    An interactive run (task-354) has one like any other session, and it is looked for
+    in **its own** directory rather than in the project root: a session working from a
+    worktree keeps its transcript under the worktree's store, which is the whole reason
+    that record carries a ``cwd``.
     """
-    if not record.is_session:
+    if not (record.is_session or record.is_interactive):
         return StructuredTranscript(
             note=(
                 "This run was a batch command rather than a session, so there is no "
@@ -902,7 +907,8 @@ def _structured_transcript(
                 "session starting."
             )
         )
-    path = find_session_transcript(record.session_id, project.root, home=_session_home())
+    where = Path(record.cwd) if record.cwd else project.root
+    path = find_session_transcript(record.session_id, where, home=_session_home())
     return read_structured_transcript(path, entries)
 
 

@@ -783,6 +783,24 @@ class ClaimRequest(SafeMutationRequest):
     """An agent takes ownership of a ready task."""
 
     agent: str = Field(..., description="Actor id claiming the task.")
+    session_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "The claiming session's own id, when the claim comes from an agent session "
+            "AgentJobs did not start (task-354). With it, the claim writes an interactive "
+            "run record so the work shows as running; without it, a claim is exactly what "
+            "it was. Claude Code's MCP server and the CLI fill it from "
+            "CLAUDE_CODE_SESSION_ID."
+        ),
+    )
+    session_cwd: Optional[str] = Field(
+        default=None,
+        description=(
+            "The directory that session runs in. Where the driver keeps its transcript "
+            "store, so the task page can show the session's log. Defaults to the project "
+            "root."
+        ),
+    )
 
 
 class HandoffRequest(RevisionedRequest):
