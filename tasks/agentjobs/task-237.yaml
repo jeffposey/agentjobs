@@ -3,7 +3,7 @@ id: task-237
 title: 'Shell 2: give the Tasks surface two regions and nest the detail route inside
   it'
 created: '2026-08-22T00:39:16.236145Z'
-updated: '2026-09-06T09:20:52.762785Z'
+updated: '2026-09-06T09:21:27.171801Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -572,3 +572,34 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 19
+  ts: '2026-09-06T09:21:27.171523Z'
+  actor: claude
+  type: note
+  body: "**Merged as `7c2ed7c9` and verified live at 8876. The first finish attempt\
+    \ died for a reason worth recording.**\n\n`fin_ff9f5de9` reported `gate_failed`\
+    \ at 08:54 with `seconds: 0.0` on the gate step and a total run of 6.8s. Its `phases.jsonl`\
+    \ records `black` and `ruff` finishing and `mypy` *starting* \u2014 and then nothing.\
+    \ `gate.log` holds mypy's own `Success: no issues found in 266 source files` and\
+    \ ends at `exit 1`. **A gate that was three seconds into its third stage did not\
+    \ go red; it was killed**, and the finisher reported the exit code as a verdict.\n\
+    \nA background `scripts/check.py` I started immediately afterwards on the same\
+    \ commit was killed the same way, at 31% of pytest, with no error of its own.\
+    \ Two foreground gates on the same branch before and after ran to completion in\
+    \ 468s and 498s.\n\n`fin_1750621b`, the retry, ran the full gate green in 534s,\
+    \ caught up 288s of movement on `main`, and merged. So the branch was never the\
+    \ problem.\n\n**Two data points on one machine within an hour, and this is the\
+    \ second.** task-235 entry 16 records the epic walk's own supervisor process being\
+    \ killed at ~08:05 while its child kept running \u2014 \"not by me, and not by\
+    \ anything on the task\". Whatever is reaping long-lived processes here is not\
+    \ visible from inside a run, and its cost is a false `gate_failed` on the task\
+    \ record: a reader would have concluded the branch was red, which it never was.\
+    \ Filing nothing, because a single retry cleared it and the finisher behaved correctly\
+    \ given the exit code it saw \u2014 but if a third instance turns up, these two\
+    \ are the corpus, and the fix probably belongs in the finisher telling a killed\
+    \ gate apart from a red one rather than in whatever is doing the killing.\n"
+  data:
+    operation:
+      id: 4c9e1b28-7d06-45a1-9f83-2b6c0e51d7a3
+      kind: log_append
+      fingerprint: bef5bc2cc9a05e852f5d4db73fae168b
