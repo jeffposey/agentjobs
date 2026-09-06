@@ -999,14 +999,25 @@ function projectPath(projectId: string | undefined, path = "") {
   return `/p/${encodeURIComponent(projectId ?? "")}${path}`;
 }
 
+/**
+ * A whole-screen state -- loading, unreachable, unsupported -- as one card.
+ *
+ * `min-h-full`, not `min-h-dvh`, and top-aligned rather than centred. These render
+ * inside the Tasks surface's regions as well as on their own, and a region is exactly as
+ * tall as the window: a card demanding a screen's worth of height inside one overflows
+ * it, so opening the surface put a scrollbar on each region for as long as the two
+ * queries took to answer, with the card floating in the middle of the empty space it had
+ * made. Against an indefinite height `min-h-full` resolves to nothing, which is what the
+ * standalone uses want.
+ */
 function StatusCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-xl items-center px-4 py-10">
+    <div className="mx-auto flex min-h-full max-w-xl items-start px-4 py-10">
       <section className="w-full rounded-2xl border border-dark-border bg-dark-surface p-6">
         <h1 className="text-2xl font-bold text-dark-text">{title}</h1>
         <div className="mt-3 text-dark-muted">{children}</div>
       </section>
-    </main>
+    </div>
   );
 }
 

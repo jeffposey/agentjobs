@@ -421,8 +421,17 @@ export function TaskList({
 
   return (
     <div className="space-y-6" ref={rootRef}>
-      <section className="rounded-lg border border-dark-border bg-dark-surface p-4" aria-label="Task filters">
-        <div className="grid gap-3 min-[820px]:grid-cols-[minmax(16rem,1fr)_repeat(3,minmax(9rem,auto))]">
+      {/* `@container`, so the row below asks its own box rather than the window whether
+          there is room for one line. The four controls have a combined minimum of
+          43rem, so the viewport rule this replaces put them in a row inside a 350px
+          region and hung a horizontal scrollbar off the whole list. The question was
+          always about this box; until task-237 the box was the window. task-356
+          replaces the row with a filter button, at which point this goes away. */}
+      <section
+        className="@container rounded-lg border border-dark-border bg-dark-surface p-4"
+        aria-label="Task filters"
+      >
+        <div className="grid gap-3 @min-[43rem]:grid-cols-[minmax(16rem,1fr)_repeat(3,minmax(9rem,auto))]">
           <label className="sr-only" htmlFor="task-search">Search tasks</label>
           <input
             id="task-search"
