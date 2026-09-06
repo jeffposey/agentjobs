@@ -3,23 +3,17 @@ id: task-340
 title: A scripted finish that stops at the gate must start the session that repairs
   it, not wait for a Dispatch click
 created: '2026-09-05T21:33:27.249588Z'
-updated: '2026-09-06T02:55:53.672098Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-09-06T02:56:26.150876Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 67
 category: dispatch
 tags:
 - finish
 - dispatch
 - process
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: When an approved task's scripted finish goes red at the gate, the finish
@@ -143,7 +137,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-340-escalation-dispatches
-  status: active
+  status: merged
+  merged_at: '2026-09-06T02:56:26.084435Z'
 log:
 - id: 1
   ts: '2026-09-05T21:33:27.922282Z'
@@ -767,3 +762,27 @@ log:
     merge_commit: aed06d9cb44211d374df9cab260340817c608a11
     branch: fix/task-340-escalation-dispatches
     base: main
+- id: 22
+  ts: '2026-09-06T02:56:26.150687Z'
+  actor: finisher
+  type: transition
+  body: "Merged `fix/task-340-escalation-dispatches` into `main` as `aed06d9c` and\
+    \ verified live. Finished by the scripted path with no agent session (task-241).\
+    \ Approved by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         1.7s  fix/task-340-escalation-dispatches\
+    \ at c307acde in C:\\projects\\worktrees\\agentjobs-340\n  runway     ok     \
+    \    0.0s  taken immediately\n  rebase     ok         0.2s  fix/task-340-escalation-dispatches\
+    \ onto main: c307acde -> 98c2f875\n  gate       ok       329.6s  scripts/check.py\
+    \ green\n  catch_up   ok       209.3s  main moved 0aaf7bda -> c9e4b08a in 2 classified\
+    \ path(s); rebased to a000dbb5 and re-ran pytest\n  catch_up   ok       230.4s\
+    \  main moved c9e4b08a -> 70dfb399 in 2 classified path(s); rebased to 9cf5fa4f\
+    \ and re-ran pytest\n  merge      ok         0.3s  --no-ff into main as aed06d9cb44211d374df9cab260340817c608a11\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         1.2s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving 9e77a8be, which contains the merge\
+    \ aed06d9c, from C:\\projects\\agentjobs (started 2026-09-06T02:56:08.547869+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
