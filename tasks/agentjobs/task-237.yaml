@@ -3,7 +3,7 @@ id: task-237
 title: 'Shell 2: give the Tasks surface two regions and nest the detail route inside
   it'
 created: '2026-08-22T00:39:16.236145Z'
-updated: '2026-09-06T07:27:50.558107Z'
+updated: '2026-09-06T08:54:03.011863Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -94,45 +94,54 @@ acceptance:
 - id: ac-1
   text: At the decided breakpoint and above, /p/{project}/tasks/{taskId} renders the
     task list and that task's detail simultaneously.
-  status: pending
+  status: met
 - id: ac-2
   text: Dashboard, Create and Dispatch still render full-width with no sidebar, and
     the header nav is unchanged.
-  status: pending
+  status: met
 - id: ac-3
   text: Selecting a task from the Dashboard lands on the Tasks surface with that task
     selected in the list.
-  status: pending
+  status: met
 - id: ac-4
   text: The two regions scroll independently and the page body does not scroll as
     one unit at landscape widths.
-  status: pending
+  status: met
 - id: ac-5
   text: Below the breakpoint the rendered structure matches pre-change behaviour,
     demonstrated by a jsdom test at a phone viewport.
-  status: pending
+  status: met
 - id: ac-6
   text: /tasks with nothing selected renders a deliberate empty state, and a decision
     entry says what was chosen and why.
-  status: pending
+  status: met
 - id: ac-7
   text: The broken-file and broken-queue banners are visible without scrolling either
     region.
-  status: pending
+  status: met
 - id: ac-8
   text: scripts/check.py is green, with updated rather than deleted shell tests.
-  status: pending
+  status: met
 deliverables:
 - path: frontend/src/App.tsx
-  note: Nested routing and the two-region shell.
-  status: pending
+  note: Nested routing, the two-region TasksSurface, and the empty state.
+  status: done
+- path: frontend/src/components/shellLayout.ts
+  note: The device-class query and the hook that reads it, from task-235 entry 9.
+  status: done
+- path: docs/tasks-shell.md
+  note: 'task-236 ac-4''s note: the decided shape as one page, superseding task-235
+    entries 3, 8 and 9.'
+  status: done
 dependencies:
 - task: task-236
   type: needs
   note: The sidebar contents and breakpoint are what this task builds; building before
     they are decided means building twice.
 links: []
-branches: []
+branches:
+- name: feat/task-237-two-region-tasks-shell
+  status: active
 log:
 - id: 1
   ts: '2026-08-22T00:39:16.652299Z'
@@ -261,3 +270,181 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 8
+  ts: '2026-09-06T08:52:29.046561Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 6f1a2c7d-9b83-4e11-a5c2-3d0e7f18b442
+      kind: update_content
+      fingerprint: c8b2ded50b0e72b0d95d3e9521ed8680
+- id: 9
+  ts: '2026-09-06T08:53:00.917247Z'
+  actor: claude
+  type: progress
+  body: "**Built, gated green, and looked at in a browser.** Branch `feat/task-237-two-region-tasks-shell`,\
+    \ six commits, rebased onto `main` at `239d2dc` and gated once on the result:\
+    \ `scripts/check.py`, all ten stages, exit 0, receipt written for `04b99dbc`,\
+    \ 468s.\n\n## What it does\n\n`tasks` is now a layout route rendering the list\
+    \ region plus an `<Outlet />`, with `:taskId` as its child. `tasks/new` stays\
+    \ a sibling and still wins on route ranking, since a static segment outscores\
+    \ a dynamic one. A deep-linked `/p/{project}/tasks/{taskId}` therefore arrives\
+    \ with both panes, and selecting another task changes only the right-hand one.\n\
+    \nWhich shell a viewport gets comes from `frontend/src/components/shellLayout.ts`,\
+    \ holding task-235 entry 9's rule as `(min-width: 600px) and (min-height: 600px)`\
+    \ and a `useSyncExternalStore` hook over `matchMedia`. `useSyncExternalStore`\
+    \ rather than an effect because the first paint has to be right: reading the query\
+    \ in an effect renders the wrong shell once and corrects it, which on a phone\
+    \ means mounting, fetching and unmounting the whole task list before the reader\
+    \ sees the record they asked for.\n\n## Measured, in Chromium, against this repository's\
+    \ own 125-task corpus\n\nAt 1278x1185 on `/p/agentjobs/tasks/task-237`: list region\
+    \ **413px**, detail region **777px**, page scroll room **0**, horizontal overflow\
+    \ **0** on the document and **0** inside the list.\n\nThat last figure took two\
+    \ fixes, both found by looking rather than by a test.\n\n## Three things the geometry\
+    \ forced, none of them in the spec\n\n1. **The list cannot render the six-column\
+    \ table.** `table-layout: fixed` gives its one flexible column whatever the fixed\
+    \ ones leave, and five fixed columns asking for 39.5rem leave a 413px region nothing\
+    \ at all \u2014 so the task title collapsed to **zero pixels**, Chromium reported\
+    \ every such cell as `hidden`, and eight e2e specs that click a task by its title\
+    \ failed at once while the page still looked populated. The list now restacks\
+    \ into cards on a **container query** (`stackWhenNarrow` on `ResponsiveTable`),\
+    \ opted into by the task list alone. Threshold 771px, not 819px: that is the viewport\
+    \ rule's 819 minus the shell's own `sm:px-6` padding, so the boundary for a full-width\
+    \ list is exactly where it was.\n2. **The drag auto-scroll had to follow the list\
+    \ into its region.** `startDragAutoScroll` used `window.scrollBy`, which is a\
+    \ silent no-op the moment the document stops being the scroller. It now takes\
+    \ an element, finds the scrollable box around it, and measures the edge zones\
+    \ from that box's rectangle \u2014 falling back to the window in the stacked shell,\
+    \ which is what it always did. This is also what removes task-294's stated reason\
+    \ for not framing this surface.\n3. **The filter row keyed off the viewport too.**\
+    \ Four controls with a combined minimum of 43rem, asked \"does the window have\
+    \ room for one line\", said yes inside a 413px region and hung a horizontal scrollbar\
+    \ off the whole list. `@container` on the filter section; task-356 deletes the\
+    \ row entirely.\n\nPlus one that only became visible once the regions existed:\
+    \ `StatusCard` demanded a screen's worth of height inside a region exactly one\
+    \ screen tall, so every arrival on the Tasks surface put a scrollbar on both regions\
+    \ until the queries answered. `min-h-full`, top-aligned.\n\n## Tests\n\n92 Playwright\
+    \ and 460 vitest, all green. New: `frontend/src/App.shell.test.tsx` (8 cases over\
+    \ the composition \u2014 both panes, the empty state, the Dashboard click, the\
+    \ banners' placement, and the phone shell) and `frontend/e2e/tasks-shell.spec.ts`\
+    \ (4 cases over the half jsdom cannot make \u2014 measured boxes side by side,\
+    \ a page with nowhere to scroll, a record scrolled without moving the list, a\
+    \ phone that still scrolls its document).\n\n`src/test/viewport.ts` is new and\
+    \ is what makes \"a jsdom test at a phone viewport\" a thing this repository can\
+    \ say: jsdom ships no `matchMedia`, so it installs one answering from `window.innerWidth`/`innerHeight`.\n\
+    \nUpdated rather than deleted: the two banner assertions moved from `TaskList.test.tsx`\
+    \ to the shell test, where the banners now live. The density spec's three table-form\
+    \ cases ask for a full-width list at a *short* window \u2014 which the device-class\
+    \ rule treats as a phone \u2014 and a fourth case covers the region, asserting\
+    \ the task title has a box at all. Both drag specs filter the list to their own\
+    \ rows: a seeded pair that sat 677px apart now sits 2794px apart, which no raw-mouse\
+    \ drag can span. `scrollToEnd` in `pinned-header.spec.ts` falls through to the\
+    \ tallest scrollport when the document has none.\n\nThree tests were waiting on\
+    \ the header rather than on the record and so were measuring a page whose content\
+    \ had not arrived. That passed only because the loading card gave an empty page\
+    \ somewhere to scroll; removing that height made the gap measurable. They now\
+    \ wait for the record.\n\n## What it looks like, honestly\n\nThe list row is **331px**\
+    \ as a card and the filter block **308px**, so two tasks fit a 1035px region.\
+    \ That is the state this task hands to task-356 (the filter behind a button) and\
+    \ task-238 (the row a narrow column deserves), and it is what \"the panes can\
+    \ hold the components they already hold\" costs. It is still a large improvement\
+    \ on the alternative, which was a column of blank rows.\n\nNot evidence for: drag-to-reorder\
+    \ and Alt+Up/Alt+Down under a person's hand. Playwright drives Chromium's drag\
+    \ below the OS drag loop, so the specs above cover the handlers, the client call\
+    \ and the route, and task-240's sandbox review is where a hand on a mouse belongs\
+    \ \u2014 task-235 ac-4 asks for exactly that and it stays open.\n"
+  data:
+    operation:
+      id: 2b7f4d19-0c6a-4f52-8e31-b95d07a4c118
+      kind: log_append
+      fingerprint: 8ca0b00daf19785af7659ba643599469
+- id: 10
+  ts: '2026-09-06T08:53:13.192327Z'
+  actor: claude
+  type: decision
+  body: "**The empty region gets a prompt, not content. ac-6's decision entry.**\n\
+    \n`/tasks` with nothing selected renders a card headed \"No task selected\" saying\
+    \ that choosing a task fills this region and that the list stays where it is,\
+    \ plus a link to file a new task.\n\n**Why a prompt.** The one thing a reader\
+    \ landing here does not know is that this region is now *theirs* \u2014 that clicking\
+    \ fills it rather than replacing the page, which is exactly the behaviour this\
+    \ epic exists to introduce. That has to be said once, and a panel of content would\
+    \ answer a question nobody asked while hiding the one thing they need to be told.\n\
+    \n**Rejected: rendering the queue's next task.** It was the most attractive option\
+    \ and it is wrong here for three separate reasons. The Dashboard's next-up panel\
+    \ already answers \"what should I work on\", and two surfaces naming different\
+    \ tasks is precisely how they drift apart. It would add a query to a region whose\
+    \ entire job is to be replaced by the first click. And it invites a reader to\
+    \ act on a recommendation shown in the place where a *record* is about to appear,\
+    \ which is a different kind of thing.\n\n**Rejected: a project summary or counts.**\
+    \ task-212 is moving counts off the Dashboard onto a page of their own; putting\
+    \ them here would be building the surface that task is about to design, in the\
+    \ one place guaranteed to be covered up.\n\n**Reopen this if** task-239 finds\
+    \ the prompt is dead weight once the detail panel is fitted \u2014 a reader who\
+    \ has selected a task once never sees it again in that session, so its whole value\
+    \ is in the first visit and that is worth measuring rather than assuming.\n"
+  data:
+    operation:
+      id: 9d4e0b62-1f57-4a83-92c6-6ea15b30d7f4
+      kind: log_append
+      fingerprint: dc8d01bc19b6955e260af19232d8bb64
+- id: 11
+  ts: '2026-09-06T08:53:33.460075Z'
+  actor: claude
+  type: decision
+  body: "**The list restacks into cards on a container query, and that is a scope\
+    \ call, not a style one.**\n\nThe spec said the panes hold the components they\
+    \ already hold and that cramped is expected. Cramped was not what happened: the\
+    \ six-column table's flexible Task column got **zero pixels** in a 413px region,\
+    \ so the list was a column of blank rows with every title unclickable. That is\
+    \ not a thing to hand to task-238 \u2014 it is the surface not working.\n\n**Chosen:**\
+    \ the existing narrow-viewport card strategy, re-asked of the table's own box\
+    \ (`@container`, opted into by `stackWhenNarrow`). task-235's own context note\
+    \ pointed here \u2014 \"`ResponsiveTable.tsx` ... the sidebar is a narrow viewport\
+    \ by another name\" \u2014 and it needs no new design, so it is the smallest change\
+    \ that leaves the surface usable.\n\n**Rejected: leaving the table to scroll horizontally\
+    \ inside the region.** Six columns behind a scrollbar nobody looks for, in a 413px\
+    \ column, is worse than the blank rows it replaces.\n\n**Rejected: making the\
+    \ list region wide enough for the table (~700px).** At 1280 that leaves 490px\
+    \ for the record, which inverts master and detail; and at the 840px window the\
+    \ density spec exercises, no split can hold a 700px table and a record at once.\
+    \ It fails at exactly the width it was supposed to rescue.\n\n**Rejected: shrinking\
+    \ or hiding columns in the narrow region.** That is the right answer and it is\
+    \ task-238's \u2014 \"the narrow-column row\" is that task by name. Doing it here\
+    \ would be designing the row while claiming to be moving it.\n\n**Rejected: converting\
+    \ the shared viewport rule for every table.** A full-width table in an 830px window\
+    \ has a ~780px box, so switching them all over would restack tables that fit today.\
+    \ The opt-in costs ~35 duplicated declarations in `styles.css`; a media query\
+    \ and a container query cannot be combined into one rule, and the alternatives\
+    \ (a class toggled from React, a custom property per declaration) both put the\
+    \ answer somewhere a reader of that file cannot see it.\n\n**What this leaves\
+    \ task-238:** a 331px card per task. Two tasks fit the region. The row is the\
+    \ whole of that task's remaining job and the numbers are in the progress entry\
+    \ above.\n\n---\n\n**Also landed here, and it is not scope creep:** `docs/tasks-shell.md`,\
+    \ linked from `docs/index.md`. task-236's ac-4 asked for one page the building\
+    \ children could read and its close entry parked the writing on this task, being\
+    \ the first child to take a worktree. The decided shape had ended up spread across\
+    \ task-235 log entries 3, 8 and 9 written weeks apart \u2014 the exact fragmentation\
+    \ ac-4 existed to prevent \u2014 so the page supersedes all three and says so.\n"
+  data:
+    operation:
+      id: c17b5a90-6d38-4e2f-b410-83f2e6d91a7c
+      kind: log_append
+      fingerprint: 34b2b39c3b2901acbb71eaac105a89f4
+- id: 12
+  ts: '2026-09-06T08:54:03.011590Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, deliverables.
+  data:
+    fields:
+    - acceptance
+    - deliverables
+    operation:
+      id: 7a2f6e05-8c41-4d93-b5e7-1f38c0d7a962
+      kind: update_content
+      fingerprint: dc60cc9884e956c07a11347a9bb3f7fd
