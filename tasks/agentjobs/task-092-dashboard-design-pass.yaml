@@ -1,17 +1,11 @@
 schema: 2
 id: task-092-dashboard-design-pass
-title: 'Rethink the next-action ladder: should the calm rungs coexist?'
+title: 'The Dashboard is a slot board: one card per concurrent run'
 created: '2026-08-11T08:01:24.843122Z'
-updated: '2026-09-05T20:01:59.965885Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: 'Deferred until the React dashboard (task-087) is at parity -- see the
-  decision entry of 2026-08-12. Nothing is needed now. When it is picked up: decide
-  whether the calm rungs (backlog and ''next up'') should coexist when nothing is
-  active and work is ready, whether the strict precedence survives for the alarming
-  rung, and whether this is a narrow ladder tweak or the start of a wider dashboard
-  design pass.'
+updated: '2026-09-06T00:55:55.796487Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: critical
 queue_position: 4
@@ -20,87 +14,236 @@ tags:
 - gui
 - workflow
 - design
-effort: a thinking pass, then small
+- dashboard
+- dispatch
+- react
+effort: a design pass that is now mostly decided, then medium
 assignment:
   eligible: []
 spec:
-  summary: 'The next-action ladder from task-081 shows exactly one panel by strict
-    precedence. That may be too strict: when nothing is active and work is ready to
-    start, the ''start the next task'' panel is arguably the most useful thing on
-    the page even if drafts are parked. Rethink whether some rungs should coexist.'
-  intent: "Captured 2026-08-11 by the owner immediately after task-081 merged, as\
-    \ a\nthought worth keeping rather than a specified change:\n\n    \"if there is\
-    \ no active task and there are some ready, it should present the panel to\n  \
-    \  start a next task, backlog specs can maybe co exist with start next task panel...\n\
-    \    needs some thought, the dashboard of agentjobs deserves more thought\"\n\n\
-    task-081 deliberately made the ladder strict -- first match wins, everything else\n\
-    suppressed -- because two panels of equal weight made the reader do the ranking\
-    \ the page\nexists to do for them. That reasoning holds for an *alert* competing\
-    \ with anything else.\nIt is weaker between the two calm rungs, where neither\
-    \ is urgent and the question is\nwhich is more useful rather than which is more\
-    \ alarming."
-  description: "## The specific case\n\nNothing active, some tasks ready, some drafts\
-    \ parked on a human. Today the ladder shows\nthe backlog panel and suppresses\
-    \ \"Next up\", because backlog outranks next_up. The\nargument against that ordering:\
-    \ if no work is in flight, starting work is the higher-value\nprompt, and a parked\
-    \ draft is by definition not blocking anything.\n\n## What needs deciding\n\n\
-    - Should \"Next up\" and the backlog coexist when neither is urgent, or does that\n\
-    \  re-create the two-calls-to-action problem task-081 fixed?\n- If they coexist,\
-    \ does one of them shrink -- a one-line strip rather than a panel -- so\n  there\
-    \ is still a visual primary?\n- Does \"nothing active\" belong in the ladder condition\
-    \ at all? It is a fourth signal\n  (`lifecycle: active` count) alongside blocked\
-    \ / backlog / claimable, and adding it\n  makes the ladder a small rules table\
-    \ rather than a chain.\n- Does the strictness survive at all for the alert rung?\
-    \ Probably yes -- an alarm\n  competing with a nudge is the case the strict ladder\
-    \ was built for.\n\n## The wider note\n\nThe owner's framing was that \"the dashboard\
-    \ of AgentJobs deserves more thought\" -- that\nthis is the page the product is\
-    \ judged on, and it has so far been evolved one fix at a\ntime (task-080 tiers,\
-    \ task-081 ladder) rather than designed as a whole. Worth considering\nwhether\
-    \ this task is the narrow ladder tweak or the start of a broader dashboard design\n\
-    pass. That choice is itself part of what needs deciding.\n\nRelevant timing: the\
-    \ React port (task-082) re-implements the dashboard in task-087. Doing\nthis thinking\
-    \ before that port lands avoids porting a layout that is about to change,\nand\
-    \ task-087 already carries an open decision about where the ladder logic is computed."
-  constraints: "- Whatever changes, an alert must not have to compete for attention\
-    \ with\n  a non-urgent panel. That is the failure task-081 fixed and it should\
-    \ not be reopened.\n- The backlog must stay traceable however this lands -- suppressed,\
-    \ shrunk, or\n  coexisting. A draft nobody sees is the failure task-080 fixed.\n\
-    - If the ladder becomes a rules table rather than a chain, the precedence still\
-    \ has to be\n  computed in one place, not re-derived per template."
-  out_of_scope: 'Implementation before the design question is answered. The React
-    port
+  summary: 'Jeff, 2026-09-05: the Dashboard becomes a board of exactly `max_concurrent_runs`
+    cards. Each card holds either the live run occupying that slot, or the next queued
+    task with enough information to judge it and a Dispatch button. That answers the
+    question this task was filed to ask -- the calm rungs are not re-ranked, they
+    are replaced by a board whose shape is the machine''s capacity.'
+  intent: "Filed 2026-08-11, immediately after task-081 merged, as a thought worth\
+    \ keeping:\n\n    \"if there is no active task and there are some ready, it should\
+    \ present the panel to\n    start a next task, backlog specs can maybe co exist\
+    \ with start next task panel...\n    needs some thought, the dashboard of agentjobs\
+    \ deserves more thought\"\n\nThe thought has now arrived, and it is not a ladder\
+    \ tweak. Jeff, 2026-09-05:\n\n    \"the dashboard should show the X max concurrent\
+    \ number of runs, either with next\n    task and info and dispatch button, or\
+    \ the active run using that slot.... there\n    should be a way to override the\
+    \ max from gui\"\n\nThe ladder ranks *panels* and shows the winner. A board ranks\
+    \ nothing: it shows the machine's capacity as a fixed number of cells and fills\
+    \ each one with whatever is true of it. The reason the calm rungs competed was\
+    \ that the page had one slot for a call to action; a board has as many as the\
+    \ machine does, so the competition disappears rather than being adjudicated."
+  description: '## What the board is
 
-    of the dashboard (task-087), which should consume whatever this decides rather
-    than
 
-    racing it.'
+    One card per run slot, `max_concurrent_runs` of them. A card is in one of two
+    states:
+
+
+    - **Occupied** -- a live run. What `GET /api/runs/live` already returns per run:
+    the task, its title, the run''s health (`Working`, `Waiting on you`, `No output`,
+    `Process gone` -- task-328''s vocabulary, which exists precisely because "live"
+    does not mean "working"), elapsed time, and a link into the task.
+
+    - **Free** -- the next queued task for that cell, with enough of its spec to judge
+    it, and a Dispatch button. This is the panel task-337 shipped, one per free slot
+    rather than once for the page.
+
+
+    Everything needed on the read side exists. `GET /api/runs/live` (`src/agentjobs/api/routes/runs.py`)
+    returns `occupied`, `max_concurrent_runs`, `dispatch_configured`, the runs and
+    the lock holders, with `occupied` counted by exactly the expression the concurrency
+    guard uses so the page and a refused dispatch cannot disagree. The dashboard endpoint
+    returns the queue. This is mostly an arrangement problem, and the arrangement
+    has real decisions in it.
+
+
+    ## What still has to be decided
+
+
+    **1. There is no such thing as slot 3.** `live_runs` returns a list; slots are
+    not identified, allocated or numbered anywhere in the system. So the board''s
+    cells are a fiction the page maintains, and the question is how it maintains it
+    without the cards shuffling every two seconds as the poll returns. Stable ordering
+    rule, stated: occupied cells first in start order, free cells after, is the obvious
+    one and is worth writing down rather than falling out of a `map`.
+
+
+    **2. The board is machine-wide; the Dashboard is project-scoped.** A run in another
+    project occupies a slot on this machine, and `dispatch_configured` and the ceiling
+    are machine facts. So the occupied cells can hold work from projects other than
+    the one you are looking at -- task-328 already handles this on the Runs page by
+    giving every row its own project name and its own server-built link, and the board
+    should reuse that rather than re-solve it. The free cells are the asymmetric half:
+    whose queue fills them? The project you are looking at is the obvious answer and
+    is not the only one. Decide, record the rejected alternative.
+
+
+    **3. N free cells need N different tasks.** Not the same next task repeated. `agentjobs
+    next` answers with one task; the board wants the top N claimable, in queue order,
+    with the ones excluded still excluded for the same reasons (`_explain_no_work`).
+    And dispatching one has to remove it from its cell and re-fill the rest without
+    the other cards jumping. Whether the server answers `next_n` or the page takes
+    the head of the backlog it already has is a real choice with a correctness argument
+    on the server side.
+
+
+    **4. What happens at the edges.** `max_concurrent_runs: 1` is one card and the
+    board is a panel. `dispatch_configured: false` means the ceiling is a default
+    nobody chose, and the honest board there is not four confident empty cells --
+    `capacitySentence` in `LiveRuns.tsx` already has the honest sentence for this
+    case. And with the ceiling now user-settable (task-344), a person can set it to
+    12: the board must stay legible and must not smuggle a scroll into a page whose
+    whole point is not scrolling. State the bound and what happens past it.
+
+
+    **5. Lock holders are not slots.** A scripted finish and the merge runway are
+    this machine working, they appear in `holders`, and they hold no run slot. They
+    cannot be cards without making the count wrong. They still have to be visible
+    -- a board that says "3 free" while a merge is grinding is answering the wrong
+    question. Somewhere adjacent, and decided here.
+
+
+    **6. What the board replaces.** The next-action ladder''s calm rungs and the capacity
+    row (task-337) are both saying, less directly, what the board says. Say which
+    survive, which are absorbed, and where anything dropped went. The alert rung is
+    the one thing this must not weaken: task-081''s strictness existed so an alarm
+    never competes with a nudge, and a board of eight equal cards is exactly the shape
+    that would let it. An alarming state has to outrank the board, not sit in it.
+
+
+    ## What is settled
+
+
+    The scope question this task carried as ac-3 is answered by the direction itself:
+    this is the wider dashboard design pass, not a narrow ladder tweak. The ladder''s
+    calm rungs do not need re-ranking because they stop being a ladder.'
+  constraints: '- An alert must not have to compete with the board for attention.
+    task-081 fixed that; a grid of equal cards is the shape most likely to reopen
+    it.
+
+    - The backlog stays traceable however this lands -- task-080. A draft nobody sees
+    is a regression.
+
+    - `occupied` and the ceiling come from `GET /api/runs/live` and are not recomputed
+    in TypeScript. The browser must never be the one place able to disagree with the
+    concurrency guard about whether the machine is full.
+
+    - A free cell''s Dispatch button is the one-click contract task-188 and task-337
+    established: it names who clicked, and choosing a group, a posture or a brief
+    still happens on the task''s own page.
+
+    - The board must fit one viewport at the ceiling values a person will actually
+    set -- task-294, whose acceptance is measured geometry at named viewports.
+
+    - Frontend plus whatever the free-cell question forces on the dashboard endpoint.
+    Changing the ceiling is task-344, not this.
+
+    - Take a worktree and bootstrap it before anything else; one unqualified `scripts/check.py`
+    on the rebased branch before the handoff.
+
+    - Jeff drives it in a browser on his own screen before it merges: sandbox on its
+    own port with seeded throwaway data, and seed both states -- a board with runs
+    in it and an idle one.'
+  out_of_scope: '- The control that changes `max_concurrent_runs` -- task-344. This
+    board reads the ceiling.
+
+    - The count tiles and the analytics page they move to -- task-212, task-213.
+
+    - The header''s contents or breakpoint -- task-292, task-167, task-168.
+
+    - The Runs page itself. It stays; it is the long form of what a card shows.
+
+    - Slot identity in the dispatch machinery. Nothing here allocates or numbers real
+    slots; the cells are a presentation.
+
+    - Visual restyling beyond what the board needs: colours, typography, the spacing
+    scale.'
   context:
-  - path: src/agentjobs/dashboard.py
-    why: Shared Python next-action computation consumed by the React dashboard.
-  - path: tasks/agentjobs/task-081-dashboard-next-action-ladder.yaml
-    why: Why the ladder is strict today, including the rejected alternatives.
-  - path: tasks/agentjobs/task-087-react-dashboard.yaml
-    why: Re-implements this dashboard; should consume this decision, not race it.
   - path: frontend/src/components/Dashboard.tsx
-    why: Current React dashboard whose layout and calm action panels this design pass
-      would change.
+    why: The ladder and the panels the board replaces or absorbs.
+  - path: frontend/src/components/LiveRuns.tsx
+    why: The machine-wide query, the health vocabulary, the capacity sentence and
+      the poll cadence the board needs. Already shared by three surfaces; the board
+      is the fourth.
+  - path: src/agentjobs/api/routes/runs.py
+    why: '`occupied`, `max_concurrent_runs`, `dispatch_configured`, runs and holders
+      -- the whole read side, with the reasoning for why the numbers ride along with
+      the list.'
+  - path: src/agentjobs/dashboard.py
+    why: The shared next-action computation. Whether it answers with N next tasks
+      instead of one is decision 3.
+  - path: frontend/src/App.tsx
+    why: '`DashboardPage`, `useDashboardDispatch` and the per-task busy/refusal handling
+      a free cell''s button needs.'
+  - path: tasks/agentjobs/task-081-dashboard-next-action-ladder.yaml
+    why: Why the ladder is strict, including the rejected alternatives. The alert-versus-nudge
+      argument survives the board.
 acceptance:
 - id: ac-1
-  text: whether the calm rungs coexist is decided and recorded, with the rejected
-    alternative
+  text: The Dashboard renders exactly `max_concurrent_runs` cells, driven by the value
+    in `GET /api/runs/live` and not by any count computed in the browser -- asserted
+    at more than one ceiling value.
   status: pending
 - id: ac-2
-  text: whether 'nothing active' joins the ladder condition is decided
+  text: An occupied cell shows the run's task, its health in task-328's vocabulary,
+    its elapsed time and a working link into the task -- including when the run belongs
+    to a different project than the one being viewed, where it links into that project.
   status: pending
 - id: ac-3
-  text: the scope question -- narrow tweak versus wider dashboard design pass -- is
-    answered
+  text: N free cells offer N different tasks in queue order, and dispatching one re-fills
+    the board without duplicating a task into two cells.
+  status: pending
+- id: ac-4
+  text: 'Cell order is stable across polls: a board watched through a run starting
+    and a run ending does not reorder the cells that did not change.'
+  status: pending
+- id: ac-5
+  text: 'A decision entry records what happens at the edges -- ceiling of 1, `dispatch_configured:
+    false`, and a ceiling large enough that the cards would not fit -- with the bound
+    and what is shown past it.'
+  status: pending
+- id: ac-6
+  text: A decision entry records where lock holders (finish, runway) appear, given
+    that they are this machine working and hold no run slot.
+  status: pending
+- id: ac-7
+  text: A decision entry records what the board replaced or absorbed, where anything
+    dropped went, and how an alarming state still outranks the board rather than sitting
+    in it as one more card.
+  status: pending
+- id: ac-8
+  text: '`scripts/check.py` green with no arguments on a clean rebased tree, and Jeff
+    has driven it in a browser on his own screen with both an idle board and a board
+    with runs in it.'
   status: pending
 deliverables: []
 dependencies:
 - task: task-081-dashboard-next-action-ladder
   type: related
-  note: The ladder this reconsiders, with the reasoning behind its strictness.
+  note: The ladder this replaces, with the reasoning behind its strictness. The alert-versus-nudge
+    argument survives.
+- task: task-344
+  type: related
+  note: The GUI control for the ceiling. This board reads the ceiling and does not
+    change it; either order works.
+- task: task-294
+  type: related
+  note: The Dashboard must fit one viewport. The board is what has to fit, and a user-settable
+    ceiling makes what has to fit variable.
+- task: task-212
+  type: related
+  note: Moves the count tiles off the Dashboard, which is space the board wants.
+- task: task-337
+  type: related
+  note: Shipped the next-up panel with its Dispatch button and the capacity row. The
+    board is that panel once per free slot; this task says which of the two survives.
 links: []
 branches: []
 log:
@@ -170,3 +313,78 @@ log:
     placement:
       kind: top
     from_band: medium
+- id: 4
+  ts: '2026-09-06T00:55:26.323051Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, dependencies, effort, spec, tags, title.
+  data:
+    fields:
+    - acceptance
+    - dependencies
+    - effort
+    - spec
+    - tags
+    - title
+    operation:
+      id: b1d47e05-9c33-4a6f-8e21-5d90a7c6f3ab
+      kind: update_content
+      fingerprint: ba3a99c37412b25e24780699cc01b1c0
+- id: 5
+  ts: '2026-09-06T00:55:47.567749Z'
+  actor: claude
+  type: decision
+  body: "Reframed from a ladder question to a slot board, by Jeff on 2026-09-05.\n\
+    \nHe said, in chat: \"the dashboard should show the X max concurrent number of\
+    \ runs, either\nwith next task and info and dispatch button, or the active run\
+    \ using that slot.... there\nshould be a way to override the max from gui\". Filed\
+    \ here rather than into task-294\nbecause that task is about bounding the Dashboard\
+    \ to one viewport and is explicitly\nfrontend-only; this decides what is on it,\
+    \ which is the question this task was opened to\nask.\n\nWhat that settles, and\
+    \ what it does not:\n\n- **ac-3 as it stood is answered.** This is the wider dashboard\
+    \ design pass, not a narrow\n  ladder tweak. The old ac-1 and ac-2 -- whether\
+    \ the calm rungs coexist, and whether\n  \"nothing active\" joins the ladder condition\
+    \ -- are dissolved rather than answered: a\n  board has one cell per run slot,\
+    \ so there is no single call-to-action position for the\n  rungs to compete over,\
+    \ and \"nothing active\" is not a condition on a ladder but simply\n  a board\
+    \ with every cell free. They are replaced by acceptance on the board's own\n \
+    \ behaviour.\n- **The alert argument survives intact.** task-081 made the ladder\
+    \ strict so an alarm\n  never competes with a nudge, and a grid of equal cards\
+    \ is exactly the shape that would\n  reopen that. Carried into the constraints\
+    \ and into ac-7 rather than dropped.\n- **The title changed** from \"Rethink the\
+    \ next-action ladder: should the calm rungs\n  coexist?\", which now names a question\
+    \ nobody is going to answer. The old title is here\n  and the reasoning above\
+    \ is the trail.\n\n**Rejected: folding this into task-294.** The two are one Dashboard\
+    \ and it is tempting.\nAgainst it: task-294's acceptance is measured geometry\
+    \ at named viewports, which is a\nverifiable thing a session can finish; loading\
+    \ it with \"and also redesign the page\"\nturns it into a task whose done-ness\
+    \ is a matter of taste. They stay separate and\nrelated, and whichever runs second\
+    \ inherits the other's result.\n\n**Rejected: putting the ceiling control in this\
+    \ task.** Jeff asked for both in one\nbreath, but they are different work -- the\
+    \ board is frontend reading an endpoint that\nalready answers correctly, while\
+    \ the control writes a machine-local config file with a\nknown data-loss defect\
+    \ in its only writer (task-198) and needs a server-side\nauthorization check.\
+    \ Filed as task-344, `related` in both directions, so the board can\nship without\
+    \ waiting on the writer."
+  data:
+    operation:
+      id: c72a9d61-4e08-4b3f-83f7-1a6b2e94d5cc
+      kind: log_append
+      fingerprint: e97e5e33558eacf2535606bdf63a6fc0
+- id: 6
+  ts: '2026-09-06T00:55:55.796290Z'
+  actor: claude
+  type: transition
+  body: Promoted out of draft. It was parked on `human`/`spec` waiting for the direction
+    the ball_prompt described; Jeff gave it on 2026-09-05 (decision entry above),
+    so the thing it was waiting for has arrived and it is claimable. Six named decisions
+    remain, but they are decisions for the session that works it rather than a missing
+    spec.
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: d8e5b3f2-6a17-4c90-b2de-70f4a8c19e63
+      kind: promote
+      fingerprint: 05ade5b3e4aa0597249c8e0b5d756c2e

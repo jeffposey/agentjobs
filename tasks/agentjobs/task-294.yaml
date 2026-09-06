@@ -2,7 +2,7 @@ schema: 2
 id: task-294
 title: The Dashboard fits one screen, and never scrolls
 created: '2026-08-23T20:39:32.963071Z'
-updated: '2026-09-05T20:01:54.068066Z'
+updated: '2026-09-06T00:56:12.334265Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -162,8 +162,14 @@ dependencies:
     task.
 - task: task-092-dashboard-design-pass
   type: related
-  note: Asks what the next-action ladder should hold, which is the same question from
-    the other end.
+  note: Decides what is on the Dashboard, and since 2026-09-05 that is a slot board
+    of one card per concurrent run. That is what has to fit -- read it before deciding
+    what to cut, because it changes the answer.
+- task: task-344
+  type: related
+  note: Makes `max_concurrent_runs` settable from the browser, which makes the number
+    of cards on the board -- and therefore the amount that has to fit -- a value a
+    person can change after this task ships.
 links: []
 branches: []
 log:
@@ -193,3 +199,15 @@ log:
     placement:
       kind: top
     from_band: medium
+- id: 3
+  ts: '2026-09-06T00:56:12.334106Z'
+  actor: claude
+  type: note
+  body: Updated dependencies.
+  data:
+    fields:
+    - dependencies
+    operation:
+      id: a05f7c48-91b3-4de2-8c6a-3b71e0d5f92a
+      kind: update_content
+      fingerprint: f6787f565dd61df51079ea47da9d3362
