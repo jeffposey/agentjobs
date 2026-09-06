@@ -2,49 +2,13 @@ schema: 2
 id: task-092-dashboard-design-pass
 title: 'The Dashboard is a slot board: one card per concurrent run'
 created: '2026-08-11T08:01:24.843122Z'
-updated: '2026-09-06T03:13:34.881752Z'
+updated: '2026-09-06T03:16:24.335017Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "The Dashboard is a slot board. Branch `feat/task-092-dashboard-slot-board`,\
-  \ five commits, gate green (10 of 10 stages, receipt for `023ceed`). ac-1 to ac-7\
-  \ are met with evidence in the progress entry below; **ac-8 needs you in a browser**,\
-  \ which is the only thing left.\n\n**Six sandboxes are standing, seeded and throwaway**\
-  \ -- click anything, including Dispatch. All at `/app/p/sandbox-here`:\n\n- **http://127.0.0.1:8916**\
-  \ two runs, one of them in another project, one free cell, a merge holding a lock\n\
-  - **http://127.0.0.1:8917** idle -- three free cells, three different tasks, three\
-  \ buttons\n- **http://127.0.0.1:8918** a task blocked on you -- alert on top, board\
-  \ below with its buttons withheld\n- **http://127.0.0.1:8919** ceiling 9 -- draws\
-  \ six and says what it did not draw\n- **http://127.0.0.1:8920** ceiling 1 -- the\
-  \ board as a single full-width panel\n- **http://127.0.0.1:8921** no dispatch config\
-  \ -- degrades to a queue, refuses to draw slots\n\nThey die with the dispatched\
-  \ session that started them. Restart any of them from the worktree at `C:/projects/worktrees/agentjobs-092`:\n\
-  \n    poetry run python scripts/slot_board_sandbox.py 8916\n    poetry run python\
-  \ scripts/slot_board_sandbox.py 8917 --idle\n    poetry run python scripts/slot_board_sandbox.py\
-  \ 8918 --alarm\n    poetry run python scripts/slot_board_sandbox.py 8919 --idle\
-  \ --ceiling 9\n    poetry run python scripts/slot_board_sandbox.py 8921 --idle --unconfigured\n\
-  \nStop each with Ctrl-C; each one deletes its own temporary home on exit. **None\
-  \ of them touches the 8876 dashboard or the real corpus.**\n\n**Three things worth\
-  \ your eyes specifically**, because they are judgement rather than correctness:\n\
-  \n1. **8918 -- the alarming board.** I changed my mind here mid-build. The first\
-  \ implementation hid the free cells entirely under an alarm, which is the strict\
-  \ reading of task-081. I reversed it: something is waiting on you most days, so\
-  \ a board that shrank whenever that was true is a board you would rarely see whole.\
-  \ It now keeps every cell and withholds only the *buttons*. Reasoning and both rejected\
-  \ alternatives are in log entry 15. **If you disagree, this is the one to say so\
-  \ about** -- it is a one-line change either way.\n2. **8917 -- press Dispatch.**\
-  \ I could only click it programmatically: `mcp__claude-in-chrome`'s `left_click`\
-  \ at the button's measured centre delivered no events at all (task-225's failure\
-  \ mode), so I have proof the handler works and no proof a hand does. It is a real\
-  \ sleeper runner; the cell should flip to a run and the other two should not move.\n\
-  3. **The board's height.** Three cells is 636px on a 390x844 phone. That is honest\
-  \ rather than broken, but it is most of a screen, and task-294 inherits it. Nothing\
-  \ to fix here unless you think three cells is already too much.\n\n**One thing I\
-  \ could not do:** log entry 10 asked me to tell task-345 whether `LiveRuns.tsx`\
-  \ was hollowed out. The API refused -- a run may act only on its own task (task-332,\
-  \ working as designed). The answer is **no**, and the paragraph to paste is at the\
-  \ end of the progress entry.\n\nApprove and the scripted finish takes it from here;\
-  \ or say what to change and hand it back."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: critical
 queue_position: 4
@@ -944,3 +908,25 @@ log:
       id: a4e9d2c7-1b63-4f85-8d0a-2e7c5b9f6a14
       kind: log_append
       fingerprint: c1ac4f534190948eac6e97407930a605
+- id: 22
+  ts: '2026-09-06T03:16:16.153766Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 23
+  ts: '2026-09-06T03:16:24.334767Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-092-dashboard-slot-board` (023ceedf).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-092.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_753aa0a9\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-092-dashboard-slot-board
+    finish_id: fin_753aa0a9
