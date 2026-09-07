@@ -230,3 +230,45 @@ def test_client_404_error() -> None:
         client.get_task("missing")
     assert "Task not found" in str(excinfo.value)
     client.close()
+
+
+def test_a_patch_is_rendered_as_json_at_every_depth() -> None:
+    """Nested datetimes and enums reach the route as strings, not as a 500 at the encoder.
+
+    Task-388: this used to normalise the top level and one level of list, so a patch
+    shaped like ``branches=[{"merged_at": datetime(...)}]`` -- the one the scripted finish
+    writes after a merge -- reached ``httpx`` intact and died in its JSON encoder. On the
+    file backend there was no encoder to die in, so it had never happened.
+    """
+    from datetime import datetime, timezone
+
+    from agentjobs.models_v2 import Priority
+
+    seen: Dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(json.loads(request.content.decode()))
+        return httpx.Response(200, json=_sample_task())
+
+    client = _client_with_handler(httpx.MockTransport(handler))
+    client.operations.update_content(
+        "task-001",
+        actor="claude",
+        operation_id="op-1",
+        expected_revision=datetime(2026, 9, 7, 21, 0, tzinfo=timezone.utc),
+        priority=Priority.CRITICAL,
+        branches=[
+            {
+                "name": "fix/task-388",
+                "status": "merged",
+                "merged_at": datetime(2026, 9, 7, 21, 21, 43, tzinfo=timezone.utc),
+            }
+        ],
+    )
+    client.close()
+
+    assert seen["priority"] == "critical"
+    # ISO, because that is what the route parses -- `default=str` would have sent
+    # '2026-09-07 21:21:43+00:00', which round-trips through nothing.
+    assert seen["branches"][0]["merged_at"] == "2026-09-07T21:21:43+00:00"
+    assert seen["branches"][0]["status"] == "merged"

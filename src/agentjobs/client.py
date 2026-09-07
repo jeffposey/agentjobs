@@ -677,7 +677,9 @@ class TaskClient:
                 "type": self._enum_to_str(type),
                 "body": body,
                 "re": re,
-                "data": data or {},
+                # `data` is a free-form payload every caller shapes for itself, so it is
+                # the other place a datetime or an enum can reach the wire (task-388).
+                "data": self._wire_value(data or {}),
             },
         )
         return self._parse_task(response.json())
@@ -707,21 +709,35 @@ class TaskClient:
     # Internal helpers
     # ------------------------------------------------------------------
     def _serialise_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Normalise enum values so callers may pass enums or strings."""
-        serialised: Dict[str, Any] = {}
-        for key, value in payload.items():
-            if value is None:
-                serialised[key] = None
-                continue
-            if isinstance(value, Enum):
-                serialised[key] = self._enum_to_str(value)
-            elif isinstance(value, list):
-                serialised[key] = [
-                    self._enum_to_str(item) if isinstance(item, Enum) else item for item in value
-                ]
-            else:
-                serialised[key] = value
-        return serialised
+        """Render a caller's fields as the JSON the route expects.
+
+        Enums become their values and datetimes become ISO strings, **at every depth**.
+        Depth is the part task-388 paid for: this used to normalise the top level and one
+        level of list, so ``branches=[{"merged_at": datetime(...)}]`` reached ``httpx``
+        intact and died in its JSON encoder -- after the merge, the rebuild and the
+        restart of a scripted finish, with no frame in the traceback naming a field.
+
+        Each value is converted to its documented wire form, never stringified as a
+        fallback: ``json.dumps(..., default=str)`` would have turned that same datetime
+        into ``'2026-09-07 21:21:43+00:00'``, which is not what the route parses and not
+        what the store would keep. A type this does not know about is still passed
+        through to fail loudly at the encoder, because a silent guess about what the
+        server wants is the failure mode worth keeping.
+        """
+        return {key: self._wire_value(value) for key, value in payload.items()}
+
+    @classmethod
+    def _wire_value(cls, value: Any) -> Any:
+        """One value in its JSON form, recursing through the containers a payload uses."""
+        if isinstance(value, Enum):
+            return cls._enum_to_str(value)
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if isinstance(value, Mapping):
+            return {str(key): cls._wire_value(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [cls._wire_value(item) for item in value]
+        return value
 
     @staticmethod
     def _extract_error_body(response: httpx.Response) -> Dict[str, Any]:
@@ -746,7 +762,10 @@ class TaskClient:
         returns the bare task exactly as it always has, which is what keeps every
         existing caller working while this surface exists alongside them.
         """
-        body = dict(payload)
+        # Through the serialiser rather than `dict(payload)`: `handoff` forwards a
+        # caller's `questions` mappings verbatim, and nothing between here and httpx's
+        # encoder would render a datetime or an enum inside one (task-388).
+        body = self._serialise_payload(payload)
         body["operation_id"] = operation_id
         if expected_revision is not None:
             body["expected_revision"] = (

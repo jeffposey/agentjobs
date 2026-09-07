@@ -1220,6 +1220,50 @@ class TestTheUnexpected:
         assert task.ball is Ball.HUMAN
         assert "something nobody thought about" in escalation(task).body
 
+    def test_the_record_says_where_it_threw_not_only_what_it_threw(
+        self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Task-388: a type and a message do not place a failure; frames do.
+
+        ``TypeError: Object of type datetime is not JSON serializable`` named no file, no
+        line and no field, so working out which of the sequence's writers had thrown it
+        meant reasoning backwards from which step had *not* run. The frames were in the
+        spawn log the whole time and never reached the task, which is the only artefact
+        the next reader is guaranteed to have.
+        """
+        import agentjobs.dispatch.finish as finish_module
+
+        def restart_then_explode(*args: Any, **kwargs: Any) -> Any:
+            raise TypeError("Object of type datetime is not JSON serializable")
+
+        monkeypatch.setattr(finish_module, "restart_server", restart_then_explode)
+
+        result = run(world)
+        assert result.reason == "unexpected_error"
+
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        entry = escalation(task)
+        # The function that raised, and the module it is in, in the entry a reader opens.
+        assert "restart_then_explode" in entry.body
+        assert "test_dispatch_finish.py" in entry.body
+        assert "restart_then_explode" in entry.data["traceback"]
+        # The prompt an agent is woken with stays the short ask; the frames are evidence.
+        assert task.ball_prompt is not None
+        assert "restart_then_explode" not in task.ball_prompt
+
+    def test_the_frames_place_a_file_without_naming_a_home_directory(self) -> None:
+        """This record has a public remote, so the path is cut at the package root."""
+        from agentjobs.dispatch.finish import where_it_was_raised
+
+        try:
+            raise RuntimeError("boom")
+        except RuntimeError as error:
+            rendered = where_it_was_raised(error)
+
+        assert "tests/test_dispatch_finish.py:" in rendered
+        assert "C:" not in rendered and "/Users/" not in rendered
+
     def test_a_decline_is_not_swallowed_as_an_unexpected_error(self, world: Dict[str, Any]) -> None:
         """The guard sits outside the sequence, so its own signals pass through it."""
         world["manager"].update_task(world["task_id"], actor="claude", branches=[])
@@ -2517,3 +2561,139 @@ class TestLeadingWithTheCause:
         assert rendered.count("FAILED") == SALIENT_LIMIT
         assert "and possibly more" in rendered
         assert "gate.log" in rendered
+
+
+class TestWritingTheRecordOverTheService:
+    """The manager a finish gets on a project that has cut over to SQLite.
+
+    Every test above hands the sequence a :class:`~agentjobs.manager.TaskManager` over
+    files, which is what the finisher had for as long as this project stored its records
+    that way. It is not what it has now: ``task_manager_for`` returns a
+    :class:`~agentjobs.remote_manager.RemoteTaskManager` for a SQLite project outside the
+    server, so every patch the finish writes becomes an HTTP request body -- and the
+    difference between a Python object and its JSON form, which the file backend simply
+    did not have, is a ``TypeError`` in ``httpx``'s encoder.
+
+    Task-388 is that failure: after a real merge, a real rebuild and a verified restart,
+    `mark_branch_merged` died on ``Object of type datetime is not JSON serializable`` and
+    every scripted finish on this project stopped one step short of closing its task. A
+    files-only test cannot see it, which is precisely why there was not one.
+
+    The transport is ASGI rather than a socket, so the request goes through routing, the
+    capability gate and the real route -- the half that a stub manager would skip and the
+    half this bug lived in.
+    """
+
+    @pytest.fixture()
+    def remote(self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> Iterator[Any]:
+        from starlette.testclient import TestClient
+
+        from agentjobs.api.dependencies import reset_dependency_cache
+        from agentjobs.api.main import app
+        from agentjobs.client import TaskClient
+        from agentjobs.cutover import cut_over
+        from agentjobs.projects import ProjectRegistry
+        from agentjobs.remote_manager import RemoteTaskManager
+        from agentjobs.store_factory import close_databases, mark_server_process
+
+        monkeypatch.setenv("AGENTJOBS_HOME", str(world["home"]))
+        # Both caches are process-global and both outlive a test: a handle to the
+        # previous case's database, and the dependency wiring that resolved it.
+        close_databases()
+        reset_dependency_cache()
+        registry = ProjectRegistry(world["home"])
+        registry.add(world["root"], project_id="demo")
+        # The records exist as files at this point -- `world` wrote them there. This is
+        # the same move the real project made on 2026-09-07, and what it changes is the
+        # manager, not the data.
+        cut_over(world["project"], backfill_git=False)
+        reset_dependency_cache()
+
+        # `agentjobs.api.main` declares the server on import, and the import is cached,
+        # so only the first test in a session gets that declaration -- conftest's autouse
+        # teardown zeroes it after every test. Without this the app answers the second
+        # case with `StoreAccessError`, which would look like a product bug and is a
+        # test-session artefact.
+        mark_server_process()
+        connection = TestClient(app)
+        client = TaskClient("http://testserver", client=connection, project_id="demo")
+        yield RemoteTaskManager(client, world["project"])
+        connection.close()
+        close_databases()
+        reset_dependency_cache()
+
+    def test_marking_the_branch_merged_survives_the_wire(
+        self, world: Dict[str, Any], remote: Any
+    ) -> None:
+        """The write that stopped every finish on this project, over the real route."""
+        from agentjobs.dispatch.finish import mark_branch_merged
+
+        mark_branch_merged(remote, world["task_id"], world["branch"])
+
+        task = remote.get_task(world["task_id"])
+        assert task is not None
+        merged = [entry for entry in task.branches if entry.name == world["branch"]]
+        assert merged, "the branch must still be on the record"
+        assert merged[0].status is BranchStatus.MERGED
+        # The timestamp is the payload that could not cross: assert it arrived and was
+        # stored as a time, not that the request merely returned.
+        assert merged[0].merged_at is not None
+
+    def test_a_branch_already_merged_is_carried_across_untouched(
+        self, world: Dict[str, Any], remote: Any
+    ) -> None:
+        """The other datetime on that patch, which no new value passes through.
+
+        An entry marked merged by an earlier finish already holds a ``merged_at``, and
+        the patch re-sends every entry. So the round trip has to render a datetime it did
+        not construct -- a case a fix confined to ``datetime.now()`` would still fail.
+        """
+        from agentjobs.dispatch.finish import mark_branch_merged
+
+        remote.update_task(
+            world["task_id"],
+            actor="claude",
+            branches=[
+                {"name": "feat/older", "status": "merged", "merged_at": "2026-09-01T10:00:00Z"},
+                {"name": world["branch"], "status": "active"},
+            ],
+        )
+        mark_branch_merged(remote, world["task_id"], world["branch"])
+
+        task = remote.get_task(world["task_id"])
+        assert task is not None
+        by_name = {entry.name: entry for entry in task.branches}
+        assert by_name["feat/older"].merged_at is not None
+        assert by_name[world["branch"]].status is BranchStatus.MERGED
+
+    def test_a_finish_completes_end_to_end_on_the_backend_this_project_uses(
+        self, world: Dict[str, Any], remote: Any
+    ) -> None:
+        """AC-2, as a test rather than as an observation of one production run.
+
+        The whole sequence, with the remote manager: merge, close, remove the worktree,
+        delete the branch. What task-388 broke was not the merge -- that always worked --
+        but everything the finish writes *after* it, so a test that stops at the merge
+        would still be green today.
+        """
+        result = finish_task(
+            manager=remote,
+            project=world["project"],
+            task_id=world["task_id"],
+            approver="Jeff Posey",
+            home=world["home"],
+            api_base="http://127.0.0.1:1",
+            settings=settings(),
+        )
+        assert result.outcome == FINISHED, result.render()
+        assert landed(world["root"], result)
+
+        task = remote.get_task(world["task_id"])
+        assert task is not None
+        assert task.lifecycle is Lifecycle.CLOSED
+        assert task.outcome is Outcome.COMPLETED
+        merged = [entry for entry in task.branches if entry.name == world["branch"]]
+        assert merged and merged[0].status is BranchStatus.MERGED
+        assert merged[0].merged_at is not None
+        assert not world["worktree"].exists()
+        assert world["branch"] not in worktree_paths(world["root"])
