@@ -188,6 +188,7 @@ function renderPanel(detail: TaskDetailResponse, extra: Partial<TaskDetailProps>
     onPromote: vi.fn(async () => undefined),
     onResume: vi.fn(async () => undefined),
     onAddNote: vi.fn(async () => undefined),
+    onSaveFields: vi.fn(async () => undefined),
   };
   const { container } = render(
     <MemoryRouter>

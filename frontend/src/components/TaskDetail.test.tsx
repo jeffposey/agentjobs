@@ -71,6 +71,7 @@ function renderDetail(value = detail, extra: { promoteError?: string | null; pro
     onPromote: vi.fn(async () => undefined),
     onResume: vi.fn(async (_note: string | null) => undefined),
     onAddNote: vi.fn(async (_body: string) => undefined),
+    onSaveFields: vi.fn(async () => undefined),
   };
   render(<MemoryRouter><TaskDetail detail={value} projectId="inbox" {...actions} {...extra} /></MemoryRouter>);
   return actions;

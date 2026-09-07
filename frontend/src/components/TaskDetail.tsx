@@ -27,6 +27,7 @@ import { identityHeadline } from "./identityProblem";
 import { linkSegments } from "./linkify";
 import { NoteComposer } from "./NoteComposer";
 import { ReviewLinks, cardUrls, reviewPromptFor } from "./ReviewLinks";
+import { TaskFields, type TaskFieldsPatch } from "./TaskFields";
 import { useWideShell } from "./shellLayout";
 
 const PRIORITY_CLASSES: Record<string, string> = {
@@ -800,6 +801,18 @@ export type TaskDetailProps = {
   noteBusy?: boolean;
   noteError?: string | null;
   onAddNote: (body: string) => Promise<void> | void;
+  // Editing the authoring fields is its own act with its own failure, so it keeps its
+  // own busy and error for the same reason the note composer does: an edit that could
+  // not be saved has to say so on a task whose review actions are not even rendered.
+  //
+  // `fieldsVocabulary` is the tags and categories already in use in this project, and
+  // it is optional because it costs a request. `onEditFields` is called the first time
+  // the form is opened, which is when the caller should go and get it.
+  fieldsBusy?: boolean;
+  fieldsError?: string | null;
+  fieldsVocabulary?: { tags: Array<string>; categories: Array<string> };
+  onEditFields?: () => void;
+  onSaveFields: (patch: TaskFieldsPatch) => Promise<void> | void;
   // Dispatch arrives as its own bundle rather than as loose props, so nothing about
   // starting an agent can be mistaken for part of the review panel's contract.
   // Absent, the page renders exactly as it did before dispatch existed.
@@ -867,6 +880,22 @@ export function TaskDetail(props: TaskDetailProps) {
       <section className="grid grid-cols-2 overflow-hidden rounded-lg border border-dark-border bg-dark-surface @min-[768px]:grid-cols-4" aria-label="Task metadata">
         {metadata.map(({ label, value, date }) => <div className="border-b border-r border-dark-border p-3 @min-[768px]:border-b-0" key={label}><div className="text-xs text-dark-muted">{label}</div><div className="mt-1 break-words text-sm">{date ? new Date(value).toLocaleString() : value}</div></div>)}
       </section>
+
+      {/* Directly under the metadata strip, which is where the values it edits are
+          already on screen: the header above shows the priority, the category and the
+          tags, and this is how they change. Collapsed to a single row until asked for,
+          so the review panel below it stays where a reader expects to find it. */}
+      <div className={MEASURE}>
+        <TaskFields
+          task={task}
+          identity={detail.identity}
+          vocabulary={props.fieldsVocabulary}
+          onOpen={props.onEditFields}
+          busy={props.fieldsBusy}
+          error={props.fieldsError}
+          onSave={props.onSaveFields}
+        />
+      </div>
 
       <PromoteError {...props} />
       <ReviewPanel {...props} />
