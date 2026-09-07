@@ -2,24 +2,13 @@ schema: 2
 id: task-358
 title: Task state moves to SQLite on the server
 created: '2026-09-06T06:08:06.698982Z'
-updated: '2026-09-07T06:42:34.056335Z'
+updated: '2026-09-07T19:01:46.280383Z'
 lifecycle: active
-ball: human
-ball_reason: approval
-ball_prompt: 'All three children are done and merged. Four of five criteria met; ac-2
-  needs the actual cutover, which is one reversible command I have deliberately not
-  run on your live tracker.
-
-
-  `agentjobs storage cutover --project agentjobs` -- backs up, imports, verifies,
-  then switches. Preview already ran clean against your real 374 records.
-
-
-  Say go and I will run it and verify ac-2 through the UI and the CLI, then close
-  this epic.
-
-
-  Task 358: http://127.0.0.1:8876/app/tasks/task-358'
+ball: agent
+ball_reason: answer
+ball_prompt: "Cut this machine's agentjobs project over to SQLite now? It is reversible,\
+  \ the preview verified clean against your live 374 records, and the YAML files stay\
+  \ on disk.\n-> Chose: Go \u2014 run it now"
 archived: false
 priority: critical
 queue_position: 843
@@ -4828,3 +4817,65 @@ log:
     outcome: completed
     duration_seconds: 11311.397237
     log_path: C:\Users\jpose\.agentjobs\runs\run_c61da8f0
+- id: 35
+  ts: '2026-09-07T19:01:43.202133Z'
+  actor: Jeff Posey
+  type: handoff
+  body: "Answered by Jeff Posey:\n\nCut this machine's agentjobs project over to SQLite\
+    \ now? It is reversible, the preview verified clean against your live 374 records,\
+    \ and the YAML files stay on disk.\n-> Chose: Go \u2014 run it now"
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 36
+  ts: '2026-09-07T19:01:43.202160Z'
+  actor: Jeff Posey
+  type: answer
+  body: "Chose: Go \u2014 run it now"
+  re: 33
+  data:
+    selected:
+    - "Go \u2014 run it now"
+    other: null
+- id: 37
+  ts: '2026-09-07T19:01:46.280100Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_c61da8f0` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_4f74953a
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: auto
+    caused_by: 36
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_4f74953a\session-settings.json
+    - --name
+    - agentjobs/task-358@4f74953a
+    - --resume
+    - 277359e0-4636-4c19-ab28-7d6bdd13a0df
+    cwd: C:\projects\agentjobs
+    git_head: 7ff7291c
+    session_id: f7336894
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
