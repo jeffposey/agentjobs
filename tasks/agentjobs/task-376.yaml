@@ -3,7 +3,7 @@ id: task-376
 title: Task records must paraphrase rather than quote a person, and the store must
   refuse verbatim quotes at ingest
 created: '2026-09-07T03:43:37.694129Z'
-updated: '2026-09-07T04:43:09.014380Z'
+updated: '2026-09-07T04:43:56.352972Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -453,3 +453,13 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 13
+  ts: '2026-09-07T04:43:56.352827Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 4
+  data:
+    run_id: run_9ee20083
+    outcome: completed
+    duration_seconds: 2451.314149
+    log_path: C:\Users\jpose\.agentjobs\runs\run_9ee20083
