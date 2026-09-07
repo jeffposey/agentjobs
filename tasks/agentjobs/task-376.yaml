@@ -3,7 +3,7 @@ id: task-376
 title: Task records must paraphrase rather than quote a person, and the store must
   refuse verbatim quotes at ingest
 created: '2026-09-07T03:43:37.694129Z'
-updated: '2026-09-07T04:38:34.449919Z'
+updated: '2026-09-07T04:38:48.298666Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -399,3 +399,17 @@ log:
       id: e5a3f28b-7c14-4d60-b9e2-0a71c6d38f45
       kind: log_append
       fingerprint: aae7169409261c7fc7741e9f381fa0fe
+- id: 10
+  ts: '2026-09-07T04:38:48.298496Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-376-quote-policy` (132786f1).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-376.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_9942b26c\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-376-quote-policy
+    finish_id: fin_9942b26c
