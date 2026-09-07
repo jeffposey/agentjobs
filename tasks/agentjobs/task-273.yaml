@@ -2,10 +2,11 @@ schema: 2
 id: task-273
 title: Build authoritative SQLite task storage alongside the AgentJobs server
 created: '2026-08-22T19:00:47.987602Z'
-updated: '2026-09-07T00:42:53.871312Z'
-lifecycle: ready
+updated: '2026-09-07T02:25:13.971392Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 queue_position: 893
@@ -15,6 +16,7 @@ tags:
 - storage
 - decision
 assignment:
+  owner: claude
   eligible: []
 parent: task-358
 spec:
@@ -1638,3 +1640,70 @@ log:
     outcome: completed
     duration_seconds: 356.973437
     log_path: C:\Users\jpose\.agentjobs\runs\run_8ad284df
+- id: 39
+  ts: '2026-09-07T02:25:11.710750Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of task-358, and this run is attempt 1 of
+    2 at one of its children on that authorisation (entry 3 on task-358). They chose
+    posture `autonomous` for the epic, so this run gets it too. No separate approval
+    of this task was given or is required: the epic is what was authorised.'
+  data:
+    authorizes_dispatch: true
+    surface: the epic walk
+    epic:
+      parent: task-358
+      entry: 3
+      attempt: 1
+      limit: 2
+- id: 40
+  ts: '2026-09-07T02:25:12.386321Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 41
+  ts: '2026-09-07T02:25:13.971008Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_8ad284df` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_8cd58e2f
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: epic
+    posture_ceiling: autonomous
+    trigger: child
+    caused_by: 39
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --name
+    - agentjobs/task-273@8cd58e2f
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_8cd58e2f\session-settings.json
+    - --resume
+    - c3b3a806-342a-494e-9b83-95998f6b7970
+    cwd: C:\projects\agentjobs
+    git_head: fb69525b
+    session_id: 0f33c184
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
