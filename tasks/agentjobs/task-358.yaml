@@ -2,7 +2,7 @@ schema: 2
 id: task-358
 title: Task state moves to SQLite on the server
 created: '2026-09-06T06:08:06.698982Z'
-updated: '2026-09-07T06:42:08.427870Z'
+updated: '2026-09-07T06:42:34.056335Z'
 lifecycle: active
 ball: human
 ball_reason: approval
@@ -4818,3 +4818,13 @@ log:
       recommended: false
     multi_select: false
     placeholder: null
+- id: 34
+  ts: '2026-09-07T06:42:34.056108Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 15
+  data:
+    run_id: run_c61da8f0
+    outcome: completed
+    duration_seconds: 11311.397237
+    log_path: C:\Users\jpose\.agentjobs\runs\run_c61da8f0
