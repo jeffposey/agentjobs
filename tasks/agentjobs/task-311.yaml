@@ -2,7 +2,7 @@ schema: 2
 id: task-311
 title: Migrate tasks to server-hosted SQLite and retire task-state Git workflows
 created: '2026-08-24T00:55:20.126619Z'
-updated: '2026-09-07T06:34:08.097629Z'
+updated: '2026-09-07T06:38:09.175280Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -636,3 +636,21 @@ log:
     finish_step: started
     branch: feat/task-311-sqlite-cutover
     finish_id: fin_50980f8d
+- id: 18
+  ts: '2026-09-07T06:38:09.175119Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-311-sqlite-cutover` into `main` as `0852b41d`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-311
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    epic) releases the merge gate (task-021), and run run_fea4e0a1 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 0852b41da00f485f341519f4f8a24dee93cdfd5c
+    branch: feat/task-311-sqlite-cutover
+    base: main
