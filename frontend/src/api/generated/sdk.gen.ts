@@ -675,6 +675,12 @@ export const getTaskApiProjectsProjectIdTasksTaskIdGet = <ThrowOnError extends b
  * Update Task
  *
  * Apply a partial update to a task. State axes move through the verbs, not here.
+ *
+ * The ``actor`` is validated whenever one is sent, exactly as ``create_task``
+ * validates its own (D2): this route writes an entry into an append-only log, and an
+ * attribution nobody can resolve later is worse than a refused request. It was the one
+ * submitted actor in this module that went to the manager unchecked, so a browser edit
+ * could name anybody and a typo became permanent.
  */
 export const updateTaskApiProjectsProjectIdTasksTaskIdPatch = <ThrowOnError extends boolean = false>(options: Options<UpdateTaskApiProjectsProjectIdTasksTaskIdPatchData, ThrowOnError>) => (options.client ?? client).patch<UpdateTaskApiProjectsProjectIdTasksTaskIdPatchResponses, UpdateTaskApiProjectsProjectIdTasksTaskIdPatchErrors, ThrowOnError>({
     url: '/api/projects/{project_id}/tasks/{task_id}',
@@ -1320,6 +1326,12 @@ export const getTaskApiTasksTaskIdGet = <ThrowOnError extends boolean = false>(o
  * Update Task
  *
  * Apply a partial update to a task. State axes move through the verbs, not here.
+ *
+ * The ``actor`` is validated whenever one is sent, exactly as ``create_task``
+ * validates its own (D2): this route writes an entry into an append-only log, and an
+ * attribution nobody can resolve later is worse than a refused request. It was the one
+ * submitted actor in this module that went to the manager unchecked, so a browser edit
+ * could name anybody and a typo became permanent.
  */
 export const updateTaskApiTasksTaskIdPatch = <ThrowOnError extends boolean = false>(options: Options<UpdateTaskApiTasksTaskIdPatchData, ThrowOnError>) => (options.client ?? client).patch<UpdateTaskApiTasksTaskIdPatchResponses, UpdateTaskApiTasksTaskIdPatchErrors, ThrowOnError>({
     url: '/api/tasks/{task_id}',

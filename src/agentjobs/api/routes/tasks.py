@@ -31,7 +31,7 @@ from agentjobs.models_v2 import (
     Task,
 )
 
-from .status import acting_actor, get_acting_project, serving_api_base
+from .status import acting_actor, classify_refusal, get_acting_project, serving_api_base
 from ..authorization import assert_actor_agrees
 from ..dependencies import (
     current_identity,
@@ -471,6 +471,7 @@ async def create_task(
 
 @router.patch("/{task_id}", response_model=Task)
 async def update_task(
+    request: Request,
     task_id: str,
     payload: TaskUpdateRequest,
     actor: Optional[str] = Query(
@@ -478,11 +479,21 @@ async def update_task(
         description="Actor recorded on the manager-owned note an operation_id creates.",
     ),
     manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_acting_project),
 ) -> Task:
-    """Apply a partial update to a task. State axes move through the verbs, not here."""
+    """Apply a partial update to a task. State axes move through the verbs, not here.
+
+    The ``actor`` is validated whenever one is sent, exactly as ``create_task``
+    validates its own (D2): this route writes an entry into an append-only log, and an
+    attribution nobody can resolve later is worse than a refused request. It was the one
+    submitted actor in this module that went to the manager unchecked, so a browser edit
+    could name anybody and a typo became permanent.
+    """
     updates = payload.model_dump(exclude_unset=True)
     operation_id = updates.pop("operation_id", None)
     expected_revision = updates.pop("expected_revision", None)
+    if actor is not None:
+        actor = acting_actor(request, project, str(actor))
     if not updates:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -502,7 +513,10 @@ async def update_task(
             detail=str(exc),
         ) from exc
     except (OperationConflictError, RevisionConflictError) as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        # The structured refusal rather than a bare 409, so a caller can branch on
+        # `revision_conflict` instead of matching a sentence. `detail` still carries
+        # the same text, so this is additive for anything already reading it.
+        raise classify_refusal(exc, task_id) from exc
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

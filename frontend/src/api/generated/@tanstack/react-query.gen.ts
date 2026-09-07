@@ -1248,6 +1248,12 @@ export const getTaskApiProjectsProjectIdTasksTaskIdGetOptions = (options: Option
  * Update Task
  *
  * Apply a partial update to a task. State axes move through the verbs, not here.
+ *
+ * The ``actor`` is validated whenever one is sent, exactly as ``create_task``
+ * validates its own (D2): this route writes an entry into an append-only log, and an
+ * attribution nobody can resolve later is worse than a refused request. It was the one
+ * submitted actor in this module that went to the manager unchecked, so a browser edit
+ * could name anybody and a typo became permanent.
  */
 export const updateTaskApiProjectsProjectIdTasksTaskIdPatchMutation = (options?: Partial<Options<UpdateTaskApiProjectsProjectIdTasksTaskIdPatchData>>): UseMutationOptions<UpdateTaskApiProjectsProjectIdTasksTaskIdPatchResponse, UpdateTaskApiProjectsProjectIdTasksTaskIdPatchError, Options<UpdateTaskApiProjectsProjectIdTasksTaskIdPatchData>> => {
     const mutationOptions: UseMutationOptions<UpdateTaskApiProjectsProjectIdTasksTaskIdPatchResponse, UpdateTaskApiProjectsProjectIdTasksTaskIdPatchError, Options<UpdateTaskApiProjectsProjectIdTasksTaskIdPatchData>> = {
@@ -2243,6 +2249,12 @@ export const getTaskApiTasksTaskIdGetOptions = (options: Options<GetTaskApiTasks
  * Update Task
  *
  * Apply a partial update to a task. State axes move through the verbs, not here.
+ *
+ * The ``actor`` is validated whenever one is sent, exactly as ``create_task``
+ * validates its own (D2): this route writes an entry into an append-only log, and an
+ * attribution nobody can resolve later is worse than a refused request. It was the one
+ * submitted actor in this module that went to the manager unchecked, so a browser edit
+ * could name anybody and a typo became permanent.
  */
 export const updateTaskApiTasksTaskIdPatchMutation = (options?: Partial<Options<UpdateTaskApiTasksTaskIdPatchData>>): UseMutationOptions<UpdateTaskApiTasksTaskIdPatchResponse, UpdateTaskApiTasksTaskIdPatchError, Options<UpdateTaskApiTasksTaskIdPatchData>> => {
     const mutationOptions: UseMutationOptions<UpdateTaskApiTasksTaskIdPatchResponse, UpdateTaskApiTasksTaskIdPatchError, Options<UpdateTaskApiTasksTaskIdPatchData>> = {

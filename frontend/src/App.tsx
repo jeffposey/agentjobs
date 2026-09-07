@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Link,
@@ -41,6 +41,7 @@ import {
   requestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostMutation,
   resumeTaskApiProjectsProjectIdTasksTaskIdResumePostMutation,
   runPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostMutation,
+  updateTaskApiProjectsProjectIdTasksTaskIdPatchMutation,
 } from "./api/generated/@tanstack/react-query.gen";
 import type { DispatchRunView, MutationResultOutput, Priority } from "./api/types";
 import { readRefusal } from "./api/mutation-error";
@@ -691,6 +692,30 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
   const reject = useMutation(rejectTaskApiProjectsProjectIdTasksTaskIdRejectPostMutation());
   const promote = useMutation(promoteTaskApiProjectsProjectIdTasksTaskIdPromotePostMutation());
   const addNote = useMutation(appendLogEntryApiProjectsProjectIdTasksTaskIdLogPostMutation());
+  const update = useMutation(updateTaskApiProjectsProjectIdTasksTaskIdPatchMutation());
+  const [fieldsError, setFieldsError] = useState<string | null>(null);
+  // The tag and category vocabulary the edit form completes against, fetched only once
+  // somebody opens that form. It is the whole task list, which is the heaviest read
+  // this API offers and worth nothing at all to the far larger number of people who
+  // opened this page to read the record -- so it is not paid for on arrival. A lighter
+  // route that answered "what words does this project already use" would be better
+  // still, and is deliberately not part of this task: the constraint is that the UI
+  // edits what the REST route already accepts, and inventing a read to make a datalist
+  // cheaper is the kind of scope drift that turns a form into a sprint.
+  const [wantVocabulary, setWantVocabulary] = useState(false);
+  const vocabularyQuery = useQuery({
+    ...listTasksApiProjectsProjectIdTasksGetOptions({ path: { project_id: projectId } }),
+    enabled: wantVocabulary,
+  });
+  const vocabulary = useMemo(() => {
+    const tags = new Set<string>();
+    const categories = new Set<string>();
+    for (const entry of vocabularyQuery.data ?? []) {
+      for (const tag of entry.tags ?? []) tags.add(tag);
+      if (entry.category) categories.add(entry.category);
+    }
+    return { tags: [...tags].sort(), categories: [...categories].sort() };
+  }, [vocabularyQuery.data]);
   const [noteError, setNoteError] = useState<string | null>(null);
   // Held here rather than read off promote.error because a revision conflict is not
   // a failure to report and forget: the page reloads and the human is asked again,
@@ -741,6 +766,46 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
         await refresh();
       }}
       onReject={async (reason) => { if (!user) return; await reject.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, reason } }); await navigate(`/p/${encodeURIComponent(projectId)}/tasks`, { replace: true }); }}
+      fieldsBusy={update.isPending}
+      fieldsError={fieldsError}
+      fieldsVocabulary={vocabulary}
+      onEditFields={() => setWantVocabulary(true)}
+      onSaveFields={async (patch) => {
+        if (!user) return;
+        setFieldsError(null);
+        try {
+          // `expected_revision` is not optional here and is the whole reason a phone
+          // edit is safe: an agent that wrote to this task since the page rendered
+          // makes the patch a decision taken against content the person has not seen,
+          // and the server refuses it rather than letting the older read win.
+          //
+          // `actor` says whose edit this is, and `operation_id` is what makes the
+          // manager write the log entry naming the fields that moved -- without one
+          // the patch lands silently, and an edit nobody can attribute is the failure
+          // the append-only log exists to prevent.
+          await update.mutateAsync({
+            path: { project_id: projectId, task_id: taskId },
+            query: { actor: user },
+            body: { ...patch, expected_revision: revision, operation_id: crypto.randomUUID() },
+          });
+        } catch (error) {
+          const refusal = readRefusal(error);
+          if (refusal?.code === "revision_conflict") {
+            // Re-read and re-present, exactly as promote does. Resending against the
+            // new revision unasked would apply an edit to a record the person has not
+            // seen, which is the thing the conflict is protecting them from.
+            await refresh();
+            setFieldsError("This task changed while you had it open, so nothing was saved.");
+          } else {
+            setFieldsError(
+              refusal ? refusal.message : "The edit could not be saved. Reload the page and try again.",
+            );
+          }
+          // Rethrown so the form stays open with the edits still in it.
+          throw error;
+        }
+        await refresh();
+      }}
       noteBusy={addNote.isPending}
       noteError={noteError}
       onAddNote={async (body) => {

@@ -120,8 +120,15 @@ def _error(
     )
 
 
-def _classify(exc: ValueError, task_id: str) -> MutationError:
+def classify_refusal(exc: ValueError, task_id: str) -> MutationError:
     """Map a manager failure onto the stable code set.
+
+    Public because it is not the workflow verbs' private business: any route that lets
+    a manager refusal reach the caller owes them the same code set. ``update_task``
+    answered a stale ``expected_revision`` with a bare ``detail`` and no ``code`` until
+    task-230, which meant the browser could tell a revision conflict apart from a lock
+    timeout only by reading the sentence -- so it did not try, and every refused edit
+    read "reload the page and try again".
 
     Most specific first. The catch-all is ``invalid_transition`` rather than
     ``internal_error`` because every remaining ValueError the manager raises comes
@@ -258,7 +265,7 @@ def _run(
     except TaskLockTimeout as exc:
         raise lock_timeout_error(exc, task_id=task_id) from exc
     except ValueError as exc:
-        raise _classify(exc, task_id) from exc
+        raise classify_refusal(exc, task_id) from exc
 
     if isinstance(result, MoveOutcome):
         task, advisory = result.task, result.as_dict()

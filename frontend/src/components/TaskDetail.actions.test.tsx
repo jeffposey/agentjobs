@@ -188,6 +188,7 @@ function renderPanel(detail: TaskDetailResponse, extra: Partial<TaskDetailProps>
     onPromote: vi.fn(async () => undefined),
     onResume: vi.fn(async () => undefined),
     onAddNote: vi.fn(async () => undefined),
+    onSaveFields: vi.fn(async () => undefined),
   };
   const { container } = render(
     <MemoryRouter>
@@ -204,8 +205,15 @@ function renderPanel(detail: TaskDetailResponse, extra: Partial<TaskDetailProps>
  * `-u` away from recording whatever the panel does today, and what task-239 has to prove
  * is that these lists did not move while the panel was refitted. If a change here is
  * intended, edit the constant in the same commit that intends it and say so in the
- * message. Taken 2026-09-06 by rendering the panel and reading the DOM; the counts are
- * 23 / 20 / 20 / 15 / 16, and the run that produced them is on task-239's record.
+ * message. Taken 2026-09-06 by rendering the panel and reading the DOM; the run that
+ * produced them is on task-239's record.
+ *
+ * task-230 adds one entry to every list -- the Fields editor's opener, which renders in
+ * every state because editing a task's authoring fields is not gated on who holds the
+ * ball. That is the change, and this is the commit intending it. The counts are now
+ * 23 / 21 / 21 / 16 / 16, counted from the arrays below rather than quoted: the line
+ * they replace claimed 23 / 20 / 20 / 15 / 16 while the arrays held 22 and 15, so two
+ * of the five had already drifted from the thing they describe.
  *
  * Duplicated entries are real. `task-child` appears twice because the record both
  * contains that child and is blocked by it, and the two links are in different sections.
@@ -219,10 +227,11 @@ const REVIEW = [
   "a: task-needed",
   "a: task-noticed-on",
   "a: ← Back to Tasks",
+  "button: Add a note",
+  "button: Edit fields",
   "button: Expand all entries",
   "button: ↪ New Instructions",
   "button: ⏸ Hold",
-  "button: ✎ Add a note",
   "button: ✎ Request Changes",
   "button: ✓ Approve — agent may merge",
   "button: ✓ Send answers",
@@ -244,9 +253,10 @@ const DRAFT = [
   "a: task-needed",
   "a: task-noticed-on",
   "a: ← Back to Tasks",
+  "button: Add a note",
+  "button: Edit fields",
   "button: Expand all entries",
   "button: ▲ Promote — make it claimable",
-  "button: ✎ Add a note",
   "button: ✎ Send feedback",
   "button: ✓ Send answers",
   "button: ✕ Reject & Archive",
@@ -267,12 +277,13 @@ const DECIDING = [
   "a: task-needed",
   "a: task-noticed-on",
   "a: ← Back to Tasks",
+  "button: Add a note",
+  "button: Edit fields",
   "button: Expand all entries",
   "button: The first",
   "button: The second",
   "button: ↪ New Instructions",
   "button: ⏸ Hold",
-  "button: ✎ Add a note",
   "button: ✓ Send answers",
   "button: ✕ Reject & Archive",
   "input: 🖼Attach a screenshot",
@@ -290,9 +301,10 @@ const HELD = [
   "a: task-needed",
   "a: task-noticed-on",
   "a: ← Back to Tasks",
+  "button: Add a note",
+  "button: Edit fields",
   "button: Expand all entries",
   "button: ▶ Resume — release the hold",
-  "button: ✎ Add a note",
   "button: ✕ Reject & Archive",
   "summary: Entry",
   "summary: Entry",
@@ -309,9 +321,10 @@ const DISPATCHED = [
   "a: task-needed",
   "a: task-noticed-on",
   "a: ← Back to Tasks",
+  "button: Add a note",
   "button: Cancel run",
+  "button: Edit fields",
   "button: Expand all entries",
-  "button: ✎ Add a note",
   "summary: Entry",
   "summary: Entry",
   "summary: Entry",

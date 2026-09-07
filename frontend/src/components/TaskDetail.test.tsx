@@ -71,6 +71,7 @@ function renderDetail(value = detail, extra: { promoteError?: string | null; pro
     onPromote: vi.fn(async () => undefined),
     onResume: vi.fn(async (_note: string | null) => undefined),
     onAddNote: vi.fn(async (_body: string) => undefined),
+    onSaveFields: vi.fn(async () => undefined),
   };
   render(<MemoryRouter><TaskDetail detail={value} projectId="inbox" {...actions} {...extra} /></MemoryRouter>);
   return actions;
@@ -417,8 +418,11 @@ describe("TaskDetail offers a way to write on the record", () => {
     renderDetail(readyDetail);
 
     expect(screen.queryByRole("region", { name: /actions$/ })).not.toBeInTheDocument();
-    const notes = screen.getByRole("region", { name: "Notes" });
-    expect(within(notes).getByRole("button", { name: /add a note/i })).toBeVisible();
+    // The claim is that a task offering no review action still offers a way to write on
+    // the record. Asserted on the control rather than on the section around it, because
+    // since task-230 there is no section until the control is pressed: closed, it is one
+    // lit icon, and the region it grows into is what the next test opens.
+    expect(screen.getByRole("button", { name: "Add a note" })).toBeVisible();
   });
 
   it("sends the note the reader typed", async () => {

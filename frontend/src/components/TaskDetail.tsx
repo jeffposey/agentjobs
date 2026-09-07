@@ -27,6 +27,7 @@ import { identityHeadline } from "./identityProblem";
 import { linkSegments } from "./linkify";
 import { NoteComposer } from "./NoteComposer";
 import { ReviewLinks, cardUrls, reviewPromptFor } from "./ReviewLinks";
+import { TaskFields, type TaskFieldsPatch } from "./TaskFields";
 import { useWideShell } from "./shellLayout";
 
 const PRIORITY_CLASSES: Record<string, string> = {
@@ -800,6 +801,18 @@ export type TaskDetailProps = {
   noteBusy?: boolean;
   noteError?: string | null;
   onAddNote: (body: string) => Promise<void> | void;
+  // Editing the authoring fields is its own act with its own failure, so it keeps its
+  // own busy and error for the same reason the note composer does: an edit that could
+  // not be saved has to say so on a task whose review actions are not even rendered.
+  //
+  // `fieldsVocabulary` is the tags and categories already in use in this project, and
+  // it is optional because it costs a request. `onEditFields` is called the first time
+  // the form is opened, which is when the caller should go and get it.
+  fieldsBusy?: boolean;
+  fieldsError?: string | null;
+  fieldsVocabulary?: { tags: Array<string>; categories: Array<string> };
+  onEditFields?: () => void;
+  onSaveFields: (patch: TaskFieldsPatch) => Promise<void> | void;
   // Dispatch arrives as its own bundle rather than as loose props, so nothing about
   // starting an agent can be mistaken for part of the review panel's contract.
   // Absent, the page renders exactly as it did before dispatch existed.
@@ -868,6 +881,40 @@ export function TaskDetail(props: TaskDetailProps) {
         {metadata.map(({ label, value, date }) => <div className="border-b border-r border-dark-border p-3 @min-[768px]:border-b-0" key={label}><div className="text-xs text-dark-muted">{label}</div><div className="mt-1 break-words text-sm">{date ? new Date(value).toLocaleString() : value}</div></div>)}
       </section>
 
+      {/* The two things a person can write to this record, as two small buttons on one
+          line directly under the metadata strip -- which is where the values the first
+          of them edits are already on screen, since the header shows the priority, the
+          category and the tags.
+
+          They were a pair of full-width cards, each carrying a heading and a paragraph
+          above a single button, permanently, above the review panel. That is roughly
+          three hundred pixels of a phone screen announcing two controls, paid on every
+          visit by the large majority of readers who came to read the record. Each one
+          is now a lit icon that grows into its card only when it is opened.
+
+          `flex-wrap` with the open form taking `w-full` is what makes that work without
+          hoisting either component's open/closed state up here: closed, the two buttons
+          share a line; opened, the form claims the line and the other button steps onto
+          the next one. Note that the note composer stays second, so the order of the two
+          is the order they were in when they were cards. */}
+      <div className={`flex flex-wrap items-start gap-2 ${MEASURE}`}>
+        <TaskFields
+          task={task}
+          identity={detail.identity}
+          vocabulary={props.fieldsVocabulary}
+          onOpen={props.onEditFields}
+          busy={props.fieldsBusy}
+          error={props.fieldsError}
+          onSave={props.onSaveFields}
+        />
+        <NoteComposer
+          identity={detail.identity}
+          busy={props.noteBusy}
+          error={props.noteError}
+          onAddNote={props.onAddNote}
+        />
+      </div>
+
       <PromoteError {...props} />
       <ReviewPanel {...props} />
       {/* Between the review verbs and Dispatch, because that is where the eye already
@@ -900,19 +947,6 @@ export function TaskDetail(props: TaskDetailProps) {
           recordCanBrief={Boolean(task.spec.description?.trim())}
         />
       )}
-      {/* Directly under the dispatch panel on purpose. Dispatching no longer needs a
-          note written first — the button writes its own authorising entry — but a
-          refusal that can still land there (no signed-in user, or a CLI-shaped task
-          somebody is unpicking) names this control, and a page that names a control it
-          does not show is the defect task-185 closed. */}
-      <div className={MEASURE}>
-        <NoteComposer
-          identity={detail.identity}
-          busy={props.noteBusy}
-          error={props.noteError}
-          onAddNote={props.onAddNote}
-        />
-      </div>
       {task.ball !== "human" && task.ball_prompt &&<section className={`rounded-xl border border-dark-border bg-dark-surface p-4 ${MEASURE}`}><h2 className="mb-2 text-xs font-semibold uppercase text-dark-muted">Current ask ({task.ball}/{task.ball_reason})</h2><SpecText>{task.ball_prompt}</SpecText></section>}
       <section className={`rounded-lg border border-dark-border bg-dark-surface p-4 ${MEASURE}`} aria-label="Dependency state"><h2 className="mb-2 text-sm font-semibold">Work state</h2><DependencyState task={task} /></section>
       <Relationships detail={detail} projectId={projectId} />
