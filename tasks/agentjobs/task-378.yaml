@@ -1,0 +1,159 @@
+schema: 2
+id: task-378
+title: Prove a whole dispatch cycle on a project served from SQLite, then cut this
+  machine over
+created: '2026-09-07T06:39:45.908116Z'
+updated: '2026-09-07T06:39:46.465414Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 1493
+category: migration
+tags:
+- storage
+- dispatch
+- migration
+effort: 'A day: one integration test file, then an operator sequence with a person
+  watching.'
+assignment:
+  eligible: []
+parent: task-358
+spec:
+  summary: 'task-311 built and verified the cutover, but the one path it never exercised
+    end to end is the one AgentJobs is judged on: dispatch a run, let an agent work,
+    let the scripted finish merge and close it, all on a project whose records are
+    rows. Prove that, then run the production cutover.'
+  intent: 'The cutover machinery is merged and the sandbox proved the storage half:
+    two worktrees, one backlog, a restart, a backup, a rollback. What it did not prove
+    is a dispatch. Dispatch is the product, and it is also the one family that keeps
+    a direct-to-storage path (task-311, entry 13) -- so it is simultaneously the least
+    tested and the most exceptional part of the migration. Cutting the owner''s live
+    tracker over before that is exercised would put the thing they depend on most
+    on an untested path.'
+  description: '## Part one: exercise a dispatch on a migrated project
+
+
+    An integration test, not a manual run, and it does not need to spend money: the
+    dispatch tests already stand up a configured runner that echoes. Against a project
+    cut over to SQLite:
+
+
+    1. `dispatch_task` passes its guards, claims the task and records the `dispatch`
+    entry **in the store**, with the run row derived from it.
+
+    2. The clean-tree check excludes nothing and still passes -- `task_file_exclusions`
+    returns `[]` for a migrated project, so the check now covers the whole tree.
+
+    3. The terminal `dispatch_result` lands, and `commit_task_record` reports there
+    is nothing to commit rather than failing.
+
+    4. `agentjobs finish --posture-release` rebases, gates, merges, closes the task
+    in the store, and leaves the checkout clean.
+
+    5. The epic walk starts a child and watches its **task record** to a terminal
+    state, reading the store rather than a file.
+
+
+    Step 5 is the one worth designing carefully: the walk polls the record, and a
+    supervisor running older code would poll a frozen file instead. Assert on what
+    the walk observes, not on what the store holds.
+
+
+    ## Part two: the production cutover
+
+
+    Once part one holds:
+
+
+    ```
+
+    agentjobs storage status
+
+    agentjobs stop --port 8876
+
+    agentjobs storage preview --project agentjobs
+
+    agentjobs storage cutover --project agentjobs --port 8876
+
+    ```
+
+
+    Then restart through the launcher (`C:/ai/shared/launchers/open-agentjobs.ps1`),
+    read the dashboard, take and verify a backup, and only then consider retiring
+    the tracked files -- which is a further deliberate step documented in the storage
+    guide.
+
+
+    **Quiesce first and check for company.** `git worktree list` and `agentjobs branches`
+    must be empty of other people''s work: a peer session running pre-cutover code
+    would keep writing YAML nothing reads, silently. That is the failure mode this
+    task exists to avoid.
+
+
+    **The other four registered projects stay on files** unless separately cut over,
+    and `agentjobs storage status` prints both counts for each so the mixed state
+    is legible rather than surprising.
+
+
+    ## Rollback
+
+
+    `agentjobs storage rollback --project agentjobs` exports the store''s current
+    state back to the tasks directory -- including anything written after the cutover
+    -- and points the project at its files again. The database is kept.'
+  constraints: 'Do not run the production cutover until part one passes. Do not retire
+    the tracked files in the same act as the cutover: they are what a rollback would
+    otherwise have to reconstruct. Take and verify a backup before relying on the
+    store, as the storage guide''s enrolment checkpoint says.'
+  out_of_scope: Moving the dispatch subsystem inside the server -- that is the separate
+    question task-311 entry 13 raises. Cutting over the other four registered projects.
+    Retiring the tracked task files.
+  context:
+  - path: src/agentjobs/store_factory.py
+    why: 'dispatch_manager_for is the documented exception this task exercises: the
+      one family that still opens the store directly.'
+  - path: src/agentjobs/dispatch/record_commit.py
+    why: task_file_exclusions and commit_task_record both change behaviour for a migrated
+      project.
+  - path: docs/storage-sqlite.md
+    why: Sections 10 and 11 are the operator sequence part two follows, including
+      the backup-enrolment checkpoint.
+acceptance:
+- id: ac-1
+  text: An integration test dispatches a run against a SQLite-backed project and asserts
+    the dispatch and dispatch_result entries land in the store, with the run row derived
+    from them.
+  status: pending
+- id: ac-2
+  text: The scripted finish merges, closes and delivers on a migrated project, leaving
+    no task file and no dirty checkout.
+  status: pending
+- id: ac-3
+  text: The epic walk starts a child and watches its record to a terminal state, reading
+    the store.
+  status: pending
+- id: ac-4
+  text: This machine's agentjobs project is served from SQLite, verified by reading
+    and writing a task through the dashboard and the CLI, and a verified backup exists.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-311
+  type: needs
+  note: Built and merged the cutover machinery this exercises.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-07T06:39:46.464727Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: f7a8b9c0-7777-4a2b-8c3d-000000000379
+      kind: create
+      fingerprint: 6e74d9f0ec9e5155ea3d831addaf8be4
