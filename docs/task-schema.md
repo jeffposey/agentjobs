@@ -595,6 +595,19 @@ each of which appends its own `transition` or `handoff` log entry:
 | `record_dispatch_result(id, actor=…, run_id=…, outcome=…)` | appends the terminal `dispatch_result` |
 | `move(id, actor=…, before=|after=|top=|bottom=, with_children=…)` | changes where it stands in its band |
 | `reprioritize(id, priority, actor=…, before=|after=|top=)` | changes band and place together |
+| `redact(id, field=…, replacement=…, reason=…, actor=…)` | replaces one prose region and records that it did |
+
+**`redact` is the one verb that changes text already written, and the only one that
+reaches a log entry.** The log is append-only, which is right for a record of what
+happened and has no answer at all for content that must not persist — a verbatim
+quotation of a person in a repository with a public remote, most often. It addresses
+`title`, `ball_prompt`, `spec.<name>` and `log[<id>].body`, refuses anything else rather
+than guessing, and appends a `note` naming the region, the reason, the actor and how many
+characters went. The caller supplies the replacement and it should say what the removed
+text meant: a redaction that loses why a task exists is a worse record, not a safer one.
+`agentjobs redact` is the same verb, and
+[the workflow guide](agent-workflow.md#paraphrase-a-person-never-quote-them) has the rule
+it exists to serve.
 
 `update_task()` is for content fields (title, spec, acceptance, tags…). **The axes are
 kept out of it by the API's request model, not by the manager.**

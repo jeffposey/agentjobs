@@ -971,6 +971,90 @@ rejected alternative, `question` and `answer` with `re` for open threads, and
 `instruction` for a durable directive. State changes create their own `transition` or
 `handoff` entries; callers cannot forge transitions directly.
 
+## Paraphrase a person, never quote them
+
+A task record states what somebody **meant**, not the words they used, and never
+reproduces the tone of a remark. The one-paragraph version of the rule is in
+[ALLAGENTS.md](../ALLAGENTS.md#paraphrase-a-person-never-quote-them); this is the rest
+of it -- why, what enforces it, what that enforcement cannot see, and how to fix a
+record that already carries one.
+
+**The reason is the remote.** Records here are public, they outlive the conversation
+they came from, and an agent summarising what a person said reaches for the quotation
+marks because a verbatim line makes the point faster. In a private notebook that is
+harmless. In a public record it reads as a characterisation of a real person rather
+than as engineering, and the substance -- which is all the next reader needs -- was
+never the part that needed quoting.
+
+Quote where the exact wording **is** the subject: an API name, a spec sentence being
+disputed, a message being debugged, a docstring being argued with. Everywhere else,
+say what was meant. "Rejected the section outright" carries everything.
+
+### Three tiers, escalating with how durable the damage would be
+
+| Where | What it does | What you see |
+|---|---|---|
+| `agentjobs.record_check` | Warns the author, on the write that added the text | A `quoted_remark` warning in the tool result |
+| `tests/test_task_corpus.py` | Fails the gate over `tasks/` | The failure names the regions |
+| `agentjobs.sqlstore.importer` | Refuses the import, having written nothing | `QuotationPolicyError`, naming the regions |
+
+Each names a region -- `task-286: log[5].body at offset 218 (informality)` -- and never
+the remark. A tool result, a CI log and an exception string are all places the quotation
+would become durable again, which is the same mistake one layer out.
+
+The importer **refuses rather than quarantining**, which is a deliberate departure from
+how it handles a record it cannot parse. The quarantine table holds the whole file in
+`raw_text`, so quarantining a record for its *content* would put the content in the
+database in the same act that claimed to keep it out. `enforce_quotation_policy=False`
+is the escape for an operator who has read the hits and judged them; the report then
+says the policy was off and names everything it let through.
+
+### What the detector catches, and what it does not
+
+It fires on the intersection of a **quotation shape**, a **tone marker**, and -- for
+everything but profanity -- an **attribution cue** near the quotation. Two signals
+rather than one, because this corpus holds thousands of legitimately quoted technical
+phrases and a detector that fired on quotation marks would be switched off within a day.
+Measured on 2026-09-07 over 373 records: ten findings, all of them real.
+
+It is a floor, not a definition, and these are the gaps:
+
+- **Tone that uses no listed word.** A verbatim quotation in calm, plain language passes,
+  and so does a sarcastic one built out of ordinary words.
+- **A paraphrase that keeps the tone.** Nothing mechanical reads unquoted prose for
+  register; that half of the rule is yours.
+- **A quoted machine message.** An error string with a listed word in it, sitting after
+  a reporting verb, is a false positive. Rare rather than impossible.
+- **A two-word shout.** Two capitalised words in a row is a heading or a status label far
+  more often than a voice, so the bar is three.
+
+`src/agentjobs/quotation.py` is the authority on all of this and says the same thing at
+more length.
+
+### Fixing one
+
+```bash
+poetry run agentjobs quotations              # every region worth looking at; exit 1 if any
+poetry run agentjobs redact task-286 \
+    --field 'log[5].body' \
+    --replacement-file paraphrase.md \
+    --reason 'verbatim quotation of a person'
+```
+
+`redact` is **the only verb that reaches a log entry.** The log is append-only, which is
+right for a record of what happened and has no answer at all for text that should never
+have been written; before this the only route was to hand-splice the YAML, which the
+managed-write guard exists to stop and which leaves the file non-canonical and the
+removal unrecorded. It addresses `title`, `ball_prompt`, `spec.<name>` and
+`log[<id>].body`, refuses anything else rather than guessing, appends a note saying what
+was redacted and why and how many characters went -- never the text, and never a hash of
+it, since a hash of a short phrase is not one-way in any useful sense -- and re-writes
+the file canonically.
+
+**You supply the replacement, and it should say what the removed text meant.** There is
+no black-bar mode on purpose: a redaction that loses why a task exists is a worse record,
+not a safer one. Use `--replacement-file` for anything longer than a sentence.
+
 ## Querying the Queues
 
 ```python
