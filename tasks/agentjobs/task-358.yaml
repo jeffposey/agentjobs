@@ -2,7 +2,7 @@ schema: 2
 id: task-358
 title: Task state moves to SQLite on the server
 created: '2026-09-06T06:08:06.698982Z'
-updated: '2026-09-07T06:38:37.067032Z'
+updated: '2026-09-07T06:41:11.974789Z'
 lifecycle: active
 ball: human
 ball_reason: input
@@ -6455,3 +6455,100 @@ log:
     \ the parent's acceptance criteria being met. Evaluate them against the children's\
     \ evidence and close it only where that evidence supports it."
   data: {}
+- id: 29
+  ts: '2026-09-07T06:40:38.331923Z'
+  actor: claude
+  type: decision
+  body: "**ac-3 \u2014 task-247 survives the migration and should still be done. task-272\
+    \ survives in part and should be re-scoped.**\n\nThe question was framed on a\
+    \ premise this epic has now disproved: that the migration retires file storage.\
+    \ **It does not \u2014 it retires it for one project.** `agentjobs storage status`\
+    \ lists five registered projects, and after a cutover of `agentjobs` the other\
+    \ four (`fantasy-football`, `job-hunting`, `mastercalls`, `product-strategy`)\
+    \ remain on `files` indefinitely, sharing the same `TaskStorage` code path.\n\n\
+    **task-247 \u2014 keep, unchanged.** `TaskStorage._write_task` is a bare `path.write_text`:\
+    \ truncate then write, no temp file, no `os.replace`, no fsync, and a crashed\
+    \ writer leaves a lock nothing reclaims. Every one of those four projects has\
+    \ that truncation window on every write, and a kill mid-write still costs a record.\
+    \ Nothing in this epic touched it. Its priority is unchanged by the migration;\
+    \ if anything the argument for it got simpler, because it is no longer entangled\
+    \ with a storage backend that was about to be replaced.\n\n**task-272 \u2014 keep,\
+    \ but re-scope, and it drops in priority.** It has two halves and they age differently:\n\
+    \n- The **queue-position half** (`_assign_queue_positions` plans over only the\
+    \ records a run converted, so the ordinary retry shape duplicates positions) fires\
+    \ only on a v1\u2192v2 `migrate-schema` of a files corpus. Every registered project\
+    \ is already v2, so this is now a latent bug on a path nobody is expected to run\
+    \ again. Real, but low likelihood.\n- The **test half** \u2014 `TestTheRealCorpus`\
+    \ skipping every file and asserting nothing \u2014 is a live defect independent\
+    \ of any backend, and is exactly the kind of decorative check ENGINEERING.md's\
+    \ verification section warns about. That half should be done regardless.\n\n**Rejected:**\
+    \ closing either as superseded. That was the tempting answer and it rests on reading\
+    \ \"the migration retires the file path\" as \"the file path is gone\". It is\
+    \ not gone, it is now one of two supported worlds, and `store_factory.task_manager_for`\
+    \ exists precisely because both must keep working.\n\nNeither task is unblocked\
+    \ by this: both are `draft` with the ball on a human for spec."
+  data:
+    operation:
+      id: 8b4d2f61-73ce-4a09-95b2-0c8e37a5d914
+      kind: log_append
+      fingerprint: 3454d2e23b7e16f9c86f16b170bba382
+- id: 30
+  ts: '2026-09-07T06:41:11.974544Z'
+  actor: claude
+  type: decision
+  body: '**ac-5 - what the store''s history can honestly say, and how "unknown" is
+    kept distinct from "zero".**
+
+
+    The store records its own coverage rather than leaving a reader to infer it, via
+    two fields set at import: `history_baseline_kind: backfilled` and `history_baseline_at:
+    2025-10-25T19:00:00Z`. That pair is the whole answer to the question task-212
+    asks first. Before that instant the store holds no observations, and a chart must
+    render "we do not know" rather than a zero; after it, a zero is a real zero.
+
+
+    **Fidelity is 84%, measured, not rounded toward a friendlier number.** Replaying
+    the log and comparing each task against its own record reconciles 312 of 371;
+    task-273 reported it as measured rather than adopting the 89% task-213 had estimated,
+    and that discrepancy is a feature of the reporting, not an error to reconcile
+    away.
+
+
+    **The 59 residual are residual by design, in two named groups:**
+
+
+    - **35 predate schema v2 and have no `ball` history anywhere in the log.** Git
+    can see the field, but `ball` is deliberately outside the backfill contract agreed
+    with task-213, and widening it unilaterally is exactly the coordination that contract
+    exists to prevent. Recorded as a candidate; not done.
+
+    - **22 have `lifecycle`/`outcome` that git could supply and must not**, per Rule
+    B of task-213''s sections 4.3/4.4.
+
+
+    **Why this is trustworthy rather than merely asserted.** Four backfill bugs were
+    found and fixed reaching that figure, three of which would have shipped silently
+    - the worst being that git emits a local offset while the manager emits `Z`, which
+    under a string sort both misordered events and bucketed changes into the wrong
+    day. That one would have broken every chart on the analytics page while looking
+    correct. Everything is normalised to UTC on entry now.
+
+
+    **The query performance behind it is measured, not assumed:** backlog level per
+    day is a running sum over one indexed integer (`SEARCH task_event USING INDEX
+    ix_event_project_ts`, 6 ms over 30 days), throughput 0.17 ms, aging 0.06 ms, and
+    no plan touches a JSON column or scans a document.
+
+
+    **Caveat, stated because this decision would otherwise be read as describing a
+    live system:** these figures come from `agentjobs storage preview` - a real import
+    of this repository''s live 374 records into a throwaway database, verified field
+    by field. They are not measurements of a production store, because this project
+    has not cut over. The contract above is what the store will hold when it does;
+    re-read it against the real database afterwards rather than treating this entry
+    as the final word.'
+  data:
+    operation:
+      id: d5a71c38-6b92-4e40-83f7-1a069b4e2c85
+      kind: log_append
+      fingerprint: a443fd9667536cc3a8159cec2d890ba9
