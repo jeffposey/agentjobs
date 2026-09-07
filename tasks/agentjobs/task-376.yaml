@@ -3,7 +3,7 @@ id: task-376
 title: Task records must paraphrase rather than quote a person, and the store must
   refuse verbatim quotes at ingest
 created: '2026-09-07T03:43:37.694129Z'
-updated: '2026-09-07T04:38:48.298666Z'
+updated: '2026-09-07T04:42:53.020765Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -413,3 +413,21 @@ log:
     finish_step: started
     branch: feat/task-376-quote-policy
     finish_id: fin_9942b26c
+- id: 11
+  ts: '2026-09-07T04:42:53.020605Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-376-quote-policy` into `main` as `fb4f78dc`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-376
+    before the merge. No human reviewed this merge: posture `autonomous` (from the
+    dispatch) releases the merge gate (task-021), and run run_9ee20083 ran the finish.
+    What authorised it is the gate -- `scripts/check.py` green on the rebased branch,
+    run here rather than reported by the agent. Delivery -- rebuild, restart, verification
+    -- comes next, and this task stays open until it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: fb4f78dcfcdcb43f09b3b61922157c5f38b11f85
+    branch: feat/task-376-quote-policy
+    base: main
