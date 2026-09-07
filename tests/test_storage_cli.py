@@ -220,3 +220,49 @@ class TestGettingBackOut:
         assert result.exit_code == 0, result.output
         assert load_storage_settings().backend_for("demo") == FILES
         assert len(list((registered / "tasks").glob("*.yaml"))) == 2
+
+
+class TestTheFileEraCommandsAfterACutover:
+    """A command about *files* must not answer from a directory nothing writes.
+
+    After a cutover the old directory is still in the checkout, frozen at the moment of
+    the migration. ``validate`` and ``migrate-schema`` would keep working over it, keep
+    passing, and keep answering about a corpus that has moved on -- which is worse than
+    an error, because nothing in the output says the answer is stale.
+    """
+
+    def test_validate_refuses_and_says_where_the_records_are(self, registered: Path) -> None:
+        runner.invoke(app, ["storage", "cutover", "--no-backfill-git"])
+        result = runner.invoke(app, ["validate"])
+        assert result.exit_code == 1
+        assert "served from the AgentJobs database" in result.output
+        assert "storage status" in result.output
+
+    def test_migrate_schema_refuses_too(self, registered: Path) -> None:
+        runner.invoke(app, ["storage", "cutover", "--no-backfill-git"])
+        result = runner.invoke(app, ["migrate-schema"])
+        assert result.exit_code == 1
+        assert "no files to read" in result.output
+
+    def test_they_still_work_before_a_cutover(self, registered: Path) -> None:
+        result = runner.invoke(app, ["validate"])
+        assert result.exit_code == 0, result.output
+
+    def test_quotations_asks_the_service_rather_than_the_frozen_copy(
+        self, registered: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Not a refusal: it is about prose, and the prose still exists -- so it follows
+        # the records instead of the directory. With the project migrated and no server
+        # running, it reports that the service did not answer. Reading the stale files
+        # would have looked like success, which is the failure this pins.
+        monkeypatch.setattr(cli_module, "RETRY_BACKOFF_SECONDS", (0.0,), raising=False)
+        from agentjobs import client as client_module
+
+        monkeypatch.setattr(client_module, "RETRY_BACKOFF_SECONDS", (0.0,))
+
+        runner.invoke(app, ["storage", "cutover", "--no-backfill-git"])
+        result = runner.invoke(app, ["quotations"])
+
+        assert result.exit_code != 0
+        assert isinstance(result.exception, client_module.ServiceUnavailable)
+        assert "nothing written" in str(result.exception)

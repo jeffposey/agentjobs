@@ -8,7 +8,7 @@ import os
 import sys
 from contextlib import suppress
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import typer
 import yaml
@@ -161,6 +161,32 @@ def _resolve_tasks_dir(base_dir: Path, config: dict) -> Path:
         tasks_dir = base_dir / tasks_dir
     tasks_dir.mkdir(parents=True, exist_ok=True)
     return tasks_dir
+
+
+def _refuse_if_not_files(project_id: str, command: str) -> None:
+    """Stop a file-era command from silently reading a directory nothing writes.
+
+    ``validate`` and ``quotations`` are about *files*: one checks that each parses and
+    is canonical, the other reads their prose. After a cutover the directory may still
+    be sitting in the checkout, frozen at the moment of the migration -- so both would
+    keep working, keep passing, and keep answering about a corpus that has moved on.
+    That is a worse failure than an error, because nothing in the output says the answer
+    is stale.
+    """
+    if not load_storage_settings().on_sqlite(project_id):
+        return
+    typer.secho(
+        f"{project_id!r} is served from the AgentJobs database, so `{command}` has no "
+        "files to read. Anything still under the tasks directory is a frozen copy from "
+        "before the cutover.",
+        fg=typer.colors.RED,
+    )
+    typer.echo(
+        "  The database enforces every consistency rule as a constraint, so a record "
+        "that would fail validation cannot be a row."
+    )
+    typer.echo("  `agentjobs storage status` says where the records are.")
+    raise typer.Exit(code=1)
 
 
 def _build_manager(base_dir: Path) -> TaskManagerLike:
@@ -341,6 +367,8 @@ def validate(
 
     base_dir = Path.cwd()
     config = _load_config(base_dir)
+    with suppress(ProjectError):
+        _refuse_if_not_files(ProjectRegistry().resolve_default(base_dir).id, "validate")
     tasks_dir = _resolve_tasks_dir(base_dir, config)
 
     if install_hook:
@@ -2652,6 +2680,8 @@ def migrate_schema_command(
 
     base_dir = Path.cwd()
     config = _load_config(base_dir)
+    with suppress(ProjectError):
+        _refuse_if_not_files(ProjectRegistry().resolve_default(base_dir).id, "migrate-schema")
     source = Path(tasks_dir) if tasks_dir else _resolve_tasks_dir(base_dir, config)
     paths = sorted(source.glob("*.yaml"))
     if not paths:
@@ -3191,20 +3221,25 @@ def quotations(
     without opening the file; nothing it prints is written anywhere.
     """
     base_dir = Path.cwd()
-    config = _load_config(base_dir)
-    tasks_dir = Path(storage_dir) if storage_dir else _resolve_tasks_dir(base_dir, config)
-    if not tasks_dir.is_absolute():
-        tasks_dir = base_dir / tasks_dir
-    storage = TaskStorage(tasks_dir)
+    if storage_dir is None:
+        # Resolved rather than composed, so it reads the live records after a cutover
+        # instead of the frozen copy beside them. An explicit --storage-dir still means
+        # exactly that directory, which is how you inspect an export.
+        source: Any = _build_manager(base_dir).storage
+    else:
+        tasks_dir = Path(storage_dir)
+        if not tasks_dir.is_absolute():
+            tasks_dir = base_dir / tasks_dir
+        source = TaskStorage(tasks_dir)
 
     if task_id:
-        task = storage.load_task(task_id)
+        task = source.load_task(task_id)
         if task is None:
             typer.secho(f"Task '{task_id}' not found.", fg=typer.colors.RED)
             raise typer.Exit(code=1)
         tasks = [task]
     else:
-        tasks = storage.list_tasks()
+        tasks = source.list_tasks()
 
     found = 0
     for task in tasks:
