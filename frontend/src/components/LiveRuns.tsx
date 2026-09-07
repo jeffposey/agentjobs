@@ -80,6 +80,10 @@ export const HEALTH_LABELS: Record<string, string> = {
   // An interactive session whose transcript has not changed for a while (task-354).
   // Not an alarm: a chat window left open is the most ordinary state there is.
   idle: "Idle",
+  // A human moved the ball back to the agent while this run was still going (task-384).
+  // Ahead of "Working" in `run_health` because both are true and this is the one the
+  // reader is asking about: the click landed, and it is queued for this session.
+  handback: "Feedback waiting",
 };
 
 const HEALTH_CLASSES: Record<string, string> = {
@@ -90,6 +94,7 @@ const HEALTH_CLASSES: Record<string, string> = {
   orphaned: "bg-red-900 text-red-200",
   unknown: "bg-red-900 text-red-200",
   idle: "bg-slate-700 text-slate-200",
+  handback: "bg-sky-900 text-sky-200",
 };
 
 /**

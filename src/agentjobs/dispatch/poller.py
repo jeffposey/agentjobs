@@ -35,6 +35,15 @@ from agentjobs.models_v2 import DispatchMode
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
 from agentjobs.store_factory import TaskManagerLike, dispatch_manager_for
 
+TERMINAL_PHASES = frozenset(
+    {SessionPhase.FINISHED, SessionPhase.STOPPED, SessionPhase.GONE}
+)
+"""The phases after which the run is over and its task's lock is free again.
+
+The same set ``PollResult.acted`` names, hoisted so the handback delivery below and that
+property cannot come to disagree about what "this run has ended" means.
+"""
+
 SESSION_POLL_SECONDS = 10.0
 """How often live sessions are asked how they are getting on.
 
@@ -58,14 +67,10 @@ class PollResult:
     @property
     def acted(self) -> bool:
         """True when the phase was terminal, so something was written to the task."""
-        return self.phase in {
-            SessionPhase.FINISHED,
-            SessionPhase.STOPPED,
-            SessionPhase.GONE,
-        }
+        return self.phase in TERMINAL_PHASES
 
 
-def _handle_from(home: Path, record: RunRecord) -> Optional[RunHandle]:
+def handle_from_record(home: Path, record: RunRecord) -> Optional[RunHandle]:
     """Rebuild the handle ``poll_session`` needs from what the run wrote to disk.
 
     ``dispatch_entry_id`` is the one field worth being careful about. ``_ball_moved``
@@ -144,7 +149,7 @@ def poll_live_sessions(
         if not record.is_session:
             continue
 
-        handle = _handle_from(home, record)
+        handle = handle_from_record(home, record)
         if handle is None:
             results.append(
                 PollResult(record.run_id, None, "no session id or dispatch entry recorded")
@@ -197,8 +202,68 @@ def poll_live_sessions(
             results.append(PollResult(record.run_id, None, f"poll failed: {exc}"))
             continue
         results.append(PollResult(record.run_id, phase, phase.value))
+        if phase in TERMINAL_PHASES:
+            results.extend(_deliver_pending_handback(home, project, manager, record, handle))
 
     return results
+
+
+def _deliver_pending_handback(
+    home: Path,
+    project: Project,
+    manager: TaskManagerLike,
+    record: RunRecord,
+    handle: RunHandle,
+) -> List[PollResult]:
+    """Give the run that just settled its waiting feedback, in the session it settled.
+
+    **This is the half a click cannot do for itself** (task-384). A human clicks Request
+    Changes while the session that asked for the review is still up, which is the normal
+    case and not an edge one: the notification that brought them to the page *was* the
+    handoff. The route refuses to start a rival run -- correctly -- and the feedback then
+    has nowhere to go until something notices the session has gone quiet. The poller is
+    the only thing that ever notices, so it is the only thing that can finish the job.
+
+    A supervisor that re-derives what to do from the record rather than remembering it,
+    which is what makes this survive a server restart: the pending handback is a property
+    of the task and the run, not of a promise some earlier request made.
+
+    ``after_entry`` is the load-bearing argument. Without it every settling run would
+    look like one with feedback waiting -- its own dispatch handed the ball to it -- and
+    the poller would dispatch each task once more for nothing. With it, only a human
+    handoff written *after* this run was dispatched counts, which is exactly the click
+    that arrived while the run was still up.
+    """
+    from agentjobs.dispatch.handback import deliver_handback, pending_handback, record_handback
+
+    task = manager.get_task(record.task_id)
+    if task is None:
+        return []
+    try:
+        config = project.load_config()
+    except ProjectError:  # pragma: no cover - a project whose config cannot be read
+        return []
+    entry = pending_handback(task, config, after_entry=handle.dispatch_entry_id)
+    if entry is None:
+        return []
+    outcome = deliver_handback(
+        manager=manager,
+        project=project,
+        project_config=config,
+        task=task,
+        home=home,
+        caused_by=entry.id,
+    )
+    record_handback(manager, task, outcome)
+    if not outcome.considered:
+        return []
+    return [
+        PollResult(
+            record.run_id,
+            None,
+            f"handback from entry {entry.id}: {outcome.reason}",
+        )
+    ]
 
 
 def _print_report(line: str) -> None:

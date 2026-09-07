@@ -39,7 +39,7 @@ from agentjobs.dispatch.budget import (
     record_cap_refusal,
 )
 from agentjobs.dispatch.config import DispatchError, assert_dispatch_permitted
-from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
+from agentjobs.dispatch.guards import BudgetCapError, DispatchRequest, dispatch_task
 from agentjobs.dispatch.runner import DispatchRunError
 from agentjobs.models_v2 import Ball, BallReason, DispatchTrigger, Task
 from agentjobs.projects import Project
@@ -77,6 +77,16 @@ class AutoDispatchOutcome:
     reason: str
     detail: str = ""
     run_id: Optional[str] = None
+    recorded: bool = False
+    """Whether this outcome has already written itself onto the task record.
+
+    Two paths have: a dispatch that started wrote its dispatch entry, and a tripped
+    budget cap wrote its refusal through ``record_cap_refusal``. Every other path has
+    said nothing at all, which is what task-384 found. The rule there is *exactly one*
+    entry per human handback, and a caller cannot honour it without being told which
+    outcomes have already spoken -- writing twice is as wrong as writing nothing, it
+    just fails more loudly.
+    """
 
     @property
     def considered(self) -> bool:
@@ -84,9 +94,9 @@ class AutoDispatchOutcome:
         return self.reason not in {"not_enabled", "not_eligible", "not_configured"}
 
 
-def _skipped(reason: str, detail: str = "") -> AutoDispatchOutcome:
+def _skipped(reason: str, detail: str = "", *, recorded: bool = False) -> AutoDispatchOutcome:
     """An outcome that started nothing, for a reason that is not a failure."""
-    return AutoDispatchOutcome(started=False, reason=reason, detail=detail)
+    return AutoDispatchOutcome(started=False, reason=reason, detail=detail, recorded=recorded)
 
 
 # ----- the trigger ------------------------------------------------------------
@@ -100,6 +110,7 @@ def maybe_auto_dispatch(
     task: Task,
     home: Optional[Path] = None,
     api_base: Optional[str] = None,
+    caused_by: Optional[int] = None,
     now: Optional[datetime] = None,
 ) -> AutoDispatchOutcome:
     """Start an agent, if this project asked for that and every limit allows it.
@@ -115,6 +126,12 @@ def maybe_auto_dispatch(
     ``api_base`` is forwarded to ``dispatch_task`` unchanged, so an auto-dispatch and the
     manual dispatch it sits beside resolve the same address by construction rather than
     by two copies of a default staying in step.
+
+    ``caused_by`` names the entry the dispatch is attributed to, and defaults to letting
+    ``resolve_causing_entry`` take the newest -- correct for every caller that runs in
+    the same breath as the click. A caller that runs *later*, once AgentJobs has written
+    an entry of its own on top, must name the human's entry: the check it satisfies is
+    ``assert_human_clocked``, unchanged, on the entry it names (task-384).
     """
     if task.ball is not Ball.AGENT or not task.is_open:
         # Requesting changes hands to agent/revise and is eligible; rejecting closes the
@@ -145,7 +162,9 @@ def maybe_auto_dispatch(
             manager=manager,
             project=project,
             project_config=project_config,
-            request=DispatchRequest(task_id=task.id, trigger=DispatchTrigger.AUTO),
+            request=DispatchRequest(
+                task_id=task.id, trigger=DispatchTrigger.AUTO, caused_by=caused_by
+            ),
             home=home,
             api_base=api_base,
             now=now,
@@ -160,11 +179,21 @@ def maybe_auto_dispatch(
         # code and `detail` is still its message -- because a caller of this function
         # branches on those and none of them should have to know the check moved
         # (task-334).
-        return _skipped(getattr(exc, "reason", "dispatch_failed"), str(exc))
+        #
+        # `recorded` distinguishes the cap from the rest: `record_cap_refusal` has
+        # already written the refusal onto the task by the time `BudgetCapError` reaches
+        # here, so a caller that writes its own entry for an unrecorded outcome must not
+        # write a second one for this (task-384).
+        return _skipped(
+            getattr(exc, "reason", "dispatch_failed"),
+            str(exc),
+            recorded=isinstance(exc, BudgetCapError),
+        )
 
     return AutoDispatchOutcome(
         started=True,
         reason="dispatched",
         detail=f"Auto-dispatched run {handle.run_id}.",
         run_id=handle.run_id,
+        recorded=True,
     )

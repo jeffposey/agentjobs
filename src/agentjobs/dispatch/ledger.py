@@ -835,6 +835,19 @@ class RunRecord:
     origin: str = ""
     """``claimed`` or ``registered`` for a run AgentJobs did not start. Empty for a
     dispatched one."""
+    handback_pending: Optional[int] = None
+    """The log entry id of a human handback this run was told about but not given.
+
+    Written by ``dispatch/handback.py`` when a click lands while this run is still going,
+    which is the normal case rather than an edge one: the notification that brought the
+    human to the page was this run's own handoff. Until task-384 that state was invisible
+    -- the dashboard showed *Revising (claude)* beside a live run, and the only reasonable
+    reading of that pair is that work is happening, which is why people waited.
+
+    Never cleared. A run carrying one is settled before the handback is delivered, and a
+    settled run's health is not read; leaving it is what keeps the ledger a record of what
+    happened rather than of what is true this second.
+    """
 
     @property
     def is_live(self) -> bool:
@@ -945,6 +958,7 @@ def read_run(directory: Path) -> RunRecord:
         argv=[str(item) for item in argv] if isinstance(argv, list) else [],
         cwd=str(meta.get("cwd") or ""),
         origin=str(meta.get("origin") or ""),
+        handback_pending=_as_optional_int(meta.get("handback_pending")),
     )
 
 
@@ -1009,6 +1023,7 @@ HEALTH_SILENT = "silent"
 HEALTH_ORPHANED = "orphaned"
 HEALTH_UNKNOWN = "unknown"
 HEALTH_IDLE = "idle"
+HEALTH_HANDBACK = "handback"
 
 INTERACTIVE_IDLE_SECONDS = 600.0
 """How long an interactive session's transcript may go unwritten before it reads as
@@ -1055,6 +1070,11 @@ def run_health(record: RunRecord) -> str:
     - ``orphaned`` -- a **batch** run whose recorded pid is gone. ``reconcile`` uses
       exactly this rule ("batch runs do not outlive their supervisor"), so this says the
       same thing a restart would, without waiting for one.
+    - ``handback`` -- a human moved the ball back to the agent while this run was still
+      going, so feedback is waiting for it (task-384). Ahead of ``working`` deliberately:
+      both are true, and *feedback waiting* is the one that answers the question the
+      reader actually has. It was reading *Revising (claude)* beside a run in its 50th
+      minute that made a person wait rather than look.
     - ``unknown`` -- an unreadable or unrecognised meta. ``read_run`` deliberately keeps
       such a run live rather than calling it finished, and this is what stops that
       caution being rendered as confidence.
@@ -1068,6 +1088,8 @@ def run_health(record: RunRecord) -> str:
     *is* the poller writing these statuses.
     """
     status = record.status
+    if record.handback_pending is not None:
+        return HEALTH_HANDBACK
     if status == "parked":
         return HEALTH_PARKED
     if status == "stalled":
