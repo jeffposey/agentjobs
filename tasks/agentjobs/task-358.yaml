@@ -2,10 +2,13 @@ schema: 2
 id: task-358
 title: Task state moves to SQLite on the server
 created: '2026-09-06T06:08:06.698982Z'
-updated: '2026-09-06T06:08:55.810283Z'
-lifecycle: ready
+updated: '2026-09-07T02:24:31.028166Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: 'Supervise this epic: start a separate session for one eligible child
+  at a time, watch its record, and do not work a child yourself. Open now: task-273,
+  task-311.'
 archived: false
 priority: critical
 queue_position: 843
@@ -16,6 +19,7 @@ tags:
 - migration
 - epic
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: 'Umbrella for retiring task YAML as the source of truth in favour of authoritative
@@ -188,3 +192,76 @@ log:
       id: e3a7bf05-4c96-4db8-8371-7f1e5a9c4d80
       kind: queue_move
       fingerprint: 8524ce9d2cc2ecbefe7cb87d5a5cccd2
+- id: 3
+  ts: '2026-09-07T02:24:28.181944Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. They chose
+    posture `autonomous` for this run, above this project''s `auto`. No extra instruction
+    was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 4
+  ts: '2026-09-07T02:24:28.864394Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude to supervise 2 open sub-task(s).
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 5
+  ts: '2026-09-07T02:24:31.028024Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_2acfe100
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    posture_source: dispatch
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 3
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --name
+    - agentjobs/task-358@2acfe100
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_2acfe100\session-settings.json
+    - 'You are the agent `claude` supervising parent task `task-358` in project `agentjobs`
+      (root: C:\projects\agentjobs). It has open children: task-273, task-311. You
+      are the supervisor, not the worker: start a separate session for one eligible
+      child at a time and let that session do the child''s work. Do not work a child
+      yourself, do not take a worktree, and check nothing out -- you stay in the shared
+      working tree as it is, and each child session takes its own. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the parent record, then follow the parent-task
+      protocol in docs/agent-workflow.md. Dispatch run id: run_2acfe100. Posture `autonomous`
+      releases the merge gate: a child you start merges its own work once its gate
+      is green, with no human review. Never push: this project is configured `push:
+      false`. Do not start the children by hand: run `agentjobs dispatch walk task-358
+      --project agentjobs` from C:\projects\agentjobs and let it finish. It takes
+      one eligible child at a time and stops the whole walk on the first that is not
+      clean. Exit 0 means every open child is done -- then judge this parent''s own
+      acceptance criteria against what the children recorded, and close it. Exit 1
+      means it stopped and this record says why.'
+    cwd: C:\projects\agentjobs
+    git_head: 0e1b4702
+    session_id: 5a5b9bc4
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
