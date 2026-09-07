@@ -1,7 +1,9 @@
 # Agent Workflow Guide
 
 AgentJobs is a durable handoff protocol for agents, humans, and external dependencies.
-The task YAML is the source of truth. Chat can wake a participant or make an interactive
+The task record is the source of truth -- whether the project keeps it as YAML or in the
+SQLite store, which [the storage guide](storage-sqlite.md) covers and
+`agentjobs storage status` reports. Chat can wake a participant or make an interactive
 session convenient, but it is never required working memory.
 
 The canonical contract is [schema design section 5](schema-design.md#the-resumption-contract).

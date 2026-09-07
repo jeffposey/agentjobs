@@ -1,7 +1,7 @@
 schema_version: "1"
 name: task-record-on-main
-rule: Everything under the task directory is committed to `main`, never to a feature branch. Code goes on the branch; the record does not.
-home: "ENGINEERING.md#Task files live on `main`, always"
+rule: On a project whose records are files, they are committed to `main`, never to a feature branch. Code goes on the branch; the record does not. (A project served from the SQLite store has no such commit to make; this scenario is the files case, which is what the fixture sets up.)
+home: "ENGINEERING.md#Where task records live, and whether you commit them"
 
 incident:
   what: >-
@@ -9,7 +9,7 @@ incident:
     They open the dashboard, see the task still `ready`, and conclude nothing is waiting for
     them -- which defeats the merge gate entirely, since the gate depends on a human seeing
     a review request. Observed repeatedly on 2026-08-11 before the cause was understood.
-  where: "ALLAGENTS.md, 'Three failures on 2026-08-11', failure 3; the rule and its history are ENGINEERING.md's own section"
+  where: "ALLAGENTS.md, 'Three failures on 2026-08-11', failure 3; the rule is ENGINEERING.md's own section and its history is docs/storage-sqlite.md"
 
 tags: [quick, records]
 runs: 3
@@ -17,20 +17,21 @@ max_turns: 24
 
 ablate:
   remove_sections:
-    - {file: ENGINEERING.md, heading: "Task files live on `main`, always"}
+    - {file: ENGINEERING.md, heading: "Where task records live, and whether you commit them"}
   remove_lines:
     - {file: AGENTS.md, pattern: "task-record commits"}
     - {file: ALLAGENTS.md, pattern: "task-record commits"}
-    - {file: ALLAGENTS.md, pattern: "Task files live on"}
-    - {file: ALLAGENTS.md, pattern: "never touches"}
-    - {file: ALLAGENTS.md, pattern: "records still go to"}
+    - {file: ALLAGENTS.md, pattern: "Where task records live"}
+    - {file: ALLAGENTS.md, pattern: "is something you commit"}
+    - {file: ALLAGENTS.md, pattern: "goes to `main`, never to your branch"}
+    - {file: ALLAGENTS.md, pattern: "written the same way yours is"}
     - {file: ALLAGENTS.md, pattern: "commit that to"}
     - {file: ALLAGENTS.md, pattern: "invisible in the React"}
 
 residual_forbidden:
-  - "task files live on"
+  - "where task records live"
   - "task-record commits"
-  - "records still go to"
+  - "goes to `main`, never to your branch"
 
 fixture:
   files:
