@@ -78,9 +78,9 @@ test("edits every tier-one field from a phone, and the record shows who did it",
   await page.setViewportSize(PHONE);
   await page.goto(`/app/p/_local/tasks/${taskId}`);
 
+  await page.getByRole("button", { name: "Edit fields" }).click();
   const panel = page.getByRole("region", { name: "Task fields" });
   await expect(panel).toBeVisible();
-  await panel.getByRole("button", { name: /Edit fields/ }).click();
 
   await panel.getByLabel("Title").fill("Groomed from a phone");
   await panel.getByLabel("Priority").selectOption("critical");
@@ -131,8 +131,8 @@ test("an edit against a stale read is refused, and the conflict names the field 
   await page.setViewportSize(PHONE);
   await page.goto(`/app/p/_local/tasks/${taskId}`);
 
+  await page.getByRole("button", { name: "Edit fields" }).click();
   const panel = page.getByRole("region", { name: "Task fields" });
-  await panel.getByRole("button", { name: /Edit fields/ }).click();
   await panel.getByLabel("Effort").fill("twenty minutes");
 
   // Somebody else moves the task while this page still holds the revision it loaded.
@@ -174,8 +174,8 @@ test("editing a task parked at review leaves it parked at review", async ({ page
   await page.goto(`/app/p/_local/tasks/${taskId}`);
   await expect(page.getByRole("region", { name: "Review actions" })).toBeVisible();
 
+  await page.getByRole("button", { name: "Edit fields" }).click();
   const panel = page.getByRole("region", { name: "Task fields" });
-  await panel.getByRole("button", { name: /Edit fields/ }).click();
   await panel.getByLabel("Priority").selectOption("high");
   await panel.getByRole("button", { name: "Save fields" }).click();
 
@@ -197,8 +197,23 @@ test("the whole form fits the phone it is meant for", async ({ page, request }) 
   await page.setViewportSize(PHONE);
   await page.goto(`/app/p/_local/tasks/${taskId}`);
 
+  // The two openers, closed. They are icon-only since task-230's review, which makes
+  // them the controls most at risk of being too small to hit: a glyph in a box shrinks
+  // to the glyph unless something holds the box open. They also have to share one line
+  // rather than stacking, which is the whole point of making them icons.
+  const openers = ["Edit fields", "Add a note"];
+  const boxes = [];
+  for (const name of openers) {
+    const box = await page.getByRole("button", { name }).boundingBox();
+    expect(box, `${name} has no box`).not.toBeNull();
+    expect(box!.height, `${name} is ${box!.height}px tall`).toBeGreaterThanOrEqual(44);
+    expect(box!.width, `${name} is ${box!.width}px wide`).toBeGreaterThanOrEqual(44);
+    boxes.push(box!);
+  }
+  expect(boxes[0]!.y, "the two openers are not on one line").toBeCloseTo(boxes[1]!.y, 0);
+
+  await page.getByRole("button", { name: "Edit fields" }).click();
   const panel = page.getByRole("region", { name: "Task fields" });
-  await panel.getByRole("button", { name: /Edit fields/ }).click();
 
   // Nothing runs past the right-hand edge, and the document does not scroll sideways to
   // reach a control. A form that only lays out at desktop width is the failure mode this
@@ -231,15 +246,15 @@ test("offers the words this project already uses, and only once asked", async ({
   const listed: Array<string> = [];
   page.on("request", (event) => listed.push(event.url()));
   await page.goto(`/app/p/_local/tasks/${taskId}`);
-  await expect(page.getByRole("region", { name: "Task fields" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit fields" })).toBeVisible();
 
   // The task list is the heaviest read this API offers, and a reader who opened this
   // page to read it must not pay for it.
   const isListing = (url: string) => /\/tasks(\?|$)/.test(new URL(url).pathname + new URL(url).search);
   expect(listed.filter((url) => url.includes("/api/") && isListing(url))).toEqual([]);
 
+  await page.getByRole("button", { name: "Edit fields" }).click();
   const panel = page.getByRole("region", { name: "Task fields" });
-  await panel.getByRole("button", { name: /Edit fields/ }).click();
 
   await expect
     .poll(() => panel.locator("#task-field-tags option[value='donated-tag']").count())

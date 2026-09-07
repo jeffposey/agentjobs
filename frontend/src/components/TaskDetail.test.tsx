@@ -418,8 +418,11 @@ describe("TaskDetail offers a way to write on the record", () => {
     renderDetail(readyDetail);
 
     expect(screen.queryByRole("region", { name: /actions$/ })).not.toBeInTheDocument();
-    const notes = screen.getByRole("region", { name: "Notes" });
-    expect(within(notes).getByRole("button", { name: /add a note/i })).toBeVisible();
+    // The claim is that a task offering no review action still offers a way to write on
+    // the record. Asserted on the control rather than on the section around it, because
+    // since task-230 there is no section until the control is pressed: closed, it is one
+    // lit icon, and the region it grows into is what the next test opens.
+    expect(screen.getByRole("button", { name: "Add a note" })).toBeVisible();
   });
 
   it("sends the note the reader typed", async () => {

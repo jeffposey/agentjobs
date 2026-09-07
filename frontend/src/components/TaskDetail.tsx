@@ -881,11 +881,23 @@ export function TaskDetail(props: TaskDetailProps) {
         {metadata.map(({ label, value, date }) => <div className="border-b border-r border-dark-border p-3 @min-[768px]:border-b-0" key={label}><div className="text-xs text-dark-muted">{label}</div><div className="mt-1 break-words text-sm">{date ? new Date(value).toLocaleString() : value}</div></div>)}
       </section>
 
-      {/* Directly under the metadata strip, which is where the values it edits are
-          already on screen: the header above shows the priority, the category and the
-          tags, and this is how they change. Collapsed to a single row until asked for,
-          so the review panel below it stays where a reader expects to find it. */}
-      <div className={MEASURE}>
+      {/* The two things a person can write to this record, as two small buttons on one
+          line directly under the metadata strip -- which is where the values the first
+          of them edits are already on screen, since the header shows the priority, the
+          category and the tags.
+
+          They were a pair of full-width cards, each carrying a heading and a paragraph
+          above a single button, permanently, above the review panel. That is roughly
+          three hundred pixels of a phone screen announcing two controls, paid on every
+          visit by the large majority of readers who came to read the record. Each one
+          is now a lit icon that grows into its card only when it is opened.
+
+          `flex-wrap` with the open form taking `w-full` is what makes that work without
+          hoisting either component's open/closed state up here: closed, the two buttons
+          share a line; opened, the form claims the line and the other button steps onto
+          the next one. Note that the note composer stays second, so the order of the two
+          is the order they were in when they were cards. */}
+      <div className={`flex flex-wrap items-start gap-2 ${MEASURE}`}>
         <TaskFields
           task={task}
           identity={detail.identity}
@@ -894,6 +906,12 @@ export function TaskDetail(props: TaskDetailProps) {
           busy={props.fieldsBusy}
           error={props.fieldsError}
           onSave={props.onSaveFields}
+        />
+        <NoteComposer
+          identity={detail.identity}
+          busy={props.noteBusy}
+          error={props.noteError}
+          onAddNote={props.onAddNote}
         />
       </div>
 
@@ -929,19 +947,6 @@ export function TaskDetail(props: TaskDetailProps) {
           recordCanBrief={Boolean(task.spec.description?.trim())}
         />
       )}
-      {/* Directly under the dispatch panel on purpose. Dispatching no longer needs a
-          note written first — the button writes its own authorising entry — but a
-          refusal that can still land there (no signed-in user, or a CLI-shaped task
-          somebody is unpicking) names this control, and a page that names a control it
-          does not show is the defect task-185 closed. */}
-      <div className={MEASURE}>
-        <NoteComposer
-          identity={detail.identity}
-          busy={props.noteBusy}
-          error={props.noteError}
-          onAddNote={props.onAddNote}
-        />
-      </div>
       {task.ball !== "human" && task.ball_prompt &&<section className={`rounded-xl border border-dark-border bg-dark-surface p-4 ${MEASURE}`}><h2 className="mb-2 text-xs font-semibold uppercase text-dark-muted">Current ask ({task.ball}/{task.ball_reason})</h2><SpecText>{task.ball_prompt}</SpecText></section>}
       <section className={`rounded-lg border border-dark-border bg-dark-surface p-4 ${MEASURE}`} aria-label="Dependency state"><h2 className="mb-2 text-sm font-semibold">Work state</h2><DependencyState task={task} /></section>
       <Relationships detail={detail} projectId={projectId} />

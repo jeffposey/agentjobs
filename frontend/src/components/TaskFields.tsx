@@ -182,50 +182,57 @@ export function TaskFields({
 
   const editable = identity.ok && Boolean(identity.user);
 
+  // A page that silently omits a control is a page whose reader concludes the feature
+  // is gone -- task-185's lesson, and why this explains itself rather than rendering
+  // nothing.
+  if (!editable) {
+    return (
+      <p className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-sm">
+        <strong className="text-yellow-300">{identityHeadline(identity.problem)}</strong>
+        <span className="text-dark-muted">{identity.detail}</span>
+      </p>
+    );
+  }
+
+  // Closed, this is one small button and nothing else -- no card, no heading, no
+  // paragraph. It was a full-width bordered card whose whole content was a heading and
+  // this button, sitting above the review panel: about a hundred and fifty pixels of a
+  // phone screen spent saying "there is a control here", on every visit, to the large
+  // majority of readers who came to read. The card earns its space once the form is in
+  // it and not before.
+  //
+  // Lit rather than flat, because an icon-only control that looks quiet reads as
+  // decoration: it carries the accent colour and a border instead of the muted grey the
+  // rest of the strip uses. The name lives in `aria-label` and `title` -- what a screen
+  // reader announces, what the tooltip says, and what every test asks for it by. The
+  // glyph is decoration and is marked as such.
+  if (!open) {
+    return (
+      <button
+        type="button"
+        disabled={busy}
+        aria-label="Edit fields"
+        title="Edit fields"
+        onClick={() => {
+          setBaseline(task);
+          setOpen(true);
+          onOpen?.();
+        }}
+        className="touch-target min-w-11 justify-center rounded-lg border border-blue-500/50 bg-blue-950/40 px-3 text-lg text-blue-300 hover:bg-blue-900/60 hover:text-blue-200 disabled:opacity-60"
+      >
+        <span aria-hidden="true">✎</span>
+      </button>
+    );
+  }
+
   return (
     <section
-      className="space-y-3 rounded-xl border border-dark-border bg-dark-surface p-4 @min-[768px]:p-6"
+      className="w-full space-y-3 rounded-xl border border-dark-border bg-dark-surface p-4 @min-[768px]:p-6"
       aria-label="Task fields"
     >
-      {/* One row while it is closed, and that is a placement decision rather than a
-          styling one. This section sits directly above the review panel, so every pixel
-          it spends collapsed is a pixel of "what am I being asked to do" pushed off a
-          phone screen — and it is collapsed on all but a handful of visits. The sentence
-          about what an edit does *not* do belongs with the form, where somebody is about
-          to make one. */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">Fields</h2>
-        {/* The opener, and only the opener. It used to toggle, which put a loud blue
-            "Cancel" at the top of an open form while a second way out sat next to Save
-            at the bottom -- two controls for one act, and the shouting one was the one
-            that throws the work away. */}
-        {editable && !open && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              setBaseline(task);
-              setOpen(true);
-              onOpen?.();
-            }}
-            className="touch-target rounded-lg bg-blue-700 px-4 font-semibold text-white hover:bg-blue-600 disabled:opacity-60"
-          >
-            ✎ Edit fields
-          </button>
-        )}
-      </div>
-
-      {!editable ? (
-        // The same explanation the review panel and the note composer give. A page that
-        // silently omits a control is a page whose reader concludes the feature is gone.
-        <div className="rounded-lg border border-dark-border bg-dark-bg p-4 text-sm">
-          <strong className="text-yellow-300">{identityHeadline(identity.problem)}</strong>
-          <span className="text-dark-muted">{identity.detail}</span>
-        </div>
-      ) : (
-        open && (
-          <form
-            className="space-y-4 border-t border-dark-border pt-4"
+      <h2 className="text-lg font-semibold">Fields</h2>
+      <form
+        className="space-y-4"
             onSubmit={(event) => {
               event.preventDefault();
               if (!dirty || titleEmpty) return;
@@ -395,9 +402,7 @@ export function TaskFields({
                 Cancel
               </button>
             </div>
-          </form>
-        )
-      )}
+      </form>
     </section>
   );
 }
