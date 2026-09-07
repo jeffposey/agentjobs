@@ -2,14 +2,11 @@ schema: 2
 id: task-311
 title: Migrate tasks to server-hosted SQLite and retire task-state Git workflows
 created: '2026-08-24T00:55:20.126619Z'
-updated: '2026-09-07T06:38:09.175280Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-09-07T06:38:30.272808Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 943
 category: migration
 tags:
 - storage
@@ -19,7 +16,6 @@ tags:
 effort: 'One session: ~5,700 lines across 9 commits, one green unqualified gate, one
   live sandbox run.'
 assignment:
-  owner: claude
   eligible: []
 parent: task-358
 spec:
@@ -142,7 +138,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-311-sqlite-cutover
-  status: active
+  status: merged
+  merged_at: '2026-09-07T06:38:30.230008Z'
 log:
 - id: 1
   ts: '2026-08-24T00:55:20.655637Z'
@@ -654,3 +651,28 @@ log:
     merge_commit: 0852b41da00f485f341519f4f8a24dee93cdfd5c
     branch: feat/task-311-sqlite-cutover
     base: main
+- id: 19
+  ts: '2026-09-07T06:38:30.272649Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-311-sqlite-cutover` into `main` as `0852b41d` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). No human\
+    \ reviewed this merge: posture `autonomous` (from the epic) releases the merge\
+    \ gate (task-021), and run run_fea4e0a1 ran the finish. What authorised it is\
+    \ the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         0.8s  feat/task-311-sqlite-cutover at ffe50464\
+    \ in C:\\projects\\worktrees\\agentjobs-311\n  runway     ok         0.0s  taken\
+    \ immediately\n  rebase     ok         0.7s  feat/task-311-sqlite-cutover onto\
+    \ main: ffe50464 -> 586d713a\n  gate       ok       239.6s  scripts/check.py green\n\
+    \  catch_up   skipped    0.0s  main did not move during the gate\n  merge    \
+    \  ok         0.6s  --no-ff into main as 0852b41da00f485f341519f4f8a24dee93cdfd5c\n\
+    \  rebuild    ok         6.1s  rebuilt the bundle in C:\\projects\\agentjobs\\\
+    frontend\n  restart    ok         2.3s  ran powershell -NoProfile -ExecutionPolicy\
+    \ Bypass -File C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify\
+    \     ok         0.0s  http://127.0.0.1:8876 is serving 9323e41d, which contains\
+    \ the merge 0852b41d, from C:\\projects\\agentjobs (started 2026-09-07T06:38:19.862903+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
