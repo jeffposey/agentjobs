@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from typing import Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 from .models_v2 import Ball, BallReason, LogEntryType, Task
+from .quotation import SPEC_PROSE_FIELDS, scan_task
 
 __all__ = [
     "DEFAULT_BALL_PROMPT",
@@ -42,6 +43,8 @@ __all__ = [
     "LOG_APPENDING_VERBS",
     "LONG_SUMMARY",
     "PROMPT_WRITING_VERBS",
+    "PROSE_APPENDING_VERBS",
+    "QUOTED_REMARK",
     "SPEC_WRITING_VERBS",
     "SUMMARY_WORD_CEILING",
     "UNNAMED_REVIEW_LINK",
@@ -65,8 +68,18 @@ DEFAULT_BALL_PROMPT = "default_ball_prompt"
 #: can only put there unnamed.
 UNNAMED_REVIEW_LINK = "unnamed_review_link"
 
+#: The write just put a verbatim quotation of a person into the record (task-376).
+#: The earliest of the three tiers that enforce the paraphrase rule, and the only one
+#: that reaches the author while they can still fix it in the same breath.
+QUOTED_REMARK = "quoted_remark"
+
 #: Every kind this module can produce. The closed set a caller may branch on.
-WARNING_KINDS: Tuple[str, ...] = (LONG_SUMMARY, DEFAULT_BALL_PROMPT, UNNAMED_REVIEW_LINK)
+WARNING_KINDS: Tuple[str, ...] = (
+    LONG_SUMMARY,
+    DEFAULT_BALL_PROMPT,
+    UNNAMED_REVIEW_LINK,
+    QUOTED_REMARK,
+)
 
 #: Where a summary stops being one or two sentences. The audit's number, and the one
 #: it measured the corpus against; two long sentences fit comfortably under it.
@@ -97,6 +110,14 @@ LOG_APPENDING_VERBS: FrozenSet[str] = frozenset({"log_append"})
 #: Verbs that write the ask a human is about to read. Only these can have written an
 #: address into it, so only these raise the link convention.
 PROMPT_WRITING_VERBS: FrozenSet[str] = frozenset({"handoff"})
+
+#: Verbs that write prose into the log or the ask. Wider than
+#: :data:`LOG_APPENDING_VERBS` on purpose: that set answers "which verb could have left
+#: a default prompt standing", and this one answers "which verb just wrote a sentence
+#: somebody might have quoted a person in", which every state verb does.
+PROSE_APPENDING_VERBS: FrozenSet[str] = frozenset(
+    {"create", "log_append", "handoff", "claim", "release", "promote", "close", "answer"}
+)
 
 #: A **link line**: an address alone on its line, optionally introduced by a name and a
 #: colon, optionally bulleted. The review panel lifts these into its "Links for this
@@ -163,6 +184,7 @@ def check_record(task: Task, *, verb: Optional[str] = None) -> List[RecordWarnin
         warnings.extend(_check_ball_prompt(task))
     if verb is None or verb in PROMPT_WRITING_VERBS:
         warnings.extend(_check_review_links(task))
+    warnings.extend(_check_quotations(task, verb))
     return warnings
 
 
@@ -189,6 +211,36 @@ def unnamed_review_links(prompt: str) -> List[str]:
         elif not (match.group("name") or "").strip():
             unnamed.append(match.group("url"))
     return unnamed
+
+
+def _quotation_scope(task: Task, verb: Optional[str]) -> Optional[List[str]]:
+    """The regions ``verb`` could have written, or ``None`` for all of them.
+
+    Scoped this tightly because the corpus is old and the check is new: evaluated over
+    a whole record, a quotation somebody else wrote years ago would fire on the next
+    session to claim the task, which is the wallpaper this module exists not to be. A
+    write is answerable for the words it just added and for nothing else.
+    """
+    if verb is None:
+        return None
+    scope: List[str] = []
+    if verb in SPEC_WRITING_VERBS:
+        scope.extend(("title", *(f"spec.{name}" for name in SPEC_PROSE_FIELDS)))
+    if verb in PROSE_APPENDING_VERBS:
+        scope.append("ball_prompt")
+        if task.log:
+            scope.append(f"log[{task.log[-1].id}].body")
+    return scope
+
+
+def _check_quotations(task: Task, verb: Optional[str]) -> List[RecordWarning]:
+    """Verbatim quotation of a person in what this write just added (task-376)."""
+    scope = _quotation_scope(task, verb)
+    if scope is not None and not scope:
+        return []
+    return [
+        RecordWarning(QUOTED_REMARK, remark.message()) for remark in scan_task(task, fields=scope)
+    ]
 
 
 def _check_summary(task: Task) -> List[RecordWarning]:
