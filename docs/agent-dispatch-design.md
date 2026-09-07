@@ -2200,6 +2200,51 @@ Two changes, and they answer the two questions the task posed:
 that is the shape of the tests: a real dispatched session run, a real escalation, the real
 poller settling it, and then the question — is this task open at `agent` with no live run?
 
+#### A third road, found by the gate: the guard could not read its own flag
+
+Fixing the two above left the branch red at `pytest` on a test neither of them touches —
+`test_cancelling_a_live_run_stops_it_and_marks_it_cancelled`, asserting `'failed' ==
+'cancelled'` under xdist, passing five of five in isolation. Same defect class, one layer
+down.
+
+**Every guard in this subsystem is a `meta.get(...)` on a file another process owns.** All
+three writers of a run's `meta.yaml` did `write_text(safe_dump(...))`, which truncates and
+then rewrites, and every reader reported a failed read as `{}`. A reader landing in that
+window therefore did not get an error it could retry — it got a confident *no*. Two writers
+against six readers for eight seconds: **2886 reads, none of them complete**, 1085 empty
+and 1796 parsed cleanly while missing keys nobody had removed. A truncated YAML mapping is
+usually still valid YAML, which is why "did it parse" was never the question.
+
+That is the cancel failure exactly. A cancelled batch run's supervisor wakes to a non-zero
+exit and reads the file to ask whether the kill was a cancellation. `_finish_batch`
+documents that race and orders its writes to remove it; the order is right, and a torn read
+defeats it anyway, because the flag it looks for cannot be seen.
+
+`dispatch/atomic_yaml.py` is the repair, and it has three parts because the first two each
+uncovered the next:
+
+- **The write replaces rather than rewrites** — build the document beside the target,
+  `os.replace` onto it.
+- **The read reserves `None` for genuine absence and retries a refusal.** Replacing leaves
+  one window behind: on Windows, opening a file mid-`MoveFileExW` can be refused, and
+  `PermissionError` is an `OSError`. Without this the original defect survives in new
+  clothes — measured after the write fix alone, 1 to 3 reads in ~3700 still came back empty
+  and none was an empty file.
+- **The read asks for `FILE_SHARE_DELETE`.** `os.replace` needs delete access to its target
+  and Python's `open` does not grant it, so on Windows every reader blocks a replace
+  outright: four readers looping held a writer off for hundreds of milliseconds per write,
+  and a backoff schedule starved 150 writes for two and a half seconds until they raised.
+  `cancel()` does that write inside a synchronous request, so it is a product cost rather
+  than a test artefact. Sharing delete gives Windows the semantics POSIX already has and
+  every reader here was written assuming.
+
+After all three: 18539 reads across five runs, zero torn, zero failed writes.
+
+What it deliberately does **not** fix is a lost update — two writers that each read, merge
+and replace can still have one merge win. Closing that needs a lock per run directory, and
+nothing in evidence needs it: the cancel path's writes are sequential within one thread,
+and the supervisor writes only when the flag it reads is absent.
+
 #### Watching one happen (task-321, 2026-08-27)
 
 Everything above is what a finish *does*. For its first six weeks none of it was visible
