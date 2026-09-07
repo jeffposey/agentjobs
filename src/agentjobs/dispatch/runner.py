@@ -47,9 +47,9 @@ from enum import Enum
 from pathlib import Path
 from typing import IO, Callable, Dict, List, Optional, Sequence
 
-import yaml
 
 from agentjobs.dispatch.address import resolve_api_base
+from agentjobs.dispatch.atomic_yaml import read_yaml_resiliently, write_yaml_atomically
 from agentjobs.dispatch.auth import AuthStall, read_auth_stall
 from agentjobs.dispatch.codex_app_server import (
     CodexAppServerError,
@@ -1051,20 +1051,27 @@ class RunDirectory:
         return directory
 
     def write_meta(self, meta: Dict[str, object]) -> None:
-        """Replace meta.yaml. Small enough that a rewrite is simpler than a patch."""
-        (self.path / META_FILENAME).write_text(
-            yaml.safe_dump(meta, sort_keys=False, allow_unicode=False), encoding="utf-8"
-        )
+        """Replace meta.yaml, in one step as far as any reader is concerned.
+
+        Whole-document rather than a patch because it is small; **atomic** because every
+        guard in this subsystem is a read of it by another process, and ``read_meta``
+        below reports a torn read as ``{}`` rather than as a failure (task-390). See
+        ``dispatch.atomic_yaml`` for the measurement and for what this does not fix.
+        """
+        write_yaml_atomically(self.path / META_FILENAME, meta)
 
     def read_meta(self) -> Dict[str, object]:
-        """Read meta.yaml, or an empty mapping if it is missing or unreadable."""
-        meta_path = self.path / META_FILENAME
-        if not meta_path.is_file():
-            return {}
-        try:
-            loaded = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError):
-            return {}
+        """Read meta.yaml, or an empty mapping if it is missing or unparseable.
+
+        **The empty mapping used to cover a third case, and that was the defect**
+        (task-390): a read refused for an instant -- which on Windows is what opening a
+        file mid-``os.replace`` does -- came back indistinguishable from a run with no
+        metadata. Every ``meta.get(...)`` guard in this module then read it as *the flag
+        is not set*, which is how a cancelled run got recorded as ``failed``.
+        ``read_yaml_resiliently`` retries a refusal and reserves ``None`` for genuine
+        absence, so the mapping this returns is now an answer rather than a shrug.
+        """
+        loaded = read_yaml_resiliently(self.path / META_FILENAME)
         return loaded if isinstance(loaded, dict) else {}
 
     def update_meta(self, **fields: object) -> None:

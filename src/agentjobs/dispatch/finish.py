@@ -73,6 +73,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
 from agentjobs.actors import FINISHER
+from agentjobs.dispatch.atomic_yaml import write_yaml_atomically
 from agentjobs.dispatch.config import (
     DispatchError,
     FinishSettings,
@@ -752,7 +753,13 @@ class FinishDirectory:
         return self.path / "meta.yaml"
 
     def write_meta(self, **fields: Any) -> None:
-        """Merge fields into ``meta.yaml``. Never raises: a finish outlives its record."""
+        """Merge fields into ``meta.yaml``. Never raises: a finish outlives its record.
+
+        Replaced rather than rewritten, for the reason ``dispatch.atomic_yaml`` gives:
+        ``finish_status`` reads this file while a finish is running, to put the live
+        progress of one on the dashboard, and an in-place rewrite gives that reader a
+        window in which the file parses to nothing.
+        """
         try:
             import yaml
 
@@ -762,9 +769,7 @@ class FinishDirectory:
                 if isinstance(loaded, dict):
                     existing = loaded
             existing.update(fields)
-            self.meta_path.write_text(
-                yaml.safe_dump(existing, sort_keys=False, allow_unicode=True), encoding="utf-8"
-            )
+            write_yaml_atomically(self.meta_path, existing, allow_unicode=True)
         except Exception:  # pragma: no cover - writing a record must not fail a finish
             pass
 

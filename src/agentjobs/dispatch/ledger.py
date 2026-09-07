@@ -48,6 +48,7 @@ from agentjobs.dispatch.runner import (
     resolve_executable,
     runs_root,
 )
+from agentjobs.dispatch.atomic_yaml import read_yaml_resiliently, write_yaml_atomically
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BallReason, DispatchMode, DispatchOutcome
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
@@ -1120,21 +1121,21 @@ def find_run(home: Path, run_id: str) -> RunRecord:
 
 
 def write_status(record: RunRecord, **fields: object) -> None:
-    """Merge fields into a run's meta.yaml."""
+    """Merge fields into a run's meta.yaml, replacing it rather than rewriting it.
+
+    The replacement is what makes ``cancel_requested`` mean anything (task-390). This is
+    the write a cancellation puts the flag down with, and the batch supervisor is reading
+    the same file a few milliseconds later to decide whether the kill it just woke from
+    was a cancellation. Rewriting in place gave that reader a window in which the file was
+    empty, and ``RunDirectory.read_meta`` reports an unreadable file as ``{}`` -- so the
+    flag looked absent rather than unreadable and the supervisor wrote ``failed`` over the
+    cancellation. See ``dispatch.atomic_yaml``.
+    """
     meta_path = record.path / META_FILENAME
-    meta: Dict[str, object] = {}
-    if meta_path.is_file():
-        try:
-            loaded = load_yaml(meta_path.read_text(encoding="utf-8"))
-            if isinstance(loaded, dict):
-                meta = loaded
-        except (OSError, yaml.YAMLError):
-            meta = {}
+    loaded = read_yaml_resiliently(meta_path, loader=load_yaml)
+    meta: Dict[str, object] = loaded if isinstance(loaded, dict) else {}
     merged = finish_stamped(meta, fields)
-    meta_path.write_text(
-        yaml.safe_dump(merged, sort_keys=False, allow_unicode=False),
-        encoding="utf-8",
-    )
+    write_yaml_atomically(meta_path, merged)
     if str(merged.get("status") or "") in TERMINAL_STATUSES:
         # The write that ends a run destroys its credential digest -- see
         # `RunDirectory.update_meta`, which does the same for the other write path.
