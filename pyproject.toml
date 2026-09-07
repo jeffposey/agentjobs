@@ -11,6 +11,9 @@ keywords = ["ai", "agents", "task-management", "workflow", "automation"]
 packages = [{ include = "agentjobs", from = "src" }]
 include = [
     { path = "src/agentjobs/frontend_dist", format = ["sdist", "wheel"] },
+    # The schema is data, not code, so it needs naming explicitly. A wheel without it
+    # installs a store that cannot create its own tables.
+    { path = "src/agentjobs/sqlstore/migrations/*.sql", format = ["sdist", "wheel"] },
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",

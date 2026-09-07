@@ -21,7 +21,7 @@ import sqlite3
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
+from typing import Iterator, List
 
 import pytest
 
@@ -53,7 +53,7 @@ from agentjobs.storage_protocol import TaskStore
 
 
 @pytest.fixture()
-def database(tmp_path: Path) -> Database:
+def database(tmp_path: Path) -> Iterator[Database]:
     """A migrated, empty store."""
     db = Database(tmp_path / "agentjobs.db")
     upgrade(db, agentjobs_version="test", snapshot_before=False)
@@ -67,6 +67,18 @@ def store(database: Database) -> SqlTaskStore:
     task_store = SqlTaskStore(database, "demo")
     task_store.ensure_project(root="/tmp/demo", reporting_tz="America/Chicago")
     return task_store
+
+
+def loaded(store: SqlTaskStore, task_id: str) -> Task:
+    """Load a task the test knows exists, narrowing away the Optional.
+
+    ``load_task`` returns None for "no such task", which is a real answer the store
+    must be able to give. In a test that has just written the task, None is a failure
+    and should read as one rather than as an attribute error three lines later.
+    """
+    task = store.load_task(task_id)
+    assert task is not None, f"{task_id} should exist at this point"
+    return task
 
 
 def make_task(task_id: str = "task-001", **overrides) -> Task:
@@ -178,7 +190,7 @@ class TestInvariants:
         with store.transaction():
             store.save_task(make_task("task-002", queue_position=200, parent="task-001"))
             store.save_task(make_task("task-001", queue_position=100))
-        assert store.load_task("task-002").parent == "task-001"
+        assert loaded(store, "task-002").parent == "task-001"
 
     def test_a_reason_from_the_wrong_vocabulary_is_refused(self, store: SqlTaskStore) -> None:
         """Rule 2: `agent/review` and `human/work` are not states, so they cannot exist."""
@@ -289,7 +301,7 @@ class TestConcurrency:
                 task.assignment = Assignment(owner=actor)
                 return task
 
-            before = store.load_task("task-001")
+            before = loaded(store, "task-001")
             after = store.mutate_task("task-001", mutator)
             if after.assignment.owner == actor and before.assignment.owner != actor:
                 winners.append(actor)
@@ -300,7 +312,7 @@ class TestConcurrency:
         for thread in threads:
             thread.join()
         assert len(winners) == 1
-        assert store.load_task("task-001").assignment.owner == winners[0]
+        assert loaded(store, "task-001").assignment.owner == winners[0]
 
     def test_concurrent_log_appends_all_land(self, store: SqlTaskStore) -> None:
         """Eight writers, one task. Under files this is a read-modify-write on a document."""
@@ -330,7 +342,7 @@ class TestConcurrency:
             thread.start()
         for thread in threads:
             thread.join()
-        task = store.load_task("task-001")
+        task = loaded(store, "task-001")
         assert len(task.log) == appended
         assert len({entry.id for entry in task.log}) == appended
 
@@ -470,7 +482,7 @@ class TestImport:
         assert report.imported == 2
         assert report.reconciles, report.render()
         assert report.open_rows == 1
-        assert store.load_task("task-001").title == "An open task"
+        assert loaded(store, "task-001").title == "An open task"
 
     def test_an_unreadable_record_is_quarantined_not_skipped(
         self, store: SqlTaskStore, tmp_path: Path
@@ -494,9 +506,9 @@ class TestImport:
         tasks_dir = tmp_path / "tasks"
         self._write(tasks_dir, "task-001.yaml", _YAML_OPEN)
         CorpusImporter(store, tasks_dir).run()
-        first = len(store.load_task("task-001").log)
+        first = len(loaded(store, "task-001").log)
         CorpusImporter(store, tasks_dir).run()
-        assert len(store.load_task("task-001").log) == first
+        assert len(loaded(store, "task-001").log) == first
 
 
 def _close(task: Task) -> Task:

@@ -526,6 +526,17 @@ webhook infrastructure needs to change.
   point is not migrating storage but adding a **derived SQLite index**, rebuilt from
   the files — the pattern dbt, Hugo and Sphinx use. Files stay the source of truth;
   the index is disposable.
+
+  > **SUPERSEDED, 2026-09-05.** The revisit happened and went the other way. The owner
+  > decided that **authoritative SQLite**, hosted with the server and outside every code
+  > worktree, replaces canonical YAML — explicitly *not* the derived, disposable index
+  > this paragraph recommends. The trigger was not the corpus size this paragraph
+  > anticipated: it was the workflow cost of task records living in a git working tree,
+  > which no amount of indexing reaches. The argument above is left standing because it
+  > was right about what it measured, and because the reasoning is what makes the
+  > reversal legible. See [storage-sqlite.md](storage-sqlite.md), and task-273 for the
+  > decision and its five follow-up answers. Task-311 owns the cutover; until it lands,
+  > the paragraph above still describes how the product actually stores your tasks.
 - **Field-level provenance.** See §4.
 - **Storing the display status.** See §3 — derivable data stored twice is a standing
   drift bug.
