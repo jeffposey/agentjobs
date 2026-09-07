@@ -2,7 +2,7 @@ schema: 2
 id: task-311
 title: Migrate tasks to server-hosted SQLite and retire task-state Git workflows
 created: '2026-08-24T00:55:20.126619Z'
-updated: '2026-09-07T04:44:01.012944Z'
+updated: '2026-09-07T04:46:46.003730Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -139,7 +139,9 @@ dependencies:
   type: related
   note: Agree preservation/backfill and history coverage for analytics.
 links: []
-branches: []
+branches:
+- name: feat/task-311-sqlite-cutover
+  status: active
 log:
 - id: 1
   ts: '2026-08-24T00:55:20.655637Z'
@@ -313,3 +315,15 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 11
+  ts: '2026-09-07T04:46:46.003481Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: f1a2b3c4-1111-4a2b-8c3d-000000000311
+      kind: update_content
+      fingerprint: 8ed3a1e2a22079c2460b5f1e3e033318
