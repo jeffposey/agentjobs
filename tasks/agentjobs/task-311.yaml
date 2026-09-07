@@ -2,7 +2,7 @@ schema: 2
 id: task-311
 title: Migrate tasks to server-hosted SQLite and retire task-state Git workflows
 created: '2026-08-24T00:55:20.126619Z'
-updated: '2026-09-07T04:46:46.003730Z'
+updated: '2026-09-07T05:02:20.562932Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -327,3 +327,66 @@ log:
       id: f1a2b3c4-1111-4a2b-8c3d-000000000311
       kind: update_content
       fingerprint: 8ed3a1e2a22079c2460b5f1e3e033318
+- id: 12
+  ts: '2026-09-07T05:02:20.562749Z'
+  actor: claude
+  type: progress
+  body: 'Foundation landed on `feat/task-311-sqlite-cutover`. Two commits.
+
+
+    **The storage seam.** `storage_config.py` holds which backend each project is
+    on, in `~/.agentjobs/storage.yaml` -- machine level, because a project''s own
+    config is versioned and travels with a clone while the database does not; recording
+    the cutover in a tracked file would tell a fresh clone elsewhere that its tasks
+    live in a database that machine never had. `store_factory.open_store(project)`
+    is the single place a project id becomes a store, and it *enforces* the owner''s
+    decision of 2026-09-05 that only the server opens the database: a client process
+    asking for a SQLite-backed project is refused and told to use the service.
+
+
+    **TaskManager needed no rewrite.** It runs on `SqlTaskStore` unchanged. Only two
+    places were genuinely about files -- the missing-task check (now `storage.has_task`)
+    and queue repair''s raw reads (now backend-aware, and under SQL the corruption
+    it rescues is unrepresentable). This is the result the whole cutover rests on;
+    had a verb needed a per-backend implementation, this would have been a rewrite
+    of the domain layer rather than a change of where rows live.
+
+
+    **`cutover.py`** is the operator sequence: preview (the real import against a
+    throwaway database), back up, import, verify, record. `storage.yaml` is written
+    last, because it is what every client reads to decide where to look.
+
+
+    **Three defects the live corpus found, all fixed:**
+
+    1. `_persist` restamped `updated` on every write -- right for a verb, wrong for
+    an import, and it silently re-dated all 374 records to the migration. Tied to
+    `record_history`, which already distinguishes the two.
+
+    2. A re-run after a *completed* import upserted the tasks harmlessly and wrote
+    the reconstructed history a second time, doubling every event with nothing raising.
+    Now refused unless `replace=True`, which empties the project inside the same transaction
+    that re-fills it.
+
+    3. Verification compared serialised strings; the corpus holds a `merged_at` with
+    a local offset that the store correctly normalises to UTC, and a string comparison
+    called that data loss. Now compared as instants.
+
+
+    **Measured on this repository''s own 374 records:** imported and VERIFIED. Backlog
+    invariant 129 = 129. 7 of 7 attachment blobs. Without git backfill, 1914 events
+    and all 374 needing reconciliation; with it, 1492 git observations, 2043 events,
+    and only 58 needing reconciliation -- matching the 84% figure task-273 measured.
+
+
+    **Still to do:** the `agentjobs storage` CLI group; client retry with bounded
+    backoff and graceful shutdown/503 (task-273 entry 6, items 1 and 2); the CLI verbs
+    becoming service clients (item 3); dispatch and finish giving up their task-record
+    commits; converting live-corpus tests to fixtures; the documentation that currently
+    instructs agents to commit task YAML to `main`; and the retirement step for the
+    tracked files.'
+  data:
+    operation:
+      id: a2b3c4d5-2222-4a2b-8c3d-000000000311
+      kind: log_append
+      fingerprint: bcebcf88eb909f7d5f2a7962cf6a1033
