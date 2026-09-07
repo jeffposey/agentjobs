@@ -63,6 +63,7 @@ import shutil
 import subprocess
 import sys
 import time
+import traceback
 import urllib.error
 import urllib.request
 import uuid
@@ -301,13 +302,20 @@ class Declined(Exception):
 
 
 class Escalate(Exception):
-    """A step could not be completed safely. A person or an agent takes it from here."""
+    """A step could not be completed safely. A person or an agent takes it from here.
 
-    def __init__(self, step: str, reason: str, detail: str) -> None:
+    ``frames`` is set only for a stop nobody modelled -- see :func:`_guarded_sequence`.
+    Every other stop already knows where it is and says so in ``detail``; an unmodelled
+    one knows only its own message, and without the frames placing it means re-deriving
+    a call path from which step did not run (task-388).
+    """
+
+    def __init__(self, step: str, reason: str, detail: str, frames: str = "") -> None:
         super().__init__(detail)
         self.step = step
         self.reason = reason
         self.detail = detail
+        self.frames = frames
 
 
 # ----- subprocess plumbing ----------------------------------------------------
@@ -1503,16 +1511,24 @@ def mark_branch_merged(manager: TaskManagerLike, task_id: str, branch: str) -> N
     Re-reads the task rather than patching the copy preflight was given. Several log
     entries have been appended since then, and a patch computed from a stale record is
     how a concurrent write gets silently discarded.
+
+    **The patch is built in JSON terms, not Python ones** (task-388). ``manager`` here is
+    a :class:`~agentjobs.remote_manager.RemoteTaskManager` whenever the project is on
+    SQLite, so this dict is about to become an HTTP request body -- and a
+    ``datetime.datetime`` in it is a ``TypeError`` at ``httpx``'s encoder, thrown after
+    the merge, the rebuild and the restart have all happened. ``mode="json"`` rather than
+    ``mode="python"``, and an ISO string rather than a ``datetime``, for the same reason
+    the status has always been written as ``.value``: the wire is the destination.
     """
     current = manager.get_task(task_id)
     if current is None:  # pragma: no cover - the task was read moments ago
         return
     branches: List[Dict[str, Any]] = []
     for entry in current.branches:
-        item = entry.model_dump(mode="python")
+        item = entry.model_dump(mode="json")
         if entry.name == branch:
             item["status"] = BranchStatus.MERGED.value
-            item["merged_at"] = datetime.now(timezone.utc)
+            item["merged_at"] = datetime.now(timezone.utc).isoformat()
         branches.append(item)
     manager.update_task(task_id, actor=FINISHER, branches=branches)
 
@@ -1712,9 +1728,13 @@ def escalate_on_record(
         if merge_commit
         else "**Nothing was merged.**"
     )
+    # Only an unmodelled stop carries frames, and when it does they go here rather than
+    # into the prompt: this entry is what a reader opens to place the failure, and the
+    # prompt is what an agent is woken with (task-388).
+    where = f"\n\nIt was raised here:\n\n```\n{failure.frames}\n```" if failure.frames else ""
     body = (
         f"The scripted finish stopped at `{failure.step}` ({failure.reason}). {merged}\n\n"
-        f"{failure.detail}\n\nEverything it did get through:\n\n```\n{account}\n```"
+        f"{failure.detail}{where}\n\nEverything it did get through:\n\n```\n{account}\n```"
     )
     manager.add_log_entry(
         task_id,
@@ -1726,6 +1746,7 @@ def escalate_on_record(
             "finish_reason": failure.reason,
             "merge_commit": merge_commit,
             "merged": merge_commit is not None,
+            **({"traceback": failure.frames} if failure.frames else {}),
         },
     )
     task = manager.get_task(task_id)
@@ -2194,6 +2215,36 @@ def _merge_commit_of(steps: Sequence[StepResult]) -> Optional[str]:
     return None
 
 
+def where_it_was_raised(error: BaseException, limit: int = 8) -> str:
+    """The tail of ``error``'s traceback, as a reader of the task record can use it.
+
+    An ``unexpected`` stop used to reach the record as a type and a message, and nothing
+    else. Task-388 is what that costs: ``TypeError: Object of type datetime is not JSON
+    serializable`` names no field, no file and no line, so placing it meant reasoning
+    backwards from which step had *not* run, then re-deriving a call path by hand. The
+    frames were sitting in the spawn log the whole time; they simply never got onto the
+    task, which is the only artefact the next reader is guaranteed to have.
+
+    The last few frames rather than the whole stack, because the top of a finish's stack
+    is always the same orchestration and the bottom is always where the answer is. Paths
+    are cut at the package root: ``src/agentjobs/...`` places a frame in this repository
+    exactly as well as an absolute path does, and this record has a public remote.
+    """
+    rendered: List[str] = []
+    for frame in traceback.extract_tb(error.__traceback__)[-limit:]:
+        rendered.append(f"{_placeable_path(frame.filename)}:{frame.lineno} in {frame.name}")
+    return "\n".join(rendered)
+
+
+def _placeable_path(filename: str) -> str:
+    """``filename`` cut down to the part that places it, without naming a home directory."""
+    parts = Path(filename).as_posix().split("/")
+    for marker in ("src", "site-packages", "tests", "scripts"):
+        if marker in parts:
+            return "/".join(parts[parts.index(marker) :])
+    return parts[-1]
+
+
 def _guarded_sequence(**kwargs: Any) -> FinishResult:
     """``_sequence``, with every unanticipated failure turned into an escalation.
 
@@ -2203,6 +2254,13 @@ def _guarded_sequence(**kwargs: Any) -> FinishResult:
     a stop like any other -- named ``unexpected``, carrying the exception verbatim,
     landing on the record with the steps that did complete. An ugly escalation is worth
     a great deal more than a silent one.
+
+    **With the frames, since task-388.** They ride on ``Escalate.frames`` rather than in
+    the detail, because the detail is also the ``ball_prompt`` an agent is woken with and
+    that has to stay short. The frames belong on the log entry, which is where a reader
+    goes when the one-line message is not enough -- and for an unmodelled error it never
+    is: "how far did it get" and "where did it throw" are different questions, and the
+    step table only ever answered the first.
     """
     try:
         return _sequence(**kwargs)
@@ -2215,6 +2273,7 @@ def _guarded_sequence(**kwargs: Any) -> FinishResult:
             f"The scripted finish hit something it does not handle: "
             f"`{type(unexpected).__name__}: {unexpected}`. The steps below say how far "
             "it got; check the tree against them before doing anything else.",
+            frames=where_it_was_raised(unexpected),
         ) from unexpected
 
 
