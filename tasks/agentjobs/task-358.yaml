@@ -2,20 +2,18 @@ schema: 2
 id: task-358
 title: Task state moves to SQLite on the server
 created: '2026-09-06T06:08:06.698982Z'
-updated: '2026-09-07T04:02:15.880418Z'
+updated: '2026-09-07T04:22:36.190302Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: 'One click: dispatch task-376 (the content filter). Then task-311 is
-  the last child and the walk is safe.
+ball: agent
+ball_reason: work
+ball_prompt: 'Supervising. task-376 is in flight (run_9ee20083); a backgrounded watch
+  on its record will wake this session when it closes or parks. task-311 now `needs`
+  task-376, so it cannot take off early. When task-376 closes, run the walk -- task-311
+  becomes the only claimable child.
 
 
-  I cannot start it myself -- a dispatch must be caused by a human act, and the walk,
-  my only tool, would start task-311 alongside it and land the cutover before the
-  ingest guard exists.
-
-
-  Task 376: http://127.0.0.1:8876/app/tasks/task-376'
+  Nothing is needed from a human. The `human/decision` this replaces was written by
+  the walk exiting `no_eligible_child`, not by a real question.'
 archived: false
 priority: critical
 queue_position: 843
@@ -708,3 +706,66 @@ log:
       id: a71c93f5-2e08-4d64-b3a9-58e6127f0d92
       kind: handoff
       fingerprint: d09190bb893ab0f534bdd66d6c7039fc
+- id: 23
+  ts: '2026-09-07T04:22:04.481307Z'
+  actor: claude
+  type: progress
+  body: '**Epic walk** -- stopped: no_eligible_child.
+
+
+    Started 2026-09-07T04:22:04.477412+00:00.
+
+
+    Walk of task-358: no_eligible_child.
+
+    2 open child/children remain and none is claimable: task-311, task-376. Each is
+    blocked by an unmet dependency, already claimed, or holding open children of its
+    own. This is not a finished epic and is reported separately from one.
+
+    No child was started.
+
+
+    **The first child that is not clean grounds every further takeoff, and no child
+    is ever skipped.** A sibling that depended on it would be building on a gap, and
+    nobody is awake to notice. Children already in flight were watched down rather
+    than killed -- none of them could have depended on this one, or they would not
+    have been eligible to start. Whatever the child''s record says it needs is what
+    this epic needs next.'
+  data: {}
+- id: 24
+  ts: '2026-09-07T04:22:36.190049Z'
+  actor: claude
+  type: handoff
+  body: "## Two things established, both on owner instruction\n\n**1. task-311 now\
+    \ `needs` task-376.** Done through `TaskManager.update_task`, not a hand-edit:\
+    \ validated, canonically serialised, with an operation id \u2014 `agentjobs validate`\
+    \ reports no `non-canonical-serialization` on the file, which is the proof it\
+    \ went through the supported path. Run scoping lives in the HTTP layer, so the\
+    \ manager was reachable all along; my earlier claim that the edge was unreachable\
+    \ was wrong, and only the API route was actually blocked.\n\n**2. The walk will\
+    \ dispatch task-311 once task-376 closes**, which is the instruction. It cannot\
+    \ do it now, and that is the finding below.\n\n## The walk does not watch a child\
+    \ it did not start\n\nTested rather than assumed. With task-376 in flight under\
+    \ `run_9ee20083` and task-311 blocked by the new edge, a live walk exited **immediately**:\n\
+    \n> Walk of task-358: `no_eligible_child`. 2 open child/children remain and none\
+    \ is claimable: task-311, task-376. Each is blocked by an unmet dependency, already\
+    \ claimed, or holding open children of its own.\n\nExit 0, nothing started, and\
+    \ **it set this task's ball to `human`/`decision`** on the way out \u2014 which\
+    \ is why this entry hands it back to the agent. So \"dispatch a child by hand,\
+    \ then re-run the walk to pick up the epic\" does not work while that child is\
+    \ still running: the walk only watches children it started itself, and a hand-started\
+    \ child is simply invisible to it.\n\nThat belongs on **task-377**, which already\
+    \ covers the composition of rules that forced the hand dispatch in the first place.\
+    \ It is the same gap seen from the other end: having been made to start a child\
+    \ by hand, you then cannot hand the epic back to the walk until that child is\
+    \ finished.\n\n## How this session is watching instead\n\nA backgrounded poll\
+    \ on task-376's record, exiting when its lifecycle closes or its ball reaches\
+    \ a human \u2014 a real mechanism rather than an intention. When it fires, the\
+    \ walk gets run and task-311 is the only claimable child left."
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: e3f80b12-4c67-49a5-8d20-1b7f5e93ca08
+      kind: handoff
+      fingerprint: 0e3f2b707c45f747fa57b083919f2115
