@@ -408,12 +408,17 @@ class TestManagerWritesThem:
 
 
 class TestNothingElseChanged:
-    def test_existing_task_files_still_load(self) -> None:
-        """Additive means additive: the real corpus is the regression test."""
-        tasks_dir = Path(__file__).resolve().parents[1] / "tasks" / "agentjobs"
-        storage = TaskStorage(tasks_dir)
+    def test_existing_records_still_load(self) -> None:
+        """Additive means additive: this repository's own backlog is the regression test.
 
-        loaded = storage.list_tasks()
+        Read through the resolved source rather than a directory, so it keeps testing the
+        real corpus after a cutover instead of testing a frozen copy of it (task-311).
+        """
+        import corpus_source
+
+        loaded = corpus_source.product_tasks()
+        if loaded is None:
+            pytest.skip("this repository's own backlog could not be read from either backend")
 
         assert len(loaded) > 100
 

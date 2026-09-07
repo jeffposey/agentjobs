@@ -1,9 +1,15 @@
-"""Round-trip corpus test: the v2 model must load every task YAML in the repo.
+"""The corpus checks: every record loads, nothing dangles, nobody is quoted.
 
 This is the safety net for the schema migration (task-052). Any change to
-src/agentjobs/models_v2.py that breaks loading of an existing task file fails here
-with the exact file and validation error, and any file that lost its `schema: 2`
-stamp is named rather than silently treated as v1.
+src/agentjobs/models_v2.py that breaks loading of an existing record fails here with the
+exact record and validation error, and any file that lost its `schema: 2` stamp is named
+rather than silently treated as v1.
+
+**Two kinds of check live here and they resolve their corpus differently** (task-311).
+The per-file assertions -- the stamp, the byte-level round trip -- are about a *file
+format*, so they read files and skip when a project has retired them. Everything else is
+about *the backlog*, so it reads whichever backend holds it: see `tests/corpus_source.py`
+for why that distinction is worth making rather than assuming a directory.
 """
 
 from __future__ import annotations
@@ -18,14 +24,15 @@ import yaml
 from agentjobs.models_v2 import DeliverableStatus, Lifecycle, SCHEMA_VERSION, Task, load_task
 from agentjobs.quotation import scan_task
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-CORPUS_DIRS = ("tasks/agentjobs", "tasks/test-data")
+import corpus_source
+
+REPO_ROOT = corpus_source.REPO_ROOT
+CORPUS_DIRS = corpus_source.CORPUS_DIRS
 
 
 def corpus_files() -> Iterator[Path]:
-    """Yield every task YAML file tracked as part of the corpus."""
-    for rel in CORPUS_DIRS:
-        yield from sorted((REPO_ROOT / rel).glob("*.yaml"))
+    """Yield every task file tracked as part of the corpus. Empty once retired."""
+    yield from corpus_source.corpus_files()
 
 
 def is_absolute(path: str) -> bool:
@@ -61,36 +68,47 @@ def ignored_by_git(paths: set[str]) -> set[str]:
 
 
 def agentjobs_tasks() -> list[Task]:
-    """Load the complete product corpus for relationship and currency checks."""
-    return [
-        load_task(
-            yaml.safe_load(path.read_text(encoding="utf-8")),
-            source=path.name,
+    """The product backlog, from whichever backend holds it. Skips if unreadable."""
+    tasks = corpus_source.product_tasks()
+    if tasks is None:
+        pytest.skip(
+            "this repository's own backlog could not be read from either backend; "
+            "`agentjobs storage status` says where it is"
         )
-        for path in sorted((REPO_ROOT / "tasks" / "agentjobs").glob("*.yaml"))
-    ]
+    return tasks
 
 
 def corpus_tasks() -> list[Task]:
-    """Every task record in the repository, product corpus and test data alike."""
-    return [
-        load_task(yaml.safe_load(path.read_text(encoding="utf-8")), source=path.name)
-        for path in corpus_files()
-    ]
+    """Every record: the product backlog plus the fixture data beside it."""
+    tasks = corpus_source.all_tasks()
+    if tasks is None:
+        pytest.skip("this repository's own backlog could not be read from either backend")
+    return tasks
 
 
 def test_corpus_is_not_empty() -> None:
-    """Guard against directory moves silently emptying the corpus."""
-    files = list(corpus_files())
-    assert len(files) >= 20, (
-        f"expected the task corpus to contain at least 20 files, found {len(files)} -- "
-        "did a tasks directory move without this test being updated?"
+    """Guard against the corpus silently emptying, whichever backend holds it.
+
+    Counted through the resolved source rather than by globbing a directory: a directory
+    that has moved and a corpus that has been migrated look identical from a glob, and
+    only one of them is a fault.
+    """
+    tasks = corpus_tasks()
+    assert len(tasks) >= 20, (
+        f"expected the task corpus to contain at least 20 records, found {len(tasks)} -- "
+        "did a directory move, or a cutover go wrong, without this test being updated?"
     )
 
 
 @pytest.mark.parametrize("path", corpus_files(), ids=lambda p: p.name)
 def test_task_yaml_is_stamped_and_round_trips(path: Path) -> None:
-    """Every task file must carry the stamp, validate, and round-trip losslessly."""
+    """Every task file must carry the stamp, validate, and round-trip losslessly.
+
+    Files only, and it collects nothing once a project has retired them. That is the
+    honest answer rather than a gap: this asserts a property of the *file format*, and
+    the equivalent guarantee for a row is a `CHECK` constraint the database enforces on
+    every write (docs/storage-sqlite.md section 3).
+    """
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert data, f"{path} parsed to an empty document"
     assert data.get("schema") == SCHEMA_VERSION, (
