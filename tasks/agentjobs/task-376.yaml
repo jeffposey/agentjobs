@@ -3,14 +3,11 @@ id: task-376
 title: Task records must paraphrase rather than quote a person, and the store must
   refuse verbatim quotes at ingest
 created: '2026-09-07T03:43:37.694129Z'
-updated: '2026-09-07T04:42:53.020765Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-09-07T04:43:09.014380Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 1493
 category: migration
 tags:
 - storage
@@ -18,7 +15,6 @@ tags:
 - policy
 - content
 assignment:
-  owner: claude
   eligible: []
 parent: task-358
 spec:
@@ -141,7 +137,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-376-quote-policy
-  status: active
+  status: merged
+  merged_at: '2026-09-07T04:43:08.974778Z'
 log:
 - id: 1
   ts: '2026-09-07T03:43:38.389879Z'
@@ -431,3 +428,28 @@ log:
     merge_commit: fb4f78dcfcdcb43f09b3b61922157c5f38b11f85
     branch: feat/task-376-quote-policy
     base: main
+- id: 12
+  ts: '2026-09-07T04:43:09.014161Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-376-quote-policy` into `main` as `fb4f78dc` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). No human\
+    \ reviewed this merge: posture `autonomous` (from the dispatch) releases the merge\
+    \ gate (task-021), and run run_9ee20083 ran the finish. What authorised it is\
+    \ the gate -- `scripts/check.py` green on the rebased branch, run here rather\
+    \ than reported by the agent.\n\nEverything up to and including verification:\n\
+    \n```\n  preflight  ok         1.0s  feat/task-376-quote-policy at 132786f1 in\
+    \ C:\\projects\\worktrees\\agentjobs-376\n  runway     ok         0.0s  taken\
+    \ immediately\n  rebase     ok         0.3s  feat/task-376-quote-policy onto main:\
+    \ 132786f1 -> cddbba62\n  gate       ok       244.0s  scripts/check.py green\n\
+    \  catch_up   skipped    0.0s  main did not move during the gate\n  merge    \
+    \  ok         0.2s  --no-ff into main as fb4f78dcfcdcb43f09b3b61922157c5f38b11f85\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         0.5s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving 998e4291, which contains the merge\
+    \ fb4f78dc, from C:\\projects\\agentjobs (started 2026-09-07T04:42:57.246476+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
