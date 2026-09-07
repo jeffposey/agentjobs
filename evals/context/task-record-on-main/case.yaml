@@ -20,7 +20,6 @@ ablate:
     - {file: ENGINEERING.md, heading: "Where task records live, and whether you commit them"}
   remove_lines:
     - {file: AGENTS.md, pattern: "task-record commits"}
-    - {file: ALLAGENTS.md, pattern: "task-record commits"}
     - {file: ALLAGENTS.md, pattern: "Where task records live"}
     - {file: ALLAGENTS.md, pattern: "is something you commit"}
     - {file: ALLAGENTS.md, pattern: "goes to `main`, never to your branch"}

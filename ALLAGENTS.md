@@ -320,15 +320,15 @@ A human working alone does not need this; they have no peer to collide with. You
     list` and `git branch --list` are the inventories; a worktree for a closed task is
     litter, and so is its branch. `agentjobs branches` reads both and names what is left.
 -   **Never `git checkout` in the shared clone** to start work.
--   Committing task metadata straight to `main`, where a project still keeps records as
-    files, does not need one. Anything that goes on a branch does.
+-   Committing task metadata straight to `main`, on a files project, does not need one.
+    Anything that goes on a branch does.
 -   **Do not use Claude Code's `--worktree` / `-w` or `EnterWorktree` to get one.** It
     looks like the CLI doing this for you and it is not the same thing: such a session is
     isolated by a guard that refuses *every* git operation aimed at the shared clone —
-    `git -C` and `cd` alike — and the shared clone is where your task-record commits and
-    your merge have to happen. You would do the work and then be unable to record or merge
-    it. Take the worktree yourself with `git worktree add`, as above. Probed on Claude
-    Code 2.1.235, 2026-08-19; the reproduction is in task-186 and in
+    `git -C` and `cd` alike — and the shared clone is where your merge has to happen. You
+    would do the work and then be unable to merge it. Take the worktree yourself with
+    `git worktree add`, as above. Probed on Claude Code 2.1.235, 2026-08-19; the
+    reproduction is in task-186 and in
     [the dispatch design](docs/agent-dispatch-design.md).
 -   **The harness tells background sessions the opposite, and this rule wins.** A `--bg`
     session is handed a preamble instructing it to use `EnterWorktree` and saying the

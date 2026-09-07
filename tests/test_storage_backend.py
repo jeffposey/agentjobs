@@ -181,7 +181,9 @@ class TestTheFactory:
         with server_process():
             # One Database under both stores: a second write connection on one file
             # would defeat the single-writer rule from inside the server.
-            assert open_store(first).database is open_store(second).database
+            one, other = open_store(first), open_store(second)
+            assert isinstance(one, SqlTaskStore) and isinstance(other, SqlTaskStore)
+            assert one.database is other.database
 
     def test_the_declaration_does_not_outlive_the_block(self, home: Path, project: Project) -> None:
         record_cutover(project.id, project.root / "tasks")
@@ -258,3 +260,38 @@ class TestTheManagerOnEitherBackend:
 
         with pytest.raises(TaskNotFoundError):
             manager.claim_task("task-999", agent="claude")
+
+
+class TestTheDispatchException:
+    """The one family that still opens the store directly, and what bounds it."""
+
+    def test_dispatch_gets_a_local_manager_where_everything_else_goes_remote(
+        self, home: Path, project: Project
+    ) -> None:
+        from agentjobs.cutover import cut_over
+        from agentjobs.manager import TaskManager
+        from agentjobs.remote_manager import RemoteTaskManager
+        from agentjobs.store_factory import dispatch_manager_for, task_manager_for
+
+        cut_over(project, backfill_git=False)
+
+        # Recording a dispatch means sending argv, which a dispatch schema may not
+        # carry, so the dispatch family keeps a direct path. Everything else is a
+        # service client. See dispatch_manager_for for the whole argument.
+        assert isinstance(dispatch_manager_for(project), TaskManager)
+        assert isinstance(task_manager_for(project), RemoteTaskManager)
+
+    def test_it_refuses_a_database_this_build_would_have_to_migrate(
+        self, home: Path, project: Project, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Applying a schema change from a short-lived process, possibly while a server
+        # holds the file, is the one thing multi-process SQLite does not make safe.
+        from agentjobs.cutover import cut_over
+        from agentjobs.sqlstore import migrations
+        from agentjobs.store_factory import dispatch_manager_for
+
+        cut_over(project, backfill_git=False)
+        monkeypatch.setattr(migrations, "latest_version", lambda: 999)
+
+        with pytest.raises(StoreAccessError, match="physical schema version"):
+            dispatch_manager_for(project)

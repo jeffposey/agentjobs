@@ -27,6 +27,11 @@ export const PROJECT_TASK_QUERY_IDS = new Set([
   "listTasksApiProjectsProjectIdTasksGet",
   "listBrokenTasksApiProjectsProjectIdTasksBrokenGet",
   "getNextTaskApiProjectsProjectIdTasksNextGet",
+  // The whole claimable set rather than its head. Nothing in the app asks for it today
+  // -- it exists for the epic walk, which needs the set to start every eligible child --
+  // but it is the same answer as `next` with the limit taken off, so it goes in the set
+  // that refetches rather than the one that lists reasons for not doing so.
+  "getClaimableTasksApiProjectsProjectIdTasksClaimableGet",
   // Both read the queue, and the queue is task files: a move, a reprioritize, a close
   // or a create all change what these answer, and all of them move the revision.
   "explainNextTaskApiProjectsProjectIdTasksNextExplainGet",

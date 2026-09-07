@@ -163,7 +163,8 @@ class TestNothingDirtiesTheCheckout:
         } == stamps
         # And the write did land -- otherwise this test would pass on a manager that
         # does nothing at all.
-        assert manager.get_task("task-001").assignment.owner == "claude"
+        written = manager.get_task("task-001")
+        assert written is not None and written.assignment.owner == "claude"
 
     def test_the_database_is_outside_every_checkout(self, project: Project) -> None:
         migrated(project)
