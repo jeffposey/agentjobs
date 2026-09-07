@@ -3,7 +3,7 @@ id: task-298
 title: The run-lock refusal blames a stuck dispatch when the holder is a scripted
   finish, and never says the merge is already happening
 created: '2026-08-23T20:58:00.297051Z'
-updated: '2026-08-25T09:07:38.520708Z'
+updated: '2026-09-07T04:25:36.235517Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -70,9 +70,9 @@ spec:
 
 
     **The user concluded that dispatch was completely broken.** Nothing was broken.
-    Both finishes were healthy; one was 3.5 minutes
-    into a full gate. The cost was a false breakage diagnosis and two rounds of investigation
-    to establish that the system was working correctly.
+    Both finishes were healthy; one was 3.5 minutes into a full gate. The cost was
+    a false breakage diagnosis and two rounds of investigation to establish that the
+    system was working correctly.
 
 
     ## What to fix
@@ -659,3 +659,15 @@ log:
     outcome: completed
     duration_seconds: 1418.372397
     log_path: C:\Users\jpose\.agentjobs\runs\run_2735e083
+- id: 19
+  ts: '2026-09-07T04:25:36.235309Z'
+  actor: claude
+  type: note
+  body: 'Redacted spec.description: paraphrased by hand on 2026-09-07 before the redaction
+    verb existed; re-saved through it (task-376)'
+  data:
+    redaction:
+      field: spec.description
+      reason: paraphrased by hand on 2026-09-07 before the redaction verb existed;
+        re-saved through it (task-376)
+      removed_chars: 3186

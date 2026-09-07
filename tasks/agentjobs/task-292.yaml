@@ -2,7 +2,7 @@ schema: 2
 id: task-292
 title: Keep top bar visible while scrolling
 created: '2026-08-23T19:05:31.429792Z'
-updated: '2026-08-23T20:51:15.293872Z'
+updated: '2026-09-07T04:25:32.840304Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -448,32 +448,32 @@ log:
     \ only above a breakpoint and letting the phone scroll as today.** Cheapest, and\
     \ it is the one that leaves Jeff's actual reading surface unfixed. He reads this\
     \ over Tailscale on a phone; that is the case the task exists for. Rejected.\n\
-    \n**Against a toggleable panel at desktop too** \u2014 Jeff's second option, *\"\
-    or still have that be a toggleable panel from a burger menu?\"* Rejected, and\
-    \ this is the part of his message I am pushing back on. A burger at 1440px buys\
-    \ back 64px of 800 (8%) and charges a click for every navigation, forever. It\
-    \ also hides the Dispatch link, and `App.tsx:604` carries a deliberate comment\
-    \ about why that link is not in a menu: it is where the machine-wide kill switch\
-    \ lives, and *\"a kill switch you cannot reach is not one.\"* task-167's constraints\
-    \ repeat it. Below 960 the row cannot fit and the trade reverses; above it, visible-and-free\
-    \ beats hidden-behind-a-click.\n\n**Against a left drawer**, Jeff's *\"or left\
-    \ bar, whatever\"*. Two reasons. task-238 puts a **task list** down the left of\
-    \ the Tasks surface at landscape widths; a nav drawer that also comes from the\
-    \ left teaches two different meanings for the same edge, and they meet at exactly\
-    \ the widths where a tablet crosses the breakpoint. And a top sheet is literally\
-    \ what he described first \u2014 *\"an overlay burger icon that opens the top\
-    \ bar\"* \u2014 the bar's own contents, dropping down over the page. It also needs\
-    \ no slide animation and no drawer-scrim machinery.\n\n**Against a horizontally-scrolling\
-    \ nav row** (not in the spec's list; I considered it and it is the cheapest thing\
-    \ that would work). One 44px row, no new control, no hidden state, no interaction\
-    \ cost, ~4 lines. Rejected because off-screen destinations are invisible, which\
-    \ is the same unreachability in a new costume, and because it degrades as destinations\
-    \ are added \u2014 and two more are already specced.\n\n**Against making the app\
-    \ shell a non-scrolling frame** (`h-dvh`, `<main>` as the scroll container), which\
-    \ is structurally the nicer answer and which I wanted to recommend. It would pin\
-    \ the header with no `sticky` and no z-index at all, hand task-237 its non-scrolling\
-    \ page, and give Jeff's *\"Dashboard should involve no scrolling\"* goal a bounded\
-    \ region to fit into. Rejected **for this task** because `frontend/src/components/dragAutoScroll.ts`\
+    \n**Against a toggleable panel at desktop too** \u2014 Jeff's second option, a\
+    \ panel toggled from a burger menu at every width. Rejected, and this is the part\
+    \ of his message I am pushing back on. A burger at 1440px buys back 64px of 800\
+    \ (8%) and charges a click for every navigation, forever. It also hides the Dispatch\
+    \ link, and `App.tsx:604` carries a deliberate comment about why that link is\
+    \ not in a menu: it is where the machine-wide kill switch lives, and *\"a kill\
+    \ switch you cannot reach is not one.\"* task-167's constraints repeat it. Below\
+    \ 960 the row cannot fit and the trade reverses; above it, visible-and-free beats\
+    \ hidden-behind-a-click.\n\n**Against a left drawer**, the third option he floated.\
+    \ Two reasons. task-238 puts a **task list** down the left of the Tasks surface\
+    \ at landscape widths; a nav drawer that also comes from the left teaches two\
+    \ different meanings for the same edge, and they meet at exactly the widths where\
+    \ a tablet crosses the breakpoint. And a top sheet is literally what he described\
+    \ first: an overlay burger icon that opens the top bar, the bar's own contents\
+    \ dropping down over the page. It also needs no slide animation and no drawer-scrim\
+    \ machinery.\n\n**Against a horizontally-scrolling nav row** (not in the spec's\
+    \ list; I considered it and it is the cheapest thing that would work). One 44px\
+    \ row, no new control, no hidden state, no interaction cost, ~4 lines. Rejected\
+    \ because off-screen destinations are invisible, which is the same unreachability\
+    \ in a new costume, and because it degrades as destinations are added \u2014 and\
+    \ two more are already specced.\n\n**Against making the app shell a non-scrolling\
+    \ frame** (`h-dvh`, `<main>` as the scroll container), which is structurally the\
+    \ nicer answer and which I wanted to recommend. It would pin the header with no\
+    \ `sticky` and no z-index at all, hand task-237 its non-scrolling page, and give\
+    \ Jeff's *\"Dashboard should involve no scrolling\"* goal a bounded region to\
+    \ fit into. Rejected **for this task** because `frontend/src/components/dragAutoScroll.ts`\
     \ scrolls the backlog during a drag with `window.scrollBy`, which becomes a no-op\
     \ the moment the document stops being the scroller. Drag-to-reorder has already\
     \ cost task-207, task-225 and task-229; breaking its auto-scroll as a side effect\
@@ -650,42 +650,42 @@ log:
     \ a click for every navigation forever \u2014 and it hides Dispatch, which `App.tsx`\
     \ has a comment about: it is the machine-wide kill switch and a kill switch you\
     \ cannot reach is not one.\n\n**Phone: your burger, but the panel drops from the\
-    \ bar rather than sliding in from the left.** You said \"top bar, or left bar,\
-    \ whatever\". I went with the top for two reasons. It is literally what you described\
-    \ first \u2014 the bar's own contents, dropping over the page. And task-238 is\
-    \ going to put a *task list* down the left edge at landscape widths; a nav drawer\
-    \ from the same edge teaches two meanings for one gesture, and they meet exactly\
-    \ where a tablet crosses the breakpoint.\n\n**The number that changed my mind\
-    \ about your whole question: the bar only fits on one line at 955px.** I measured\
-    \ it in your running app before choosing. It is 128px tall on a 900px window and\
-    \ 164px on a phone. So this was never a phone problem \u2014 every landscape tablet\
-    \ below ~960 has been getting a two-row header, and one more nav destination pushes\
-    \ that up to 1024px screens. That is exactly the condition task-235's decision\
-    \ named for reopening the navigation-rail question. **I did not reopen it** \u2014\
-    \ a panel behind a burger is not a rail and costs no width closed \u2014 but the\
-    \ measurement is now on task-236, which is the task that owns that call, for you\
-    \ to make with the numbers in front of you.\n\n**The breakpoint is 960, not this\
-    \ app's existing 820.** 820 is where the tables restack; the header stops fitting\
-    \ 135px above it. Using 820 would have left the whole 820\u2013954 band still\
-    \ wrapping.\n\n## What to actually look at\n\n1. Scroll to the bottom of a long\
-    \ task on a phone-width window. The bar is still there, and it is **one row**\
-    \ \u2014 65px, where it used to be 164.\n2. Tap the burger. Everything is in there,\
-    \ in the same order, nothing renamed. Escape closes it and focus goes back to\
-    \ the button.\n3. A ~900px window. This is the case I would most like your eye\
-    \ on, because it is the one you did not ask about.\n4. Report issue still opens\
-    \ and its dialog still covers the bar. That was an acceptance criterion, not an\
-    \ afterthought.\n\n## Two things you should know before approving\n\n**I touched\
-    \ a test file that is not mine.** `queue-order.spec.ts`'s drag helper scrolled\
-    \ a row to y=0 to reach it \u2014 which is now behind the header, so the press\
-    \ landed on the bar and the drag never started. I rewrote the helper to place\
-    \ both ends below the bar deliberately, and gave the two pointer-drag tests a\
-    \ 900px-tall viewport because the rows they use sit 677px apart and a 720px window\
-    \ now leaves 655. Real product interaction, not a test being fussy. Drag still\
-    \ works; the auto-scroll test is untouched.\n\n**I got it wrong twice before I\
-    \ got it right**, and the progress entry says so in detail. Worth two minutes\
-    \ if you want to know how much to trust the rest.\n\n## Filed rather than done\n\
-    \n- **task-294** \u2014 the Dashboard fits one screen, no scrolling. Your line\
-    \ about the Dashboard, made into a task. It also carries the design I *wanted*\
+    \ bar rather than sliding in from the left.** You were open to either the top\
+    \ bar or a left one. I went with the top for two reasons. It is literally what\
+    \ you described first \u2014 the bar's own contents, dropping over the page. And\
+    \ task-238 is going to put a *task list* down the left edge at landscape widths;\
+    \ a nav drawer from the same edge teaches two meanings for one gesture, and they\
+    \ meet exactly where a tablet crosses the breakpoint.\n\n**The number that changed\
+    \ my mind about your whole question: the bar only fits on one line at 955px.**\
+    \ I measured it in your running app before choosing. It is 128px tall on a 900px\
+    \ window and 164px on a phone. So this was never a phone problem \u2014 every\
+    \ landscape tablet below ~960 has been getting a two-row header, and one more\
+    \ nav destination pushes that up to 1024px screens. That is exactly the condition\
+    \ task-235's decision named for reopening the navigation-rail question. **I did\
+    \ not reopen it** \u2014 a panel behind a burger is not a rail and costs no width\
+    \ closed \u2014 but the measurement is now on task-236, which is the task that\
+    \ owns that call, for you to make with the numbers in front of you.\n\n**The breakpoint\
+    \ is 960, not this app's existing 820.** 820 is where the tables restack; the\
+    \ header stops fitting 135px above it. Using 820 would have left the whole 820\u2013\
+    954 band still wrapping.\n\n## What to actually look at\n\n1. Scroll to the bottom\
+    \ of a long task on a phone-width window. The bar is still there, and it is **one\
+    \ row** \u2014 65px, where it used to be 164.\n2. Tap the burger. Everything is\
+    \ in there, in the same order, nothing renamed. Escape closes it and focus goes\
+    \ back to the button.\n3. A ~900px window. This is the case I would most like\
+    \ your eye on, because it is the one you did not ask about.\n4. Report issue still\
+    \ opens and its dialog still covers the bar. That was an acceptance criterion,\
+    \ not an afterthought.\n\n## Two things you should know before approving\n\n**I\
+    \ touched a test file that is not mine.** `queue-order.spec.ts`'s drag helper\
+    \ scrolled a row to y=0 to reach it \u2014 which is now behind the header, so\
+    \ the press landed on the bar and the drag never started. I rewrote the helper\
+    \ to place both ends below the bar deliberately, and gave the two pointer-drag\
+    \ tests a 900px-tall viewport because the rows they use sit 677px apart and a\
+    \ 720px window now leaves 655. Real product interaction, not a test being fussy.\
+    \ Drag still works; the auto-scroll test is untouched.\n\n**I got it wrong twice\
+    \ before I got it right**, and the progress entry says so in detail. Worth two\
+    \ minutes if you want to know how much to trust the rest.\n\n## Filed rather than\
+    \ done\n\n- **task-294** \u2014 the Dashboard fits one screen, no scrolling. Your\
+    \ line about the Dashboard, made into a task. It also carries the design I *wanted*\
     \ to use here and rejected: stop the document scrolling at all and make `<main>`\
     \ the scroll container. That is the better shape and it breaks drag-to-reorder's\
     \ auto-scroll, so it belongs where somebody can pay proper attention to it.\n\
@@ -760,3 +760,25 @@ log:
     outcome: completed
     duration_seconds: 3922.602497
     log_path: C:\Users\jpose\.agentjobs\runs\run_354d4298
+- id: 19
+  ts: '2026-09-07T04:25:32.227242Z'
+  actor: claude
+  type: note
+  body: 'Redacted log[11].body: verbatim quotation of a person, replaced with a paraphrase
+    (task-376)'
+  data:
+    redaction:
+      field: log[11].body
+      reason: verbatim quotation of a person, replaced with a paraphrase (task-376)
+      removed_chars: 7395
+- id: 20
+  ts: '2026-09-07T04:25:32.840060Z'
+  actor: claude
+  type: note
+  body: 'Redacted log[14].body: verbatim quotation of a person, replaced with a paraphrase
+    (task-376)'
+  data:
+    redaction:
+      field: log[14].body
+      reason: verbatim quotation of a person, replaced with a paraphrase (task-376)
+      removed_chars: 4599

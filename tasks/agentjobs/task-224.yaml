@@ -3,7 +3,7 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-23T18:58:10.176142Z'
+updated: '2026-09-07T04:25:34.535525Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -33,11 +33,11 @@ spec:
     \ Code displayed **\"Login expired\"** during autonomous work.\n2. The session\
     \ **parked on a prompt to log in** \u2014 the same shape of park as a permission\
     \ prompt: a background run waiting on an answer nobody is present to give.\n3.\
-    \ **Answering that prompt did not work**, which Jeff confirmed emphatically.\n4.\
-    \ What did work: open a separate terminal, run `claude` there, complete\
-    \ the login in that process, then return to the app and tell the running session\
-    \ it had been done.\n\n## The hypothesis, flagged as a hypothesis\n\nJeff's reading\
-    \ is that the logout was **deliberate, and triggered by his use of remote-controllable\
+    \ **Answering that prompt did not work**, which Jeff confirmed emphatically.\n\
+    4. What did work: open a separate terminal, run `claude` there, complete the login\
+    \ in that process, then return to the app and tell the running session it had\
+    \ been done.\n\n## The hypothesis, flagged as a hypothesis\n\nJeff's reading is\
+    \ that the logout was **deliberate, and triggered by his use of remote-controllable\
     \ sessions** \u2014 that something treats `--remote-control` as a risk signal\
     \ and shortens or invalidates the session.\n\n**Do not treat that as established.**\
     \ It is a plausible reading of a coincidence, and this project has already spent\
@@ -2319,3 +2319,15 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 72
+  ts: '2026-09-07T04:25:34.535104Z'
+  actor: claude
+  type: note
+  body: 'Redacted spec.description: paraphrased by hand on 2026-09-07 before the redaction
+    verb existed; re-saved through it (task-376)'
+  data:
+    redaction:
+      field: spec.description
+      reason: paraphrased by hand on 2026-09-07 before the redaction verb existed;
+        re-saved through it (task-376)
+      removed_chars: 3364

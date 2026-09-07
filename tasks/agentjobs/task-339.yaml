@@ -4,7 +4,7 @@ title: 'The gate is launched six to nine times per task at seven to twelve minut
   each under contention: one gate per handoff, and a core budget shared between concurrent
   gates'
 created: '2026-09-05T20:49:03.656961Z'
-updated: '2026-09-06T00:42:13.324965Z'
+updated: '2026-09-07T04:25:33.434960Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -26,10 +26,10 @@ spec:
     concurrent `-n auto` suites slow each other four to nine times. Fix both: a one-gate
     handoff sequence that the tooling reports on, and a core budget shared between
     concurrent gates.'
-  intent: 'Jeff, 2026-09-05, after task-336 took an hour to reach review: "The task
-    added a little graphic to show which tab was selected. And it took an hour. Why?
-    I told you to measure things ... we already did tasks for speeding gates up...
-    I guess we missed a lot, eh? revive those, this is crazy freaking slow man." The
+  intent: 'Raised by Jeff on 2026-09-05, after task-336 took an hour to reach review
+    for what amounted to a small visual change. He asked why it took that long, pointed
+    out that he had already asked for this to be measured and that tasks for speeding
+    the gate up had been filed and dropped, and asked for those to be revived. The
     measurements existed and nobody read them back: task-233 closed 2026-08-23 with
     "concurrent parallel gates" listed as deliberately unmeasured and "recommended,
     not filed".'
@@ -639,3 +639,14 @@ log:
     outcome: completed
     duration_seconds: 9884.30989
     log_path: C:\Users\jpose\.agentjobs\runs\run_86ee86be
+- id: 16
+  ts: '2026-09-07T04:25:33.434743Z'
+  actor: claude
+  type: note
+  body: 'Redacted spec.intent: verbatim quotation of a person, replaced with a paraphrase
+    (task-376)'
+  data:
+    redaction:
+      field: spec.intent
+      reason: verbatim quotation of a person, replaced with a paraphrase (task-376)
+      removed_chars: 485

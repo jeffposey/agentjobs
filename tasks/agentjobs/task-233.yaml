@@ -3,7 +3,7 @@ id: task-233
 title: 'Cycle time: 21 hours of dispatched runs over 23 tasks, and nothing measures
   where it goes'
 created: '2026-08-21T20:42:00.402460Z'
-updated: '2026-08-23T19:01:47.921689Z'
+updated: '2026-09-07T04:25:30.544812Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -642,31 +642,31 @@ log:
   actor: claude
   type: decision
   body: "**Jeff's answers to the two open questions, recorded before the merge. Both\
-    \ are binding.**\n\n**1. `--since-gate` stays.** His words: *\"might as well keep\
-    \ since-gate cuz why not, but you don't have to use it right now if you don't\
-    \ think we should.\"* So it is kept as built, and **it is not the default anything**\
-    \ \u2014 the unqualified `scripts/check.py` remains what the commit rule means,\
-    \ exactly as ENGINEERING.md says. `--since-gate` is available to whoever wants\
-    \ it and nothing in the workflow tells anyone to reach for it. That is the right\
-    \ resting place for a feature whose measured saving is now under a minute: present,\
-    \ documented, honest about its own value, and not pushed on anybody.\n\n**2. Acceptance\
-    \ t6 stays open, and the task stays open with it.** His words: *\"yeah it should\
-    \ really be tested... do I like leaving it open while we have to keep finding\
-    \ other tasks or epics to test it successfully with? no, but that's probably the\
-    \ right move.\"*\n\nHe is right and he is right about disliking it. The alternative\
-    \ \u2014 closing on the gate-component measurement and calling it done \u2014\
-    \ would mean this task's own headline claim was never checked against the thing\
-    \ it is a claim about. So the code merges now and **the record stays open until\
-    \ the ledger can answer the question with real runs**, not estimates.\n\nConcretely,\
-    \ the remaining work is one command and a judgement:\n\n```bash\npoetry run python\
-    \ scripts/run_report.py --since 7\n```\n\nOnce **five or so tasks** have been\
-    \ dispatched and worked under the merged configuration, that prints the baseline\
-    \ table for the new period plus the gate lines \u2014 gate runs per session, what\
-    \ they cost, how much was thrown away on gate runs that failed. Compare against\
-    \ the table in this task's spec, write the comparison into the log, mark t6, close.\n\
-    \nFive is a floor rather than a target: fewer than that and the median is one\
-    \ unusual session. There is no need to *find* tasks for it \u2014 ordinary backlog\
-    \ work produces the sample as a side effect, which is the whole point of the instrumentation\
+    \ are binding.**\n\n**1. `--since-gate` stays.** He was content to keep it while\
+    \ leaving the choice of whether to reach for it now to this session. So it is\
+    \ kept as built, and **it is not the default anything** \u2014 the unqualified\
+    \ `scripts/check.py` remains what the commit rule means, exactly as ENGINEERING.md\
+    \ says. `--since-gate` is available to whoever wants it and nothing in the workflow\
+    \ tells anyone to reach for it. That is the right resting place for a feature\
+    \ whose measured saving is now under a minute: present, documented, honest about\
+    \ its own value, and not pushed on anybody.\n\n**2. Acceptance t6 stays open,\
+    \ and the task stays open with it.** He agreed the claim should be tested for\
+    \ real, said he disliked leaving the task open while suitable tasks or epics are\
+    \ found to test it against, and concluded that leaving it open was still the right\
+    \ call.\n\nHe is right, and right to dislike it. The alternative \u2014 closing\
+    \ on the gate-component measurement and calling it done \u2014 would mean this\
+    \ task's own headline claim was never checked against the thing it is a claim\
+    \ about. So the code merges now and **the record stays open until the ledger can\
+    \ answer the question with real runs**, not estimates.\n\nConcretely, the remaining\
+    \ work is one command and a judgement:\n\n```bash\npoetry run python scripts/run_report.py\
+    \ --since 7\n```\n\nOnce **five or so tasks** have been dispatched and worked\
+    \ under the merged configuration, that prints the baseline table for the new period\
+    \ plus the gate lines \u2014 gate runs per session, what they cost, how much was\
+    \ thrown away on gate runs that failed. Compare against the table in this task's\
+    \ spec, write the comparison into the log, mark t6, close.\n\nFive is a floor\
+    \ rather than a target: fewer than that and the median is one unusual session.\
+    \ There is no need to *find* tasks for it \u2014 ordinary backlog work produces\
+    \ the sample as a side effect, which is the whole point of the instrumentation\
     \ being automatic.\n\n**A precondition that is easy to miss and would silently\
     \ produce nothing:** the running server on 8876 has to be restarted before any\
     \ of this accumulates. `src/agentjobs/dispatch/runner.py` is what puts `AGENTJOBS_RUN_ID`/`AGENTJOBS_RUN_DIR`\
@@ -1121,3 +1121,14 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 32
+  ts: '2026-09-07T04:25:30.544574Z'
+  actor: claude
+  type: note
+  body: 'Redacted log[13].body: verbatim quotation of a person, replaced with a paraphrase
+    (task-376)'
+  data:
+    redaction:
+      field: log[13].body
+      reason: verbatim quotation of a person, replaced with a paraphrase (task-376)
+      removed_chars: 2544

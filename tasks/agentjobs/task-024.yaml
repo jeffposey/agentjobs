@@ -3,7 +3,7 @@ id: task-024
 title: A widened enum breaks every running client, because each one re-validates the
   server's JSON against its own copy of the schema
 created: '2026-08-19T22:46:26.152753Z'
-updated: '2026-08-20T00:08:19.392611Z'
+updated: '2026-09-07T04:25:33.990453Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -24,10 +24,10 @@ spec:
     is an HTTP client, so the data was fine and the server served it fine -- but client.py
     re-parses the response with its own in-process Pydantic models, and an older copy
     rejects a value it does not know.'
-  intent: 'Raised by Jeff on 2026-08-19 after watching it happen twice in one evening,
-    asking why stale MCP servers keep doing this and for it to stop. It cost a live dashboard,
-    a dispatched agent''s ability to write its own record, and a merge that had to
-    be rushed to restore service.'
+  intent: Raised by Jeff on 2026-08-19 after watching it happen twice in one evening,
+    asking why stale MCP servers keep doing this and for it to stop. It cost a live
+    dashboard, a dispatched agent's ability to write its own record, and a merge that
+    had to be rushed to restore service.
   description: "## What actually happened, 2026-08-19\n\ntask-020 added `AUTO = \"\
     auto\"` to `DispatchPosture`. A dispatch then wrote `posture: auto`\ninto task-107's\
     \ log. Every process holding pre-merge code immediately broke on that file:\n\n\
@@ -349,3 +349,15 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 6
+  ts: '2026-09-07T04:25:33.990325Z'
+  actor: claude
+  type: note
+  body: 'Redacted spec.intent: paraphrased by hand on 2026-09-07 before the redaction
+    verb existed; re-saved through it (task-376)'
+  data:
+    redaction:
+      field: spec.intent
+      reason: paraphrased by hand on 2026-09-07 before the redaction verb existed;
+        re-saved through it (task-376)
+      removed_chars: 274

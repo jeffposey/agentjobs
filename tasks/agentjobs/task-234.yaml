@@ -3,7 +3,7 @@ id: task-234
 title: Merging after approval costs a whole second agent session, about eleven minutes,
   on every task
 created: '2026-08-21T20:43:16.534300Z'
-updated: '2026-08-22T00:50:57.146061Z'
+updated: '2026-09-07T04:25:31.104419Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -300,16 +300,15 @@ log:
   ts: '2026-08-21T20:59:27.038427Z'
   actor: Jeff Posey
   type: instruction
-  body: "**Jeff's call on the shape, 2026-08-21, given conditionally.** Verbatim:\n\
-    \n> \"honestly I'm okay with your suggestion if that will work which was to ...\
-    \ archive it when the ball moves and then when we are like approving then if it\
-    \ wakes it back up and then gives it the prompt that's fine with me\"\n\nThat\
-    \ is **option D** from the entries above, and it is now the intended design rather\
-    \ than one of four candidates:\n\n1. The session works the task and hands off.\
-    \ When the ball moves to `human`, the session is **stopped, not deleted** \u2014\
-    \ `claude stop <id>`, which the CLI documents as keeping the conversation. It\
-    \ holds no concurrency slot while the human deliberates.\n2. When the human approves\
-    \ or requests changes in the GUI, that action **wakes the same session and arrives\
+  body: "**Jeff's call on the shape, 2026-08-21, given conditionally.** He accepted\
+    \ the proposal on the condition that it works: archive the session when the ball\
+    \ moves, and on approval wake it back up and hand it the prompt.\n\nThat is **option\
+    \ D** from the entries above, and it is now the intended design rather than one\
+    \ of four candidates:\n\n1. The session works the task and hands off. When the\
+    \ ball moves to `human`, the session is **stopped, not deleted** \u2014 `claude\
+    \ stop <id>`, which the CLI documents as keeping the conversation. It holds no\
+    \ concurrency slot while the human deliberates.\n2. When the human approves or\
+    \ requests changes in the GUI, that action **wakes the same session and arrives\
     \ as its next prompt**, carrying the approval or the feedback text.\n3. The woken\
     \ session still has its own context \u2014 the branch, the worktree, what it built,\
     \ what it verified \u2014 so it merges and closes without re-deriving any of it.\n\
@@ -1048,3 +1047,14 @@ log:
     outcome: completed
     duration_seconds: 706.65523
     log_path: C:\Users\jpose\.agentjobs\runs\run_b06b6084
+- id: 28
+  ts: '2026-09-07T04:25:31.104172Z'
+  actor: claude
+  type: note
+  body: 'Redacted log[4].body: verbatim quotation of a person, replaced with a paraphrase
+    (task-376)'
+  data:
+    redaction:
+      field: log[4].body
+      reason: verbatim quotation of a person, replaced with a paraphrase (task-376)
+      removed_chars: 2423

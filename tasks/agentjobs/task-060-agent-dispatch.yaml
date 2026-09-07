@@ -2,7 +2,7 @@ schema: 2
 id: task-060-agent-dispatch
 title: 'Close the loop: make a human decision actually start an agent (design pass)'
 created: '2026-08-10T07:40:19Z'
-updated: '2026-08-19T16:45:28.875818Z'
+updated: '2026-09-07T04:26:01.509744Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -582,15 +582,15 @@ log:
     \ full autonomous\"** as a separate message. As of this entry that message has\
     \ **not** been sent.\n\nSo the working posture right now is: **merge freely within\
     \ the scope above, and still surface questions and decisions early** \u2014 his\
-    \ instruction is to ask questions and seek feedback early as new information comes to light.\
-    \ Do not batch discoveries until morning. When something genuinely changes the\
-    \ plan, put it in the task record and say so.\n\nIf and when he sends the full-autonomous\
-    \ message, that removes the expectation of surfacing things in real time. It does\
-    \ not widen the scope above.\n\n## Why this is recorded here rather than left\
-    \ in chat\n\nThe chat session that produced it is enormous and will not survive.\
-    \ A successor agent reading task-068 has no way to know a human suspended the\
-    \ merge gate unless it is in the record. Per ALLAGENTS, an authorisation that\
-    \ governs how work proceeds is durable state, not conversation."
+    \ instruction is to ask questions and seek feedback early as new information comes\
+    \ to light. Do not batch discoveries until morning. When something genuinely changes\
+    \ the plan, put it in the task record and say so.\n\nIf and when he sends the\
+    \ full-autonomous message, that removes the expectation of surfacing things in\
+    \ real time. It does not widen the scope above.\n\n## Why this is recorded here\
+    \ rather than left in chat\n\nThe chat session that produced it is enormous and\
+    \ will not survive. A successor agent reading task-068 has no way to know a human\
+    \ suspended the merge gate unless it is in the record. Per ALLAGENTS, an authorisation\
+    \ that governs how work proceeds is durable state, not conversation."
   data:
     granted_by: Jeff Posey
     scope:
@@ -993,3 +993,15 @@ log:
       id: 2c9f8e3d-d641-4390-be82-8f5a0b794060
       kind: close
       fingerprint: a5675f26e25b44010bb6d90e643207cb
+- id: 17
+  ts: '2026-09-07T04:26:01.509577Z'
+  actor: claude
+  type: note
+  body: 'Redacted log[11].body: paraphrased by hand on 2026-09-07 before the redaction
+    verb existed; re-saved through it (task-376)'
+  data:
+    redaction:
+      field: log[11].body
+      reason: paraphrased by hand on 2026-09-07 before the redaction verb existed;
+        re-saved through it (task-376)
+      removed_chars: 2637

@@ -3,7 +3,7 @@ id: task-223
 title: The rule that serializes every epic has no stated reason, and the doc's own
   reasoning contradicts it
 created: '2026-08-21T15:02:48.895387Z'
-updated: '2026-08-27T13:09:14.768159Z'
+updated: '2026-09-07T04:25:29.975933Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -211,16 +211,16 @@ log:
     \ task-269 (`run_1132ebf8`). Not made a child of that epic \u2014 it is dispatch\
     \ mechanics, not context work, and this task predates the epic anyway.\n\n## Jeff's\
     \ framing, which is the intent of this task stated better than its own intent\
-    \ field\n\n> I see this like air traffic. You don't send one plane from Los Angeles\
-    \ to New York at a time, you fly them all, and yes, you are right, they can't\
-    \ all land at the same time, but waiting to have another take off from Los Angeles\
-    \ until the previous lands in New York is pretty stupid don't you think\n\nThat\
-    \ is exactly the distinction this task's \"What to decide\" list buries in its\
-    \ third bullet. **Takeoff and landing are different resources.** The work is the\
-    \ flight and it parallelises. The merge is the runway and it does not. The current\
-    \ design conflates them and prices everything at the runway.\n\n## What changed\
-    \ since 2026-08-21\n\n**1. The serialization is no longer a sentence in `ALLAGENTS.md`.\
-    \ It is `walk_epic`.** task-022 landed the epic walk as code on 2026-08-23: `src/agentjobs/dispatch/epic.py`\
+    \ field\n\nHe put it as air traffic. You do not fly one plane at a time from Los\
+    \ Angeles to New York; you fly them all. He granted the point that they cannot\
+    \ all land at once, and argued that holding the next departure until the previous\
+    \ arrival has landed still makes no sense.\n\nThat is exactly the distinction\
+    \ this task's \"What to decide\" list buries in its third bullet. **Takeoff and\
+    \ landing are different resources.** The work is the flight and it parallelises.\
+    \ The merge is the runway and it does not. The current design conflates them and\
+    \ prices everything at the runway.\n\n## What changed since 2026-08-21\n\n**1.\
+    \ The serialization is no longer a sentence in `ALLAGENTS.md`. It is `walk_epic`.**\
+    \ task-022 landed the epic walk as code on 2026-08-23: `src/agentjobs/dispatch/epic.py`\
     \ starts one eligible child, watches its record to a terminal state, and loops.\
     \ So this task can no longer be discharged by writing a reason down \u2014 whatever\
     \ is decided has to be implemented there, and the docstring's stated justification\
@@ -863,3 +863,14 @@ log:
     outcome: completed
     duration_seconds: 2706.791508
     log_path: C:\Users\jpose\.agentjobs\runs\run_d9aed92f
+- id: 23
+  ts: '2026-09-07T04:25:29.975717Z'
+  actor: claude
+  type: note
+  body: 'Redacted log[3].body: verbatim quotation of a person, replaced with a paraphrase
+    (task-376)'
+  data:
+    redaction:
+      field: log[3].body
+      reason: verbatim quotation of a person, replaced with a paraphrase (task-376)
+      removed_chars: 6623

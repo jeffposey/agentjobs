@@ -2,7 +2,7 @@ schema: 2
 id: task-016
 title: Make the review panel ball_reason-aware so it stops offering Approve on a question
 created: '2026-08-18T05:34:58.400603Z'
-updated: '2026-08-21T20:26:56.949341Z'
+updated: '2026-09-07T04:25:17.566068Z'
 lifecycle: closed
 outcome: superseded
 archived: false
@@ -28,9 +28,9 @@ spec:
     \n## What happened\n\ntask-077 was handed off with `ball: human` / `ball_reason:\
     \ decision` and a `ball_prompt` containing four numbered questions. The GUI rendered\
     \ the standard review panel: **\u2713 Approve \u2014 agent may merge**, \u270E\
-    \ Request Changes, \u2715 Reject & Archive.\n\nHis reaction, verbatim: *\"so you\
-    \ are saying, when I click Approve on 077, I am somehow answering all of this?!?!\"\
-    *\n\nNo. Approve would have recorded an approval whose meaning was undefined,\
+    \ Request Changes, \u2715 Reject & Archive.\n\nHe asked, with some incredulity,\
+    \ whether clicking Approve on 077 was supposed to be his answer to all four questions\
+    \ at once.\n\nNo. Approve would have recorded an approval whose meaning was undefined,\
     \ and the agent would have had to guess which of four questions he had said yes\
     \ to.\n\n## The cause\n\n`ReviewPanel` in `frontend/src/components/TaskDetail.tsx`\
     \ branches on exactly one thing:\n\n```ts\nconst planning = detail.task.lifecycle\
@@ -188,3 +188,14 @@ log:
       id: 9b2d4f61-0a73-4c88-b5e2-1d3f7a90c205
       kind: close
       fingerprint: 2a422911de8e8fd9b4ac4666a726a948
+- id: 6
+  ts: '2026-09-07T04:25:17.565931Z'
+  actor: claude
+  type: note
+  body: 'Redacted spec.description: verbatim quotation of a person, replaced with
+    a paraphrase (task-376)'
+  data:
+    redaction:
+      field: spec.description
+      reason: verbatim quotation of a person, replaced with a paraphrase (task-376)
+      removed_chars: 2740
