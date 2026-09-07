@@ -210,15 +210,23 @@ class TestVerbScoping:
         assert kinds == [DEFAULT_BALL_PROMPT]
 
     def test_no_verb_evaluates_every_condition_for_the_corpus_view(self, manager):
-        # Two records rather than one, because the conditions are no longer jointly
+        # Three records rather than one, because the conditions are no longer jointly
         # satisfiable: a default ask survives only at agent/work, and a review link is
         # only ever handed to a human. The property being pinned is that every kind is
         # reachable with no verb -- a condition nothing can raise is a dead check.
         worked = worked_task(manager, summary=TOO_LONG)
         handed = review_task(manager, prompt="Open http://127.0.0.1:8910/app/ and look.")
+        quoted = manager.create_task(
+            id="task-003",
+            title="Rework the panel",
+            description='The reviewer said "yeah this is garbage, honestly" and it was.',
+            summary="Short enough.",
+            lifecycle=Lifecycle.READY,
+        )
 
         kinds = {warning.kind for warning in check_record(worked)}
         kinds |= {warning.kind for warning in check_record(handed)}
+        kinds |= {warning.kind for warning in check_record(quoted)}
 
         assert kinds == set(WARNING_KINDS)
 

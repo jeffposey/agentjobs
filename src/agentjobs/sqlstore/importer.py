@@ -30,6 +30,7 @@ import yaml
 from pydantic import ValidationError
 
 from ..models_v2 import Task
+from ..quotation import QuotedRemark, scan_task
 from .backfill import DEDUPE_WINDOW_SECONDS, Observation, first_seen, observe
 from .connection import Database
 from .store import EVENT_AXES, SqlTaskStore
@@ -46,6 +47,46 @@ IMPLIED_BALL: Dict[str, Tuple[str, str]] = {
 }
 
 
+class QuotationPolicyError(Exception):
+    """A record carries a verbatim quotation of a person, so nothing was imported.
+
+    **Why this refuses rather than quarantines** (task-376). The importer's usual
+    answer to a record it cannot accept is ``import_quarantine``: the live tables stay
+    provably valid while the bad record stays inspectable and re-importable. That is
+    the right shape for a record that will not *parse*, and the wrong one here, because
+    the thing being excluded is the text itself and ``import_quarantine.raw_text``
+    holds the whole file. Quarantining would put the quotation in the database in the
+    same act that claimed to keep it out, which is precisely the durable, queryable
+    copy the rule exists to prevent.
+
+    So the scan runs over every readable document **before** the write transaction
+    opens, and a hit raises this with nothing written. The cost is the one the task
+    named: a false positive stops a cutover. Three things bound it. The same detector
+    fails the gate over ``tasks/``, so a record reaching an import has already passed
+    the check on its way into ``main``; ``agentjobs redact`` makes a real hit a
+    one-command fix; and ``enforce_quotation_policy=False`` lets an operator who has
+    read the hits and judged them proceed, with the report saying the policy was off.
+
+    The message names regions and tone groups, never the quoted text -- an exception
+    string ends up in logs and issue trackers, which is the same mistake one layer out.
+    """
+
+    def __init__(self, offenders: Dict[str, List[QuotedRemark]]) -> None:
+        """Build the refusal from the regions that tripped, grouped by task id."""
+        self.offenders = offenders
+        lines = [
+            f"{len(offenders)} task record(s) quote a person verbatim, so nothing was "
+            "imported. A task record states what somebody meant, not the words they "
+            "used (ALLAGENTS.md, 'Paraphrase a person, never quote them'). Fix each "
+            "region with `agentjobs redact`, or re-run with "
+            "enforce_quotation_policy=False if these are false positives:",
+        ]
+        for task_id in sorted(offenders):
+            for remark in offenders[task_id]:
+                lines.append(f"  {task_id}: {remark.locator()}")
+        super().__init__("\n".join(lines))
+
+
 @dataclass
 class ImportReport:
     """What an import did, in enough detail to verify it without reading the store."""
@@ -59,6 +100,11 @@ class ImportReport:
     missing_blobs: List[str] = field(default_factory=list)
     open_delta: int = 0
     open_rows: int = 0
+    #: Regions that tripped the quotation policy, by task id, as locators -- never the
+    #: quoted text. Populated whether or not the policy was enforced, so an import run
+    #: with it off still says what it let through.
+    quoted_remarks: Dict[str, List[str]] = field(default_factory=dict)
+    quotation_policy_enforced: bool = True
 
     @property
     def reconciles(self) -> bool:
@@ -80,6 +126,15 @@ class ImportReport:
         if self.quarantined:
             lines.append(f"quarantined {len(self.quarantined)} unreadable records:")
             lines.extend(f"  {name}: {error}" for name, error in self.quarantined)
+        if self.quoted_remarks:
+            held = sum(len(items) for items in self.quoted_remarks.values())
+            lines.append(
+                f"quotation policy NOT enforced: {held} region(s) across "
+                f"{len(self.quoted_remarks)} record(s) quote a person verbatim and were "
+                "imported anyway:"
+            )
+            for task_id in sorted(self.quoted_remarks):
+                lines.extend(f"  {task_id}: {item}" for item in self.quoted_remarks[task_id])
         if self.missing_blobs:
             lines.append(
                 f"{len(self.missing_blobs)} attachment(s) had no readable sidecar file "
@@ -109,15 +164,27 @@ class CorpusImporter:
         self._observations: Dict[str, List[Observation]] = {}
         self._first_seen: Dict[str, str] = {}
 
-    def run(self, *, reporting_tz: str = "UTC", backfill_git: bool = False) -> ImportReport:
+    def run(
+        self,
+        *,
+        reporting_tz: str = "UTC",
+        backfill_git: bool = False,
+        enforce_quotation_policy: bool = True,
+    ) -> ImportReport:
         """Import every task file, then reconstruct and reconcile history.
 
         The whole import is one transaction. That is not only for speed: the deferred
         parent foreign key means a child may legitimately arrive before its parent, and
         the constraint is checked at commit, so a partially-ordered corpus loads without
         the importer having to topologically sort a task graph first.
+
+        The content check runs before that transaction opens and raises
+        :class:`QuotationPolicyError` if any readable record quotes a person verbatim,
+        so a refusal leaves the store untouched rather than half-written. Pass
+        ``enforce_quotation_policy=False`` to import anyway; the report records that.
         """
         report = ImportReport()
+        report.quotation_policy_enforced = enforce_quotation_policy
         if backfill_git:
             # GitUnavailable propagates deliberately: the caller asked for a
             # backfill, and quietly importing without one would leave a store whose
@@ -130,6 +197,18 @@ class CorpusImporter:
         with self.database.write() as connection:
             self.store.ensure_project(root=str(self.tasks_dir), reporting_tz=reporting_tz)
             documents = self._read_documents(report)
+            # Screened before a single task row is written, and inside the transaction
+            # rather than ahead of it, so the refusal below rolls back even the
+            # quarantine rows `_read_documents` may just have added. "Nothing was
+            # imported" is then literally true of the file on disk, which is what makes
+            # a re-run after the fix a clean re-run rather than a repair.
+            offenders = self._quoted_remarks(documents)
+            report.quoted_remarks = {
+                task_id: [remark.locator() for remark in remarks]
+                for task_id, remarks in offenders.items()
+            }
+            if offenders and enforce_quotation_policy:
+                raise QuotationPolicyError(offenders)
             self._load_blobs(documents, report)
             tasks = self._insert_tasks(documents, report)
             report.events = self._reconstruct(connection, tasks, report)
@@ -173,6 +252,19 @@ class CorpusImporter:
                 continue
             documents.append((path, document))
         return documents
+
+    @staticmethod
+    def _quoted_remarks(
+        documents: List[Tuple[Path, Dict[str, Any]]]
+    ) -> Dict[str, List[QuotedRemark]]:
+        """Every readable record that quotes a person verbatim, by task id."""
+        offenders: Dict[str, List[QuotedRemark]] = {}
+        for _, document in documents:
+            task = Task.model_validate(document)
+            remarks = scan_task(task)
+            if remarks:
+                offenders[task.id] = remarks
+        return offenders
 
     def _quarantine(self, path: Path, raw: str, error: str) -> None:
         """Record one unreadable file, with the error that stopped it."""
@@ -541,7 +633,7 @@ class CorpusImporter:
         )
 
 
-__all__ = ["CorpusImporter", "ImportReport", "IMPLIED_BALL"]
+__all__ = ["CorpusImporter", "ImportReport", "IMPLIED_BALL", "QuotationPolicyError"]
 
 
 def _utc(value: str) -> str:

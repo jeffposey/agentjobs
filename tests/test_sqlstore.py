@@ -39,6 +39,7 @@ from agentjobs.models_v2 import (
 )
 from agentjobs.sqlstore import (
     CorpusImporter,
+    QuotationPolicyError,
     Database,
     SqlStoreError,
     SqlTaskStore,
@@ -608,3 +609,105 @@ log:
     lifecycle: closed
     outcome: completed
 """
+
+
+_YAML_QUOTED = """\
+schema: 2
+id: task-003
+title: A record that quotes somebody
+created: '2026-01-01T00:00:00Z'
+updated: '2026-01-02T00:00:00Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 200
+category: engineering
+spec:
+  summary: A summary.
+  description: >-
+    The reviewer said "yeah this whole panel is garbage, honestly", so the
+    layout is being reworked.
+log:
+- id: 1
+  ts: '2026-01-01T00:00:00Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+"""
+
+
+class TestImportQuotationPolicy:
+    """The last mechanical place the paraphrase rule can be enforced (task-376).
+
+    It refuses rather than quarantining, and that is the decision worth pinning: the
+    quarantine table holds `raw_text`, so quarantining a record for its content would
+    put the content in the database in the same act that claimed to keep it out.
+    """
+
+    def _write(self, directory: Path, name: str, body: str) -> None:
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / name).write_text(body, encoding="utf-8")
+
+    def test_a_quoted_remark_refuses_the_import(self, store: SqlTaskStore, tmp_path: Path) -> None:
+        tasks_dir = tmp_path / "tasks"
+        self._write(tasks_dir, "task-001.yaml", _YAML_OPEN)
+        self._write(tasks_dir, "task-003.yaml", _YAML_QUOTED)
+
+        with pytest.raises(QuotationPolicyError) as caught:
+            CorpusImporter(store, tasks_dir).run()
+
+        assert "task-003" in str(caught.value)
+        assert "spec.description" in str(caught.value)
+
+    def test_the_refusal_names_the_region_and_not_the_remark(
+        self, store: SqlTaskStore, tmp_path: Path
+    ) -> None:
+        """An exception string reaches logs and issue trackers -- the same mistake, one layer out."""
+        tasks_dir = tmp_path / "tasks"
+        self._write(tasks_dir, "task-003.yaml", _YAML_QUOTED)
+
+        with pytest.raises(QuotationPolicyError) as caught:
+            CorpusImporter(store, tasks_dir).run()
+
+        assert "garbage" not in str(caught.value)
+        assert "honestly" not in str(caught.value)
+
+    def test_a_refusal_writes_nothing_at_all(self, store: SqlTaskStore, tmp_path: Path) -> None:
+        """Not even the readable records that came before it in the directory."""
+        tasks_dir = tmp_path / "tasks"
+        self._write(tasks_dir, "task-001.yaml", _YAML_OPEN)
+        self._write(tasks_dir, "task-003.yaml", _YAML_QUOTED)
+
+        with pytest.raises(QuotationPolicyError):
+            CorpusImporter(store, tasks_dir).run()
+
+        assert store.load_task("task-001") is None
+        assert store.quarantined() == []
+
+    def test_an_operator_can_import_anyway_and_the_report_says_so(
+        self, store: SqlTaskStore, tmp_path: Path
+    ) -> None:
+        """The escape the false-positive risk is bounded by, and it is not silent."""
+        tasks_dir = tmp_path / "tasks"
+        self._write(tasks_dir, "task-003.yaml", _YAML_QUOTED)
+
+        report = CorpusImporter(store, tasks_dir).run(enforce_quotation_policy=False)
+
+        assert report.imported == 1
+        assert list(report.quoted_remarks) == ["task-003"]
+        assert "quotation policy NOT enforced" in report.render()
+        assert "garbage" not in report.render()
+
+    def test_a_clean_corpus_reports_no_remarks(self, store: SqlTaskStore, tmp_path: Path) -> None:
+        """Silence is the normal outcome, and the report does not mention the check."""
+        tasks_dir = tmp_path / "tasks"
+        self._write(tasks_dir, "task-001.yaml", _YAML_OPEN)
+
+        report = CorpusImporter(store, tasks_dir).run()
+
+        assert report.quoted_remarks == {}
+        assert "quotation policy" not in report.render()

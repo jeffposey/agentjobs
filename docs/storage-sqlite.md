@@ -233,6 +233,35 @@ apply; **higher, refuse to start and say so**. An old binary meeting a newer dat
 the stale-server hazard this repository already documents, and declining is the same
 instinct as the source-root check in `agentjobs serve`.
 
+## 8a. The content the import will not accept
+
+The import is the last mechanical place a content rule can be enforced before a record
+becomes durable and queryable, and one rule is enforced there: a task record states what
+a person meant, not the words they used. The rule and its detector are described in
+[the workflow guide](agent-workflow.md#paraphrase-a-person-never-quote-them); what
+belongs here is what the boundary does with a hit.
+
+**It refuses, and writes nothing** -- `QuotationPolicyError`, raised inside the write
+transaction and before a single task row is inserted, so the rollback takes even the
+quarantine rows the same pass may have added. "Nothing was imported" is then literally
+true of the store, which makes a re-run after the fix a clean re-run rather than a
+repair.
+
+**That is deliberately not §3's answer** to a record it cannot parse. Quarantine keeps
+the live tables provably valid while the bad record stays inspectable, which is exactly
+right when the problem is the *shape* of a record -- and exactly wrong when the problem
+is its text, because `import_quarantine.raw_text` holds the whole file. Quarantining a
+record for its content would put the content in the database in the same act that
+claimed to keep it out.
+
+The cost is that a false positive stops a cutover. Three things bound it: the same
+detector fails the gate over `tasks/`, so a record reaching an import has already passed
+the check on its way into `main`; `agentjobs redact` makes a real hit a one-command fix;
+and `run(enforce_quotation_policy=False)` lets an operator who has read the hits proceed
+anyway, with `ImportReport.render()` saying the policy was off and naming every region it
+let through. The refusal and the report name regions and tone groups, never the quoted
+text.
+
 ## 9. What this does not do
 
 - **It is not switched on.** Task-311 owns the cutover, the client repointing, and

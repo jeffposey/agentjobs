@@ -425,6 +425,21 @@ able to read the task YAML alone and know what happened and what is next.
 -   Never report a task complete on the strength of a chat message alone; it must be
     closed through the API.
 
+### Paraphrase a person, never quote them
+
+This repository has a public remote, so a record says what somebody **meant**, not the
+words they used. A quoted aside reads there as a characterisation of a real person
+rather than as engineering.
+
+-   **Quote only where the exact wording is the subject** — an API name, a spec sentence
+    being disputed, a message being debugged.
+-   **Never reproduce tone.** Drop the frustration, profanity or informality and keep
+    the substance: "rejected the section outright" carries everything a reader needs.
+-   Already written one? `agentjobs redact` replaces a field **or a log entry body** —
+    the only verb that reaches the append-only log — and records that it did.
+    `agentjobs quotations` finds them; the gate over `tasks/` and the SQLite importer
+    both refuse a record carrying one.
+
 ### Agent Handoffs
 -   When pausing, blocking, or handing off, `handoff` the ball with a `ball_prompt`
     covering open questions, blockers, and next steps.

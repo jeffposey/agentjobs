@@ -36,8 +36,16 @@ from agentjobs.contexteval.bundle import BUNDLE_FILES, read_bundle
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-BUNDLE_BUDGET_BYTES = 60_000
+BUNDLE_BUDGET_BYTES = 61_000
 """What the four always-loaded files may weigh together.
+
+**Raised from 60,000 on 2026-09-07 for task-376's paraphrase rule** -- ALLAGENTS'
+"Paraphrase a person, never quote them", 850 bytes against 32 of headroom. Raised rather
+than paid for by a cut, because ENGINEERING.md requires the ablation suite before
+anything comes out of these files and that suite costs tens of minutes and real money;
+buying the room with an unmeasured cut would have traded a rule whose value is known for
+one whose value is not. The rule itself is the shortest form it can take and still say
+what to do: what to quote, what never to reproduce, and the two commands.
 
 **This is a waypoint and not the destination.** Task-301 proposed 52,000 -- roughly where
 the bundle stood on 2026-08-21, a day on which several sessions worked correctly against
