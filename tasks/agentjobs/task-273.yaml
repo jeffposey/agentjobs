@@ -2,23 +2,17 @@ schema: 2
 id: task-273
 title: Build authoritative SQLite task storage alongside the AgentJobs server
 created: '2026-08-22T19:00:47.987602Z'
-updated: '2026-09-07T03:26:20.512609Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-09-07T03:26:37.430265Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 893
 category: infrastructure
 tags:
 - big-dawg-audit
 - storage
 - decision
 assignment:
-  owner: claude
   eligible: []
 parent: task-358
 spec:
@@ -138,7 +132,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-273-sqlite-store
-  status: active
+  status: merged
+  merged_at: '2026-09-07T03:26:37.246423Z'
 log:
 - id: 1
   ts: '2026-08-22T19:00:48.504023Z'
@@ -1899,3 +1894,25 @@ log:
     merge_commit: f1d9ffdd0d22a26554b3d2e2886e265a6cc8e57c
     branch: feat/task-273-sqlite-store
     base: main
+- id: 49
+  ts: '2026-09-07T03:26:37.429702Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-273-sqlite-store` into `main` as `f1d9ffdd` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). Approved\
+    \ by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         1.0s  feat/task-273-sqlite-store\
+    \ at 73e07f92 in C:\\projects\\worktrees\\agentjobs-273\n  runway     ok     \
+    \    0.0s  taken immediately\n  rebase     ok         0.2s  feat/task-273-sqlite-store\
+    \ onto main: 73e07f92 -> cd42a5dd\n  gate       ok       246.8s  scripts/check.py\
+    \ green\n  catch_up   skipped    0.0s  main did not move during the gate\n  merge\
+    \      ok         0.2s  --no-ff into main as f1d9ffdd0d22a26554b3d2e2886e265a6cc8e57c\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         0.5s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving 2d1a93e5, which contains the merge\
+    \ f1d9ffdd, from C:\\projects\\agentjobs (started 2026-09-07T03:26:24.582325+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
