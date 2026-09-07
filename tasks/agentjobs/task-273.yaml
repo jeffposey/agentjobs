@@ -2,21 +2,10 @@ schema: 2
 id: task-273
 title: Build authoritative SQLite task storage alongside the AgentJobs server
 created: '2026-08-22T19:00:47.987602Z'
-updated: '2026-09-07T00:21:54.354843Z'
-lifecycle: draft
-ball: human
-ball_reason: decision
-ball_prompt: 'Five forks, each with a recommendation. Tap through them and the schema
-  freezes.
-
-
-  The draft is entries 16-19: entry 16 is the evidence (it was built and run against
-  the real 367-task corpus), 17 is the DDL, 18 is the history contract for task-213,
-  19 is concurrency, backup, the boundary and how v4 gets applied.
-
-
-  One finding you should see before answering Q3: priority history does not exist
-  anywhere in the corpus, and 79 tasks have no creation event at all.'
+updated: '2026-09-07T00:42:15.996404Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: critical
 queue_position: 893
@@ -1184,3 +1173,458 @@ log:
     outcome: completed
     duration_seconds: 1177.631178
     log_path: C:\Users\jpose\.agentjobs\runs\run_1039616a
+- id: 27
+  ts: '2026-09-07T00:36:37.137443Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    **One database for every project, or one per project?**
+
+
+    Either works. It decides how backups and restores are scoped, and whether a cross-project
+    question is ever possible.
+
+    -> Chose: One database, all projects
+
+
+    **Attachments: inside the database, or files beside it?**
+
+
+    There are zero attachments in this project''s corpus today, so whichever you pick
+    is free to adopt now and awkward to change later.
+
+    -> Chose: Blobs in the database
+
+
+    **How much pre-cutover history should the analytics page promise?**
+
+
+    Measured on the real corpus: replaying the log recovers owner perfectly, lifecycle/outcome/ball
+    at 89-94%, and priority not at all -- a priority change records that the field
+    changed, never what it changed from. 79 tasks have no creation event; 60 carry
+    only a v1 migration marker from 2026-08-10.
+
+    -> Chose: Also mine git history
+
+
+    **How should task-213 (the analytics design) coordinate with this schema?**
+
+
+    Your instruction was that this coordination is not optional. The question is whether
+    it blocks the build.
+
+    -> Chose: Run task-213 next, then build
+
+
+    **Search: keep exact substring matching, or move to full-text?**
+
+
+    User-visible either way. Today''s search lowercases and substring-matches id,
+    title, summary, intent, description, ball_prompt and tags.
+
+    -> Chose: Move to FTS5'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 28
+  ts: '2026-09-07T00:36:37.137465Z'
+  actor: Jeff Posey
+  type: answer
+  body: 'Chose: One database, all projects'
+  re: 21
+  data:
+    selected:
+    - One database, all projects
+    other: null
+- id: 29
+  ts: '2026-09-07T00:36:37.137482Z'
+  actor: Jeff Posey
+  type: answer
+  body: 'Chose: Blobs in the database'
+  re: 22
+  data:
+    selected:
+    - Blobs in the database
+    other: null
+- id: 30
+  ts: '2026-09-07T00:36:37.137496Z'
+  actor: Jeff Posey
+  type: answer
+  body: 'Chose: Also mine git history'
+  re: 23
+  data:
+    selected:
+    - Also mine git history
+    other: null
+- id: 31
+  ts: '2026-09-07T00:36:37.137505Z'
+  actor: Jeff Posey
+  type: answer
+  body: 'Chose: Run task-213 next, then build'
+  re: 24
+  data:
+    selected:
+    - Run task-213 next, then build
+    other: null
+- id: 32
+  ts: '2026-09-07T00:36:37.137515Z'
+  actor: Jeff Posey
+  type: answer
+  body: 'Chose: Move to FTS5'
+  re: 25
+  data:
+    selected:
+    - Move to FTS5
+    other: null
+- id: 33
+  ts: '2026-09-07T00:36:55.791208Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 34
+  ts: '2026-09-07T00:36:58.266701Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_1039616a` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_8ad284df
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 33
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_8ad284df\session-settings.json
+    - --name
+    - agentjobs/task-273@8ad284df
+    - --resume
+    - bf572d5c-0ced-4cf5-8650-1847f859b5c2
+    cwd: C:\projects\agentjobs
+    git_head: 0cc8790
+    session_id: c3b3a806
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 35
+  ts: '2026-09-07T00:40:46.088628Z'
+  actor: claude
+  type: answer
+  body: 'Chose: One database, all projects
+
+
+    Owner decision, Jeff Posey, 2026-09-06. Settled and not to be reopened.
+
+
+    Consequences now binding on the design:
+
+
+    - **One file, `agentjobs.db`, in a configurable durable data directory** on the
+    server host, defaulting to `~/.agentjobs/data/`. Overridable with `AGENTJOBS_DATA_DIR`
+    for an install that wants it on another disk. It is outside every source checkout,
+    which is the whole point of the move.
+
+    - **`project_id` is the first column of every primary key and every index**, exactly
+    as the drafted DDL in entry 17 already has it. Project scoping is now a foreign
+    key that the database enforces, not a convention a caller can forget: a task row
+    cannot exist without a `project` row, and `ON DELETE RESTRICT` means removing
+    a project with tasks in it is refused rather than silently orphaning them.
+
+    - **One migration run, one connection pool, one WAL, one backup.** `agentjobs
+    backup` covers the whole installation in one `VACUUM INTO`.
+
+    - **Per-project restore is an import, not a file swap.** `agentjobs restore --project
+    <id>` reads that project''s rows out of a snapshot and replaces them inside a
+    transaction. This is the one thing the per-database option would have made cheaper,
+    and it is the accepted cost.
+
+    - **Cross-project queries become possible** without a schema change. Nothing is
+    built for them -- task-212 explicitly excludes cross-project analytics -- but
+    the door is no longer nailed shut, and a task moving between projects becomes
+    a single atomic UPDATE rather than an operation with no correct implementation.
+
+    '
+  re: 21
+  data:
+    operation:
+      id: 9d6e1f05-8b7c-42a5-e35d-1f7e2086ca05
+      kind: log_append
+      fingerprint: 82b84c5419e3a3c8af940ef13fbcccf9
+- id: 36
+  ts: '2026-09-07T00:42:03.846034Z'
+  actor: claude
+  type: decision
+  body: '## The five forks are answered. What each one changes, and what the git backfill
+    can actually recover.
+
+
+    Jeff Posey answered all five on 2026-09-06 (entries 28-32, threaded to questions
+    21-25). Those are
+
+    binding and must not be re-asked. Entry 35 is a duplicate answer on thread 21
+    -- his tap had already
+
+    closed it -- and can be ignored; the design consequences are here instead.
+
+
+    ### Q1 -- One database, all projects
+
+
+    `agentjobs.db` in a configurable durable data directory on the server host, default
+
+    `~/.agentjobs/data/`, overridable with `AGENTJOBS_DATA_DIR`, outside every source
+    checkout.
+
+    `project_id` leads every primary key and every index, as entry 17''s DDL already
+    has it, so project
+
+    scoping is a foreign key the database enforces rather than a convention a caller
+    can forget. One
+
+    migration run, one WAL, one connection pool, one backup. **Accepted cost:** restoring
+    a single
+
+    project is an import into the live database inside a transaction, not a file swap.
+
+
+    ### Q2 -- Blobs in the database
+
+
+    `blob.content` becomes `BLOB NOT NULL` and the `path` column and its either-or
+    CHECK come out of
+
+    entry 17''s DDL. One `VACUUM INTO` is then genuinely the whole backup, with no
+    attachment tree to
+
+    capture at the same instant, and orphans and missing files stop being representable.
+    Content is
+
+    addressed by sha256 with a refcount, so the same screenshot twice is stored once.
+    **If this is ever
+
+    regretted, adding a nullable `path` back is an additive migration, not a redesign.**
+
+
+    ### Q5 -- FTS5
+
+
+    An external-content FTS5 table over title, summary, description, ball_prompt and
+    tags, kept in step
+
+    by triggers on `task`. The id-first rule survives: an exact id match is returned
+    ahead of ranked
+
+    results, because "058" meaning task-058 is the one query search must never get
+    wrong.
+
+
+    ### Q3 -- Also mine git history. It works, and the win is not the one it looked
+    like.
+
+
+    Measured before accepting it, since this was the one answer that went against
+    the recommendation.
+
+    1,418 commits touch the task directory, back to **2025-10-26**. A full-history
+    extraction --
+
+    `git log --reverse -p -U0 -M` over all of them -- costs **0.4 s and 11.2 MB of
+    diff**, so the
+
+    backfill is a cheap one-pass parse rather than a project.
+
+
+    What comes out, separating a value present at file creation from a genuine before-to-after
+    move:
+
+
+    | field | initial values | genuine transitions | removals | tasks touched |
+
+    |---|---|---|---|---|
+
+    | priority | 376 | **37** | 1 | 369 |
+
+    | archived | 355 | **0** | 0 | 355 |
+
+    | queue_position | 242 | 151 | 117 | 240 |
+
+    | parent | 167 | 14 | 3 | 167 |
+
+    | category | 376 | 7 | 1 | 369 |
+
+
+    **The value is the starting value, not a rich change stream.** Entry 18 reported
+    337 of 367 tasks
+
+    whose replay disagreed with their row, essentially all of it priority -- and the
+    reason was that
+
+    the log records no priority at creation, so the replay had no value to start from.
+    Git supplies
+
+    that starting value for **369 tasks**, which closes almost the whole gap. The
+    intermediate history
+
+    is genuinely thin: priority moved **37 times in the project''s life**, earliest
+    2026-08-15. That is
+
+    the truth about this backlog rather than a limitation of the method, and a priority-churn
+    chart
+
+    should be expected to look sparse because it is.
+
+
+    **`archived` has never transitioned, and that was verified rather than inferred.**
+    Both archived
+
+    tasks took `archived: true` in the single 2026-08-10 schema-migration commit,
+    as an initial value.
+
+    So there is no archived history to recover and none is being lost.
+
+
+    **365 of 367 files have a git "first added" instant**, which gives a real creation
+    event to the 79
+
+    tasks whose log has none.
+
+
+    **The honest caveat, stated up front so no chart over-claims: git records commit
+    time, not change
+
+    time.** Records are committed promptly, so the skew is usually seconds, but a
+    bulk commit collapses
+
+    many changes into one instant -- the largest here are 132 task files in one commit
+    (2026-08-22),
+
+    then 93 and 87 (2026-08-21). Those are backlog reorganisations, and a backfilled
+    `queue_position`
+
+    history will correctly show them as simultaneous. Only 2 renames exist in the
+    whole history, so
+
+    `-M` keeps continuity.
+
+
+    **Design consequences.** `task_event.source` already admits `backfilled`, so no
+    schema change is
+
+    needed -- but every backfilled row must carry `detail_json.git_commit` with the
+    sha it came from,
+
+    so any backfilled fact is traceable to the commit that is its evidence. `project
+
+    .history_baseline_kind` becomes `backfilled` for this project. And a **sequencing
+    constraint that
+
+    belongs to task-311 and is easy to get fatally wrong: the backfill reads the git
+    history of the
+
+    task files, so it must run, and be verified, before those files are retired.**
+    Retire first and the
+
+    evidence is gone.
+
+
+    ### Q4 -- task-213 runs next, without a blocking edge
+
+
+    Confirmed on disk: **task-311 already carries `needs: task-273`**, which is the
+    edge task-358 asked
+
+    to have confirmed before running its walk. Nothing to add there.
+
+
+    What is *not* enforced anywhere, and therefore has to be a human act: task-213''s
+    parent is task-212,
+
+    a different epic. **An epic walk on task-358 does not consult task-212''s queue
+    order, so it will
+
+    start task-273''s implementation whether or not task-213 has run.** No `needs`
+    edge was added,
+
+    because Jeff chose the option that explicitly declines one. So the sequencing
+    is real but manual:
+
+    **dispatch task-213 before dispatching task-358''s walk.** Recorded here rather
+    than left in chat,
+
+    because chat does not survive the session and this is the one part of his answer
+    that nothing in
+
+    the system will enforce for him.
+
+
+    ### One observation this session produced by accident, worth carrying into the
+    build
+
+
+    This task record is now large enough that returning the whole document exceeds
+    an MCP response
+
+    budget -- every write this session came back over the limit, and the write still
+    succeeded, so the
+
+    failure is in the reply rather than the operation. It is a small, concrete argument
+    for something
+
+    the new store should do anyway: **the write verbs should return a summary plus
+    the affected entry,
+
+    not the entire task with its whole log**, and the log should be pageable. Worth
+    a look during
+
+    implementation; it is not in scope to fix here.
+
+    '
+  data:
+    operation:
+      id: a1f2c3d4-9e8b-4712-b563-2c4d8f19e7a6
+      kind: log_append
+      fingerprint: 32cd2ec006109016ddc3b7e6c5d6ca48
+- id: 37
+  ts: '2026-09-07T00:42:15.995982Z'
+  actor: claude
+  type: transition
+  body: 'Promoted by claude: the physical schema was the missing spec, and it is now
+    settled. Entry 17 is the DDL, 18 the history contract, 19 the concurrency/backup/boundary/migration
+    contract, 36 the five owner answers folded in with their schema deltas. Entry
+    16 is the measured evidence behind all of it.
+
+
+    Before dispatching task-358''s walk: dispatch task-213 first. Jeff chose "task-213
+    next, then build" without a blocking edge, and a walk on task-358 will not wait
+    for a task that belongs to task-212''s epic. See entry 36.'
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: b2e3d4c5-0f9a-4823-c674-3d5e9f2ab8b7
+      kind: promote
+      fingerprint: 33c9350390f6c16f77a1c028a6dbc6a1
