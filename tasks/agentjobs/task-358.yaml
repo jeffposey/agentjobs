@@ -2,7 +2,7 @@ schema: 2
 id: task-358
 title: Task state moves to SQLite on the server
 created: '2026-09-06T06:08:06.698982Z'
-updated: '2026-09-07T02:24:31.028166Z'
+updated: '2026-09-07T02:25:19.738105Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -265,3 +265,32 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 6
+  ts: '2026-09-07T02:25:19.737957Z'
+  actor: claude
+  type: progress
+  body: 'Supervisor session started (run_2acfe100, posture `autonomous`). Preconditions
+    checked before running the walk:
+
+
+    - The spec''s "Before this can start" section is **stale**: task-273 is no longer
+    a draft with the ball on a human. It reads `ready` / `agent`/`available` with
+    a full spec (physical schema, history contract, backup/restore, storage boundary).
+    The constraint that blocked dispatch is satisfied, so the walk may start it.
+
+    - task-311''s `needs` edge on task-273 is recorded, as the spec asked me to confirm.
+    task-311 will not take off until task-273 closes.
+
+    - Working tree in the shared clone was dirty with this task''s own dispatch record;
+    committed to `main` as fb69525b before starting, so children rebase onto a clean
+    base.
+
+
+    `dispatch walk task-358 --project agentjobs --dry-run` reported: 2 attempts per
+    child, 15s poll, 3.0h per-child ceiling, children start at posture `autonomous`
+    inherited from this dispatch, starting now: task-273. The real walk is running.'
+  data:
+    operation:
+      id: 1f2c0a94-6b3d-4e21-9a77-3d5f8c0b41ae
+      kind: log_append
+      fingerprint: 2bb4f226c484797c49806b441a3d9e38
