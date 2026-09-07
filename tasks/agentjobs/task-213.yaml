@@ -3,23 +3,17 @@ id: task-213
 title: 'Design the analytics page: where the history comes from, and what the page
   says'
 created: '2026-08-21T02:34:52.929949Z'
-updated: '2026-09-07T02:05:09.584176Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-09-07T02:05:25.715446Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 1093
 category: design
 tags:
 - analytics
 - design
 - epic-child
 assignment:
-  owner: claude
   eligible: []
 parent: task-212
 spec:
@@ -139,7 +133,8 @@ dependencies:
 links: []
 branches:
 - name: docs/task-213-analytics-design
-  status: active
+  status: merged
+  merged_at: '2026-09-07T02:05:25.651804Z'
 log:
 - id: 1
   ts: '2026-08-21T02:34:52.930017Z'
@@ -784,3 +779,25 @@ log:
     merge_commit: 069f5a92abfad9aeb816383656b6c53fc45fedc7
     branch: docs/task-213-analytics-design
     base: main
+- id: 23
+  ts: '2026-09-07T02:05:25.715235Z'
+  actor: finisher
+  type: transition
+  body: "Merged `docs/task-213-analytics-design` into `main` as `069f5a92` and verified\
+    \ live. Finished by the scripted path with no agent session (task-241). Approved\
+    \ by Jeff Posey; no model was in this loop.\n\nEverything up to and including\
+    \ verification:\n\n```\n  preflight  ok         1.0s  docs/task-213-analytics-design\
+    \ at 2d713cdd in C:\\projects\\worktrees\\agentjobs-213\n  runway     ok     \
+    \    0.0s  taken immediately\n  rebase     ok         0.1s  docs/task-213-analytics-design\
+    \ onto main: 2d713cdd -> 0b62c4a1\n  gate       ok       241.8s  scripts/check.py\
+    \ green\n  catch_up   skipped    0.0s  main did not move during the gate\n  merge\
+    \      ok         0.2s  --no-ff into main as 069f5a92abfad9aeb816383656b6c53fc45fedc7\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         0.6s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving 7021b888, which contains the merge\
+    \ 069f5a92, from C:\\projects\\agentjobs (started 2026-09-07T02:05:13.814392+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
