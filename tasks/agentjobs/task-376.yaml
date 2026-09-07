@@ -3,7 +3,7 @@ id: task-376
 title: Task records must paraphrase rather than quote a person, and the store must
   refuse verbatim quotes at ingest
 created: '2026-09-07T03:43:37.694129Z'
-updated: '2026-09-07T04:03:05.548871Z'
+updated: '2026-09-07T04:32:48.761501Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -139,7 +139,9 @@ dependencies:
   type: related
   note: Built the importer and the store this must enforce at.
 links: []
-branches: []
+branches:
+- name: feat/task-376-quote-policy
+  status: active
 log:
 - id: 1
   ts: '2026-09-07T03:43:38.389879Z'
@@ -224,3 +226,99 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 5
+  ts: '2026-09-07T04:32:12.931182Z'
+  actor: claude
+  type: decision
+  body: "**The importer refuses; it does not quarantine.** (ac-1's recorded decision.)\n\
+    \n`CorpusImporter.run()` scans every readable document inside the write transaction\
+    \ and\nbefore a single task row is inserted, and raises `QuotationPolicyError`\
+    \ if any record\ncarries a verbatim quotation of a person. The rollback takes\
+    \ even the quarantine rows the\nsame pass may have added, so \"nothing was imported\"\
+    \ is literally true of the store and a\nre-run after the fix is a clean re-run\
+    \ rather than a repair.\n\n**Rejected: quarantine the record, which is this importer's\
+    \ own answer to a record it\ncannot parse.** That mechanism keeps the live tables\
+    \ provably valid while the bad record\nstays inspectable and re-importable, and\
+    \ it was the obvious thing to reuse. It is the\nwrong mechanism here for one concrete\
+    \ reason: `import_quarantine.raw_text` holds the\nwhole file. Quarantining a record\
+    \ for its *content* would put the content in the database\nin the same act that\
+    \ claimed to keep it out \u2014 the durable, queryable copy the rule exists\n\
+    to prevent. Field-level quarantine was rejected too: it would leave the store's\
+    \ copy of a\nrecord silently disagreeing with the file it came from, and reconciliation\
+    \ between the two\nis this importer's core property.\n\n**The false-positive cost,\
+    \ and what bounds it.** The spec named the risk correctly: a\nrefusal can stop\
+    \ a cutover on a detector mistake. Three things bound it.\n\n1. The same detector\
+    \ fails the gate over `tasks/`, so a record reaching an import has\n   already\
+    \ passed the check on its way into `main`.\n2. `agentjobs redact` makes a real\
+    \ hit a one-command fix rather than a hand-splice.\n3. `run(enforce_quotation_policy=False)`\
+    \ lets an operator who has read the hits and\n   judged them proceed now. It is\
+    \ not silent: `ImportReport.render()` says the policy was\n   off and names every\
+    \ region it let through.\n\nMeasured against the risk it protects against, a refusal\
+    \ that has to be overridden\ndeliberately is cheaper than a store that has quietly\
+    \ absorbed the thing the task exists\nto keep out.\n\n**Nothing the refusal writes\
+    \ contains the quotation.** The exception message, the report\nand the gate failure\
+    \ all name a region and its tone groups \u2014 `task-286: log[5].body at\noffset\
+    \ 218 (informality)` \u2014 because an exception string, a report and a CI log\
+    \ are all\nplaces the remark would become durable again.\n"
+  data:
+    operation:
+      id: 7f3a1c92-4b6d-4e18-9a52-2c8e0d5a1b37
+      kind: log_append
+      fingerprint: a339b73231668be6ab23da191eb59d08
+- id: 6
+  ts: '2026-09-07T04:32:35.579420Z'
+  actor: claude
+  type: decision
+  body: "**The detector needs two signals, not a word list \u2014 and the corpus says\
+    \ why.**\n\nThe spec predicted a word list would fire on legitimate technical\
+    \ prose. Measured, on\n373 records: a quotation shape alone matches **3,316 times**\
+    \ in parsed prose (2,451 of\nthem in log bodies). That is not a check, it is a\
+    \ way to have the check switched off.\n\nSo `src/agentjobs/quotation.py` requires\
+    \ the intersection of three signals:\n\n- a **quotation shape** \u2014 a double-quoted\
+    \ run, a typographic-quoted run, or a Markdown\n  block quote;\n- a **tone marker**\
+    \ from one of four groups \u2014 `vulgarity`, `dismissal`, `informality`,\n  `emphasis`;\n\
+    - an **attribution cue** in the 200 characters before it, for every group but\n\
+    \  `vulgarity`. The speaker list is built from the record itself \u2014 the `log[].actor`\n\
+    \  values and `assignment.owner`, split into name parts \u2014 so the module needs\
+    \ no project\n  configuration and the people a record could be quoting are the\
+    \ people who appear in it.\n\nResult on the same corpus: **10 findings across\
+    \ 8 regions, all real, no false positives.**\n\n**Two thresholds were moved by\
+    \ measurement, and both are in the source with the reason.**\n`whatever` as a\
+    \ relative pronoun (\"whatever the guard consults\") is ordinary prose and\nonly\
+    \ its standalone, sentence-final use is the interjection, so it carries a lookahead\n\
+    the other words do not \u2014 that alone removed two false positives. And the\
+    \ shouting rule\nneeds **three** consecutive capitalised words rather than two:\
+    \ at two it fired on a\nheading and on a status label written in capitals. The\
+    \ cost is stated rather than hidden\n\u2014 a two-word shout quoted verbatim now\
+    \ passes.\n\n**Rejected: catching more by loosening either half.** Every loosening\
+    \ tried produced a\nfalse positive on this corpus, and a check that cries wolf\
+    \ on task records is one the\nnext agent learns to scroll past. The module docstring,\
+    \ `TestWhatItCannotSee` and\n`docs/agent-workflow.md` all state the four blind\
+    \ spots plainly: tone using no listed\nword, a paraphrase that keeps the tone,\
+    \ a quoted machine message after a reporting verb,\nand a two-word shout.\n\n\
+    **Scope decision: the corpus is clean by the detector's measure, and no manual\
+    \ sweep was\nattempted beyond it.** Within each of the twelve regions redacted,\
+    \ every verbatim\nquotation of a person was paraphrased \u2014 including the ones\
+    \ the detector did not flag. A\ncalm verbatim quotation elsewhere in the corpus\
+    \ is not caught by anything and was not\nhunted: that is a hand review of 374\
+    \ records against a rule no test can express, and it\nis not what this task bought.\
+    \ The mechanism the task asked for \u2014 a warning at the write,\na gate over\
+    \ `tasks/`, a refusal at import \u2014 is what keeps the next one from being\n\
+    written.\n"
+  data:
+    operation:
+      id: b18d5e04-9c77-42a1-8f6b-3d0a5c72e419
+      kind: log_append
+      fingerprint: a7f2f54b67f134b543607f07c2b722e1
+- id: 7
+  ts: '2026-09-07T04:32:48.761198Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: c92f0a76-51b3-4d8e-9d10-6b4f7a2e83c5
+      kind: update_content
+      fingerprint: 904d622d7e1073a6d28765e83ee39eb6
