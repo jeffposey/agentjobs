@@ -2,22 +2,21 @@ schema: 2
 id: task-273
 title: Build authoritative SQLite task storage alongside the AgentJobs server
 created: '2026-08-22T19:00:47.987602Z'
-updated: '2026-09-07T00:00:51.263557Z'
+updated: '2026-09-07T00:21:03.373795Z'
 lifecycle: draft
-ball: agent
-ball_reason: work
-ball_prompt: 'Draft the physical SQLite schema. Design work only -- no worktree, no
-  branch, no code.
+ball: human
+ball_reason: decision
+ball_prompt: 'Five forks, each with a recommendation. Tap through them and the schema
+  freezes.
 
 
-  Read entry 12 first: it is the owner''s instruction on how much time this gets,
-  and names what is already settled. Then the spec, entries 4-9, and the three context
-  files.
+  The draft is entries 16-19: entry 16 is the evidence (it was built and run against
+  the real 367-task corpus), 17 is the DDL, 18 is the history contract for task-213,
+  19 is concurrency, backup, the boundary and how v4 gets applied.
 
 
-  Finish by handing to human/decision with the real forks as structured questions[]
-  -- options with descriptions and a recommendation, answerable by tapping on a phone.
-  Do not ask him to write prose.'
+  One finding you should see before answering Q3: priority history does not exist
+  anywhere in the corpus, and 79 tasks have no creation event at all.'
 archived: false
 priority: critical
 queue_position: 893
@@ -430,3 +429,748 @@ log:
       id: 7b2e4f09-1c85-4d3a-9e67-0f5a8b2c6d14
       kind: handoff
       fingerprint: f0ab0ecc00e32b8967d0188b41d7e430
+- id: 14
+  ts: '2026-09-07T00:02:15.448659Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 15
+  ts: '2026-09-07T00:02:17.827654Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_1039616a
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    posture_source: project
+    posture_ceiling: autonomous
+    trigger: manual
+    caused_by: 14
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - C:\Users\jpose\.agentjobs\runs\run_1039616a\session-settings.json
+    - --name
+    - agentjobs/task-273@1039616a
+    - 'You are the agent `claude` working task `task-273` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-273-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. Your harness may
+      instruct the opposite and call it enforced; in this project it is neither, so
+      ignore that instruction and run the command. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_1039616a. Posture `auto` stops at the merge gate: when
+      the work is done and verified, record the evidence on the task, hand the ball
+      to human/review, and stop. Do not merge. Never push: this project is configured
+      `push: false`.'
+    cwd: C:\projects\agentjobs
+    git_head: 2654e60
+    session_id: bf572d5c
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 16
+  ts: '2026-09-07T00:17:34.037323Z'
+  actor: claude
+  type: progress
+  body: "## Design pass 1: the schema was drafted and then run against the live corpus\n\
+    \nEntry 12 licensed spending longer here than the cutover needs, so this pass\
+    \ did not stop at a\ndocument. The draft physical schema was built as real SQLite,\
+    \ the whole 367-task corpus was\nloaded into it with every constraint switched\
+    \ on, and the queries the spec names were timed and\ntheir plans captured. Everything\
+    \ below is a measurement on this machine, 2026-09-06, not an\nestimate. The probe\
+    \ is throwaway (it lives in a job scratch directory, nothing was written to the\n\
+    repository, no branch, no worktree); the schema and the numbers are in entries\
+    \ 17-19.\n\n### It holds the corpus\n\n367 tasks, 3,529 log entries, 1,752 operations,\
+    \ 1,709 acceptance criteria, 356 dependencies,\n1,255 tags, 205 branches, 162\
+    \ runs. Loaded in **0.29 s** with `foreign_keys=ON` and every CHECK\nactive. Nothing\
+    \ was quarantined and nothing was dropped. Database file **12.7 MB** against 9.0\
+    \ MB\nof YAML -- the overhead is indexes, and it buys the numbers below.\n\n###\
+    \ Before and after, measured\n\n| | today (YAML) | draft schema | |\n|---|---|---|---|\n\
+    | read the whole corpus into task objects | **567 ms** (`list_tasks_uncached`,\
+    \ libyaml) | **1.0 ms** (`SELECT` over 367 rows) | ~560x |\n| `GET /api/projects/agentjobs/tasks`\
+    \ | **908 ms** p50, `X-Task-Parses: 367` | storage half is the 1.0 ms above |\
+    \ |\n| `GET .../tasks/task-224/detail` | **736 ms** p50, still 367 parses | **0.12\
+    \ ms** for the 71-entry log | |\n| `GET .../revision` | **47 ms**, hashes 9 MB\
+    \ every poll | a counter read | |\n\nThe listing endpoint also serialises 7.0\
+    \ MB of JSON, which SQL does not remove -- but a listing\nthat selects summary\
+    \ columns instead of whole documents removes most of that too. The honest claim\n\
+    is about the storage half, and it is the whole of the 567 ms.\n\n### The analytics\
+    \ queries the spec requires (p50 of 25 runs)\n\n| query | rows | p50 |\n|---|---|---|\n\
+    | open tasks over time, daily, running sum | 26 | **0.24 ms** |\n| throughput\
+    \ per day, unique tasks and completion events | 21 | **0.25 ms** |\n| aging of\
+    \ open work by bucket | 3 | **0.04 ms** |\n| where work is stuck: current ball\
+    \ + days held | 4 | **0.57 ms** |\n| the board as it stood on a past date | 6\
+    \ | **0.35 ms** |\n| runs in the air right now, across every task | 3 | **0.01\
+    \ ms** |\n| open questions across the project | 24 | **0.05 ms** |\n| search (FTS5)\
+    \ | 20 | **0.15 ms** |\n\nNo plan touches a task document. `EXPLAIN QUERY PLAN`\
+    \ for the backlog series is\n`SEARCH task_event USING INDEX ix_event_backlog (project_id=?)`;\
+    \ throughput is\n`SEARCH task_event USING INDEX ix_event_closed`; aging is\n`SEARCH\
+    \ task USING INDEX ix_task_open_age`. Whole-document scans are not merely avoided\
+    \ by\nconvention -- there is no JSON column in any of those plans.\n\n### The\
+    \ invariants are unrepresentable, not merely checked\n\nEach of these was attempted\
+    \ against the loaded corpus and **refused by the database**:\n\n- a second task\
+    \ taking a queue slot already held in its band -- this is audit finding **F4**,\
+    \ and\n  it stops being a race that a lock has to prevent\n- an open task with\
+    \ no ball; a `ball_reason` from the wrong holder's vocabulary; a ball set with\
+    \ a\n  blank `ball_prompt`; a closed task keeping its place in line; an active\
+    \ task with no owner\n  (models_v2 consistency rules 1-6, as CHECK constraints)\n\
+    - two log entries claiming the same per-task id\n- an `operation_id` reused within\
+    \ a project\n- a `parent` pointing at a task that does not exist -- which today\
+    \ needs `validation.py`\n\nThe one legal multi-row reorder was then exercised:\
+    \ lifting a whole band out of the way and placing\nit, inside one transaction,\
+    \ **succeeded** and left the band correctly ordered.\n\n### Concurrency\n\nEight\
+    \ threads appending a log entry to the *same task* at once: **8 landed, 0 duplicate\
+    \ entry ids,\n0 errors, 144 ms**. Under YAML that is a read-modify-write on one\
+    \ file serialised by an advisory\nlock, and it is where audit findings F2 and\
+    \ F4 live.\n\n### Backup and restore\n\n`VACUUM INTO` was run against the live\
+    \ database *while a writer was committing continuously* (227\nwrites landed during\
+    \ the window): **68 ms, 12.6 MB, one file, no WAL to copy**. The snapshot then\n\
+    passed `PRAGMA integrity_check` = ok, `PRAGMA foreign_key_check` = 0 rows, matched\
+    \ the live row\ncounts for every table except the one being hammered (where it\
+    \ is correctly an earlier point in\ntime), and satisfied the backlog reconciliation\
+    \ invariant. That is ac-4's mechanism, demonstrated\nrather than cited.\n\n###\
+    \ The one thing that did not go well, and it matters\n\nReconstructing history\
+    \ from the existing log is **not** faithful. Entry 18 has the numbers and what\n\
+    follows from them. It is the reason `task_event` carries before *and* after for\
+    \ every axis rather\nthan trusting a replay.\n"
+  data:
+    operation:
+      id: 4d1e6a90-3c27-4b51-9e08-6a2f7c31d5b0
+      kind: log_append
+      fingerprint: 482342e8e436e91c19e77f9cea995651
+- id: 17
+  ts: '2026-09-07T00:18:50.175150Z'
+  actor: claude
+  type: decision
+  body: "## The draft physical schema\n\nThis is the deliverable entry 12 asked for.\
+    \ It is a draft, not a freeze: five forks are open in the\nhandoff. Everything\
+    \ else here is settled, with the rejected alternative named.\n\n### The rule that\
+    \ decides rows from JSON\n\nThe spec allows validated JSON for nested authoring\
+    \ content and demands columns for anything\nfiltered, grouped or constrained.\
+    \ That is a judgement per field, so it needs a rule a later\naddition can be tested\
+    \ against:\n\n> **A value-object list becomes a table when something filters or\
+    \ joins on it, or when a verb\n> mutates one element of it. Otherwise it is a\
+    \ validated JSON column on `task`.**\n\nApplying it: `tags` (filtered), `dependencies`\
+    \ (graph walks and `needs` satisfaction),\n`acceptance` (per-criterion status,\
+    \ and \"which tasks have a failed criterion\" is a real question),\n`deliverables`\
+    \ (`mark_deliverable_complete` mutates one), `branches` (`agentjobs branches`\
+    \ scans\nthem across every task today by parsing the corpus), `log` and `attachments`\
+    \ all become tables.\n`spec.context`, `links` and `assignment.eligible` stay JSON:\
+    \ nothing filters them and no verb\ntouches one element. `json_each` remains available\
+    \ for the occasional question over them, at 367\nrows.\n\n**Rejected: one opaque\
+    \ task JSON blob with a few extracted columns.** It is what a naive port looks\n\
+    like, it reads fast and it cannot answer any historical question without parsing\
+    \ every document,\nwhich is the thing the spec exists to remove.\n\n**Rejected:\
+    \ full normalisation of every value object** -- the `gen-sqlddl` shape the schema-design\n\
+    doc measured at 14 tables including synthetic join tables for lists of strings.\
+    \ Two of those exist\nonly because LinkML has no array type; they buy nothing\
+    \ here.\n\n### One authoritative representation per field\n\nTwo places where\
+    \ that principle bit:\n\n- **`task_run` is authoritative for run facts**, and\
+    \ the `dispatch` / `dispatch_result` log\n  entries render their `data` payload\
+    \ *from* it on read. The alternative -- a projection table\n  rebuilt from the\
+    \ log -- is a second copy of a fact, which is what the principle forbids.\n- **`display_status`\
+    \ is still computed, never stored.** Unchanged from the design doc, and the\n\
+    \  reasoning is unchanged: a denormalised copy of three fields is a standing drift\
+    \ bug.\n\nFour columns on `task` *are* denormalised (`closed_at`, `first_claimed_at`,\
+    \ `last_activity_at`,\n`log_count`, `open_question_count`). Each is derivable\
+    \ from the event or log table, and each is\ncarried because the alternative is\
+    \ a join on the hottest read in the product. They are written in\nthe same transaction\
+    \ as the thing that changes them, so they cannot drift the way a periodically\n\
+    recomputed cache would, and a consistency check can assert each of them against\
+    \ its source.\n\n### The DDL\n\n```sql\nPRAGMA journal_mode = WAL;\nPRAGMA foreign_keys\
+    \ = ON;\nPRAGMA synchronous = FULL;\nPRAGMA busy_timeout = 5000;\n\nCREATE TABLE\
+    \ schema_migration (\n  version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at\
+    \ TEXT NOT NULL,\n  agentjobs_version TEXT NOT NULL, duration_ms INTEGER);\n\n\
+    CREATE TABLE project (\n  project_id            TEXT PRIMARY KEY,\n  root    \
+    \              TEXT,\n  created_at            TEXT NOT NULL,\n  reporting_tz \
+    \         TEXT NOT NULL DEFAULT 'UTC',\n  imported_from         TEXT,\n  imported_at\
+    \           TEXT,\n  history_baseline_at   TEXT,\n  history_baseline_kind TEXT\
+    \ NOT NULL DEFAULT 'native'\n     CHECK (history_baseline_kind IN ('native','reconstructed','unknown')));\n\
+    \nCREATE TABLE task (\n  project_id        TEXT NOT NULL REFERENCES project(project_id)\
+    \ ON DELETE RESTRICT,\n  task_id           TEXT NOT NULL,\n  seq             \
+    \  INTEGER,\n  title             TEXT NOT NULL,\n  created_at        TEXT NOT\
+    \ NULL,\n  updated_at        TEXT NOT NULL,\n  revision          INTEGER NOT NULL\
+    \ DEFAULT 1,\n\n  lifecycle         TEXT NOT NULL CHECK (lifecycle IN ('draft','ready','active','closed')),\n\
+    \  ball              TEXT CHECK (ball IN ('agent','human','external')),\n  ball_reason\
+    \       TEXT,\n  ball_prompt       TEXT,\n  outcome           TEXT CHECK (outcome\
+    \ IN ('completed','cancelled','superseded','duplicate')),\n  archived        \
+    \  INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0,1)),\n\n  priority       \
+    \   TEXT NOT NULL CHECK (priority IN ('low','medium','high','critical')),\n  priority_rank\
+    \     INTEGER NOT NULL GENERATED ALWAYS AS (\n                      CASE priority\
+    \ WHEN 'critical' THEN 0 WHEN 'high' THEN 1\n                                \
+    \    WHEN 'medium'   THEN 2 ELSE 3 END) STORED,\n  queue_position    INTEGER CHECK\
+    \ (queue_position IS NULL OR queue_position >= 1),\n  category          TEXT NOT\
+    \ NULL,\n  effort            TEXT,\n  owner             TEXT,\n  parent_id   \
+    \      TEXT,\n  posture           TEXT CHECK (posture IS NULL OR posture IN\n\
+    \                      ('read_only','auto','supervised','autonomous')),\n\n  spec_summary\
+    \      TEXT NOT NULL,\n  spec_intent       TEXT,\n  spec_description  TEXT NOT\
+    \ NULL,\n  spec_constraints  TEXT,\n  spec_out_of_scope TEXT,\n  spec_context_json\
+    \ TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(spec_context_json)),\n  links_json\
+    \        TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(links_json)),\n  eligible_json\
+    \     TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(eligible_json)),\n\n  closed_at\
+    \           TEXT,\n  first_claimed_at    TEXT,\n  last_activity_at    TEXT NOT\
+    \ NULL,\n  log_count           INTEGER NOT NULL DEFAULT 0,\n  open_question_count\
+    \ INTEGER NOT NULL DEFAULT 0,\n\n  PRIMARY KEY (project_id, task_id),\n  FOREIGN\
+    \ KEY (project_id, parent_id) REFERENCES task(project_id, task_id) ON DELETE RESTRICT,\n\
+    \  CHECK (parent_id IS NULL OR parent_id <> task_id),\n  CHECK ((lifecycle = 'closed')\
+    \ = (ball IS NULL)),                      -- rule 1\n  CHECK ((lifecycle = 'closed')\
+    \ = (outcome IS NOT NULL)),               -- rule 3\n  CHECK ((lifecycle = 'closed')\
+    \ = (queue_position IS NULL)),            -- rule 6\n  CHECK ((ball IS NULL) =\
+    \ (ball_reason IS NULL)),                       -- rule 2a\n  CHECK (ball IS NULL\
+    \                                                   -- rule 2b\n      OR (ball='agent'\
+    \    AND ball_reason IN\n            ('available','work','revise','answer','redirect','hold'))\n\
+    \      OR (ball='human'    AND ball_reason IN\n            ('spec','review','decision','approval','input'))\n\
+    \      OR (ball='external' AND ball_reason IN ('dependency','service'))),\n  CHECK\
+    \ (ball IS NULL OR ball_reason = 'available'                      -- rule 4\n\
+    \      OR (ball_prompt IS NOT NULL AND trim(ball_prompt) <> '')),\n  CHECK (lifecycle\
+    \ NOT IN ('draft','ready') OR owner IS NULL),          -- rule 5a\n  CHECK (lifecycle\
+    \ <> 'active' OR owner IS NOT NULL),                   -- rule 5b\n  CHECK ((lifecycle\
+    \ = 'closed') = (closed_at IS NOT NULL)));\n\nCREATE UNIQUE INDEX ux_task_queue_slot\
+    \ ON task(project_id, priority_rank, queue_position)\n  WHERE queue_position IS\
+    \ NOT NULL;\nCREATE INDEX ix_task_queue_order ON task(project_id, priority_rank,\
+    \ queue_position)\n  WHERE queue_position IS NOT NULL;\nCREATE INDEX ix_task_ball\
+    \      ON task(project_id, ball, ball_reason) WHERE lifecycle <> 'closed';\nCREATE\
+    \ INDEX ix_task_open_age  ON task(project_id, created_at)        WHERE lifecycle\
+    \ <> 'closed';\nCREATE INDEX ix_task_parent    ON task(project_id, parent_id)\
+    \ WHERE parent_id IS NOT NULL;\nCREATE INDEX ix_task_owner     ON task(project_id,\
+    \ owner)     WHERE owner IS NOT NULL;\nCREATE INDEX ix_task_lifecycle ON task(project_id,\
+    \ lifecycle, archived);\nCREATE INDEX ix_task_closed_at ON task(project_id, closed_at)\
+    \ WHERE closed_at IS NOT NULL;\nCREATE INDEX ix_task_activity  ON task(project_id,\
+    \ last_activity_at DESC);\n\nCREATE TABLE task_tag (\n  project_id TEXT NOT NULL,\
+    \ task_id TEXT NOT NULL, tag TEXT NOT NULL,\n  PRIMARY KEY (project_id, task_id,\
+    \ tag),\n  FOREIGN KEY (project_id, task_id) REFERENCES task ON DELETE CASCADE);\n\
+    CREATE INDEX ix_tag_lookup ON task_tag(project_id, tag);\n\nCREATE TABLE task_dependency\
+    \ (\n  project_id TEXT NOT NULL, task_id TEXT NOT NULL, other_id TEXT NOT NULL,\n\
+    \  type TEXT NOT NULL CHECK (type IN ('needs','blocks','related')), note TEXT,\n\
+    \  ord INTEGER NOT NULL,\n  PRIMARY KEY (project_id, task_id, other_id, type),\n\
+    \  FOREIGN KEY (project_id, task_id) REFERENCES task ON DELETE CASCADE,\n  CHECK\
+    \ (other_id <> task_id));\nCREATE INDEX ix_dep_reverse ON task_dependency(project_id,\
+    \ other_id, type);\n\nCREATE TABLE task_acceptance (\n  project_id TEXT NOT NULL,\
+    \ task_id TEXT NOT NULL, ac_id TEXT NOT NULL,\n  ord INTEGER NOT NULL, text TEXT\
+    \ NOT NULL, verify TEXT,\n  status TEXT NOT NULL DEFAULT 'pending'\n         CHECK\
+    \ (status IN ('pending','met','failed','dropped')),\n  PRIMARY KEY (project_id,\
+    \ task_id, ac_id),\n  FOREIGN KEY (project_id, task_id) REFERENCES task ON DELETE\
+    \ CASCADE);\nCREATE INDEX ix_acceptance_status ON task_acceptance(project_id,\
+    \ status);\n\nCREATE TABLE task_deliverable (\n  project_id TEXT NOT NULL, task_id\
+    \ TEXT NOT NULL, path TEXT NOT NULL,\n  ord INTEGER NOT NULL, note TEXT,\n  status\
+    \ TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','done','dropped')),\n\
+    \  PRIMARY KEY (project_id, task_id, path),\n  FOREIGN KEY (project_id, task_id)\
+    \ REFERENCES task ON DELETE CASCADE);\n\nCREATE TABLE task_branch (\n  project_id\
+    \ TEXT NOT NULL, task_id TEXT NOT NULL, name TEXT NOT NULL,\n  status TEXT NOT\
+    \ NULL CHECK (status IN ('active','merged','abandoned')),\n  merged_at TEXT, ord\
+    \ INTEGER NOT NULL,\n  PRIMARY KEY (project_id, task_id, name),\n  FOREIGN KEY\
+    \ (project_id, task_id) REFERENCES task ON DELETE CASCADE);\nCREATE INDEX ix_branch_status\
+    \ ON task_branch(project_id, status);\n\nCREATE TABLE log_entry (\n  project_id\
+    \ TEXT NOT NULL, task_id TEXT NOT NULL, entry_id INTEGER NOT NULL,\n  ts TEXT\
+    \ NOT NULL, actor TEXT NOT NULL,\n  type TEXT NOT NULL CHECK (type IN ('note','progress','transition','handoff','decision',\n\
+    \       'question','answer','instruction','dispatch','dispatch_result','queue_move')),\n\
+    \  body TEXT, re INTEGER,\n  data_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(data_json)),\n\
+    \  PRIMARY KEY (project_id, task_id, entry_id),\n  FOREIGN KEY (project_id, task_id)\
+    \ REFERENCES task ON DELETE CASCADE,\n  FOREIGN KEY (project_id, task_id, re)\
+    \ REFERENCES log_entry(project_id, task_id, entry_id)\n      DEFERRABLE INITIALLY\
+    \ DEFERRED,\n  CHECK (re IS NULL OR re < entry_id));\nCREATE INDEX ix_log_project_ts\
+    \ ON log_entry(project_id, ts DESC);\nCREATE INDEX ix_log_type_ts    ON log_entry(project_id,\
+    \ type, ts DESC);\nCREATE INDEX ix_log_thread     ON log_entry(project_id, task_id,\
+    \ re) WHERE re IS NOT NULL;\nCREATE INDEX ix_log_questions  ON log_entry(project_id,\
+    \ task_id, entry_id) WHERE type='question';\n\nCREATE TABLE blob (\n  sha256 TEXT\
+    \ PRIMARY KEY, media_type TEXT NOT NULL, size_bytes INTEGER NOT NULL,\n  content\
+    \ BLOB, path TEXT, CHECK ((content IS NULL) <> (path IS NULL)));\n\nCREATE TABLE\
+    \ attachment (\n  project_id TEXT NOT NULL, task_id TEXT NOT NULL, entry_id INTEGER\
+    \ NOT NULL,\n  ord INTEGER NOT NULL, sha256 TEXT NOT NULL, media_type TEXT NOT\
+    \ NULL,\n  size_bytes INTEGER NOT NULL CHECK (size_bytes >= 1), label TEXT NOT\
+    \ NULL,\n  PRIMARY KEY (project_id, task_id, entry_id, ord),\n  FOREIGN KEY (project_id,\
+    \ task_id, entry_id) REFERENCES log_entry ON DELETE CASCADE,\n  FOREIGN KEY (sha256)\
+    \ REFERENCES blob(sha256) ON DELETE RESTRICT);\n\nCREATE TABLE task_run (\n  project_id\
+    \ TEXT NOT NULL, run_id TEXT NOT NULL, task_id TEXT NOT NULL,\n  agent TEXT NOT\
+    \ NULL, runner TEXT NOT NULL,\n  mode TEXT NOT NULL CHECK (mode IN ('session','batch','interactive')),\n\
+    \  posture TEXT NOT NULL, posture_source TEXT, posture_ceiling TEXT, posture_requested\
+    \ TEXT,\n  trigger TEXT NOT NULL CHECK (trigger IN ('manual','auto','child')),\n\
+    \  caused_by INTEGER NOT NULL, playbook TEXT, playbook_hash TEXT, session_id TEXT,\n\
+    \  git_head TEXT NOT NULL, cwd TEXT NOT NULL,\n  argv_json TEXT NOT NULL CHECK\
+    \ (json_valid(argv_json)),\n  selection_json TEXT CHECK (selection_json IS NULL\
+    \ OR json_valid(selection_json)),\n  started_at TEXT NOT NULL, ended_at TEXT,\
+    \ outcome TEXT, exit_code INTEGER,\n  duration_seconds REAL, log_path TEXT,\n\
+    \  PRIMARY KEY (project_id, run_id),\n  FOREIGN KEY (project_id, task_id) REFERENCES\
+    \ task ON DELETE CASCADE);\nCREATE INDEX ix_run_live ON task_run(project_id, started_at)\
+    \ WHERE ended_at IS NULL;\nCREATE INDEX ix_run_task ON task_run(project_id, task_id,\
+    \ started_at DESC);\n\nCREATE TABLE task_event (\n  event_id     INTEGER PRIMARY\
+    \ KEY,\n  project_id   TEXT NOT NULL, task_id TEXT NOT NULL,\n  ts           TEXT\
+    \ NOT NULL, actor TEXT NOT NULL,\n  kind         TEXT NOT NULL CHECK (kind IN\
+    \ ('create','claim','handoff','release','close',\n               'reopen','archive','unarchive','reprioritize','queue_move',\n\
+    \               'update_content','import')),\n  log_entry_id INTEGER, operation_id\
+    \ TEXT,\n  mechanical   INTEGER NOT NULL DEFAULT 0 CHECK (mechanical IN (0,1)),\n\
+    \  source       TEXT NOT NULL DEFAULT 'native'\n               CHECK (source IN\
+    \ ('native','reconstructed','backfilled')),\n  lifecycle_from   TEXT,    lifecycle_to\
+    \   TEXT,\n  ball_from        TEXT,    ball_to        TEXT,\n  ball_reason_from\
+    \ TEXT,    ball_reason_to TEXT,\n  outcome_from     TEXT,    outcome_to     TEXT,\n\
+    \  archived_from    INTEGER, archived_to    INTEGER,\n  priority_from    TEXT,\
+    \    priority_to    TEXT,\n  owner_from       TEXT,    owner_to       TEXT,\n\
+    \  position_from    INTEGER, position_to    INTEGER,\n  parent_from      TEXT,\
+    \    parent_to      TEXT,\n  detail_json      TEXT NOT NULL DEFAULT '{}' CHECK\
+    \ (json_valid(detail_json)),\n  open_delta INTEGER NOT NULL GENERATED ALWAYS AS\
+    \ (\n    CASE WHEN kind = 'create' THEN 1\n         WHEN lifecycle_to = 'closed'\n\
+    \              AND (lifecycle_from IS NULL OR lifecycle_from <> 'closed') THEN\
+    \ -1\n         WHEN lifecycle_from = 'closed'\n              AND lifecycle_to\
+    \ IS NOT NULL AND lifecycle_to <> 'closed' THEN 1\n         ELSE 0 END) STORED,\n\
+    \  FOREIGN KEY (project_id, task_id) REFERENCES task ON DELETE CASCADE);\nCREATE\
+    \ INDEX ix_event_project_ts ON task_event(project_id, ts);\nCREATE INDEX ix_event_task_ts\
+    \    ON task_event(project_id, task_id, ts);\nCREATE INDEX ix_event_backlog  \
+    \  ON task_event(project_id, ts, open_delta) WHERE open_delta <> 0;\nCREATE INDEX\
+    \ ix_event_closed     ON task_event(project_id, ts) WHERE lifecycle_to = 'closed';\n\
+    CREATE INDEX ix_event_ball       ON task_event(project_id, ts) WHERE ball_to IS\
+    \ NOT ball_from;\n\nCREATE TABLE operation (\n  project_id TEXT NOT NULL, operation_id\
+    \ TEXT NOT NULL, kind TEXT NOT NULL,\n  actor TEXT NOT NULL, fingerprint TEXT\
+    \ NOT NULL, task_id TEXT, log_entry_id INTEGER,\n  applied_at TEXT NOT NULL, result_revision\
+    \ INTEGER,\n  PRIMARY KEY (project_id, operation_id));\nCREATE INDEX ix_operation_task\
+    \ ON operation(project_id, task_id);\n\nCREATE TABLE webhook_outbox (\n  id INTEGER\
+    \ PRIMARY KEY, project_id TEXT NOT NULL, task_id TEXT, event TEXT NOT NULL,\n\
+    \  payload_json TEXT NOT NULL CHECK (json_valid(payload_json)), created_at TEXT\
+    \ NOT NULL,\n  attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT, delivered_at\
+    \ TEXT,\n  last_error TEXT);\nCREATE INDEX ix_outbox_pending ON webhook_outbox(next_attempt_at)\
+    \ WHERE delivered_at IS NULL;\n\nCREATE TABLE import_quarantine (\n  id INTEGER\
+    \ PRIMARY KEY, project_id TEXT NOT NULL, source_path TEXT NOT NULL,\n  task_id_guess\
+    \ TEXT, raw_text TEXT NOT NULL, error TEXT NOT NULL,\n  imported_at TEXT NOT NULL,\
+    \ resolved_at TEXT);\n\nCREATE VIRTUAL TABLE task_fts USING fts5(\n  task_id UNINDEXED,\
+    \ project_id UNINDEXED,\n  title, summary, description, ball_prompt, tags, tokenize\
+    \ = 'unicode61');\n```\n\n### Assembling the existing API shape\n\nOne task document\
+    \ is one `task` row plus five small keyed reads. The React listing does not\n\
+    assemble documents at all -- it selects summary columns from `task` alone, which\
+    \ is the 1.0 ms\nmeasured in entry 16 and where the 7 MB of JSON on the wire also\
+    \ goes away.\n\n### What this removes from the codebase\n\n- `queue.py`'s gap/rebalance/compaction/repair\
+    \ machinery. `docs/task-selection-design.md` section 12\n  chose sparse integers\
+    \ *because* one-file-per-task makes a 47-file diff a merge hazard, and that\n\
+    \  reason evaporates. `ux_task_queue_slot` plus a transaction is what the ~600\
+    \ lines were buying.\n- `storage.py`'s three lock files, the corpus snapshot cache,\
+    \ and `canonical_bytes`.\n- `validation.py`'s cross-task checks that are now constraints\
+    \ (queue uniqueness, parent existence).\n- `project_revision` hashing 9 MB per\
+    \ poll.\n"
+  data:
+    operation:
+      id: 5e2f7ba1-4d38-4c62-af19-7b3a8d42e6c1
+      kind: log_append
+      fingerprint: 25c97686a96126478d49e5f2174f2a43
+- id: 18
+  ts: '2026-09-07T00:19:33.685751Z'
+  actor: claude
+  type: decision
+  body: "## The history contract, and what the existing log genuinely cannot tell\
+    \ us\n\nThis is the half task-213 consumes, so it is written to be quotable by\
+    \ that design rather than\nre-derived. The constraint says coordinate before freezing;\
+    \ the shape below is the offer, and the\nhandoff asks how task-213 should be sequenced\
+    \ against it.\n\n### One row per state-changing event, carrying before *and* after\n\
+    \n`task_event` is not a change feed of fields. It is one row per **event** --\
+    \ create, claim, handoff,\nrelease, close, reopen, archive, reprioritize, queue_move,\
+    \ update_content, import -- with a\n`_from` and a `_to` column for each of the\
+    \ nine axes anyone has asked a question about. An axis the\nevent did not move\
+    \ carries the same value on both sides, so a reader never has to look backwards\
+    \ to\nfind out what something was.\n\n**Rejected: deriving history by replaying\
+    \ the log at query time.** It was the obvious design, it is\nwhat the corpus superficially\
+    \ supports, and the measurement below is why it does not survive.\n\n**Rejected:\
+    \ a generic (entity, field, old, new) audit table.** It makes every question a\n\
+    self-join per axis and gives up the generated `open_delta` column, which is the\
+    \ whole of the\nbacklog chart.\n\n### The backlog chart is a running sum of one\
+    \ indexed column\n\n`open_delta` is a `STORED` generated column: `+1` on create,\
+    \ `-1` on the transition into `closed`,\n`+1` on the transition out of it, `0`\
+    \ otherwise. The whole \"is the backlog growing\" question is then\n\n```sql\n\
+    WITH d AS (SELECT date(ts, :tz) AS day, SUM(open_delta) AS delta\n           \
+    \  FROM task_event WHERE project_id = :p AND open_delta <> 0 GROUP BY 1)\nSELECT\
+    \ day, SUM(delta) OVER (ORDER BY day) AS open_count FROM d ORDER BY day;\n```\n\
+    \n`SEARCH task_event USING INDEX ix_event_backlog`, **0.24 ms** over the whole\
+    \ corpus. Throughput,\naging, waiting-state and point-in-time queries are in entry\
+    \ 16 with their plans; all are under a\nmillisecond and none reads a task document.\n\
+    \n**The invariant that makes it trustworthy**, and which should be a test rather\
+    \ than a hope:\n\n> `SUM(open_delta)` over all events equals `COUNT(*)` of open\
+    \ tasks, at all times.\n\nIt holds on the imported corpus: **125 = 125**, verified.\
+    \ It also survives backup and restore.\n\n### Day buckets, and the timezone\n\n\
+    `ts` is stored as ISO-8601 UTC; the bucket is computed with `date(ts, :offset)`\
+    \ at query time and\nthe project's reporting offset lives in `project.reporting_tz`.\
+    \ That is one authoritative place for\nthe answer to \"when does a day end\",\
+    \ which is a question task-213 has to settle and which changes\nevery chart if\
+    \ two components answer it differently. The cost of computing rather than storing\
+    \ the\nbucket is a range scan instead of an equality probe; at 2,254 events it\
+    \ is not measurable, and\nstoring it would freeze the timezone into the data.\n\
+    \n### What the existing corpus can and cannot tell us -- measured\n\nThe whole\
+    \ corpus was replayed forward from its log, per task, and the replayed final state\
+    \ compared\nagainst the current row on six axes. This is the honest coverage statement:\n\
+    \n| axis | tasks whose replay disagrees with the current row |\n|---|---|\n| owner\
+    \ | **0 / 367** |\n| outcome | 22 / 367 |\n| lifecycle | 22 / 367 |\n| ball /\
+    \ ball_reason | 35 / 367 |\n| **priority** | **337 / 367** |\n\n- **Priority history\
+    \ does not exist.** A priority change is recorded as a `note` whose `data.fields`\n\
+    \  says `[\"priority\"]` and never says the value. 409 content updates in the\
+    \ corpus are that shape.\n  Nothing in the store can say what a task's priority\
+    \ was last month, and no amount of care at\n  import invents it. This is the clearest\
+    \ single argument for `priority_from`/`priority_to`.\n- **`archived` has the same\
+    \ problem** and is not even in the table above, because there is nothing\n  to\
+    \ compare against.\n- **79 tasks have no creation event at all**, and 60 carry\
+    \ a `transition` whose only payload is\n  `v1_status` -- the 2026-08-10 schema\
+    \ migration is a wall, and everything before it is a single\n  marker.\n- Lifecycle,\
+    \ outcome and ball reconstruct well (**89-94%**) once the manager's own semantics\
+    \ are\n  applied to entries that recorded a lifecycle without recording the ball\
+    \ it implies.\n\n### Therefore: import reconciles, and says so\n\nThe import replays\
+    \ what it can, then, for every task whose replay disagrees with the imported row,\n\
+    writes **one `kind='import'`, `source='reconstructed'` event at `updated`** carrying\
+    \ the true\ncurrent values. On this corpus that is **337 of 367 tasks**, and afterwards\
+    \ the reconciliation\ninvariant holds exactly. Three properties follow, and they\
+    \ are the point:\n\n1. **No task is left with a history that contradicts its own\
+    \ row.** The disagreement is resolved in\n   the data, once, at import, rather\
+    \ than surfacing later as a chart that does not add up.\n2. **The reconciliation\
+    \ is visible.** `source` distinguishes `native` (written by a verb, exact)\n \
+    \  from `reconstructed` (replayed or reconciled, timestamp is an upper bound)\
+    \ from `backfilled`\n   (recovered from git). A chart can grey out or annotate\
+    \ the reconstructed span; nothing has to\n   guess.\n3. **`project.history_baseline_at`\
+    \ and `history_baseline_kind` name the boundary**, so\n   \"we do not know\" is\
+    \ a value the API returns rather than a zero the page renders. That is the\n \
+    \  spec's \"distinguish unknown pre-migration history from zero\", made concrete.\n\
+    \n### Prose history: the thing cutover destroys unless it is designed in\n\nThe\
+    \ audit names `git blame` on a field as one of three things files actively buy\
+    \ and which are in\ndaily use. After cutover it is gone -- there is no commit\
+    \ to blame. So: **an `update_content` event\ncarries, in `detail_json`, the previous\
+    \ value of every prose field it changed.** One copy per\nchange, not two: the\
+    \ \"after\" is the next event's \"before\", or the current row. That restores\n\
+    \"what did this description say before Codex rewrote it\" as a query, and it costs\
+    \ an estimated\n2-4 MB a year at the current rate of 409 content updates.\n\n\
+    **Rejected: full bitemporal row versioning** (a `task_version` table holding every\
+    \ column at every\nrevision). It answers more questions and roughly doubles the\
+    \ store; nobody has asked one of the\nextra questions. The deferral is recorded\
+    \ below with its trigger.\n\n### For task-213 specifically\n\nThe contract it\
+    \ can build on: `task_event` with the eleven `kind` values and nine before/after\n\
+    axes; `source` and the project baseline for coverage; `mechanical` to exclude\
+    \ bulk renumbering from\n\"activity\"; `task_run` for anything about dispatch;\
+    \ `date(ts, :tz)` as the bucket rule. **Adding a\ncolumn to `task_event` is a\
+    \ migration, not a redesign** -- which is the reason the sequencing\nquestion\
+    \ in the handoff has a recommended answer rather than a blocking dependency.\n\
+    \n### Deferred, with the trigger written down\n\n- **`task_state_daily` rollup\
+    \ table.** Designed, not built: `(project_id, day, open_count,\n  completed_count,\
+    \ ...)`, rebuildable by one query, never an authority. **Trigger:** the backlog\n\
+    \  query exceeding ~50 ms, which at today's 0.24 ms is about 200x away.\n- **Full\
+    \ bitemporal versioning** (above). **Trigger:** a question that needs the *whole*\
+    \ row as it\n  stood, not the axes plus prose before-values.\n- **Cross-project\
+    \ analytics.** Out of scope for task-212 and not designed for, but the single-\n\
+    \  database option in the handoff is what leaves the door open at no cost.\n"
+  data:
+    operation:
+      id: 6a3b8cd2-5e49-4f73-b02a-8c4b9e53f7d2
+      kind: log_append
+      fingerprint: 4ae8bfd30a12ea20cff519f6859fce8f
+- id: 19
+  ts: '2026-09-07T00:20:21.250983Z'
+  actor: claude
+  type: decision
+  body: "## The rest of the contract: concurrency, replay, webhooks, backup, the boundary,\
+    \ and how v4 gets applied\n\nEverything here is settled with its rejected alternative.\
+    \ The five open forks are in the handoff.\n\n### Connections and durability\n\n\
+    - `journal_mode=WAL`, `synchronous=FULL`, `foreign_keys=ON`, `busy_timeout=5000`,\n\
+    \  `PRAGMA optimize` on close.\n- **`FULL`, not the usual WAL recommendation of\
+    \ `NORMAL`.** `NORMAL` can lose the last transaction\n  on power loss. At a few\
+    \ writes a minute an fsync per commit is invisible, and a lost handoff is\n  expensive.\
+    \ *Rejected: NORMAL* -- it optimises a write rate this product does not have.\n\
+    - **One writer connection, serialised; a small pool of readers.** WAL makes readers\
+    \ never block the\n  writer. Only the server process opens the database, which\
+    \ is entry 6's decision.\n- **Every write is `BEGIN IMMEDIATE`.** Taking the write\
+    \ lock up front avoids the deferred-to-write\n  upgrade, which is where `SQLITE_BUSY`\
+    \ deadlocks come from. The 8-way concurrent append in entry 16\n  used exactly\
+    \ this and lost nothing.\n- **Crash recovery is WAL replay on open.** There is\
+    \ no lock file to reap, which is audit finding\n  **F2** ceasing to exist rather\
+    \ than being fixed.\n\n### Optimistic conflicts, and what \"independent log appends\"\
+    \ means\n\n- `updated_at` **remains** the revision token, compared to the microsecond,\
+    \ so `expected_revision`\n  keeps working for every existing client. A `revision`\
+    \ integer is added alongside as the token to\n  prefer going forward (and the\
+    \ natural ETag). *Rejected: replacing the timestamp token* -- it is an\n  ac-5\
+    \ compatibility break for a cosmetic gain.\n- A log append takes the next `entry_id`\
+    \ inside the write transaction rather than rewriting a\n  document. Two appends\
+    \ to one task therefore cannot clobber each other and neither has to fail --\n\
+    \  proved in entry 16. It still moves `updated_at`, because a reader who read\
+    \ before the append has\n  not seen it; \"independent\" means they do not collide,\
+    \ not that they are invisible.\n\n### Idempotent replay\n\n- The `operation` ledger\
+    \ is **project-scoped, not task-scoped**. That fixes audit **P3** twice\n  over:\
+    \ `_find_created_by` stops being O(corpus x log) and becomes an index probe (**0.006\
+    \ ms**),\n  and a bare create with no log entry becomes idempotent, which today\
+    \ it is not.\n- A replayed operation returns the **current** task plus `replayed:\
+    \ true` and the revision the\n  original produced. Audit **F5** observed that\
+    \ \"replays the original result\" is not what happens;\n  this makes the contract\
+    \ match the behaviour instead of the other way round. A retry after a\n  connection\
+    \ reset -- which entry 6 makes the *normal* path -- needs to know its write landed,\
+    \ and\n  `result_revision` answers that. *Rejected: storing the full original\
+    \ response per operation* --\n  1,752 operations x a whole task document is roughly\
+    \ doubling the store to serve a field nobody\n  reads.\n- A reused id with a different\
+    \ fingerprint is still a hard refusal, unchanged.\n\n### Webhooks (task-255)\n\
+    \nA state change and its notification go into the **same transaction**: the change\
+    \ writes a\n`webhook_outbox` row, and a background sender drains it with backoff.\
+    \ Two things fall out:\n\n- **Audit F3 disappears.** A replayed operation short-circuits\
+    \ before the transaction body, so it\n  enqueues nothing and fires nothing.\n\
+    - **The crash window closes.** Today a process that dies between the write and\
+    \ the send loses the\n  notification silently, which is the shape of the bug task-047\
+    \ hid for months.\n\nDelivered rows are pruned after 30 days; undelivered ones\
+    \ are never pruned, because a webhook that\ngave up is a thing an operator needs\
+    \ to find.\n\n### Backup and restore\n\n- **`VACUUM INTO <path>`** for a snapshot:\
+    \ one consistent file, no `-wal`/`-shm` to copy, compacted.\n  Measured in entry\
+    \ 16 at **68 ms while a writer was committing**, with `integrity_check` ok and\n\
+    \  `foreign_key_check` clean on the result. `Connection.backup()` remains available\
+    \ for a live\n  incremental copy.\n- **Never copy the live file while WAL writes\
+    \ continue**, which the spec already forbids and which\n  is the failure mode\
+    \ this replaces.\n- `agentjobs backup` produces the snapshot plus a `manifest.json`\
+    \ (physical schema version, project\n  list, row counts per table, snapshot hash)\
+    \ and, if blobs stay on disk, the attachment tree.\n  `agentjobs restore --verify`\
+    \ opens the snapshot **as an isolated instance**, re-runs\n  `integrity_check`,\
+    \ `foreign_key_check`, the manifest counts and the backlog reconciliation\n  invariant,\
+    \ and reports before anything is swapped in.\n- Whether the attachment tree is\
+    \ part of that at all is fork 2 in the handoff.\n\n### The storage boundary\n\n\
+    The audit proposed declaring today's surface as a `Protocol` plus a `load_raw`.\
+    \ The spec asks for\nthat to be revisited so a SQL backend is not made to supply\
+    \ file-shaped methods. It is:\n\n**Drops:** `task_path`, `locked`, `creation_lock`,\
+    \ `queue_lock`, `canonical_bytes`, `tasks_dir`.\nEvery one of those is a statement\
+    \ about files.\n\n**Keeps or gains:**\n\n```\nget(task_id) -> Task | None    \
+    \        list(filter) -> [Task]        search(query) -> [Task]\ncreate(task, *,\
+    \ operation) -> Task     mutate(task_id, mutator, *, expected_revision, operation)\n\
+    append_log(task_id, entry, *, operation)      reorder(moves, *, operation)\nrevision()\
+    \ -> (token, count)           events(filter) -> Iterator[TaskEvent]\ntransaction()\
+    \ -> context manager       attachments -> AttachmentStore\nquarantine() -> [QuarantinedRecord]\n\
+    ```\n\n`transaction()` replaces all three locks: what the lock files were approximating\
+    \ is what a\ntransaction *is*. `reorder()` exists as a first-class verb because\
+    \ a multi-row move has to be one\ntransaction and one history burst, and hiding\
+    \ that behind N calls to `mutate` would make it neither.\n\n**`load_raw` is replaced\
+    \ by `quarantine()`.** Malformed records land in `import_quarantine`, which\n\
+    has no foreign keys and no CHECKs, so the live tables keep every constraint while\
+    \ an unreadable\nlegacy record is still inspectable and re-importable. The four\
+    \ raw readers in `queue.py` and\n`validation.py` read quarantine; they never see\
+    \ an invalid live row, because there cannot be one.\n*Rejected: `load_raw` over\
+    \ the live tables* -- it would require the live tables to tolerate invalid\nstate,\
+    \ which is the one thing the move to SQL is buying.\n\n### Two version axes, and\
+    \ how v4 gets applied\n\n- **The document schema stays `schema: 2`.** Adding `revision`\
+    \ is additive, and the evolution policy\n  in `docs/schema-design.md` section\
+    \ 9 says additive changes bump nothing. *Rejected: bumping\n  documents to 3*\
+    \ -- it would invalidate every exported YAML on every physical migration, coupling\n\
+    \  two things that change for unrelated reasons. \"Schema v3\" in conversation\
+    \ names this storage\n  generation, not the document version.\n- **The physical\
+    \ schema has its own version** in `PRAGMA user_version`, starting at 1, with\n\
+    \  `schema_migration` recording every applied step (version, name, when, which\
+    \ AgentJobs version,\n  how long).\n- **Migrations are numbered SQL files, forward-only,\
+    \ one transaction each.** On open: equal, do\n  nothing; lower, write a `VACUUM\
+    \ INTO` snapshot beside the database *first*, then apply the pending\n  steps;\
+    \ **higher, refuse to start and say so.** That last case is the stale-server hazard\
+    \ this\n  repository already documents, and refusing is the same instinct as the\
+    \ source-root check in\n  `agentjobs serve`. So the answer to \"how would v4 be\
+    \ applied\" is: a numbered file, an automatic\n  pre-migration snapshot, and an\
+    \ old binary that declines rather than corrupting.\n\n### Deferred, with triggers\n\
+    \n- **Blob storage strategy is a single column pair** (`blob.content` / `blob.path`)\
+    \ precisely so the\n  answer to fork 2 can change later without a schema migration.\n\
+    - **`PRAGMA journal_size_limit` / WAL checkpoint tuning:** default until a measurement\
+    \ says\n  otherwise. **Trigger:** the `-wal` file exceeding the database.\n- **Cross-project\
+    \ queries:** no view, no API. **Trigger:** a second project asking for a combined\n\
+    \  board, which task-212 explicitly excludes today.\n"
+  data:
+    operation:
+      id: 7b4c9de3-6f5a-4083-c13b-9d5c0f64a8e3
+      kind: log_append
+      fingerprint: b052118daf5baef75115b8ba91bbefb9
+- id: 20
+  ts: '2026-09-07T00:21:03.373401Z'
+  actor: claude
+  type: handoff
+  body: 'Design pass complete. The physical schema is drafted, built as real SQLite,
+    and run against the live 367-task corpus; five forks are left for you.
+
+
+    **What is in the record.** Entry 16 is the evidence, entry 17 the DDL and the
+    rows-versus-JSON rule, entry 18 the history contract task-213 consumes, entry
+    19 concurrency, replay, webhooks, backup, the storage boundary and the migration
+    mechanism. Every claim in entry 16 is a measurement taken today, not an estimate.
+
+
+    **Highlights.** Reading the whole corpus goes from 567 ms to 1.0 ms; the three
+    analytics queries the spec names run in 0.24, 0.25 and 0.04 ms with no plan touching
+    a task document. Nine invariants that today need validation passes or lock files
+    -- including audit finding F4, the duplicate queue position -- were attempted
+    and refused by the database. Eight concurrent log appends to one task all landed
+    with no duplicate ids. A consistent backup was taken while a writer was committing
+    (68 ms, one file) and verified on restore.
+
+
+    **What did not go well, and it is the reason Q3 exists.** Reconstructing history
+    from the existing log is not faithful. Priority history does not exist at all
+    -- a change records that the field moved, never what it moved from -- and 79 tasks
+    have no creation event. The schema answers this with before *and* after on every
+    axis and a visible `reconstructed` marker, but the past cannot be invented, so
+    how much to promise is your call.
+
+
+    **Entry 12''s two settled items were not reopened.** Authoritative SQLite is assumed
+    throughout, and the restart window is taken as decided in entries 5/6/9.
+
+
+    **No worktree, no branch, no code** -- as the prompt required. The probe is throwaway
+    and lives in a job scratch directory; nothing was written to the repository. Once
+    you answer, this is ready to promote and the epic can be dispatched.'
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: 8c5d0ef4-7a6b-4194-d24c-0e6d1f75b9f4
+      kind: handoff
+      fingerprint: 2d13883cff31e75805a114b1da662f57
+- id: 21
+  ts: '2026-09-07T00:21:03.373528Z'
+  actor: claude
+  type: question
+  body: '**One database for every project, or one per project?**
+
+
+    Either works. It decides how backups and restores are scoped, and whether a cross-project
+    question is ever possible.'
+  re: 20
+  data:
+    options:
+    - label: One database, all projects
+      description: '`~/.agentjobs/data/agentjobs.db`, with `project_id` on every row
+        and in every key. Project scoping becomes a foreign key rather than a convention.
+        One backup, one migration run, one connection pool. A cross-project view stays
+        possible later at no cost. Restoring one project means importing an export
+        into the live database rather than swapping a file.'
+      recommended: true
+    - label: One per project
+      description: A database under each project's own data directory. Restoring one
+        project cannot touch another and a project can live on its own disk. Costs
+        N connections, N migration runs, N backups, and closes the door on any query
+        spanning projects.
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 22
+  ts: '2026-09-07T00:21:03.373550Z'
+  actor: claude
+  type: question
+  body: '**Attachments: inside the database, or files beside it?**
+
+
+    There are zero attachments in this project''s corpus today, so whichever you pick
+    is free to adopt now and awkward to change later.'
+  re: 20
+  data:
+    options:
+    - label: Blobs in the database
+      description: '"The backup is one file" becomes literally true -- one `VACUUM
+        INTO` covers everything, with no attachment tree to keep in step. Content-addressed
+        by hash, so the same screenshot twice is stored once and an orphan is a refcount
+        of zero rather than a directory scan. Cost: the database grows by whatever
+        images you attach (5 MB cap each, as now).'
+      recommended: true
+    - label: Files beside it
+      description: 'The database stays small and holds only metadata; images stream
+        from disk. Cost: a backup is two things that must be captured at the same
+        instant, and orphan and missing-file states come back as real possibilities.'
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 23
+  ts: '2026-09-07T00:21:03.373565Z'
+  actor: claude
+  type: question
+  body: '**How much pre-cutover history should the analytics page promise?**
+
+
+    Measured on the real corpus: replaying the log recovers owner perfectly, lifecycle/outcome/ball
+    at 89-94%, and priority not at all -- a priority change records that the field
+    changed, never what it changed from. 79 tasks have no creation event; 60 carry
+    only a v1 migration marker from 2026-08-10.'
+  re: 20
+  data:
+    options:
+    - label: Reconstruct, then reconcile
+      description: Import replays the log, then writes one `import` event per task
+        where the replay disagrees with the current row (337 of 367 today), marked
+        `reconstructed` so its timestamp reads as an upper bound. Counts reconcile
+        exactly, charts are trustworthy from roughly 2026-08-10, and the page shows
+        a "history begins here" line rather than rendering unknown as zero. No extra
+        cost to task-311.
+      recommended: true
+    - label: Also mine git history
+      description: The same, plus a one-time pass over the git history of the task
+        files to recover the priority and field timeline the log never wrote down.
+        Buys a fuller chart back to the project's start. Costs task-311 real implementation
+        time for a chart segment nobody has asked to see yet.
+      recommended: false
+    - label: Baseline only
+      description: Everything before cutover becomes one `import` event per task at
+        the migration instant. Charts start the day of the cutover and say so. Cheapest,
+        and throws away the 89-94% that is genuinely recoverable.
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 24
+  ts: '2026-09-07T00:21:03.373579Z'
+  actor: claude
+  type: question
+  body: '**How should task-213 (the analytics design) coordinate with this schema?**
+
+
+    Your instruction was that this coordination is not optional. The question is whether
+    it blocks the build.'
+  re: 20
+  data:
+    options:
+    - label: Run task-213 next, then build
+      description: task-213 goes before implementation and consumes entry 18 as its
+        input, so the consumer most able to find a gap finds it before any code is
+        written. It does not become a `needs` edge -- adding a column to the event
+        table is a migration, not a redesign -- so if task-213 stalls, the build is
+        not held hostage.
+      recommended: true
+    - label: Make it a blocking dependency
+      description: 'task-273''s implementation gets `needs: task-213`. Strongest guarantee
+        the contract is frozen with its consumer in the room; puts the store behind
+        a design task that has not started.'
+      recommended: false
+    - label: Build now, migrate later
+      description: Implement against entry 18 as it stands and let task-213 request
+        columns afterwards as ordinary migrations. Fastest to a working store; accepts
+        that the first analytics session may ask for a schema change.
+      recommended: false
+    multi_select: false
+    placeholder: null
+- id: 25
+  ts: '2026-09-07T00:21:03.373593Z'
+  actor: claude
+  type: question
+  body: '**Search: keep exact substring matching, or move to full-text?**
+
+
+    User-visible either way. Today''s search lowercases and substring-matches id,
+    title, summary, intent, description, ball_prompt and tags.'
+  re: 20
+  data:
+    options:
+    - label: Move to FTS5
+      description: 'Tokenised, ranked results with prefix matching, at 0.15 ms. "sqlite
+        storage" would find tasks containing both words anywhere rather than only
+        that exact phrase. The id-first rule is preserved. Differences you would notice:
+        results are ranked rather than corpus-ordered, and a partial word mid-token
+        ("ttach") stops matching.'
+      recommended: true
+    - label: Keep substring exactly
+      description: A `LIKE` scan over 367 rows is about a millisecond anyway, so nothing
+        is lost on speed and behaviour is bit-for-bit what you have today. Gives up
+        ranking and word-level matching.
+      recommended: false
+    multi_select: false
+    placeholder: null
