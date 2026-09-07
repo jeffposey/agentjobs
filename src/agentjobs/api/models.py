@@ -872,6 +872,24 @@ class ProgressUpdateRequest(SafeMutationRequest):
     details: Optional[str] = None
 
 
+class RedactRequest(RevisionedRequest):
+    """Replace the text of one prose region with a stated redaction (task-376).
+
+    Reachable over HTTP because the CLI is a service client. It is the only verb that
+    reaches into the append-only log, and it stays that: the request names one region,
+    supplies the replacement, and states a reason, all of which the manager records.
+    """
+
+    actor: str = Field(..., description="Who is redacting.")
+    field: str = Field(
+        ...,
+        description="The region: a task field name, or 'log[<id>].body'.",
+        examples=["spec.description", "log[12].body"],
+    )
+    replacement: str = Field(..., description="What the region says instead.")
+    reason: str = Field(..., description="Why the text was removed. Recorded verbatim.")
+
+
 class DispatchRequestBody(BaseModel):
     """Ask AgentJobs to start an agent on this task.
 

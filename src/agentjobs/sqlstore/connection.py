@@ -14,9 +14,9 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Iterator, List, Optional
 
 #: Milliseconds a blocked statement waits before raising ``SQLITE_BUSY``.
 #:
@@ -65,11 +65,18 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._write_lock = threading.RLock()
         self._depth = 0
+        self._savepoints = 0
         self._writer = sqlite3.connect(
             str(self.path), isolation_level=None, check_same_thread=False
         )
         _configure(self._writer, read_only=False)
         self._readers = threading.local()
+        # Every reader ever handed out, so `close` can close them. Thread-local storage
+        # alone cannot: the thread that closes the database is not the threads that
+        # opened the readers, and an unclosed read handle keeps the file open -- which
+        # on Windows makes it impossible to replace, so a restore fails with a
+        # permission error that names no cause (task-311).
+        self._all_readers: List[sqlite3.Connection] = []
 
     # ----- readers -------------------------------------------------------------
 
@@ -89,6 +96,8 @@ class Database:
         )
         _configure(connection, read_only=True)
         self._readers.connection = connection
+        with self._write_lock:
+            self._all_readers.append(connection)
         return connection
 
     # ----- the writer ----------------------------------------------------------
@@ -134,6 +143,37 @@ class Database:
                     self._writer.execute("COMMIT")
 
     @contextmanager
+    def savepoint(self, name: str = "sp") -> Iterator[sqlite3.Connection]:
+        """One individually-revertible unit inside the open write transaction.
+
+        The import needs this and nothing else does yet. A whole import is one
+        transaction, which is what makes an interruption leave nothing behind -- but it
+        also means a *single* record that fails halfway through being written leaves its
+        half in place, because ``write()`` is reentrant and only the outermost block
+        rolls back. The importer quarantined such a record and carried on, and the
+        partial row stayed: a task that read as valid with most of its log missing
+        (found by the task-311 sandbox, on a corpus whose attachment sidecars were
+        absent).
+
+        A savepoint makes "the record was not imported" true of the database as well as
+        of the report, without giving up the one-transaction property the whole import
+        depends on.
+        """
+        counter = self._savepoints
+        self._savepoints += 1
+        label = f"{name}_{counter}"
+        with self._write_lock:
+            self._writer.execute(f"SAVEPOINT {label}")
+            try:
+                yield self._writer
+            except BaseException:
+                self._writer.execute(f"ROLLBACK TO {label}")
+                self._writer.execute(f"RELEASE {label}")
+                raise
+            else:
+                self._writer.execute(f"RELEASE {label}")
+
+    @contextmanager
     def exclusive(self) -> Iterator[sqlite3.Connection]:
         """Hold the write connection with **no** transaction open.
 
@@ -173,3 +213,8 @@ class Database:
                 self._writer.execute("PRAGMA optimize")
             finally:
                 self._writer.close()
+                for reader in self._all_readers:
+                    with suppress(sqlite3.Error):
+                        reader.close()
+                self._all_readers.clear()
+                self._readers = threading.local()

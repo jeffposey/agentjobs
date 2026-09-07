@@ -78,6 +78,10 @@ ROUTE_CAPABILITIES: Dict[str, RouteRule] = {
     "update_task": RouteRule(Capability.TASK_EDIT, task_param=_TASK),
     "archive_task": RouteRule(Capability.TASK_EDIT, task_param=_TASK),
     "mark_deliverable": RouteRule(Capability.TASK_EDIT, task_param=_TASK),
+    # The one verb that reaches into the append-only log. TASK_EDIT rather than a
+    # capability of its own: it changes the text of a record, which is what editing
+    # is, and a per-verb capability here would be the role system task-066 refused.
+    "redact_task_region": RouteRule(Capability.TASK_EDIT, task_param=_TASK),
     # ----- the workflow verbs -----------------------------------------------------
     "promote_task": RouteRule(Capability.TASK_VERB, task_param=_TASK),
     "claim_task": RouteRule(Capability.TASK_VERB, task_param=_TASK),

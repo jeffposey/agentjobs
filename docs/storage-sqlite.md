@@ -4,9 +4,11 @@ The store built on task-273. This document is the *why*; the schema itself is
 `src/agentjobs/sqlstore/migrations/001_initial.sql`, and the boundary every backend
 satisfies is `src/agentjobs/storage_protocol.py`.
 
-**Status: built, not switched on.** Task-311 owns the cutover. Today the live authority
-is still YAML under `tasks/`, and everything here runs against a database you point it
-at. Nothing in this document describes how the product currently stores your tasks.
+**Status: built, and switchable per project.** Task-273 built the store; task-311 built
+the cutover around it. A project is on one of two backends and
+`agentjobs storage status` says which, counted rather than inferred. Nothing migrates on
+its own: a machine that has never run `agentjobs storage cutover` has no database at all
+and every project reads its files exactly as it always did.
 
 ---
 
@@ -262,12 +264,127 @@ anyway, with `ImportReport.render()` saying the policy was off and naming every 
 let through. The refusal and the report name regions and tone groups, never the quoted
 text.
 
-## 9. What this does not do
+## 9. The two worlds a project can be in
 
-- **It is not switched on.** Task-311 owns the cutover, the client repointing, and
-  retiring the task-file Git workflows.
+`agentjobs storage status` prints one line per project, with both counts, because the
+asymmetric states are the informative ones: rows and no files means the records have been
+retired from the checkout, files and no rows means no cutover has happened, and both means
+a migrated project whose old directory is still on disk.
+
+### `files` — records are YAML in the repository
+
+The original design, and still the default. Two consequences follow from it, and they are
+the reason the other world exists:
+
+- **The dashboard reads one working tree**, so a record committed to a feature branch is
+  invisible to the person it is addressed to: they open the React app, see the task still
+  `ready`, and conclude nothing is waiting for them. That is why
+  [ENGINEERING.md](../ENGINEERING.md#where-task-records-live-and-whether-you-commit-them)
+  requires records to be committed to `main` and never to a branch. Observed 2026-08-11,
+  repeatedly, before the cause was understood.
+- **A record and the code it describes are not one atomic commit.** Checking out an old
+  revision does not show you the task state as it was then; `main`'s history has it.
+
+### `sqlite` — records are rows beside the server
+
+The database is machine-level, outside every checkout, so:
+
+- nothing you do to a task dirties a working tree, and there is nothing to commit;
+- every worktree and every branch sees the same backlog, including a branch with no
+  records on disk at all;
+- the dispatch gate's clean-tree check stops excusing the directory AgentJobs was
+  dirtying itself, which is coverage task-182 had to give up;
+- and the records stop travelling with a clone, which is the trade: a fresh clone on
+  another machine has the code and not the backlog.
+
+## 10. Cutting a project over
+
+**Quiesce first.** Stop the server and stop any agent that writes. `storage cutover`
+refuses while it can see a server listening, which is the part that can be checked rather
+than assumed; the rest is yours.
+
+```bash
+agentjobs storage status                     # where are we now
+agentjobs storage preview --project <id>     # the real import, against a throwaway database
+agentjobs storage cutover --project <id>     # back up, import, verify, then switch
+```
+
+`preview` runs the import and writes nothing that survives the call, which is where a
+malformed record, a quoted remark or a history that will not reconcile is found. The
+cutover then does five things in one order that matters:
+
+1.  **Back up** the existing database, if there is one, with its manifest.
+2.  **Import** — one transaction, each record inside its own savepoint, so an interruption
+    leaves nothing and a record that fails halfway leaves no partial row.
+3.  **Verify** field by field against every readable file, plus the backlog invariant and
+    the attachment blobs. A row count agreeing with a file count proves almost nothing.
+4.  **Record** the switch in `~/.agentjobs/storage.yaml` — last, because it is what every
+    client reads to decide where to look.
+5.  **Report** everything, including anything quarantined.
+
+A verification that does not pass **switches nothing**: the project stays on its files and
+the import stays in the database for inspection. Fix the cause and re-run with `--replace`,
+which empties the project inside the same transaction that re-fills it. A re-run without it
+is refused, because a second import over a completed one writes the reconstructed history
+twice and doubles every event with nothing raising.
+
+**`--backfill-git` is on by default here and nowhere else**, and this is the one-shot part:
+the backfill reads the git history of the task files, so it must run before those files are
+retired. Retire first and the evidence is gone permanently (§4).
+
+### The backup enrolment checkpoint
+
+**Before you rely on the store, enrol it in whatever backs this machine up.** The database
+is now the only copy of the reconstructed and backfilled history — the files it was built
+from can be recovered from git, and the history mined out of them cannot be rebuilt once
+they are retired.
+
+```bash
+agentjobs storage backup --into <path>   # VACUUM INTO + manifest, safe while serving
+agentjobs storage verify <path>          # opens it read-only and checks it is restorable
+agentjobs storage restore <path>         # refuses rather than proceeding if it does not verify
+```
+
+`backup` verifies what it just wrote, so a snapshot that cannot be restored is reported at
+the moment it is taken rather than at the moment it is needed. `restore` moves aside
+whatever it replaces, so restoring the wrong snapshot is itself recoverable.
+
+## 11. Retiring the files, and going back
+
+**Retirement is a separate, deliberate step, and it is not automatic.** After the cutover
+the old directory is still on disk: harmless, because nothing reads it, and useful, because
+it is what a rollback would otherwise have to reconstruct. Retire it when you are satisfied
+the store is right — the dashboard read, the CLI used, a backup taken and verified:
+
+```bash
+agentjobs storage export <somewhere outside the repo>   # keep a copy you can read
+git rm -r --cached <the records directory>              # stop tracking them
+```
+
+Do it as its own commit, and keep the export: git history holds the files, and an export is
+what a person reads without checking out an old revision.
+
+**Rollback works before and after that step**, and in both directions it preserves what was
+written since the cutover:
+
+```bash
+agentjobs storage rollback --project <id>
+```
+
+It exports the store's **current** state into the recorded source directory and then points
+the project back at its files. Exporting the pre-cutover snapshot instead would be a
+rollback that silently discarded a day's work, which is why the order is export-then-switch.
+The database is not deleted: a rollback is a decision that can itself be wrong.
+
+**An export is an interchange artifact, never a mirror.** Nothing calls it on a write and
+nothing commits what it produces. A YAML copy maintained automatically beside the database
+would be the second authority this migration removed.
+
+## 12. What this does not do
+
 - **It does not remove code worktrees.** Those isolate *code*, and that argument is
   untouched.
-- **The CLI does not yet speak to it over HTTP.** The owner decided every CLI verb becomes
-  a service client so only the server opens the database; that conversion is cutover work.
+- **The dispatch family still opens the store directly.** Every other CLI verb is a
+  service client; dispatch is a stated exception with its reasoning in
+  `store_factory.dispatch_manager_for` and on task-311.
 - **`ball` history is not backfilled**, per §4.

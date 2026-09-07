@@ -70,7 +70,11 @@ from agentjobs.dispatch.config import (
     sentinel_active,
     substitute_argv,
 )
-from agentjobs.dispatch.record_commit import CommitOutcome, commit_task_record
+from agentjobs.dispatch.record_commit import (
+    CommitOutcome,
+    commit_task_record,
+    task_file_exclusions,
+)
 from agentjobs.playbooks.pointer import PlaybookPointer
 from agentjobs.dispatch.wake import (
     WakeError,
@@ -80,7 +84,6 @@ from agentjobs.dispatch.wake import (
     wake_argv,
     newest_session_run,
 )
-from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
     Ball,
     BallReason,
@@ -101,6 +104,7 @@ from agentjobs.dispatch.credentials import (
 )
 from agentjobs.dispatch.session_env import daemon_was_started, deliver_identity
 from agentjobs.project_setup import MCP_CONFIG_FILENAME
+from agentjobs.store_factory import TaskManagerLike
 
 RUNS_DIRNAME = "runs"
 META_FILENAME = "meta.yaml"
@@ -1238,7 +1242,7 @@ class DispatchRunner:
     def __init__(
         self,
         *,
-        manager: TaskManager,
+        manager: TaskManagerLike,
         resolution: DispatchResolution,
         project_root: Path,
         home: Path,
@@ -1832,11 +1836,13 @@ class DispatchRunner:
     def _tree_is_clean(self) -> bool:
         """True when the project's working tree has nothing uncommitted.
 
-        AgentJobs' own tasks directory is excluded. This check runs *after* the claim,
-        and the claim's whole effect is a write to a task record; without the exclusion
-        the re-check refuses on the file dispatch just wrote (task-182).
+        AgentJobs' own tasks directory is excluded *while it holds task files*. This
+        check runs after the claim, and the claim's whole effect is a write to a task
+        record; without the exclusion the re-check refuses on the file dispatch just
+        wrote (task-182). A project served from the database writes no such file, so
+        nothing is excluded and the check covers the whole tree again.
         """
-        return working_tree_clean(self.project_root, ignore=[self.manager.storage.tasks_dir])
+        return working_tree_clean(self.project_root, ignore=task_file_exclusions(self.manager))
 
     def _commit_record(
         self, task_id: str, subject: str, *, directory: Optional[RunDirectory] = None

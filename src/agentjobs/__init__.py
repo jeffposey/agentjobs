@@ -1,6 +1,6 @@
 """AgentJobs - Lightweight task management for AI agent workflows."""
 
-from .client import TaskClient, TaskClientError  # noqa: F401
+from .client import ServiceUnavailable, TaskClient, TaskClientError  # noqa: F401
 from .manager import TaskManager, TaskNotFoundError  # noqa: F401
 from .models_v2 import (  # noqa: F401
     SCHEMA_VERSION,
@@ -48,4 +48,5 @@ __all__ = [
     "TaskStorage",
     "TaskClient",
     "TaskClientError",
+    "ServiceUnavailable",
 ]

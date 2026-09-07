@@ -41,7 +41,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Sequence
 
-from agentjobs.manager import TaskManager
+from agentjobs.store_factory import TaskManagerLike
 
 GIT_TIMEOUT_SECONDS = 30
 """Ceiling on any one git invocation here, so a wedged git cannot hang a poller tick."""
@@ -54,6 +54,26 @@ LOCK_BACKOFF_SECONDS = 0.5
 
 _LOCK_MARKERS = ("index.lock", "another git process")
 """Substrings identifying a contended index, which is worth retrying rather than reporting."""
+
+
+def task_file_exclusions(manager: TaskManagerLike) -> List[Path]:
+    """Paths the clean-tree check must ignore because AgentJobs itself writes them.
+
+    A project that keeps task records in the repository being dispatched -- this one
+    did -- has its tasks directory dirtied by dispatch: the claim writes the record
+    before the spawn, and the terminal ``dispatch_result`` after the run's last commit.
+    Counting those refused every dispatch on the strength of AgentJobs' own writes
+    (task-182), so the directory was excluded, and the design doc records what that
+    exclusion costs: real changes under ``tasks/`` stop being seen.
+
+    **Once a project is served from the database, the exception has nothing to cover
+    and is not made** (task-311). The tasks directory is no longer written by anything,
+    so the check regains the coverage task-182 had to give up -- which is one of the
+    workarounds this migration exists to remove rather than to keep paying for.
+    """
+    if not getattr(manager.storage, "supports_task_files", True):
+        return []
+    return [manager.storage.tasks_dir]
 
 
 @dataclass(frozen=True)
@@ -118,7 +138,7 @@ def _is_lock_contention(stderr: str) -> bool:
 
 
 def commit_task_record(
-    manager: TaskManager,
+    manager: TaskManagerLike,
     task_id: str,
     *,
     subject: str,
@@ -143,8 +163,24 @@ def commit_task_record(
     unpushed dispatcher commits are ever observed piling up across days, the answer is
     an explicit per-project opt-in, not a changed default.
 
+    **Nothing to do for a project served from the database** (task-311). The whole
+    reason this module exists is that a dispatcher's terminal write landed in a working
+    tree nobody was coming back to; a write that lands in a row leaves no working tree
+    dirty, so there is nothing to tidy and no commit to make. It is asked of storage as
+    a fact rather than discovered by catching an exception, and reported the way every
+    other outcome here is reported -- returned, never raised, because the caller is
+    finishing a run.
+
     Returns rather than raises on every failure. The caller is finishing a run.
     """
+    if not getattr(manager.storage, "supports_task_files", True):
+        return CommitOutcome(
+            False,
+            f"{task_id} is a record in the AgentJobs database, not a file in this "
+            "checkout: nothing to commit",
+            None,
+        )
+
     path = manager.storage.task_path(task_id)
     if not path.exists():
         return CommitOutcome(False, f"no task file on disk for {task_id}", path)

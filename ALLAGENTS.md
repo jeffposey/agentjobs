@@ -99,8 +99,8 @@ reported and verified its work, not re-verifying it.
 
 Three things do not change because a child is a session:
 
-- Its **task records still go to `main` in this clone**, never to its branch — see
-  [Task files live on `main`](ENGINEERING.md#task-files-live-on-main-always).
+- Its **task record is written the same way yours is** — see
+  [Where task records live](ENGINEERING.md#where-task-records-live-and-whether-you-commit-them).
 - Its **merge gate stands or falls on the child's own terms**: a child merges on an
   explicit human approval of *that child*, or — at posture `autonomous` — on its own
   green gate. Never on yours. A supervisor approves nothing under either policy.
@@ -148,9 +148,10 @@ are not working it — you are supervising, you take no worktree, and
     silent stall then leaves the task reading `agent`/`work` while your supervisor waits
     on a process nobody is watching (task-320).
 
-    **Your task-record commits go to `main`, not to your branch** — see
-    [Task files live on main](ENGINEERING.md#task-files-live-on-main-always). Your branch
-    carries code; it never touches `tasks/`.
+    **Whether a task record is something you commit depends on the project's storage**
+    -- `agentjobs storage status` says. On `sqlite` it is a row; on `files` the commit
+    goes to `main`, never to your branch. See
+    [Where task records live](ENGINEERING.md#where-task-records-live-and-whether-you-commit-them).
 3.  **Work**: Small, single-logical-change commits with tests green before each one.
     Stage explicit paths — never `git add -A`.
 4.  **Verify**: Run `poetry run pytest` and exercise the change the way a user would —
@@ -168,9 +169,10 @@ are not working it — you are supervising, you take no worktree, and
     [How long a branch should live](ENGINEERING.md#how-long-a-branch-should-live); your
     branch has probably been open for hours and a conflict is far cheaper now, while you
     are in context, than at the merge where it stops a scripted finish. Then `handoff` to
-    `human`/`review` with a `ball_prompt` saying what was done and what needs review, and
-    **commit that to `main`** — a handoff sitting on your branch is invisible in the React
-    app, so the human you are handing to will never see it. Make the review request
+    `human`/`review` with a `ball_prompt` saying what was done and what needs review. On a
+    project still on `files`, **commit that to `main`** — a handoff sitting on your branch
+    is invisible in the React app, so the human you are handing to will never see it.
+    Make the review request
     complete the first time: a round trip to answer a question you could have answered is
     the largest thing keeping your branch open. **Stop there** — do not merge.
 
@@ -318,15 +320,15 @@ A human working alone does not need this; they have no peer to collide with. You
     list` and `git branch --list` are the inventories; a worktree for a closed task is
     litter, and so is its branch. `agentjobs branches` reads both and names what is left.
 -   **Never `git checkout` in the shared clone** to start work.
--   Committing task metadata straight to `main` (the narrow exception in ENGINEERING.md)
-    does not need one. Anything that goes on a branch does.
+-   Committing task metadata straight to `main`, on a files project, does not need one.
+    Anything that goes on a branch does.
 -   **Do not use Claude Code's `--worktree` / `-w` or `EnterWorktree` to get one.** It
     looks like the CLI doing this for you and it is not the same thing: such a session is
     isolated by a guard that refuses *every* git operation aimed at the shared clone —
-    `git -C` and `cd` alike — and the shared clone is where your task-record commits and
-    your merge have to happen. You would do the work and then be unable to record or merge
-    it. Take the worktree yourself with `git worktree add`, as above. Probed on Claude
-    Code 2.1.235, 2026-08-19; the reproduction is in task-186 and in
+    `git -C` and `cd` alike — and the shared clone is where your merge has to happen. You
+    would do the work and then be unable to merge it. Take the worktree yourself with
+    `git worktree add`, as above. Probed on Claude Code 2.1.235, 2026-08-19; the
+    reproduction is in task-186 and in
     [the dispatch design](docs/agent-dispatch-design.md).
 -   **The harness tells background sessions the opposite, and this rule wins.** A `--bg`
     session is handed a preamble instructing it to use `EnterWorktree` and saying the
@@ -336,8 +338,7 @@ A human working alone does not need this; they have no peer to collide with. You
     **The enforcement half is switched off here, deliberately** (task-303).
     `.claude/settings.json` sets `"worktree": {"bgIsolation": "none"}` -- the escape the
     refusal message itself names -- so a background session's `Write` and `Edit` into the
-    shared clone land instead of being refused, which is what lets you commit a task
-    record to `main` while your code sits on a branch. Probed on **Claude Code 2.1.238,
+    shared clone land instead of being refused. Probed on **Claude Code 2.1.238,
     2026-08-25**. `Bash` writes were never guarded either way.
 
     **If you are refused anyway** — *"This background session hasn't isolated its changes
@@ -345,10 +346,10 @@ A human working alone does not need this; they have no peer to collide with. You
     it.** It means the key has stopped working, which is a finding about dispatch and not
     a personal obstacle. Write through `Bash` and carry on; do not call `EnterWorktree`.
 
-    A second refusal wears the same face and is a different thing: the task-write guard
-    refuses any write whose *content* mentions a task file path, even when the file you
-    are editing is documentation. It is a false positive and task-276 is the fix. Build
-    the path from pieces, or reword, and carry on.
+    A second refusal wears the same face and is different: the task-write guard refuses
+    any write whose *content* names a task file path, even when you are editing
+    documentation. A false positive; task-276 is the fix. Build the path from pieces, or
+    reword, and carry on.
 
 Three agents skipped this in one afternoon on 2026-08-11 and each cost a peer real work;
 two things from that are worth carrying:
@@ -356,9 +357,9 @@ two things from that are worth carrying:
 -   **If you commit a peer's in-flight files** — which is what `git add -A` does here —
     recover with `git reset --soft HEAD~1`, then `git restore --staged` their paths.
     Never `git checkout --` them; that destroys work you did not write.
--   **Tasks are YAML files here, so the checked-out branch decides what the React UI
-    shows.** Before reporting that a task is missing from the dashboard, check what is
-    checked out.
+-   **A project on `sqlite` shows the same backlog from every branch; one on `files`
+    shows whatever is checked out.** `agentjobs storage status` says which, and it is
+    the first thing to check before reporting a task missing from the dashboard.
 
 ### Bootstrapping a worktree
 

@@ -69,6 +69,9 @@ class TaskNotFound(ValueError):
 class SqlTaskStore:
     """Task storage backed by one SQLite database, scoped to one project."""
 
+    supports_task_files = False
+    """A record is rows. There is no path to name and nothing to commit."""
+
     def __init__(self, database: Database, project_id: str) -> None:
         """Bind a store to ``project_id`` inside ``database``."""
         self.database = database
@@ -497,10 +500,20 @@ class SqlTaskStore:
             return self._persist(updated)
 
     def _persist(self, task: Task, *, record_history: bool = True) -> Task:
-        """Write the whole aggregate, emit history, and refresh the search index."""
+        """Write the whole aggregate, emit history, and refresh the search index.
+
+        ``record_history`` is what distinguishes a verb from an import, and it governs
+        the ``updated`` stamp as well as the event. A verb *is* the update, so the
+        write restamps. An import is not: the record's own ``updated`` is data being
+        preserved, and overwriting it silently re-dates the whole corpus to the
+        migration -- which is the exact class of loss the cutover's verification step
+        exists to catch, so the two are kept consistent here rather than papered over
+        there.
+        """
         connection = self.database.writer
         previous = self.load_task(task.id)
-        task.updated = datetime.now(tz=timezone.utc)
+        if record_history:
+            task.updated = datetime.now(tz=timezone.utc)
 
         closed = str(task.lifecycle) == "closed"
         closed_at: Optional[str] = None
@@ -965,9 +978,23 @@ class SqlTaskStore:
         with self.database.write():
             yield
 
-    #: The project-wide locks collapse into the same transaction, for the same reason.
-    creation_lock = locked
-    queue_lock = locked
+    @contextmanager
+    def creation_lock(self, *, timeout: Optional[float] = None) -> Iterator[None]:
+        """A transaction, where the file backend serialised id allocation with a lock.
+
+        The project-wide locks collapse into the same transaction the per-task one
+        does. They keep their own signatures rather than aliasing :meth:`locked`,
+        because the file backend's take no task id and a caller passing none to an
+        alias of a one-argument method fails at the call rather than at the lock.
+        """
+        with self.database.write():
+            yield
+
+    @contextmanager
+    def queue_lock(self, *, timeout: Optional[float] = None) -> Iterator[None]:
+        """A transaction, where the file backend serialised queue moves with a lock."""
+        with self.database.write():
+            yield
 
     def task_path(self, task_id: str) -> Path:
         """Refused: a task is rows, and there is no file to name.
@@ -983,6 +1010,56 @@ class SqlTaskStore:
         )
 
     _task_path = task_path
+
+    @property
+    def tasks_dir(self) -> Path:
+        """Refused, for the same reason as :meth:`task_path`.
+
+        Only queue repair asked storage for a directory, and it did so in order to read
+        raw files that would not load. Under SQL a record that cannot satisfy the
+        constraints is not a row at all, so there is nothing in a directory to repair.
+        """
+        raise SqlStoreError(
+            "tasks_dir has no answer under SQLite storage: task records are rows, not "
+            "files in a directory."
+        )
+
+    def has_task(self, task_id: str) -> bool:
+        """True when this project holds a task with that id.
+
+        The store-neutral replacement for ``storage._task_path(id).exists()``, which is
+        how the manager used to turn a missing task into its own error type before
+        reaching a mutator.
+        """
+        task_id = self._normalised_id(task_id)
+        row = (
+            self._connection()
+            .execute(
+                "SELECT 1 FROM task WHERE project_id = ? AND task_id = ? LIMIT 1",
+                (self.project_id, task_id),
+            )
+            .fetchone()
+        )
+        return row is not None
+
+    def load_all(self) -> Any:
+        """Every task, plus the quarantined records, in the file backend's shape.
+
+        ``LoadResult`` is what the manager, the validator and the broken-tasks endpoint
+        consume, so the SQL store answers in it rather than making three callers learn a
+        second shape. The mapping is exact: a row that loads is a task, and a record
+        that could not become a row is an error carrying the reason it was refused.
+        """
+        from ..storage import LoadResult, TaskLoadError
+
+        errors = [
+            TaskLoadError(
+                Path(str(record.get("source_path") or record.get("task_id_guess") or "?")),
+                str(record.get("error") or "quarantined at import"),
+            )
+            for record in self.quarantined()
+        ]
+        return LoadResult(tasks=self.list_tasks(), errors=errors)
 
     def refresh(self) -> None:
         """No-op: there is no snapshot cache to invalidate."""

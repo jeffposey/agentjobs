@@ -129,8 +129,12 @@ the decision instead of re-deriving it.
 - **The record is readable, and it is not writable.** Agents read task YAML freely;
   every change goes through a managed path that validates, locks and logs. A hand-edited
   file that looks right and is not is the failure this prevents.
-- **Git is the database.** One YAML file per task: diffable, reviewable in a pull
-  request, portable between tools, and with no service to operate.
+- **The storage is yours to choose, and it is one line to see.** Records start as one
+  YAML file per task -- diffable, reviewable in a pull request, portable between tools,
+  no service to operate. A project that has outgrown that moves to a SQLite store beside
+  the server with `agentjobs storage cutover`, which ends the branch-decides-the-backlog
+  coupling and makes historical questions a query. `agentjobs storage status` says which
+  a project is on; [the storage guide](docs/storage-sqlite.md) is the whole argument.
 
 **And it closes the loop.** A tracker with an MCP server can record that a human approved
 something. It cannot turn that approval into a running agent, in the right directory,
@@ -332,8 +336,10 @@ with TaskClient() as client:
 
 ## Development
 
-AgentJobs uses itself to manage its own development. The roadmap lives in
-[`tasks/agentjobs/`](tasks/agentjobs/), and the task YAML is the source of truth.
+AgentJobs uses itself to manage its own development, and the records are the source of
+truth -- not a chat log. Where they live is a per-project choice:
+`agentjobs storage status` answers it, and
+[the storage guide](docs/storage-sqlite.md) explains both worlds.
 
 ```bash
 git clone https://github.com/jeffposey/agentjobs.git

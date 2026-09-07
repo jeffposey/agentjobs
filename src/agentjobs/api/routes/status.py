@@ -53,6 +53,7 @@ from ..models import (
     PromoteRequest,
     QueueKeepRequest,
     QueueMoveRequest,
+    RedactRequest,
     ReleaseRequest,
     ReprioritizeRequest,
     TaskRead,
@@ -580,6 +581,34 @@ async def append_log_entry(
             re=payload.re,
             data=payload.data,
             operation_id=payload.operation_id,
+        ),
+        task_id=task_id,
+        project=project,
+        operation_id=payload.operation_id,
+        envelope=envelope,
+    )
+
+
+@router.post("/{task_id}/redact", response_model=MutationResponse, status_code=status.HTTP_200_OK)
+async def redact_task_region(
+    task_id: str,
+    request: Request,
+    payload: RedactRequest,
+    envelope: bool = ENVELOPE_QUERY,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_acting_project),
+) -> Any:
+    """Replace one prose region with a stated redaction, recording that it happened."""
+    actor = acting_actor(request, project, payload.actor)
+    return _run(
+        lambda: manager.redact(
+            task_id,
+            field=payload.field,
+            replacement=payload.replacement,
+            reason=payload.reason,
+            actor=actor,
+            operation_id=payload.operation_id,
+            expected_revision=payload.expected_revision,
         ),
         task_id=task_id,
         project=project,

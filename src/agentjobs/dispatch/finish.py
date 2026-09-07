@@ -98,7 +98,6 @@ from agentjobs.dispatch.ledger import (
 )
 from agentjobs.dispatch.phases import RUN_ID_ENV, record_phase
 from agentjobs.dispatch.record_commit import commit_task_record
-from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
     Ball,
     BallReason,
@@ -108,6 +107,7 @@ from agentjobs.models_v2 import (
     Task,
 )
 from agentjobs.projects import Project, default_home
+from agentjobs.store_factory import TaskManagerLike
 
 FINISHES_DIRNAME = "finishes"
 """Where a finish's own record lives, beside ``runs/`` and deliberately not inside it.
@@ -1497,7 +1497,7 @@ def delete_branch(plan: Plan) -> StepResult:
 # ----- writing it down --------------------------------------------------------
 
 
-def mark_branch_merged(manager: TaskManager, task_id: str, branch: str) -> None:
+def mark_branch_merged(manager: TaskManagerLike, task_id: str, branch: str) -> None:
     """Set this branch ``merged`` in ``branches[]``, leaving every other entry alone.
 
     Re-reads the task rather than patching the copy preflight was given. Several log
@@ -1544,7 +1544,7 @@ class Runway:
     lock: Optional[RunLock] = None
     waited_seconds: float = 0.0
 
-    def take(self, manager: TaskManager, task_id: str) -> StepResult:
+    def take(self, manager: TaskManagerLike, task_id: str) -> StepResult:
         """Queue for the runway, saying so on the record if the queue is real."""
         began = time.monotonic()
 
@@ -1597,7 +1597,7 @@ class Runway:
 
 
 def announce_start(
-    manager: TaskManager, task_id: str, plan: Plan, directory: FinishDirectory
+    manager: TaskManagerLike, task_id: str, plan: Plan, directory: FinishDirectory
 ) -> None:
     """Say on the record that a finish is running, before the part that takes minutes.
 
@@ -1632,7 +1632,7 @@ def announce_start(
 
 
 def record_merge(
-    manager: TaskManager, task_id: str, plan: Plan, merge_commit: str, authorisation: str
+    manager: TaskManagerLike, task_id: str, plan: Plan, merge_commit: str, authorisation: str
 ) -> None:
     """Write the merge onto the record immediately, before anything that can fail.
 
@@ -1687,7 +1687,7 @@ def where_the_work_is(task: Task, root: Path) -> str:
 
 
 def escalate_on_record(
-    manager: TaskManager,
+    manager: TaskManagerLike,
     task_id: str,
     failure: Escalate,
     steps: Sequence[StepResult],
@@ -1829,7 +1829,7 @@ def released_posture(
 
 def finish_task(
     *,
-    manager: TaskManager,
+    manager: TaskManagerLike,
     project: Project,
     task_id: str,
     approver: str,
@@ -2220,7 +2220,7 @@ def _guarded_sequence(**kwargs: Any) -> FinishResult:
 
 def _sequence(
     *,
-    manager: TaskManager,
+    manager: TaskManagerLike,
     project: Project,
     task: Task,
     authorisation: str,
@@ -2392,7 +2392,7 @@ class EscalationDispatch:
 
 def dispatch_after_escalation(
     *,
-    manager: TaskManager,
+    manager: TaskManagerLike,
     project: Project,
     project_config: Dict[str, Any],
     settings: FinishSettings,
@@ -2509,7 +2509,7 @@ def dispatch_after_escalation(
 
 
 def park_for_human(
-    manager: TaskManager, task_id: str, project_id: str, outcome: EscalationDispatch
+    manager: TaskManagerLike, task_id: str, project_id: str, outcome: EscalationDispatch
 ) -> None:
     """Move the ball off an agent that does not exist, and say what the human's move is.
 

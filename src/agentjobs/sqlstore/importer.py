@@ -47,6 +47,21 @@ IMPLIED_BALL: Dict[str, Tuple[str, str]] = {
 }
 
 
+class CorpusAlreadyImported(Exception):
+    """This project already holds rows, and the import was not asked to replace them.
+
+    The whole import is one transaction, so an interruption leaves nothing behind and a
+    retry is a first run. A *completed* import re-run is the dangerous case: the tasks
+    would upsert harmlessly and the reconstructed history would be written a second
+    time, doubling every event and breaking the backlog invariant with no error.
+
+    Refusing by default and offering ``replace=True`` is what makes a re-run safe to
+    reach for. ``replace`` empties this project's rows inside the same transaction that
+    re-fills them, so an import is idempotent by being atomic rather than by trying to
+    merge two corpora.
+    """
+
+
 class QuotationPolicyError(Exception):
     """A record carries a verbatim quotation of a person, so nothing was imported.
 
@@ -170,6 +185,7 @@ class CorpusImporter:
         reporting_tz: str = "UTC",
         backfill_git: bool = False,
         enforce_quotation_policy: bool = True,
+        replace: bool = False,
     ) -> ImportReport:
         """Import every task file, then reconstruct and reconcile history.
 
@@ -196,6 +212,17 @@ class CorpusImporter:
             report.backfilled = len(found)
         with self.database.write() as connection:
             self.store.ensure_project(root=str(self.tasks_dir), reporting_tz=reporting_tz)
+            existing = self._existing_rows(connection)
+            if existing and not replace:
+                raise CorpusAlreadyImported(
+                    f"project {self.store.project_id!r} already holds {existing} task "
+                    "row(s). Re-running would write its reconstructed history a second "
+                    "time and double every event. Pass replace=True (the CLI's "
+                    "--replace) to empty this project and import it again in one "
+                    "transaction."
+                )
+            if replace:
+                self._empty_project(connection)
             documents = self._read_documents(report)
             # Screened before a single task row is written, and inside the transaction
             # rather than ahead of it, so the refusal below rolls back even the
@@ -226,6 +253,51 @@ class CorpusImporter:
             )
         report.open_delta, report.open_rows = self.store.open_delta_reconciles()
         return report
+
+    # ------------------------------------------------------------------
+    # Re-running
+    # ------------------------------------------------------------------
+
+    def _existing_rows(self, connection: Any) -> int:
+        """How many task rows this project already holds."""
+        return int(
+            connection.execute(
+                "SELECT COUNT(*) AS n FROM task WHERE project_id = ?",
+                (self.store.project_id,),
+            ).fetchone()["n"]
+        )
+
+    def _empty_project(self, connection: Any) -> None:
+        """Delete everything this project owns, inside the caller's transaction.
+
+        Ordered children-first rather than relying on cascade, because ``task_event``,
+        ``operation``, ``webhook_outbox`` and ``import_quarantine`` are keyed on the
+        project and not on a task, so nothing would cascade them. ``blob`` is content
+        addressed and shared between projects, so it is left alone: an orphaned blob is
+        re-referenced by the import that follows, and deleting one another project still
+        points at would be the only irreversible thing this could do.
+
+        The ``project`` row itself stays, so its ``reporting_tz`` and any operator
+        configuration survive a re-import.
+        """
+        project_id = self.store.project_id
+        for table in (
+            "attachment",
+            "log_entry",
+            "task_tag",
+            "task_dependency",
+            "task_acceptance",
+            "task_deliverable",
+            "task_branch",
+            "task_run",
+            "task_event",
+            "operation",
+            "webhook_outbox",
+            "import_quarantine",
+            "task_fts",
+            "task",
+        ):
+            connection.execute(f"DELETE FROM {table} WHERE project_id = ?", (project_id,))
 
     # ------------------------------------------------------------------
     # Reading
@@ -324,7 +396,13 @@ class CorpusImporter:
         for path, document in documents:
             task = Task.model_validate(document)
             try:
-                self.store.save_task(task, _record_history=False)
+                # Inside a savepoint, so a record that fails *halfway* through being
+                # written leaves nothing rather than a partial row. Without it the task
+                # row and the log entries inserted before the failure survived -- the
+                # whole import being one transaction, only the outermost block rolls
+                # back -- and the record then read as valid with most of its log gone.
+                with self.database.savepoint("import_task"):
+                    self.store.save_task(task, _record_history=False)
             except Exception as exc:  # noqa: BLE001 - the file is the suspect, not us
                 self._quarantine(path, yaml.safe_dump(document, sort_keys=False), str(exc)[:2000])
                 report.quarantined.append((path.name, str(exc)[:160]))
@@ -633,7 +711,13 @@ class CorpusImporter:
         )
 
 
-__all__ = ["CorpusImporter", "ImportReport", "IMPLIED_BALL", "QuotationPolicyError"]
+__all__ = [
+    "CorpusAlreadyImported",
+    "CorpusImporter",
+    "ImportReport",
+    "IMPLIED_BALL",
+    "QuotationPolicyError",
+]
 
 
 def _utc(value: str) -> str:

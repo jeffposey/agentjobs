@@ -21,7 +21,8 @@ These rules are repeated here because they must be in the automatically loaded c
 
 - In a shared clone, take a task-named worktree before creating a branch or writing
   code. Never use `git checkout` to start work in the shared clone.
-- Record the active branch in the task record. Keep task-record commits on `main`.
+- Record the active branch in the task record. Keep task-record commits on `main` on a
+  files project (`agentjobs storage status` says which).
 - After explicit approval and a successful merge, delete the merged local branch and
   remove its worktree. A worktree for a closed task is litter.
 - Before ending a task, inspect `git worktree list`. Clean up only your own merged,

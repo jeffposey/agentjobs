@@ -279,9 +279,10 @@ Agents in this repository are required to do this — see
 [ALLAGENTS.md](ALLAGENTS.md#task-lifecycle) — because several of them routinely run
 against one clone and none of them can see the others.
 
-One consequence looks like a bug and is not: **tasks are YAML files in this repository,
-so whichever branch is checked out decides what the dashboard shows.** If the React app
-is missing something you expect, check what is checked out before filing anything.
+One consequence is gone for a project on `sqlite`: the backlog is the same from every
+worktree and every branch, including one holding no records at all. On a project still
+on `files`, the checked-out branch decides what the dashboard shows — check that before
+filing anything.
 
 ### Commit Hygiene
 -   Stage explicit paths. `git add -A` commits whatever happens to be in the tree, which
@@ -406,37 +407,39 @@ and what it records are in
 Pushing to the remote is a separate act from merging; do not assume approval to merge
 carries approval to push.
 
-### Task files live on `main`, always
+### Where task records live, and whether you commit them
 
-**Everything under `tasks/` is committed directly to `main`, never to a feature branch.**
-Creating a task, grooming the backlog, claiming, logging progress, handing off, closing —
-all of it, using a `chore(tasks):` or `chore(task-nnn):` commit. A feature branch carries
-code and docs. It does not touch `tasks/`.
+**Ask, do not assume: `agentjobs storage status`.** It prints `sqlite` or `files` per
+project, counted rather than inferred, and the answer decides everything below.
 
-**The dashboard reads one working tree.** A handoff committed to a branch is invisible
-to the person it is addressed to — they open the React app, see the task still `ready`, and
-conclude nothing is waiting for them. The merge gate depends on a human seeing a review
-request, so recording that request somewhere the human cannot see it defeats the gate
-entirely, and worktrees make it airtight: the shared clone is then *never* on the review
-branch. Observed 2026-08-11, repeatedly, before the cause was understood. It also removes
-task-file merge conflicts as a category, since neither branch contains a task record.
+**`sqlite` — the records are rows in a database beside the server, outside every
+checkout.** Nothing you do to a task touches your working tree, so there is nothing to
+commit and no `tasks/` directory for a branch to disagree about. Write through the
+API, MCP or the CLI as always, then carry on with your code. The database is
+machine-level, so it is neither in the repository nor in a clone somebody else made —
+see [the storage guide](docs/storage-sqlite.md), and back it up.
 
-Practically: write task updates through the API or the manager, which resolve the project
-root from the registry and therefore land in the `main` clone's working tree even when
-your own work is happening in a worktree. Then commit them there:
+**`files` — records are YAML under `tasks/`, and are committed directly to `main`,
+never to a feature branch.** Creating, grooming, claiming, logging, handing off, closing:
+all of it, with a `chore(task-nnn):` commit in the main clone. A feature branch carries
+code and docs and does not touch them.
 
 ```bash
-git -C <path-to-main-clone> add tasks/agentjobs/task-045-*.yaml
+git -C <path-to-main-clone> add tasks/<project>/<the task file>
 git -C <path-to-main-clone> commit -m "chore(task-045): hand off for review"
 ```
 
-The cost, stated so nobody rediscovers it as a bug: a task's record and the code it
-describes are no longer one atomic commit, and checking out an old revision will not show
-you the task state as it was then. `main`'s history has it.
+That rule exists because the dashboard reads one working tree, so a handoff committed to
+a branch is invisible to the person it is addressed to — and it costs you the record and
+its code being one atomic commit. Both halves are in
+[the storage guide](docs/storage-sqlite.md#the-two-worlds-a-project-can-be-in), with what
+moves a project between the two: `agentjobs storage cutover` backs up, imports, verifies
+field by field and only then switches, and `agentjobs storage rollback` goes back keeping
+whatever was written since.
 
 ## Safety Rails
 -   **Never** delete user data without explicit confirmation.
--   **Always** use the `TaskStorage` abstraction; avoid direct file I/O on task files where possible.
+-   **Always** reach storage through `store_factory.task_manager_for`, never by composing a directory. It is the one place that knows whether a project is on files or on the database, and a call site that goes straight to a directory reads a stale corpus on a migrated project without erroring.
 -   **Verify** local server startup and the React `/app/` route (`poetry run agentjobs
     open`) after modifying API routes or frontend serving.
 -   **A server that refuses to start because it "imported its own source from the wrong
@@ -453,13 +456,11 @@ you the task state as it was then. `main`'s history has it.
     needs `npm run build` in `frontend/` as well. Observed 2026-08-17: a merged fix
     appeared to have done nothing, because the browser was still being handed the
     pre-merge bundle.
--   **Restart the server after changing models, storage, or task files.** A running
-    `agentjobs serve` holds the imported code in memory, so when task files change
-    underneath it — a schema migration, a checkout, a bulk edit — it reads new data with
-    old code and every file appears corrupt. Dozens of validation errors naming fields
-    that no longer exist is what a stale server looks like: the application is fine, the
-    process is old. `agentjobs restart` before concluding anything is broken, and never
-    leave a stale server running for someone else to find.
+-   **Restart the server after changing models or storage.** A running `agentjobs
+    serve` holds the imported code in memory, so it reads new data with old code and
+    everything appears corrupt: the application is fine, the process is old. `agentjobs
+    restart` before concluding anything is broken, and never leave a stale server running
+    for someone else to find.
 
 ## Verification
 -   A passing suite is not evidence a feature works. Exercise the change the way a user

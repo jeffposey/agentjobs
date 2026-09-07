@@ -1,7 +1,10 @@
 # Task Schema Reference
 
-Every task is a single YAML file. These files are the source of truth for the project —
-not a chat log, not an issue tracker.
+Every task is one record, and the record is the source of truth for the project — not a
+chat log, not an issue tracker. This page describes the *document*: the same shape
+whether the project stores it as a YAML file or as rows in the SQLite store, because the
+document schema and the physical one are deliberately independent
+([storage guide §8](storage-sqlite.md)).
 
 They are also **generated state**. This page describes the shape of what AgentJobs
 writes, so you can read a task file and know what every field means. It is not an

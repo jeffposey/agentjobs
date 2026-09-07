@@ -38,6 +38,7 @@ from agentjobs.models_v2 import (
     Task,
 )
 from agentjobs.sqlstore import (
+    CorpusAlreadyImported,
     CorpusImporter,
     QuotationPolicyError,
     Database,
@@ -500,16 +501,90 @@ class TestImport:
         assert held[0]["task_id_guess"] == "task-666"
         assert store.load_task("task-666") is None
 
-    def test_importing_twice_does_not_duplicate_the_log(
+    def test_a_record_that_fails_halfway_leaves_no_partial_row(
+        self, store: SqlTaskStore, tmp_path: Path
+    ) -> None:
+        """Quarantining a record must mean it is not in the live tables at all.
+
+        Found by the task-311 cutover sandbox, on a copy of the corpus whose attachment
+        sidecars were missing. A dangling attachment reference is refused *while the log
+        is being written*, so the task row and every entry before the offending one had
+        already been inserted -- and the whole import being one transaction meant nothing
+        rolled them back. Six records then read as valid tasks with most of their log
+        gone, which no count would have noticed. Each record now gets a savepoint.
+        """
+        tasks_dir = tmp_path / "tasks"
+        self._write(
+            tasks_dir,
+            "task-001.yaml",
+            _YAML_OPEN
+            + """- id: 2
+  ts: '2026-01-03T00:00:00Z'
+  actor: claude
+  type: note
+  body: With a picture whose bytes are not here.
+  attachments:
+  - path: attachments/task-001/deadbeef.png
+    media_type: image/png
+    sha256: deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+    size_bytes: 4
+    label: Missing
+- id: 3
+  ts: '2026-01-04T00:00:00Z'
+  actor: claude
+  type: progress
+  body: And a later entry that would otherwise be lost.
+""",
+        )
+        self._write(tasks_dir, "task-002.yaml", _YAML_CLOSED)
+
+        report = CorpusImporter(store, tasks_dir).run()
+
+        # It is quarantined, named, and *absent* -- not present with a truncated log.
+        assert any("task-001" in name for name, _ in report.quarantined)
+        assert store.load_task("task-001") is None
+        assert (
+            store.database.reader()
+            .execute("SELECT COUNT(*) AS n FROM log_entry WHERE task_id = 'task-001'")
+            .fetchone()["n"]
+            == 0
+        )
+        # And the good record beside it still arrived: one bad file is not a failed
+        # import.
+        assert store.load_task("task-002") is not None
+        assert report.reconciles
+
+    def test_a_second_import_is_refused_rather_than_silently_doubling_history(
+        self, store: SqlTaskStore, tmp_path: Path
+    ) -> None:
+        """The dangerous re-run is the one that follows a *completed* import.
+
+        The tasks would upsert harmlessly, which is why this looked repeatable; the
+        reconstructed history would be written a second time and the backlog invariant
+        would break with nothing raising. Refusing is what makes the failure loud.
+        """
+        tasks_dir = tmp_path / "tasks"
+        self._write(tasks_dir, "task-001.yaml", _YAML_OPEN)
+        CorpusImporter(store, tasks_dir).run()
+        with pytest.raises(CorpusAlreadyImported, match="--replace"):
+            CorpusImporter(store, tasks_dir).run()
+
+    def test_replacing_re_imports_without_duplicating_anything(
         self, store: SqlTaskStore, tmp_path: Path
     ) -> None:
         """A migration that is interrupted gets re-run, so it must be repeatable."""
         tasks_dir = tmp_path / "tasks"
         self._write(tasks_dir, "task-001.yaml", _YAML_OPEN)
-        CorpusImporter(store, tasks_dir).run()
-        first = len(loaded(store, "task-001").log)
-        CorpusImporter(store, tasks_dir).run()
-        assert len(loaded(store, "task-001").log) == first
+        first = CorpusImporter(store, tasks_dir).run()
+        entries = len(loaded(store, "task-001").log)
+
+        again = CorpusImporter(store, tasks_dir).run(replace=True)
+
+        assert len(loaded(store, "task-001").log) == entries
+        assert again.imported == first.imported
+        assert again.events == first.events
+        # The invariant the analytics page depends on, after a re-import as after one.
+        assert again.reconciles
 
 
 def _close(task: Task) -> Task:

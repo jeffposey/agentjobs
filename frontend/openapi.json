@@ -3853,6 +3853,69 @@
         "title": "QueueResponse",
         "type": "object"
       },
+      "RedactRequest": {
+        "additionalProperties": false,
+        "description": "Replace the text of one prose region with a stated redaction (task-376).\n\nReachable over HTTP because the CLI is a service client. It is the only verb that\nreaches into the append-only log, and it stays that: the request names one region,\nsupplies the replacement, and states a reason, all of which the manager records.",
+        "properties": {
+          "actor": {
+            "description": "Who is redacting.",
+            "title": "Actor",
+            "type": "string"
+          },
+          "expected_revision": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `updated` value from a prior read. When supplied, the request is refused if the task changed in the meantime, and the current task is returned so the caller can decide again.",
+            "title": "Expected Revision"
+          },
+          "field": {
+            "description": "The region: a task field name, or 'log[<id>].body'.",
+            "examples": [
+              "spec.description",
+              "log[12].body"
+            ],
+            "title": "Field",
+            "type": "string"
+          },
+          "operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.",
+            "title": "Operation Id"
+          },
+          "reason": {
+            "description": "Why the text was removed. Recorded verbatim.",
+            "title": "Reason",
+            "type": "string"
+          },
+          "replacement": {
+            "description": "What the region says instead.",
+            "title": "Replacement",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor",
+          "field",
+          "replacement",
+          "reason"
+        ],
+        "title": "RedactRequest",
+        "type": "object"
+      },
       "RejectActionRequest": {
         "description": "Reject task with reason.",
         "properties": {
@@ -8097,6 +8160,101 @@
         ]
       }
     },
+    "/api/projects/{project_id}/tasks/claimable": {
+      "get": {
+        "description": "Every task that may be worked now, in the queue's order. ``/next`` is its head.\n\nThe epic walk needs the *set* rather than the winner: it starts every eligible child\nup to its slot count, and asking for the winner repeatedly would either re-offer the\nchild it just claimed or report the epic as deadlocked. It is here because the CLI\nis a service client now that only the server opens the store, and the walk must not\nbe the one caller that re-implements the claimability filter -- that is exactly how\nthe walk and the dashboard would come to disagree about what is next, with the walk\nwinning silently because it is the one that spends money.\n\nDeclared before ``/{task_id}`` for the same reason ``/next`` is: otherwise\n\"claimable\" is captured as a task id.",
+        "operationId": "get_claimable_tasks_api_projects__project_id__tasks_claimable_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Priority"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Priority"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent"
+            }
+          },
+          {
+            "in": "query",
+            "name": "parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Parent"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Task"
+                  },
+                  "title": "Response Get Claimable Tasks Api Projects  Project Id  Tasks Claimable Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Claimable Tasks",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
     "/api/projects/{project_id}/tasks/next": {
       "get": {
         "description": "The next claimable task: ready, eligible for the agent, no unmet needs.\n\nAnswers 409 rather than guessing when the queue it would have to read is broken.",
@@ -9511,6 +9669,88 @@
         ]
       }
     },
+    "/api/projects/{project_id}/tasks/{task_id}/redact": {
+      "post": {
+        "description": "Replace one prose region with a stated redaction, recording that it happened.",
+        "operationId": "redact_task_region_api_projects__project_id__tasks__task_id__redact_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+            "in": "query",
+            "name": "envelope",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+              "title": "Envelope",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedactRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MutationResult-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Task"
+                    }
+                  ],
+                  "title": "Response Redact Task Region Api Projects  Project Id  Tasks  Task Id  Redact Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Redact Task Region",
+        "tags": [
+          "status"
+        ]
+      }
+    },
     "/api/projects/{project_id}/tasks/{task_id}/redirect": {
       "post": {
         "description": "Re-brief the agent and hand the ball back (agent/redirect).\n\nThe instructions changed; the work done so far stands. Recorded apart from `revise`\nbecause a reader who cannot tell a re-brief from a rejection has to reconstruct\nwhich it was from prose -- task-222 entry 14 had to supersede entry 13 to say\nexactly that.",
@@ -10567,6 +10807,92 @@
           }
         },
         "summary": "List Broken Tasks",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/tasks/claimable": {
+      "get": {
+        "description": "Every task that may be worked now, in the queue's order. ``/next`` is its head.\n\nThe epic walk needs the *set* rather than the winner: it starts every eligible child\nup to its slot count, and asking for the winner repeatedly would either re-offer the\nchild it just claimed or report the epic as deadlocked. It is here because the CLI\nis a service client now that only the server opens the store, and the walk must not\nbe the one caller that re-implements the claimability filter -- that is exactly how\nthe walk and the dashboard would come to disagree about what is next, with the walk\nwinning silently because it is the one that spends money.\n\nDeclared before ``/{task_id}`` for the same reason ``/next`` is: otherwise\n\"claimable\" is captured as a task id.",
+        "operationId": "get_claimable_tasks_api_tasks_claimable_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Priority"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Priority"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent"
+            }
+          },
+          {
+            "in": "query",
+            "name": "parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Parent"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Task"
+                  },
+                  "title": "Response Get Claimable Tasks Api Tasks Claimable Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Claimable Tasks",
         "tags": [
           "tasks"
         ]
@@ -11801,6 +12127,79 @@
           }
         },
         "summary": "Queue Move Task",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/redact": {
+      "post": {
+        "description": "Replace one prose region with a stated redaction, recording that it happened.",
+        "operationId": "redact_task_region_api_tasks__task_id__redact_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+            "in": "query",
+            "name": "envelope",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+              "title": "Envelope",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedactRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MutationResult-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Task"
+                    }
+                  ],
+                  "title": "Response Redact Task Region Api Tasks  Task Id  Redact Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Redact Task Region",
         "tags": [
           "status"
         ]

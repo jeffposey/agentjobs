@@ -25,6 +25,7 @@ from agentjobs.projects import ProjectError, ProjectRegistry, default_home
 from agentjobs.dispatch.credentials import verify_run_credential
 from agentjobs.principals import set_run_credential_verifier
 from agentjobs.storage import TaskLoadError, corpus_snapshot
+from agentjobs.store_factory import close_databases, mark_server_process
 
 from .authorization import Forbidden, enforce_capability
 from .dependencies import PRINCIPAL_STATE_ATTR, resolve_request_principal
@@ -158,6 +159,10 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         poller.cancel()
         with suppress(asyncio.CancelledError):
             await poller
+        # Let SQLite checkpoint the WAL and run PRAGMA optimize now rather than
+        # leaving both to the next start. A restart is meant to be a pause a client
+        # rides through, and a store that has to recover on open makes it longer.
+        close_databases()
 
 
 # Who a run credential proves you to be, installed over the verifier that verifies
@@ -166,6 +171,16 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 # lifespan so a TestClient that never enters the lifespan resolves runs the same way a
 # served process does.
 set_run_credential_verifier(verify_run_credential)
+
+# This process is the one that may open the task database (task-273, entry 6). Declared
+# at import rather than in the lifespan for the same reason as the line above: a
+# TestClient that never enters the lifespan is still serving the application, and would
+# otherwise be refused its own store.
+#
+# Importing this module *is* the declaration, and that is exact rather than approximate:
+# the CLI names the app as a uvicorn import string, so the only processes that import it
+# are the server and the tools that mount it in-process.
+mark_server_process()
 
 app = FastAPI(
     lifespan=lifespan,

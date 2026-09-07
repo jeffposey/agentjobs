@@ -193,6 +193,15 @@ class TaskLockTimeout(Exception):
 class TaskStorage:
     """YAML-based task storage."""
 
+    supports_task_files = True
+    """A record here *is* a file, so a caller may name its path and commit it.
+
+    Asked rather than inferred, because the answer stopped being universal with
+    task-311: under SQLite a record is rows and there is nothing to commit, and a
+    caller that discovered that by catching an exception would be branching on a
+    failure rather than on a fact.
+    """
+
     def __init__(self, tasks_dir: Path):
         """Initialize storage with tasks directory."""
         self.tasks_dir = Path(tasks_dir)
@@ -250,6 +259,15 @@ class TaskStorage:
         cannot be talked into naming a file outside the project's tasks directory.
         """
         return self._task_path(task_id)
+
+    def has_task(self, task_id: str) -> bool:
+        """True when this project holds a task with that id.
+
+        The store-neutral form of ``_task_path(id).exists()``. Callers ask storage
+        whether a record is there rather than whether a file is, because under the
+        SQLite backend there is no file and the question is still a fair one.
+        """
+        return self._task_path(task_id).exists()
 
     def load_task(self, task_id: str) -> Optional[Task]:
         """Load a task from its YAML file.

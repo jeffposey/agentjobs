@@ -51,7 +51,8 @@ from agentjobs.dispatch.runner import (
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BallReason, DispatchMode, DispatchOutcome
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
-from agentjobs.storage import TaskStorage, load_yaml
+from agentjobs.storage import load_yaml
+from agentjobs.store_factory import TaskManagerLike, dispatch_manager_for
 
 LOCKS_DIRNAME = ".locks"
 """Run locks live under the runs root. A leading dot cannot collide with a run id."""
@@ -1162,7 +1163,7 @@ class DispatchLedger:
 
     # ----- resolution --------------------------------------------------------
 
-    def manager_for(self, record: RunRecord) -> Optional[TaskManager]:
+    def manager_for(self, record: RunRecord) -> Optional[TaskManagerLike]:
         """The TaskManager owning this run's task, or None when it cannot be resolved."""
         supplied = self.managers.get(record.project_id)
         if supplied is not None:
@@ -1171,7 +1172,7 @@ class DispatchLedger:
             project: Project = self.registry.get(record.project_id)
         except ProjectError:
             return None
-        return TaskManager(TaskStorage(project.tasks_dir()))
+        return dispatch_manager_for(project)
 
     def _session(self, *args: str) -> subprocess.CompletedProcess:
         """Run a session-manager subcommand. argv is a list; there is no shell."""

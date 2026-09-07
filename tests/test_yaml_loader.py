@@ -27,7 +27,13 @@ HAS_LIBYAML = hasattr(yaml, "CSafeLoader")
 
 
 def _corpus_files() -> list[Path]:
-    return sorted(CORPUS.glob("*.yaml"))
+    """Every real task file, or none once a project has retired them (task-311).
+
+    An empty list collects no cases rather than failing, which is right: this asserts
+    that two YAML parsers agree about *files*, and a project whose records are rows has
+    no files for them to disagree about.
+    """
+    return sorted(CORPUS.glob("*.yaml")) if CORPUS.is_dir() else []
 
 
 @pytest.mark.skipif(not HAS_LIBYAML, reason="libyaml is not installed here")

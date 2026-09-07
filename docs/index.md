@@ -1,13 +1,18 @@
 # AgentJobs documentation
 
-AgentJobs is a git-backed handoff protocol with a packaged React web application. Task
-YAML remains the source of truth; the React UI at `/app/`, the REST API, CLI, Python
-client, and [MCP server](mcp.md) are views and controlled writers over the same
-schema-v2 records.
+AgentJobs is a durable handoff protocol with a packaged React web application. The
+schema-v2 task record is the source of truth; the React UI at `/app/`, the REST API, CLI,
+Python client, and [MCP server](mcp.md) are views and controlled writers over it.
 
-For agents, the task files are **readable generated state**: read them freely, and make
-every change through the [MCP tools](mcp.md), the API, or the CLI, all of which reach
-the same validated, locked, logged write path. A direct edit skips all three.
+**Where a record physically lives is a per-project choice.** By default it is one YAML
+file under the project's tasks directory; a project that has run
+`agentjobs storage cutover` keeps its records in a SQLite store beside the server
+instead. `agentjobs storage status` says which, and [the storage guide](storage-sqlite.md)
+covers both.
+
+For agents, a record is **readable generated state**: read it freely, and make every
+change through the [MCP tools](mcp.md), the API, or the CLI, all of which reach the same
+validated, locked, logged write path. A direct edit skips all three.
 
 ## Start here
 
@@ -47,9 +52,10 @@ history; new records and integrations must use v2.
 - [React frontend development](https://github.com/jeffposey/agentjobs/blob/main/frontend/README.md)
 - [Webhook integrations](webhooks.md)
 - [Schema migration](migration-guide.md)
-- [Authoritative SQLite storage](storage-sqlite.md) - the store task-273 built: the
-  physical schema, what history can honestly be reconstructed, the two rules the git
-  backfill obeys, and how a later schema version is applied. Built, not switched on.
+- [Authoritative SQLite storage](storage-sqlite.md) - the physical schema, what history
+  can honestly be reconstructed, the two rules the git backfill obeys, how a later schema
+  version is applied, and the operator sequence for cutting a project over, backing the
+  store up and going back.
 - [Performance](performance.md) — how to measure the API, the CLI, the browser, the
   repository gate and dispatched agent time, what a claim of "faster" has to state, and
   the measurement history behind the gate's quoted costs.
@@ -77,7 +83,7 @@ is how this project has lost the most time, so the status word comes first.
 | [Understand schema v2](schema/understanding.md) | The schema explained rather than tabulated |
 | [Schema migration](migration-guide.md) | v1 to v2, and the all-or-nothing rule |
 | [Performance](performance.md) | The measurement tools and their contract |
-| [SQLite storage](storage-sqlite.md) | The authoritative store, its invariants and its upgrade path. Task-311 owns the cutover; until then this describes a backend that is built and not live. |
+| [SQLite storage](storage-sqlite.md) | The authoritative store, its invariants and its upgrade path, plus the cutover, backup and rollback an operator runs. |
 | [The Tasks surface](tasks-shell.md) | The two-region list-and-record shell, the device-class rule that decides its default, and what the geometry forces (task-235, task-237). Supersedes the epic's log entries. |
 | [Codex dispatch rollout](codex-dispatch.md) | The Codex runner setup |
 | [Queue position design](task-selection-design.md) | The explicit work order — **accepted 2026-08-20, implemented 2026-08-21** (task-081, 204–209) |
