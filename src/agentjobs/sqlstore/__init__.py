@@ -1,0 +1,28 @@
+"""Authoritative SQLite storage for AgentJobs task records (task-273).
+
+The design, its measurements and its rejected alternatives are in
+``docs/storage-sqlite.md``. The boundary every backend satisfies is
+:mod:`agentjobs.storage_protocol`.
+"""
+
+from .backup import restore, snapshot, verify
+from .connection import Database, SqlStoreError
+from .importer import CorpusImporter, ImportReport
+from .migrations import MigrationReport, current_version, latest_version, upgrade
+from .store import SqlTaskStore, TaskNotFound
+
+__all__ = [
+    "CorpusImporter",
+    "Database",
+    "ImportReport",
+    "MigrationReport",
+    "SqlStoreError",
+    "SqlTaskStore",
+    "TaskNotFound",
+    "current_version",
+    "latest_version",
+    "restore",
+    "snapshot",
+    "upgrade",
+    "verify",
+]

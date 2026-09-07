@@ -47,6 +47,9 @@ history; new records and integrations must use v2.
 - [React frontend development](https://github.com/jeffposey/agentjobs/blob/main/frontend/README.md)
 - [Webhook integrations](webhooks.md)
 - [Schema migration](migration-guide.md)
+- [Authoritative SQLite storage](storage-sqlite.md) - the store task-273 built: the
+  physical schema, what history can honestly be reconstructed, the two rules the git
+  backfill obeys, and how a later schema version is applied. Built, not switched on.
 - [Performance](performance.md) — how to measure the API, the CLI, the browser, the
   repository gate and dispatched agent time, what a claim of "faster" has to state, and
   the measurement history behind the gate's quoted costs.
@@ -74,6 +77,7 @@ is how this project has lost the most time, so the status word comes first.
 | [Understand schema v2](schema/understanding.md) | The schema explained rather than tabulated |
 | [Schema migration](migration-guide.md) | v1 to v2, and the all-or-nothing rule |
 | [Performance](performance.md) | The measurement tools and their contract |
+| [SQLite storage](storage-sqlite.md) | The authoritative store, its invariants and its upgrade path. Task-311 owns the cutover; until then this describes a backend that is built and not live. |
 | [The Tasks surface](tasks-shell.md) | The two-region list-and-record shell, the device-class rule that decides its default, and what the geometry forces (task-235, task-237). Supersedes the epic's log entries. |
 | [Codex dispatch rollout](codex-dispatch.md) | The Codex runner setup |
 | [Queue position design](task-selection-design.md) | The explicit work order — **accepted 2026-08-20, implemented 2026-08-21** (task-081, 204–209) |
