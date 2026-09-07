@@ -179,6 +179,9 @@ class RemoteStorage:
     argument the SQL store makes for refusing it.
     """
 
+    supports_task_files = False
+    """The records are on the server. Nothing here has a file to commit."""
+
     def __init__(self, client: TaskClient) -> None:
         self._client = client
 

@@ -69,6 +69,9 @@ class TaskNotFound(ValueError):
 class SqlTaskStore:
     """Task storage backed by one SQLite database, scoped to one project."""
 
+    supports_task_files = False
+    """A record is rows. There is no path to name and nothing to commit."""
+
     def __init__(self, database: Database, project_id: str) -> None:
         """Bind a store to ``project_id`` inside ``database``."""
         self.database = database

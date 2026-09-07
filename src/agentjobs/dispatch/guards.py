@@ -94,6 +94,7 @@ from agentjobs.dispatch.config import (
     resolve_posture,
 )
 from agentjobs.dispatch.config import DispatchRunner as ConfigRunner
+from agentjobs.dispatch.record_commit import task_file_exclusions
 from agentjobs.dispatch.ledger import RunLockTimeout, acquire_run_lock
 from agentjobs.dispatch.runner import (
     META_FILENAME,
@@ -964,7 +965,7 @@ def dispatch_task(
     )
 
     if resolution.settings.require_clean_tree:
-        dirty = uncommitted_paths(project.root, ignore=[manager.storage.tasks_dir])
+        dirty = uncommitted_paths(project.root, ignore=task_file_exclusions(manager))
         if dirty is None or dirty:
             named = ", ".join(sorted(dirty)[:5]) if dirty else "git could not be read"
             raise DirtyTreeError(

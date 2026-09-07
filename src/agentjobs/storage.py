@@ -193,6 +193,15 @@ class TaskLockTimeout(Exception):
 class TaskStorage:
     """YAML-based task storage."""
 
+    supports_task_files = True
+    """A record here *is* a file, so a caller may name its path and commit it.
+
+    Asked rather than inferred, because the answer stopped being universal with
+    task-311: under SQLite a record is rows and there is nothing to commit, and a
+    caller that discovered that by catching an exception would be branching on a
+    failure rather than on a fact.
+    """
+
     def __init__(self, tasks_dir: Path):
         """Initialize storage with tasks directory."""
         self.tasks_dir = Path(tasks_dir)
