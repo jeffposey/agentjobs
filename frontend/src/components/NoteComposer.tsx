@@ -64,7 +64,25 @@ export function NoteComposer({ identity, busy = false, error = null, onAddNote }
         }}
         className="touch-target min-w-11 justify-center rounded-lg border border-blue-500/50 bg-blue-950/40 px-3 text-lg text-blue-300 hover:bg-blue-900/60 hover:text-blue-200 disabled:opacity-60"
       >
-        <span aria-hidden="true">✚</span>
+        {/* A speech bubble, drawn rather than typed. The glyph this replaced was a
+            plus, which reads as "add a row" rather than "say something"; the Unicode
+            speech-bubble characters were not an option either, because the ones that
+            render at all render as a colour emoji on some platforms and as a box on
+            others, next to a monochrome pencil. An inline SVG takes `currentColor`, so
+            it lights and dims with the button exactly as the pencil beside it does. */}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="h-5 w-5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M5 3h14a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-8.5l-5 4v-4H5a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z" />
+          <path d="M7 7.5h10M7 10h10M7 12.5h10" />
+        </svg>
       </button>
     );
   }
