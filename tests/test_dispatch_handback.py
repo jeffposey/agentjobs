@@ -200,7 +200,7 @@ def runs_in(home: Path) -> List[str]:
 def dispatcher_notes(task: Task) -> List[str]:
     """Every note AgentJobs itself wrote. The thing that was missing entirely."""
     return [
-        entry.body
+        entry.body or ""
         for entry in task.log
         if entry.type is LogEntryType.NOTE and entry.actor == "dispatcher"
     ]
