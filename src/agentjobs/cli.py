@@ -60,9 +60,16 @@ from .project_setup import (
     ensure_mcp_server_entry,
     initialize_project,
 )
-from .projects import ProjectError, ProjectRegistry, default_home
+from .projects import Project, ProjectError, ProjectRegistry, default_home
 from .queue import REPAIR_COMMAND, QueueCorruptionError
+from .cutover import back_up, cut_over, export_project
+from .cutover import preview as cutover_preview
+from .cutover import roll_back
+from .cutover import status as cutover_status
+from .cutover import restore_backup, verify_backup
 from .quotation import scan_task
+from .sqlstore import CorpusAlreadyImported, QuotationPolicyError
+from .storage_config import load_storage_settings
 from .storage import TaskStorage, corpus_snapshot
 
 
@@ -499,12 +506,73 @@ def _find_process_by_port(port: int) -> Optional[int]:
     return None
 
 
+#: How long a graceful stop is given before the server is killed, in seconds.
+#:
+#: Uvicorn stops accepting, finishes what is in flight and runs the lifespan's shutdown
+#: -- which is where the SQLite store is closed and the WAL checkpointed. Three seconds
+#: is generous for a request set that is one dashboard poll deep, and short enough that
+#: `agentjobs restart` is still a pause a client rides through rather than a wait.
+GRACEFUL_STOP_SECONDS = 3.0
+
+
+def _stop_server(pid: int, port: int) -> bool:
+    """Ask the server to exit, and only kill it if it will not.
+
+    **On POSIX this is a real drain.** ``SIGTERM`` reaches uvicorn's signal handler, so
+    the process stops accepting, finishes its in-flight requests and runs the lifespan's
+    shutdown before exiting. ``SIGKILL`` follows only if it is still listening after
+    :data:`GRACEFUL_STOP_SECONDS`.
+
+    **On Windows it is not, and that is stated rather than pretended.** There is no way
+    for an unrelated process to ask a console process to exit: ``taskkill`` without
+    ``/F`` posts ``WM_CLOSE``, which a windowless console process never receives, and a
+    console control event can only be sent within a process group. So the stop is
+    forced, and two things make that acceptable rather than merely unavoidable:
+
+    -   **The store survives it.** WAL plus ``synchronous=FULL`` means a committed
+        transaction is on disk before the commit returns, and an uncommitted one is
+        rolled back when the database is next opened. A killed server loses no write
+        that any client was told had happened.
+    -   **The client rides it out.** A refused connection is retried on a bounded
+        backoff keyed on the same ``operation_id``, so a request caught by the kill is
+        re-sent rather than lost, and the ledger replays rather than writing twice.
+
+    What is genuinely lost on Windows is the ``PRAGMA optimize`` and the WAL checkpoint
+    the lifespan would have run, which cost the next start a few milliseconds.
+
+    Returns True when the port is free afterwards.
+    """
+    import platform
+    import signal
+    import subprocess
+    import time
+
+    if platform.system() == "Windows":
+        subprocess.run(["taskkill", "/F", "/PID", str(pid)], check=True)
+    else:
+        os.kill(pid, signal.SIGTERM)
+
+    deadline = time.monotonic() + GRACEFUL_STOP_SECONDS
+    while time.monotonic() < deadline:
+        if _find_process_by_port(port) is None:
+            return True
+        time.sleep(0.1)
+
+    if platform.system() != "Windows":
+        # Guarded rather than annotated: `signal.SIGKILL` does not exist on Windows,
+        # so naming it unconditionally is an AttributeError at import on the platform
+        # this repository is developed on.
+        with suppress(ProcessLookupError):
+            os.kill(pid, getattr(signal, "SIGKILL", signal.SIGTERM))
+        time.sleep(0.2)
+    return _find_process_by_port(port) is None
+
+
 @app.command()
 def stop(
     port: int = typer.Option(8765, help="Port number of server to stop."),
 ) -> None:
     """Stop the running web server."""
-    import platform
     import subprocess
 
     pid = _find_process_by_port(port)
@@ -516,12 +584,12 @@ def stop(
     typer.echo(f"Stopping server (PID {pid}) on port {port}...")
 
     try:
-        if platform.system() == "Windows":
-            subprocess.run(["taskkill", "/F", "/PID", str(pid)], check=True)
+        if _stop_server(pid, port):
+            typer.echo("✓ Server stopped successfully.")
         else:
-            subprocess.run(["kill", str(pid)], check=True)
-        typer.echo("✓ Server stopped successfully.")
-    except subprocess.CalledProcessError as e:
+            typer.echo(f"Server on port {port} is still listening.", err=True)
+            raise typer.Exit(1)
+    except (subprocess.CalledProcessError, OSError) as e:
         typer.echo(f"Failed to stop server: {e}", err=True)
         raise typer.Exit(1)
 
@@ -552,21 +620,22 @@ def restart(
     ),
 ) -> None:
     """Restart the web server."""
+    import subprocess
+
     host = _validated_bind_host(host)
     # Stop existing server if running
     pid = _find_process_by_port(port)
     if pid is not None:
         typer.echo(f"Stopping existing server (PID {pid})...")
-        import platform
-        import subprocess
-
         try:
-            if platform.system() == "Windows":
-                subprocess.run(["taskkill", "/F", "/PID", str(pid)], check=True)
+            # Drained rather than killed where the platform allows it, so a client
+            # mid-request rides the restart out instead of losing the write. See
+            # `_stop_server` for what Windows can and cannot promise here.
+            if _stop_server(pid, port):
+                typer.echo("✓ Server stopped.")
             else:
-                subprocess.run(["kill", str(pid)], check=True)
-            typer.echo("✓ Server stopped.")
-        except subprocess.CalledProcessError:
+                typer.echo("Warning: the old server is still listening.", err=True)
+        except (subprocess.CalledProcessError, OSError):
             typer.echo("Warning: Failed to stop existing server.", err=True)
 
     # Start new server
@@ -1910,6 +1979,256 @@ def run_register(
 
     for line in registration_lines(result):
         typer.echo(line)
+
+
+storage_app = typer.Typer(
+    name="storage",
+    help="Move a project's tasks into the server's database, and back out again.",
+)
+app.add_typer(storage_app)
+
+
+def _storage_project(project_id: Optional[str]) -> Project:
+    """Resolve the project a storage command acts on, or exit naming the ambiguity."""
+    registry = ProjectRegistry()
+    try:
+        return registry.get(project_id) if project_id else registry.resolve_default()
+    except ProjectError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+
+def _refuse_while_serving(port: int) -> None:
+    """Stop before touching the store if a server is holding it.
+
+    Quiescing the writers is the operator's act -- stop the server, stop the agents --
+    and this checks the one part that can be checked rather than assumed. A second
+    process opening the database is not corruption, because SQLite is safe under it,
+    but it is a second writer during a migration, and the import's guarantee that an
+    interruption leaves nothing behind is about its own transaction, not somebody
+    else's.
+    """
+    pid = _find_process_by_port(port)
+    if pid is None:
+        return
+    typer.secho(
+        f"A server is listening on port {port} (PID {pid}). Stop it first: "
+        f"'agentjobs stop --port {port}'. This command holds the database as the "
+        "single writer, and would be a second one.",
+        fg=typer.colors.RED,
+    )
+    raise typer.Exit(code=1)
+
+
+@storage_app.command("status")
+def storage_status(
+    project_id: Optional[str] = typer.Option(None, "--project", help="One project, or all."),
+) -> None:
+    """Say where each project's tasks actually are, counted rather than assumed."""
+    registry = ProjectRegistry()
+    projects = [_storage_project(project_id)] if project_id else registry.list_projects()
+    if not projects:
+        typer.echo("No projects are registered.")
+        return
+
+    settings = load_storage_settings()
+    known = "" if settings.database.exists() else " (none yet)"
+    typer.echo(f"database: {settings.database}{known}")
+    typer.echo(
+        f"configuration: {settings.path}" + ("" if settings.path.exists() else " (none yet)")
+    )
+    typer.echo("")
+    for line in cutover_status(projects, settings=settings):
+        rows = "-" if line.rows is None else str(line.rows)
+        files = "-" if line.files is None else str(line.files)
+        typer.echo(f"{line.project_id}: {line.backend}  rows={rows} files={files}")
+        if line.cutover_at:
+            typer.echo(f"    cut over {line.cutover_at} from {line.source}")
+
+
+@storage_app.command("preview")
+def storage_preview(
+    project_id: Optional[str] = typer.Option(None, "--project"),
+    backfill_git: bool = typer.Option(
+        False, "--backfill-git", help="Also mine the task files' git history."
+    ),
+    allow_quotations: bool = typer.Option(
+        False,
+        "--allow-quotations",
+        help="Import records that quote a person verbatim, naming every one.",
+    ),
+) -> None:
+    """Run the real import against a throwaway database and report what would happen.
+
+    Writes nothing that survives the command. This is where a malformed record, a
+    quoted remark or a history that will not reconcile is found, and finding it here
+    costs nothing.
+    """
+    project = _storage_project(project_id)
+    try:
+        imported, verified = cutover_preview(
+            project,
+            backfill_git=backfill_git,
+            enforce_quotation_policy=not allow_quotations,
+        )
+    except QuotationPolicyError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        typer.echo("\nFix with 'agentjobs redact', or re-run with --allow-quotations.")
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(imported.render())
+    typer.echo("")
+    typer.echo(verified.render())
+    if not verified.ok:
+        raise typer.Exit(code=1)
+
+
+@storage_app.command("cutover")
+def storage_cutover(
+    project_id: Optional[str] = typer.Option(None, "--project"),
+    port: int = typer.Option(8765, help="Port to check for a running server."),
+    replace: bool = typer.Option(
+        False, "--replace", help="Empty this project in the database and import it again."
+    ),
+    backfill_git: bool = typer.Option(
+        True, "--backfill-git/--no-backfill-git", help="Mine the task files' git history."
+    ),
+    allow_quotations: bool = typer.Option(False, "--allow-quotations"),
+    reporting_tz: str = typer.Option(
+        "UTC", "--reporting-tz", help="IANA zone name for day bucketing, e.g. America/Chicago."
+    ),
+) -> None:
+    """Back up, import, verify, and only then make the database authoritative.
+
+    ``--backfill-git`` is on by default here and nowhere else: the backfill reads the
+    git history of the task files, so it must happen before those files are retired,
+    and the cutover is the last moment anybody is looking.
+    """
+    project = _storage_project(project_id)
+    _refuse_while_serving(port)
+
+    try:
+        result = cut_over(
+            project,
+            replace=replace,
+            backfill_git=backfill_git,
+            enforce_quotation_policy=not allow_quotations,
+            reporting_tz=reporting_tz,
+        )
+    except QuotationPolicyError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        typer.echo("\nNothing was imported. Fix with 'agentjobs redact', then run this again.")
+        raise typer.Exit(code=1) from exc
+    except CorpusAlreadyImported as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    if result.backup:
+        typer.echo(f"backed up to {result.backup}")
+    typer.echo(result.imported.render())
+    typer.echo("")
+    typer.echo(result.verified.render())
+    if not result.ok:
+        typer.secho(
+            "\nNothing was switched: the project is still served from its files. The "
+            "import is in the database for inspection; re-run with --replace once the "
+            "cause is fixed.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+
+    typer.secho(f"\n{project.id} is now served from {result.database}.", fg=typer.colors.GREEN)
+    typer.echo("Start the server, then check the dashboard before retiring anything:")
+    typer.echo(f"    agentjobs serve --port {port}")
+    typer.echo(
+        "Enrol this database in your backups now -- 'agentjobs storage backup' writes a "
+        "verifiable snapshot, and it is the only copy of the reconstructed history."
+    )
+
+
+@storage_app.command("rollback")
+def storage_rollback(
+    project_id: Optional[str] = typer.Option(None, "--project"),
+    port: int = typer.Option(8765, help="Port to check for a running server."),
+    into: Optional[Path] = typer.Option(
+        None, "--into", help="Write the files here instead of the recorded source."
+    ),
+) -> None:
+    """Put a project back on its files, keeping everything written since the cutover.
+
+    The export runs first and against the store's current state, so a handoff made
+    after the cutover is on disk before anything is switched back. The database is not
+    deleted: a rollback is a decision that can itself be wrong.
+    """
+    project = _storage_project(project_id)
+    _refuse_while_serving(port)
+    report = roll_back(project, tasks_dir=into)
+    typer.echo(report.render())
+    typer.secho(f"{project.id} is served from its files again.", fg=typer.colors.GREEN)
+
+
+@storage_app.command("export")
+def storage_export(
+    destination: Path = typer.Argument(..., help="Directory to write the task files into."),
+    project_id: Optional[str] = typer.Option(None, "--project"),
+) -> None:
+    """Write the store's current state out as task YAML, with its attachment bytes.
+
+    An interchange artifact somebody asked for. Nothing calls this on a write and
+    nothing commits what it produces -- an automatically maintained YAML mirror would
+    be the second authority this migration removed.
+    """
+    project = _storage_project(project_id)
+    report = export_project(project, destination)
+    typer.echo(report.render())
+
+
+@storage_app.command("backup")
+def storage_backup(
+    destination: Optional[Path] = typer.Option(None, "--into", help="Where to write the snapshot."),
+) -> None:
+    """Take a verifiable snapshot of the database, safe to run while it is in use."""
+    written = back_up(destination=destination)
+    if written is None:
+        typer.echo("There is no database on this machine yet; nothing to back up.")
+        return
+    report = verify_backup(written)
+    typer.echo(f"snapshot: {written}")
+    typer.echo(f"manifest: {written}.manifest.json")
+    typer.echo(report.render())
+    if not report.ok:
+        raise typer.Exit(code=1)
+
+
+@storage_app.command("verify")
+def storage_verify(
+    snapshot: Path = typer.Argument(..., help="A snapshot written by 'storage backup'."),
+) -> None:
+    """Open a snapshot read-only, in isolation, and say whether it may be restored."""
+    report = verify_backup(snapshot)
+    typer.echo(report.render())
+    if not report.ok:
+        raise typer.Exit(code=1)
+
+
+@storage_app.command("restore")
+def storage_restore(
+    snapshot: Path = typer.Argument(..., help="A snapshot written by 'storage backup'."),
+    port: int = typer.Option(8765, help="Port to check for a running server."),
+    force: bool = typer.Option(False, "--force", help="Restore over a database that is newer."),
+) -> None:
+    """Put a snapshot back, refusing rather than proceeding if it does not verify.
+
+    Whatever it replaces is moved aside rather than deleted, so a restore of the wrong
+    snapshot is itself recoverable.
+    """
+    _refuse_while_serving(port)
+    settings = load_storage_settings()
+    report = restore_backup(snapshot, settings=settings, force=force)
+    typer.echo(report.render())
+    if not report.ok:
+        raise typer.Exit(code=1)
+    typer.secho(f"restored {snapshot} to {settings.database}", fg=typer.colors.GREEN)
 
 
 queue_app = typer.Typer(

@@ -14,9 +14,9 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Iterator, List, Optional
 
 #: Milliseconds a blocked statement waits before raising ``SQLITE_BUSY``.
 #:
@@ -70,6 +70,12 @@ class Database:
         )
         _configure(self._writer, read_only=False)
         self._readers = threading.local()
+        # Every reader ever handed out, so `close` can close them. Thread-local storage
+        # alone cannot: the thread that closes the database is not the threads that
+        # opened the readers, and an unclosed read handle keeps the file open -- which
+        # on Windows makes it impossible to replace, so a restore fails with a
+        # permission error that names no cause (task-311).
+        self._all_readers: List[sqlite3.Connection] = []
 
     # ----- readers -------------------------------------------------------------
 
@@ -89,6 +95,8 @@ class Database:
         )
         _configure(connection, read_only=True)
         self._readers.connection = connection
+        with self._write_lock:
+            self._all_readers.append(connection)
         return connection
 
     # ----- the writer ----------------------------------------------------------
@@ -173,3 +181,8 @@ class Database:
                 self._writer.execute("PRAGMA optimize")
             finally:
                 self._writer.close()
+                for reader in self._all_readers:
+                    with suppress(sqlite3.Error):
+                        reader.close()
+                self._all_readers.clear()
+                self._readers = threading.local()

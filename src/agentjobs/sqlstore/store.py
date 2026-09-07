@@ -1039,19 +1039,6 @@ class SqlTaskStore:
         )
         return row is not None
 
-    def load_task_uncached(self, task_id: str) -> Optional[Task]:
-        """:meth:`load_task`. There is no cache to bypass, so there is nothing to add.
-
-        Kept by name because the file backend's callers ask for it when they must not
-        see a snapshot taken earlier in the same request. A SQL read is always current
-        as of its transaction, so the distinction does not exist here.
-        """
-        return self.load_task(task_id)
-
-    def list_tasks_uncached(self) -> List[Task]:
-        """:meth:`list_tasks`, for the same reason as :meth:`load_task_uncached`."""
-        return self.list_tasks()
-
     def load_all(self) -> Any:
         """Every task, plus the quarantined records, in the file backend's shape.
 

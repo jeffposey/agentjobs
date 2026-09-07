@@ -8,6 +8,7 @@ import json
 import httpx
 import pytest
 
+from agentjobs import client as client_module
 from agentjobs.client import TaskClient, TaskClientError
 
 
@@ -205,7 +206,12 @@ def test_client_list_tasks_sends_axis_filters() -> None:
     client.close()
 
 
-def test_client_connection_error() -> None:
+def test_client_connection_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A refused connection is now ridden out on a bounded backoff before it is
+    # reported, so this pays the whole budget unless the waits are taken out of it.
+    # What the retry itself does is asserted in tests/test_client_retry.py.
+    monkeypatch.setattr(client_module, "RETRY_BACKOFF_SECONDS", (0.0,))
+
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("boom", request=request)
 

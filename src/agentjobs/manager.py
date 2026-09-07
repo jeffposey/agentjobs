@@ -100,8 +100,8 @@ from .queue_check import (
 )
 from .quotation import LOG_BODY_FIELD as _LOG_BODY_FIELD
 from .quotation import TASK_PROSE_FIELDS, field_text
-from .storage import TaskLoadError, TaskStorage, load_yaml
-from .store_factory import store_is_sql
+from .storage import TaskLoadError, load_yaml
+from .store_factory import TaskStoreBackend, store_is_sql
 
 if TYPE_CHECKING:
     from .webhooks import WebhookManager
@@ -432,7 +432,9 @@ class TaskNotFoundError(ValueError):
 class TaskManager:
     """Core task management logic."""
 
-    def __init__(self, storage: TaskStorage, webhook_manager: Optional["WebhookManager"] = None):
+    def __init__(
+        self, storage: TaskStoreBackend, webhook_manager: Optional["WebhookManager"] = None
+    ):
         self.storage = storage
         self.webhook_manager = webhook_manager
 

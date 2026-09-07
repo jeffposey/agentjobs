@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -77,6 +79,20 @@ func main() {
 	proxy := httputil.NewSingleHostReverseProxy(backend)
 	proxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, proxyErr error) {
 		log.Printf("proxy %s %s: %v", request.Method, request.URL.Path, proxyErr)
+		// 503 rather than 502 when the backend is simply not listening, which is what
+		// a restart looks like from here. Under the SQLite store the server is the only
+		// process that may write, so a client caught mid-restart has no local fallback
+		// and must ride the gap out instead; 503 plus Retry-After is the answer its
+		// bounded retry is written against, and a reset connection is not (task-311,
+		// answering task-273 entry 6 item 2). A genuinely bad upstream answer is a
+		// different fault and keeps its 502.
+		var netErr *net.OpError
+		if errors.As(proxyErr, &netErr) {
+			writer.Header().Set("Retry-After", "1")
+			http.Error(writer, "AgentJobs is not listening; retry shortly",
+				http.StatusServiceUnavailable)
+			return
+		}
 		http.Error(writer, "Service is unavailable", http.StatusBadGateway)
 	}
 

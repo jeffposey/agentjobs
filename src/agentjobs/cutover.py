@@ -50,7 +50,7 @@ from .__version__ import __version__
 from .models_v2 import Task
 from .projects import Project
 from .sqlstore import SqlTaskStore
-from .sqlstore.backup import VerifyReport, snapshot, verify
+from .sqlstore.backup import VerifyReport, restore, snapshot, verify
 from .sqlstore.connection import Database
 from .sqlstore.importer import CorpusImporter, ImportReport
 from .sqlstore.migrations import upgrade
@@ -61,7 +61,7 @@ from .storage_config import (
     record_cutover,
     record_rollback,
 )
-from .store_factory import open_database, server_process
+from .store_factory import close_databases, open_database, server_process
 
 ATTACHMENTS_DIRNAME = "attachments"
 
@@ -509,6 +509,25 @@ def verify_backup(path: Path, *, settings: Optional[StorageSettings] = None) -> 
     return verify(Path(path))
 
 
+def restore_backup(
+    path: Path, *, settings: Optional[StorageSettings] = None, force: bool = False
+) -> VerifyReport:
+    """Put a snapshot back over the configured database.
+
+    Every handle this process holds is closed first, and that is not tidiness: on
+    Windows a file cannot be replaced while anything has it open, so a restore issued
+    by a process that had already read the store fails with a permission error naming
+    no cause. Closing here makes the restore work from any command, including one that
+    took the backup a moment earlier.
+
+    A handle held by *another* process is a different matter and is not this function's
+    to close, which is why the CLI refuses to restore while a server is listening.
+    """
+    resolved = settings or load_storage_settings()
+    close_databases()
+    return restore(Path(path), resolved.database, force=force)
+
+
 def file_store_for(project: Project, *, tasks_dir: Optional[Path] = None) -> TaskStorage:
     """The file backend for a project, whatever the machine's configuration says.
 
@@ -530,6 +549,7 @@ __all__ = [
     "file_store_for",
     "import_project",
     "preview",
+    "restore_backup",
     "roll_back",
     "status",
     "verify_backup",

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from datetime import datetime
 from enum import Enum
 from types import TracebackType
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from urllib.parse import quote
 
@@ -37,6 +38,31 @@ def run_credential_headers() -> Dict[str, str]:
 
     token = presented_credential()
     return {RUN_CREDENTIAL_HEADER: token} if token else {}
+
+
+#: How long a client rides through a restart before giving up, in seconds per attempt.
+#:
+#: A documented constant rather than per-call configuration, which is the shape the
+#: owner's decision of 2026-09-05 asks for (task-273, entry 6, item 1). Under SQLite the
+#: server is the only process that can write, so "the server is restarting" stopped being
+#: something a client could ignore: a run that hands off during ``agentjobs restart``
+#: used to write a file and now gets a refused connection.
+#:
+#: Six attempts, roughly 15.75 seconds of waiting. Sized against the thing it rides
+#: through: a restart is a few seconds, and the merge gate's step 6 restarts the server
+#: as a matter of course. Doubling each time so a client that is early does not spin, and
+#: bounded so a *stopped* server produces a clear answer within a quarter of a minute
+#: rather than an agent that appears to hang.
+RETRY_BACKOFF_SECONDS: Tuple[float, ...] = (0.25, 0.5, 1.0, 2.0, 4.0, 8.0)
+
+SERVICE_UNAVAILABLE = "service unavailable, nothing written"
+"""What a client says when the budget is spent.
+
+The wording is the contract: **nothing written**. There is no local task store to fall
+back to and there never will be -- a second authority is exactly what this storage
+migration removed -- so the honest report is that the operation did not happen, and the
+caller may simply try again.
+"""
 
 
 class ProjectActor(BaseModel):
@@ -152,6 +178,17 @@ class TaskClientError(RuntimeError):
         """What the service suggests doing about it."""
         value = self.body.get("suggested_action")
         return str(value) if isinstance(value, str) else None
+
+
+class ServiceUnavailable(TaskClientError):
+    """The AgentJobs service did not answer within the retry budget.
+
+    A distinct type, because the correct response differs from every other client
+    error: nothing was written, so retrying is safe and a caller that can wait should.
+    A subclass of :class:`TaskClientError`, because every existing caller catches that
+    and a new exception type escaping through them would turn a restart into a crash --
+    which is the outcome the retry exists to prevent.
+    """
 
 
 class TaskClient:
@@ -755,20 +792,78 @@ class TaskClient:
             )
         return task
 
-    def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
-        try:
-            response = self._client.request(method, url, **kwargs)
-            response.raise_for_status()
-            return response
-        except httpx.HTTPStatusError as exc:
-            detail = self._extract_error_detail(exc.response)
-            raise TaskClientError(
-                detail,
-                status_code=exc.response.status_code,
-                body=self._extract_error_body(exc.response),
-            ) from exc
-        except httpx.RequestError as exc:
-            raise TaskClientError(f"Request failed: {exc}") from exc
+    def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        replayable: Optional[bool] = None,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        """Send one request, riding through a restart rather than failing on it.
+
+        ``replayable`` says whether re-sending this request can write twice. A read
+        cannot, and a mutation carrying an ``operation_id`` cannot either -- the
+        operation ledger replays the original result instead of writing again, which is
+        precisely what makes a retry safe. Left unset it is inferred from the method and
+        the body, so no caller has to remember.
+
+        The distinction matters for *where* the failure happened. A connect failure is
+        always safe to retry: nothing was accepted. A failure after the connection was
+        made -- a reset mid-flight, a truncated response -- may or may not have been
+        processed, so it is retried only when a replay is harmless. Retrying that
+        blindly is how a handoff gets recorded twice.
+        """
+        if replayable is None:
+            replayable = method.upper() in {"GET", "HEAD"} or bool(
+                (kwargs.get("json") or {}).get("operation_id")
+            )
+
+        last: Optional[Exception] = None
+        for index, pause in enumerate((*RETRY_BACKOFF_SECONDS, None)):
+            try:
+                response = self._client.request(method, url, **kwargs)
+                if response.status_code == 503:
+                    # The tailnet front door answers 503 while nothing is listening,
+                    # rather than resetting the connection, so a restart is a pause a
+                    # client rides through instead of an outage it must reason about.
+                    last = TaskClientError("HTTP 503", status_code=503)
+                    if pause is None:
+                        break
+                    time.sleep(pause)
+                    continue
+                response.raise_for_status()
+                return response
+            except httpx.HTTPStatusError as exc:
+                detail = self._extract_error_detail(exc.response)
+                raise TaskClientError(
+                    detail,
+                    status_code=exc.response.status_code,
+                    body=self._extract_error_body(exc.response),
+                ) from exc
+            except httpx.RequestError as exc:
+                connecting = isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout))
+                if not (connecting or replayable):
+                    raise TaskClientError(f"Request failed: {exc}") from exc
+                last = exc
+                if pause is None:
+                    break
+                logger.debug(
+                    "AgentJobs at %s did not answer (%s); retrying in %.2fs (attempt %d)",
+                    self._base_url,
+                    exc,
+                    pause,
+                    index + 1,
+                )
+                time.sleep(pause)
+
+        raise ServiceUnavailable(
+            f"{SERVICE_UNAVAILABLE}: AgentJobs at {self._base_url} did not answer after "
+            f"{len(RETRY_BACKOFF_SECONDS)} attempts over "
+            f"{sum(RETRY_BACKOFF_SECONDS):.2f}s. The last attempt failed with: {last}. "
+            "Start it with 'agentjobs serve' and run this again -- there is no local "
+            "task store to fall back to, so nothing was recorded anywhere."
+        )
 
     @staticmethod
     def _extract_error_detail(response: httpx.Response) -> str:
