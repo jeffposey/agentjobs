@@ -1012,30 +1012,34 @@ nobody acts on.
 Four children under task-212, sequenced by `dependencies[]`. Each cites its sections here
 rather than restating them.
 
-| # | Task | Depends on | Sections |
-|---|---|---|---|
-| 1 | Amend the SQLite history contract for analytics | — | §6 |
-| 2 | The analytics API endpoint | 1 | §3, §5, §7 |
-| 3 | The analytics page and its charts | 2 | §8, §9, §10 |
-| 4 | The Dashboard entry point | 3 | §11 |
+| Task | Title | `needs` | Sections | Priority |
+|---|---|---|---|---|
+| **task-371** | Fold the analytics history findings into the SQLite contract | — | §6 | critical |
+| **task-372** | The analytics API: one endpoint that answers the four questions | task-371 | §3, §5, §7 | high |
+| **task-373** | The analytics page and its charts | task-372 | §8, §9, §10 | high |
+| **task-374** | The Dashboard's entry point to analytics | task-373 | §11 | high |
 
-**Child 1** is small and belongs to the store rather than to this page, but it is a child
-here because this design is what discovered every item in it. It is not a `needs` edge onto
-task-273's implementation — adding a column or an index is a migration, not a redesign —
-which is the shape the owner chose for the task-213/task-273 relationship generally. It is
-listed first because items A and B in §6.1 are import rules, and an import that has already
-run without them produces a store whose backlog chart is wrong in a way nobody can see.
+**task-371** is small and belongs to the store rather than to this page, but it is a child
+here because this design is what discovered every item in it. It carries no `needs` edge
+onto task-273's implementation — adding a column or an index is a migration, not a
+redesign — which is the shape the owner chose for the task-213/task-273 relationship
+generally. It is **critical** while the other three are **high**, and that is deliberate:
+items A and B in §6.1 are import rules, and an import that has already run without them
+produces a store whose backlog chart is wrong in a way nobody can see, so it has to reach
+task-273 and task-311 before they run. The other three cannot start until the storage
+exists, and parking three unstartable tasks at the head of the critical band would push
+real work down.
 
-**Child 2** cannot be finished before task-273's storage exists, and should say so rather
+**task-372** cannot be finished before task-273's storage exists, and should say so rather
 than inventing a shim: the endpoint's whole value is that it does not parse task documents.
 Its acceptance includes the reconciliation test in §5.3 and the invariant test in §6.1 D.
 
-**Child 3** is the largest and carries §10's chart primitives. It should build the four
-shapes as pure functions with their own unit tests **before** any component, because that is
-the half jsdom can actually verify.
+**task-373** is the largest and carries §10's chart primitives. It builds the four shapes as
+pure functions with their own unit tests **before** any component, because that is the half
+jsdom can actually verify.
 
-**Child 4** is one link and one route registration, and is last because a link to a page
-that does not exist is the one thing task-294 explicitly refused to leave behind.
+**task-374** is one link, and is last because a link to a page that does not exist is the
+one thing task-294 explicitly refused to leave behind.
 
 ---
 
