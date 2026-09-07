@@ -2563,6 +2563,52 @@ class TestLeadingWithTheCause:
         assert "gate.log" in rendered
 
 
+@pytest.fixture()
+def remote(world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> Iterator[Any]:
+    """A real ``RemoteTaskManager`` over a real cut-over project, through the real routes.
+
+    Module level rather than inside the class it was written for (task-388), because
+    task-390 needs the same thing for a different failure: the finish's escalation reached
+    ``record_dispatch`` through one of these and got the refusal it is designed to give.
+    Two classes, one arrangement -- the alternative was a second copy that would drift.
+    """
+    from starlette.testclient import TestClient
+
+    from agentjobs.api.dependencies import reset_dependency_cache
+    from agentjobs.api.main import app
+    from agentjobs.client import TaskClient
+    from agentjobs.cutover import cut_over
+    from agentjobs.projects import ProjectRegistry
+    from agentjobs.remote_manager import RemoteTaskManager
+    from agentjobs.store_factory import close_databases, mark_server_process
+
+    monkeypatch.setenv("AGENTJOBS_HOME", str(world["home"]))
+    # Both caches are process-global and both outlive a test: a handle to the
+    # previous case's database, and the dependency wiring that resolved it.
+    close_databases()
+    reset_dependency_cache()
+    registry = ProjectRegistry(world["home"])
+    registry.add(world["root"], project_id="demo")
+    # The records exist as files at this point -- `world` wrote them there. This is
+    # the same move the real project made on 2026-09-07, and what it changes is the
+    # manager, not the data.
+    cut_over(world["project"], backfill_git=False)
+    reset_dependency_cache()
+
+    # `agentjobs.api.main` declares the server on import, and the import is cached,
+    # so only the first test in a session gets that declaration -- conftest's autouse
+    # teardown zeroes it after every test. Without this the app answers the second
+    # case with `StoreAccessError`, which would look like a product bug and is a
+    # test-session artefact.
+    mark_server_process()
+    connection = TestClient(app)
+    client = TaskClient("http://testserver", client=connection, project_id="demo")
+    yield RemoteTaskManager(client, world["project"])
+    connection.close()
+    close_databases()
+    reset_dependency_cache()
+
+
 class TestWritingTheRecordOverTheService:
     """The manager a finish gets on a project that has cut over to SQLite.
 
@@ -2583,44 +2629,6 @@ class TestWritingTheRecordOverTheService:
     capability gate and the real route -- the half that a stub manager would skip and the
     half this bug lived in.
     """
-
-    @pytest.fixture()
-    def remote(self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> Iterator[Any]:
-        from starlette.testclient import TestClient
-
-        from agentjobs.api.dependencies import reset_dependency_cache
-        from agentjobs.api.main import app
-        from agentjobs.client import TaskClient
-        from agentjobs.cutover import cut_over
-        from agentjobs.projects import ProjectRegistry
-        from agentjobs.remote_manager import RemoteTaskManager
-        from agentjobs.store_factory import close_databases, mark_server_process
-
-        monkeypatch.setenv("AGENTJOBS_HOME", str(world["home"]))
-        # Both caches are process-global and both outlive a test: a handle to the
-        # previous case's database, and the dependency wiring that resolved it.
-        close_databases()
-        reset_dependency_cache()
-        registry = ProjectRegistry(world["home"])
-        registry.add(world["root"], project_id="demo")
-        # The records exist as files at this point -- `world` wrote them there. This is
-        # the same move the real project made on 2026-09-07, and what it changes is the
-        # manager, not the data.
-        cut_over(world["project"], backfill_git=False)
-        reset_dependency_cache()
-
-        # `agentjobs.api.main` declares the server on import, and the import is cached,
-        # so only the first test in a session gets that declaration -- conftest's autouse
-        # teardown zeroes it after every test. Without this the app answers the second
-        # case with `StoreAccessError`, which would look like a product bug and is a
-        # test-session artefact.
-        mark_server_process()
-        connection = TestClient(app)
-        client = TaskClient("http://testserver", client=connection, project_id="demo")
-        yield RemoteTaskManager(client, world["project"])
-        connection.close()
-        close_databases()
-        reset_dependency_cache()
 
     def test_marking_the_branch_merged_survives_the_wire(
         self, world: Dict[str, Any], remote: Any
@@ -2718,7 +2726,7 @@ def make_session_dispatchable(
     question -- the poller and ``resolve_deferred_escalation`` -- both resolve a project
     from the registry rather than being handed one.
     """
-    from agentjobs.projects import ProjectRegistry
+    from agentjobs.projects import ProjectError, ProjectRegistry
 
     from test_dispatch_runner import FAKE_CLI, write_script
 
@@ -2758,7 +2766,11 @@ def make_session_dispatchable(
     (root / ".gitignore").write_text(".agentjobs/\n", encoding="utf-8")
     git(root, "add", "--", ".gitignore")
     git(root, "commit", "-m", "chore: ignore the machine-local config")
-    ProjectRegistry(home=world["home"]).add(root, project_id="demo")
+    registry = ProjectRegistry(home=world["home"])
+    try:
+        registry.get("demo")
+    except ProjectError:
+        registry.add(root, project_id="demo")
     return fake_cli
 
 
@@ -2951,39 +2963,6 @@ class TestTheEscalationsPromiseSurvivesTheRunItDeferredTo:
         assert [record.run_id for record in live_runs(world["home"])] == [handle.run_id]
 
 
-class ServedThroughTheService(TaskManager):
-    """A manager with ``RemoteTaskManager``'s two refusals and nothing else changed.
-
-    The article rather than an imitation of it: both methods raise the same exception
-    with the same message, and
-    ``TestTheHandlerKeepsItsPromiseWhenTheManagerRefuses.test_the_real_remote_manager_still_refuses``
-    below asserts the real class still does -- so a change there fails a test here rather
-    than quietly leaving this standing in for behaviour that no longer exists.
-
-    A real ``RemoteTaskManager`` would need a served project and an HTTP round trip per
-    call, which would make this a test of the server. The defect is on the *finish* side:
-    it handed its service client to the dispatch family, which is documented not to take
-    one. What the client is refusing with is incidental; that it refuses is the point.
-    """
-
-    def record_dispatch(self, task_id: str, *, actor: str, **payload: Any) -> Any:
-        from agentjobs.remote_manager import RemoteStoreUnsupported
-
-        raise RemoteStoreUnsupported(
-            "a run is recorded by the process that started it, not over the service. "
-            "The dispatch family uses store_factory.dispatch_manager_for; see its "
-            "docstring for why that exception exists."
-        )
-
-    def record_dispatch_result(self, task_id: str, *, actor: str, **payload: Any) -> Any:
-        from agentjobs.remote_manager import RemoteStoreUnsupported
-
-        raise RemoteStoreUnsupported(
-            "a run's outcome is recorded by the process that watched it, not over the "
-            "service. See store_factory.dispatch_manager_for."
-        )
-
-
 class TestTheHandlerKeepsItsPromiseWhenTheManagerRefuses:
     """task-390, road two. The docstring said "never raises"; it named two exceptions.
 
@@ -2995,24 +2974,47 @@ class TestTheHandlerKeepsItsPromiseWhenTheManagerRefuses:
     process had already written to the record was left with nobody on it.
     """
 
-    def test_a_finish_holding_a_service_client_still_starts_the_repair(
-        self, world: Dict[str, Any], tmp_path: Path
+    def test_a_red_gate_on_a_served_project_still_starts_the_repair(
+        self, world: Dict[str, Any], remote: Any, tmp_path: Path
     ) -> None:
-        """The fix, stated as the behaviour: the retry path works, it does not park.
+        """The incident, on the arrangement it happened on: a cut-over project.
 
-        On current main this raises ``RemoteStoreUnsupported`` out of ``finish_task``.
+        The manager is a real ``RemoteTaskManager`` over a real cut-over store, reached
+        through the real routes -- which is what makes this road two rather than a
+        rehearsal of it. On the parent commit it raises ``RemoteStoreUnsupported`` out of
+        ``finish_task``, with the traceback the task record carries.
+
+        What it proves about the fix is the *behaviour*, not the plumbing: the retry
+        ENGINEERING.md documents starts a repair session on this backend. Parking would
+        also have stopped the crash and would have been the wrong answer.
         """
-        make_dispatchable(world, tmp_path)
-        approve(world)
+        # The session runner rather than ``make_dispatchable``'s batch one, so no
+        # supervisor thread outlives the test and reaches for a database the fixture has
+        # closed. What is under test is the escalation's manager, not the run's mode.
+        make_session_dispatchable(world, tmp_path)
+        remote.add_log_entry(
+            world["task_id"],
+            actor="Jeff Posey",
+            type=LogEntryType.NOTE,
+            body="Approved. Merge it.",
+        )
         break_the_gate(world)
-        world["manager"] = ServedThroughTheService(TaskStorage(world["root"] / "tasks"))
 
-        result = run(world)
+        result = finish_task(
+            manager=remote,
+            project=world["project"],
+            task_id=world["task_id"],
+            approver="Jeff Posey",
+            home=world["home"],
+            api_base="http://127.0.0.1:1",
+            settings=settings(),
+        )
 
         assert result.outcome == ESCALATED
-        assert result.escalation_dispatch == "dispatched"
-        assert result.dispatched_run_id, result.render()
-        someone_is_actually_there(world)
+        assert result.escalation_dispatch == "dispatched", result.render()
+        assert result.dispatched_run_id
+        task = remote.get_task(world["task_id"])
+        assert task is not None and task.ball is Ball.AGENT
 
     def test_the_real_remote_manager_still_refuses(self) -> None:
         """ac-7's other half. The refusal is deliberate and this fix does not touch it.
