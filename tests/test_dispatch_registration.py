@@ -313,7 +313,7 @@ class TestAdoption:
         assert record.status == "running"
         assert record.session_id == SESSION
         assert record.is_live
-        # `poller._handle_from` skips a run without these two, silently. A registration
+        # `poller.handle_from_record` skips a run without these two, silently. A registration
         # that produced such a run would be adopted by nothing.
         meta = yaml.safe_load((record.path / "meta.yaml").read_text(encoding="utf-8"))
         assert isinstance(meta["dispatch_entry_id"], int)
@@ -366,7 +366,7 @@ class TestThePollerFollowsARegisteredSession:
 
         Before this, a hand-spawned session was never in `live_runs`, so nothing polled
         it and the task read `agent`/`work` for ever. Registering it is the only change:
-        the poller, `_handle_from`, `poll_session` and `_finish_session` are untouched.
+        the poller, `handle_from_record`, `poll_session` and `_finish_session` are untouched.
         """
         _register(bench)
 

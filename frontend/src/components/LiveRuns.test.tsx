@@ -205,6 +205,16 @@ describe("the Runs tab", () => {
     expect(screen.queryByText("Working")).toBeNull();
   });
 
+  it("says feedback is waiting rather than that the run is working (task-384)", () => {
+    // The pair that made a person wait fifty minutes: a task reading "Revising" beside a
+    // live run. Both "working" and "feedback waiting" were true; only one of them answers
+    // the question the reader has, so `run_health` renders this one and this asserts it
+    // reaches the badge rather than falling through to the raw value.
+    renderIn(<LiveRunsPage body={body({ occupied: 1, runs: [run({ health: "handback" })] })} />);
+    expect(screen.getByText("Feedback waiting")).toHaveAttribute("data-health", "handback");
+    expect(screen.queryByText("Working")).toBeNull();
+  });
+
   it("says a batch run whose process is gone is not working", () => {
     renderIn(<LiveRunsPage body={body({ occupied: 1, runs: [run({ health: "orphaned" })] })} />);
     expect(screen.getByText("Process gone")).toHaveAttribute("data-health", "orphaned");

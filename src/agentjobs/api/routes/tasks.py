@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from agentjobs.actors import UnknownActorError, validate_actor
 from agentjobs.principals import Principal
 from agentjobs.attachments import AttachmentError, AttachmentPayload
-from agentjobs.dispatch.auto import maybe_auto_dispatch
+from agentjobs.dispatch.handback import deliver_handback, record_handback
 from agentjobs.dispatch.finish import finish_is_offered, spawn_finish
 from agentjobs.operations import OperationConflictError, RevisionConflictError
 from agentjobs.projects import Project
@@ -669,16 +669,25 @@ def after_human_handoff(
     finishable: bool = False,
     approver: str = "",
 ) -> Task:
-    """Start an agent if this project opted into auto-dispatch, and never fail.
+    """Get the human's handback to the agent it is addressed to, and never fail.
 
     Called after a human action that has already been written, so the task's newest log
     entry is that human act -- which is what makes the human-clocked check in
-    ``maybe_auto_dispatch`` mean something rather than being circular.
+    ``deliver_handback`` mean something rather than being circular, and what lets it
+    leave ``caused_by`` unset.
 
     The approval succeeded before this ran, so nothing here may turn it into an error.
-    Auto-dispatch reports its own refusals onto the task record and returns rather than
-    raising; the task is re-read afterwards so the caller answers with what is now on
-    disk, including a run that just started or a cap that just parked it.
+    Delivery reports every outcome onto the task record and returns rather than raising;
+    the task is re-read afterwards so the caller answers with what is now on disk,
+    including a run that just started, a session just woken, or a cap that just parked it.
+
+    **Until task-384 this called ``maybe_auto_dispatch`` and threw the outcome away**, so
+    the commonest outcome of all -- a refusal because the session that asked for the
+    review was still up -- reached nobody, and the dashboard read *Revising (claude)*
+    beside a live run that had never been told. ``deliver_handback`` both settles that
+    session when it has gone idle, so the wake can reach it, and writes exactly one entry
+    whatever happens. See ``dispatch/handback.py`` for why the live run is the normal case
+    rather than an edge one.
 
     ``request`` is taken purely for the serving address, so an agent started by Approve
     is told the same thing as one started by Dispatch. The two paths reaching different
@@ -700,13 +709,15 @@ def after_human_handoff(
         spawn_finish(project=project, task_id=task.id, approver=approver or "a human")
         return manager.get_task(task.id) or task
 
-    outcome = maybe_auto_dispatch(
+    config = project_config(project)
+    outcome = deliver_handback(
         manager=manager,
         project=project,
-        project_config=project_config(project),
+        project_config=config,
         task=task,
         api_base=serving_api_base(request),
     )
+    record_handback(manager, task, outcome)
     if not outcome.considered:
         return task
     return manager.get_task(task.id) or task
