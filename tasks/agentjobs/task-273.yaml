@@ -2,11 +2,21 @@ schema: 2
 id: task-273
 title: Build authoritative SQLite task storage alongside the AgentJobs server
 created: '2026-08-22T19:00:47.987602Z'
-updated: '2026-09-07T02:25:13.971392Z'
+updated: '2026-09-07T03:01:13.771407Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: 'Review `feat/task-273-sqlite-store` (3 commits on `73e07f92`). Full
+  gate green, all 10 stages, receipt written.
+
+
+  The store is built and deliberately not switched on -- task-311 flips the authority.
+  Entry 42 has the measurements and the four history bugs found and fixed.
+
+
+  One thing to look at rather than take on trust: I changed the design in three places
+  because the corpus contradicted it, and the biggest is that `task_run` is no longer
+  authoritative for how a run ended.'
 archived: false
 priority: critical
 queue_position: 893
@@ -134,7 +144,9 @@ dependencies:
   note: Coordinate queryable historical state and metrics contract; analytics design
     can proceed before backend implementation.
 links: []
-branches: []
+branches:
+- name: feat/task-273-sqlite-store
+  status: active
 log:
 - id: 1
   ts: '2026-08-22T19:00:48.504023Z'
@@ -1707,3 +1719,143 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 42
+  ts: '2026-09-07T03:00:33.807738Z'
+  actor: claude
+  type: progress
+  body: "## Built. Branch `feat/task-273-sqlite-store`, gate green on `73e07f92`.\n\
+    \nThe store from entries 17-19 and 36 exists and is tested. **It is not switched\
+    \ on** --\ntask-311 owns the cutover, and the live authority is still YAML.\n\n\
+    ### What landed\n\n`src/agentjobs/sqlstore/` -- `migrations/001_initial.sql` (the\
+    \ schema), `connection.py`\n(single writer, WAL, `FULL`, reentrant `BEGIN IMMEDIATE`\
+    \ transactions), `migrations.py`\n(numbered forward-only steps, refuses a database\
+    \ newer than the code), `store.py`\n(`SqlTaskStore`), `blobs.py`, `importer.py`,\
+    \ `backfill.py`, `backup.py`.\n`src/agentjobs/storage_protocol.py` is the boundary.\
+    \ `docs/storage-sqlite.md` is the\nprose; `docs/schema-design.md` section 7 now\
+    \ carries a SUPERSEDED banner (ac-5).\n\n49 tests across `tests/test_sqlstore.py`\
+    \ and `tests/test_sqlstore_analytics.py`.\n\n### Measured on the live 371-task\
+    \ corpus\n\n| | |\n|---|---|\n| import with git backfill | 6.1 s, 2,026 events,\
+    \ 7 blobs, **13.8 MB** |\n| backlog invariant after import | **128 = 128** |\n\
+    | round-trip fidelity | **370 of 371 documents identical**; the one difference\
+    \ is `merged_at` normalised from `-05:00` to the same instant in `Z` |\n| assemble\
+    \ all 371 full documents | **84 ms** (YAML: 567 ms to parse the same corpus) |\n\
+    | summary-column listing | **~1 ms** |\n| online snapshot | **59 ms**, one 13.6\
+    \ MB file, verified restorable |\n\n### The design changed in three places, each\
+    \ because data contradicted it\n\n1. **`task_run` is not authoritative for how\
+    \ a run ended.** Entry 17 said it was. Two run\n   ids in this corpus carry *two*\
+    \ `dispatch_result` entries each -- interrupted at 22:27,\n   completed at 22:31,\
+    \ both true -- and one row cannot hold two outcomes. `dispatch` is\n   unique\
+    \ per run id (167 of 167) and still renders from the row; the terminal payload\n\
+    \   stays on the entry, and `task_run.ended_at` is a documented latest-observed\
+    \ projection\n   for the \"runs in the air\" index.\n2. **`blob.content` is `NOT\
+    \ NULL` and the `path` escape hatch is gone.** Entry 19 kept a\n   column pair\
+    \ so fork 2 could be revisited without a migration. With the fork answered,\n\
+    \   a permanently half-used CHECK is worse than the one-line additive migration\
+    \ it saves.\n3. **History fidelity is 84%, not the 89% task-213 measured.** Reported\
+    \ as measured\n   rather than rounded toward their figure; the residual is itemised\
+    \ below.\n\n### History: what the past can honestly say\n\nReplaying the log and\
+    \ comparing each task against its own record:\n\n| | tasks needing reconciliation\
+    \ |\n|---|---|\n| log replay alone | 371 / 371 |\n| + manager semantics for entries\
+    \ recording a lifecycle without its ball | 161 |\n| + git backfill | 84 |\n| +\
+    \ close clears the queue position; a claim's actor is its owner | **59** |\n\n\
+    Four bugs were found and fixed getting there, three of which would have shipped\
+    \ silently:\n\n- **A missing `-` line in a diff is not evidence of a creation\
+    \ value.** `archived:` and\n  `parent:` did not exist until the schema-v2 migration\
+    \ added them to every record, so\n  each arrives as an addition with nothing on\
+    \ the left, on a months-old file. Treating\n  those as creation values backdated\
+    \ them and lost 39 real parent changes.\n- **Git emits a local offset, the manager\
+    \ emits `Z`.** Storing both misordered events\n  under a string sort *and* put\
+    \ changes in the wrong day bucket -- which would have\n  broken every chart on\
+    \ the analytics page. Everything is normalised to UTC on entry.\n- **A synthesised\
+    \ creation seeded `parent: None`, and `setdefault` then beat git to it**,\n  discarding\
+    \ every backfilled parent.\n- **Closing never cleared `queue_position` in the\
+    \ replay**, so every closed task\n  disagreed on that axis.\n\nThe **59 remaining**\
+    \ are residual by design, and both categories are named in\n`docs/storage-sqlite.md`:\
+    \ 35 tasks predate schema v2 and have no `ball` history anywhere\n(git could see\
+    \ the field, but `ball` is not in the backfill contract agreed with\ntask-213,\
+    \ and widening it unilaterally is the exact coordination that contract exists\
+    \ to\nprevent -- recorded as a candidate, not done); 22 have `lifecycle`/`outcome`\
+    \ git could\nsupply and must not, per Rule B.\n\n### task-213's four asks are\
+    \ all in\n\n`ix_task_counts` (E), `ix_event_source` (F), the parent FK `DEFERRABLE\
+    \ INITIALLY\nDEFERRED` (G), `reporting_tz` documented and used as an IANA zone\
+    \ name rather than an\noffset (C), `mechanical` populated (H), and the reconciliation\
+    \ invariant asserted in this\nsuite (D) -- including after a backup/restore round\
+    \ trip, which their item names\nexplicitly. Rules A and B from their sections\
+    \ 4.3 and 4.4 are implemented in\n`backfill.py` with the measurements next to\
+    \ the code.\n\n### Two bugs the tests caught in my own code\n\nWorth naming because\
+    \ they are the kind that pass review:\n\n- `snapshot()` reached for the shared\
+    \ writer connection with no lock, so it raced any\n  in-flight transaction (`cannot\
+    \ VACUUM from within a transaction` under load). Fixed\n  with `Database.exclusive()`,\
+    \ which refuses rather than waits when the calling thread is\n  itself mid-transaction.\n\
+    - The snapshot and its manifest were taken under **two** separate holds of that\
+    \ lock, so\n  a concurrent write landed between them and the manifest described\
+    \ a database one row\n  ahead of the file beside it -- surfacing later as a restore\
+    \ refusing a good snapshot.\n\n### Against the acceptance criteria\n\n- **ac-1**\
+    \ -- partial by design. The backend exists, is project-scoped and has no\n  fallback\
+    \ path; it is not yet *the* authority, which is task-311's job and is excluded\n\
+    \  by this task's own constraints.\n- **ac-2** -- met. Plans asserted, including\
+    \ one test that the plan is unchanged at 20x.\n- **ac-3** -- met. Concurrent claim,\
+    \ 8-way concurrent log append, atomic band reorder,\n  rolled-back transaction,\
+    \ replay and duplicate-slot refusal.\n- **ac-4** -- met. Snapshot under load,\
+    \ isolated verify, refusal of a corrupt snapshot,\n  restore keeping what it replaced.\n\
+    - **ac-5** -- met for shape and docs; the API/MCP surface is unchanged because\
+    \ nothing is\n  repointed at the store yet.\n- **ac-6** -- met. Full gate green;\
+    \ measurements above and at 20x in the analytics tests.\n"
+  data:
+    operation:
+      id: c3a4b5d6-1f2e-4839-9a7b-4e6c0d83f2b9
+      kind: log_append
+      fingerprint: acb0bdc5d0d6fd6ddc32fdf2293ac2cf
+- id: 43
+  ts: '2026-09-07T03:00:56.348415Z'
+  actor: claude
+  type: handoff
+  body: "Built, tested and gated. Nothing merged; posture prompt said hand off.\n\n\
+    **Branch** `feat/task-273-sqlite-store`, three commits, rebased on `main`, gate\
+    \ green on `73e07f92` (10/10 stages, 272 s, receipt written). Worktree at `../worktrees/agentjobs-273`.\n\
+    \n**What it is.** `src/agentjobs/sqlstore/` \u2014 schema, migrations, store,\
+    \ blobs, importer, git backfill, backup/restore \u2014 plus `src/agentjobs/storage_protocol.py`\
+    \ as the boundary and `docs/storage-sqlite.md` as the prose. `docs/schema-design.md`\
+    \ \xA77 now carries a SUPERSEDED banner. 49 tests.\n\n**Measured on the real 371-task\
+    \ corpus.** Import with backfill 6.1 s \u2192 13.8 MB; backlog invariant 128 =\
+    \ 128; 370 of 371 documents round-trip byte-identical (the one difference is a\
+    \ timezone normalisation of the same instant); assembling all 371 full documents\
+    \ 84 ms against 567 ms to parse the same corpus as YAML; online snapshot 59 ms,\
+    \ verified restorable.\n\n**Three design changes, each forced by data rather than\
+    \ preference.** The one worth your attention: entry 17 claimed `task_run` was\
+    \ authoritative for dispatch *results*. It cannot be \u2014 two run ids in this\
+    \ corpus carry two `dispatch_result` entries each (interrupted, then completed)\
+    \ and a row holds one outcome. Dispatch facts still render from the row; results\
+    \ stay on the entry. The other two are in entry 42.\n\n**History is 84% exact,\
+    \ not the 89% task-213 measured.** Reported as measured. Four bugs were found\
+    \ getting there, three of which would have shipped silently \u2014 including git\
+    \ and the manager writing timestamps in different formats, which would have put\
+    \ changes in the wrong day bucket and broken every chart on the analytics page.\n\
+    \n**What I did not do.** The cutover, the CLI-to-HTTP conversion, and backfilling\
+    \ `ball` history \u2014 the last because `ball` is not in the backfill contract\
+    \ agreed with task-213, and widening it unilaterally is the coordination that\
+    \ contract exists to prevent. All three are named in the doc.\n\n**One thing to\
+    \ decide at some point, not now.** This task's record is large enough that returning\
+    \ it overruns an MCP response budget; every write this session came back over\
+    \ the limit while succeeding. It is a concrete argument for the store's write\
+    \ verbs returning a summary plus the affected entry rather than the whole task\
+    \ and its log.\n"
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: d4b5c6e7-2a3f-4940-8b6c-5f7d1e94a3ca
+      kind: handoff
+      fingerprint: 12cfb7413893562803dac1e63b1c6be0
+- id: 44
+  ts: '2026-09-07T03:01:13.770896Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: e5c6d7f8-3b4a-4051-9c7d-6a8e2f05b4db
+      kind: update_content
+      fingerprint: a50d2f571d55b68e7f563f069e90833b
