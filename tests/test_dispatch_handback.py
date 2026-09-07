@@ -142,7 +142,9 @@ def seed_task(root: Path) -> str:
     return task.id
 
 
-def fake_live_run(home: Path, task_id: str, *, run_id: str = "run_live", mode: str = "batch") -> Path:
+def fake_live_run(
+    home: Path, task_id: str, *, run_id: str = "run_live", mode: str = "batch"
+) -> Path:
     """A run directory that is live, as far as every reader in the system is concerned.
 
     ``batch`` by default and not ``session``: a session run is one the handback path will

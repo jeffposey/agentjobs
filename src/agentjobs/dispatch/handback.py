@@ -240,9 +240,7 @@ def _mark_pending(record: RunRecord, entry_id: int) -> None:
 
 def _blocked_body(task: Task, records: List[RunRecord]) -> str:
     """What the record says when a live run stands between the click and the agent."""
-    named = ", ".join(
-        f"`{record.run_id}` ({run_health(record)})" for record in records
-    )
+    named = ", ".join(f"`{record.run_id}` ({run_health(record)})" for record in records)
     return (
         f"The ball moved to the agent, and {task.id} already has a live run: {named}. "
         "Nothing new was started -- one live run per task, always, because a second "

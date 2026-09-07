@@ -35,9 +35,7 @@ from agentjobs.models_v2 import DispatchMode
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
 from agentjobs.store_factory import TaskManagerLike, dispatch_manager_for
 
-TERMINAL_PHASES = frozenset(
-    {SessionPhase.FINISHED, SessionPhase.STOPPED, SessionPhase.GONE}
-)
+TERMINAL_PHASES = frozenset({SessionPhase.FINISHED, SessionPhase.STOPPED, SessionPhase.GONE})
 """The phases after which the run is over and its task's lock is free again.
 
 The same set ``PollResult.acted`` names, hoisted so the handback delivery below and that

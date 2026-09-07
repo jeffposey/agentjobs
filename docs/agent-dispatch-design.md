@@ -1963,6 +1963,68 @@ in response to an HTTP request.
 
 ---
 
+### 5b. The handback that reached nobody (task-384, 2026-09-07)
+
+Everything in §5 is about the moment a human sends work *to* an agent, and it was
+correct about the write and wrong about what follows it. Requesting changes handed the
+ball to `agent`/`revise` with the feedback in the prompt, exactly as designed -- and then
+nothing happened, and nothing said why. Observed on task-230: the dashboard read
+*Revising (claude)* beside a live run, and the work moved only when a person typed into
+that session by hand.
+
+**Two things were true at once, and each is correct in isolation.** `dispatch_task`
+refuses a task that already has a live run, because a second would put two agents on one
+branch with one task record. And `find_wake_target` offers no wake for a run that is
+still live, because "resume or start" is not its question while something is running.
+Between them sits the state neither owns: a `--bg` session that has handed off is
+**alive and idle**, which is what every session is at the exact moment its review lands.
+
+**So the failure was a race by construction, not an unlucky afternoon.** The
+notification that brings the human to the page *is* the handoff. The run becomes terminal
+only when the poller next observes the session idle -- up to `SESSION_POLL_SECONDS`
+later -- so the window in which a click meets a live run is precisely the window in which
+a human is most likely to click.
+
+`dispatch/handback.py` closes it from both ends, and adds no new judgement of its own:
+
+- **On the click**, it polls the task's live run once, immediately, through
+  `DispatchRunner.poll_session` -- the poller's own call, not a second opinion about when
+  a session is done. A session the poller would settle is settled now instead of in ten
+  seconds; one it would leave alone is left alone. Then the ordinary dispatch runs, and
+  §8's wake resumes the conversation rather than starting a rival.
+- **On the poll**, for a run that was genuinely working when the click landed, the poller
+  delivers the same handback as it settles the run. This is the half a click cannot do
+  for itself, and it is re-derived from the task and the run rather than remembered, so
+  it survives a restart of the server that received the click.
+
+**The human-clocked rule is satisfied, not bypassed.** By the time the poller delivers,
+AgentJobs' own `dispatch_result` is the newest entry, and a dispatch attributed to that
+is refused as an agent's -- correctly. So the delivery names the human's handoff entry
+explicitly as `caused_by`, and `assert_human_clocked` runs on that entry like any other.
+A run's own dispatch entry bounds which handoffs count: only one written *after* the run
+started is feedback the run has not been given, which is what stops every settling run
+re-dispatching its own task.
+
+**And every outcome writes exactly one entry.** That is the half that turns a repeat
+occurrence from a mystery into a sentence, and it is why `AutoDispatchOutcome` carries
+`recorded`: a started dispatch and a tripped budget cap have already written their own,
+so a caller that narrates every unrecorded outcome must be able to tell them apart.
+Writing twice is as wrong as writing nothing -- it just fails more loudly. Configuration
+is exempt (`QUIET_REASONS`): a machine that does not dispatch refuses every handback
+there will ever be, and a note on each would be silence reached from the other side.
+
+Ledger-side, a live run that has been told about a handback it has not been given carries
+`handback_pending`, and `run_health` renders that ahead of `working`. Both are true;
+*feedback waiting* is the one that answers the reader's question, and it was *Revising*
+beside a long-running run that made a person wait rather than look.
+
+**Verified end to end** on 2026-09-07 against a real dispatched session in a sandbox
+project, and the task record is the evidence: the click was refused and recorded ("the
+ball moved to the agent, and task-001 already has a live run"), the run then settled, and
+the delivery started a run whose meta reads `resumed: true`, `resumed_from:
+run_f06c2fe6`, `caused_by: 5` -- entry 5 being the human's own Request Changes. One live
+run for the task throughout.
+
 ## 5a. What *ends* a dispatch: the scripted finish (task-241, shipped)
 
 Not in the original design, because in the original design a human approval woke an agent
