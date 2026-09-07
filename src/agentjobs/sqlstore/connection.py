@@ -65,6 +65,7 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._write_lock = threading.RLock()
         self._depth = 0
+        self._savepoints = 0
         self._writer = sqlite3.connect(
             str(self.path), isolation_level=None, check_same_thread=False
         )
@@ -140,6 +141,37 @@ class Database:
                 self._depth -= 1
                 if outermost:
                     self._writer.execute("COMMIT")
+
+    @contextmanager
+    def savepoint(self, name: str = "sp") -> Iterator[sqlite3.Connection]:
+        """One individually-revertible unit inside the open write transaction.
+
+        The import needs this and nothing else does yet. A whole import is one
+        transaction, which is what makes an interruption leave nothing behind -- but it
+        also means a *single* record that fails halfway through being written leaves its
+        half in place, because ``write()`` is reentrant and only the outermost block
+        rolls back. The importer quarantined such a record and carried on, and the
+        partial row stayed: a task that read as valid with most of its log missing
+        (found by the task-311 sandbox, on a corpus whose attachment sidecars were
+        absent).
+
+        A savepoint makes "the record was not imported" true of the database as well as
+        of the report, without giving up the one-transaction property the whole import
+        depends on.
+        """
+        counter = self._savepoints
+        self._savepoints += 1
+        label = f"{name}_{counter}"
+        with self._write_lock:
+            self._writer.execute(f"SAVEPOINT {label}")
+            try:
+                yield self._writer
+            except BaseException:
+                self._writer.execute(f"ROLLBACK TO {label}")
+                self._writer.execute(f"RELEASE {label}")
+                raise
+            else:
+                self._writer.execute(f"RELEASE {label}")
 
     @contextmanager
     def exclusive(self) -> Iterator[sqlite3.Connection]:

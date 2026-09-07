@@ -396,7 +396,13 @@ class CorpusImporter:
         for path, document in documents:
             task = Task.model_validate(document)
             try:
-                self.store.save_task(task, _record_history=False)
+                # Inside a savepoint, so a record that fails *halfway* through being
+                # written leaves nothing rather than a partial row. Without it the task
+                # row and the log entries inserted before the failure survived -- the
+                # whole import being one transaction, only the outermost block rolls
+                # back -- and the record then read as valid with most of its log gone.
+                with self.database.savepoint("import_task"):
+                    self.store.save_task(task, _record_history=False)
             except Exception as exc:  # noqa: BLE001 - the file is the suspect, not us
                 self._quarantine(path, yaml.safe_dump(document, sort_keys=False), str(exc)[:2000])
                 report.quarantined.append((path.name, str(exc)[:160]))

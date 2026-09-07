@@ -291,9 +291,7 @@ class TestTheVerbsOverTheService:
         assert remote.check_queue() == []
 
     def test_a_move_reports_what_it_did(self, remote: RemoteTaskManager) -> None:
-        outcome = remote.move_with_warnings(
-            "task-002", actor="Jeff Posey", placement=Placement(kind=Placement.TOP)
-        )
+        outcome = remote.move_with_warnings("task-002", actor="Jeff Posey", top=True)
         assert isinstance(outcome, MoveOutcome)
         assert outcome.task.id == "task-002"
         head = remote.get_next_task()
@@ -319,6 +317,81 @@ class TestTheVerbsOverTheService:
         )
         assert created.id not in {"task-001", "task-002"}
         assert remote.get_task(created.id) is not None
+
+    def test_create_supplies_the_summary_the_local_manager_defaults(
+        self, remote: RemoteTaskManager
+    ) -> None:
+        # The CLI never had to pass one: the local manager falls back to the title. The
+        # REST surface requires it, so without the same fallback a `create` that had
+        # always worked would start failing the moment its project migrated.
+        created = remote.create_task(
+            actor="claude",
+            title="No summary given",
+            description="Body",
+            category="infrastructure",
+            id=None,
+        )
+        assert created.spec.summary == "No summary given"
+
+
+class TestEveryVerbIsActuallyCalled:
+    """Presence is not enough, and this class exists because it was not.
+
+    ``test_every_method_the_cli_and_dispatch_use_exists_on_both`` passed while
+    ``promote_task`` raised ``TypeError`` on its first real call: the client requires an
+    ``expected_revision`` that the local manager computes for itself inside the
+    transaction, and the facade was not supplying one. A hasattr check cannot see that.
+    Each verb below is called once, with the arguments its CLI caller passes.
+    """
+
+    def test_promote(self, remote: RemoteTaskManager) -> None:
+        created = remote.create_task(
+            actor="claude", title="A draft", description="Body", category="infrastructure"
+        )
+        promoted = remote.promote_task(created.id, actor="claude")
+        assert promoted.lifecycle is Lifecycle.READY
+
+    def test_release(self, remote: RemoteTaskManager) -> None:
+        remote.claim_task("task-001", agent="claude")
+        released = remote.release_task("task-001", actor="claude", body="Not mine after all")
+        assert released.ball is Ball.AGENT
+        assert released.assignment.owner is None
+
+    def test_update_content(self, remote: RemoteTaskManager) -> None:
+        updated = remote.update_task("task-002", actor="claude", effort="about a day")
+        assert updated.effort == "about a day"
+
+    def test_progress(self, remote: RemoteTaskManager) -> None:
+        after = remote.add_progress_update(
+            task_id="task-002", author="claude", summary="Halfway", details="More detail"
+        )
+        assert any("Halfway" in (entry.body or "") for entry in after.log)
+
+    def test_redact(self, remote: RemoteTaskManager) -> None:
+        after = remote.redact(
+            "task-002",
+            field="spec.description",
+            replacement="[removed]",
+            reason="it quoted a person",
+            actor="Jeff Posey",
+        )
+        assert after.spec.description == "[removed]"
+
+    def test_repair_and_compact(self, remote: RemoteTaskManager) -> None:
+        report = remote.repair_queue()
+        # A healthy queue needs no repair, and the report says so rather than churning.
+        assert report.assigned == ()
+        assert remote.compact_band(Priority.HIGH) is not None
+
+    def test_subtasks(self, remote: RemoteTaskManager) -> None:
+        child = remote.create_task(
+            actor="claude",
+            title="A child",
+            description="Body",
+            category="infrastructure",
+            parent="task-001",
+        )
+        assert [task.id for task in remote.get_subtasks("task-001")] == [child.id]
 
 
 class TestWhatItRefuses:

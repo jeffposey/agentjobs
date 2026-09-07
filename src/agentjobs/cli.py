@@ -71,7 +71,7 @@ from .quotation import scan_task
 from .sqlstore import CorpusAlreadyImported, QuotationPolicyError
 from .storage_config import load_storage_settings
 from .storage import TaskStorage, corpus_snapshot
-from .store_factory import dispatch_manager_for, task_manager_for
+from .store_factory import TaskManagerLike, dispatch_manager_for, task_manager_for
 
 
 def _make_output_encoding_safe() -> None:
@@ -163,12 +163,27 @@ def _resolve_tasks_dir(base_dir: Path, config: dict) -> Path:
     return tasks_dir
 
 
-def _build_manager(base_dir: Path) -> TaskManager:
-    """Instantiate a TaskManager for the current project."""
-    config = _load_config(base_dir)
-    tasks_dir = _resolve_tasks_dir(base_dir, config)
-    storage = TaskStorage(tasks_dir)
-    return TaskManager(storage)
+def _build_manager(base_dir: Path) -> TaskManagerLike:
+    """A manager for the project this directory belongs to.
+
+    **Resolved through the registry first, and the directory only as a fallback.** The
+    registry is what knows a project's *id*, and the id is what says which backend holds
+    its tasks -- so a command that went straight to ``base_dir/tasks`` would happily read
+    a directory the machine no longer considers authoritative and report a backlog that
+    is months out of date. Observed in the task-311 sandbox: with the project migrated
+    and the whole corpus still sitting in a worktree, ``agentjobs list`` answered from
+    the files and ``agentjobs create`` wrote one. That is the coupling this migration
+    exists to remove, so the resolution has to happen here rather than at each call site.
+
+    The fallback is the case the registry cannot answer: a directory that is not inside
+    any registered project. That is on files by definition -- a cutover is recorded
+    against a registered id -- so reading it is right.
+    """
+    try:
+        project = ProjectRegistry().resolve_default(base_dir)
+    except ProjectError:
+        return TaskManager(TaskStorage(_resolve_tasks_dir(base_dir, _load_config(base_dir))))
+    return task_manager_for(project)
 
 
 def _mcp_base_url(port: int) -> tuple[str, bool]:
@@ -803,15 +818,19 @@ def create(
     """
     base_dir = Path.cwd()
     config = _load_config(base_dir)
-    tasks_dir = _resolve_tasks_dir(base_dir, config)
-    manager = TaskManager(TaskStorage(tasks_dir))
+    manager = _build_manager(base_dir)
 
     title = title or typer.prompt("Title")
     description = (
         description if description is not None else typer.prompt("Description", default="")
     )
 
-    task_id = id or manager.storage.generate_task_id()
+    # No id is reserved in advance when the server owns them: it allocates one inside
+    # the transaction that creates the task, which is the only place two concurrent
+    # creates cannot pick the same number.
+    task_id = id
+    if task_id is None and getattr(manager.storage, "supports_task_files", True):
+        task_id = manager.storage.generate_task_id()
     task = manager.create_task(
         id=task_id,
         title=title,

@@ -39,7 +39,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from .client import TaskClient
 from .manager import (
@@ -202,6 +202,33 @@ class RemoteStorage:
 
     load_task_uncached = load_task
 
+    def load_all(self) -> Any:
+        """Every task, plus whatever the server reports as broken, in the file shape.
+
+        ``LoadResult`` is what the listing and validation surfaces consume. The broken
+        half comes from ``/tasks/broken`` rather than being assumed empty: a migrated
+        project can still hold quarantined records from its import, and a listing that
+        quietly reported none would hide exactly the records an operator needs to see.
+        """
+        from .storage import LoadResult, TaskLoadError
+
+        errors = [
+            TaskLoadError(
+                Path(str(record.get("path") or record.get("filename") or "?")),
+                str(record.get("reason") or "unreadable"),
+            )
+            for record in self._client.read_broken_tasks()
+        ]
+        return LoadResult(tasks=self.list_tasks(), errors=errors)
+
+    @property
+    def attachments(self) -> Any:
+        """Refused: attachment bytes live in the store and are read through the API."""
+        raise RemoteStoreUnsupported(
+            "attachment bytes for this project are in the AgentJobs database and are "
+            "read through the API, not from a directory on this machine."
+        )
+
     def refresh(self) -> None:
         """No-op: there is no local snapshot to invalidate."""
 
@@ -289,17 +316,31 @@ class RemoteTaskManager:
         return [self.client._parse_task(item) for item in payload]
 
     def explain_next(
-        self, priority: Optional[Priority] = None, *, agent: Optional[str] = None
+        self,
+        priority: Optional[Priority] = None,
+        *,
+        agent: Optional[str] = None,
+        parent: Optional[str] = None,
     ) -> NextExplanation:
         """Why this task is next, and every open task it stands in front of."""
+        del parent  # the route explains the whole queue; a parent narrows selection only
         return _explanation(
             self.client.explain_next_task(
                 priority=self.client._enum_to_str(priority) if priority else None, agent=agent
             )
         )
 
-    def queue_listing(self, *, agent: Optional[str] = None) -> QueueListing:
-        """The whole open backlog in queue order, band by band, plus what is broken."""
+    def queue_listing(
+        self, *, agent: Optional[str] = None, actors: Optional[Mapping[str, str]] = None
+    ) -> QueueListing:
+        """The whole open backlog in queue order, band by band, plus what is broken.
+
+        ``actors`` is the project vocabulary the local manager takes because it reads
+        config from disk. The server already knows its own project vocabulary and stamps
+        each entry provenance with it, so a copy sent by the caller would be a second
+        opinion rather than the first.
+        """
+        del actors
         return _listing(self.client.queue(agent=agent))
 
     def check_queue(self) -> List[QueueProblem]:
@@ -348,14 +389,30 @@ class RemoteTaskManager:
     # ----- the verbs --------------------------------------------------------
 
     def create_task(self, **fields: Any) -> Task:
-        """File a task. Returns it as stored, with the id the server allocated."""
+        """File a task. Returns it as stored, with the id the server allocated.
+
+        ``summary`` falls back to the title, which is what the local manager does when a
+        caller omits it (``spec_payload.setdefault("summary", summary or title)``). The
+        REST surface requires it, so without this a CLI ``create`` that had always
+        worked would start failing the moment its project migrated -- for a field the
+        caller never had to supply.
+        """
         actor = fields.pop("actor", None) or fields.pop("author", None) or "claude"
+        fields = {key: value for key, value in fields.items() if value is not None}
+        fields.setdefault("summary", fields.get("title", ""))
+        fields.setdefault("description", "")
         return self.client.operations.create(actor=actor, operation_id=_operation_id(), **fields)
 
     def promote_task(self, task_id: str, *, actor: str, **rest: Any) -> Task:
         """Draft becomes ready and claimable."""
+        rest.pop("operation_id", None)
+        expected = rest.pop("expected_revision", None)
         return self.client.operations.promote(
-            task_id, actor=actor, operation_id=_operation_id(), **rest
+            task_id,
+            actor=actor,
+            operation_id=_operation_id(),
+            expected_revision=expected or self._revision(task_id),
+            **rest,
         ).task
 
     def claim_task(self, task_id: str, *, agent: str, **rest: Any) -> Task:
@@ -482,25 +539,28 @@ class RemoteTaskManager:
         self,
         task_id: str,
         *,
+        before: Optional[str] = None,
+        after: Optional[str] = None,
+        top: bool = False,
+        bottom: bool = False,
+        with_children: bool = False,
         actor: str,
-        placement: Placement,
-        reason: Optional[str] = None,
-        band: Optional[Priority] = None,
-        **rest: Any,
+        body: Optional[str] = None,
+        operation_id: Optional[str] = None,
+        expected_revision: Optional[datetime | str] = None,
     ) -> MoveOutcome:
         """Move a task within its band, reporting what the move is worth saying."""
-        del rest
-        del band  # a move never changes a band; that is `reprioritize`
         result = self.client.operations.queue_move(
             task_id,
             actor=actor,
-            operation_id=_operation_id(),
-            expected_revision=self._revision(task_id),
-            before=placement.target if placement.kind == Placement.BEFORE else None,
-            after=placement.target if placement.kind == Placement.AFTER else None,
-            top=placement.kind == Placement.TOP,
-            bottom=placement.kind == Placement.BOTTOM,
-            body=reason,
+            operation_id=operation_id or _operation_id(),
+            expected_revision=expected_revision or self._revision(task_id),
+            before=before,
+            after=after,
+            top=top,
+            bottom=bottom,
+            with_children=with_children,
+            body=body,
         )
         return MoveOutcome(
             task=result.task,
@@ -508,15 +568,30 @@ class RemoteTaskManager:
             undo=_placement(result.queue_undo),
         )
 
-    def reprioritize(self, task_id: str, *, actor: str, priority: Priority, **rest: Any) -> Task:
+    def reprioritize(
+        self,
+        task_id: str,
+        priority: Priority,
+        *,
+        before: Optional[str] = None,
+        after: Optional[str] = None,
+        top: bool = False,
+        actor: str,
+        body: Optional[str] = None,
+        operation_id: Optional[str] = None,
+        expected_revision: Optional[datetime | str] = None,
+    ) -> Task:
         """Move a task into another band, placing it there rather than guessing."""
-        del rest
         return self.client.operations.reprioritize(
             task_id,
             actor=actor,
-            operation_id=_operation_id(),
-            expected_revision=self._revision(task_id),
+            operation_id=operation_id or _operation_id(),
+            expected_revision=expected_revision or self._revision(task_id),
             priority=priority,
+            before=before,
+            after=after,
+            top=top,
+            body=body,
         ).task
 
     def repair_queue(self) -> QueueRepairReport:
