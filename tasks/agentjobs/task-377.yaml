@@ -1,0 +1,129 @@
+schema: 2
+id: task-377
+title: A supervisor that discovers its children need sequencing has no move but to
+  wake a human
+created: '2026-09-07T04:05:00.197503Z'
+updated: '2026-09-07T04:05:00.817350Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 16500
+category: infrastructure
+tags:
+- dispatch
+- epic
+- authorization
+assignment:
+  eligible: []
+spec:
+  summary: Three individually-correct rules compose into a dead end. When an epic
+    supervisor learns mid-flight that one child must precede another, it cannot record
+    the dependency, cannot start the one child, and cannot run the walk without starting
+    both. The only exit is a human click, which is the thing the epic walk exists
+    to avoid.
+  intent: "task-022 sells the epic walk as one human act driving many runs. That holds\
+    \ only while the plan is right at dispatch time. The moment a supervisor discovers\
+    \ an ordering constraint its parent record did not anticipate, the mechanism has\
+    \ no way to express it and falls back to a human \u2014 silently converting an\
+    \ unattended epic into a manual one.\n\nNothing here is a bug in isolation. Each\
+    \ rule is defensible on its own and the composition was never examined."
+  description: "## The dead end, as hit on 2026-09-07\n\nObserved by the task-358\
+    \ supervisor (`run_c61da8f0`). Mid-epic, a new requirement made it necessary for\
+    \ a newly filed child (task-376) to precede an existing one (task-311). The supervisor\
+    \ could do none of the three things that would express that:\n\n1. **Record the\
+    \ dependency.** `task_update_content` on task-311 was refused: *\"Run run_c61da8f0\
+    \ was dispatched to work task-358 and addressed task-311. A run may act on its\
+    \ own task and no other.\"* Correct per the authorization table \u2014 and it\
+    \ means a supervisor cannot edit the children it supervises.\n2. **Start the one\
+    \ child.** `agentjobs dispatch walk` is all-or-nothing: it starts **every** child\
+    \ whose dependencies are satisfied. There is no \"start this one\".\n3. **Dispatch\
+    \ that child by hand instead.** `assert_human_clocked` requires the causing log\
+    \ entry to be written by a configured human. The child's newest entry was the\
+    \ supervisor's own creation entry, so a hand dispatch is refused by design. The\
+    \ walk only gets past this because it attributes child dispatches to the epic's\
+    \ own authorisation entry.\n\nNet effect: the supervisor moved the ball to a human\
+    \ and asked for a click. The epic's whole value proposition is that it does not\
+    \ need one.\n\n## Why each rule is right, so the fix does not simply delete one\n\
+    \n- **Run scoping (task-332)** stops a run editing tasks it was not dispatched\
+    \ at. Removing it would let any run rewrite the backlog.\n- **The walk's breadth\
+    \ (task-223)** is deliberate: independent children run in parallel, which is what\
+    \ keeps a supervisor's context small.\n- **`assert_human_clocked` (design section\
+    \ 2, D4)** is described in the code as \"the rule, and not a configuration option\"\
+    \ \u2014 it is what makes runaway impossible. It must not become optional.\n\n\
+    ## Candidate fixes, in the order I would try them\n\n1. **Widen a supervisor's\
+    \ scope to its own subtree.** A run dispatched at a parent may edit `dependencies`\
+    \ on that parent's direct children, and nothing else. This is the narrowest change\
+    \ and matches what supervising already means \u2014 the supervisor is trusted\
+    \ to start those children, so trusting it to order them is not a new grant. The\
+    \ risk to weigh is that `dependencies` is exactly where a bad edit deadlocks the\
+    \ graph, so cycle validation must hold.\n2. **Let the walk start a named subset**\
+    \ \u2014 `dispatch walk <parent> --only task-376`. Keeps every authorisation rule\
+    \ intact and just narrows the selection; the child still takes off on the epic's\
+    \ authorisation, so `assert_human_clocked` is satisfied the same way it already\
+    \ is. Cheapest of the three, and does not widen anything.\n3. **Let a supervisor\
+    \ request a child dispatch through the walk's own attribution path.** Effectively\
+    \ (2) with a different surface.\n\n**Do not** solve this by making `assert_human_clocked`\
+    \ configurable, or by letting a run dispatch arbitrary tasks.\n\n## What \"done\"\
+    \ looks like in practice\n\nA supervisor that discovers an ordering constraint\
+    \ mid-epic can act on it and keep going, without a human click, and without gaining\
+    \ the ability to touch a task outside its own subtree."
+  constraints: '`assert_human_clocked` stays a rule, not an option. No run gains the
+    ability to dispatch or edit a task outside the subtree it was dispatched at. Dependency
+    edits must still be cycle-validated, since a bad edge deadlocks the graph rather
+    than merely misordering it.'
+  out_of_scope: Redesigning run scoping generally (task-332). The walk's retry and
+    grounding rules (task-022). Letting runs approve reviews or change dispatch configuration.
+  context:
+  - path: tasks/agentjobs/task-358.yaml
+    why: 'Entries 16, 17 and 22 are the reproduction: the refusal, the reasoning,
+      and the handoff that asked for a click.'
+  - path: src/agentjobs/dispatch/guards.py
+    why: "assert_human_clocked \u2014 why a supervisor cannot hand-dispatch its own\
+      \ child."
+  - path: docs/authorization.md
+    why: The run-scoping table that refuses the dependency edit.
+  - path: docs/agent-dispatch-design.md
+    why: The epic walk and its all-or-nothing child selection.
+acceptance:
+- id: ac-1
+  text: A run dispatched at a parent can express an ordering constraint between two
+    of that parent's children, by whichever of the candidate fixes is chosen, with
+    the choice and its rejected alternatives recorded as a decision entry.
+  status: pending
+- id: ac-2
+  text: The same run still cannot act on a task outside its own subtree, proven by
+    a test that expects the existing refusal.
+  status: pending
+- id: ac-3
+  text: '`assert_human_clocked` is unchanged and still refuses an agent-caused dispatch;
+    no configuration flag can disable it.'
+  status: pending
+- id: ac-4
+  text: 'A test reproduces the task-358 shape: a supervisor files a child mid-epic
+    that must precede an existing sibling, and reaches a terminal state without handing
+    the ball to a human.'
+  status: pending
+deliverables: []
+dependencies:
+- task: task-022
+  type: related
+  note: The epic walk whose unattended promise this breaks.
+- task: task-358
+  type: related
+  note: The epic where it was hit, with the full reproduction on the record.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-07T04:05:00.816565Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 2f6b8c04-91a7-4e35-b7d0-3a9e15c82d47
+      kind: create
+      fingerprint: c70d8858314828208f6347f9778a5f35
