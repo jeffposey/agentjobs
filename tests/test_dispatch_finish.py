@@ -2563,6 +2563,52 @@ class TestLeadingWithTheCause:
         assert "gate.log" in rendered
 
 
+@pytest.fixture()
+def remote(world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> Iterator[Any]:
+    """A real ``RemoteTaskManager`` over a real cut-over project, through the real routes.
+
+    Module level rather than inside the class it was written for (task-388), because
+    task-390 needs the same thing for a different failure: the finish's escalation reached
+    ``record_dispatch`` through one of these and got the refusal it is designed to give.
+    Two classes, one arrangement -- the alternative was a second copy that would drift.
+    """
+    from starlette.testclient import TestClient
+
+    from agentjobs.api.dependencies import reset_dependency_cache
+    from agentjobs.api.main import app
+    from agentjobs.client import TaskClient
+    from agentjobs.cutover import cut_over
+    from agentjobs.projects import ProjectRegistry
+    from agentjobs.remote_manager import RemoteTaskManager
+    from agentjobs.store_factory import close_databases, mark_server_process
+
+    monkeypatch.setenv("AGENTJOBS_HOME", str(world["home"]))
+    # Both caches are process-global and both outlive a test: a handle to the
+    # previous case's database, and the dependency wiring that resolved it.
+    close_databases()
+    reset_dependency_cache()
+    registry = ProjectRegistry(world["home"])
+    registry.add(world["root"], project_id="demo")
+    # The records exist as files at this point -- `world` wrote them there. This is
+    # the same move the real project made on 2026-09-07, and what it changes is the
+    # manager, not the data.
+    cut_over(world["project"], backfill_git=False)
+    reset_dependency_cache()
+
+    # `agentjobs.api.main` declares the server on import, and the import is cached,
+    # so only the first test in a session gets that declaration -- conftest's autouse
+    # teardown zeroes it after every test. Without this the app answers the second
+    # case with `StoreAccessError`, which would look like a product bug and is a
+    # test-session artefact.
+    mark_server_process()
+    connection = TestClient(app)
+    client = TaskClient("http://testserver", client=connection, project_id="demo")
+    yield RemoteTaskManager(client, world["project"])
+    connection.close()
+    close_databases()
+    reset_dependency_cache()
+
+
 class TestWritingTheRecordOverTheService:
     """The manager a finish gets on a project that has cut over to SQLite.
 
@@ -2583,44 +2629,6 @@ class TestWritingTheRecordOverTheService:
     capability gate and the real route -- the half that a stub manager would skip and the
     half this bug lived in.
     """
-
-    @pytest.fixture()
-    def remote(self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> Iterator[Any]:
-        from starlette.testclient import TestClient
-
-        from agentjobs.api.dependencies import reset_dependency_cache
-        from agentjobs.api.main import app
-        from agentjobs.client import TaskClient
-        from agentjobs.cutover import cut_over
-        from agentjobs.projects import ProjectRegistry
-        from agentjobs.remote_manager import RemoteTaskManager
-        from agentjobs.store_factory import close_databases, mark_server_process
-
-        monkeypatch.setenv("AGENTJOBS_HOME", str(world["home"]))
-        # Both caches are process-global and both outlive a test: a handle to the
-        # previous case's database, and the dependency wiring that resolved it.
-        close_databases()
-        reset_dependency_cache()
-        registry = ProjectRegistry(world["home"])
-        registry.add(world["root"], project_id="demo")
-        # The records exist as files at this point -- `world` wrote them there. This is
-        # the same move the real project made on 2026-09-07, and what it changes is the
-        # manager, not the data.
-        cut_over(world["project"], backfill_git=False)
-        reset_dependency_cache()
-
-        # `agentjobs.api.main` declares the server on import, and the import is cached,
-        # so only the first test in a session gets that declaration -- conftest's autouse
-        # teardown zeroes it after every test. Without this the app answers the second
-        # case with `StoreAccessError`, which would look like a product bug and is a
-        # test-session artefact.
-        mark_server_process()
-        connection = TestClient(app)
-        client = TaskClient("http://testserver", client=connection, project_id="demo")
-        yield RemoteTaskManager(client, world["project"])
-        connection.close()
-        close_databases()
-        reset_dependency_cache()
 
     def test_marking_the_branch_merged_survives_the_wire(
         self, world: Dict[str, Any], remote: Any
@@ -2697,3 +2705,384 @@ class TestWritingTheRecordOverTheService:
         assert merged[0].merged_at is not None
         assert not world["worktree"].exists()
         assert world["branch"] not in worktree_paths(world["root"])
+
+
+# ----- the invariant, and the two roads that used to defeat it (task-390) ------
+
+
+def make_session_dispatchable(
+    world: Dict[str, Any], tmp_path: Path, *, require_clean_tree: bool = False
+) -> Path:
+    """``make_dispatchable``, but with a runner the poller can actually follow.
+
+    The difference is ``mode: session``. ``make_dispatchable``'s runner exits the moment
+    it is started, which is all its own tests need -- they ask whether a run was *begun*.
+    Everything below is about what happens when a run **ends**, so the run has to be one
+    something can observe ending, and that means the fake CLI the runner and poller
+    suites already drive: session mode is defined operationally as a runner whose
+    executable answers ``agents --json``.
+
+    The project is registered as well, because the two things that re-ask the escalation's
+    question -- the poller and ``resolve_deferred_escalation`` -- both resolve a project
+    from the registry rather than being handed one.
+    """
+    from agentjobs.projects import ProjectError, ProjectRegistry
+
+    from test_dispatch_runner import FAKE_CLI, write_script
+
+    fake_cli = write_script(tmp_path / "fakecli.py", FAKE_CLI)
+    (world["home"] / "dispatch.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "enabled": True,
+                "api_base": "http://127.0.0.1:1",
+                "runners": {
+                    "fake": {
+                        "mode": "session",
+                        "argv": [_interpreter(), str(fake_cli), "--bg", "{prompt}"],
+                        "actor": "claude",
+                    }
+                },
+                "projects": {
+                    "demo": {
+                        "enabled": True,
+                        "runner": "fake",
+                        "auto_dispatch": False,
+                        "require_clean_tree": require_clean_tree,
+                    }
+                },
+                "limits": {"session_stale_seconds": 1},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    root = world["root"]
+    (root / ".agentjobs").mkdir(parents=True, exist_ok=True)
+    (root / ".agentjobs" / "config.yaml").write_text(
+        yaml.safe_dump(DISPATCHABLE_CONFIG), encoding="utf-8"
+    )
+    (root / ".gitignore").write_text(".agentjobs/\n", encoding="utf-8")
+    git(root, "add", "--", ".gitignore")
+    git(root, "commit", "-m", "chore: ignore the machine-local config")
+    registry = ProjectRegistry(home=world["home"])
+    try:
+        registry.get("demo")
+    except ProjectError:
+        registry.add(root, project_id="demo")
+    return fake_cli
+
+
+def start_live_session(world: Dict[str, Any], caused_by: int) -> Any:
+    """A real dispatched session run on the task, started the way dispatch starts one."""
+    from agentjobs.dispatch.config import assert_dispatch_permitted
+    from agentjobs.dispatch.runner import DispatchRunner
+
+    runner = DispatchRunner(
+        manager=world["manager"],
+        resolution=assert_dispatch_permitted("demo", world["home"]),
+        project_root=world["root"],
+        home=world["home"],
+    )
+    return runner.start(
+        world["manager"].get_task(world["task_id"]), actor="Jeff Posey", caused_by=caused_by
+    )
+
+
+def end_the_session(world: Dict[str, Any], fake_cli: Path) -> None:
+    """Let the session go idle and have the poller settle it, as the real one does.
+
+    Nothing here reaches into the run's record. The fake CLI reports the session done,
+    ``poll_live_sessions`` finds it on disk exactly as the daemon would, and every
+    consequence -- the terminal entry, the lock release, and whatever the settle then
+    decides about a deferred escalation -- is the application's own.
+    """
+    from agentjobs.dispatch.poller import poll_live_sessions
+
+    (fake_cli.parent / "ledger.json").write_text(
+        json.dumps([{"id": "b55b35ad", "status": "idle", "state": "done"}]), encoding="utf-8"
+    )
+    poll_live_sessions(world["home"])
+
+
+def someone_is_actually_there(world: Dict[str, Any]) -> None:
+    """The invariant, asserted the only way that means anything: after the run ended.
+
+    An open task reading ``agent`` is a claim that a named agent is about to act. With no
+    live run on the machine, nothing is -- and the schema cannot catch it, because the
+    record is internally consistent and simply untrue. Every road in this section ends
+    here, whichever of the two legitimate answers it takes to get here.
+    """
+    from agentjobs.dispatch.ledger import live_runs
+
+    task = world["manager"].get_task(world["task_id"])
+    assert task is not None
+    if not task.is_open or task.ball is not Ball.AGENT:
+        return
+    if task.ball_reason in {BallReason.AVAILABLE, BallReason.HOLD}:
+        return
+    running = [run for run in live_runs(world["home"]) if run.task_id == world["task_id"]]
+    assert running, (
+        f"{world['task_id']} is open at {task.ball}/{task.ball_reason} with no live run: "
+        "the ball names an agent that does not exist."
+    )
+
+
+class TestTheEscalationsPromiseSurvivesTheRunItDeferredTo:
+    """task-390, road one. "A run is live" is evidence about now; the question is next.
+
+    The incident is task-230 on 2026-09-07. The finish escalated correctly, saw a live
+    run on the task, concluded that run was the session its handback was addressed to,
+    and stopped. That run recorded its own outcome 36 seconds later, and the task sat
+    open at ``agent``/``work`` with nothing on it for seventeen minutes.
+
+    Nothing was going to deliver the handback to it, either -- ``pending_handback`` only
+    ever returns a handoff written by a **human**, and an escalation's is written by
+    ``finisher``, whose reserved kind is ``agent``. So the run itself was the only
+    candidate, and the only moment the question could be answered was when it stopped.
+    """
+
+    def test_a_deferred_escalation_is_re_asked_when_the_run_ends(
+        self, world: Dict[str, Any], tmp_path: Path
+    ) -> None:
+        """The whole of road one, against a real dispatched run that really ends."""
+        fake_cli = make_session_dispatchable(world, tmp_path)
+        approve(world)
+        handle = start_live_session(world, caused_by=1)
+        break_the_gate(world)
+
+        result = run(world)
+
+        # The deferral itself is unchanged and still correct: a live run was there.
+        assert result.escalation_dispatch == "live_run"
+        assert result.dispatched_run_id == handle.run_id
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None and task.ball is Ball.AGENT
+
+        end_the_session(world, fake_cli)
+
+        someone_is_actually_there(world)
+
+    def test_the_run_carries_the_finish_that_is_waiting_on_it(
+        self, world: Dict[str, Any], tmp_path: Path
+    ) -> None:
+        """Written to the run's own directory, so it survives every process involved.
+
+        The finish that deferred is a detached process that has exited by the time the
+        run ends. A promise held anywhere but on disk would not be there to keep.
+        """
+        from agentjobs.dispatch.finish import ESCALATION_PENDING
+
+        make_session_dispatchable(world, tmp_path)
+        approve(world)
+        handle = start_live_session(world, caused_by=1)
+        break_the_gate(world)
+
+        result = run(world)
+
+        meta = yaml.safe_load(
+            (world["home"] / "runs" / handle.run_id / "meta.yaml").read_text(encoding="utf-8")
+        )
+        assert meta[ESCALATION_PENDING] == result.finish_id
+
+    def test_a_run_that_ended_without_the_ball_moving_lands_on_a_human(
+        self, world: Dict[str, Any], tmp_path: Path
+    ) -> None:
+        """The fallback half: nothing can be started, so the ball leaves the agent.
+
+        A dirty shared clone is the refusal an escalation is most likely to meet, and it
+        is the one that proves the re-ask is not merely a second chance to dispatch --
+        where it cannot, ``park_for_human`` still runs and the task names a person.
+        """
+        fake_cli = make_session_dispatchable(world, tmp_path, require_clean_tree=True)
+        approve(world)
+        start_live_session(world, caused_by=1)
+        break_the_gate(world)
+        run(world)
+        (world["root"] / "shared.txt").write_text("somebody else is editing\n", encoding="utf-8")
+
+        end_the_session(world, fake_cli)
+
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None and task.is_open
+        assert task.ball is Ball.HUMAN
+        assert task.ball_reason is BallReason.DECISION
+        assert "no agent was started" in (task.ball_prompt or "")
+        someone_is_actually_there(world)
+
+    def test_a_run_that_took_the_work_is_left_alone(
+        self, world: Dict[str, Any], tmp_path: Path
+    ) -> None:
+        """The re-ask must not second-guess a session that did what it was handed.
+
+        Deferring was *right* here, and a fix that parked every deferred escalation would
+        be trading one wrong ball for another -- this is the case that says it does not.
+        """
+        fake_cli = make_session_dispatchable(world, tmp_path)
+        approve(world)
+        start_live_session(world, caused_by=1)
+        break_the_gate(world)
+        run(world)
+        world["manager"].handoff(
+            world["task_id"],
+            actor="claude",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Gate fixed; look again.",
+        )
+
+        end_the_session(world, fake_cli)
+
+        from agentjobs.dispatch.ledger import live_runs
+
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        assert task.ball is Ball.HUMAN and task.ball_reason is BallReason.REVIEW
+        assert "no agent was started" not in (task.ball_prompt or "")
+        assert live_runs(world["home"]) == [], "the re-ask started a run nobody needed"
+
+    def test_the_escalation_still_starts_no_second_run_while_one_is_live(
+        self, world: Dict[str, Any], tmp_path: Path
+    ) -> None:
+        """ac-7. The reasoning the ``live_run`` branch was built on is not relaxed.
+
+        One live run per task, always: a second would put two agents on one branch with
+        one task record. The re-ask changes *when* the question is answered, never the
+        answer while a session is up.
+        """
+        from agentjobs.dispatch.ledger import live_runs
+
+        make_session_dispatchable(world, tmp_path)
+        approve(world)
+        handle = start_live_session(world, caused_by=1)
+        break_the_gate(world)
+
+        run(world)
+
+        assert [record.run_id for record in live_runs(world["home"])] == [handle.run_id]
+
+
+class TestTheHandlerKeepsItsPromiseWhenTheManagerRefuses:
+    """task-390, road two. The docstring said "never raises"; it named two exceptions.
+
+    Observed on task-230 on 2026-09-07, running the retry ENGINEERING.md documents --
+    ``agentjobs finish`` by hand, on a project that had moved to the database that
+    afternoon. The CLI holds a service client there, the escalation handed that client to
+    ``dispatch_task``, and ``record_dispatch`` refused **by design**. The traceback came
+    out through ``finish_task``, so ``park_for_human`` never ran and the escalation this
+    process had already written to the record was left with nobody on it.
+    """
+
+    def test_a_red_gate_on_a_served_project_still_starts_the_repair(
+        self, world: Dict[str, Any], remote: Any, tmp_path: Path
+    ) -> None:
+        """The incident, on the arrangement it happened on: a cut-over project.
+
+        The manager is a real ``RemoteTaskManager`` over a real cut-over store, reached
+        through the real routes -- which is what makes this road two rather than a
+        rehearsal of it. On the parent commit it raises ``RemoteStoreUnsupported`` out of
+        ``finish_task``, with the traceback the task record carries.
+
+        What it proves about the fix is the *behaviour*, not the plumbing: the retry
+        ENGINEERING.md documents starts a repair session on this backend. Parking would
+        also have stopped the crash and would have been the wrong answer.
+        """
+        # The session runner rather than ``make_dispatchable``'s batch one, so no
+        # supervisor thread outlives the test and reaches for a database the fixture has
+        # closed. What is under test is the escalation's manager, not the run's mode.
+        make_session_dispatchable(world, tmp_path)
+        remote.add_log_entry(
+            world["task_id"],
+            actor="Jeff Posey",
+            type=LogEntryType.NOTE,
+            body="Approved. Merge it.",
+        )
+        break_the_gate(world)
+
+        result = finish_task(
+            manager=remote,
+            project=world["project"],
+            task_id=world["task_id"],
+            approver="Jeff Posey",
+            home=world["home"],
+            api_base="http://127.0.0.1:1",
+            settings=settings(),
+        )
+
+        assert result.outcome == ESCALATED
+        assert result.escalation_dispatch == "dispatched", result.render()
+        assert result.dispatched_run_id
+        task = remote.get_task(world["task_id"])
+        assert task is not None and task.ball is Ball.AGENT
+
+    def test_the_real_remote_manager_still_refuses(self) -> None:
+        """ac-7's other half. The refusal is deliberate and this fix does not touch it.
+
+        A run is recorded by the process that started it, and recording one over the wire
+        would mean a request model carrying ``argv``. The repair was to stop handing the
+        dispatch family a client, not to make the client do dispatch's job.
+        """
+        from agentjobs.remote_manager import RemoteStoreUnsupported, RemoteTaskManager
+
+        with pytest.raises(RemoteStoreUnsupported, match="dispatch_manager_for"):
+            RemoteTaskManager.record_dispatch(
+                object(),  # type: ignore[arg-type]
+                "task-001",
+                actor="claude",
+            )
+
+    def test_anything_else_the_dispatch_raises_becomes_a_human_decision(
+        self, world: Dict[str, Any], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Question 2, answered as behaviour: the catch is the type, not a list of them.
+
+        A named-exception list is only as good as the names on it, and road two is what a
+        missing name costs. The exception is not swallowed -- it is what the human reads.
+        """
+        make_dispatchable(world, tmp_path)
+        approve(world)
+        break_the_gate(world)
+
+        def explode(**kwargs: Any) -> Any:
+            raise RuntimeError("the dispatch subsystem fell over")
+
+        monkeypatch.setattr("agentjobs.dispatch.guards.dispatch_task", explode)
+
+        result = run(world)
+
+        assert result.outcome == ESCALATED, "the escalation itself must still be reported"
+        assert result.escalation_dispatch == "dispatch_crashed"
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None and task.is_open
+        assert task.ball is Ball.HUMAN
+        assert task.ball_reason is BallReason.DECISION
+        assert "RuntimeError" in (task.ball_prompt or "")
+        assert "the dispatch subsystem fell over" in (task.ball_prompt or "")
+        someone_is_actually_there(world)
+
+    def test_a_finish_whose_park_cannot_be_written_still_returns_its_result(
+        self, world: Dict[str, Any], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The last thing between an escalation and a traceback out of ``finish_task``.
+
+        ``park_for_human`` and the commit after it both go through a manager, and on a
+        served project that manager is over HTTP. A refused request there would throw
+        away an escalation this process has already recorded -- so it is caught, and the
+        finish's own directory records that the park failed rather than the shell
+        learning it and nobody else.
+        """
+        make_dispatchable(world, tmp_path)
+        break_the_gate(world)
+
+        def refuse(*args: Any, **kwargs: Any) -> Any:
+            raise RuntimeError("the service refused the handoff")
+
+        monkeypatch.setattr("agentjobs.dispatch.finish.park_for_human", refuse)
+
+        result = run(world)
+
+        assert result.outcome == ESCALATED
+        assert result.escalation_dispatch == "no_human_entry"
+        meta = yaml.safe_load((result.directory / "meta.yaml").read_text(encoding="utf-8"))
+        assert "the service refused the handoff" in meta["escalation_park_failed"]
