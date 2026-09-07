@@ -3,21 +3,13 @@ id: task-213
 title: 'Design the analytics page: where the history comes from, and what the page
   says'
 created: '2026-08-21T02:34:52.929949Z'
-updated: '2026-09-07T01:59:43.334018Z'
+updated: '2026-09-07T02:01:07.205728Z'
 lifecycle: active
-ball: human
-ball_reason: approval
-ball_prompt: "Approve again to re-run the finish. Nothing about the branch changed\
-  \ \u2014 it is still one markdown file.\n\nThe gate failure was **task-370**, the\
-  \ known cancel-vs-conclude race, on its second sighting in two days (task-268's\
-  \ finish was the first). Proof it was not this branch: 20/20 isolated passes, and\
-  \ **a full unqualified gate re-run green on the identical commit, receipt for `2d713cdd`**\
-  \ \u2014 the exact sha the finish tried to merge.\n\nOne thing worth knowing before\
-  \ you decide: **`main` is red right now and merging fixes it.** The four children\
-  \ cite `docs/analytics-design.md`, which lives only on this branch, so `test_agentjobs_context_paths_exist`\
-  \ fails on `main` and any other branch gating meanwhile inherits it.\n\nEntry 17\
-  \ has the detail, including evidence for task-370 that I was not authorised to write\
-  \ onto task-370 itself."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: critical
 queue_position: 1093
@@ -754,3 +746,25 @@ log:
     outcome: completed
     duration_seconds: 558.082644
     log_path: C:\Users\jpose\.agentjobs\runs\run_1b6cd5b8
+- id: 20
+  ts: '2026-09-07T02:01:05.625474Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 21
+  ts: '2026-09-07T02:01:07.205489Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `docs/task-213-analytics-design` (2d713cdd).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-213.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_828b4840\gate.log.'
+  data:
+    finish_step: started
+    branch: docs/task-213-analytics-design
+    finish_id: fin_828b4840
