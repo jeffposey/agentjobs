@@ -2,14 +2,20 @@ schema: 2
 id: task-358
 title: Task state moves to SQLite on the server
 created: '2026-09-06T06:08:06.698982Z'
-updated: '2026-09-07T03:57:36.865550Z'
+updated: '2026-09-07T04:02:15.880418Z'
 lifecycle: active
-ball: agent
-ball_reason: answer
-ball_prompt: 'The five historical records are already published at origin/main. The
-  working tree is clean now, but git history still has them. How far should this go?
+ball: human
+ball_reason: decision
+ball_prompt: 'One click: dispatch task-376 (the content filter). Then task-311 is
+  the last child and the walk is safe.
 
-  -> Chose: Leave published history alone'
+
+  I cannot start it myself -- a dispatch must be caused by a human act, and the walk,
+  my only tool, would start task-311 alongside it and land the cutover before the
+  ingest guard exists.
+
+
+  Task 376: http://127.0.0.1:8876/app/tasks/task-376'
 archived: false
 priority: critical
 queue_position: 843
@@ -668,3 +674,37 @@ log:
       id: c4a90e26-3f18-4b57-9d81-6e2073ba5f19
       kind: log_append
       fingerprint: 2e20b0a6f6955c8a76b18fd371e6e39a
+- id: 22
+  ts: '2026-09-07T04:02:15.880160Z'
+  actor: claude
+  type: handoff
+  body: "## Why this needs a click rather than me getting on with it\n\nThe epic's\
+    \ remaining children are task-311 (the cutover) and task-376 (the content filter).\
+    \ **The walk is the only tool I have, and it would start both at once** \u2014\
+    \ it starts every child whose dependencies are satisfied, and the `task-311 needs\
+    \ task-376` edge does not exist because run scoping refused me.\n\nRunning it\
+    \ anyway would do the specific thing that was called critical: land the cutover,\
+    \ making SQLite authoritative, before the ingest guard exists. There is also a\
+    \ concrete collision \u2014 both children rewrite `ALLAGENTS.md`.\n\n**And I cannot\
+    \ start task-376 by itself.** `assert_human_clocked` requires a dispatch to be\
+    \ caused by a human act; task-376's newest entry is my own creation entry, written\
+    \ by an agent, so a hand dispatch is refused by design. The walk sidesteps that\
+    \ only because it attributes child dispatches to the epic's own authorisation.\
+    \ So there is no path from here that does not start with you.\n\nDispatching task-376\
+    \ from its task page is a human act and starts cleanly. Once it closes, task-311\
+    \ is the only child left and the walk is safe with or without the edge.\n\n##\
+    \ Also done this session\n\n`auto_dispatch` is now **on** for this project, at\
+    \ your say-so \u2014 the reason your answer earlier moved the ball and started\
+    \ nothing. Hand-edited `~/.agentjobs/dispatch.yaml` to preserve its comments (task-198\
+    \ is the open bug where the UI deletes them), backed up first, verified `auto=True`\
+    \ through the CLI. No restart needed; the config is read per call. The end-to-end\
+    \ path is unproven and cannot be proven by me, since the guard correctly refuses\
+    \ an agent-caused dispatch \u2014 the next time you answer a question and a run\
+    \ appears without a second click is the test."
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: a71c93f5-2e08-4d64-b3a9-58e6127f0d92
+      kind: handoff
+      fingerprint: d09190bb893ab0f534bdd66d6c7039fc
