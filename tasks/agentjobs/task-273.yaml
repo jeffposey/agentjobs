@@ -2,16 +2,22 @@ schema: 2
 id: task-273
 title: Build authoritative SQLite task storage alongside the AgentJobs server
 created: '2026-08-22T19:00:47.987602Z'
-updated: '2026-09-06T06:32:30.093967Z'
+updated: '2026-09-07T00:00:51.263557Z'
 lifecycle: draft
 ball: agent
-ball_reason: hold
-ball_prompt: 'Parked. Nobody is on this and nothing should start it yet.
+ball_reason: work
+ball_prompt: 'Draft the physical SQLite schema. Design work only -- no worktree, no
+  branch, no code.
 
 
-  It sits third behind task-294 and the task-235 shell epic. When it does start: draft
-  the physical schema, then hand back the two or three real forks as tappable questions.
-  Do not ask the owner to write the spec.'
+  Read entry 12 first: it is the owner''s instruction on how much time this gets,
+  and names what is already settled. Then the spec, entries 4-9, and the three context
+  files.
+
+
+  Finish by handing to human/decision with the real forks as structured questions[]
+  -- options with descriptions and a recommendation, answerable by tapping on a phone.
+  Do not ask him to write prose.'
 archived: false
 priority: critical
 queue_position: 893
@@ -356,3 +362,71 @@ log:
       id: b8d2ef51-9c63-4a74-8085-3e7f1a0b6c42
       kind: handoff
       fingerprint: e06e44313ed8398dc7a7af47331d386b
+- id: 12
+  ts: '2026-09-07T00:00:40.252207Z'
+  actor: claude
+  type: instruction
+  body: "Owner instruction, Jeff Posey, 2026-09-06, on how much time this design pass\
+    \ gets.\n\n**Get schema v3 right so it does not quickly have to be redone as v4.**\
+    \ This is an explicit licence to spend longer here than the immediate cutover\
+    \ needs, and it changes what \"done\" means for the drafting session: the schema\
+    \ is not finished when it can hold today's task records, it is finished when the\
+    \ forks that would force a v4 have been found and either designed for or consciously\
+    \ deferred with the deferral written down.\n\nWhat that licenses, concretely:\n\
+    \n- **Design for queries nobody has asked for yet.** The spec already requires\
+    \ open-over-time, throughput and aging without whole-document scans. Go past that:\
+    \ ask what task-212/213 will want second, what an operator debugging a stuck dispatch\
+    \ will want, and what a question about a task's history at a past instant costs.\
+    \ A column that is cheap to add now is a migration later.\n- **Coordinate with\
+    \ task-213 before freezing the history contract.** This is already in the constraints\
+    \ (\"Coordinate the schema/history contract with task-213 before freezing it\"\
+    ) and it is the single most likely source of a v4: the analytics page is the consumer\
+    \ most able to discover the store cannot answer something. Do not treat that coordination\
+    \ as optional or as task-311's problem.\n- **Say what the upgrade path is.** A\
+    \ schema version and a migration mechanism are part of this design, not a later\
+    \ concern. Knowing how v4 would be applied is what makes it survivable if it comes\
+    \ anyway.\n\nTwo things are settled and must NOT be re-asked:\n\n1. **Authoritative\
+    \ SQLite, not a disposable index over canonical YAML.** Owner decision 2026-09-05,\
+    \ recorded in entry 4 and named in task-358's out_of_scope as explicitly not to\
+    \ be relitigated.\n2. **The restart window.** Answered in entries 5, 6 and 9 \u2014\
+    \ clients retry with bounded backoff keyed on operation_id, restarts drain gracefully\
+    \ with the front door returning 503, and every CLI verb becomes a service client\
+    \ so only the server opens the database. Entry 9 exists only because entry 6 was\
+    \ typed `decision` rather than `answer`, which left the GUI showing Jeff a question\
+    \ he had already settled. Do not reopen it, and do not repeat that typing mistake:\
+    \ an answer to a question thread is typed `answer` with `re` pointing at the question.\n\
+    \n**Deliverable shape.** Draft the physical schema, then hand the ball to `human`/`decision`\
+    \ with the real forks as structured `questions[]` \u2014 each with options carrying\
+    \ a label, a description of what picking it means, and a `recommended` flag. Jeff\
+    \ answers by tapping, on a phone. Do not hand back prose asking him to write a\
+    \ specification; that mistake was already made and corrected here in entry 10."
+  data:
+    operation:
+      id: 3f9c1a72-5d84-4e16-9b03-8a2e7c4f1d60
+      kind: log_append
+      fingerprint: e1f9038d25f669219b13f4f9d4bdb5f6
+- id: 13
+  ts: '2026-09-07T00:00:51.263233Z'
+  actor: claude
+  type: handoff
+  body: 'Un-held on Jeff''s instruction, 2026-09-06, so the design pass can be dispatched
+    to its own session. `hold` was correct while nobody was on it; a session is about
+    to be.
+
+
+    Lifecycle stays `draft` deliberately. `task_promote` is the only exit from draft
+    and it asserts the spec is finished -- but the physical schema *is* the missing
+    spec, so promoting now would claim the opposite of what is true. Promote after
+    Jeff answers the forks this session brings back, which is also the point at which
+    task-311 stops being blocked and the epic can be dispatched.
+
+
+    Sequence Jeff is running: this design session brings back questions -> he answers
+    by tapping -> promote to ready -> dispatch task-358''s epic autonomously.'
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 7b2e4f09-1c85-4d3a-9e67-0f5a8b2c6d14
+      kind: handoff
+      fingerprint: f0ab0ecc00e32b8967d0188b41d7e430
