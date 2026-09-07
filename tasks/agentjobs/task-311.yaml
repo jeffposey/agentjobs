@@ -2,7 +2,7 @@ schema: 2
 id: task-311
 title: Migrate tasks to server-hosted SQLite and retire task-state Git workflows
 created: '2026-08-24T00:55:20.126619Z'
-updated: '2026-09-07T05:36:53.637921Z'
+updated: '2026-09-07T05:57:58.154642Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -464,3 +464,80 @@ log:
       id: b3c4d5e6-3333-4a2b-8c3d-000000000311
       kind: log_append
       fingerprint: 428d2a7007a00c38205519c133d6d7aa
+- id: 14
+  ts: '2026-09-07T05:57:58.154434Z'
+  actor: claude
+  type: progress
+  body: '**Live verification passes end to end, in a sandbox.** A real server on port
+    8901, its own AgentJobs home and database, and a copy of this repository''s 374
+    records with their attachment sidecars in a real git repo with two worktrees.
+    The script and its output are reproducible; the branch carries the machinery it
+    exercises.
+
+
+    What it proves, in the order the spec asks for it:
+
+
+    - Dry run reports without switching anything, and writes nothing that survives
+    the call.
+
+    - Cutover: **imported and VERIFIED**. Backlog invariant 129 = 129. 7 of 7 attachment
+    blobs. 1034 git observations leaving 63 records needing reconciliation.
+
+    - A client process asking for the migrated project is refused by name and told
+    to use the service.
+
+    - Two worktrees, one backlog: a task created from worktree B is visible from worktree
+    A.
+
+    - **Neither checkout is dirtied by any of it.**
+
+    - A branch with the tasks directory *deleted* still sees the whole backlog, including
+    the task just created. This is the headline: the checked-out branch no longer
+    decides what the dashboard shows.
+
+    - Restart preserves 375 tasks and their history.
+
+    - Backup verifies as restorable, invariant intact.
+
+    - Rollback restores 375 files including the record written after the cutover,
+    and keeps the database.
+
+
+    **Three defects the sandbox found that the unit tests could not.** All fixed,
+    each with a test that fails without the fix.
+
+
+    1. **`_build_manager` composed a tasks directory from the working directory.**
+    A migrated project whose corpus was still sitting in a worktree answered from
+    the files: `list` reported a stale backlog and `create` wrote a YAML file into
+    the checkout. That is precisely the coupling this task exists to remove, surviving
+    inside the tool that was supposed to have removed it. It now resolves the project
+    through the registry first, because the registry knows the id and the id says
+    which backend holds the tasks.
+
+    2. **A record that failed halfway through being written left its half behind.**
+    The whole import is one transaction and `Database.write()` is reentrant, so a
+    dangling attachment reference raised while the *log* was being written -- after
+    the task row and the earlier entries had gone in -- and quarantining the record
+    did not remove them. Six records read as valid tasks with most of their log missing.
+    No count would have noticed; only the field-level verification did. Each record
+    now imports inside a savepoint, so "the record was not imported" is true of the
+    database as well as of the report.
+
+    3. **`promote` and `create` failed on their first real call over the service**,
+    for arguments the local manager computes for itself (`expected_revision`, and
+    the summary that falls back to the title). A hasattr check over the method names
+    passed the whole time. `TestEveryVerbIsActuallyCalled` now calls each verb once
+    with the arguments its CLI caller passes.
+
+
+    One thing observed and left alone: a running server writes `.agentjobs/webhooks.yaml`
+    into the project checkout on first use. That is per-project configuration rather
+    than task state, it predates this work, and it is not what sc-2 is about -- noted
+    here so a reader of the sandbox output is not left wondering.'
+  data:
+    operation:
+      id: c4d5e6f7-4444-4a2b-8c3d-000000000311
+      kind: log_append
+      fingerprint: 834a94080259c2c5d4996a0260686485
