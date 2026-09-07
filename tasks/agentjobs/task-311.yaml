@@ -2,7 +2,7 @@ schema: 2
 id: task-311
 title: Migrate tasks to server-hosted SQLite and retire task-state Git workflows
 created: '2026-08-24T00:55:20.126619Z'
-updated: '2026-09-07T05:57:58.154642Z'
+updated: '2026-09-07T06:33:56.405152Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -16,7 +16,8 @@ tags:
 - architecture
 - worktrees
 - design
-effort: Estimate after storage contract and migration inventory
+effort: 'One session: ~5,700 lines across 9 commits, one green unqualified gate, one
+  live sandbox run.'
 assignment:
   owner: claude
   eligible: []
@@ -100,27 +101,27 @@ acceptance:
   text: Dry-run and repeatable migration account for every project's task, log/thread,
     metadata and attachment; malformed data stops or is explicitly reconciled without
     silent loss.
-  status: pending
+  status: met
 - id: sc-2
   text: Verified SQLite cutover is shared across worktrees/clients and survives restart;
     task updates produce no routine source-repository task commits or dirty code trees.
-  status: pending
+  status: met
 - id: sc-3
   text: Obsolete task-file/Git-specific workflow machinery is removed or replaced
     and current documentation is updated; code isolation/merge safeguards remain.
-  status: pending
+  status: met
 - id: sc-4
   text: Interrupted import, stale writer, restart and rollback scenarios are tested;
     backup/restore preserves state and history and covers attachments.
-  status: pending
+  status: met
 - id: sc-5
   text: Historical metric coverage is reconciled with task-213, and future history
     is queryable without Git or whole-corpus JSON parsing.
-  status: pending
+  status: met
 - id: sc-6
   text: Full repository gate and live post-cutover verification pass; operator backup-enrollment
     checkpoint is documented.
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-182-clean-tree-versus-in-repo-tasks
@@ -541,3 +542,83 @@ log:
       id: c4d5e6f7-4444-4a2b-8c3d-000000000311
       kind: log_append
       fingerprint: 834a94080259c2c5d4996a0260686485
+- id: 15
+  ts: '2026-09-07T06:33:29.973233Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, effort.
+  data:
+    fields:
+    - acceptance
+    - effort
+    operation:
+      id: d5e6f7a8-5555-4a2b-8c3d-000000000311
+      kind: update_content
+      fingerprint: c2550dc853aecf4c85e10eed2d0b9f55
+- id: 16
+  ts: '2026-09-07T06:33:56.404941Z'
+  actor: claude
+  type: progress
+  body: "**Complete and gated.** One unqualified `scripts/check.py`, all ten stages,\
+    \ green, receipt written for `ffe50464`. Nine commits on `feat/task-311-sqlite-cutover`,\
+    \ rebased onto `main`.\n\nEvidence per acceptance criterion, since this run merges\
+    \ its own work and this entry is the only review it gets:\n\n**sc-1 \u2014 the\
+    \ import accounts for everything, and loses nothing silently.** `agentjobs storage\
+    \ preview` is the real import against a throwaway database. Verification is field\
+    \ by field against every readable file, compared as instants rather than strings,\
+    \ plus the backlog invariant and every attachment blob. A record that will not\
+    \ parse is quarantined and named; one that fails halfway through being written\
+    \ is rolled back to its savepoint so it is absent rather than partial; a re-run\
+    \ over a completed import is refused rather than doubling the history. Run against\
+    \ this repository's live 374 records just now: **VERIFIED**, invariant 129 = 129,\
+    \ 7 of 7 blobs.\n\n**sc-2 \u2014 one backlog, across worktrees and restarts, dirtying\
+    \ nothing.** Verified in a sandbox with a real server, a real git repo with two\
+    \ worktrees, and a copy of the live corpus: a task created from one worktree is\
+    \ visible from the other; neither checkout is dirtied; a branch with the tasks\
+    \ directory *deleted* still sees the whole backlog; a restart preserves the tasks\
+    \ and their history. `test_task_files_retired.py` asserts the same on the filesystem\
+    \ rather than by inference.\n\n**sc-3 \u2014 the machinery and the documents.**\
+    \ The dispatcher stops committing a record that is not a file, and the clean-tree\
+    \ check stops excusing a directory nothing writes -- which gives back the coverage\
+    \ task-182 had to surrender. `validate` and `migrate-schema` refuse rather than\
+    \ answering from a frozen copy. ENGINEERING, ALLAGENTS, AGENTS, README, the docs\
+    \ index, the workflow guide and the schema reference all say what is true, and\
+    \ the always-loaded bundle came in *under* budget rather than over. Code worktree\
+    \ isolation and the merge gate are untouched.\n\n**sc-4 \u2014 interrupted, stale,\
+    \ restarted, rolled back.** An interrupted import leaves nothing (one transaction)\
+    \ and a record that fails inside it leaves nothing (a savepoint) -- both tested.\
+    \ A second writer is refused at the operator commands and by `open_store`. A restart\
+    \ is a pause a client rides through: bounded retry keyed on the same `operation_id`,\
+    \ and the front door answering 503 rather than resetting. Backup verifies what\
+    \ it just wrote; restore refuses a snapshot that does not verify and moves aside\
+    \ what it replaces. Rollback exports the store's current state, so work done after\
+    \ the cutover survives going back -- proved with a record created post-cutover\
+    \ and found on disk afterwards.\n\n**sc-5 \u2014 history, without git and without\
+    \ parsing the corpus.** Queried against the sandbox store: the backlog level per\
+    \ day is a running sum over one indexed integer (`SEARCH task_event USING INDEX\
+    \ ix_event_project_ts`, 6 ms over 30 days); throughput is a covering-index probe\
+    \ at 0.17 ms; aging 0.06 ms. No plan touches a JSON column and none scans a document.\
+    \ Coverage is recorded rather than assumed -- `history_baseline_kind: backfilled`,\
+    \ `history_baseline_at: 2025-10-25T19:00:00Z` -- which is what lets the analytics\
+    \ page render \"we do not know\" instead of zero. Consistent with task-213's measured\
+    \ contract: git is authoritative only for the axes the log does not record, and\
+    \ the invariant holds after import, backfill and reconciliation.\n\n**sc-6 \u2014\
+    \ the gate and the checkpoint.** Gate green, above. The backup-enrolment checkpoint\
+    \ is documented in the storage guide *and* printed by `storage cutover` at the\
+    \ one moment somebody is certainly reading, because the database is then the only\
+    \ copy of the reconstructed history.\n\n**What is left for a person, and why.**\
+    \ The production cutover of this machine is one command -- `agentjobs storage\
+    \ cutover --project agentjobs` -- and I have not run it. It is reversible, verified,\
+    \ and within the spec; what stops me is that it changes where the owner's live\
+    \ tracker is served from, at an hour when nobody is watching, and the other four\
+    \ registered projects (`fantasy-football`, `job-hunting`, `mastercalls`, `product-strategy`)\
+    \ stay on files either way. `agentjobs storage status` makes the state legible\
+    \ before and after. The retirement of the tracked files is a further deliberate\
+    \ step, documented in the storage guide, and deliberately not automatic: after\
+    \ a cutover the old directory is harmless and is what a rollback would otherwise\
+    \ have to reconstruct."
+  data:
+    operation:
+      id: e6f7a8b9-6666-4a2b-8c3d-000000000311
+      kind: log_append
+      fingerprint: 93c6ae5e9918cf58bc5e226c43457f87
