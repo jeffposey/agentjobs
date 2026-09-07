@@ -2,7 +2,7 @@ schema: 2
 id: task-273
 title: Build authoritative SQLite task storage alongside the AgentJobs server
 created: '2026-08-22T19:00:47.987602Z'
-updated: '2026-09-07T00:42:15.996404Z'
+updated: '2026-09-07T00:42:53.871312Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -1628,3 +1628,13 @@ log:
       id: b2e3d4c5-0f9a-4823-c674-3d5e9f2ab8b7
       kind: promote
       fingerprint: 33c9350390f6c16f77a1c028a6dbc6a1
+- id: 38
+  ts: '2026-09-07T00:42:53.871052Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 34
+  data:
+    run_id: run_8ad284df
+    outcome: completed
+    duration_seconds: 356.973437
+    log_path: C:\Users\jpose\.agentjobs\runs\run_8ad284df
