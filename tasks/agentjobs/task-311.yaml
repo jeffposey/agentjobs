@@ -2,7 +2,7 @@ schema: 2
 id: task-311
 title: Migrate tasks to server-hosted SQLite and retire task-state Git workflows
 created: '2026-08-24T00:55:20.126619Z'
-updated: '2026-09-07T06:33:56.405152Z'
+updated: '2026-09-07T06:34:08.097629Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -622,3 +622,17 @@ log:
       id: e6f7a8b9-6666-4a2b-8c3d-000000000311
       kind: log_append
       fingerprint: 93c6ae5e9918cf58bc5e226c43457f87
+- id: 17
+  ts: '2026-09-07T06:34:08.097440Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-311-sqlite-cutover` (ffe50464).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-311.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_50980f8d\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-311-sqlite-cutover
+    finish_id: fin_50980f8d
