@@ -2114,7 +2114,9 @@ whole of what went wrong on task-337.
 The one case that deliberately keeps `agent` is a live run already working the task: an
 autonomous run finishing *itself* is the caller, it holds the ball, and it is the agent
 the escalation is addressed to. That is checked before the dispatch is attempted rather
-than inferred from its refusal.
+than inferred from its refusal — and the answer is provisional, because a live run is
+evidence about now: see [the deferral is not the
+answer](#the-deferral-is-not-the-answer-task-390-2026-09-07).
 
 **3. The record leads with the cause.** An escalation used to embed the gate's last
 thirty non-blank lines, which for a red pytest are thirty `DeprecationWarning`s; the
@@ -2134,6 +2136,69 @@ the rebase would have merged task-337 for zero tokens, and it is a different dec
 `catch_up` already does a bounded version of it, and widening that is a question about
 what a stale green is worth, not about who gets woken. It is a question on task-340's
 record rather than a change in this section.
+
+#### The deferral is not the answer (task-390, 2026-09-07)
+
+Task-340 above made one state impossible: an open task reading `agent` with no agent
+anywhere. Two roads reached it anyway, on the same task within ten minutes, the afternoon
+this project moved onto the database.
+
+**Road one: "a run is live" is evidence about now, and the question is about next.**
+Approving task-230 ran a finish whose gate went red. The escalation was written
+correctly, the ball went to `agent`/`work` with a complete prompt, and the live-run branch
+above concluded the session it was addressed to was already there. That session recorded
+its own outcome **36 seconds later**. The task then sat open at `agent`/`work` with
+nothing on it until a person noticed, seventeen minutes on.
+
+Nothing would have delivered the handback to it either, and that is structural rather than
+a matter of timing. `pending_handback` returns a handoff only when a **human** wrote it —
+which is what stops every settling run re-dispatching its own task — and an escalation's
+handback is written by `finisher`, whose reserved kind is `agent`. So §5b's delivery could
+not have fired here, whatever the run was doing.
+
+That leaves the run itself as the only candidate, and **the only moment the question is
+answerable is when it stops**. So the branch stays and its conclusion becomes provisional:
+the escalation writes its finish id onto the run's own directory as `escalation_pending`,
+in the same shape and for the same reason as `handback_pending`, and
+`_finish_session` asks `resolve_deferred_escalation` when that run settles. With the run
+gone, that re-runs the *same* three-valued decision: usually it starts the repair session
+the escalation intended, and where it cannot, `park_for_human` moves the ball off an agent
+that does not exist. A run that took the work — the ball moved, or it moved on its own —
+is left alone, which is the case that stops this becoming "park every deferral".
+
+**One live run per task is unchanged.** The re-ask alters when the question is answered,
+never the answer while a session is up.
+
+**Road two: a never-raises promise made of a list of exception types.** Running the
+documented retry — `agentjobs finish` by hand — reached `RemoteTaskManager.record_dispatch`
+and got the refusal that method exists to give: a run is recorded by the process that
+started it, and recording one over the wire would mean a request model carrying `argv`.
+The handler caught `DispatchError` and `DispatchRunError`; `RemoteStoreUnsupported` is
+neither, so the traceback left `finish_task` before `park_for_human` could run, and an
+escalation already on the record was abandoned. **The watched path worked and the recovery
+path did not**, because a finish started by the server holds a local manager and never
+sees it.
+
+Two changes, and they answer the two questions the task posed:
+
+- **The escalation asks for the manager the subsystem it is calling into uses.**
+  `store_factory.dispatch_manager_for` exists precisely to give the dispatch family a
+  local manager on a served project, so the wiring mistake was the finish handing over its
+  service client — not a missing capability. The rejected alternative was to have a CLI
+  escalation return `unattended=True` and park: that would mean the documented retry can
+  never start a repair session, which is the outcome task-340 removed. `record_dispatch`'s
+  refusal is untouched.
+- **The catch is `Exception`, not a list.** A list is only as good as the names on it, and
+  road two is what a missing name costs. Nothing is masked: the exception's text becomes
+  the ball prompt a human reads, the finish's `meta.yaml` records it, and the
+  `FinishResult` names it. The usual caller is a detached process with no shell attached,
+  so a traceback would tell nobody. `BaseException` is deliberately not caught — a
+  `KeyboardInterrupt` is somebody stopping this on purpose. The same guard now covers
+  `park_for_human` and its commit, which also go through a manager.
+
+**The invariant is asserted after the run ends, never at the moment of the decision**, and
+that is the shape of the tests: a real dispatched session run, a real escalation, the real
+poller settling it, and then the question — is this task open at `agent` with no live run?
 
 #### Watching one happen (task-321, 2026-08-27)
 
