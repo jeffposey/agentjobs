@@ -48,12 +48,14 @@ verifying, so a receipt can never itself be a change the next run has to classif
 CORPUS_STAGES = ("pytest",)
 """What a task-record change can move.
 
-Not "nothing", which is the tempting answer and the wrong one. ``tests/test_validate.py
-::TestRealCorpus`` loads this repository's own task files and asserts none is unreadable
-or points at nothing, so a task YAML genuinely can turn the suite red -- and it is the
-one stage whose inputs are not bounded by the diff. It runs. Nothing else reads
-``tasks/``: Black, Ruff and MyPy do not see YAML, and no frontend stage reads the corpus
-off disk (the React app asks the API, which the e2e server seeds itself).
+Not "nothing", which is the tempting answer and the wrong one. Two tests load this
+repository's own task files, so a task YAML genuinely can turn the suite red, and this is
+the one stage whose inputs are not bounded by the diff. ``tests/test_validate.py
+::TestRealCorpus`` asserts none is unreadable or points at nothing;
+``tests/test_task_corpus.py::test_no_task_record_quotes_a_person_verbatim`` asserts none
+quotes a person verbatim (task-376). It runs. Nothing else reads ``tasks/``: Black, Ruff
+and MyPy do not see YAML, and no frontend stage reads the corpus off disk (the React app
+asks the API, which the e2e server seeds itself).
 """
 
 DOCS_STAGES = ("pytest",)

@@ -16,6 +16,7 @@ import pytest
 import yaml
 
 from agentjobs.models_v2 import DeliverableStatus, Lifecycle, SCHEMA_VERSION, Task, load_task
+from agentjobs.quotation import scan_task
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CORPUS_DIRS = ("tasks/agentjobs", "tasks/test-data")
@@ -67,6 +68,14 @@ def agentjobs_tasks() -> list[Task]:
             source=path.name,
         )
         for path in sorted((REPO_ROOT / "tasks" / "agentjobs").glob("*.yaml"))
+    ]
+
+
+def corpus_tasks() -> list[Task]:
+    """Every task record in the repository, product corpus and test data alike."""
+    return [
+        load_task(yaml.safe_load(path.read_text(encoding="utf-8")), source=path.name)
+        for path in corpus_files()
     ]
 
 
@@ -185,3 +194,30 @@ def test_open_ui_tasks_do_not_target_legacy_templates() -> None:
         assert (
             "web ui is server-rendered" not in current_summary
         ), f"{task.id} presents server rendering as the current UI"
+
+
+def test_no_task_record_quotes_a_person_verbatim() -> None:
+    """The paraphrase rule, enforced over `tasks/` before a record reaches `main`.
+
+    The author-time half of task-376. `agentjobs.record_check` warns whoever wrote the
+    quotation while they are still in context, and `agentjobs.sqlstore.importer` refuses
+    an import carrying one -- but the importer fires long after the author has gone, and
+    a warning refuses nothing. This is the tier in between: `scripts/gate_scope.py`
+    already maps `tasks/` to the pytest stage, so a record written with a verbatim quote
+    of a person fails the gate rather than reaching a public remote.
+
+    The failure names regions, not remarks. Reproducing the quotation in a test failure
+    would put it in CI output, which is the same mistake one layer out; run
+    `agentjobs quotations` to see what actually tripped, and `agentjobs redact` to fix
+    it.
+    """
+    offenders = [
+        f"{task.id}: {remark.locator()}" for task in corpus_tasks() for remark in scan_task(task)
+    ]
+
+    assert not offenders, (
+        "task records quote a person verbatim instead of paraphrasing them "
+        "(ALLAGENTS.md, 'Paraphrase a person, never quote them'). Run "
+        "`agentjobs quotations` to read them and `agentjobs redact` to replace each "
+        "with a paraphrase:\n  " + "\n  ".join(offenders)
+    )
