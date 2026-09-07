@@ -38,6 +38,7 @@ from agentjobs.models_v2 import (
     Task,
 )
 from agentjobs.sqlstore import (
+    CorpusAlreadyImported,
     CorpusImporter,
     QuotationPolicyError,
     Database,
@@ -500,16 +501,37 @@ class TestImport:
         assert held[0]["task_id_guess"] == "task-666"
         assert store.load_task("task-666") is None
 
-    def test_importing_twice_does_not_duplicate_the_log(
+    def test_a_second_import_is_refused_rather_than_silently_doubling_history(
+        self, store: SqlTaskStore, tmp_path: Path
+    ) -> None:
+        """The dangerous re-run is the one that follows a *completed* import.
+
+        The tasks would upsert harmlessly, which is why this looked repeatable; the
+        reconstructed history would be written a second time and the backlog invariant
+        would break with nothing raising. Refusing is what makes the failure loud.
+        """
+        tasks_dir = tmp_path / "tasks"
+        self._write(tasks_dir, "task-001.yaml", _YAML_OPEN)
+        CorpusImporter(store, tasks_dir).run()
+        with pytest.raises(CorpusAlreadyImported, match="--replace"):
+            CorpusImporter(store, tasks_dir).run()
+
+    def test_replacing_re_imports_without_duplicating_anything(
         self, store: SqlTaskStore, tmp_path: Path
     ) -> None:
         """A migration that is interrupted gets re-run, so it must be repeatable."""
         tasks_dir = tmp_path / "tasks"
         self._write(tasks_dir, "task-001.yaml", _YAML_OPEN)
-        CorpusImporter(store, tasks_dir).run()
-        first = len(loaded(store, "task-001").log)
-        CorpusImporter(store, tasks_dir).run()
-        assert len(loaded(store, "task-001").log) == first
+        first = CorpusImporter(store, tasks_dir).run()
+        entries = len(loaded(store, "task-001").log)
+
+        again = CorpusImporter(store, tasks_dir).run(replace=True)
+
+        assert len(loaded(store, "task-001").log) == entries
+        assert again.imported == first.imported
+        assert again.events == first.events
+        # The invariant the analytics page depends on, after a re-import as after one.
+        assert again.reconciles
 
 
 def _close(task: Task) -> Task:

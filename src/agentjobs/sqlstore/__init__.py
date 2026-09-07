@@ -7,11 +7,17 @@ The design, its measurements and its rejected alternatives are in
 
 from .backup import restore, snapshot, verify
 from .connection import Database, SqlStoreError
-from .importer import CorpusImporter, ImportReport, QuotationPolicyError
+from .importer import (
+    CorpusAlreadyImported,
+    CorpusImporter,
+    ImportReport,
+    QuotationPolicyError,
+)
 from .migrations import MigrationReport, current_version, latest_version, upgrade
 from .store import SqlTaskStore, TaskNotFound
 
 __all__ = [
+    "CorpusAlreadyImported",
     "CorpusImporter",
     "Database",
     "ImportReport",

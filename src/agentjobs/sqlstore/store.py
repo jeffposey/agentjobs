@@ -497,10 +497,20 @@ class SqlTaskStore:
             return self._persist(updated)
 
     def _persist(self, task: Task, *, record_history: bool = True) -> Task:
-        """Write the whole aggregate, emit history, and refresh the search index."""
+        """Write the whole aggregate, emit history, and refresh the search index.
+
+        ``record_history`` is what distinguishes a verb from an import, and it governs
+        the ``updated`` stamp as well as the event. A verb *is* the update, so the
+        write restamps. An import is not: the record's own ``updated`` is data being
+        preserved, and overwriting it silently re-dates the whole corpus to the
+        migration -- which is the exact class of loss the cutover's verification step
+        exists to catch, so the two are kept consistent here rather than papered over
+        there.
+        """
         connection = self.database.writer
         previous = self.load_task(task.id)
-        task.updated = datetime.now(tz=timezone.utc)
+        if record_history:
+            task.updated = datetime.now(tz=timezone.utc)
 
         closed = str(task.lifecycle) == "closed"
         closed_at: Optional[str] = None

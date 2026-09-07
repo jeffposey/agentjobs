@@ -29,6 +29,8 @@ from agentjobs.projects import (
     UnknownProjectError,
 )
 from agentjobs.storage import TaskStorage
+from agentjobs.storage_config import load_storage_settings
+from agentjobs.store_factory import TaskStoreBackend, open_store
 from agentjobs.webhooks import WebhookStorage
 from agentjobs.webhooks import WebhookManager
 
@@ -257,9 +259,22 @@ def resolve_default_project(principal: Optional[Principal] = None) -> Project:
 
 
 @lru_cache(maxsize=32)
-def _storage_for(project_id: str, tasks_dir: str) -> TaskStorage:
-    """Create a cached TaskStorage for one project."""
-    return TaskStorage(Path(tasks_dir))
+def _storage_for(project_id: str, tasks_dir: str, backend: str) -> TaskStoreBackend:
+    """Create a cached task store for one project.
+
+    ``backend`` is in the cache key even though the factory reads it again, because it
+    is what a cutover changes: without it, a project that migrated mid-process would
+    keep being handed the file store it was given before, and the server would serve a
+    stale directory while ``storage.yaml`` said otherwise.
+    """
+    del backend  # part of the key, not of the construction
+    project = get_registry().as_dict().get(project_id)
+    if project is None:
+        # The implicit single-project mode, and any project resolved from the
+        # environment rather than the registry. Those are always files: a cutover is
+        # recorded against a registered project id.
+        return TaskStorage(Path(tasks_dir))
+    return open_store(project, tasks_dir=Path(tasks_dir))
 
 
 @lru_cache(maxsize=32)
@@ -275,17 +290,29 @@ def _webhook_manager_for(project_id: str, webhooks_path: str) -> WebhookManager:
 
 
 def _tasks_dir_for(project: Project) -> Path:
-    """Resolve a project's tasks directory, honouring the env override."""
+    """Resolve a project's tasks directory, honouring the env override.
+
+    Still resolved for a project served from SQLite, and deliberately: it is what the
+    export and rollback paths write to, and it is part of the cache key that makes
+    re-registering an id against a different directory return a different store.
+    """
     if project.id == _IMPLICIT_PROJECT_ID:
         return _resolve_tasks_dir()
     tasks_dir = project.tasks_dir()
-    tasks_dir.mkdir(parents=True, exist_ok=True)
+    if not load_storage_settings().on_sqlite(project.id):
+        # Created on demand for the file backend only. A migrated project should not
+        # have an empty `tasks/` conjured back into its checkout by the act of serving.
+        tasks_dir.mkdir(parents=True, exist_ok=True)
     return tasks_dir
 
 
-def storage_for(project: Project) -> TaskStorage:
-    """TaskStorage scoped to one project."""
-    return _storage_for(project.id, str(_tasks_dir_for(project)))
+def storage_for(project: Project) -> TaskStoreBackend:
+    """The task store scoped to one project, whichever backend holds it."""
+    return _storage_for(
+        project.id,
+        str(_tasks_dir_for(project)),
+        load_storage_settings().backend_for(project.id),
+    )
 
 
 def webhook_manager_for(project: Project) -> WebhookManager:
