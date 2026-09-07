@@ -2,7 +2,7 @@ schema: 2
 id: task-273
 title: Build authoritative SQLite task storage alongside the AgentJobs server
 created: '2026-08-22T19:00:47.987602Z'
-updated: '2026-09-07T03:22:13.083126Z'
+updated: '2026-09-07T03:26:20.512609Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1883,3 +1883,19 @@ log:
     finish_step: started
     branch: feat/task-273-sqlite-store
     finish_id: fin_60724860
+- id: 48
+  ts: '2026-09-07T03:26:20.512207Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-273-sqlite-store` into `main` as `f1d9ffdd`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-273
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: f1d9ffdd0d22a26554b3d2e2886e265a6cc8e57c
+    branch: feat/task-273-sqlite-store
+    base: main
