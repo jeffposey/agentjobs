@@ -3,11 +3,20 @@ id: task-213
 title: 'Design the analytics page: where the history comes from, and what the page
   says'
 created: '2026-08-21T02:34:52.929949Z'
-updated: '2026-09-07T01:15:42.148364Z'
+updated: '2026-09-07T01:45:58.823846Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Review and approve the merge of `docs/task-213-analytics-design` (2\
+  \ commits, rebased on main, full gate green \u2014 10/10 stages, receipt for 26d83e01).\n\
+  \nThe deliverable is `docs/analytics-design.md`, 15 sections. All seven acceptance\
+  \ criteria are met and marked. Four children are filed under task-212: task-371,\
+  \ task-372, task-373, task-374.\n\n**The one thing worth reading before approving\
+  \ is section 6**, and entry 8 summarises it: measuring task-273's drafted schema\
+  \ against the real corpus turned up three defects that each produce a wrong chart\
+  \ with a healthy-looking query plan. task-371 carries them, and it is critical rather\
+  \ than high because two are import rules that have to reach task-273 and task-311\
+  \ before those run."
 archived: false
 priority: critical
 queue_position: 1093
@@ -98,41 +107,46 @@ acceptance:
 - id: sc-1
   text: docs/analytics-design.md exists, in numbered sections, and a reader with no
     other context can implement from it.
-  status: pending
+  status: met
 - id: sc-2
   text: Structured SQLite history, temporal semantics and legacy-backfill decisions
     are documented and logged, coordinated with task-273, including rejected alternatives.
-  status: pending
+  status: met
 - id: sc-3
   text: Representative SQL and measured query plans/latency demonstrate backlog-over-time
     and throughput queries without parsing all task JSON; legacy fidelity claims are
     checked against the real corpus.
-  status: pending
+  status: met
 - id: sc-4
   text: The doc states the questions the page answers before the charts that answer
     them, and specifies the empty and thin-history states.
-  status: pending
+  status: met
 - id: sc-5
   text: The API surface is specified concretely enough that the backend child does
     not have to redesign it.
-  status: pending
+  status: met
 - id: sc-6
   text: Implementation children exist under task-212, ordered by dependencies[], each
     citing its section of the doc.
-  status: pending
+  status: met
 - id: sc-7
   text: Historical open-task counts cover creation, closure and reopening with explicit
     archive/timezone semantics; current-state totals reconcile with the dashboard,
     and unavailable legacy history is distinguished from zero.
-  status: pending
-deliverables: []
+  status: met
+deliverables:
+- path: docs/analytics-design.md
+  note: The design record, fifteen numbered sections. On the branch, not yet on main.
+  status: done
 dependencies:
 - task: task-273
   type: related
 - task: task-311
   type: related
 links: []
-branches: []
+branches:
+- name: docs/task-213-analytics-design
+  status: active
 log:
 - id: 1
   ts: '2026-08-21T02:34:52.930017Z'
@@ -243,3 +257,226 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 7
+  ts: '2026-09-07T01:44:53.555905Z'
+  actor: claude
+  type: progress
+  body: "## The design is written, and it was checked against the corpus rather than\
+    \ reasoned about\n\n`docs/analytics-design.md`, fifteen numbered sections, on\
+    \ branch\n`docs/task-213-analytics-design`. Two commits, rebased onto `main`,\
+    \ and the full\nunqualified `scripts/check.py` is green on the rebased tree \u2014\
+    \ ten of ten stages, 300.8 s,\nreceipt written for `26d83e01`.\n\nEntry 12 of\
+    \ task-273 licensed spending longer than the immediate need; the same licence\n\
+    applies here, because the analytics page is the consumer most able to discover\
+    \ the store\ncannot answer something. So this pass did not stop at prose. A throwaway\
+    \ probe built\ntask-273's drafted schema as real SQLite, loaded all 367 task records\
+    \ into it with every\nconstraint on, synthesised `task_event` from log replay\
+    \ **plus** the git backfill the owner\nchose, and measured the page's whole query\
+    \ set with its plans. Everything below is a\nmeasurement taken on this machine\
+    \ on 2026-09-06. The probe lives in a job scratch\ndirectory; nothing from it\
+    \ was committed, and the only file this task writes is the design\ndoc.\n\n###\
+    \ What the page costs\n\n| | |\n|---|---|\n| the whole seventeen-query page |\
+    \ **6.30 ms** |\n| the same at **20x** scale (7,340 tasks / 43,920 events) | 253\
+    \ ms |\n| `GET /api/projects/agentjobs/dashboard` **today** | 719\u2013779 ms,\
+    \ 367 parses |\n| `GET /api/projects/agentjobs/tasks` today | 790 ms, `X-Task-Parses:\
+    \ 367`, 7.0 MB |\n| parse the corpus at all (libyaml) | 427 ms |\n\n**No plan\
+    \ touches a JSON column and none scans a task document.** The backlog series is\n\
+    `SEARCH task_event USING INDEX ix_event_backlog` at 0.24 ms; throughput\n`ix_event_closed`\
+    \ at 0.22 ms; aging `ix_task_open_age` at 0.13 ms. An analytics endpoint\non today's\
+    \ storage would cost more than either endpoint above, because it needs every\n\
+    task's log and not just its current row.\n\n### The history is far better than\
+    \ the log alone suggested\n\nTask-273 measured log-only replay: priority wrong\
+    \ for 337 of 367 tasks. With the git\nbackfill the owner chose, plus the manager's\
+    \ own semantics applied to entries that recorded\na lifecycle without the ball\
+    \ it implies:\n\n| axis | replay disagrees with the current row |\n|---|---|\n\
+    | ball / ball_reason | **1 / 367** |\n| position | 2 / 367 |\n| parent | 3 / 367\
+    \ |\n| priority | **6 / 367** |\n| archived | **0 / 367** |\n| outcome | 22 /\
+    \ 367 |\n| lifecycle | 29 / 367 |\n| **any axis** | **41 / 367 (11%)** |\n\nThe\
+    \ backfill costs **0.4 s of `git log` and 0.16 s of parsing**, once, over 1,420\
+    \ commits\nback to 2025-10-26. Three things did the work: git supplies the priority\
+    \ value at file\ncreation for 369 tasks, which the log never wrote down; `queue_move`\
+    \ entries turn out to\ncarry `from_band` \u2192 `band` and so held most priority\
+    \ transitions all along; and applying\nthe manager's promote/release/claim semantics\
+    \ took ball disagreement from 119 to 1.\n\n**`archived` has never transitioned\
+    \ in this project** \u2014 verified against the backfill, not\nassumed. Both archived\
+    \ tasks took the flag as an initial value in the 2026-08-10 migration\ncommit,\
+    \ so there is no archive history to lose.\n\n### The invariant holds, and the\
+    \ numbers reconcile with the running server\n\n`SUM(open_delta)` = **125** = `COUNT(*)`\
+    \ of open tasks, after import, after backfill and\nafter reconciliation. And the\
+    \ five counts computed from the probe are identical, field for\nfield, to what\
+    \ the server on 8876 returns from `build_dashboard_snapshot`:\n\n```\nprobe :\
+    \ total 367  in_progress 1  blocked 0  waiting_for_human 0  awaiting_input 29\
+    \  completed 219\nserver: total 367  in_progress 1  blocked 0  waiting_for_human\
+    \ 0  awaiting_input 29  completed 219\n```\n\nThat is sc-7's \"current-state totals\
+    \ reconcile with the dashboard\", demonstrated. \xA75.3\nturns it into a test\
+    \ task-372 owns, so the two cannot drift apart silently.\n\n### Facts that shaped\
+    \ the page rather than decorating it\n\n- **Only 26 of 316 days (8%) carry a backlog\
+    \ event.** A chart plotted from grouped rows\n  would draw a line through 8% of\
+    \ the days and imply the level was undefined between them,\n  so the API fills\
+    \ the calendar spine.\n- **244 close events across 242 distinct tasks** \u2014\
+    \ two reopenings. Unique tasks and\n  completion events are both returned; only\
+    \ the first is plotted.\n- **242 closed, of which 219 completed**, 16 superseded,\
+    \ 5 duplicate, 2 cancelled. Reporting\n  closed as completed would overstate delivered\
+    \ work by 10%.\n- Open work sits at `agent`/`available` 93, `human`/`spec` 29,\
+    \ `agent`/`answer` 2,\n  `agent`/`work` 1.\n- Priority moved **37 times in this\
+    \ project's life**, earliest 2026-08-15. A priority-churn\n  chart will look sparse\
+    \ because the project is sparse, not because the method failed.\n\n### The charting\
+    \ decision was measured, not preferred\n\nThe parent asks that any charting approach\
+    \ survive Vitest-in-jsdom and a Playwright path.\nProbed against this repository's\
+    \ own jsdom 30.0.1: `getBoundingClientRect()` returns all\nzeros, `offsetWidth`/`clientWidth`\
+    \ are 0, `ResizeObserver` is **undefined**, `getBBox` is\n**undefined**, and `canvas.getContext('2d')`\
+    \ returns **null**. Anything that measures its\ncontainer \u2014 Recharts' `ResponsiveContainer`,\
+    \ visx's parent-size hook, Chart.js \u2014 renders\nnothing in the `vitest` stage\
+    \ without shims, and a canvas library cannot render at all\nwithout adding a native\
+    \ `canvas` build to a 30-second bootstrap. So: inline SVG with path\ndata from\
+    \ pure functions, which vitest tests with no DOM at all. \xA710.1 carries the\
+    \ reopen\ntrigger.\n\n### Deliverables\n\n- `docs/analytics-design.md` (\xA71\u2013\
+    \xA715), on `docs/task-213-analytics-design`.\n- Four implementation children\
+    \ under task-212: **task-371** (schema and import amendments,\n  critical), **task-372**\
+    \ (API), **task-373** (page and charts), **task-374** (Dashboard\n  link), chained\
+    \ by `needs` edges, each citing its sections."
+  data:
+    operation:
+      id: b1e6d2a3-4f58-4c72-9a16-2b7c8e04d755
+      kind: log_append
+      fingerprint: dcff62cc58272a87c021cdfc7c9cddc3
+- id: 8
+  ts: '2026-09-07T01:45:24.028852Z'
+  actor: claude
+  type: decision
+  body: "## Three defects in the offered history contract, each found by measuring\
+    \ it\n\nThis is the coordination task-273's constraints require and the owner's\
+    \ fourth-fork answer\nset up. All three were found by building the drafted schema\
+    \ and running the real corpus\nthrough it; none is visible by reading the DDL,\
+    \ and **each produces a wrong chart with a\nhealthy-looking query plan.** Full\
+    \ detail in `docs/analytics-design.md` \xA74 and \xA76; they are\ntask-371's specification.\n\
+    \n### 1. Backfilling lifecycle from git double-counts every close\n\nThe log already\
+    \ records lifecycle transitions with their true timestamps. Git records the\n\
+    same transitions again at commit time. Taking both gave **`SUM(open_delta)` =\
+    \ 69 against\n125 open tasks \u2014 a 45% error in the backlog level**, with every\
+    \ query plan still reading\n`SEARCH task_event USING INDEX ix_event_backlog`.\n\
+    \n**The rule: the backfill is authoritative only for axes the log does not record.**\
+    \ Lifecycle\nand outcome from the log, always. Priority, parent, category and\
+    \ `archived` from git.\n`queue_position` from both \u2014 a bulk renumber rewrites\
+    \ it with no per-task log entry \u2014 with\ngit de-duplicated against any native\
+    \ move of the same axis within five minutes. With that\nrule the invariant holds\
+    \ exactly and 314 backfilled events survive out of 4,773 raw git\nobservations.\n\
+    \n*Rejected: backfilling everything git can see.* It is the obvious implementation\
+    \ and it is\nwhat produced the 45% error.\n\n### 2. A backfilled creation instant\
+    \ taken at commit time makes the backlog go negative\n\nGit records when a change\
+    \ was **committed**, not when it happened. Three tasks here log a\nclose at `2025-10-26T01:24Z`\
+    \ while git first sees those files twenty hours later. Replayed\nliterally, the\
+    \ backlog series **opens at \u22123**. A negative open count is impossible and\
+    \ no\nreader could diagnose it.\n\n**The rule: a backfilled `create` is timestamped\
+    \ at the earliest evidence the task\nexisted** \u2014 `min(git commit time, the\
+    \ task's own `created`, its first log entry)`. Applying\nit removed the impossibility\
+    \ (series minimum 1, maximum 126, ending at the true 125) *and*\nimproved fidelity,\
+    \ from 44 disagreeing tasks to 41.\n\nThis is task-311's, and it is the more dangerous\
+    \ of the two because an import that has\nalready run without it leaves a store\
+    \ that has to be rebuilt rather than patched.\n\n### 3. SQLite cannot bucket by\
+    \ a real timezone, and a stored offset is wrong half the year\n\nTask-273's offer\
+    \ is `date(ts, :tz)` with the offset from `project.reporting_tz`. SQLite has\n\
+    no timezone database and its `date()` modifier takes a **fixed** offset:\n\n|\
+    \ instant | true local day (America/Chicago) | `-06:00` | `-05:00` |\n|---|---|---|---|\n\
+    | 2026-07-04T05:30Z | 2026-07-04 | **2026-07-03** \u2717 | \u2713 |\n| 2026-12-24T05:30Z\
+    \ | 2026-12-23 | \u2713 | **2026-12-24** \u2717 |\n\nEither constant is wrong\
+    \ for roughly half the year, in the late-evening hours \u2014 which is\nwhen much\
+    \ of this project's work is recorded.\n\nThree ways out, measured: fixed offset\
+    \ **0.24 ms and wrong**; a boundary table joined in\nSQL with boundaries from\
+    \ `zoneinfo`, **correct and 58.8 ms** (250x, because the correlated\nlookup runs\
+    \ once per event against an unindexed `VALUES` list); **API-side bucketing with\n\
+    `zoneinfo`, correct and 0.906 ms.**\n\n**Decision: day bucketing happens in the\
+    \ API, and `project.reporting_tz` holds an IANA zone\nname rather than an offset.\
+    \ SQL filters and returns instants; it never names a day.** The\nAPI has to build\
+    \ the calendar spine regardless \u2014 only 26 of 316 days carry a backlog event.\n\
+    \n*Rejected: storing the local day on each event.* It makes the naive `GROUP BY`\
+    \ correct and\nfast, and freezes the reporting timezone into the data \u2014 in\
+    \ a single database shared across\nprojects that may not share a zone.\n\n###\
+    \ Two indexes and two smaller items, all measured at 20x scale\n\n- `ix_task_counts\
+    \ ON task(project_id, lifecycle, ball, outcome)` \u2014 the five-count summary,\n\
+    \  **14.6 ms \u2192 1.68 ms**.\n- `ix_event_source ON task_event(project_id, source,\
+    \ ts)` \u2014 history coverage, which runs on\n  every page load, **21.9 ms \u2192\
+    \ 6.58 ms**.\n- The `task.parent_id` self-reference needs `DEFERRABLE INITIALLY\
+    \ DEFERRED`: a bulk import\n  fails unless children follow parents, and an importer\
+    \ should not have to topologically\n  sort a task graph. Hit while loading the\
+    \ corpus.\n- `mechanical` must be **populated** at import, not merely defined.\
+    \ A column that is always\n  `0` is worse than absent, because the query looks\
+    \ correct.\n\n### What needs no change, so nobody adds it later\n\nThe nine before/after\
+    \ axes answer every question on the page. `open_delta` carries the\nbacklog level\
+    \ entirely. **`ball` needs no generated delta column** \u2014 its three-way running\n\
+    sum is a `CASE` over the partial index `ix_event_ball` at 0.46 ms (18.4 ms at\
+    \ 20x), so three\nmore stored columns would be maintenance for nothing. `task_state_daily`\
+    \ stays deferred with\nits trigger unchanged: a windowed series costing more than\
+    \ ~50 ms, against 0.91 ms today.\n\n### And one sequencing constraint that nothing\
+    \ in the system enforces\n\nThe backfill reads the git history of the task records,\
+    \ so **it must run, and be verified,\nbefore those files are retired.** Retire\
+    \ first and the evidence is gone permanently. Already\non task-273 entry 36; repeated\
+    \ here because this design is the reason that evidence is worth\nanything, and\
+    \ because task-371 is what carries it to task-311."
+  data:
+    operation:
+      id: c2f7e3b4-5a69-4d83-b027-3c8d9f15e866
+      kind: log_append
+      fingerprint: f63e75b8a2a927decdc24987cacad660
+- id: 9
+  ts: '2026-09-07T01:45:36.248344Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: d3a8f4c5-6b70-4e94-8138-4d9e0a26f977
+      kind: update_content
+      fingerprint: 258f6ac2ec3ff4d48bdbcdf143b012ea
+- id: 10
+  ts: '2026-09-07T01:45:58.823651Z'
+  actor: claude
+  type: handoff
+  body: "Design pass complete. `docs/analytics-design.md`, fifteen numbered sections,\
+    \ on branch `docs/task-213-analytics-design` \u2014 two commits, rebased onto\
+    \ `main`, full unqualified gate green (ten of ten stages, 300.8 s, receipt for\
+    \ `26d83e01`). Nothing merged; posture `auto` stops here.\n\n**What is in the\
+    \ record.** Entry 7 is the evidence and the deliverables; entry 8 is the coordination\
+    \ with task-273, which is the part with consequences for work you are about to\
+    \ dispatch.\n\n**The headline.** The whole seventeen-query page costs **6.30 ms**,\
+    \ against **719\u2013779 ms** for today's dashboard endpoint. No plan touches\
+    \ a JSON column and none scans a task document. At twenty times this project's\
+    \ size the page costs 253 ms, and the two panels that degrade worst are fixed\
+    \ by two indexes measured at 8.7x and 3.3x.\n\n**Your git-backfill answer was\
+    \ the right one, and it is now measured.** Task-273 found log-only replay leaving\
+    \ priority wrong for 337 of 367 tasks. With the backfill, plus the manager's own\
+    \ semantics applied to entries that recorded a lifecycle without the ball it implies,\
+    \ **326 of 367 tasks (89%) reconstruct exactly** \u2014 ball wrong for 1, priority\
+    \ for 6, archived for 0. The backfill costs 0.4 s of `git log` and 0.16 s of parsing,\
+    \ once.\n\n**Three defects found in the offered contract, and this is the reason\
+    \ section 6 exists.** Each of them produces a wrong chart while every query plan\
+    \ still looks healthy:\n\n1. Backfilling lifecycle from git double-counts every\
+    \ close \u2014 measured, a **45% error in the backlog level**.\n2. A backfilled\
+    \ creation instant taken at commit time makes the **backlog series go negative**,\
+    \ because commit time postdates the change it records.\n3. SQLite has no timezone\
+    \ database, so a stored UTC offset is **wrong for half of every year**. Bucketing\
+    \ moves to the API: correct across DST at 0.91 ms, against a correct SQL alternative\
+    \ measured at 58.8 ms.\n\n**One thing to weigh, since it is a judgement rather\
+    \ than a measurement.** task-371 is `critical` and the other three children are\
+    \ `high`. Items A and B are import rules, so task-371 has to reach task-273 and\
+    \ task-311 *before* they run \u2014 but the other three cannot start until the\
+    \ storage exists, and parking three unstartable tasks at the head of the critical\
+    \ band would push real work down. If you would rather they sat together, one `agentjobs\
+    \ queue move` fixes it.\n\n**Two decisions in the doc are mine rather than yours,\
+    \ and both carry a reopen trigger** in case you disagree: no charting dependency\
+    \ (\xA710.1, decided on this repository's own jsdom returning zeros for every\
+    \ measurement a chart library needs), and the entry point being a text link on\
+    \ the Dashboard's existing \"Active tasks\" heading row rather than a nav destination\
+    \ (\xA711, because `NAV_INLINE_MIN_PX` is a measured 1140px and another destination\
+    \ moves it).\n\nWorktree `../worktrees/agentjobs-213` is still in place, unmerged."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: e4b9a5d6-7c81-4f05-9239-5e0f1b37a088
+      kind: handoff
+      fingerprint: 0ff7dfd705cc80af467c97bb9ac8548f
