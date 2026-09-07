@@ -2,13 +2,22 @@ schema: 2
 id: task-358
 title: Task state moves to SQLite on the server
 created: '2026-09-06T06:08:06.698982Z'
-updated: '2026-09-07T02:25:19.738105Z'
+updated: '2026-09-07T03:04:55.938059Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Supervise this epic: start a separate session for one eligible child
-  at a time, watch its record, and do not work a child yourself. Open now: task-273,
-  task-311.'
+ball: human
+ball_reason: decision
+ball_prompt: 'task-273 is gated green and parked on you. It did not stop on judgement
+  -- its session was resumed and never received the epic''s `autonomous` clause, so
+  it followed the `auto` rule it was given. Filed as task-375.
+
+
+  Approving runs the whole merge itself (finish=on). Then re-dispatch task-358 to
+  continue to task-311.
+
+
+  Task 273: http://127.0.0.1:8876/app/tasks/task-273
+
+  Task 375: http://127.0.0.1:8876/app/tasks/task-375'
 archived: false
 priority: critical
 queue_position: 843
@@ -294,3 +303,127 @@ log:
       id: 1f2c0a94-6b3d-4e21-9a77-3d5f8c0b41ae
       kind: log_append
       fingerprint: 2bb4f226c484797c49806b441a3d9e38
+- id: 7
+  ts: '2026-09-07T03:01:09.519415Z'
+  actor: claude
+  type: progress
+  body: "**Epic walk** -- stopped: child_needs_a_human.\n\nStarted 2026-09-07T03:01:09.516785+00:00.\n\
+    \nWalk of task-358: child_needs_a_human.\nball is human/review: Review `feat/task-273-sqlite-store`\
+    \ (3 commits on `73e07f92`). Full gate green, all 10 stages, receipt written.\n\
+    \nThe store is built and deliberately not switched on -- task-311 flips the authority.\
+    \ Entry 42 has the measurements and the four history bugs found and fixed.\n\n\
+    One thing to look at rather than take on trust: I changed the design in three\
+    \ places because the corpus contradicted it, and the biggest is that `task_run`\
+    \ is no longer authoritative for how a run ended.\n\nChildren, in the order they\
+    \ landed (up to 1 in flight at once):\n  task-273 attempt 1 (run_8cd58e2f): parked\
+    \ -- ball is human/review: Review `feat/task-273-sqlite-store` (3 commits on `73e07f92`).\
+    \ Full gate green, all 10 stages, receipt written.\n\nThe store is built and deliberately\
+    \ not switched on -- task-311 flips the authority. Entry 42 has the measurements\
+    \ and the four history bugs found and fixed.\n\nOne thing to look at rather than\
+    \ take on trust: I changed the design in three places because the corpus contradicted\
+    \ it, and the biggest is that `task_run` is no longer authoritative for how a\
+    \ run ended.\n\n**The first child that is not clean grounds every further takeoff,\
+    \ and no child is ever skipped.** A sibling that depended on it would be building\
+    \ on a gap, and nobody is awake to notice. Children already in flight were watched\
+    \ down rather than killed -- none of them could have depended on this one, or\
+    \ they would not have been eligible to start. Whatever the child's record says\
+    \ it needs is what this epic needs next."
+  data: {}
+- id: 8
+  ts: '2026-09-07T03:01:09.544397Z'
+  actor: claude
+  type: handoff
+  body: 'The epic walk stopped on task-273: ball is human/review: Review `feat/task-273-sqlite-store`
+    (3 commits on `73e07f92`). Full gate green, all 10 stages, receipt written.
+
+
+    The store is built and deliberately not switched on -- task-311 flips the authority.
+    Entry 42 has the measurements and the four history bugs found and fixed.
+
+
+    One thing to look at rather than take on trust: I changed the design in three
+    places because the corpus contradicted it, and the biggest is that `task_run`
+    is no longer authoritative for how a run ended. 0 child/children completed before
+    it (none). Read that child''s record, decide what it needs, and restart the walk
+    when it is resolved -- it re-reads the attempt count off each child''s log, so
+    nothing is double-spent.'
+  data:
+    ball: human
+    ball_reason: decision
+- id: 9
+  ts: '2026-09-07T03:04:55.937777Z'
+  actor: claude
+  type: handoff
+  body: "## Why the walk stopped, and it is not what the record says\n\ntask-273 is\
+    \ built, gated and parked on you. I verified the child's claims rather than relaying\
+    \ them: the gate receipt in its worktree names `73e07f92` \u2014 the branch tip\
+    \ \u2014 with `basis: null`, so it was a full unqualified gate, not a narrowed\
+    \ one. The worktree is clean. Two code commits, 16 files, 4,296 insertions.\n\n\
+    **But the child did not park on judgement. It parked because it was never told\
+    \ it was autonomous.** Its session was *resumed* (`--resume`, no prompt string)\
+    \ rather than started cold, so the only posture clause it ever received was the\
+    \ `auto` one from `run_8ad284df`. task-273's own entry 39 asserts \"They chose\
+    \ posture `autonomous` for the epic, so this run gets it too\" \u2014 the record\
+    \ says one thing, the session was told another, and nothing reported the mismatch.\
+    \ The child's \"Nothing merged; posture prompt said hand off\" is correct behaviour,\
+    \ not reluctance.\n\nFiled as **task-375** (high, dispatch): a resumed run records\
+    \ a posture it never delivers, which silently defeats the epic walk for any child\
+    \ whose session gets resumed. The fix is a real fork \u2014 deliver the clause\
+    \ into the resumed turn (cheap, but raises a live session's posture mid-flight)\
+    \ or refuse to resume across a posture change (safer, loses the context resume\
+    \ exists for) \u2014 so I specified it rather than picking.\n\n## What that means\
+    \ for your read of task-273\n\nRead entries 42 and 43 as a normal review request,\
+    \ not as a child raising an alarm. The one thing it explicitly asks you not to\
+    \ take on trust is design change 1: `task_run` is no longer authoritative for\
+    \ how a run ended, because two run ids in this corpus each carry two `dispatch_result`\
+    \ entries (interrupted at 22:27, completed at 22:31, both true) and a row holds\
+    \ one outcome. Dispatch facts still render from the row; results stay on the entry.\n\
+    \nWorth knowing before you decide: history fidelity is reported at **84%, not\
+    \ the 89% task-213 measured**, and the child reported it as measured rather than\
+    \ rounding toward the other task's figure. Four backfill bugs were found and fixed\
+    \ getting there, three of which would have shipped silently \u2014 including git\
+    \ and the manager writing timestamps in different formats, which would have bucketed\
+    \ changes into the wrong day and broken every chart on the analytics page.\n\n\
+    ## Mechanics, so the choice is one gesture\n\n`finish=on` for this project, so\
+    \ approving task-273 runs the whole merge gate itself \u2014 rebase, full gate,\
+    \ `--no-ff`, rebuild, restart, close, worktree and branch cleanup. No agent needed.\
+    \ `main` has moved one commit since the branch rebased (`e569b15b`, a task-record\
+    \ commit only), so the finish will re-gate on the rebased tree; that is expected,\
+    \ not a problem.\n\n**Whichever you pick, this epic needs a fresh dispatch of\
+    \ task-358 afterwards.** My session ends here, and task-311 only becomes eligible\
+    \ once task-273 closes.\n\n## This parent's own criteria\n\nNone are met yet,\
+    \ and ac-2 in particular is mine to verify rather than a child's to claim \u2014\
+    \ it wants a live read and write through the UI *and* the CLI with the YAML path\
+    \ unavailable, which cannot be true until task-311 has flipped the authority.\
+    \ ac-3 and ac-5 (whether task-247 and task-272 survive; what historical coverage\
+    \ the store honestly has) are decisions I owe this record, and task-273's entry\
+    \ 42 now has most of the evidence for ac-5."
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: 3c8f5a21-9e04-4b76-8d3a-2f1b6c07e594
+      kind: handoff
+      fingerprint: dde89f64baedd70ed271e1dd1933a43e
+- id: 10
+  ts: '2026-09-07T03:04:55.937882Z'
+  actor: claude
+  type: question
+  body: task-273's store is built and its gate is green. How should it land?
+  re: 9
+  data:
+    options:
+    - label: Approve task-273 now
+      description: The scripted finish rebases, re-gates, merges, rebuilds and restarts.
+        Take the design changes as reviewed. Then re-dispatch task-358 for task-311.
+      recommended: true
+    - label: "Hold \u2014 I want to read entry 42 first"
+      description: Nothing moves. The three design changes and the 84% history figure
+        are there; approve when you have looked.
+      recommended: false
+    - label: Fix task-375 first, then re-run the epic
+      description: Land the posture-on-resume fix so this walk and future ones actually
+        run unattended, then re-dispatch task-358 and let it merge task-273 itself.
+      recommended: false
+    multi_select: false
+    placeholder: null
