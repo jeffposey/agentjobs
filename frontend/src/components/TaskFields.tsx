@@ -233,175 +233,175 @@ export function TaskFields({
       <h2 className="text-lg font-semibold">Fields</h2>
       <form
         className="space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!dirty || titleEmpty) return;
-              // Closed only once the write lands. A refused save keeps every edit in
-              // the boxes, because the banner beside them says what to do about it and
-              // throwing a phone user's typing away is not a way to report a conflict.
-              void Promise.resolve(onSave(patch)).then(reset, () => undefined);
-            }}
-          >
-            <p className="text-sm text-dark-muted">
-              Editing these does not move the task — who acts next changes through the
-              actions elsewhere on this page, never here.
-            </p>
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!dirty || titleEmpty) return;
+          // Closed only once the write lands. A refused save keeps every edit in
+          // the boxes, because the banner beside them says what to do about it and
+          // throwing a phone user's typing away is not a way to report a conflict.
+          void Promise.resolve(onSave(patch)).then(reset, () => undefined);
+        }}
+      >
+        <p className="text-sm text-dark-muted">
+          Editing these does not move the task — who acts next changes through the
+          actions elsewhere on this page, never here.
+        </p>
 
-            {/* One column on a phone, two where there is room. Every control is a
-                `touch-target`, so the whole form is thumb-sized at 390px. */}
-            <div className="grid gap-4 @min-[768px]:grid-cols-2">
-              <label className="block text-sm font-semibold @min-[768px]:col-span-2">
-                Title
-                <input
-                  name="title"
-                  value={value.title}
-                  onChange={(event) => setDraft((state) => ({ ...state, title: event.target.value }))}
-                  className={inputClass}
-                />
-              </label>
+        {/* One column on a phone, two where there is room. Every control is a
+            `touch-target`, so the whole form is thumb-sized at 390px. */}
+        <div className="grid gap-4 @min-[768px]:grid-cols-2">
+          <label className="block text-sm font-semibold @min-[768px]:col-span-2">
+            Title
+            <input
+              name="title"
+              value={value.title}
+              onChange={(event) => setDraft((state) => ({ ...state, title: event.target.value }))}
+              className={inputClass}
+            />
+          </label>
 
-              <label className="block text-sm font-semibold">
-                Priority
-                <select
-                  name="priority"
-                  value={value.priority}
-                  onChange={(event) =>
-                    setDraft((state) => ({ ...state, priority: event.target.value as Priority }))
-                  }
-                  className={inputClass}
-                >
-                  {PRIORITIES.map((option) => (
-                    <option value={option} key={option}>
-                      {option.charAt(0).toUpperCase() + option.slice(1)}
-                    </option>
-                  ))}
-                </select>
-              </label>
+          <label className="block text-sm font-semibold">
+            Priority
+            <select
+              name="priority"
+              value={value.priority}
+              onChange={(event) =>
+                setDraft((state) => ({ ...state, priority: event.target.value as Priority }))
+              }
+              className={inputClass}
+            >
+              {PRIORITIES.map((option) => (
+                <option value={option} key={option}>
+                  {option.charAt(0).toUpperCase() + option.slice(1)}
+                </option>
+              ))}
+            </select>
+          </label>
 
-              <label className="block text-sm font-semibold">
-                Category
-                <input
-                  name="category"
-                  list="task-field-categories"
-                  value={value.category}
-                  onChange={(event) => setDraft((state) => ({ ...state, category: event.target.value }))}
-                  className={inputClass}
-                />
-              </label>
-              <datalist id="task-field-categories">
-                {vocabulary?.categories.map((entry) => <option value={entry} key={entry} />)}
-              </datalist>
+          <label className="block text-sm font-semibold">
+            Category
+            <input
+              name="category"
+              list="task-field-categories"
+              value={value.category}
+              onChange={(event) => setDraft((state) => ({ ...state, category: event.target.value }))}
+              className={inputClass}
+            />
+          </label>
+          <datalist id="task-field-categories">
+            {vocabulary?.categories.map((entry) => <option value={entry} key={entry} />)}
+          </datalist>
 
-              <label className="block text-sm font-semibold @min-[768px]:col-span-2">
-                Effort
-                <input
-                  name="effort"
-                  value={value.effort}
-                  placeholder="Half a day"
-                  onChange={(event) => setDraft((state) => ({ ...state, effort: event.target.value }))}
-                  className={inputClass}
-                />
-              </label>
-            </div>
+          <label className="block text-sm font-semibold @min-[768px]:col-span-2">
+            Effort
+            <input
+              name="effort"
+              value={value.effort}
+              placeholder="Half a day"
+              onChange={(event) => setDraft((state) => ({ ...state, effort: event.target.value }))}
+              className={inputClass}
+            />
+          </label>
+        </div>
 
-            <div className="space-y-2">
-              <span className="block text-sm font-semibold" id="task-field-tags-label">
-                Tags
-              </span>
-              <ul className="flex flex-wrap gap-2" aria-labelledby="task-field-tags-label">
-                {value.tags.map((tag) => (
-                  <li key={tag}>
-                    <button
-                      type="button"
-                      onClick={() => removeTag(tag)}
-                      aria-label={`Remove tag ${tag}`}
-                      className="touch-target rounded-full border border-dark-border bg-dark-bg px-3 text-sm hover:border-red-500 hover:text-red-300"
-                    >
-                      {tag} <span aria-hidden="true">✕</span>
-                    </button>
-                  </li>
-                ))}
-                {value.tags.length === 0 && <li className="text-sm text-dark-muted">No tags yet.</li>}
-              </ul>
-              <div className="flex flex-wrap gap-2">
-                <label className="sr-only" htmlFor="task-field-add-tag">
-                  Add a tag
-                </label>
-                <input
-                  id="task-field-add-tag"
-                  list="task-field-tags"
-                  value={tagDraft}
-                  placeholder="Add a tag"
-                  onChange={(event) => setTagDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    // Enter adds the tag rather than submitting the form: on a phone
-                    // the keyboard's return key is the obvious way to finish a word,
-                    // and having it save the whole edit instead would be a trap.
-                    if (event.key !== "Enter") return;
-                    event.preventDefault();
-                    addTag(tagDraft);
-                  }}
-                  className="touch-target min-w-40 flex-1 rounded-lg border border-dark-border bg-dark-bg px-3 py-2 text-dark-text placeholder:text-dark-muted focus:border-blue-500 focus:outline-none"
-                />
-                <datalist id="task-field-tags">
-                  {vocabulary?.tags
-                    .filter((tag) => !value.tags.includes(tag))
-                    .map((tag) => <option value={tag} key={tag} />)}
-                </datalist>
+        <div className="space-y-2">
+          <span className="block text-sm font-semibold" id="task-field-tags-label">
+            Tags
+          </span>
+          <ul className="flex flex-wrap gap-2" aria-labelledby="task-field-tags-label">
+            {value.tags.map((tag) => (
+              <li key={tag}>
                 <button
                   type="button"
-                  disabled={!tagDraft.trim()}
-                  onClick={() => addTag(tagDraft)}
-                  className="touch-target rounded-lg border border-dark-border bg-dark-bg px-4 text-sm font-semibold hover:bg-dark-border disabled:opacity-60"
+                  onClick={() => removeTag(tag)}
+                  aria-label={`Remove tag ${tag}`}
+                  className="touch-target rounded-full border border-dark-border bg-dark-bg px-3 text-sm hover:border-red-500 hover:text-red-300"
                 >
-                  Add
+                  {tag} <span aria-hidden="true">✕</span>
                 </button>
-              </div>
-            </div>
+              </li>
+            ))}
+            {value.tags.length === 0 && <li className="text-sm text-dark-muted">No tags yet.</li>}
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            <label className="sr-only" htmlFor="task-field-add-tag">
+              Add a tag
+            </label>
+            <input
+              id="task-field-add-tag"
+              list="task-field-tags"
+              value={tagDraft}
+              placeholder="Add a tag"
+              onChange={(event) => setTagDraft(event.target.value)}
+              onKeyDown={(event) => {
+                // Enter adds the tag rather than submitting the form: on a phone
+                // the keyboard's return key is the obvious way to finish a word,
+                // and having it save the whole edit instead would be a trap.
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                addTag(tagDraft);
+              }}
+              className="touch-target min-w-40 flex-1 rounded-lg border border-dark-border bg-dark-bg px-3 py-2 text-dark-text placeholder:text-dark-muted focus:border-blue-500 focus:outline-none"
+            />
+            <datalist id="task-field-tags">
+              {vocabulary?.tags
+                .filter((tag) => !value.tags.includes(tag))
+                .map((tag) => <option value={tag} key={tag} />)}
+            </datalist>
+            <button
+              type="button"
+              disabled={!tagDraft.trim()}
+              onClick={() => addTag(tagDraft)}
+              className="touch-target rounded-lg border border-dark-border bg-dark-bg px-4 text-sm font-semibold hover:bg-dark-border disabled:opacity-60"
+            >
+              Add
+            </button>
+          </div>
+        </div>
 
-            <p className="text-sm text-dark-muted">
-              Saved as <strong className="text-dark-text">{identity.user}</strong>.
-            </p>
+        <p className="text-sm text-dark-muted">
+          Saved as <strong className="text-dark-text">{identity.user}</strong>.
+        </p>
 
-            {titleEmpty && (
-              <p role="alert" className="text-sm text-red-300">
-                A task needs a title. Put one back before saving.
+        {titleEmpty && (
+          <p role="alert" className="text-sm text-red-300">
+            A task needs a title. Put one back before saving.
+          </p>
+        )}
+
+        {error && (
+          <div role="alert" className="space-y-1 rounded-lg border border-red-500/60 bg-red-950/40 p-3 text-sm text-red-200">
+            <p>{error}</p>
+            {/* What actually moved, rather than the two timestamps the server
+                compared. An empty list is still worth saying: it means nothing this
+                form edits was touched, so saving again is safe. */}
+            {moved && (
+              <p>
+                {moved.length
+                  ? `While you were editing: ${moved.join("; ")}.`
+                  : "Nothing this form edits was changed — the record moved for another reason, such as a new log entry."}{" "}
+                Your edits are still in the boxes above. Save again to apply them.
               </p>
             )}
+          </div>
+        )}
 
-            {error && (
-              <div role="alert" className="space-y-1 rounded-lg border border-red-500/60 bg-red-950/40 p-3 text-sm text-red-200">
-                <p>{error}</p>
-                {/* What actually moved, rather than the two timestamps the server
-                    compared. An empty list is still worth saying: it means nothing this
-                    form edits was touched, so saving again is safe. */}
-                {moved && (
-                  <p>
-                    {moved.length
-                      ? `While you were editing: ${moved.join("; ")}.`
-                      : "Nothing this form edits was changed — the record moved for another reason, such as a new log entry."}{" "}
-                    Your edits are still in the boxes above. Save again to apply them.
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div className="mobile-action-row flex gap-3">
-              <button
-                type="submit"
-                disabled={busy || !dirty || titleEmpty}
-                className="touch-target rounded-lg bg-blue-700 px-4 font-semibold text-white disabled:opacity-60"
-              >
-                {busy ? "Saving…" : "Save fields"}
-              </button>
-              <button
-                type="button"
-                onClick={reset}
-                className="touch-target rounded-lg px-4 font-semibold text-dark-muted hover:bg-dark-border"
-              >
-                Cancel
-              </button>
-            </div>
+        <div className="mobile-action-row flex gap-3">
+          <button
+            type="submit"
+            disabled={busy || !dirty || titleEmpty}
+            className="touch-target rounded-lg bg-blue-700 px-4 font-semibold text-white disabled:opacity-60"
+          >
+            {busy ? "Saving…" : "Save fields"}
+          </button>
+          <button
+            type="button"
+            onClick={reset}
+            className="touch-target rounded-lg px-4 font-semibold text-dark-muted hover:bg-dark-border"
+          >
+            Cancel
+          </button>
+        </div>
       </form>
     </section>
   );
