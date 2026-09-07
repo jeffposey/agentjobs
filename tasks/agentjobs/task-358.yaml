@@ -2,7 +2,7 @@ schema: 2
 id: task-358
 title: Task state moves to SQLite on the server
 created: '2026-09-06T06:08:06.698982Z'
-updated: '2026-09-07T06:28:07.878890Z'
+updated: '2026-09-07T06:38:37.067032Z'
 lifecycle: active
 ball: human
 ball_reason: input
@@ -6441,3 +6441,17 @@ log:
   data:
     ball: human
     ball_reason: input
+- id: 28
+  ts: '2026-09-07T06:38:37.066829Z'
+  actor: claude
+  type: progress
+  body: "**Epic walk** -- every open child is done.\n\nStarted 2026-09-07T06:38:37.059707+00:00.\n\
+    \nWalk of task-358: all_children_done.\nNo open child of task-358 remains. The\
+    \ parent is deliberately left open: whether its own acceptance criteria are met\
+    \ is a judgement this walk does not make.\n\nChildren, in the order they landed\
+    \ (up to 1 in flight at once):\n  task-311 attempt 1 (run_fea4e0a1): completed\
+    \ -- closed completed; its own gate ran and its own merge happened\n\n**This parent\
+    \ is deliberately still open.** No open child remains, which is not the same as\
+    \ the parent's acceptance criteria being met. Evaluate them against the children's\
+    \ evidence and close it only where that evidence supports it."
+  data: {}
