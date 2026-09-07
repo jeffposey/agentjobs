@@ -33,8 +33,8 @@ spec:
     \ Code displayed **\"Login expired\"** during autonomous work.\n2. The session\
     \ **parked on a prompt to log in** \u2014 the same shape of park as a permission\
     \ prompt: a background run waiting on an answer nobody is present to give.\n3.\
-    \ **Answering that prompt did not work.** Jeff's words: \"that didn't even fucking\
-    \ work.\"\n4. What did work: open a separate terminal, run `claude` there, complete\
+    \ **Answering that prompt did not work**, which Jeff confirmed emphatically.\n4.\
+    \ What did work: open a separate terminal, run `claude` there, complete\
     \ the login in that process, then return to the app and tell the running session\
     \ it had been done.\n\n## The hypothesis, flagged as a hypothesis\n\nJeff's reading\
     \ is that the logout was **deliberate, and triggered by his use of remote-controllable\

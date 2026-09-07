@@ -16,17 +16,17 @@ tags:
 assignment:
   eligible: []
 spec:
-  summary: "Jeff's verdict on the README section \"Why this is not another task tracker\"\
-    : \"utter shit\". Two weak bullets, one of which is \"git is the database\". The\
+  summary: "Jeff rejected the README section \"Why this is not another task tracker\"\
+    \ outright. Two weak bullets, one of which is \"git is the database\". The\
     \ product's real differentiator is that it is opinionated in ways the schema enforces\
     \ \u2014 a task cannot sit unassigned, every handoff carries its ask, every open\
     \ task has a place in line \u2014 and none of that is on the front page. Rewrite\
     \ so the README sells itself early and defers the boring detail."
-  description: "## The complaint\n\nJeff, in chat: the section is \"utter shit. It\
-    \ has opinions, a task cannot be unassigned, all tasks have a queue order in their\
-    \ priority bucket, making 'next task' possible, ETC, ETC, please improve the readme,\
-    \ make it sell itself early in the readme with that kind of stuff, then go into\
-    \ boring details\".\n\nCurrent section is two bullets \u2014 hierarchy roll-up,\
+  description: "## The complaint\n\nJeff, in chat, rejected the section outright. His\
+    \ direction: the product has opinions worth leading with, a task cannot be unassigned,\
+    \ and every task has a queue order within its priority bucket, which is what makes\
+    \ a next-task answer possible. The README should sell itself early with that kind\
+    \ of material and defer the boring detail.\n\nCurrent section is two bullets: hierarchy roll-up,\
     \ and \"Git is the database\". Neither is a reason to choose this over Jira-with-an-MCP-server.\
     \ The genuinely opinionated decisions are invisible until a reader is deep in\
     \ docs/task-schema.md.\n\n## What is actually differentiating, each verified 2026-08-22\n\

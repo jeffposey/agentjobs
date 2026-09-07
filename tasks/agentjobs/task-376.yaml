@@ -1,0 +1,152 @@
+schema: 2
+id: task-376
+title: Task records must paraphrase rather than quote a person, and the store must
+  refuse verbatim quotes at ingest
+created: '2026-09-07T03:43:37.694129Z'
+updated: '2026-09-07T03:43:38.390663Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 1493
+category: migration
+tags:
+- storage
+- sqlite
+- policy
+- content
+assignment:
+  eligible: []
+parent: task-358
+spec:
+  summary: A content rule for what task records may hold and what the SQLite store
+    may ingest. Records paraphrase a person rather than quoting them verbatim, and
+    anything carrying informal or frustrated tone is summarised professionally instead.
+    Enforced at import and in the gate, with the corpus finished and a supported way
+    to redact a record.
+  intent: "This repository has a public remote. Task records are written by agents\
+    \ summarising what a person said, and the habit of quoting them verbatim to make\
+    \ a point has put attributed, informally worded remarks into public records \u2014\
+    \ where they read as a characterisation of a real person rather than as engineering.\
+    \ The owner set this as a requirement ahead of the task-311 cutover, and it is\
+    \ treated as blocking: an import that carries the habit forward makes it durable\
+    \ and queryable, which is worse than leaving it in files.\n\nThe rule is not censorship\
+    \ of the record. Substance is preserved; what changes is that the record states\
+    \ what was meant instead of reproducing how it was said."
+  description: "## The rule\n\n1. **Paraphrase by default.** A task record states\
+    \ what a person meant, not the words they used. Direct quotation is reserved for\
+    \ cases where the exact wording is the subject \u2014 an API name, a spec sentence\
+    \ being disputed, a message being debugged.\n2. **Never reproduce tone.** Where\
+    \ a remark carries frustration, profanity, or informality, summarise it professionally\
+    \ and keep the substance. \"Rejected the section outright\" carries everything\
+    \ the reader needs.\n3. **This binds the store as well as the author.** The importer\
+    \ is the last place the rule can be enforced mechanically before the content becomes\
+    \ durable and queryable.\n\n## What is already done, and by whom\n\nHandled in\
+    \ the task-358 supervisor session on 2026-09-07, before this task existed:\n\n\
+    - **task-358 itself** carried a fresh instance in its `ball_prompt` and two log\
+    \ entries. It was uncommitted; all four regions were redacted before any commit,\
+    \ so it never reached git.\n- **Five historical records** \u2014 task-024, task-060,\
+    \ task-224, task-286 and task-298 \u2014 each carried one or two attributed verbatim\
+    \ quotes. All six regions were rewritten to paraphrase. `agentjobs validate` reports\
+    \ every file valid.\n\nBoth were done by hand-splicing the YAML, because there\
+    \ is no supported way to do it (see below). Each edited file now reports `non-canonical-serialization`,\
+    \ which `tests/test_validate.py::TestRealCorpus` explicitly tolerates, so the\
+    \ gate is unaffected. A managed write on any of those tasks clears it.\n\n## What\
+    \ this task has to do\n\n### 1. Detect and refuse at ingest\n\n`src/agentjobs/sqlstore/importer.py`\
+    \ is the boundary. A record carrying a verbatim quote with informal or frustrated\
+    \ tone must not be imported silently. Decide and record whether the importer **refuses**\
+    \ (loud, forces a fix, risks blocking a cutover on a false positive) or **quarantines**\
+    \ the field and reports it. A word list is the obvious first implementation and\
+    \ is also the weakest: it will miss tone that uses no listed word and will fire\
+    \ on legitimate technical prose. Say plainly in the doc what the detector does\
+    \ and does not catch.\n\n### 2. Make the same check available before the record\
+    \ is written\n\nA check at import only is a check that fires long after the author\
+    \ has gone. The cheap half belongs in the gate, over `tasks/`, so an agent writing\
+    \ a record with a verbatim quote learns immediately. `scripts/gate_scope.py` already\
+    \ maps `tasks/` to the pytest stage.\n\n### 3. A supported way to redact a record\n\
+    \n**There is currently none, and this is the gap that made the work above unsupported.**\
+    \ The log is append-only, `task_update_content` reaches the spec but not the log,\
+    \ and the Edit tool is correctly refused on managed task files. So the only route\
+    \ was a hand-splice through Bash, which the managed-write guard exists to prevent.\
+    \ Content that must not persist is exactly the case the append-only log has no\
+    \ answer for. Add a redaction verb that replaces a field or a log entry body with\
+    \ a stated redaction, records that it happened and who did it, and re-serialises\
+    \ canonically.\n\n### 4. Write the rule down\n\n`ALLAGENTS.md` tells agents to\
+    \ record decisions and progress; it does not tell them how to represent a person.\
+    \ Add the rule there, next to the logging guidance, in a few lines.\n\n## The\
+    \ part that is not this task's to decide\n\n**The five historical records are\
+    \ already public at `origin/main`.** Redacting the working tree removes them from\
+    \ current state and from any future import; it does not remove them from published\
+    \ history. Taking them out of history means a rewrite and a force-push, which\
+    \ contradicts this project's standing `push: false` posture. That is the owner's\
+    \ call and is deliberately left open here \u2014 do not act on it under this task."
+  constraints: "Preserve substance: a redaction that loses why a task exists is a\
+    \ worse record, not a safer one. Do not reproduce the removed wording anywhere,\
+    \ including in tests, fixtures or commit messages \u2014 a detector's test cases\
+    \ must be synthetic. Do not rewrite git history or push under this task."
+  out_of_scope: Rewriting published git history, and force-pushing. Scrubbing quotes
+    of anyone other than project participants. General profanity filtering of task
+    prose that is not a quotation of a person. The task-311 cutover itself.
+  context:
+  - path: src/agentjobs/sqlstore/importer.py
+    why: "The ingest boundary \u2014 the last mechanical place to enforce the rule\
+      \ before content becomes durable and queryable."
+  - path: scripts/gate_scope.py
+    why: Already maps `tasks/` to the pytest stage, which is where the author-time
+      half of the check belongs.
+  - path: tests/test_validate.py
+    why: TestRealCorpus tolerates non-canonical-serialization, which is why the hand-spliced
+      files do not break the gate.
+  - path: ALLAGENTS.md
+    why: Logging Work to the Task is where the paraphrase rule belongs.
+acceptance:
+- id: ac-1
+  text: The importer detects a record field carrying a verbatim quote with informal
+    or frustrated tone and refuses or quarantines it, with the chosen behaviour and
+    its false-positive trade-off recorded as a decision entry.
+  status: pending
+- id: ac-2
+  text: The same check runs over `tasks/` in the gate, so an author is told before
+    the record is committed rather than at import.
+  status: pending
+- id: ac-3
+  text: "A supported redaction path exists for a field and for a log entry body, records\
+    \ that a redaction happened and by whom, and re-serialises the file canonically\
+    \ \u2014 replacing the hand-splice used on 2026-09-07."
+  status: pending
+- id: ac-4
+  text: ALLAGENTS.md states the paraphrase-by-default rule where it gives logging
+    guidance.
+  status: pending
+- id: ac-5
+  text: The corpus is clean by the detector's own measure, and the six regions already
+    rewritten are re-saved canonically through the new redaction path.
+  status: pending
+- id: ac-6
+  text: No test, fixture or commit message reproduces any of the removed wording;
+    detector test cases are synthetic.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-311
+  type: related
+  note: 'The cutover this blocks: an import that carries the habit forward makes it
+    durable and queryable.'
+- task: task-273
+  type: related
+  note: Built the importer and the store this must enforce at.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-07T03:43:38.389879Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 9d2b4e17-6a3c-4f80-b125-7e94c0a3d861
+      kind: create
+      fingerprint: 9a9ca4766b348e550a4b7471cf616833

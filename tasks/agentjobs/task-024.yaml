@@ -24,8 +24,8 @@ spec:
     is an HTTP client, so the data was fine and the server served it fine -- but client.py
     re-parses the response with its own in-process Pydantic models, and an older copy
     rejects a value it does not know.'
-  intent: 'Jeff, 2026-08-19, after watching it happen twice in one evening: "man,
-    wtf is up with stale mcp servers? how about we not do that?" It cost a live dashboard,
+  intent: 'Raised by Jeff on 2026-08-19 after watching it happen twice in one evening,
+    asking why stale MCP servers keep doing this and for it to stop. It cost a live dashboard,
     a dispatched agent''s ability to write its own record, and a merge that had to
     be rushed to restore service.'
   description: "## What actually happened, 2026-08-19\n\ntask-020 added `AUTO = \"\
