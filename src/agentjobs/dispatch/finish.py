@@ -90,6 +90,7 @@ from agentjobs.dispatch.ledger import (
     LockHolder,
     RunLock,
     RunLockTimeout,
+    RunRecord,
     acquire_run_lock,
     acquire_runway_lock,
     find_run,
@@ -108,7 +109,7 @@ from agentjobs.models_v2 import (
     Task,
 )
 from agentjobs.projects import Project, default_home
-from agentjobs.store_factory import TaskManagerLike
+from agentjobs.store_factory import TaskManagerLike, dispatch_manager_for
 
 FINISHES_DIRNAME = "finishes"
 """Where a finish's own record lives, beside ``runs/`` and deliberately not inside it.
@@ -2055,19 +2056,32 @@ def finish_task(
             task_id=task_id,
             home=resolved_home,
             api_base=api_base,
+            finish_id=directory.finish_id,
         )
         # The one thing that must not survive this handler: an open task whose ball says
         # `agent` with no agent anywhere (task-340). `escalate_on_record` wrote that ball
         # a moment ago, correctly -- it is what a woken session is handed -- and this is
         # where it is taken back if nothing was woken.
+        #
+        # Guarded for the same reason the dispatch above is (task-390). Both the handoff
+        # and the commit go through a manager, and on a served project that manager is an
+        # HTTP client: a refused request here would throw away the escalation this process
+        # has already recorded and stop the `FinishResult` ever being returned.
         if taken_over.unattended:
-            park_for_human(manager, task_id, project.id, taken_over)
-            commit_task_record(
-                manager,
-                task_id,
-                subject=f"hand {task_id} to a human: the escalation started no run",
-                actor=FINISHER,
-            )
+            try:
+                park_for_human(manager, task_id, project.id, taken_over)
+                commit_task_record(
+                    manager,
+                    task_id,
+                    subject=f"hand {task_id} to a human: the escalation started no run",
+                    actor=FINISHER,
+                )
+            # `refusal` rather than `exc`, and not a style choice: `except ... as` unbinds
+            # its name when the block ends, so reusing `exc` here would delete the
+            # `Escalate` this handler is still holding and the `FinishResult` two lines
+            # below could not be built.
+            except Exception as refusal:  # noqa: BLE001 - the finish must still report itself
+                directory.write_meta(escalation_park_failed=f"{type(refusal).__name__}: {refusal}")
         directory.write_meta(
             dispatched_run_id=taken_over.run_id,
             escalation_dispatch=taken_over.reason,
@@ -2458,6 +2472,62 @@ def dispatch_after_escalation(
     task_id: str,
     home: Optional[Path],
     api_base: Optional[str],
+    finish_id: str = "",
+) -> EscalationDispatch:
+    """:func:`_attempt_escalation_dispatch`, with the never-raises promise made structural.
+
+    **The promise used to be a list of exception types, and a list is only as good as
+    the names on it** (task-390). The body caught ``DispatchError`` and
+    ``DispatchRunError``; on 2026-09-07 a hand-run ``agentjobs finish`` reached
+    ``RemoteTaskManager.record_dispatch``, which raises ``RemoteStoreUnsupported`` --
+    neither of those -- and the traceback went out through ``finish_task`` before
+    ``park_for_human`` could run. The escalation was already written to the record, so
+    task-230 was left open at ``agent``/``work`` with nothing dispatched: exactly the
+    state this function's docstring says it exists to make impossible.
+
+    So the catch is a bare ``Exception``, which is the trade this one caller can defend
+    and most cannot. **The alternative to masking a bug here is an abandoned task**, and
+    nothing is actually masked: the exception's text becomes the ball prompt a human
+    reads, the finish's ``meta.yaml`` records it as the escalation's outcome, and the
+    ``FinishResult`` names it. A caller that turned it into a traceback would tell the
+    person at the shell and nobody else -- and the scripted finish's usual caller is a
+    detached process with no shell attached to it at all.
+
+    ``BaseException`` is deliberately not caught: a ``KeyboardInterrupt`` is somebody
+    stopping this on purpose and must not be reported as a refused dispatch.
+    """
+    try:
+        return _attempt_escalation_dispatch(
+            manager=manager,
+            project=project,
+            project_config=project_config,
+            settings=settings,
+            task_id=task_id,
+            home=home,
+            api_base=api_base,
+            finish_id=finish_id,
+        )
+    except Exception as exc:  # noqa: BLE001 - see the docstring; the alternative is worse
+        return EscalationDispatch(
+            reason="dispatch_crashed",
+            detail=(
+                f"Starting the session that would take {task_id} over raised "
+                f"{type(exc).__name__}: {exc}"
+            ),
+            unattended=True,
+        )
+
+
+def _attempt_escalation_dispatch(
+    *,
+    manager: TaskManagerLike,
+    project: Project,
+    project_config: Dict[str, Any],
+    settings: FinishSettings,
+    task_id: str,
+    home: Optional[Path],
+    api_base: Optional[str],
+    finish_id: str = "",
 ) -> EscalationDispatch:
     """Start the session that takes over, spending the approval that started this finish.
 
@@ -2478,10 +2548,13 @@ def dispatch_after_escalation(
     touch the safety argument, and it cannot loop: the run it starts ends at a review
     handoff, and the next finish needs another approval.
 
-    Never raises, and never returns silently. An escalation already written to the record
-    must not become a crash because a run could not start -- and it must not become a
-    task that reads ``agent`` with nobody on it either, which is why every path out of
-    here says which of the three things happened.
+    Never returns silently: an escalation already written to the record must not become a
+    task that reads ``agent`` with nobody on it, which is why every path out of here says
+    which of the three things happened. It must not become a crash either, and *that*
+    half is kept by :func:`dispatch_after_escalation`, which wraps this.
+
+    ``finish_id`` names the finish whose escalation this is, and it is written onto the
+    run this defers to. See the ``live_run`` branch below.
     """
     from agentjobs.dispatch.guards import DispatchRequest, dispatch_task, resolve_machine_home
     from agentjobs.dispatch.runner import DispatchRunError
@@ -2524,14 +2597,24 @@ def dispatch_after_escalation(
     # refusal is the one case where the ball must *not* move. `finish_task` calls this
     # with the lock still held when a run is finishing itself (task-022): that run is
     # alive, holds the ball, and is the agent the handoff is addressed to.
+    #
+    # **But "live now" is not "will act", and task-390 is the difference.** On
+    # 2026-09-07 this branch deferred to `run_1bcb7154`, which recorded its own outcome
+    # 36 seconds later; task-230 then sat open at `agent`/`work` with nothing on it for
+    # seventeen minutes. The branch stays -- an escalation raised from inside a live run
+    # must still not start a second run for that task -- and what changes is that the
+    # conclusion is no longer final. The run is marked, and `resolve_deferred_escalation`
+    # asks again when it ends, which is the moment the answer is actually knowable.
     for run in live_runs(resolve_machine_home(home, resolution)):
         if run.task_id == task_id:
+            _mark_escalation_pending(run, finish_id or task_id)
             return EscalationDispatch(
                 run_id=run.run_id,
                 reason="live_run",
                 detail=(
                     f"{run.run_id} is already live on {task_id}; it is the session this "
-                    "escalation is addressed to."
+                    "escalation is addressed to. If it ends without taking the work, "
+                    "this is asked again."
                 ),
                 unattended=False,
             )
@@ -2549,7 +2632,15 @@ def dispatch_after_escalation(
 
     try:
         handle = dispatch_task(
-            manager=manager,
+            # Not the finish's own manager (task-390). A finish started from the CLI on a
+            # project served from the database holds a `RemoteTaskManager`, and starting a
+            # run through one reaches `record_dispatch`, which refuses by design: a run is
+            # recorded by the process that started it, and `argv` does not cross the wire.
+            # That refusal is right and stays; what was wrong was the finish handing its
+            # service client to the dispatch family, which `dispatch_manager_for` exists to
+            # keep local. So this line is the whole of road two: the escalation asks for the
+            # manager the subsystem it is calling into is documented to use.
+            manager=dispatch_manager_for(project),
             project=project,
             project_config=project_config,
             request=DispatchRequest(
@@ -2565,6 +2656,103 @@ def dispatch_after_escalation(
             unattended=True,
         )
     return EscalationDispatch(run_id=handle.run_id, reason="dispatched")
+
+
+ESCALATION_PENDING = "escalation_pending"
+"""Key written onto a run an escalation deferred to, naming the finish that deferred.
+
+Deliberately the same shape as ``handback_pending`` (task-384): a fact about a run,
+written into the run's own directory rather than held in some process's memory, so it
+survives every restart and is re-derivable by whatever settles that run later.
+"""
+
+DEFERRABLE_REASONS = frozenset(
+    {BallReason.WORK, BallReason.REVISE, BallReason.ANSWER, BallReason.REDIRECT}
+)
+"""Agent-side reasons that name an agent who must act, so they need one to exist.
+
+``available`` and ``hold`` are excluded and neither is an oversight. A released task is
+*meant* to sit at ``agent``/``available`` with nobody on it -- that is what release
+means -- and a hold is a person's deliberate stop, which nothing here should undo.
+"""
+
+
+def _mark_escalation_pending(run: RunRecord, finish_id: str) -> None:
+    """Note on a live run that an escalation is waiting on it to act, or to end.
+
+    Best effort. A run directory that cannot be written is not a reason to fail an
+    escalation that has already been recorded on the task; the cost of losing this is one
+    missed re-ask, and the task still names an agent that was genuinely live.
+    """
+    from agentjobs.dispatch.ledger import write_status
+
+    try:
+        write_status(run, **{ESCALATION_PENDING: finish_id})
+    except OSError:  # pragma: no cover - an unwritable run directory
+        return
+
+
+def resolve_deferred_escalation(
+    *,
+    manager: TaskManagerLike,
+    project_id: str,
+    task_id: str,
+    finish_id: str,
+    home: Optional[Path],
+) -> Optional[EscalationDispatch]:
+    """Ask the escalation's question again, now that the run it deferred to has ended.
+
+    **This is where the invariant is actually kept** (task-390). The ``live_run`` branch
+    above concludes that somebody is already there, and at the instant it is asked that
+    is true; what it cannot know is whether that session will ever act. A ``--bg`` run
+    that has handed off for review is *alive and idle*, which is precisely the state
+    every run is in at the moment its own approval runs a finish -- so the branch's
+    answer is most likely to be wrong exactly when it is most likely to be taken.
+
+    Nothing delivers an escalation's handback to a session, either. ``pending_handback``
+    only ever returns a handoff written by a **human**, and this one is written by
+    ``finisher``, a reserved actor of kind ``agent``; so the mechanism task-384 built for
+    Request Changes could not have reached the exiting run, and no evidence was needed to
+    rule it out. That leaves the run itself as the only thing that could act, and the
+    only moment the question is answerable as when it stops.
+
+    So: called from the run's own settle path, it re-runs the same three-valued decision
+    with the run gone. Usually that starts the repair session the escalation intended;
+    where it cannot, ``park_for_human`` moves the ball off an agent that does not exist.
+    Returns ``None`` when there was nothing to resolve -- the ball moved on its own, the
+    run did its job, or something else is live on the task.
+
+    Never raises: a settle that fails because of this would lose the run's own terminal
+    record, which is a strictly worse failure than the one this repairs.
+    """
+    from agentjobs.projects import ProjectRegistry
+
+    try:
+        task = manager.get_task(task_id)
+        if task is None or not task.is_open:
+            return None
+        if task.ball is not Ball.AGENT or task.ball_reason not in DEFERRABLE_REASONS:
+            # Somebody -- the run, the poller, a person -- moved it. The invariant holds
+            # and re-asking would be second-guessing whoever did.
+            return None
+
+        project = ProjectRegistry(home=home).get(project_id)
+        resolution = assert_dispatch_permitted(project_id, home)
+        outcome = dispatch_after_escalation(
+            manager=manager,
+            project=project,
+            project_config=project.load_config(),
+            settings=resolution.settings.finish,
+            task_id=task_id,
+            home=home,
+            api_base=resolution.config.api_base,
+            finish_id=finish_id,
+        )
+        if outcome.unattended:
+            park_for_human(manager, task_id, project_id, outcome)
+        return outcome
+    except Exception:  # noqa: BLE001 - see the docstring; a settle must still complete
+        return None
 
 
 def park_for_human(

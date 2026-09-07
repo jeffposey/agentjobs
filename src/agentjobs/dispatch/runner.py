@@ -2852,12 +2852,40 @@ class DispatchRunner:
                     ball_prompt=hand_to_human,
                 )
 
+        self._resolve_deferred_escalation(handle)
+
         # Last, so one commit covers the result entry and any handoff that followed it.
         # The session has exited by now; nobody else is coming back for this file.
         self._commit_record(
             handle.task_id,
             f"record run {handle.run_id} as {outcome.value}",
             directory=handle.directory,
+        )
+
+    def _resolve_deferred_escalation(self, handle: RunHandle) -> None:
+        """Keep the promise a scripted finish made about *this* run (task-390).
+
+        A finish that escalates hands the ball to ``agent`` and then asks whether anyone
+        is there to take it. When the answer was "this run is live", the escalation wrote
+        its own id onto this run's directory and stopped short of a final answer -- because
+        a live run is evidence about now and the question is about next. This is where the
+        question gets asked again, with the run gone and the answer knowable.
+
+        Placed after the terminal record and the lock release, so the re-ask sees a task
+        with no live run and a ledger that agrees. Placed before ``_commit_record`` so one
+        commit still covers everything this settle wrote.
+        """
+        from agentjobs.dispatch.finish import ESCALATION_PENDING, resolve_deferred_escalation
+
+        finish_id = handle.directory.read_meta().get(ESCALATION_PENDING)
+        if not isinstance(finish_id, str) or not finish_id:
+            return
+        resolve_deferred_escalation(
+            manager=self.manager,
+            project_id=self.resolution.project_id,
+            task_id=handle.task_id,
+            finish_id=finish_id,
+            home=self.home,
         )
 
     # ----- batch mode --------------------------------------------------------
