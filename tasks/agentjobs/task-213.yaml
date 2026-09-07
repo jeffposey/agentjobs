@@ -3,7 +3,7 @@ id: task-213
 title: 'Design the analytics page: where the history comes from, and what the page
   says'
 created: '2026-08-21T02:34:52.929949Z'
-updated: '2026-09-07T02:01:07.205728Z'
+updated: '2026-09-07T02:05:09.584176Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -768,3 +768,19 @@ log:
     finish_step: started
     branch: docs/task-213-analytics-design
     finish_id: fin_828b4840
+- id: 22
+  ts: '2026-09-07T02:05:09.583972Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `docs/task-213-analytics-design` into `main` as `069f5a92`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-213
+    before the merge. Approved by Jeff Posey; no model was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 069f5a92abfad9aeb816383656b6c53fc45fedc7
+    branch: docs/task-213-analytics-design
+    base: main
