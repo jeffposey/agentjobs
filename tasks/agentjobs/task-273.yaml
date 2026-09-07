@@ -2,21 +2,13 @@ schema: 2
 id: task-273
 title: Build authoritative SQLite task storage alongside the AgentJobs server
 created: '2026-08-22T19:00:47.987602Z'
-updated: '2026-09-07T03:05:29.559174Z'
+updated: '2026-09-07T03:22:13.083126Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review `feat/task-273-sqlite-store` (3 commits on `73e07f92`). Full
-  gate green, all 10 stages, receipt written.
-
-
-  The store is built and deliberately not switched on -- task-311 flips the authority.
-  Entry 42 has the measurements and the four history bugs found and fixed.
-
-
-  One thing to look at rather than take on trust: I changed the design in three places
-  because the corpus contradicted it, and the biggest is that `task_run` is no longer
-  authoritative for how a run ended.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: critical
 queue_position: 893
@@ -1869,3 +1861,25 @@ log:
     outcome: completed
     duration_seconds: 2416.131903
     log_path: C:\Users\jpose\.agentjobs\runs\run_8cd58e2f
+- id: 46
+  ts: '2026-09-07T03:22:11.490146Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 47
+  ts: '2026-09-07T03:22:13.082754Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-273-sqlite-store` (73e07f92).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\agentjobs-273.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_60724860\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-273-sqlite-store
+    finish_id: fin_60724860
