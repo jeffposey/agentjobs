@@ -1,0 +1,164 @@
+schema: 2
+id: task-373
+title: The analytics page and its charts
+created: '2026-09-07T01:37:57.650271Z'
+updated: '2026-09-07T01:37:58.357683Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 16200
+category: frontend
+tags:
+- analytics
+- frontend
+- epic-child
+assignment:
+  eligible: []
+parent: task-212
+spec:
+  summary: 'Build /p/:projectId/analytics: a summary row with real deltas, then four
+    panels answering whether the backlog is growing, whether work is finishing faster,
+    whether anything is aging badly and where work is stuck. Inline SVG, no charting
+    dependency, phone first.'
+  intent: 'A count of 125 open tasks means nothing on its own; it means something
+    against last week''s 116. The page exists to put the second number beside the
+    first, and every panel on it answers one of four questions a person actually opens
+    it to ask. It is also the surface that has to be honest about what it does not
+    know: this project''s history before August 2026 is reconstructed, and drawing
+    that span as though it were measured would be worse than not drawing it.'
+  description: "Implement **`docs/analytics-design.md` sections 8, 9 and 10**. Section\
+    \ 8 is the layout and each panel, section 9 the empty and thin-history states,\
+    \ section 10 how the charts are drawn.\n\n**Route.** `/p/:projectId/analytics`,\
+    \ inside the existing project shell, in `App.tsx`'s project `Routes`. **Not framed**\
+    \ \u2014 task-294's `h-dvh` frame is the Dashboard's alone, and a page of stacked\
+    \ panels is a document that may legitimately scroll.\n\n**Order is the priority\
+    \ order of the questions** (\xA78.1), so \"is this project OK\" is above the fold\
+    \ on a phone: summary row, backlog, throughput and cycle time, aging, stuck, coverage\
+    \ footer.\n\n**The four chart shapes, and nothing else** (\xA710.1): filled area,\
+    \ paired bars, horizontal bars, stacked area.\n\n**Inline SVG. No charting library.**\
+    \ This is a decision with a measurement behind it, not a preference \u2014 \xA7\
+    10.1 records this repository's own jsdom 30.0.1 returning zeros from `getBoundingClientRect`,\
+    \ no `ResizeObserver`, no `getBBox`, and a null 2d canvas context. Anything that\
+    \ measures its container renders nothing in the `vitest` stage, and a shim that\
+    \ makes it appear to work is exactly the trap ENGINEERING.md names. Instead:\n\
+    \n- **Build the scale and path functions first, as pure functions with their own\
+    \ unit tests, before any component.** `(data, width, height) => string`. That\
+    \ is the half jsdom can genuinely verify, and doing it first is what keeps the\
+    \ tests honest.\n- Each chart is `<svg viewBox=\"0 0 W H\">` at `width: 100%`\
+    \ with a breakpoint height (160 / 220 / 260px). Tick density comes from the bucket\
+    \ count, not from pixels \u2014 at most six x-labels.\n- Every chart carries an\
+    \ `aria-label` naming what it shows and its headline value, followed by a visually-hidden\
+    \ table of the series. The table is also how a component test reads values without\
+    \ parsing path data.\n\n**Touch is the primary input** (\xA710.4). No hover-only\
+    \ information: every value is printed or in the readout line above the chart.\
+    \ Tapping selects the nearest bucket; the hit target is the full column height.\
+    \ Charts never scroll horizontally \u2014 a range with too many buckets aggregates\
+    \ day to week rather than growing wider.\n\n**The three states, and they are not\
+    \ the same state** (\xA79). \"Nothing has happened\" and \"we do not know what\
+    \ happened\" are different sentences and the page must say the right one:\n\n\
+    - **No history**: summary row with counts and no deltas, and one bordered block\
+    \ reading \"No history yet.\" Not an empty axis, not a flat line at zero, not\
+    \ a spinner.\n- **Thin history** (under 14 days): charts render from the baseline,\
+    \ values shown, *trends suppressed* \u2014 no deltas, no percentile line, no faster/slower\
+    \ wording. The threshold is a named constant documented where it lives.\n- **Unknown\
+    \ history**: hatch the span left of `coverage.reconstructed_before`, rule the\
+    \ boundary, and carry the one-line coverage footer. Where `coverage.complete`\
+    \ is false, the summary deltas read \"since 26 Oct 2025\" rather than \"in 90\
+    \ days\".\n\n**Never render unknown as zero**, anywhere, including the axis minimum.\n\
+    \n**Defence in depth on the store:** clamp the rendered open count at zero and\
+    \ surface it as a coverage warning rather than drawing a negative backlog. \xA7\
+    4.3 explains how a store imported by a version without task-371's clamp produces\
+    \ one.\n\n**Verification.** Vitest for the pure functions and the component's\
+    \ rendered attributes; Playwright for what needs a browser \u2014 the page at\
+    \ 390px with no horizontal scroll, the readout updating on tap, and the Dashboard\
+    \ still not scrolling."
+  constraints: '- Jeff reads this on a phone and a tablet over Tailscale as often
+    as on the desktop. A chart that only works at 1400px is not done, and this is
+    verified in a browser rather than asserted in a test.
+
+    - No new npm dependency. Section 10.1 is the argument and its reopen trigger;
+    if you believe the trigger has fired, record that as a decision with a measurement
+    rather than installing something.
+
+    - Do not touch the Dashboard. The entry point is the next child''s, and the next
+    child is last for a reason.
+
+    - Colour is never the only channel: fill pattern plus inline label plus colour,
+    using the existing `--color-dark-*` tokens.
+
+    - Do not set up the state the test is meant to be checking. If a chart test has
+    to stub layout to pass, the chart is measuring something it should not be.'
+  out_of_scope: "The API (its own child). The Dashboard entry point (its own child).\
+    \ Section 8.7's deferred panels \u2014 backlog by priority band, dispatch activity,\
+    \ the board on a past date, reopenings \u2014 each of which has a trigger and\
+    \ none of which has fired. Any chart type outside the four shapes."
+  context:
+  - path: docs/analytics-design.md
+    why: Sections 8, 9 and 10 are the specification, including the measured jsdom
+      behaviour behind the no-library decision.
+  - path: frontend/src/App.tsx
+    why: Where the project routes are declared, and the framed/unframed shell decision
+      this page depends on.
+  - path: frontend/src/components/Dashboard.tsx
+    why: The panel and heading conventions this page should match, and the surface
+      it must not disturb.
+  - path: frontend/src/styles.css
+    why: The --color-dark-* tokens the charts draw with.
+acceptance:
+- id: ac-1
+  text: /p/:projectId/analytics is a real route that survives a reload and a direct
+    visit, and renders the six regions of section 8.1 in that order.
+  status: pending
+- id: ac-2
+  text: The summary row shows each count with its change over the range, and suppresses
+    the change with a stated reason where the range predates the coverage baseline.
+  status: pending
+- id: ac-3
+  text: The backlog panel shows the open level and both flows, with a zero-based axis
+    and a hatched reconstructed span.
+  status: pending
+- id: ac-4
+  text: Chart geometry comes from pure functions with unit tests that need no DOM,
+    and every chart exposes its series as a visually-hidden table.
+  status: pending
+- id: ac-5
+  text: The empty, thin-history and unknown-history states each render their own specified
+    treatment, verified with seeded fixtures for all three; none draws unknown as
+    zero.
+  status: pending
+- id: ac-6
+  text: 'Verified in a browser at 390px: the page is legible, nothing scrolls horizontally,
+    and tapping a chart updates its readout.'
+  status: pending
+- id: ac-7
+  text: No new npm dependency, and the gate passes unchanged.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-372
+  type: needs
+  note: The page renders the endpoint's response; the generated client is how it reads
+    it.
+- task: task-213
+  type: related
+  note: The design; sections 8, 9 and 10 are the specification.
+- task: task-294
+  type: related
+  note: Bounded the Dashboard to one viewport. Its frame is the Dashboard's alone;
+    this page is not framed.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-09-07T01:37:58.356866Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7e4a9b81-2c36-4f50-a147-8d9e2c16f533
+      kind: create
+      fingerprint: 5f4a262543adbff020dc9280081001f0
