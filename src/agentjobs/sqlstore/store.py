@@ -965,9 +965,23 @@ class SqlTaskStore:
         with self.database.write():
             yield
 
-    #: The project-wide locks collapse into the same transaction, for the same reason.
-    creation_lock = locked
-    queue_lock = locked
+    @contextmanager
+    def creation_lock(self, *, timeout: Optional[float] = None) -> Iterator[None]:
+        """A transaction, where the file backend serialised id allocation with a lock.
+
+        The project-wide locks collapse into the same transaction the per-task one
+        does. They keep their own signatures rather than aliasing :meth:`locked`,
+        because the file backend's take no task id and a caller passing none to an
+        alias of a one-argument method fails at the call rather than at the lock.
+        """
+        with self.database.write():
+            yield
+
+    @contextmanager
+    def queue_lock(self, *, timeout: Optional[float] = None) -> Iterator[None]:
+        """A transaction, where the file backend serialised queue moves with a lock."""
+        with self.database.write():
+            yield
 
     def task_path(self, task_id: str) -> Path:
         """Refused: a task is rows, and there is no file to name.
@@ -983,6 +997,69 @@ class SqlTaskStore:
         )
 
     _task_path = task_path
+
+    @property
+    def tasks_dir(self) -> Path:
+        """Refused, for the same reason as :meth:`task_path`.
+
+        Only queue repair asked storage for a directory, and it did so in order to read
+        raw files that would not load. Under SQL a record that cannot satisfy the
+        constraints is not a row at all, so there is nothing in a directory to repair.
+        """
+        raise SqlStoreError(
+            "tasks_dir has no answer under SQLite storage: task records are rows, not "
+            "files in a directory."
+        )
+
+    def has_task(self, task_id: str) -> bool:
+        """True when this project holds a task with that id.
+
+        The store-neutral replacement for ``storage._task_path(id).exists()``, which is
+        how the manager used to turn a missing task into its own error type before
+        reaching a mutator.
+        """
+        task_id = self._normalised_id(task_id)
+        row = (
+            self._connection()
+            .execute(
+                "SELECT 1 FROM task WHERE project_id = ? AND task_id = ? LIMIT 1",
+                (self.project_id, task_id),
+            )
+            .fetchone()
+        )
+        return row is not None
+
+    def load_task_uncached(self, task_id: str) -> Optional[Task]:
+        """:meth:`load_task`. There is no cache to bypass, so there is nothing to add.
+
+        Kept by name because the file backend's callers ask for it when they must not
+        see a snapshot taken earlier in the same request. A SQL read is always current
+        as of its transaction, so the distinction does not exist here.
+        """
+        return self.load_task(task_id)
+
+    def list_tasks_uncached(self) -> List[Task]:
+        """:meth:`list_tasks`, for the same reason as :meth:`load_task_uncached`."""
+        return self.list_tasks()
+
+    def load_all(self) -> Any:
+        """Every task, plus the quarantined records, in the file backend's shape.
+
+        ``LoadResult`` is what the manager, the validator and the broken-tasks endpoint
+        consume, so the SQL store answers in it rather than making three callers learn a
+        second shape. The mapping is exact: a row that loads is a task, and a record
+        that could not become a row is an error carrying the reason it was refused.
+        """
+        from ..storage import LoadResult, TaskLoadError
+
+        errors = [
+            TaskLoadError(
+                Path(str(record.get("source_path") or record.get("task_id_guess") or "?")),
+                str(record.get("error") or "quarantined at import"),
+            )
+            for record in self.quarantined()
+        ]
+        return LoadResult(tasks=self.list_tasks(), errors=errors)
 
     def refresh(self) -> None:
         """No-op: there is no snapshot cache to invalidate."""

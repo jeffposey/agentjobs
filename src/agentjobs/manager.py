@@ -101,6 +101,7 @@ from .queue_check import (
 from .quotation import LOG_BODY_FIELD as _LOG_BODY_FIELD
 from .quotation import TASK_PROSE_FIELDS, field_text
 from .storage import TaskLoadError, TaskStorage, load_yaml
+from .store_factory import store_is_sql
 
 if TYPE_CHECKING:
     from .webhooks import WebhookManager
@@ -401,6 +402,12 @@ workflow forbids.
 
 CHILDREN_IN_PROMPT = 8
 """How many child ids the supervision prompt names before it counts the rest."""
+
+
+def _with_position(task: Task, position: int) -> Task:
+    """Set one task's queue position, for the SQL backend's queue repair."""
+    task.queue_position = position
+    return task
 
 
 def supervision_prompt(children: Sequence[str]) -> str:
@@ -1299,7 +1306,7 @@ class TaskManager:
 
     def _mutate(self, task_id: str, mutator: Any) -> Task:
         """mutate_task, with a missing task reported as TaskNotFoundError."""
-        if not self.storage._task_path(task_id).exists():
+        if not self.storage.has_task(task_id):
             raise TaskNotFoundError(f"Task '{task_id}' not found.")
         return self.storage.mutate_task(task_id, mutator)
 
@@ -2508,8 +2515,7 @@ class TaskManager:
         guess reviewable rather than silent.
         """
         with self.storage.queue_lock():
-            directory = self.storage.tasks_dir
-            records, _ = read_queue_records(directory)
+            records = self._queue_records()
             open_records = [record for record in records if record.is_open]
 
             # Who keeps a contested number: earliest created, id breaking the tie. The
@@ -2555,6 +2561,33 @@ class TaskManager:
                 unrepairable=tuple(unrepairable),
             )
 
+    def _queue_records(self) -> List[QueueRecord]:
+        """Every task as the four fields the baseline needs, however storage holds them.
+
+        The file backend reads the raw mappings, because the records repair most needs
+        are exactly the ones consistency rule 6 refuses to load -- an open task with no
+        ``queue_position`` is unloadable and is also the commonest corruption.
+
+        Under SQLite that class of record cannot exist. The column is `NOT NULL` for an
+        open task and ``ux_task_queue_slot`` makes a duplicate slot unrepresentable, so
+        anything that is a row is a loadable task and the loaded tasks *are* the corpus.
+        Repair stays reachable rather than being deleted, because the bands it renumbers
+        can still be made untidy by an import of a corpus that was untidy on disk.
+        """
+        if not store_is_sql(self.storage):
+            records, _ = read_queue_records(self.storage.tasks_dir)
+            return records
+        return [
+            QueueRecord(
+                task_id=task.id,
+                created=task.created.isoformat() if task.created else "",
+                priority=task.priority.value,
+                is_open=task.is_open,
+                queue_position=task.queue_position,
+            )
+            for task in self.storage.list_tasks_uncached()
+        ]
+
     def _write_raw_position(self, task_id: str, position: int) -> bool:
         """Set one position by rewriting the file, for records that will not load.
 
@@ -2563,7 +2596,17 @@ class TaskManager:
         goes: patch the raw mapping, validate, and save through storage so the file
         comes out canonical with a receipt behind it. False when the file is broken in
         some *other* way, which repair names rather than guesses at.
+
+        Under SQLite there is no raw form to patch and no unloadable row to rescue, so
+        the position goes through the ordinary transactional mutate.
         """
+        if store_is_sql(self.storage):
+            try:
+                self.storage.mutate_task(task_id, lambda task: _with_position(task, position))
+            except Exception:
+                return False
+            return True
+
         path = self.storage.task_path(task_id)
         try:
             raw = load_yaml(path.read_text(encoding="utf-8"))

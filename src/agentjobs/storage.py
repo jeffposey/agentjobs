@@ -251,6 +251,15 @@ class TaskStorage:
         """
         return self._task_path(task_id)
 
+    def has_task(self, task_id: str) -> bool:
+        """True when this project holds a task with that id.
+
+        The store-neutral form of ``_task_path(id).exists()``. Callers ask storage
+        whether a record is there rather than whether a file is, because under the
+        SQLite backend there is no file and the question is still a fair one.
+        """
+        return self._task_path(task_id).exists()
+
     def load_task(self, task_id: str) -> Optional[Task]:
         """Load a task from its YAML file.
 

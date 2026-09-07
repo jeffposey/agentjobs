@@ -16,6 +16,7 @@ from agentjobs.dispatch.credentials import verify_run_credential
 from agentjobs.front_door import SECRET_ENV
 from agentjobs.principals import set_run_credential_verifier
 from agentjobs.projects import HOME_ENV
+from agentjobs.store_factory import close_databases, reset_server_process
 
 # The shared write-guard matrix holds assertions but is imported by the two hook test
 # modules rather than collected, so pytest would not rewrite them and a failure would
@@ -180,3 +181,23 @@ def the_test_client_arrives_on_loopback(monkeypatch) -> None:
         original(self, *args, **kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr(TestClient, "__init__", on_loopback)
+
+
+@pytest.fixture(autouse=True)
+def no_database_survives_a_test() -> Iterator[None]:
+    """Close every SQLite store a test opened, and forget the server declaration.
+
+    ``store_factory`` caches one ``Database`` per path for the life of the process,
+    which is exactly right in a server and exactly wrong in a test runner: the next
+    test's ``AGENTJOBS_HOME`` is a different temp directory, but a cached handle on the
+    previous one would still be handed out for any path that repeated. Closing also
+    releases the file so Windows can delete the temp tree.
+
+    It resets the server declaration for the same reason: a test that entered
+    ``server_process()`` and failed inside it would otherwise leave every later test
+    believing it was the server, which would silently disarm the one rule the factory
+    exists to enforce.
+    """
+    yield
+    close_databases()
+    reset_server_process()
