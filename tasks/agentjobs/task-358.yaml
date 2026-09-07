@@ -2,7 +2,7 @@ schema: 2
 id: task-358
 title: Task state moves to SQLite on the server
 created: '2026-09-06T06:08:06.698982Z'
-updated: '2026-09-07T04:22:36.190302Z'
+updated: '2026-09-07T04:44:11.760955Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -769,3 +769,37 @@ log:
       id: e3f80b12-4c67-49a5-8d20-1b7f5e93ca08
       kind: handoff
       fingerprint: 0e3f2b707c45f747fa57b083919f2115
+- id: 25
+  ts: '2026-09-07T04:44:11.760654Z'
+  actor: claude
+  type: progress
+  body: "## task-376 closed `completed`; task-311 is away\n\n**Supervisor's check\
+    \ on the child, not a re-verification of its work.** It merged its own branch\
+    \ at posture `autonomous`: `fb4f78dc` is the `--no-ff` merge of `feat/task-376-quote-policy`,\
+    \ the worktree is gone, the branch is deleted, and `git worktree list` shows only\
+    \ the shared clone. Clean finish.\n\nTwo verifications worth recording because\
+    \ they are the parent's business rather than the child's:\n\n- **`agentjobs quotations`\
+    \ scans 374 records and reports none.** That is the child's own detector agreeing\
+    \ that the corpus is clean, which independently confirms the six regions this\
+    \ session redacted by hand earlier \u2014 those were validated but never checked\
+    \ against a detector, because none existed yet.\n- **`agentjobs redact` exists**,\
+    \ which closes the gap that forced the hand-splice. The unsupported workaround\
+    \ recorded in entry 16 now has a supported replacement, and ALLAGENTS.md carries\
+    \ the paraphrase rule where it gives logging guidance.\n\n**The ordering held.**\
+    \ task-311 was blocked by the `needs` edge throughout and could not have taken\
+    \ off early; the walk's dry run said `nothing claimable` while task-376 ran, and\
+    \ says `starting now: task-311` now that it has closed. That is the instruction\
+    \ carried out: the cutover starts only after the ingest guard exists.\n\nThe walk\
+    \ is running and watching task-311 to a terminal state. It is the last open child.\n\
+    \n## Still owed by this parent before it can close\n\n- **ac-2** \u2014 a live\
+    \ read and write through the UI *and* the CLI with the YAML path unavailable.\
+    \ Mine to do after the cutover, not a claim task-311 can make on its own.\n- **ac-3**\
+    \ \u2014 whether task-247 and task-272 survive the migration.\n- **ac-5** \u2014\
+    \ the historical-coverage decision. Evidence is in task-273 entry 42; it should\
+    \ be written against what the store actually holds post-cutover rather than against\
+    \ the pre-migration measurements."
+  data:
+    operation:
+      id: 7c15e9a3-0d68-4b27-a904-6f2e83b14c50
+      kind: log_append
+      fingerprint: b76f962e12c891013a90d6bb0a8515fc
