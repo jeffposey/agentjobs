@@ -98,6 +98,8 @@ from .queue_check import (
     undo_placement,
     warning_dicts,
 )
+from .quotation import LOG_BODY_FIELD as _LOG_BODY_FIELD
+from .quotation import TASK_PROSE_FIELDS, field_text
 from .storage import TaskLoadError, TaskStorage, load_yaml
 
 if TYPE_CHECKING:
@@ -1670,6 +1672,101 @@ class TaskManager:
             {"triggered_by": actor, "outcome": task.outcome.value if task.outcome else None},
         )
         return task
+
+    def redact(
+        self,
+        task_id: str,
+        *,
+        field: str,
+        replacement: str,
+        reason: str,
+        actor: str,
+        operation_id: Optional[str] = None,
+        expected_revision: Optional[Union[datetime, str]] = None,
+    ) -> Task:
+        """Replace the text of one prose region with a stated redaction (task-376).
+
+        **The only verb that reaches into the log**, and the reason it exists. The log
+        is append-only, which is right for a record of what happened and has no answer
+        at all for content that must not persist -- a verbatim quotation of a person,
+        say, in a repository with a public remote. Before this the only route was to
+        hand-splice the YAML through a shell, which is exactly what the managed-write
+        guard exists to stop, and which leaves the file non-canonical and the removal
+        unrecorded.
+
+        Three properties make this a redaction rather than an edit:
+
+        *   ``replacement`` is supplied by the caller, so the substance survives. A
+            redaction that deletes why a task exists is a worse record, not a safer one,
+            which is why there is no "replace with a black bar" mode.
+        *   The removal is recorded -- a ``note`` entry naming the region, the reason,
+            the actor and how many characters went, appended in the same write. The
+            character count rather than the text or a hash of it: a hash of a short
+            phrase is not one-way in any useful sense, and the point is that the words
+            stop existing here.
+        *   The file is re-serialised canonically, because it goes out through the same
+            storage path as every other verb.
+
+        ``field`` is addressed the way :mod:`agentjobs.quotation` addresses it:
+        ``title``, ``ball_prompt``, ``spec.<name>`` for the prose spec fields, or
+        ``log[<id>].body``. Anything else is refused rather than guessed at -- a typo
+        that silently redacted the wrong region would be unrecoverable.
+        """
+        target = str(field)
+        if target not in TASK_PROSE_FIELDS and not _LOG_BODY_FIELD.fullmatch(target):
+            addressable = ", ".join(TASK_PROSE_FIELDS)
+            raise ValueError(
+                f"'{target}' is not a redactable region. Address one of: "
+                f"{addressable}, or log[<id>].body."
+            )
+        if not reason.strip():
+            raise ValueError("A redaction must state a reason; it is the whole record of why.")
+        operation = self._operation(
+            operation_id,
+            "redact",
+            actor,
+            {"field": target, "reason": reason},
+        )
+
+        def apply(task: Task) -> Optional[Task]:
+            if replay_or_conflict(task, operation):
+                return None
+            check_revision(task, expected_revision)
+            removed = field_text(task, target)
+            if removed is None:
+                raise ValueError(f"Task '{task_id}' has no region '{target}'.")
+            entry_match = _LOG_BODY_FIELD.fullmatch(target)
+            if entry_match is not None:
+                wanted = int(entry_match.group(1))
+                for entry in task.log:
+                    if entry.id == wanted:
+                        entry.body = replacement
+                        break
+            elif target.startswith("spec."):
+                setattr(task.spec, target[len("spec.") :], replacement)
+            else:
+                setattr(task, target, replacement)
+            self._append_entry(
+                task,
+                actor=actor,
+                type=LogEntryType.NOTE,
+                # The body says what was removed from where and why, and holds none of
+                # it. A reader six months from now needs to know the region was edited
+                # after the fact; reproducing the removed words to explain that would
+                # undo the redaction in the same entry that recorded it.
+                body=f"Redacted {target}: {reason}",
+                data={
+                    "redaction": {
+                        "field": target,
+                        "reason": reason,
+                        "removed_chars": len(removed),
+                    }
+                },
+                operation=operation,
+            )
+            return task
+
+        return self._mutate(task_id, apply)
 
     def archive_task(self, task_id: str, *, author: Optional[str] = None) -> Task:
         """Hide a task. An open task is closed as cancelled first; archived is a flag."""

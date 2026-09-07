@@ -62,6 +62,7 @@ from .project_setup import (
 )
 from .projects import ProjectError, ProjectRegistry, default_home
 from .queue import REPAIR_COMMAND, QueueCorruptionError
+from .quotation import scan_task
 from .storage import TaskStorage, corpus_snapshot
 
 
@@ -2827,6 +2828,139 @@ def playbook_init() -> None:
         return
     typer.echo(f"\u2705 {len(result.written)} playbook(s) copied into {directory}.")
     typer.echo("   They are yours now: edit them, and commit them with the project.")
+
+
+@app.command()
+def quotations(
+    task_id: Optional[str] = typer.Argument(
+        None, help="One task to scan. Omit it to scan the whole corpus."
+    ),
+    storage_dir: Optional[str] = typer.Option(
+        None,
+        "--storage-dir",
+        help="Directory of task YAML. Defaults to the project's configured tasks_directory.",
+    ),
+) -> None:
+    """List record regions that quote a person verbatim instead of paraphrasing them.
+
+    The operator-facing half of the check that warns an author at the write, fails the
+    gate over `tasks/`, and refuses an import -- see `agentjobs.quotation` for what the
+    detector can and cannot see. Fix each region it names with `agentjobs redact`.
+
+    Exits 1 when anything is found, so it can be used as a check of its own. It prints
+    a short excerpt of each remark, which is what makes a false positive recognisable
+    without opening the file; nothing it prints is written anywhere.
+    """
+    base_dir = Path.cwd()
+    config = _load_config(base_dir)
+    tasks_dir = Path(storage_dir) if storage_dir else _resolve_tasks_dir(base_dir, config)
+    if not tasks_dir.is_absolute():
+        tasks_dir = base_dir / tasks_dir
+    storage = TaskStorage(tasks_dir)
+
+    if task_id:
+        task = storage.load_task(task_id)
+        if task is None:
+            typer.secho(f"Task '{task_id}' not found.", fg=typer.colors.RED)
+            raise typer.Exit(code=1)
+        tasks = [task]
+    else:
+        tasks = storage.list_tasks()
+
+    found = 0
+    for task in tasks:
+        for remark in scan_task(task):
+            found += 1
+            excerpt = " ".join(remark.text.split())[:100]
+            typer.echo(f"{task.id}  {remark.locator()}")
+            typer.echo(f"    {excerpt}")
+    if not found:
+        typer.echo(f"\u2713 {len(tasks)} task record(s) scanned; no quoted remarks.")
+        return
+    typer.echo(
+        f"\n{found} quoted remark(s) across {len(tasks)} task record(s). "
+        "A task record states what somebody meant, not the words they used. "
+        "Rewrite each as a paraphrase and apply it with `agentjobs redact`."
+    )
+    raise typer.Exit(code=1)
+
+
+@app.command()
+def redact(
+    task_id: str,
+    field: str = typer.Option(
+        ...,
+        "--field",
+        help="Region to replace: title, ball_prompt, spec.<name>, or log[<id>].body.",
+    ),
+    reason: str = typer.Option(
+        ..., "--reason", help="Why the text had to go. Recorded on the task."
+    ),
+    replacement: Optional[str] = typer.Option(
+        None, "--replacement", help="The text to put there instead."
+    ),
+    replacement_file: Optional[str] = typer.Option(
+        None,
+        "--replacement-file",
+        help="A file holding the replacement text. Use this for anything multi-line.",
+    ),
+    actor: Optional[str] = typer.Option(
+        None, "--actor", help="Who is redacting. Defaults to the project's default_user."
+    ),
+) -> None:
+    """Replace one prose region of a task with a stated redaction (task-376).
+
+    The supported answer to content that must not persist -- a verbatim quotation of a
+    person in a repository with a public remote, most often. **It is the only way to
+    change a log entry**, which is append-only by design and therefore has no other
+    answer to text that should never have been written; the removal is itself recorded,
+    as a note naming the region, the reason, the actor and how many characters went.
+
+    You supply the replacement, and it should say what the removed text meant. A
+    redaction that loses why a task exists is a worse record, not a safer one.
+
+    `agentjobs quotations` names the regions worth looking at. Pass the replacement in a
+    file for anything longer than a sentence -- shells mangle multi-line arguments, and
+    a mangled redaction is a second edit to a record you are already editing by hand.
+    """
+    if (replacement is None) == (replacement_file is None):
+        typer.secho("Pass exactly one of --replacement or --replacement-file.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+    if replacement_file is not None:
+        path = Path(replacement_file)
+        try:
+            replacement = path.read_text(encoding="utf-8")
+        except OSError as error:
+            typer.secho(f"Cannot read {path}: {error}", fg=typer.colors.RED)
+            raise typer.Exit(code=1) from error
+
+    base_dir = Path.cwd()
+    config = _load_config(base_dir)
+    manager = _build_manager(base_dir)
+    resolved_actor = _resolve_actor(config, actor)
+
+    try:
+        task = manager.redact(
+            task_id,
+            field=field,
+            replacement=replacement or "",
+            reason=reason,
+            actor=resolved_actor,
+        )
+    except ValueError as error:
+        # An unaddressable region, an empty reason, a task that is not there. None of
+        # them is a bug, so none of them should reach the operator as a traceback.
+        typer.secho(str(error), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from error
+
+    remaining = [remark for remark in scan_task(task) if remark.field == field]
+    typer.echo(f"\u2705 Redacted {field} on {task.id}; the removal is recorded on the task.")
+    if remaining:
+        typer.secho(
+            f"   {len(remaining)} quoted remark(s) still in {field}. "
+            "The replacement quotes a person too.",
+            fg=typer.colors.YELLOW,
+        )
 
 
 if __name__ == "__main__":
