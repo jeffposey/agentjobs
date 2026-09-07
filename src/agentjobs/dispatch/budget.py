@@ -41,7 +41,6 @@ from typing import List, Optional
 from agentjobs.dispatch.config import AutoDispatchLimits, DispatchLimits
 from agentjobs.dispatch.ledger import RunRecord, list_runs
 from agentjobs.dispatch.record_commit import commit_task_record
-from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
     Ball,
     BallReason,
@@ -50,6 +49,7 @@ from agentjobs.models_v2 import (
     Task,
     utcnow,
 )
+from agentjobs.store_factory import TaskManagerLike
 
 DISPATCHER_ACTOR = "dispatcher"
 """Who writes a cap refusal. The reserved actor from task-069, never a human's id."""
@@ -211,7 +211,7 @@ def check_machine_budget(
 
 
 def record_cap_refusal(
-    manager: TaskManager,
+    manager: TaskManagerLike,
     task: Task,
     refusal: CapRefusal,
     *,

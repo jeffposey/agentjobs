@@ -416,6 +416,28 @@ class TaskClient:
         payload: List[Dict[str, Any]] = response.json()
         return payload
 
+    def read_claimable(
+        self,
+        *,
+        priority: Optional[str] = None,
+        agent: Optional[str] = None,
+        parent: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Every task that may be worked now, in the queue's order.
+
+        The set rather than the winner: a concurrent walk starts every eligible child
+        up to its slot count, and asking for the winner repeatedly would either
+        re-offer the child it just claimed or report the epic as deadlocked.
+        """
+        params = {
+            key: value
+            for key, value in (("priority", priority), ("agent", agent), ("parent", parent))
+            if value is not None
+        }
+        response = self._request("GET", self._path("/tasks/claimable"), params=params)
+        payload = response.json()
+        return list(payload) if isinstance(payload, list) else []
+
     def read_next_task(
         self,
         *,
@@ -1125,6 +1147,30 @@ class TaskOperations:
         )
         payload: Dict[str, Any] = response.json()
         return payload
+
+    def redact(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        operation_id: str,
+        field: str,
+        replacement: str,
+        reason: str,
+        expected_revision: Optional[datetime | str] = None,
+    ) -> MutationResult:
+        """Replace one prose region with a stated redaction, safely under retry."""
+        return self._client._mutation(
+            f"/tasks/{task_id}/redact",
+            {
+                "actor": actor,
+                "field": field,
+                "replacement": replacement,
+                "reason": reason,
+            },
+            operation_id=operation_id,
+            expected_revision=expected_revision,
+        )
 
     def append_log(
         self,

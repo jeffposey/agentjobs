@@ -103,7 +103,6 @@ from agentjobs.dispatch.runner import (
     runs_root,
     uncommitted_paths,
 )
-from agentjobs.manager import TaskManager
 from agentjobs.playbooks.pointer import PlaybookPointer
 from agentjobs.models_v2 import (
     Ball,
@@ -116,6 +115,7 @@ from agentjobs.models_v2 import (
     Task,
 )
 from agentjobs.projects import Project
+from agentjobs.store_factory import TaskManagerLike
 
 TERMINAL_RUN_STATUSES = frozenset({"finished", "cancelled", "failed"})
 """Run statuses that mean nothing is executing any more.
@@ -777,7 +777,7 @@ class DispatchRequest:
 
 def dispatch_task(
     *,
-    manager: TaskManager,
+    manager: TaskManagerLike,
     project: Project,
     project_config: Dict[str, object],
     request: DispatchRequest,
@@ -1055,7 +1055,7 @@ def dispatch_task(
 
 
 def _write_authorizing_entry(
-    manager: TaskManager,
+    manager: TaskManagerLike,
     task: Task,
     *,
     authorizer: Actor,
@@ -1113,7 +1113,7 @@ def _write_authorizing_entry(
     return stored, stored.log[-1]
 
 
-def _claim_or_verify(manager: TaskManager, task: Task, agent: str) -> Task:
+def _claim_or_verify(manager: TaskManagerLike, task: Task, agent: str) -> Task:
     """Claim a ready task, or check that an active one is already ours.
 
     Claiming first is the whole point: `claim_task` runs under task-055's per-task lock,

@@ -217,6 +217,32 @@ async def get_next_task(
         raise queue_broken(exc) from exc
 
 
+@router.get("/claimable", response_model=List[Task])
+async def get_claimable_tasks(
+    priority: Optional[Priority] = None,
+    agent: Optional[str] = None,
+    parent: Optional[str] = None,
+    manager: TaskManager = Depends(get_task_manager),
+) -> List[Task]:
+    """Every task that may be worked now, in the queue's order. ``/next`` is its head.
+
+    The epic walk needs the *set* rather than the winner: it starts every eligible child
+    up to its slot count, and asking for the winner repeatedly would either re-offer the
+    child it just claimed or report the epic as deadlocked. It is here because the CLI
+    is a service client now that only the server opens the store, and the walk must not
+    be the one caller that re-implements the claimability filter -- that is exactly how
+    the walk and the dashboard would come to disagree about what is next, with the walk
+    winning silently because it is the one that spends money.
+
+    Declared before ``/{task_id}`` for the same reason ``/next`` is: otherwise
+    "claimable" is captured as a task id.
+    """
+    try:
+        return manager.claimable_tasks(priority=priority, agent=agent, parent=parent)
+    except QueueCorruptionError as exc:
+        raise queue_broken(exc) from exc
+
+
 @router.get("/next/explain", response_model=NextExplanationResponse)
 async def explain_next_task(
     priority: Optional[Priority] = None,

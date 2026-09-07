@@ -55,11 +55,10 @@ from agentjobs.dispatch.runner import (
     git_head,
     new_run_id,
 )
-from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, DispatchMode, DispatchOutcome, Lifecycle, Task
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
 from agentjobs.session_identity import SessionIdentity
-from agentjobs.storage import TaskStorage
+from agentjobs.store_factory import TaskManagerLike, dispatch_manager_for
 
 ORIGIN_CLAIMED = "claimed"
 """The claim wrote the record: the ordinary way an interactive run begins."""
@@ -175,7 +174,7 @@ def sweep_interactive_runs(
     home: Path,
     *,
     registry: Optional[ProjectRegistry] = None,
-    managers: Optional[Dict[str, TaskManager]] = None,
+    managers: Optional[Dict[str, TaskManagerLike]] = None,
 ) -> List[SweepResult]:
     """One pass over every live interactive run, ending the ones that are over.
 
@@ -209,7 +208,7 @@ def sweep_interactive_runs(
             project = None
         manager = managers.get(record.project_id)
         if manager is None and project is not None:
-            manager = TaskManager(TaskStorage(project.tasks_dir()))
+            manager = dispatch_manager_for(project)
         if manager is not None and record.task_id:
             settled = settle_for_task(home, manager.get_task(record.task_id), record.task_id)
             if settled:
@@ -248,7 +247,7 @@ def _session_rows(home: Path, project: Project) -> Optional[List[Dict[str, objec
         # session is open, so it must not conclude one.
         return None
     runner = DispatchRunner(
-        manager=TaskManager(TaskStorage(project.tasks_dir())),
+        manager=dispatch_manager_for(project),
         resolution=resolution,
         project_root=project.root,
         home=home,

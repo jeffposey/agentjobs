@@ -41,9 +41,9 @@ from agentjobs.dispatch.budget import (
 from agentjobs.dispatch.config import DispatchError, assert_dispatch_permitted
 from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
 from agentjobs.dispatch.runner import DispatchRunError
-from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BallReason, DispatchTrigger, Task
 from agentjobs.projects import Project
+from agentjobs.store_factory import TaskManagerLike
 
 __all__ = [
     "DISPATCHER_ACTOR",
@@ -94,7 +94,7 @@ def _skipped(reason: str, detail: str = "") -> AutoDispatchOutcome:
 
 def maybe_auto_dispatch(
     *,
-    manager: TaskManager,
+    manager: TaskManagerLike,
     project: Project,
     project_config: Dict[str, object],
     task: Task,

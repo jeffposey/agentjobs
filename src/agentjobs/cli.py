@@ -71,6 +71,7 @@ from .quotation import scan_task
 from .sqlstore import CorpusAlreadyImported, QuotationPolicyError
 from .storage_config import load_storage_settings
 from .storage import TaskStorage, corpus_snapshot
+from .store_factory import dispatch_manager_for, task_manager_for
 
 
 def _make_output_encoding_safe() -> None:
@@ -1252,7 +1253,7 @@ def dispatch_run(
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
 
-    manager = TaskManager(TaskStorage(project.tasks_dir()))
+    manager = dispatch_manager_for(project)
     try:
         chosen_posture = Posture(posture) if posture else None
     except ValueError:
@@ -1335,7 +1336,7 @@ def dispatch_child(
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
 
-    manager = TaskManager(TaskStorage(project.tasks_dir()))
+    manager = dispatch_manager_for(project)
     try:
         handle = dispatch_task(
             manager=manager,
@@ -1457,7 +1458,7 @@ def dispatch_walk(
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
 
-    manager = TaskManager(TaskStorage(project.tasks_dir()))
+    manager = dispatch_manager_for(project)
     parent = manager.get_task(parent_id)
     if parent is None:
         typer.secho(f"No task {parent_id!r} in project {project.id!r}.", fg=typer.colors.RED)
@@ -1962,7 +1963,7 @@ def run_register(
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
 
-    manager = TaskManager(TaskStorage(project.tasks_dir()))
+    manager = task_manager_for(project)
     try:
         result: Registration = register_session(
             manager=manager,
@@ -2818,7 +2819,7 @@ def finish(
             f"run {run_id}" if run_id else ("a dispatched run" if posture_release else "a human")
         )
 
-    manager = TaskManager(TaskStorage(project.tasks_dir()))
+    manager = task_manager_for(project)
     result = finish_task(
         manager=manager,
         project=project,
@@ -2883,7 +2884,7 @@ def branches(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
 
-    manager = TaskManager(TaskStorage(project.tasks_dir()))
+    manager = task_manager_for(project)
     report = survey_branches(project.root, manager, base=base)
     if not report.rows:
         typer.echo(f"No local branches besides {base}.")
@@ -3071,7 +3072,7 @@ def playbook_run(
         raise typer.Exit(code=1) from exc
 
     config = project.load_config()
-    manager = TaskManager(TaskStorage(project.tasks_dir()))
+    manager = dispatch_manager_for(project)
     try:
         result = run_playbook(
             manager=manager,

@@ -93,7 +93,6 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from agentjobs.actors import Actor
 from agentjobs.dispatch.config import Posture, PostureSource
-from agentjobs.manager import TaskManager
 from agentjobs.queue import order_key
 from agentjobs.projects import Project, default_home
 from agentjobs.models_v2 import (
@@ -105,6 +104,7 @@ from agentjobs.models_v2 import (
     Outcome,
     Task,
 )
+from agentjobs.store_factory import TaskManagerLike
 
 CHILD_ATTEMPT_LIMIT = 2
 """Runs one child may be given per human authorisation of its epic: the first, and one
@@ -378,7 +378,7 @@ def count_attempts(child: Task, *, parent_id: str, entry_id: int) -> int:
 
 
 def resolve_epic_authorization(
-    manager: TaskManager,
+    manager: TaskManagerLike,
     project_config: Dict[str, object],
     child: Task,
 ) -> EpicAuthorization:
@@ -599,12 +599,14 @@ class WalkSettings:
     """
 
 
-def next_eligible_child(manager: TaskManager, parent_id: str) -> Optional[Task]:
+def next_eligible_child(manager: TaskManagerLike, parent_id: str) -> Optional[Task]:
     """The child the queue says is next, or ``None`` if none is claimable."""
     return manager.get_next_task(parent=parent_id)
 
 
-def frontier(manager: TaskManager, parent_id: str, *, exclude: Sequence[str] = ()) -> List[Task]:
+def frontier(
+    manager: TaskManagerLike, parent_id: str, *, exclude: Sequence[str] = ()
+) -> List[Task]:
     """Every child that could start **right now**, in the order to start them in.
 
     This is the rolling frontier, and the word doing the work is *now*. It is recomputed
@@ -647,7 +649,7 @@ def frontier(manager: TaskManager, parent_id: str, *, exclude: Sequence[str] = (
     return candidates
 
 
-def open_children(manager: TaskManager, parent_id: str) -> List[Task]:
+def open_children(manager: TaskManagerLike, parent_id: str) -> List[Task]:
     children = manager.get_subtasks(parent_id)
     return [child for child in children if child.is_open]
 
@@ -664,7 +666,7 @@ class Flight:
 
 def walk_epic(
     *,
-    manager: TaskManager,
+    manager: TaskManagerLike,
     project: Project,
     project_config: Dict[str, object],
     parent_id: str,
@@ -977,7 +979,7 @@ def walk_epic(
 
 def _poll_child(
     *,
-    manager: TaskManager,
+    manager: TaskManagerLike,
     flight: Flight,
     settings: WalkSettings,
     status: Optional[str],

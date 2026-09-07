@@ -67,9 +67,9 @@ from agentjobs.dispatch.runner import (
     git_head,
     new_run_id,
 )
-from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import DispatchMode, Lifecycle, LogEntryType
 from agentjobs.projects import Project
+from agentjobs.store_factory import TaskManagerLike
 
 RUN_ID_ENV = "AGENTJOBS_RUN_ID"
 """What a dispatched session is told its run is called, in ``session_env``'s settings."""
@@ -211,7 +211,7 @@ class Registration:
 
 def register_session(
     *,
-    manager: TaskManager,
+    manager: TaskManagerLike,
     project: Project,
     project_config: Mapping[str, object],
     task_id: str,

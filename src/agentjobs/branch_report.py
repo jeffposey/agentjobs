@@ -30,8 +30,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
-from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Task
+from agentjobs.store_factory import TaskManagerLike
 
 
 def _git(root: Path, args: Sequence[str]) -> str:
@@ -113,7 +113,7 @@ def _task_state(task: Task) -> str:
     return f"{task.lifecycle.value} {ball}/{reason}"
 
 
-def _branches_by_task(manager: TaskManager) -> Dict[str, Task]:
+def _branches_by_task(manager: TaskManagerLike) -> Dict[str, Task]:
     """Branch name to the task that claims it, over every task including closed ones.
 
     Closed tasks included on purpose: a leftover branch belongs to a task that finished,
@@ -127,7 +127,7 @@ def _branches_by_task(manager: TaskManager) -> Dict[str, Task]:
     return owners
 
 
-def survey_branches(root: Path, manager: TaskManager, base: str = "main") -> BranchReport:
+def survey_branches(root: Path, manager: TaskManagerLike, base: str = "main") -> BranchReport:
     """Every local branch, with what the base and the task records say about it."""
     names = [
         line.strip() for line in _git(root, ["branch", "--format=%(refname:short)"]).splitlines()

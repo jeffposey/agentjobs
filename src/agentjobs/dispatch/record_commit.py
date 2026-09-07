@@ -41,7 +41,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Sequence
 
-from agentjobs.manager import TaskManager
+from agentjobs.store_factory import TaskManagerLike
 
 GIT_TIMEOUT_SECONDS = 30
 """Ceiling on any one git invocation here, so a wedged git cannot hang a poller tick."""
@@ -118,7 +118,7 @@ def _is_lock_contention(stderr: str) -> bool:
 
 
 def commit_task_record(
-    manager: TaskManager,
+    manager: TaskManagerLike,
     task_id: str,
     *,
     subject: str,

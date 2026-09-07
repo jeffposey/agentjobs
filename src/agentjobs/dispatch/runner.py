@@ -80,7 +80,6 @@ from agentjobs.dispatch.wake import (
     wake_argv,
     newest_session_run,
 )
-from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
     Ball,
     BallReason,
@@ -101,6 +100,7 @@ from agentjobs.dispatch.credentials import (
 )
 from agentjobs.dispatch.session_env import daemon_was_started, deliver_identity
 from agentjobs.project_setup import MCP_CONFIG_FILENAME
+from agentjobs.store_factory import TaskManagerLike
 
 RUNS_DIRNAME = "runs"
 META_FILENAME = "meta.yaml"
@@ -1238,7 +1238,7 @@ class DispatchRunner:
     def __init__(
         self,
         *,
-        manager: TaskManager,
+        manager: TaskManagerLike,
         resolution: DispatchResolution,
         project_root: Path,
         home: Path,

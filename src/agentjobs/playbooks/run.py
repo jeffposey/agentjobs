@@ -44,12 +44,12 @@ from typing import Any, Dict, Optional
 from ..dispatch.config import DispatchError, assert_dispatch_permitted
 from ..dispatch.guards import DispatchRequest, assert_authorizer_is_human, dispatch_task
 from ..dispatch.runner import RunHandle
-from ..manager import TaskManager
 from ..models_v2 import Lifecycle, Priority, Task
 from ..projects import Project
 from .library import UnknownPlaybookError, read_playbook, validate_playbook_name
 from .model import Playbook, PlaybookError, PlaybookTarget
 from .pointer import PlaybookPointer, pointer_for
+from ..store_factory import TaskManagerLike
 
 TITLE_PLACEHOLDER = re.compile(r"\{(project|playbook)\}")
 """The substitutions a ``run_task.title`` may use, and the only ones.
@@ -197,7 +197,7 @@ def _run_task_payload(
 
 
 def create_run_task(
-    manager: TaskManager,
+    manager: TaskManagerLike,
     playbook: Playbook,
     pointer: PlaybookPointer,
     *,
@@ -225,7 +225,7 @@ def create_run_task(
 
 def run_playbook(
     *,
-    manager: TaskManager,
+    manager: TaskManagerLike,
     project: Project,
     project_config: Dict[str, object],
     name: str,

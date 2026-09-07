@@ -47,6 +47,7 @@ the scoped form so switching projects never depends on the server's current dire
 | `GET` | `/api/tasks` | List tasks; filter with `lifecycle`, `ball`, `priority`, or `parent` |
 | `GET` | `/api/tasks/next` | Return the next claimable task; accepts `agent` and `priority` |
 | `GET` | `/api/tasks/next/explain` | Why that task is next, and every open task ahead of it |
+| `GET` | `/api/tasks/claimable` | Every task that may be worked now, in the queue's order; `/next` is its head. Accepts `agent`, `priority`, `parent` |
 | `GET` | `/api/tasks/{task_id}` | Return one task record |
 | `GET` | `/api/tasks/{task_id}/detail` | Return the full review/resumption view with relationships |
 | `GET` | `/api/tasks/broken` | Report task files that exist but fail validation |
@@ -81,6 +82,7 @@ preconditions are enforced and transition history is appended.
 | `POST` | `/api/tasks/{task_id}/close` | Close with `completed`, `cancelled`, `superseded`, or `duplicate` |
 | `POST` | `/api/tasks/{task_id}/log` | Append a typed note, progress, decision, question, answer, or instruction |
 | `POST` | `/api/tasks/{task_id}/progress` | Append a structured progress entry |
+| `POST` | `/api/tasks/{task_id}/redact` | Replace one prose region with a stated redaction, recording that it happened |
 
 ### Human review actions
 

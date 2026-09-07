@@ -31,10 +31,9 @@ from agentjobs.dispatch.runner import (
     RunHandle,
     SessionPhase,
 )
-from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import DispatchMode
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
-from agentjobs.storage import TaskStorage
+from agentjobs.store_factory import TaskManagerLike, dispatch_manager_for
 
 SESSION_POLL_SECONDS = 10.0
 """How often live sessions are asked how they are getting on.
@@ -118,7 +117,7 @@ def poll_live_sessions(
     home: Path,
     *,
     registry: Optional[ProjectRegistry] = None,
-    managers: Optional[Dict[str, TaskManager]] = None,
+    managers: Optional[Dict[str, TaskManagerLike]] = None,
 ) -> List[PollResult]:
     """Poll every live session run once. Never raises; every failure becomes a result.
 
@@ -169,7 +168,7 @@ def poll_live_sessions(
                     )
                 )
                 continue
-            manager = TaskManager(TaskStorage(project.tasks_dir()))
+            manager = dispatch_manager_for(project)
 
         if project is None:
             results.append(

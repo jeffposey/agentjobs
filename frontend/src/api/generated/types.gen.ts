@@ -2831,6 +2831,54 @@ export type QueueResponse = {
 };
 
 /**
+ * RedactRequest
+ *
+ * Replace the text of one prose region with a stated redaction (task-376).
+ *
+ * Reachable over HTTP because the CLI is a service client. It is the only verb that
+ * reaches into the append-only log, and it stays that: the request names one region,
+ * supplies the replacement, and states a reason, all of which the manager records.
+ */
+export type RedactRequest = {
+    /**
+     * Actor
+     *
+     * Who is redacting.
+     */
+    actor: string;
+    /**
+     * Expected Revision
+     *
+     * The `updated` value from a prior read. When supplied, the request is refused if the task changed in the meantime, and the current task is returned so the caller can decide again.
+     */
+    expected_revision?: string | null;
+    /**
+     * Field
+     *
+     * The region: a task field name, or 'log[<id>].body'.
+     */
+    field: string;
+    /**
+     * Operation Id
+     *
+     * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
+     */
+    operation_id?: string | null;
+    /**
+     * Reason
+     *
+     * Why the text was removed. Recorded verbatim.
+     */
+    reason: string;
+    /**
+     * Replacement
+     *
+     * What the region says instead.
+     */
+    replacement: string;
+};
+
+/**
  * RejectActionRequest
  *
  * Reject task with reason.
@@ -5908,6 +5956,51 @@ export type ListBrokenTasksApiProjectsProjectIdTasksBrokenGetResponses = {
 
 export type ListBrokenTasksApiProjectsProjectIdTasksBrokenGetResponse = ListBrokenTasksApiProjectsProjectIdTasksBrokenGetResponses[keyof ListBrokenTasksApiProjectsProjectIdTasksBrokenGetResponses];
 
+export type GetClaimableTasksApiProjectsProjectIdTasksClaimableGetData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: {
+        /**
+         * Priority
+         */
+        priority?: Priority | null;
+        /**
+         * Agent
+         */
+        agent?: string | null;
+        /**
+         * Parent
+         */
+        parent?: string | null;
+    };
+    url: '/api/projects/{project_id}/tasks/claimable';
+};
+
+export type GetClaimableTasksApiProjectsProjectIdTasksClaimableGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetClaimableTasksApiProjectsProjectIdTasksClaimableGetError = GetClaimableTasksApiProjectsProjectIdTasksClaimableGetErrors[keyof GetClaimableTasksApiProjectsProjectIdTasksClaimableGetErrors];
+
+export type GetClaimableTasksApiProjectsProjectIdTasksClaimableGetResponses = {
+    /**
+     * Response Get Claimable Tasks Api Projects  Project Id  Tasks Claimable Get
+     *
+     * Successful Response
+     */
+    200: Array<Task>;
+};
+
+export type GetClaimableTasksApiProjectsProjectIdTasksClaimableGetResponse = GetClaimableTasksApiProjectsProjectIdTasksClaimableGetResponses[keyof GetClaimableTasksApiProjectsProjectIdTasksClaimableGetResponses];
+
 export type GetNextTaskApiProjectsProjectIdTasksNextGetData = {
     body?: never;
     path: {
@@ -6685,6 +6778,49 @@ export type QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostResponses =
 
 export type QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostResponse = QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostResponses[keyof QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostResponses];
 
+export type RedactTaskRegionApiProjectsProjectIdTasksTaskIdRedactPostData = {
+    body: RedactRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
+    url: '/api/projects/{project_id}/tasks/{task_id}/redact';
+};
+
+export type RedactTaskRegionApiProjectsProjectIdTasksTaskIdRedactPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RedactTaskRegionApiProjectsProjectIdTasksTaskIdRedactPostError = RedactTaskRegionApiProjectsProjectIdTasksTaskIdRedactPostErrors[keyof RedactTaskRegionApiProjectsProjectIdTasksTaskIdRedactPostErrors];
+
+export type RedactTaskRegionApiProjectsProjectIdTasksTaskIdRedactPostResponses = {
+    /**
+     * Response Redact Task Region Api Projects  Project Id  Tasks  Task Id  Redact Post
+     *
+     * Successful Response
+     */
+    200: MutationResultOutput | Task;
+};
+
+export type RedactTaskRegionApiProjectsProjectIdTasksTaskIdRedactPostResponse = RedactTaskRegionApiProjectsProjectIdTasksTaskIdRedactPostResponses[keyof RedactTaskRegionApiProjectsProjectIdTasksTaskIdRedactPostResponses];
+
 export type RedirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostData = {
     body: SendBackActionRequest;
     path: {
@@ -7307,6 +7443,46 @@ export type ListBrokenTasksApiTasksBrokenGetResponses = {
 };
 
 export type ListBrokenTasksApiTasksBrokenGetResponse = ListBrokenTasksApiTasksBrokenGetResponses[keyof ListBrokenTasksApiTasksBrokenGetResponses];
+
+export type GetClaimableTasksApiTasksClaimableGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Priority
+         */
+        priority?: Priority | null;
+        /**
+         * Agent
+         */
+        agent?: string | null;
+        /**
+         * Parent
+         */
+        parent?: string | null;
+    };
+    url: '/api/tasks/claimable';
+};
+
+export type GetClaimableTasksApiTasksClaimableGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetClaimableTasksApiTasksClaimableGetError = GetClaimableTasksApiTasksClaimableGetErrors[keyof GetClaimableTasksApiTasksClaimableGetErrors];
+
+export type GetClaimableTasksApiTasksClaimableGetResponses = {
+    /**
+     * Response Get Claimable Tasks Api Tasks Claimable Get
+     *
+     * Successful Response
+     */
+    200: Array<Task>;
+};
+
+export type GetClaimableTasksApiTasksClaimableGetResponse = GetClaimableTasksApiTasksClaimableGetResponses[keyof GetClaimableTasksApiTasksClaimableGetResponses];
 
 export type GetNextTaskApiTasksNextGetData = {
     body?: never;
@@ -8002,6 +8178,45 @@ export type QueueMoveTaskApiTasksTaskIdQueueMovePostResponses = {
 };
 
 export type QueueMoveTaskApiTasksTaskIdQueueMovePostResponse = QueueMoveTaskApiTasksTaskIdQueueMovePostResponses[keyof QueueMoveTaskApiTasksTaskIdQueueMovePostResponses];
+
+export type RedactTaskRegionApiTasksTaskIdRedactPostData = {
+    body: RedactRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
+    url: '/api/tasks/{task_id}/redact';
+};
+
+export type RedactTaskRegionApiTasksTaskIdRedactPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RedactTaskRegionApiTasksTaskIdRedactPostError = RedactTaskRegionApiTasksTaskIdRedactPostErrors[keyof RedactTaskRegionApiTasksTaskIdRedactPostErrors];
+
+export type RedactTaskRegionApiTasksTaskIdRedactPostResponses = {
+    /**
+     * Response Redact Task Region Api Tasks  Task Id  Redact Post
+     *
+     * Successful Response
+     */
+    200: MutationResultOutput | Task;
+};
+
+export type RedactTaskRegionApiTasksTaskIdRedactPostResponse = RedactTaskRegionApiTasksTaskIdRedactPostResponses[keyof RedactTaskRegionApiTasksTaskIdRedactPostResponses];
 
 export type RedirectTaskApiTasksTaskIdRedirectPostData = {
     body: SendBackActionRequest;
