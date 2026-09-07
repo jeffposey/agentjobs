@@ -8515,7 +8515,7 @@
         ]
       },
       "patch": {
-        "description": "Apply a partial update to a task. State axes move through the verbs, not here.",
+        "description": "Apply a partial update to a task. State axes move through the verbs, not here.\n\nThe ``actor`` is validated whenever one is sent, exactly as ``create_task``\nvalidates its own (D2): this route writes an entry into an append-only log, and an\nattribution nobody can resolve later is worse than a refused request. It was the one\nsubmitted actor in this module that went to the manager unchecked, so a browser edit\ncould name anybody and a typo became permanent.",
         "operationId": "update_task_api_projects__project_id__tasks__task_id__patch",
         "parameters": [
           {
@@ -11122,7 +11122,7 @@
         ]
       },
       "patch": {
-        "description": "Apply a partial update to a task. State axes move through the verbs, not here.",
+        "description": "Apply a partial update to a task. State axes move through the verbs, not here.\n\nThe ``actor`` is validated whenever one is sent, exactly as ``create_task``\nvalidates its own (D2): this route writes an entry into an append-only log, and an\nattribution nobody can resolve later is worse than a refused request. It was the one\nsubmitted actor in this module that went to the manager unchecked, so a browser edit\ncould name anybody and a typo became permanent.",
         "operationId": "update_task_api_tasks__task_id__patch",
         "parameters": [
           {
