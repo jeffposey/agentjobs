@@ -2,26 +2,14 @@ schema: 2
 id: task-358
 title: Task state moves to SQLite on the server
 created: '2026-09-06T06:08:06.698982Z'
-updated: '2026-09-07T03:44:47.160748Z'
+updated: '2026-09-07T03:57:36.865550Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: 'Cleaned: 6 regions, 6 files. Nothing had reached SQL (no database exists).
-  Forward protection is task-376.
+ball: agent
+ball_reason: answer
+ball_prompt: 'The five historical records are already published at origin/main. The
+  working tree is clean now, but git history still has them. How far should this go?
 
-
-  One step is yours before re-dispatching this epic: add a `needs` edge from task-311
-  to task-376. Run scoping refused me. Without it the walk starts the cutover and
-  the filter in parallel.
-
-
-  The question below is the one I will not decide alone: the five historical quotes
-  are already public at origin/main.
-
-
-  Task 376: http://127.0.0.1:8876/app/tasks/task-376
-
-  Task 311: http://127.0.0.1:8876/app/tasks/task-311'
+  -> Chose: Leave published history alone'
 archived: false
 priority: critical
 queue_position: 843
@@ -635,3 +623,48 @@ log:
       recommended: false
     multi_select: false
     placeholder: null
+- id: 19
+  ts: '2026-09-07T03:54:52.939317Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    The five historical records are already published at origin/main. The working
+    tree is clean now, but git history still has them. How far should this go?
+
+    -> Chose: Leave published history alone'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 20
+  ts: '2026-09-07T03:54:52.939334Z'
+  actor: Jeff Posey
+  type: answer
+  body: 'Chose: Leave published history alone'
+  re: 18
+  data:
+    selected:
+    - Leave published history alone
+    other: null
+- id: 21
+  ts: '2026-09-07T03:57:36.865251Z'
+  actor: claude
+  type: decision
+  body: "**Published git history is left as it is.** Owner decision, 2026-09-07.\n\
+    \nThe working tree is clean and every future import is clean, which is what the\
+    \ content rule was for. The five historical records remain as originally written\
+    \ in `origin/main`'s history.\n\n**Rejected:** a `filter-repo` rewrite and force-push.\
+    \ It would have removed them properly, but it breaks every existing clone, and\
+    \ it reverses this project's standing `push: false` posture \u2014 the posture\
+    \ that is the whole safety argument for letting autonomous runs merge unreviewed,\
+    \ since a bad merge is recoverable precisely because nothing has left the machine.\
+    \ Trading that away to clean up five already-published lines is a bad exchange.\n\
+    \n**What this means for anyone reading later:** do not treat the current records\
+    \ as evidence of what those tasks said at the time. `git log` has the originals."
+  re: 18
+  data:
+    operation:
+      id: c4a90e26-3f18-4b57-9d81-6e2073ba5f19
+      kind: log_append
+      fingerprint: 2e20b0a6f6955c8a76b18fd371e6e39a
