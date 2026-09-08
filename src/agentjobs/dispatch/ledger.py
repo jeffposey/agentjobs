@@ -49,6 +49,7 @@ from agentjobs.dispatch.runner import (
     runs_root,
 )
 from agentjobs.dispatch.atomic_yaml import read_yaml_resiliently, write_yaml_atomically
+from agentjobs.dispatch.phases import RUN_ID_ENV
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BallReason, DispatchMode, DispatchOutcome
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
@@ -985,6 +986,19 @@ def live_runs(home: Path) -> List[RunRecord]:
     return [record for record in list_runs(home) if record.is_live]
 
 
+def calling_run_id(environ: Optional[Dict[str, str]] = None) -> str:
+    """The run this process was dispatched as, or ``""`` for a person at a shell.
+
+    Deliberately the raw variable rather than ``finish.own_run_id``. That function
+    repairs a *leaked* identity, and to do it needs a task id and this task's run lock --
+    neither of which a whole-machine sweep has. What the sweep needs is weaker and this
+    answers it exactly: a run id this process might be, which is enough to decline to
+    conclude it.
+    """
+    source = os.environ if environ is None else environ
+    return (source.get(RUN_ID_ENV) or "").strip()
+
+
 def slot_runs(home: Path) -> List[RunRecord]:
     """The live runs that occupy a slot: everything ``live_runs`` answers, minus the
     interactive ones (task-354).
@@ -1361,12 +1375,41 @@ class DispatchLedger:
 
         Called at startup. Batch and session are opposites here, on purpose -- see the
         module docstring.
+
+        **Except the caller's own run, which it never settles** (task-394). This is a
+        sweep for runs whose process is gone, and the one run in the list that provably
+        still has a process is the one running this. See the refusal in the loop for what
+        concluding it cost.
         """
         results: List[StopResult] = []
         sessions: Optional[Dict[str, Dict[str, object]]] = None
         active: Optional[List[Dict[str, object]]] = None
+        own = calling_run_id()
 
         for record in live_runs(self.home):
+            if own and record.run_id == own:
+                # A process cannot be evidence that it is itself gone (task-394). On
+                # 2026-09-07 a dispatched session ran this by hand to clear a run stuck
+                # at `starting`, and the run it cleared was its own: `_conclude` wrote a
+                # false `interrupted` dispatch_result onto the task, moved the ball off
+                # `human`/`review` to `human`/`decision` -- a "Needs decision" card for a
+                # decision nobody needed to make -- and, because a credential is verified
+                # against its run's status, invalidated the very session's ability to
+                # correct any of it. One refusal removes all three.
+                #
+                # Believing the caller's own claim about itself is the whole cost. A
+                # forged or leaked `AGENTJOBS_RUN_ID` defers one conclusion by one sweep,
+                # and the next process to reconcile makes it; concluding a live caller
+                # cannot be undone by anything.
+                results.append(
+                    StopResult(
+                        record.run_id,
+                        False,
+                        "this is the run calling reconcile, which is not evidence it ended",
+                    )
+                )
+                continue
+
             if record.is_interactive:
                 # Presence is the only question. The task-state half of the sweep runs
                 # on the poller's first tick, seconds from now, and nothing here writes
