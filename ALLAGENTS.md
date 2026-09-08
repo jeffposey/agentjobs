@@ -124,7 +124,7 @@ This is the lifecycle for the task you are *working*. If your task has an open c
 are not working it — you are supervising, you take no worktree, and
 [the section above](#you-do-not-work-the-children) is your lifecycle instead.
 
-1.  **Read**: Read the task YAML (e.g., `tasks/agentjobs/task-042-*.yaml`) — its `spec`
+1.  **Read**: Read the task record (`task_get` over MCP, or `agentjobs show`) — its `spec`
     (`summary` → `intent` → `description` → `constraints` → `out_of_scope` → `context`)
     is the specification, `ball_prompt` is what is needed *right now*, and `acceptance[]`
     is what "done" means. Read the `log[]` newest-first: the last `handoff`, and every
@@ -411,7 +411,7 @@ careless if you hit this; following these instructions verbatim is what used to 
 ### Logging Work to the Task
 The task record — not the surrounding conversation — is the source of truth for where
 work stands. A different agent, or the same one with no memory of this session, must be
-able to read the task YAML alone and know what happened and what is next.
+able to read the task record alone and know what happened and what is next.
 
 -   Log each working pass as a `progress` entry through the API, **whether or not a
     human is watching**. An interactive chat session is a convenience, not the system of
