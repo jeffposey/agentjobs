@@ -469,7 +469,6 @@ class CorpusImporter:
                 report.reconciled.append(task.id)
         return written
 
-
     def _prepare(self, task: Task) -> List[Dict[str, Any]]:
         """This task's events, replayed, backfilled and ordered -- but not yet written."""
         rows = self._replay(task)

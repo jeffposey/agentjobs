@@ -247,9 +247,7 @@ class TestRuleA:
         The commit is two days after the close. Taking it literally would put the
         creation *after* the close, which is where the measured -3 came from.
         """
-        database, _, _ = _import(
-            tmp_path / "a.db", closed_before_committed, backfill_git=True
-        )
+        database, _, _ = _import(tmp_path / "a.db", closed_before_committed, backfill_git=True)
         try:
             created = _rows(
                 database,
@@ -263,9 +261,7 @@ class TestRuleA:
         self, closed_before_committed: Corpus, tmp_path: Path
     ) -> None:
         """The ordering the clamp exists to make possible, asserted directly."""
-        database, _, _ = _import(
-            tmp_path / "a.db", closed_before_committed, backfill_git=True
-        )
+        database, _, _ = _import(tmp_path / "a.db", closed_before_committed, backfill_git=True)
         try:
             events = _rows(
                 database,
@@ -284,9 +280,7 @@ class TestRuleA:
         Without the clamp this corpus draws -1 on the close's day and climbs back to 0
         two days later, because the create lands in the *later* day bucket.
         """
-        database, _, _ = _import(
-            tmp_path / "a.db", closed_before_committed, backfill_git=True
-        )
+        database, _, _ = _import(tmp_path / "a.db", closed_before_committed, backfill_git=True)
         try:
             series = database.reader().execute(BACKLOG, ("demo",)).fetchall()
             assert series
@@ -538,9 +532,7 @@ class TestRuleB:
         finally:
             database.close()
 
-    def test_the_close_is_counted_once_not_twice(
-        self, renumbered: Corpus, tmp_path: Path
-    ) -> None:
+    def test_the_close_is_counted_once_not_twice(self, renumbered: Corpus, tmp_path: Path) -> None:
         """The measured failure, stated as the thing a reader would notice.
 
         ``task-004`` closes once, in its log, and git sees the same change again at
@@ -583,10 +575,15 @@ class TestRuleB:
         filled_db, filled, _ = _import(tmp_path / "filled.db", renumbered, backfill_git=True)
         try:
             assert plain.open_delta_reconciles() == filled.open_delta_reconciles()
-            assert filled_db.reader().execute(
-                "SELECT COUNT(*) FROM task_event WHERE project_id='demo'"
-                " AND source='backfilled'"
-            ).fetchone()[0] > 0
+            assert (
+                filled_db.reader()
+                .execute(
+                    "SELECT COUNT(*) FROM task_event WHERE project_id='demo'"
+                    " AND source='backfilled'"
+                )
+                .fetchone()[0]
+                > 0
+            )
         finally:
             plain_db.close()
             filled_db.close()
@@ -630,9 +627,7 @@ class TestRuleH:
             ("2026-02-15T00:00:00Z", 0),
         ]
 
-    def test_a_logged_move_leaves_no_backfilled_event_at_all(
-        self, imported: Database
-    ) -> None:
+    def test_a_logged_move_leaves_no_backfilled_event_at_all(self, imported: Database) -> None:
         """De-duplication, which is what makes the survivors mean something.
 
         ``task-001`` moved deliberately on 2026-02-10 and logged it. The git
@@ -646,9 +641,7 @@ class TestRuleH:
         )
         assert [row["source"] for row in rows] == ["reconstructed"]
 
-    def test_nothing_but_a_position_change_is_ever_mechanical(
-        self, imported: Database
-    ) -> None:
+    def test_nothing_but_a_position_change_is_ever_mechanical(self, imported: Database) -> None:
         """A grooming pass over three priorities is three decisions, and is activity.
 
         Widening the mark to every axis a commit touched in bulk was considered and
@@ -673,9 +666,7 @@ class TestRuleH:
         )
         assert kinds == [{"kind": "queue_move", "source": "backfilled"}]
 
-    def test_a_marked_event_never_moves_the_backlog_level(
-        self, imported: Database
-    ) -> None:
+    def test_a_marked_event_never_moves_the_backlog_level(self, imported: Database) -> None:
         """Excluding mechanical rows from activity must not be able to break Q1.
 
         The page filters them out of the activity series while leaving the backlog
@@ -689,17 +680,14 @@ class TestRuleH:
         )
         assert moved[0]["n"] == 0
 
-    def test_an_import_without_git_marks_nothing(
-        self, renumbered: Corpus, tmp_path: Path
-    ) -> None:
+    def test_an_import_without_git_marks_nothing(self, renumbered: Corpus, tmp_path: Path) -> None:
         """A renumber is only visible in git; the log is where it is *not* recorded."""
         database, _, _ = _import(tmp_path / "a.db", renumbered, backfill_git=False)
         try:
             assert (
                 database.reader()
                 .execute(
-                    "SELECT COUNT(*) FROM task_event WHERE project_id='demo'"
-                    " AND mechanical=1"
+                    "SELECT COUNT(*) FROM task_event WHERE project_id='demo'" " AND mechanical=1"
                 )
                 .fetchone()[0]
                 == 0
@@ -747,9 +735,7 @@ class TestReportingTimezone:
             store = SqlTaskStore(database, "demo")
             with pytest.raises(ReportingTimezoneError):
                 store.ensure_project(reporting_tz="-06:00")
-            assert (
-                database.reader().execute("SELECT COUNT(*) FROM project").fetchone()[0] == 0
-            )
+            assert database.reader().execute("SELECT COUNT(*) FROM project").fetchone()[0] == 0
         finally:
             database.close()
 
