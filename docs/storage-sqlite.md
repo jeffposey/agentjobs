@@ -179,7 +179,8 @@ fail: it silently misfiles late-evening work by a day for six months, which is w
 constraint and not a convention.
 
 **Set it at cutover** — `agentjobs storage cutover --reporting-tz America/Chicago` — because
-that is currently the only setter. A project cut over without it holds `UTC`.
+that is currently the only setter. A project cut over without the flag holds `UTC`, and
+changing it afterwards means SQL.
 
 `task_event.mechanical` marks a bulk renumber: a commit that rewrote `queue_position` on
 more than one task with no per-task log entry, which is a side effect of moving one task
