@@ -28,6 +28,7 @@ from ..attachments import MEDIA_TYPES
 from ..models_v2 import Task
 from .blobs import SqlAttachmentStore
 from .connection import Database, SqlStoreError
+from .reporting_tz import check_reporting_tz
 
 #: Axes carried on every ``task_event`` row, as (event column stem, task attribute).
 EVENT_AXES: Tuple[Tuple[str, str], ...] = (
@@ -91,8 +92,14 @@ class SqlTaskStore:
         """Create this project's row if it is not there yet.
 
         ``reporting_tz`` is an IANA zone name such as ``America/Chicago``, never a
-        fixed offset: an offset is right for half the year (analytics design 3.5).
+        fixed offset: an offset is right for half the year (analytics design 3.5,
+        section 6 item C). Checked here rather than trusted, because the wrong value
+        does not fail -- it silently misfiles late-evening work by a day for six
+        months of the year, and there is nothing on the chart to see. Migration 002
+        carries the same rule as a trigger, for a writer that does not come through
+        this door.
         """
+        reporting_tz = check_reporting_tz(reporting_tz)
         with self.database.write() as connection:
             connection.execute(
                 "INSERT OR IGNORE INTO project(project_id, root, created_at, reporting_tz) "
