@@ -51,6 +51,7 @@ from agentjobs.sqlstore import (
     upgrade,
     verify,
 )
+from agentjobs.sqlstore.migrations import available
 from agentjobs.storage_protocol import TaskStore
 
 
@@ -117,10 +118,18 @@ class TestSchema:
         with pytest.raises(SqlStoreError, match="newer AgentJobs"):
             upgrade(database, agentjobs_version="test")
 
-    def test_the_migration_is_recorded(self, database: Database) -> None:
-        """A version bump without the row explaining it is a database nobody can audit."""
-        rows = database.writer.execute("SELECT version, name FROM schema_migration").fetchall()
-        assert [tuple(row) for row in rows] == [(1, "initial")]
+    def test_every_migration_is_recorded(self, database: Database) -> None:
+        """A version bump without the row explaining it is a database nobody can audit.
+
+        Compared against the migrations this build ships rather than a literal list, so
+        adding one does not require editing an assertion whose point is that nothing
+        was applied unrecorded.
+        """
+        rows = database.writer.execute(
+            "SELECT version, name FROM schema_migration ORDER BY version"
+        ).fetchall()
+        assert [tuple(row) for row in rows] == [(m.version, m.name) for m in available()]
+        assert rows, "a fresh database should have applied at least the initial schema"
 
 
 class TestRoundTrip:
