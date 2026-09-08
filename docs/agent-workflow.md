@@ -977,7 +977,7 @@ rejected alternative, `question` and `answer` with `re` for open threads, and
 
 A task record states what somebody **meant**, not the words they used, and never
 reproduces the tone of a remark. The one-paragraph version of the rule is in
-[ALLAGENTS.md](../ALLAGENTS.md#paraphrase-a-person-never-quote-them); this is the rest
+[ALLAGENTS.md](https://github.com/jeffposey/agentjobs/blob/main/ALLAGENTS.md#paraphrase-a-person-never-quote-them); this is the rest
 of it -- why, what enforces it, what that enforcement cannot see, and how to fix a
 record that already carries one.
 

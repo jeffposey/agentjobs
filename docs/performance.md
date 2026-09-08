@@ -10,7 +10,7 @@ Three questions, three tools:
 
 The rules derived from all three — quote a command and a date rather than a bare count,
 state a before/after pair, prefer parse counts to wall clock — are in
-[ENGINEERING.md](../ENGINEERING.md#testing). This file is the working detail and the
+[ENGINEERING.md](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md#testing). This file is the working detail and the
 measurement history behind them.
 
 `scripts/bench.py` measures how long AgentJobs takes to answer, on three surfaces: the
@@ -136,7 +136,7 @@ actually run it.
 ## What the gate costs
 
 The rules for *running* the gate are in
-[ENGINEERING.md §Testing](../ENGINEERING.md#testing). The stage table and the measurement
+[ENGINEERING.md §Testing](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md#testing). The stage table and the measurement
 history live here — kept because a performance claim is only checkable if the run that
 produced it is on the record, and here rather than there because a session that is about
 to commit does not need it, and because the four always-loaded files have a byte budget
@@ -491,7 +491,7 @@ could not narrow anything because two untracked sandbox files had stopped gate 4
 receipt — and paid a sixth full gate for it.
 
 Every one of those is addressed by the sequence in
-[ENGINEERING.md §One gate per handoff](../ENGINEERING.md#one-gate-per-handoff), and the
+[ENGINEERING.md §One gate per handoff](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md#one-gate-per-handoff), and the
 two that the prose alone would not have caught now announce themselves: an unqualified
 gate over a tree this run already has a green gate for prints `ALREADY GREEN` with the
 moment it passed, and both the run that fails to earn a receipt and the `--since-gate`

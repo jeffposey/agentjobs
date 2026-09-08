@@ -2807,7 +2807,7 @@ Four things about that refusal decide the design:
   hook defines it; it ships in the CLI.
 - **It forbids exactly the two things this project's process requires.** Every task
   record is committed to `main` in the shared clone
-  ([ENGINEERING.md, "Task files live on `main`, always"](../ENGINEERING.md)), and the
+  ([ENGINEERING.md, "Task files live on `main`, always"](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md)), and the
   merge gate rebases and merges there. A `-w` run can do the work and then neither record
   nor merge it.
 - **The cost was being paid, silently.** Every dispatched run to date ended with an
@@ -2823,7 +2823,7 @@ finish is not containment; it is a stall with good intentions. Task-186 chose th
 
 The dispatched agent takes its own worktree, exactly as every other agent in this
 repository is already required to
-([ALLAGENTS.md, "Why you get your own worktree"](../ALLAGENTS.md)):
+([ALLAGENTS.md, "Why you get your own worktree"](https://github.com/jeffposey/agentjobs/blob/main/ALLAGENTS.md)):
 `git worktree add ../worktrees/agentjobs-<nnn> -b <type>/task-<nnn>-<slug>`, before anything is
 written.
 

@@ -68,7 +68,10 @@ nav:
       - Agent loops design: agent-loops-design.md
       - Playbooks design: playbooks-design.md
       - Codex dispatch rollout: codex-dispatch.md
+      - Durable Codex dispatch architecture: codex-dispatch-architecture.md
       - MCP integration design: mcp-integration-design.md
+      - Analytics page design: analytics-design.md
+      - The Tasks surface: tasks-shell.md
       - Queue position design: task-selection-design.md
       - Task schema reference: task-schema.md
       - API reference: api-reference.md
@@ -78,7 +81,15 @@ nav:
       - Installation: installation.md
       - Mobile and installed-app access: mobile-access.md
       - Migration guide: migration-guide.md
+      - SQLite storage: storage-sqlite.md
       - Task corpus audit: task-corpus-audit.md
+      - The context budget: context-budget.md
+  - Access and identity:
+      - Principals design: principals-design.md
+      - Authorization: authorization.md
+      - Exposure: exposure.md
+      - Identity registry: identity-registry.md
+      - Tailnet front door: tailnet-front-door.md
 
 # The 160+ per-class/slot/enum/type pages under schema/v1 and schema/v2 are reached
 # from each schema's Reference index rather than enumerated in the sidebar.

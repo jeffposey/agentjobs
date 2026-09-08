@@ -21,7 +21,7 @@ The review endpoints compared the submitted `user` against the project's
 That is not a weak check, it is a **circular** one: the API told you the password and
 then asked for it. The dispatch endpoint had the same shape, accepting any configured
 human's id from the same published list. Both are finding S-1 of
-[the 2026-08-21 security audit](../audits/2026-08-21/12-security.md).
+[the 2026-08-21 security audit](https://github.com/jeffposey/agentjobs/blob/main/audits/2026-08-21/12-security.md).
 
 The comparison is now against
 [the principal](principals-design.md) the transport proved, which no response hands out.
@@ -58,7 +58,7 @@ additionally require the run to name the task it was dispatched to work.
 
 Two judgement calls inside that, since the spec settles neither:
 
-- **Queue moves are scoped.** [ALLAGENTS.md](../ALLAGENTS.md) tells an agent that
+- **Queue moves are scoped.** [ALLAGENTS.md](https://github.com/jeffposey/agentjobs/blob/main/ALLAGENTS.md) tells an agent that
   disagrees with the backlog's order to move the task it thinks should be first, which
   argued for leaving moves unscoped. That instruction addresses a session *choosing*
   what to work on next; a dispatched run is given its task rather than choosing it, and

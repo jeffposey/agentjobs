@@ -298,7 +298,7 @@ the reason the other world exists:
 - **The dashboard reads one working tree**, so a record committed to a feature branch is
   invisible to the person it is addressed to: they open the React app, see the task still
   `ready`, and conclude nothing is waiting for them. That is why
-  [ENGINEERING.md](../ENGINEERING.md#where-task-records-live-and-whether-you-commit-them)
+  [ENGINEERING.md](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md#where-task-records-live-and-whether-you-commit-them)
   requires records to be committed to `main` and never to a branch. Observed 2026-08-11,
   repeatedly, before the cause was understood.
 - **A record and the code it describes are not one atomic commit.** Checking out an old
