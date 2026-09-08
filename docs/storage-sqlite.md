@@ -169,6 +169,25 @@ the analytics page render "we do not know" instead of zero.
 is correct all year and `-06:00` is correct for half of it. SQLite cannot resolve zone
 names, so day bucketing happens in Python.
 
+That is enforced twice rather than documented once (task-371). `sqlstore/reporting_tz.py`
+checks the value at `ensure_project`, which is the one door it comes through today, and
+says in the refusal *which half of the year* an offset is wrong for — the person who typed
+one typed it because task-273's first draft offered `date(ts, :tz)`, and needs the argument
+rather than a validation error. Migration `002` carries the shape half of the same rule as
+a trigger, for the writer that does not come through that door. A wrong value here does not
+fail: it silently misfiles late-evening work by a day for six months, which is why it is a
+constraint and not a convention.
+
+**Set it at cutover** — `agentjobs storage cutover --reporting-tz America/Chicago` — because
+that is currently the only setter. A project cut over without the flag holds `UTC`, and
+changing it afterwards means SQL.
+
+`task_event.mechanical` marks a bulk renumber: a commit that rewrote `queue_position` on
+more than one task with no per-task log entry, which is a side effect of moving one task
+rather than a decision about the others. The analytics page keeps those out of its activity
+series. Only positions are ever marked — a commit changing `priority` across several tasks
+is a grooming pass, and those are decisions.
+
 ## 5. Concurrency and durability
 
 One process opens the database and one connection writes; readers get their own

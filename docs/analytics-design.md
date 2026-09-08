@@ -563,6 +563,62 @@ worse than none, because the query looks correct.
 - The `task_state_daily` rollup stays deferred, with the trigger unchanged: a windowed
   series costing more than ~50 ms. Today it is 0.91 ms.
 
+### 6.4 Where each item landed (task-371, 2026-09-08)
+
+This section was written before task-273 was built. By the time it was folded in, task-273
+had shipped and task-311 had cut this project over, so the items are code rather than
+edits to a draft. Recorded here, and on task-273 and task-311, so a reader of either can
+tell which parts of the history contract came from the analytics consumer without reading
+task-371.
+
+| item | where it lives | state when task-371 opened |
+|---|---|---|
+| A — clamp the backfilled creation | `sqlstore/importer.py`, `_prepare` | implemented, **untested** |
+| B — restrict the backfill | `sqlstore/backfill.py`, `BACKFILL_FIELDS` | implemented, **untested** |
+| C — `reporting_tz` is a zone name | `sqlstore/reporting_tz.py` + migration `002` | a comment on the column |
+| D — the invariant asserted | `tests/test_analytics_contract.py` | held after backup/restore only |
+| E — `ix_task_counts` | `001_initial.sql` | done |
+| F — `ix_event_source` | `001_initial.sql` | done |
+| G — deferred `parent_id` | `001_initial.sql` | done |
+| H — `mechanical` populated | `sqlstore/importer.py`, `_bulk_renumber_commits` | defined, always `0` |
+
+Three things are worth carrying forward from doing it.
+
+**A and B were right and unasserted, which is the more expensive half of B.** Nothing in
+the suite touched the git backfill at all, so the 45% error §4.4 measured could have come
+back in a one-word edit to a tuple. It took a mutation to find the shape that actually
+reproduces it, and it is not the one this document's prose suggests: backfilling the
+*close* of a task the log already closed costs nothing, because `open_delta` only counts a
+close whose `lifecycle_from` is not already `closed`. The damage is at creation — git's
+first sight of a file that already reads `lifecycle: closed` seeds the synthesised
+creation, a creation is `+1` whatever lifecycle it carries, and the task then counts as
+open forever.
+
+**H needed no threshold.** §4.4 already defines a bulk renumber as one that rewrites
+`queue_position` *with no per-task log entry*, and the de-duplication pass already computes
+that: a git observation within five minutes of a native `queue_move` is dropped, so a
+surviving row is by construction a position change nobody logged. Grouping the survivors by
+commit says how many tasks one commit did it to, and a commit that did it to more than one
+is a renumber — the moved task's own change has already dropped out, and what is left is
+the collateral. Measured on the 376-record corpus: **213 of 325 surviving position events,
+across ten commits**, of which the two largest renumbered **93 and 87** tasks. The
+distribution is bimodal with nothing between 5 and 87, so the cut-off decides nothing
+delicate.
+
+**The mark stays on `queue_position` and no other axis.** A commit that changes `priority`
+on seven tasks looks identical on every signal — bulk, unlogged, one commit — and is a
+grooming pass: seven decisions, which is activity. Widening the rule would drop real work
+off the chart to catch nothing, so the corpus in `test_analytics_contract.py` carries such
+a commit specifically to fail a widened rule.
+
+**What is not covered, and is left deliberately.** `reporting_tz` is validated at
+`ensure_project` and by the trigger, and there is no way to *change* it after a cutover
+short of SQL: `agentjobs storage cutover --reporting-tz` is the only setter. This project
+was cut over with `America/Chicago`, so nothing here needs correcting today — but a project
+cut over without the flag holds `UTC` and has no way back. §7 is what reads the column, so
+the setter belongs with the API that makes the value matter rather than with the schema
+that holds it.
+
 ---
 
 ## 7. The API

@@ -416,60 +416,19 @@ class CorpusImporter:
     # ------------------------------------------------------------------
 
     def _reconstruct(self, connection: Any, tasks: List[Task], report: ImportReport) -> int:
-        """Replay each task's log into events, then reconcile against its record."""
+        """Replay each task's log into events, then reconcile against its record.
+
+        Two passes rather than one, because :meth:`_bulk_renumber_commits` is a
+        question about the corpus and cannot be answered while walking it: whether a
+        position change was a bulk renumber depends on how many *other* tasks the same
+        commit renumbered.
+        """
+        prepared = [(task, self._prepare(task)) for task in tasks]
+        renumbers = self._bulk_renumber_commits(prepared)
         written = 0
-        for task in tasks:
+        for task, rows in prepared:
             state: Dict[str, Any] = {stem: None for stem, _ in EVENT_AXES}
             state["archived"] = 0
-            rows = self._replay(task)
-            git_rows = self._git_rows(task, rows)
-            if not any(row["kind"] == "create" for row in rows):
-                # Without a creation event the backlog series cannot reconcile: 79
-                # tasks in this repository have none. The instant is the earliest
-                # evidence the task existed, never a later one -- Rule A, analytics
-                # design 4.3, where taking commit time literally opened the series
-                # at -3.
-                candidates = [_iso(task.created)]
-                if task.log:
-                    candidates.append(_iso(task.log[0].ts))
-                seen = self._first_seen.get(f"{task.id}.yaml")
-                candidates.append(_utc(seen) if seen else None)
-                born = min(x for x in candidates if x)
-                rows.insert(
-                    0,
-                    {
-                        "kind": "create",
-                        "ts": born,
-                        "actor": "import",
-                        "log_entry_id": None,
-                        "operation_id": None,
-                        "after": {
-                            "lifecycle": self._first_open_lifecycle(task),
-                            # A task is not created archived, and is created with no
-                            # parent and no place in line. Seeding these keeps the
-                            # reconciliation below reporting the axes the log genuinely
-                            # cannot reconstruct rather than every axis it never mentions.
-                            "archived": 0,
-                            "parent": None,
-                            "position": None,
-                        },
-                    },
-                )
-            # Git's *initial* observations seed the creation rather than becoming
-            # events of their own: the replay's gap was never missing steps, it was
-            # having no starting value. The rest merge in by timestamp.
-            create = next(row for row in rows if row["kind"] == "create")
-            for row in git_rows:
-                if row.pop("_initial", False):
-                    # Assigned, not defaulted. Git is the authority for these axes
-                    # (Rule B) and the synthesised creation above seeds conservative
-                    # placeholders for them -- `setdefault` would let the placeholder
-                    # win, which silently discarded every backfilled parent.
-                    create["after"][row["axis"]] = row["after"][row["axis"]]
-                else:
-                    rows.append(row)
-            rows.sort(key=lambda row: (row["ts"] or "", row["kind"] != "create"))
-
             for row in rows:
                 before = dict(state)
                 after = dict(state)
@@ -484,6 +443,7 @@ class CorpusImporter:
                     after,
                     source=row.get("source", "reconstructed"),
                     detail=row.get("detail"),
+                    mechanical=self._is_bulk_renumber(row, renumbers),
                 )
                 state = after
                 written += 1
@@ -508,6 +468,105 @@ class CorpusImporter:
                 written += 1
                 report.reconciled.append(task.id)
         return written
+
+    def _prepare(self, task: Task) -> List[Dict[str, Any]]:
+        """This task's events, replayed, backfilled and ordered -- but not yet written."""
+        rows = self._replay(task)
+        git_rows = self._git_rows(task, rows)
+        if not any(row["kind"] == "create" for row in rows):
+            # Without a creation event the backlog series cannot reconcile: 79
+            # tasks in this repository have none. The instant is the earliest
+            # evidence the task existed, never a later one -- Rule A, analytics
+            # design 4.3, where taking commit time literally opened the series
+            # at -3.
+            candidates = [_iso(task.created)]
+            if task.log:
+                candidates.append(_iso(task.log[0].ts))
+            seen = self._first_seen.get(f"{task.id}.yaml")
+            candidates.append(_utc(seen) if seen else None)
+            born = min(x for x in candidates if x)
+            rows.insert(
+                0,
+                {
+                    "kind": "create",
+                    "ts": born,
+                    "actor": "import",
+                    "log_entry_id": None,
+                    "operation_id": None,
+                    "after": {
+                        "lifecycle": self._first_open_lifecycle(task),
+                        # A task is not created archived, and is created with no
+                        # parent and no place in line. Seeding these keeps the
+                        # reconciliation below reporting the axes the log genuinely
+                        # cannot reconstruct rather than every axis it never mentions.
+                        "archived": 0,
+                        "parent": None,
+                        "position": None,
+                    },
+                },
+            )
+        # Git's *initial* observations seed the creation rather than becoming
+        # events of their own: the replay's gap was never missing steps, it was
+        # having no starting value. The rest merge in by timestamp.
+        create = next(row for row in rows if row["kind"] == "create")
+        for row in git_rows:
+            if row.pop("_initial", False):
+                # Assigned, not defaulted. Git is the authority for these axes
+                # (Rule B) and the synthesised creation above seeds conservative
+                # placeholders for them -- `setdefault` would let the placeholder
+                # win, which silently discarded every backfilled parent.
+                create["after"][row["axis"]] = row["after"][row["axis"]]
+            else:
+                rows.append(row)
+        rows.sort(key=lambda row: (row["ts"] or "", row["kind"] != "create"))
+        return rows
+
+    @staticmethod
+    def _bulk_renumber_commits(
+        prepared: List[Tuple[Task, List[Dict[str, Any]]]],
+    ) -> Dict[str, int]:
+        """Commits that renumbered more than one task's place in line, and by how many.
+
+        Item H of analytics-design section 6: ``mechanical`` has to be *populated*, not
+        merely defined, because the page uses it to keep a bulk renumber out of the
+        activity series -- and a column that is always ``0`` is worse than an absent
+        one, since the query over it looks correct.
+
+        Section 4.4 supplies the definition rather than a heuristic: *a bulk renumber
+        rewrites* ``queue_position`` *with no per-task log entry*. Both halves are
+        already computed by the time this runs. :meth:`_git_rows` has dropped every git
+        observation sitting within :data:`DEDUPE_WINDOW_SECONDS` of a native
+        ``queue_move``, so a surviving row is by construction a position change nobody
+        logged; grouping the survivors by commit says how many tasks one commit did that
+        to. Moving a task inside a band renumbers its band-mates as a side effect: the
+        moved task's own change carries a log entry and has already dropped out, and
+        what is left is the collateral.
+
+        **Measured on this repository's 376 records** (2026-09-08): 325 surviving
+        backfilled position events across 122 commits, of which 112 commits produced
+        exactly one event and the rest produced 3, 4, 5, 87 and 93. The threshold falls
+        in the gap between 5 and 87, so it decides nothing delicate -- 213 of the 325
+        events are marked, and the two largest commits are the bulk renumbers section
+        8.7 names.
+
+        **Only ``queue_position``.** A commit that changes ``priority`` on seven tasks
+        is a grooming pass -- seven decisions, which is activity -- and marking those
+        mechanical would drop real work off the chart to catch nothing. The design names
+        the renumber and nothing else, and that narrowness is deliberate.
+        """
+        touched: Dict[str, set] = {}
+        for task, rows in prepared:
+            for row in rows:
+                commit = _renumber_commit(row)
+                if commit is not None:
+                    touched.setdefault(commit, set()).add(task.id)
+        return {commit: len(tasks) for commit, tasks in touched.items() if len(tasks) > 1}
+
+    @staticmethod
+    def _is_bulk_renumber(row: Dict[str, Any], renumbers: Dict[str, int]) -> bool:
+        """True when this event is one task's share of a bulk renumber."""
+        commit = _renumber_commit(row)
+        return commit is not None and commit in renumbers
 
     def _git_rows(self, task: Task, replayed: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Turn this task's git observations into events, applying Rule B.
@@ -718,6 +777,18 @@ __all__ = [
     "IMPLIED_BALL",
     "QuotationPolicyError",
 ]
+
+
+def _renumber_commit(row: Dict[str, Any]) -> Optional[str]:
+    """The commit behind a backfilled position change, or ``None`` if this is not one.
+
+    One predicate, used by both halves of the bulk-renumber check, so that what counts
+    as a renumber is written down once.
+    """
+    if row.get("source") != "backfilled" or row.get("axis") != "position":
+        return None
+    commit = (row.get("detail") or {}).get("git_commit")
+    return str(commit) if commit else None
 
 
 def _utc(value: str) -> str:
