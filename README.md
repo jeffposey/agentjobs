@@ -6,7 +6,8 @@ many sessions as you can run.**
 Prototyping with an agent is fast until the third session, when nothing remembers what's
 done, what's half-done, or what's waiting on you. AgentJobs is the record that outlives
 the session: a durable record naming who has the ball and what they're being asked to
-do — one YAML file per task in git, or a SQLite store once a project outgrows that.
+do — one YAML file per task in git, or a SQLite store beside the server once more than
+one session is working the backlog.
 
 ## The ball is always somewhere
 
@@ -132,10 +133,11 @@ the decision instead of re-deriving it.
   file that looks right and is not is the failure this prevents.
 - **The storage is yours to choose, and it is one line to see.** Records start as one
   YAML file per task -- diffable, reviewable in a pull request, portable between tools,
-  no service to operate. A project that has outgrown that moves to a SQLite store beside
-  the server with `agentjobs storage cutover`, which ends the branch-decides-the-backlog
-  coupling and makes historical questions a query. `agentjobs storage status` says which
-  a project is on; [the storage guide](docs/storage-sqlite.md) is the whole argument.
+  no service to operate. `agentjobs storage cutover` moves a project to a SQLite store
+  beside the server, which ends the branch-decides-the-backlog coupling and makes
+  historical questions a query — where a backlog worked by concurrent sessions belongs,
+  and where this project's own records live. `agentjobs storage status` says which a
+  project is on; [the storage guide](docs/storage-sqlite.md) is the whole argument.
 
 **And it closes the loop.** A tracker with an MCP server can record that a human approved
 something. It cannot turn that approval into a running agent, in the right directory,
