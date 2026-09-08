@@ -304,7 +304,7 @@ class TestRuleA:
 def renumbered(tmp_path: Path) -> Iterator[Corpus]:
     """Three open tasks, a bulk renumber, a logged move, and a lone unlogged one.
 
-    Five commits, each shaped to make one distinction bite:
+    Six commits, each shaped to make one distinction bite:
 
     1.  The three records appear, plus a fourth that will be closed later.
     2.  One commit rewrites ``queue_position`` on all three, and **no record logs it**.
@@ -313,8 +313,24 @@ def renumbered(tmp_path: Path) -> Iterator[Corpus]:
         a deliberate move, which de-duplicates against the git observation and should
         leave no backfilled event at all.
     4.  ``task-002`` moves alone with no log entry. One task is not a bulk renumber.
-    5.  ``task-004`` is closed, in the log. Git sees the lifecycle change too, and
-        rule B says it must not be taken from there.
+    5.  ``task-004`` is closed, in the log, and ``task-005`` appears for the first time
+        *already* closed, with its whole life in its log. Git sees a lifecycle on both
+        and rule B says it must not be taken from either.
+    6.  One commit raises ``priority`` on all three open tasks, with no log entry
+        anywhere. Bulk, unlogged, and **not** mechanical: three priorities are three
+        decisions. This is the commit that keeps the mark narrow, and without it
+        widening the rule to every axis passes the whole module.
+
+    ``task-005`` is the one that makes rule B bite, and it took a mutation to find out.
+    Backfilling the *close* of ``task-004`` costs nothing, because the generated
+    ``open_delta`` only counts a close whose ``lifecycle_from`` is not already closed --
+    so a git observation arriving at or after the logged close nets zero on its own.
+    The damage is at the other end: git's first sight of ``task-005`` is a file that
+    says ``lifecycle: closed``, and an initial observation *seeds the creation*. A
+    creation is ``+1`` whatever lifecycle it carries, the logged close then finds the
+    state already closed and nets zero, and the task counts as open forever with every
+    query plan looking healthy. That is the shape behind the measured
+    ``SUM(open_delta) = 69`` against 125 open tasks.
     """
     corpus = Corpus(tmp_path / "repo")
     opening = _transition(
@@ -432,10 +448,63 @@ def renumbered(tmp_path: Path) -> Iterator[Corpus]:
                     "Closed by claude.",
                     {"lifecycle": "closed", "outcome": "completed"},
                 ),
-            )
+            ),
+            "task-005.yaml": _record(
+                "task-005",
+                title="Fifth, born and closed between two commits",
+                created="2026-02-18T00:00:00Z",
+                updated="2026-02-19T00:00:00Z",
+                lifecycle="closed",
+                position=None,
+                log=_transition(
+                    1,
+                    "2026-02-18T00:00:00Z",
+                    "Created ready by claude.",
+                    {"lifecycle": "ready"},
+                )
+                + _transition(
+                    2,
+                    "2026-02-19T00:00:00Z",
+                    "Closed by claude.",
+                    {"lifecycle": "closed", "outcome": "completed"},
+                ),
+            ),
         },
         at="2026-02-20T00:00:00+00:00",
-        message="chore: close one",
+        message="chore: close one, and add one that was already closed",
+    )
+    corpus.commit(
+        {
+            "task-001.yaml": _record(
+                "task-001",
+                title="First",
+                created="2026-02-01T00:00:00Z",
+                updated="2026-02-25T00:00:00Z",
+                priority="critical",
+                position=5,
+                log=opening + _queue_move(2, "2026-02-10T00:00:00Z", to=5),
+            ),
+            "task-002.yaml": _record(
+                "task-002",
+                title="Second",
+                created="2026-02-01T00:00:00Z",
+                updated="2026-02-25T00:00:00Z",
+                priority="critical",
+                position=15,
+                log=opening,
+            ),
+            "task-003.yaml": _record(
+                "task-003",
+                title="Third",
+                created="2026-02-01T00:00:00Z",
+                updated="2026-02-25T00:00:00Z",
+                priority="critical",
+                position=30,
+                log=opening,
+            ),
+        },
+        at="2026-02-25T00:00:00+00:00",
+        message="chore: a grooming pass over three priorities",
     )
     yield corpus
 
@@ -580,12 +649,23 @@ class TestRuleH:
     def test_nothing_but_a_position_change_is_ever_mechanical(
         self, imported: Database
     ) -> None:
-        """A grooming pass over seven priorities is seven decisions, and is activity.
+        """A grooming pass over three priorities is three decisions, and is activity.
 
         Widening the mark to every axis a commit touched in bulk was considered and
         rejected: the design names the renumber, and only the renumber is a side effect
-        nobody chose.
+        nobody chose. The last commit in the fixture is that grooming pass -- bulk,
+        unlogged, and identical to a renumber on every signal except which column it
+        wrote.
         """
+        groomed = _rows(
+            imported,
+            "SELECT task_id, mechanical FROM task_event WHERE project_id='demo'"
+            " AND kind='reprioritize' AND source='backfilled'"
+            " AND ts = '2026-02-25T00:00:00Z' ORDER BY task_id",
+        )
+        assert [row["task_id"] for row in groomed] == ["task-001", "task-002", "task-003"]
+        assert [row["mechanical"] for row in groomed] == [0, 0, 0]
+
         kinds = _rows(
             imported,
             "SELECT DISTINCT kind, source FROM task_event WHERE project_id='demo'"
