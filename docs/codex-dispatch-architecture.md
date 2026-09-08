@@ -2,6 +2,11 @@
 
 ## Status and decision
 
+**Status: shipped.** All five implementation children below closed completed —
+task-281 through task-285 — and `src/agentjobs/dispatch/codex_app_server.py` carries
+the preflight, persisted-thread probe and resume classification this document designs.
+Kept for the reasoning; `codex-dispatch.md` is the operator's page.
+
 This document is the design record for task-280.  It preserves the AgentJobs
 task lifecycle, append-only audit log, task-named worktree isolation, permission
 postures, and per-task human review gate.  It changes neither the active

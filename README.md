@@ -348,9 +348,10 @@ truth -- not a chat log. Where they live is a per-project choice:
 
 On the maintainer's machine this repository's own backlog has been on SQLite since
 2026-09-07. The tracked `tasks/agentjobs/` directory is the frozen pre-cutover copy of
-those records: nothing reads it, it is kept until it is retired as
+those records: nothing reads it, its files stop at the cutover, and task-380 retires it
+the way
 [the storage guide's section 11](docs/storage-sqlite.md#11-retiring-the-files-and-going-back)
-describes, and its files stop at the cutover. `tasks/test-data/` is fixture material for
+describes. `tasks/test-data/` is fixture material for
 `agentjobs load-test-data` and the test suite, not a backlog.
 
 ```bash

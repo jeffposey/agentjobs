@@ -3,6 +3,12 @@
 **Status:** design pass, task-078. Nothing here is implemented. Derived implementation
 tasks are listed in §12.
 
+**Written when task records were files in the repository.** §4's threat model — a clone
+carrying `tasks/*.yaml` full of commands — is the files-project case. A project served
+from SQLite ([the storage guide](storage-sqlite.md)) carries no records in a clone and a
+`check:` line arrives through a managed verb rather than a pull request, which weakens
+that route without removing it: dispatch enablement stays machine-local either way.
+
 **Depends on:** [agent-dispatch-design.md](agent-dispatch-design.md) §2a, which states
 decision D5 (bounded autonomy) and names this document as the place its mechanism is
 designed.

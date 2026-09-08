@@ -5,8 +5,12 @@
 per-project `playbooks/` directory, `playbook list|show|init`, the GET routes and the
 read-only MCP tool. §4 and the run half of §7 shipped under task-215 — `playbook run`
 on the CLI, `POST .../playbooks/{name}/run`, and the Playbooks page with its Run
-button. **task-216 through task-219 remain open**: the three reference briefs are
-first-pass, and the deterministic queue-move check of §5.4 is unbuilt.
+button. **task-216 through task-219 have since closed**: the three reference briefs are
+authored and proven (`playbooks/groom.md`, `reorder.md`, `flesh-out.md`), and the
+deterministic queue-move check of §5.4 shipped as `POST .../queue-keep` and the
+warnings a move answers back. Where this document says a run's audit is "in git", read
+"in the task log": since 2026-09-07 this repository's records are rows in a SQLite
+store ([the storage guide](storage-sqlite.md)), and the corpus still answers the question.
 
 One line of §3.2 was superseded before it was implemented and is called out where it
 appears: there is no `kind` field, because **P8 withdrew the reactive category** on

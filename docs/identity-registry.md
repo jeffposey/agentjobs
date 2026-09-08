@@ -131,8 +131,8 @@ configuration.
 
 - **Not authentication.** The front door proves the identity; this only says which
   configured person it is.
-- **Not authorization.** Every principal may still do everything. Capability per
-  principal kind is task-332.
+- **Not authorization.** Which kind of principal may do what is task-332, now shipped —
+  see [authorization](authorization.md).
 - **Not per-person permissions.** Out of scope for the whole epic, per task-066.
 - **Not a UI.** Config is the interface. The dashboard renders the refusals and nothing
   else about people.

@@ -1,7 +1,13 @@
 # AgentJobs MCP integration design
 
-**Status:** accepted design for implementation planning
-**Date:** 2026-08-14
+**Status:** shipped — `src/agentjobs/mcp/`, the bundled plugins, the write receipts and
+`agentjobs validate --staged` all exist; [mcp.md](mcp.md) and
+[mcp-clients.md](mcp-clients.md) are what to read for the current surface, which has
+grown past this record by two tools and one error code.
+**Date:** 2026-08-14, when every project kept its records as YAML in the repository. §8's
+receipts, staged-file gate and editor threat, and §11's verdict on databases, are the
+files-project case: a project served from SQLite has no task YAML in any checkout, and
+this repository has been one since 2026-09-07 ([the storage guide](storage-sqlite.md)).
 
 ## 1. Problem and decision
 
@@ -104,7 +110,7 @@ Tools use explicit JSON Schema input and output schemas. They return both
 `structuredContent` and a short serialized/text summary for clients that do not consume
 structured results. Read tools are annotated read-only and non-destructive. Mutation
 tools are annotated non-read-only; `task_close` is destructive because it ends open
-work even though the record remains recoverable in Git. Annotations are hints, never
+work even though the record remains recoverable. Annotations are hints, never
 authorization.
 
 ### Shared types

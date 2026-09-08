@@ -591,7 +591,7 @@ did it would be an agent grading an epic on the strength of its children having 
 
 Read a record whenever you want — `task_get` over MCP, `agentjobs show`, the UI, or
 the YAML itself on a project still on files; reviewing a task means opening it. But **do
-not edit one directly**. Every change goes through a managed interface — the
+not edit them** directly. Every change goes through a managed interface — the
 [MCP tools](mcp.md), the REST API, the CLI, or the web UI — which all reach the same
 code path: strict validation, a per-task lock, and a log entry recording who moved what
 and why. A direct edit skips all three and produces a record that looks right and is
