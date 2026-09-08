@@ -668,17 +668,36 @@ class TestRealCorpus:
     and older records are not byte-identical to what today's writer produces. Both are
     real drift and both are worth fixing, but fixing a hundred historical records is
     its own task, and failing this test on them would only teach people to skip it.
+
+    **These stay files-only, and skip once the files are retired** (task-378). What is
+    under test is `validate_corpus`, which is the checker *for a directory of records* --
+    given no directory it has nothing to say, and asserting `checked > 50` against a
+    retired corpus fails for the one reason that is not a defect. The rules here that are
+    about the backlog rather than about files -- a parent or dependency pointing at
+    nothing -- are asserted against whichever backend holds the records by
+    `tests/test_task_corpus.py::test_agentjobs_task_ids_and_relationships_are_not_dangling`,
+    so retiring the directory loses no coverage of the records themselves.
     """
 
+    @staticmethod
+    def corpus_or_skip() -> Path:
+        """This repository's own records as files, or a skip saying they are not."""
+        directory = Path(__file__).resolve().parents[1] / "tasks" / "agentjobs"
+        # Emptiness rather than absence: the directory is recreated, empty, by anything
+        # in the suite that constructs a `TaskStorage` over it, so "is it there" is not
+        # the question. "Does it hold records" is.
+        if not any(directory.glob("*.yaml")):
+            pytest.skip("this repository's records have been retired from the checkout")
+        return directory
+
     def test_no_task_file_is_unloadable_or_points_at_nothing(self):
+        corpus = self.corpus_or_skip()
         root = Path(__file__).resolve().parents[1]
         config = yaml.safe_load(
             (root / ".agentjobs" / "config.yaml").read_text(encoding="utf-8-sig")
         )
 
-        report = validate_corpus(
-            root / "tasks" / "agentjobs", project_config=config, project_root=root
-        )
+        report = validate_corpus(corpus, project_config=config, project_root=root)
 
         structural = [
             finding
@@ -700,14 +719,13 @@ class TestRealCorpus:
 
     def test_the_tolerated_drift_is_only_taxonomy_and_serialization(self):
         """If a new rule starts firing on the real corpus, this says so out loud."""
+        corpus = self.corpus_or_skip()
         root = Path(__file__).resolve().parents[1]
         config = yaml.safe_load(
             (root / ".agentjobs" / "config.yaml").read_text(encoding="utf-8-sig")
         )
 
-        report = validate_corpus(
-            root / "tasks" / "agentjobs", project_config=config, project_root=root
-        )
+        report = validate_corpus(corpus, project_config=config, project_root=root)
 
         assert {finding.rule for finding in report.findings} <= {
             "unknown-category",

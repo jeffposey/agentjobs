@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -128,7 +129,33 @@ def test_responses_carry_the_measurement_headers() -> None:
     assert int(response.headers[PARSE_COUNT_HEADER]) == 0
 
 
-def test_the_parse_header_survives_the_threadpool_hop() -> None:
+@pytest.fixture()
+def a_corpus_to_parse(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+    """A tasks directory of this test's own, served through the implicit project.
+
+    The two tests below need a request that genuinely parses task files. They used to
+    get one by accident: with no registered project, the implicit single-project mode
+    resolves a corpus from the working directory, and the working directory is this
+    repository -- so they were counting parses of *this repository's own* 376 records.
+
+    That made them depend on state they do not own, and task-378 was where it showed:
+    move `tasks/` out of the checkout to prove nothing load-bearing reads it, and a test
+    about a ContextVar crossing a threadpool boundary fails with `assert 0 > 0`. It is
+    also two records' worth of work rather than several hundred.
+    """
+    from agentjobs.api.dependencies import TASKS_DIR_ENV, reset_dependency_cache
+
+    tasks = tmp_path / "tasks"
+    tasks.mkdir()
+    TaskStorage(tasks).save_task(_build_task("task-001"))
+    TaskStorage(tasks).save_task(_build_task("task-002"))
+    monkeypatch.setenv(TASKS_DIR_ENV, str(tasks))
+    reset_dependency_cache()
+    yield tasks
+    reset_dependency_cache()
+
+
+def test_the_parse_header_survives_the_threadpool_hop(a_corpus_to_parse: Path) -> None:
     """A synchronous route runs in a worker thread, and the count must still arrive.
 
     This is the regression this test exists for. FastAPI copies the context into the
@@ -143,11 +170,12 @@ def test_the_parse_header_survives_the_threadpool_hop() -> None:
     assert int(response.headers[PARSE_COUNT_HEADER]) > 0
 
 
-def test_each_request_reports_its_own_work_not_a_running_total() -> None:
+def test_each_request_reports_its_own_work_not_a_running_total(a_corpus_to_parse: Path) -> None:
     """Two identical requests must report the same count, not an accumulating one."""
     client = TestClient(app)
     first = client.get("/api/projects")
     second = client.get("/api/projects")
+    assert int(first.headers[PARSE_COUNT_HEADER]) > 0
     assert int(first.headers[PARSE_COUNT_HEADER]) == int(second.headers[PARSE_COUNT_HEADER])
 
 
