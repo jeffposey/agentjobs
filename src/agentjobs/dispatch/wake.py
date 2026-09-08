@@ -21,6 +21,23 @@ The one thing that is *not* softened is which conversation gets resumed: only th
 session run for the task is ever a candidate. Reaching further back would hand the human
 an agent whose picture of the branch is two runs out of date, which is worse than the
 cold start it was trying to avoid.
+
+**A woken session gets a new id, and this module never supplies one.** Claude Code will
+not apply a differently-flagged launch to a background session's saved options, so a
+``--bg ... --resume <uuid>`` copies the conversation into a fresh session instead of
+continuing the old one. From ``run_893c31f8``'s launcher output on 2026-09-07, verbatim:
+
+    backgrounded · bd0d7199 · agentjobs/task-390@893c31f8
+    note: background session 740d59a5 keeps its own saved options, so the flags you
+    passed started a copy as bd0d7199. Without flags, the same command continues
+    740d59a5 itself.
+
+Which is fine -- the expensive thing the wake wants is the *context*, and the copy has
+it. What matters downstream is that :class:`WakeTarget`'s ``session_uuid`` is an
+argument to ``--resume`` and **not** the id of the session that results: the run's
+``session_id`` is read from the launcher's output exactly as a cold start's is, and the
+uuid asked for is recorded separately as ``resumed_session``. Polling, stopping and
+reconciling all follow the printed id. Task-394 is where that distinction was paid for.
 """
 
 from __future__ import annotations

@@ -24,7 +24,12 @@ import pytest
 import yaml
 
 from agentjobs.dispatch.auth import CLAUDE_HOME_ENV
-from agentjobs.dispatch.ledger import acquire_run_lock
+from agentjobs.dispatch.ledger import (
+    RunLockTimeout,
+    acquire_run_lock,
+    list_runs,
+    live_runs,
+)
 from agentjobs.dispatch.poller import (
     SESSION_POLL_SECONDS,
     poll_live_sessions,
@@ -132,6 +137,52 @@ def _start_session(machine) -> str:
     )
     handle = runner.start(manager.get_task(task_id), actor="Jeff Posey", caused_by=1)
     return handle.run_id
+
+
+def _seed_previous_session_run(home: Path, task_id: str, *, session_id: str = "aaaa1111") -> None:
+    """A finished session run for ``task_id``, so the next dispatch has one to resume."""
+    from agentjobs.dispatch.runner import RunDirectory
+
+    RunDirectory.create(
+        home,
+        "run_previous",
+        {
+            "run_id": "run_previous",
+            "task_id": task_id,
+            "project_id": "sandbox",
+            "mode": "session",
+            "posture": "autonomous",
+            "status": "finished",
+            "session_id": session_id,
+            "dispatch_entry_id": 3,
+            "started_at": "2026-09-06T08:00:00+00:00",
+        },
+    )
+
+
+def _resume_session(machine) -> tuple[str, str]:
+    """Dispatch a task whose previous session is still in the ledger. Returns run and task.
+
+    A real wake through the real code path: the previous run is on disk, its conversation
+    is listed as stopped, and ``_plan_wake`` finds it and rewrites the argv. The fake CLI
+    then does what the real one does with a flagged ``--resume`` -- it comes up under a
+    **new** id (task-394) -- so the run has to read that from the launcher rather than
+    assume the uuid it asked for.
+    """
+    home, root, manager, fake_cli = machine
+    from agentjobs.dispatch.config import assert_dispatch_permitted
+
+    task_id = _dispatched_task(manager)
+    _seed_previous_session_run(home, task_id)
+    _set_ledger(fake_cli, [{"id": "aaaa1111", "sessionId": "aaaa1111-full-uuid"}])
+    runner = DispatchRunner(
+        manager=manager,
+        resolution=assert_dispatch_permitted("sandbox", home),
+        project_root=root,
+        home=home,
+    )
+    handle = runner.start(manager.get_task(task_id), actor="Jeff Posey", caused_by=1)
+    return handle.run_id, task_id
 
 
 def _set_ledger(fake_cli: Path, rows: List[dict]) -> None:
@@ -278,6 +329,116 @@ class TestTheLockIsReleasedByWhateverConcludesTheRun:
         assert _results(home, run_id).phase is SessionPhase.GONE
 
         assert not lock.path.exists()
+
+
+class TestAResumedRunIsFollowedLikeAnyOther:
+    """task-394: a run started by resuming a session used to be followable by nothing.
+
+    ``run_893c31f8`` on 2026-09-07 -- an escalation resumed the session working task-390,
+    and the run's ``meta.yaml`` came up with neither ``session_id`` nor
+    ``dispatch_entry_id``. Those are exactly the two fields ``handle_from_record``
+    requires, so every poll reported *"no session id or dispatch entry recorded"* and no
+    code path could ever settle it. It read ``starting`` for 36 minutes with the work
+    long finished, holding a slot nothing would release and refusing the next dispatch of
+    its task, until somebody ran ``dispatch reconcile`` by hand -- which then wrote a
+    false ``interrupted`` onto the task.
+
+    So these drive a real wake and then settle it through ``poll_live_sessions``. Doing
+    it by hand would prove nothing: the whole defect was that nothing called it.
+    """
+
+    def test_the_dispatch_resumes_the_previous_session(self, machine) -> None:
+        """The precondition for everything below, asserted so a cold start cannot pass."""
+        home, _, _, _ = machine
+        run_id, _ = _resume_session(machine)
+
+        meta = _run_meta(home, run_id)
+        assert meta["resumed"] is True
+        assert meta["resumed_from"] == "run_previous"
+        assert meta["resumed_session"] == "aaaa1111-full-uuid"
+
+    def test_the_record_carries_what_the_poller_needs(self, machine) -> None:
+        home, _, _, _ = machine
+        run_id, _ = _resume_session(machine)
+
+        meta = _run_meta(home, run_id)
+        assert meta["session_id"] == "b55b35ad"
+        assert isinstance(meta["dispatch_entry_id"], int)
+
+    def test_the_session_id_is_the_new_one_not_the_uuid_it_resumed(self, machine) -> None:
+        """A flagged ``--resume`` forks rather than continues, so the ids differ.
+
+        Recording ``resumed_session`` as the session id would look right and poll
+        nothing: it is an argument to ``--resume``, and no such id appears in
+        ``agents --json`` or answers ``stop``.
+        """
+        home, _, _, _ = machine
+        run_id, _ = _resume_session(machine)
+
+        meta = _run_meta(home, run_id)
+        assert meta["session_id"] != meta["resumed_session"]
+
+    def test_a_resumed_run_that_finishes_its_work_settles_through_the_poller(self, machine) -> None:
+        """The acceptance criterion in full: a real resume, settled by the real crank."""
+        home, _, manager, fake_cli = machine
+        run_id, task_id = _resume_session(machine)
+        manager.handoff(
+            task_id,
+            actor="claude",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Please look at this.",
+        )
+        _set_ledger(fake_cli, [{"id": "b55b35ad", "status": "idle", "state": "done"}])
+
+        result = _results(home, run_id)
+
+        assert result.phase is SessionPhase.FINISHED
+        assert _run_meta(home, run_id)["status"] == "finished"
+        after = manager.get_task(task_id)
+        assert after is not None
+        outcomes = [
+            entry.data["outcome"]
+            for entry in after.log
+            if entry.type is LogEntryType.DISPATCH_RESULT
+        ]
+        assert outcomes == ["completed"], "settled on what happened, not a later sweep"
+
+    def test_only_one_run_is_live_on_the_task_it_resumed(self, machine) -> None:
+        """The constraint a resume must not weaken.
+
+        Two records now exist for this task and both are session runs; exactly one is
+        live, because a wake only ever targets a run that has already ended. That is what
+        keeps ``LiveRunExistsError`` and the concurrency limit meaning what they meant --
+        both count ``live_runs``, neither knows anything about resuming.
+
+        The refusal itself is asserted where it is enforced, on the run lock, which is
+        held for a run's whole lifetime: ``TestRunLock`` in ``test_dispatch_lifecycle``.
+        """
+        home, _, _, _ = machine
+        run_id, task_id = _resume_session(machine)
+
+        for_task = [record for record in live_runs(home) if record.task_id == task_id]
+
+        assert [record.run_id for record in for_task] == [run_id]
+        assert {record.run_id for record in list_runs(home) if record.task_id == task_id} == {
+            run_id,
+            "run_previous",
+        }
+
+    def test_a_second_run_cannot_take_the_task_while_the_resumed_one_holds_it(
+        self, machine
+    ) -> None:
+        """A wake changes which conversation runs, never who may hold the task."""
+        home, _, _, _ = machine
+        _, task_id = _resume_session(machine)
+        held = acquire_run_lock(home, task_id)
+        held.adopt("run_resumed")
+
+        with pytest.raises(RunLockTimeout):
+            acquire_run_lock(home, task_id, timeout=0.2)
+
+        held.release()
 
 
 class TestRunsThatCannotBeFollowed:
