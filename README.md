@@ -5,7 +5,8 @@ many sessions as you can run.**
 
 Prototyping with an agent is fast until the third session, when nothing remembers what's
 done, what's half-done, or what's waiting on you. AgentJobs is the record that outlives
-the session: git-backed YAML naming who has the ball and what they're being asked to do.
+the session: a durable record naming who has the ball and what they're being asked to
+do — one YAML file per task in git, or a SQLite store once a project outgrows that.
 
 ## The ball is always somewhere
 
@@ -216,6 +217,9 @@ a particular desktop operating system.
 - A CLI covering create, list, show, next, promote, work, validate, the queue and
   dispatch command groups, project registration, the MCP server, and server control
 - Markdown-to-YAML and schema-v1-to-v2 migration tools
+- **Per-project storage.** Records start as YAML files; `agentjobs storage cutover` moves
+  a project to a SQLite store beside the server, with preview, verified backup, restore,
+  export and rollback under the same command group
 
 The Python client and REST API expose the full schema-v2 state verbs. The CLI has no
 dedicated `claim`/`handoff`/`release`/`close` command — those remain backlog work, and
@@ -332,6 +336,7 @@ with TaskClient() as client:
 - [Installation guide](docs/installation.md)
 - [Mobile and installed-app access](docs/mobile-access.md)
 - [Migration guide](docs/migration-guide.md)
+- [SQLite storage guide](docs/storage-sqlite.md)
 - [Task corpus audit](docs/task-corpus-audit.md)
 
 ## Development
@@ -340,6 +345,13 @@ AgentJobs uses itself to manage its own development, and the records are the sou
 truth -- not a chat log. Where they live is a per-project choice:
 `agentjobs storage status` answers it, and
 [the storage guide](docs/storage-sqlite.md) explains both worlds.
+
+On the maintainer's machine this repository's own backlog has been on SQLite since
+2026-09-07. The tracked `tasks/agentjobs/` directory is the frozen pre-cutover copy of
+those records: nothing reads it, it is kept until it is retired as
+[the storage guide's section 11](docs/storage-sqlite.md#11-retiring-the-files-and-going-back)
+describes, and its files stop at the cutover. `tasks/test-data/` is fixture material for
+`agentjobs load-test-data` and the test suite, not a backlog.
 
 ```bash
 git clone https://github.com/jeffposey/agentjobs.git
