@@ -74,7 +74,7 @@ test walks every route the audit originally wanted denied and asserts it is *not
 
 ## Why the deny-list is three routes and not ten
 
-The [Big Dawg audit of 2026-08-21](../audits/2026-08-21/12-security.md) proposed a much
+The [Big Dawg audit of 2026-08-21](https://github.com/jeffposey/agentjobs/blob/main/audits/2026-08-21/12-security.md) proposed a much
 longer list: `/api/all/tasks`, `dispatch/enable|disable`, `/queue/repair`, `/webhooks*`,
 `/docs`, `/redoc`, and the run output, tail and transcript routes.
 

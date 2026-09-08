@@ -34,7 +34,7 @@ login into one of a project's configured actor ids is
 
 This is the load-bearing part, and no earlier design had it.
 
-The [Big Dawg audit of 2026-08-21](../audits/2026-08-21/12-security.md) proposed
+The [Big Dawg audit of 2026-08-21](https://github.com/jeffposey/agentjobs/blob/main/audits/2026-08-21/12-security.md) proposed
 identity at the proxy plus a path deny-list. Both are proxy-side, and **a dispatched
 agent never goes through the proxy** — it is already on this machine, on loopback.
 So a design that trusts loopback wholesale in order to keep the desktop dashboard

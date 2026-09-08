@@ -5,7 +5,10 @@ This handbook is the canonical source for universal engineering practices across
 ## Project Mission
 **AgentJobs** is a lightweight task management system designed for AI agent workflows.
 -   **Core Philosophy**: "Git-Friendly" & "Lightweight".
--   **Data Source**: YAML files in the `tasks/` directory are the single source of truth.
+-   **Data Source**: the task record. One YAML file per task under `tasks/` by default;
+    a project cut over with `agentjobs storage cutover` keeps its records in a SQLite
+    store beside the server instead. This repository's own backlog has been on SQLite
+    since 2026-09-07, and `tasks/agentjobs/` is a frozen copy that nothing reads.
 -   **Interface**: CLI (`agentjobs`) and packaged React Web UI (`agentjobs open`, or
     `/app/` on a running `agentjobs serve`).
 
@@ -420,19 +423,11 @@ machine-level, so it is neither in the repository nor in a clone somebody else m
 see [the storage guide](docs/storage-sqlite.md), and back it up.
 
 **`files` — records are YAML under `tasks/`, and are committed directly to `main`,
-never to a feature branch.** Creating, grooming, claiming, logging, handing off, closing:
-all of it, with a `chore(task-nnn):` commit in the main clone. A feature branch carries
-code and docs and does not touch them.
-
-```bash
-git -C <path-to-main-clone> add tasks/<project>/<the task file>
-git -C <path-to-main-clone> commit -m "chore(task-045): hand off for review"
-```
-
-That rule exists because the dashboard reads one working tree, so a handoff committed to
-a branch is invisible to the person it is addressed to — and it costs you the record and
-its code being one atomic commit. Both halves are in
-[the storage guide](docs/storage-sqlite.md#the-two-worlds-a-project-can-be-in), with what
+never to a feature branch**, with a `chore(task-nnn):` commit in the main clone for every
+create, claim, log, handoff and close. That rule exists because the dashboard reads one
+working tree, so a handoff committed to a branch is invisible to the person it is
+addressed to. Both halves are in
+[the storage guide](docs/storage-sqlite.md#9-the-two-worlds-a-project-can-be-in), with what
 moves a project between the two: `agentjobs storage cutover` backs up, imports, verifies
 field by field and only then switches, and `agentjobs storage rollback` goes back keeping
 whatever was written since.

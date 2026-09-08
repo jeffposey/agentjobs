@@ -76,7 +76,7 @@ From a clone, point the first command at your checkout instead of the URL —
 `codex plugin marketplace add /path/to/agentjobs`.
 
 Codex will ask you to review and trust the hook before it runs. Read
-`hooks/task_write_guard.py` and `hooks/guard_task_yaml.py` first — they are
+`plugins/agentjobs/hooks/task_write_guard.py` and `plugins/agentjobs/hooks/guard_task_yaml.py` first — they are
 dependency-free and offline by design, so there is not much of them.
 
 **Start a new session afterwards.** Plugins, MCP servers and hooks are read at session
@@ -133,16 +133,17 @@ and one guard. So Claude gets all three: the MCP wiring, the workflow skill, and
 `Write`, `NotebookEdit` or `Bash`.
 
 Claude will ask you to review and trust the hook before it runs. Read
-`hooks/task_write_guard.py` and `hooks/guard_task_yaml_claude.py` first.
+`plugins/agentjobs/hooks/task_write_guard.py` and `plugins/agentjobs/hooks/guard_task_yaml_claude.py` first.
 
 **Start a new session afterwards.** Plugins, MCP servers and hooks are read at session
 start — including in the session you ran the install command from, which will not see
 it.
 
 Verify in the new session: `claude plugin list` should show it, and asking "what should
-I work on in *project*?" should trigger the skill. Then ask Claude to edit a task YAML
-file directly; it should be refused, with a message naming the file and the AgentJobs
-tools to use instead.
+I work on in *project*?" should trigger the skill. Then, on a project still on files,
+ask Claude to edit a task YAML file directly; it should be refused, with a message naming
+the file and the AgentJobs tools to use instead. A SQLite project has no file in the
+checkout for that check to fire on.
 
 Protection: MCP tools, plus the pre-tool hook once trusted, plus the receipt gate if
 you install it, plus portable validation. The same as Codex.

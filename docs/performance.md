@@ -10,7 +10,7 @@ Three questions, three tools:
 
 The rules derived from all three — quote a command and a date rather than a bare count,
 state a before/after pair, prefer parse counts to wall clock — are in
-[ENGINEERING.md](../ENGINEERING.md#testing). This file is the working detail and the
+[ENGINEERING.md](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md#testing). This file is the working detail and the
 measurement history behind them.
 
 `scripts/bench.py` measures how long AgentJobs takes to answer, on three surfaces: the
@@ -61,6 +61,10 @@ parses a 119-file corpus 476 times is doing four times too much work on any hard
 and a change that drops it to 119 has demonstrably fixed something. Prefer to write
 assertions against parse counts and treat timings as corroboration.
 
+The counter is a files-backend instrument: a project on SQLite reads no files, so it
+reports 0 there, and the benchmark server is always on files (it runs under its own
+`AGENTJOBS_HOME`), which is why the number still means something on a migrated machine.
+
 ## The two headers
 
 Every API response carries them, not just benchmark runs. They are the way to
@@ -83,7 +87,7 @@ cannot write to the real backlog and is unaffected by whatever a long-running se
 happens to hold in memory.
 
 ```bash
-poetry run python scripts/bench.py --corpus real        # a copy of tasks/agentjobs (default)
+poetry run python scripts/bench.py --corpus real        # a copy of the tracked tasks/agentjobs files (default)
 poetry run python scripts/bench.py --corpus synthetic --tasks 200
 ```
 
@@ -136,7 +140,7 @@ actually run it.
 ## What the gate costs
 
 The rules for *running* the gate are in
-[ENGINEERING.md §Testing](../ENGINEERING.md#testing). The stage table and the measurement
+[ENGINEERING.md §Testing](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md#testing). The stage table and the measurement
 history live here — kept because a performance claim is only checkable if the run that
 produced it is on the record, and here rather than there because a session that is about
 to commit does not need it, and because the four always-loaded files have a byte budget
@@ -262,8 +266,9 @@ its longest test, so the floor here is set by `TestProcessGroup`, not by the 415
 
 Two shapes account for almost all of it, and both are worth knowing before anyone proposes
 a fix: **real subprocess timeouts** (the top entry waits out a process-group kill) and
-**whole-corpus loads** (four of the eight parse every task file in `tasks/`, so they grow
-with the backlog rather than with the code). Neither is wasted work; both are candidates
+**whole-corpus loads** (four of the eight parse every tracked task file under `tasks/`,
+so they grew with the backlog while the backlog was files; since the cutover that
+directory is frozen, and the ones that read it skip once it is retired). Neither is wasted work; both are candidates
 for being made cheaper, and neither is this task.
 
 This also settles proposal 9 in the negative for now, as its own text said it would:
@@ -491,7 +496,7 @@ could not narrow anything because two untracked sandbox files had stopped gate 4
 receipt — and paid a sixth full gate for it.
 
 Every one of those is addressed by the sequence in
-[ENGINEERING.md §One gate per handoff](../ENGINEERING.md#one-gate-per-handoff), and the
+[ENGINEERING.md §One gate per handoff](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md#one-gate-per-handoff), and the
 two that the prose alone would not have caught now announce themselves: an unqualified
 gate over a tree this run already has a green gate for prints `ALREADY GREEN` with the
 moment it passed, and both the run that fails to earn a receipt and the `--since-gate`

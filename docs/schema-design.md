@@ -10,7 +10,9 @@ a present-tense statement of fact: **the complete example below predates
 writes take a per-task lock and queue placement takes a queue lock); and **a task that
 fails validation no longer vanishes** — it is reported as a broken task, and
 `GET /api/tasks/broken` lists them. References to what "task-050 will do" describe work
-that is finished.
+that is finished. A fourth: **"one YAML file per task, in git" is no longer
+non-negotiable** — §7's own superseded note and [storage-sqlite.md](storage-sqlite.md)
+record the SQLite backend that replaced it as this repository's store on 2026-09-07.
 
 Produced under task-048. This document is the deliverable of the schema design pass: the
 proposed next iteration of the task schema, the reasoning behind each change, the
@@ -516,7 +518,7 @@ webhook infrastructure needs to change.
 
   *What files buy, and why it wins here:* diffable task history, `git blame` on a
   field, and atomic commits pairing a task change with the code change it describes —
-  all three actively used in this repo's workflow. Plus zero infrastructure, which is
+  all three used in this repo's workflow until its cutover. Plus zero infrastructure, which is
   load-bearing for the packaged-product goal in §8: `pip install agentjobs` and point
   it at a directory.
 
@@ -535,8 +537,9 @@ webhook infrastructure needs to change.
   > which no amount of indexing reaches. The argument above is left standing because it
   > was right about what it measured, and because the reasoning is what makes the
   > reversal legible. See [storage-sqlite.md](storage-sqlite.md), and task-273 for the
-  > decision and its five follow-up answers. Task-311 owns the cutover; until it lands,
-  > the paragraph above still describes how the product actually stores your tasks.
+  > decision and its five follow-up answers. Task-311 built the cutover, and this
+  > repository ran it on 2026-09-07; the paragraph above now describes the files backend,
+  > which is still the product's default and still supported.
 - **Field-level provenance.** See §4.
 - **Storing the display status.** See §3 — derivable data stored twice is a standing
   drift bug.

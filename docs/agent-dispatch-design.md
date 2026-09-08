@@ -5,6 +5,17 @@ its reasoning, not a statement of what exists.** As of 2026-08-22 `src/agentjobs
 is 15 modules and 9,729 lines (`wc -l src/agentjobs/dispatch/*.py`), with a `dispatch`
 CLI sub-app, REST routes under `/api/dispatch`, and a React surface.
 
+**Written while every project kept its records as files in the repository.** Since
+2026-09-07 this repository's own records are rows in a SQLite store outside every
+checkout ([the storage guide](storage-sqlite.md)), and every project registered on the
+owner's machine followed on 2026-09-08. Wherever this document says a task record is
+git-tracked, committed to `main`, `git blame`-able, or a reason the base moves, read
+"on a files project": the argument is unchanged there and moot on SQLite, where nothing
+commits a record and every branch sees the same backlog. Two passages are corrected
+inline rather than by this note, because a reader of §6 or §8 alone would act on them:
+the clean-tree check's exclusion of the tasks directory (task-182) is not made for a
+migrated project, so the coverage it cost is back (task-311, task-378).
+
 Until 2026-08-22 this line read *"Nothing here is implemented"*, over all of that. It was
 written before any of it existed and never revisited. A zero-context reader — the reader
 this document is written for — was told the inverse of the truth in both directions, and
@@ -2294,10 +2305,11 @@ reasoning that *what was verified is no longer what would be merged*. On a quiet
 that check fires almost never. On a busy one it fired almost always, and the reason is
 structural rather than bad luck:
 
-- **ENGINEERING.md requires every session to commit its task records to `main`** — claims,
-  progress, handoffs, decisions — so the base moves every couple of minutes whenever
-  anything is happening. That rule is not negotiable here; a handoff on a branch is
-  invisible to the human it addresses.
+- **On a files project, ENGINEERING.md requires every session to commit its task records
+  to `main`** — claims, progress, handoffs, decisions — so the base moves every couple of
+  minutes whenever anything is happening; a handoff on a branch is invisible to the human
+  it addresses. This repository has been on SQLite since 2026-09-07, so this cause of a
+  moved base is gone here and only code merges move it.
 - **A gate takes minutes.** 96 seconds idle, 169–285 seconds measured under load.
 
 Two intervals, one of them minutes long and the other seconds long. Task-224's finish lost
@@ -2320,7 +2332,8 @@ and `merge` refuses with `base_moved`, the message it always had.
 
 Four properties, none of them politeness:
 
-- **`tasks/` is not treated as inert, because it is not.**
+- **`tasks/` is not treated as inert, because it is not** — on a files project, the only
+  kind where `main` moves under `tasks/` at all.
   `tests/test_validate.py::TestRealCorpus` loads the corpus of *the checkout it runs in*,
   and the gate ran in the branch's worktree, whose corpus is the pre-move one. The delta
   really is unverified. So a `tasks/`-only move costs one `pytest` — which contains
@@ -2442,13 +2455,16 @@ raising a project's posture.
   The refusal names the offending paths, because otherwise `git status` and the refusal
   disagree and neither explains the other — see the exclusion below.
 
-    **The project's tasks directory is excluded from this check** (task-182). AgentJobs
-    writes into the very tree it is inspecting, twice per run: the claim writes the task
-    YAML before the spawn, and the terminal `dispatch_result` entry is written after the
-    run's last commit. For a project keeping its task records in the repository being
-    dispatched — which is what `agentjobs init` sets up, and what this repository does —
-    counting those meant dispatch refused on the strength of its own writes, every time,
-    with the second failure guaranteed rather than merely likely.
+    **On a files project the tasks directory is excluded from this check** (task-182).
+    AgentJobs writes into the very tree it is inspecting, twice per run: the claim writes
+    the task YAML before the spawn, and the terminal `dispatch_result` entry is written
+    after the run's last commit. For a project keeping its task records in the repository
+    being dispatched — which is what `agentjobs init` sets up, and what this repository
+    did until 2026-09-07 — counting those meant dispatch refused on the strength of its
+    own writes, every time, with the second failure guaranteed rather than merely likely.
+    **On a project served from SQLite the exclusion is not made** — `task_file_exclusions`
+    returns nothing, because nothing writes that directory any more — so the check sees
+    the whole tree again (task-311; proven on a real dispatch by task-378).
 
     **What that costs, stated so it is not rediscovered as a bug:** a human's genuinely
     uncommitted *hand* edit to a task file no longer blocks a dispatch. That is a real
@@ -2807,7 +2823,7 @@ Four things about that refusal decide the design:
   hook defines it; it ships in the CLI.
 - **It forbids exactly the two things this project's process requires.** Every task
   record is committed to `main` in the shared clone
-  ([ENGINEERING.md, "Task files live on `main`, always"](../ENGINEERING.md)), and the
+  ([ENGINEERING.md, "Task files live on `main`, always"](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md)), and the
   merge gate rebases and merges there. A `-w` run can do the work and then neither record
   nor merge it.
 - **The cost was being paid, silently.** Every dispatched run to date ended with an
@@ -2823,7 +2839,7 @@ finish is not containment; it is a stall with good intentions. Task-186 chose th
 
 The dispatched agent takes its own worktree, exactly as every other agent in this
 repository is already required to
-([ALLAGENTS.md, "Why you get your own worktree"](../ALLAGENTS.md)):
+([ALLAGENTS.md, "Why you get your own worktree"](https://github.com/jeffposey/agentjobs/blob/main/ALLAGENTS.md)):
 `git worktree add ../worktrees/agentjobs-<nnn> -b <type>/task-<nnn>-<slug>`, before anything is
 written.
 
@@ -2875,12 +2891,14 @@ things, in order of when they act:
     dispatch's own writes to a task record tripped it — at both ends of a run, the claim
     before the spawn and the terminal `dispatch_result` entry after the agent's last
     commit. A check that refuses every dispatch is not a backstop, and in practice it was
-    switched off to get any work done. The tasks directory is now excluded (§6), so the
-    check fires on a dispatched run's stray writes and on nothing else.
+    switched off to get any work done. On a files project the tasks directory is now
+    excluded (§6), so the check fires on a dispatched run's stray writes and on nothing
+    else.
 
-    It still detects rather than prevents, and it is blind inside the tasks directory. A
-    run that violates containment by writing *only* task YAML is not caught by mechanism 3;
-    mechanisms 1 and 2 are what carry that case.
+    It still detects rather than prevents. On a files project it is blind inside the
+    tasks directory: a run that violates containment by writing *only* task YAML is not
+    caught by mechanism 3, and mechanisms 1 and 2 are what carry that case. On a project
+    served from SQLite there is no exclusion and no blind spot (task-311).
 
 **What is genuinely lost, so it is not rediscovered as a bug.** An accident is no longer
 automatically confined. Under `-w` a confused run wrote into a git-locked worktree nobody

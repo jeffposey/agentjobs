@@ -152,6 +152,14 @@ poetry run python scripts/corpus_stats.py
 poetry run python scripts/corpus_stats.py --tasks-dir <path>   # somebody else's corpus
 ```
 
+The script reads a directory of task files, not the store. On a project that has been
+cut over to SQLite — this one, since 2026-09-07 — the default directory is the frozen
+pre-cutover copy, so export first and point `--tasks-dir` at the export:
+
+```bash
+poetry run agentjobs storage export <somewhere outside the repo> --project agentjobs
+```
+
 It is deliberately not in `scripts/check.py`. Nothing it prints can fail, and a gate
 stage that cannot fail is one people stop reading.
 

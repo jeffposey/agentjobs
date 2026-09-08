@@ -3,8 +3,9 @@
 AgentJobs ships an MCP server so an agent can discover projects, read a task, and move
 it through the workflow using validated domain operations instead of editing YAML.
 
-**Task YAML is generated state.** Reading it is supported and always will be. Writing
-it is not: a direct edit skips validation, skips the lock, and writes no log entry, so
+**Task records are generated state.** Reading them is supported and always will be —
+`task_get` here, or the YAML itself on a project still on files. Writing one directly
+is not: a direct edit skips validation, skips the lock, and writes no log entry, so
 it produces a record that looks correct and quietly is not. That is the failure this
 whole interface exists to prevent — an agent once created a task with `lifecycle:
 active` and no `ball`, which passed no validator, logged no transition, and vanished
@@ -18,7 +19,8 @@ agent
     -> TaskClient
       -> project-scoped REST  (/api/projects/{id}/...)
         -> TaskManager verb   (claim, handoff, release, close, log)
-          -> TaskStorage      (lock, strict validation, atomic write)
+          -> the project's backend  (TaskStorage on files: lock, strict validation,
+                                     atomic write; one transaction on SQLite)
 ```
 
 The MCP process never opens a task file and never imports `TaskManager` or
@@ -230,9 +232,10 @@ them makes the record lie.
 
 Every mutation takes a caller-generated `operation_id` (a UUID). Resending the same
 request with the same id **replays** the original result rather than writing again, and
-the result's `replayed` field says which happened. The marker is stored in the task
-file, so replay detection survives the MCP process, the service, and the machine all
-restarting — which is exactly when a client retries.
+the result's `replayed` field says which happened. The marker is stored durably with
+the record — in the task file on a files project, in the project-scoped `operation`
+ledger on a SQLite one — so replay detection survives the MCP process, the service, and
+the machine all restarting — which is exactly when a client retries.
 
 **Five** tools require `expected_revision` — `task_promote`, `task_handoff`,
 `task_close`, `task_update_content` and `task_queue_move`:
@@ -248,7 +251,7 @@ Every failure carries a stable code:
 | `invalid_input` | Arguments do not match the schema. | After fixing them |
 | `unknown_project` / `unknown_actor` | Not configured. The message names the valid ones. | After fixing them |
 | `task_not_found` | No such task in that project. | No |
-| `broken_task` | The file exists and will not parse. Repair it. | No |
+| `broken_task` | The record exists and will not load. Repair it. | No |
 | `invalid_transition` | The move is not available from this state. | No |
 | `queue_broken` | The stored order is not one selection can answer over: an open task with no position, two sharing one, or a position below 1. The message names them. `agentjobs queue repair`. | After repairing |
 | `dependency_blocked` | Unmet `needs` dependencies. (An umbrella with open children is *not* this: it can be claimed, and the claim hands over supervision.) | No |
@@ -286,6 +289,9 @@ the difference is worth being precise about.
   match a recorded managed write. This is the only check that catches a *valid-looking*
   direct edit. Receipts are machine-local and never committed, so it works only on the
   machine that made the change. They are evidence, not cryptography — nothing signs them.
+  Both this row and the editor row above are the files-project case: on a SQLite project
+  the records are outside every checkout, so there is nothing staged to gate and no file
+  for an editor to reach.
 - **`agentjobs validate`** needs only the files, so it is the check CI and a clean clone
   can run. It proves the corpus is safe to load and internally consistent. It **cannot**
   prove which program wrote a file, because a careful hand edit produces a file that

@@ -1,7 +1,9 @@
 # Analytics page — design record
 
-**Status: proposed 2026-09-06.** Task-213, the design child of task-212. Nothing here is
-implemented; §13 lists the children that implement it.
+**Status: proposed 2026-09-06; §6 shipped, the page has not.** Task-213, the design child
+of task-212. The history contract in §6 landed as task-371 on 2026-09-08 (§6.4 says where
+each item lives). The API, the page and its entry point — task-372, task-373, task-374 —
+are open and unstarted, so §7 onwards is still a proposal.
 
 This document decides two things that have to be decided together: **where the history
 behind the numbers comes from**, and **what the page says**. They are one design because

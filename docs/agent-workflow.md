@@ -55,14 +55,16 @@ terminal to answer. The run then waits for an answer that cannot arrive — obse
 2026-08-20 on the first dispatch after the `-w` change, which parked on that prompt
 before it wrote a line. The same applies to anything else that moves where the session is
 allowed to act. `git worktree add` is an ordinary shell command, needs no relocation, and
-leaves you able to `git -C` the shared clone, which is where your task records go.
+leaves you able to `git -C` the shared clone, which is where your merge happens — and,
+on a project still on files, where your task records go.
 
 **Your harness will tell you to do it the other way, and will say so in a sentence that
 sounds like the last word.** A Claude Code background session opens with *"Before making
 any code changes, use the EnterWorktree tool … This is enforced: file edits in the shared
 checkout are rejected until you isolate."* Both halves are true of the harness and wrong
 for this repository: the tool is the one thing you must not use, and the enforcement
-would stop you writing in the clone where your task records have to be committed. So this
+would stop you writing in the clone where your merge has to land — and, on a files
+project, where your task records have to be committed. So this
 repository turns the enforcement off — `.claude/settings.json` carries
 `"worktree": {"bgIsolation": "none"}`, which is the escape the refusal message itself
 names. Verified on Claude Code 2.1.238, 2026-08-25, by writing into the shared checkout
@@ -81,10 +83,10 @@ new one under a different name.
 This used to be arranged for the agent. Dispatch passed Claude Code's `-w` flag, which
 put the session in a worktree the CLI managed, and containment was mechanical. It cannot
 any more: the isolation that flag grants is enforced by a guard that refuses **every**
-git operation aimed at the shared checkout — by `-C` and by `cd` alike — and task records
-are committed there. A run isolated that way could do the work and then be unable to
-record it. So the containment is unchanged in what it protects; taking it is now your
-first act rather than the launcher's. The full argument, with the reproduction, is in
+git operation aimed at the shared checkout — by `-C` and by `cd` alike — and the merge
+happens there, as does the task-record commit on a files project. A run isolated that way
+could do the work and then be unable to land it. So the containment is unchanged in what
+it protects; taking it is now your first act rather than the launcher's. The full argument, with the reproduction, is in
 [the dispatch design](agent-dispatch-design.md).
 
 ## Then register, whatever started you
@@ -585,10 +587,11 @@ before it — which child, start it, watch it, judge it, continue or stop — is
 and is done by code. This one is a reading of evidence against criteria, so a walk that
 did it would be an agent grading an epic on the strength of its children having stopped.
 
-## Task YAML is readable generated state
+## Task records are readable generated state
 
-Read the task files whenever you want; reviewing a task means opening it. But **do not
-edit them**. Every change goes through a managed interface — the
+Read a record whenever you want — `task_get` over MCP, `agentjobs show`, the UI, or
+the YAML itself on a project still on files; reviewing a task means opening it. But **do
+not edit them** directly. Every change goes through a managed interface — the
 [MCP tools](mcp.md), the REST API, the CLI, or the web UI — which all reach the same
 code path: strict validation, a per-task lock, and a log entry recording who moved what
 and why. A direct edit skips all three and produces a record that looks right and is
@@ -767,10 +770,13 @@ The claim is atomic: one eligible agent wins and other claimants receive an erro
 and no open child tasks.
 
 The worktree and branch come before the claim — see [above](#before-you-write-anything-take-your-own-worktree).
-For AgentJobs repository work specifically, task metadata is updated and committed on
-`main` while code and documentation stay on the task branch, and the commit that records
-a handoff must land on `main` or the human it is addressed to cannot see it. Repository
-contributors must also follow `ALLAGENTS.md` and `ENGINEERING.md`.
+For AgentJobs repository work specifically, the project's own records have been on the
+SQLite backend since 2026-09-07 (`agentjobs storage status`), so a task write dirties
+nothing and is committed nowhere: only code and documentation go on the task branch. The
+older rule — task metadata committed on `main`, never on the branch, because a handoff
+committed to a branch is invisible to the human it is addressed to — is the files-project
+case, kept in [the storage guide](storage-sqlite.md#9-the-two-worlds-a-project-can-be-in).
+Repository contributors must also follow `ALLAGENTS.md` and `ENGINEERING.md`.
 
 ## Resume an Existing Task
 
@@ -977,7 +983,7 @@ rejected alternative, `question` and `answer` with `re` for open threads, and
 
 A task record states what somebody **meant**, not the words they used, and never
 reproduces the tone of a remark. The one-paragraph version of the rule is in
-[ALLAGENTS.md](../ALLAGENTS.md#paraphrase-a-person-never-quote-them); this is the rest
+[ALLAGENTS.md](https://github.com/jeffposey/agentjobs/blob/main/ALLAGENTS.md#paraphrase-a-person-never-quote-them); this is the rest
 of it -- why, what enforces it, what that enforcement cannot see, and how to fix a
 record that already carries one.
 
@@ -1051,7 +1057,7 @@ removal unrecorded. It addresses `title`, `ball_prompt`, `spec.<name>` and
 `log[<id>].body`, refuses anything else rather than guessing, appends a note saying what
 was redacted and why and how many characters went -- never the text, and never a hash of
 it, since a hash of a short phrase is not one-way in any useful sense -- and re-writes
-the file canonically.
+the record canonically, whichever backend holds it.
 
 **You supply the replacement, and it should say what the removed text meant.** There is
 no black-bar mode on purpose: a redaction that loses why a task exists is a worse record,

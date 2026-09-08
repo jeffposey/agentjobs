@@ -390,7 +390,8 @@ Ranked by tokens per unit of risk, none of them in this task's scope:
 
 ## 8a. What task-305 actually reached (2026-08-27)
 
-The cut landed and the cap is enforced, at **60,000 B rather than 52,000 B**. §8 above
+The cut landed and the cap is enforced, at **60,000 B rather than 52,000 B** (61,000 B
+since task-376 on 2026-09-07, for a rule the commit names). §8 above
 anticipated this and authorised it -- *"if 52,000 B cannot be reached without dropping a
 rule that has actually prevented a failure, report that and raise the cap with the reason
 on the record"* -- so this is that report.

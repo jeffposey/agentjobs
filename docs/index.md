@@ -86,6 +86,7 @@ is how this project has lost the most time, so the status word comes first.
 | [SQLite storage](storage-sqlite.md) | The authoritative store, its invariants and its upgrade path, plus the cutover, backup and rollback an operator runs. |
 | [The Tasks surface](tasks-shell.md) | The two-region list-and-record shell, the device-class rule that decides its default, and what the geometry forces (task-235, task-237). Supersedes the epic's log entries. |
 | [Codex dispatch rollout](codex-dispatch.md) | The Codex runner setup |
+| [Durable Codex dispatch architecture](codex-dispatch-architecture.md) | The per-run App Server coordinator, resume policy and persistence reporting — **shipped** as task-281 through task-285 |
 | [Queue position design](task-selection-design.md) | The explicit work order — **accepted 2026-08-20, implemented 2026-08-21** (task-081, 204–209) |
 | [Agent dispatch design](agent-dispatch-design.md) | Turning an approval into a running agent — **shipped**; its header lists what landed under which task, and the four things in it that were never built |
 | [Playbooks design](playbooks-design.md) | Reusable briefs for recurring judgment work — **partly shipped**: storage and read surfaces (task-214), instantiation and the Run button (task-215). Its header says what remains. |
@@ -100,13 +101,14 @@ is how this project has lost the most time, so the status word comes first.
 | Document | State |
 | --- | --- |
 | [Agent loops design](agent-loops-design.md) | No implementation. Derived tasks are open and unclaimed. |
-| [MCP integration design](mcp-integration-design.md) | Implemented, and the record has drifted behind it by two tools and one error code. The reference pages above are what shipped. |
+| [Analytics page design](analytics-design.md) | §6's history contract shipped (task-371); the API, the page and its entry point (task-372 to task-374) are open and unstarted. |
 
 **Historical.** True when written, kept for the reasoning, not maintained.
 
 | Document | Note |
 | --- | --- |
-| [Schema v2 design rationale](schema-design.md) | Predates `queue_position` and the storage locks; several present-tense claims are no longer true, and its banner says so. |
+| [Schema v2 design rationale](schema-design.md) | Predates `queue_position`, the storage locks and the SQLite backend; several present-tense claims are no longer true, and its banner says so. |
+| [MCP integration design](mcp-integration-design.md) | Implemented, and the record has drifted behind it by two tools, one error code and the SQLite backend. The reference pages above are what shipped. |
 | [Schema v1 entity diagram](schema/v1-erd.md) and [generated v1 reference](schema/v1/index.md) | v1 is retired. Migration and history only. |
 | [The agentjobs package integration note](integration/agentjobs-package.md) | An 11-line stub, superseded. |
 
