@@ -1041,6 +1041,12 @@ def dispatch_task(
         )
     except BaseException:
         # Nothing started, so nothing will release it later.
+        #
+        # That premise is a promise `runner.start` has to keep, and until task-394 it did
+        # not: a session that spawned and then failed to record its dispatch entry raised
+        # from here with a live worker behind it, and this released the lock on a task
+        # somebody was working. `_abandon_unfollowable` stops that session before the
+        # exception reaches this line, which is what makes the comment above true.
         lock.release()
         raise
 

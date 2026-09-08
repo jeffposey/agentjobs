@@ -1993,6 +1993,22 @@ class DispatchRunner:
         manages the id itself. So a run id and a session id are two different values and
         the record stores both; anything that passes ``--session-id`` alongside ``--bg``
         is wrong.
+
+        **A resumed session's id is read from the launcher exactly as a cold one's is**,
+        and is not the uuid the wake asked to resume (task-394). Claude Code declines to
+        hand a background session's saved options to a differently-flagged resume and
+        forks instead -- ``run_893c31f8``'s launcher output, verbatim: *"background
+        session 740d59a5 keeps its own saved options, so the flags you passed started a
+        copy as bd0d7199"*. The conversation is carried over, which is all the wake ever
+        wanted; the identity is new, and the printed one is the only id that will appear
+        in ``agents --json`` or answer ``stop``. ``resumed_session`` records what was
+        asked for, and is not a session id anything may poll.
+
+        **Everything from the spawn to the last write is a window** in which a worker
+        exists and the record does not yet describe it. The order below closes it: the
+        session id goes down first, the dispatch entry is attempted inside a ``try``, and
+        a failure stops the session rather than leaving one nothing can follow. See
+        `_abandon_unfollowable`.
         """
         if self.runner.driver is RunnerDriver.CODEX:
             return self._start_codex_app_server_session(
@@ -2103,26 +2119,42 @@ class DispatchRunner:
                 f"launcher's output, so nothing could follow it: {output.strip()[:500]}"
             )
 
-        entry_id = self._record_dispatch(
-            task,
-            run_id,
-            argv,
-            actor=actor,
-            caused_by=caused_by,
-            trigger=trigger,
-            mode=DispatchMode.SESSION,
-            session_id=session_id,
-            body=(
-                None
-                if wake is None
-                else (
-                    f"Resumed the session from run `{wake.previous_run_id}` rather than "
-                    "starting a cold one, so this agent still has the worktree, the "
-                    "branch and the verification it established there. The ball prompt "
-                    "was delivered to it as its next turn."
-                )
-            ),
-        )
+        # Written the instant it is known, before anything that can fail. From this line
+        # a worker exists in the world, and until the meta names it nothing can find it
+        # again -- see `_abandon_unfollowable` for what that cost on 2026-09-07.
+        directory.update_meta(session_id=session_id)
+
+        try:
+            entry_id = self._record_dispatch(
+                task,
+                run_id,
+                argv,
+                actor=actor,
+                caused_by=caused_by,
+                trigger=trigger,
+                mode=DispatchMode.SESSION,
+                session_id=session_id,
+                body=(
+                    None
+                    if wake is None
+                    else (
+                        f"Resumed the session from run `{wake.previous_run_id}` rather "
+                        "than starting a cold one, so this agent still has the worktree, "
+                        "the branch and the verification it established there. The ball "
+                        "prompt was delivered to it as its next turn."
+                    )
+                ),
+            )
+        except BaseException as exc:  # noqa: BLE001 - re-raised; see `_abandon_unfollowable`
+            self._abandon_unfollowable(task.id, directory, session_id, exc)
+            if isinstance(exc, (DispatchRunError, KeyboardInterrupt, SystemExit)):
+                raise
+            raise DispatchRunError(
+                f"A session for {task.id} started and then could not be recorded on the "
+                f"task ({type(exc).__name__}: {exc}), so nothing would ever have been "
+                f"able to follow it. It was stopped rather than left running."
+            ) from exc
+
         directory.update_meta(status="running", session_id=session_id, dispatch_entry_id=entry_id)
         return RunHandle(
             run_id=run_id,
@@ -2135,6 +2167,63 @@ class DispatchRunner:
             group=self._group_name(),
             api_base=self.api_base,
         )
+
+    def _abandon_unfollowable(
+        self,
+        task_id: str,
+        directory: RunDirectory,
+        session_id: str,
+        exc: BaseException,
+    ) -> None:
+        """Stop a session that started and whose run record could not be completed.
+
+        **The window this closes is between a successful spawn and the writes that make
+        the run followable**, and everything in it is a call that can fail: the dispatch
+        entry goes to a task manager, which is a database on one project and an HTTP
+        service on another. Until task-394 an exception there simply propagated. The
+        session stayed up and working; its ``meta.yaml`` stayed at ``starting`` with no
+        ``dispatch_entry_id``, which is exactly the pair ``poller.handle_from_record``
+        requires, so ``poll_live_sessions`` reported *"no session id or dispatch entry
+        recorded"* on every tick and **no code path could ever settle the run**.
+
+        Observed on 2026-09-07 as ``run_893c31f8``: an escalation resumed the session
+        working task-390, the launcher printed the new session's id, the dispatch entry
+        was never written, and the run read ``starting`` for 36 minutes with the work long
+        finished. It held a slot against ``limits.max_concurrent_runs`` that nothing would
+        release and refused the next dispatch for that task with ``LiveRunExistsError``,
+        and the only remedy anyone had was ``dispatch reconcile``, which wrote a false
+        ``interrupted`` onto the task and killed the calling session's own credential.
+
+        **Stopping is the answer rather than leaving it running**, and the trade is not
+        close. The session is milliseconds old and has done nothing. Left up, it is a
+        worker no supervisor can see, holding a task nothing else may be dispatched
+        against; and it could not even write its own account of that, because a run
+        credential is verified against its run's status and a run stuck at ``starting``
+        with a failed dispatch has no terminal state anything will give it either.
+
+        Nothing here raises. This runs on the way out of a failure the caller is about to
+        report, and a second exception from the cleanup would replace a diagnosis with a
+        traceback about the cleanup.
+        """
+        stopped = False
+        try:
+            stopped = self.stop_session(session_id)
+        except Exception:  # noqa: BLE001 - the caller's failure is the one worth reporting
+            stopped = False
+        try:
+            directory.update_meta(
+                status="failed",
+                error=(
+                    f"The session started as {session_id} but its dispatch could not be "
+                    f"recorded on {task_id}: {type(exc).__name__}: {exc}"
+                ),
+                # Whether the orphan is actually gone, because a `False` here is the one
+                # fact a person has to act on: a live session nothing is following.
+                abandoned_session=session_id,
+                abandoned_session_stopped=stopped,
+            )
+        except OSError:  # pragma: no cover - the run directory went away underneath us
+            pass
 
     @classmethod
     def capture_session_id(cls, stdout: str, *, reject: Optional[str] = None) -> Optional[str]:

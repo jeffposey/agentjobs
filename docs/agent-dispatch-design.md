@@ -2971,6 +2971,53 @@ the active-only view, because a session missing from *that* one is a session tha
 
 Off switch: `resume_sessions: false` on a project. It changes speed and nothing else.
 
+#### A woken session has a new id, and the record has to be followable (task-394, 2026-09-07)
+
+**A flagged `--resume` forks the conversation rather than continuing it.** Claude Code
+will not apply a differently-flagged launch to a background session's saved options.
+`run_893c31f8`'s launcher output, verbatim:
+
+```
+backgrounded · bd0d7199 · agentjobs/task-390@893c31f8
+note: background session 740d59a5 keeps its own saved options, so the flags you passed
+started a copy as bd0d7199. Without flags, the same command continues 740d59a5 itself.
+```
+
+That is fine — the expensive thing a wake wants is the *context*, and a copy has it. What
+it settles is a question that had been open: **a resumed run's `session_id` is the one the
+launcher printed, read exactly as a cold start's is.** `resumed_session` records the uuid
+that was asked for and is not a session id anything may poll; no such id appears in
+`agents --json` or answers `stop`. Two run records therefore never name one session on
+this driver. The Codex App Server path is the other way round — it genuinely resumes a
+persisted thread and reuses its id — and both are right on their own terms, because what
+forbids a second live run for a task is the **run lock**, which knows nothing about
+session ids.
+
+**A run must be followable from the moment a worker exists.** `poller.handle_from_record`
+needs `session_id` *and* `dispatch_entry_id`, and until this task both were written after
+`_record_dispatch` — a call into a task manager that is a database on one project and an
+HTTP service on another. `run_893c31f8` is what an exception there cost: the launcher
+printed an id, the dispatch entry was never written, and the run sat at `starting` for 36
+minutes with the work long finished, holding a slot nothing would release and refusing
+the next dispatch of its own task with `LiveRunExistsError`. Two changes:
+
+- The session id is written the instant it is read, before anything that can fail.
+- A dispatch entry that cannot be written **stops the session it just started** and fails
+  the dispatch saying so (`_abandon_unfollowable`). A session nothing can follow is worse
+  than one that never started — the same judgement a launcher printing no id already gets
+  — and it is milliseconds old. Left running it could not even write its own account of
+  itself: a run credential is verified against its run's status.
+
+**`reconcile` never concludes the run it is called from.** It settles runs whose process
+is gone, and the one run in the list that provably still has a process is the caller's.
+Clearing `run_893c31f8` by hand from inside the very session it named wrote a false
+`interrupted` onto task-390, moved the ball to `human`/`decision` for a decision nobody
+needed to make, and invalidated that session's credential so it could not correct any of
+it. Believing `AGENTJOBS_RUN_ID`'s claim about *itself* is the whole cost: a leaked or
+forged value defers one conclusion by one sweep, where concluding a live caller cannot be
+undone. Nothing else about `reconcile` moved — it still settles on evidence, and a run
+that is merely unfollowable is not evidence of anything.
+
 ---
 
 ### Waking a session instead of starting one (`WAKE_STUB`, shipped)

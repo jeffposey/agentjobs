@@ -215,6 +215,35 @@ def build(
     )
 
 
+class _RefusingManager:
+    """A task manager whose ``record_dispatch`` fails, and that is otherwise itself.
+
+    Not a stand-in for the manager: it delegates everything else, so the spawn ahead of
+    the refusal is the real one. The failure is modelled as a plain ``RuntimeError``
+    rather than a ``DispatchError`` on purpose -- what reached this call site on
+    2026-09-07 was ``RemoteStoreUnsupported``, and the point of the guard is that it does
+    not depend on a list of exception names being complete.
+    """
+
+    def __init__(self, inner: TaskManager) -> None:
+        self._inner = inner
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._inner, name)
+
+    def record_dispatch(self, *args: object, **kwargs: object) -> object:
+        raise RuntimeError("the store would not take it")
+
+
+def _only_run_meta(home: Path) -> dict:
+    """The one run directory under ``home``, read back. Fails loudly if there are two."""
+    directories = sorted((home / "runs").iterdir())
+    assert len(directories) == 1, f"expected one run, found {[d.name for d in directories]}"
+    loaded = yaml.safe_load((directories[0] / "meta.yaml").read_text(encoding="utf-8"))
+    assert isinstance(loaded, dict)
+    return loaded
+
+
 def terminal_entries(manager: TaskManager, task_id: str) -> list:
     task = manager.get_task(task_id)
     assert task is not None
@@ -2230,6 +2259,86 @@ class TestSessionMode:
         with pytest.raises(DispatchRunError) as caught:
             runner.start(task, actor="Jeff Posey", caused_by=1)
         assert "could not read its id" in str(caught.value)
+
+    def test_the_session_id_is_on_the_record_before_the_task_is_written(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """task-394: the record becomes followable the moment a worker exists.
+
+        Asserted through the failing path rather than the happy one, because the happy
+        path writes both fields at the end and would pass either way. Here the dispatch
+        entry is refused, so the only thing that could have put a session id in the meta
+        is the write that precedes it.
+        """
+        runner = build(workspace, manager, session_resolution(fake_cli))
+        runner.manager = _RefusingManager(manager)  # type: ignore[assignment]
+
+        with pytest.raises(DispatchRunError):
+            runner.start(task, actor="Jeff Posey", caused_by=1)
+
+        meta = _only_run_meta(workspace / "home")
+        assert meta["session_id"] == "b55b35ad"
+
+    def test_a_session_whose_dispatch_cannot_be_recorded_is_stopped_not_left_running(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """task-394, and this is the whole of ``run_893c31f8``.
+
+        The launcher succeeded, the dispatch entry did not, and until now the exception
+        simply propagated: the session stayed up working while its run read ``starting``
+        with no ``dispatch_entry_id``, which is the pair the poller requires. Nothing
+        could settle it, it held a slot nothing would release, and it refused the next
+        dispatch of its own task.
+
+        A session nothing can follow is worse than one that never started -- the same
+        judgement ``test_a_launcher_that_prints_no_id_is_a_hard_failure`` already makes,
+        applied to the window after the spawn instead of the one during it.
+        """
+        runner = build(workspace, manager, session_resolution(fake_cli))
+        runner.manager = _RefusingManager(manager)  # type: ignore[assignment]
+
+        with pytest.raises(DispatchRunError) as caught:
+            runner.start(task, actor="Jeff Posey", caused_by=1)
+
+        assert "could not be recorded" in str(caught.value)
+        assert "stopped rather than left running" in str(caught.value)
+        assert json.loads((fake_cli.parent / "ledger.json").read_text()) == [], "left running"
+        meta = _only_run_meta(workspace / "home")
+        assert meta["status"] == "failed"
+        assert meta["abandoned_session"] == "b55b35ad"
+        assert meta["abandoned_session_stopped"] is True
+        assert "dispatch could not be recorded" in meta["error"]
+
+    def test_an_abandoned_run_is_not_live_so_nothing_polls_or_blocks_on_it(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """``failed`` is terminal, so the run stops taking a slot the instant it is written."""
+        from agentjobs.dispatch.ledger import live_runs
+
+        runner = build(workspace, manager, session_resolution(fake_cli))
+        runner.manager = _RefusingManager(manager)  # type: ignore[assignment]
+
+        with pytest.raises(DispatchRunError):
+            runner.start(task, actor="Jeff Posey", caused_by=1)
+
+        assert live_runs(workspace / "home") == []
+
+    def test_a_stop_that_does_not_work_is_recorded_rather_than_hidden(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """The one fact a person has to act on: a live session nothing is following.
+
+        Cleanup that swallows its own failure would report the same tidy `failed` run
+        whether or not the orphan is actually gone.
+        """
+        runner = build(workspace, manager, session_resolution(fake_cli))
+        runner.manager = _RefusingManager(manager)  # type: ignore[assignment]
+        runner.stop_session = lambda session_id: False  # type: ignore[method-assign]
+
+        with pytest.raises(DispatchRunError):
+            runner.start(task, actor="Jeff Posey", caused_by=1)
+
+        assert _only_run_meta(workspace / "home")["abandoned_session_stopped"] is False
 
     def test_a_parked_session_becomes_a_question_a_human_can_answer(
         self, workspace: Path, manager: TaskManager, task, fake_cli: Path

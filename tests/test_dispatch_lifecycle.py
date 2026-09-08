@@ -955,6 +955,78 @@ class TestReconcile:
         assert not results[0].stopped
         assert results_on(manager, task.id) == []
 
+    def test_the_run_calling_reconcile_is_never_concluded_by_it(
+        self,
+        home: Path,
+        task,
+        manager: TaskManager,
+        fake_session_cli: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """task-394. A process cannot be evidence that it is itself gone.
+
+        On 2026-09-07 a dispatched session ran ``dispatch reconcile`` by hand to clear a
+        run stuck at ``starting``, and the run it cleared was its own. It wrote a false
+        ``interrupted`` onto the task, moved the ball to ``human``/``decision`` for a
+        decision nobody needed to make, and -- because a credential is verified against
+        its run's status -- took away that session's ability to correct any of it.
+
+        The session ledger is deliberately empty here, which is the condition that
+        otherwise concludes a session run. Everything the sweep would look at says
+        "gone"; the caller's own identity is the only thing that says otherwise, and it
+        is the one that is right.
+        """
+        dispatch_entry(manager, task.id, "run_test0001")
+        seed_run(home, task.id, mode="session", session_id="s1")
+        set_sessions(fake_session_cli, [])
+        monkeypatch.setenv("AGENTJOBS_RUN_ID", "run_test0001")
+
+        results = ledger_with(home, fake_session_cli).reconcile()
+
+        assert not results[0].stopped
+        assert "calling reconcile" in results[0].detail
+        assert results_on(manager, task.id) == [], "wrote a terminal entry about itself"
+        assert [record.run_id for record in live_runs(home)] == ["run_test0001"]
+
+    def test_the_sweep_still_settles_every_other_run(
+        self,
+        home: Path,
+        task,
+        manager: TaskManager,
+        fake_session_cli: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The refusal above is one record, not a switch that turns the sweep off.
+
+        Without this, a caller that happened to hold a run id could make the whole
+        startup reconciliation a no-op and nothing would say so.
+        """
+        second = manager.claim_task(
+            manager.create_task(
+                title="Another",
+                category="infrastructure",
+                summary="A second task.",
+                description="Also do the thing.",
+                lifecycle=Lifecycle.READY,
+            ).id,
+            agent="claude",
+        )
+        dispatch_entry(manager, task.id, "run_test0001")
+        dispatch_entry(manager, second.id, "run_test0002")
+        seed_run(home, task.id, mode="session", session_id="s1")
+        seed_run(home, second.id, run_id="run_test0002", mode="session", session_id="s2")
+        set_sessions(fake_session_cli, [])
+        monkeypatch.setenv("AGENTJOBS_RUN_ID", "run_test0001")
+
+        settled = {
+            result.run_id: result.stopped
+            for result in ledger_with(home, fake_session_cli).reconcile()
+        }
+
+        assert settled["run_test0001"] is False
+        assert settled["run_test0002"] is True
+        assert results_on(manager, second.id)[0].data["outcome"] == "interrupted"
+
     def test_reconciling_twice_does_not_write_two_terminal_entries(
         self, home: Path, task, manager: TaskManager, fake_session_cli: Path
     ) -> None:
