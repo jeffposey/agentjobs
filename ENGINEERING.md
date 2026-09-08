@@ -427,7 +427,7 @@ never to a feature branch**, with a `chore(task-nnn):` commit in the main clone 
 create, claim, log, handoff and close. That rule exists because the dashboard reads one
 working tree, so a handoff committed to a branch is invisible to the person it is
 addressed to. Both halves are in
-[the storage guide](docs/storage-sqlite.md#the-two-worlds-a-project-can-be-in), with what
+[the storage guide](docs/storage-sqlite.md#9-the-two-worlds-a-project-can-be-in), with what
 moves a project between the two: `agentjobs storage cutover` backs up, imports, verifies
 field by field and only then switches, and `agentjobs storage rollback` goes back keeping
 whatever was written since.

@@ -14,10 +14,12 @@ surface will show you. Make changes through the [MCP tools](mcp.md), the REST AP
 CLI, or the web UI — all four reach the same validated write path — and run
 `agentjobs validate` if you ever suspect a file was shaped by something else.
 
-Tasks live in the directory named by `tasks_directory` in `.agentjobs/config.yaml`
-(`tasks/agentjobs/` for this repo's own backlog). `TaskStorage` globs `*.yaml`
-non-recursively, so files in subdirectories are invisible to the store — that is how
-`tasks/test-data/` stays out of the real backlog.
+On a project still on files, tasks live in the directory named by `tasks_directory` in
+`.agentjobs/config.yaml`. `TaskStorage` globs `*.yaml` non-recursively, so files in
+subdirectories are invisible to the store — that is how `tasks/test-data/` stays out of
+a real backlog. A project cut over to SQLite keeps the same records as rows beside the
+server ([the storage guide](storage-sqlite.md)); this repository's own backlog has been
+there since 2026-09-07, and `tasks/agentjobs/` is its frozen pre-cutover copy.
 
 The schema is **v2**, defined by [`models_v2.py`](https://github.com/jeffposey/agentjobs/blob/main/src/agentjobs/models_v2.py) and
 declared machine-readably in `schema/agentjobs-v2.yaml`. Every file starts with
@@ -135,8 +137,8 @@ posture: autonomous          # read_only | supervised | auto | autonomous
 ```
 
 This is the one field in the schema that touches what a process may *do*, and a task
-record is a git-tracked file any agent with write access to the repository can edit —
-including the agent working that very task. So the obvious reading, "an agent can widen
+record is something the agent working that very task can write — a git-tracked file on
+a files project, a row it reaches through the API on a SQLite one. So the obvious reading, "an agent can widen
 its own permissions by editing a file it can already write", has to be answered rather
 than waved at.
 
@@ -433,8 +435,8 @@ decision nobody took.
 
 ### `dispatch` and `dispatch_result`
 
-That an agent was launched against a task is a durable, `git blame`-able fact, so it
-lives in the task file beside the work it produced. Run directories under
+That an agent was launched against a task is a durable fact — `git blame`-able on a
+files project — so it lives in the task record beside the work it produced. Run directories under
 `~/.agentjobs/runs/` are machine-local and disposable; these two entries are the part
 that survives. See [agent-dispatch-design.md](agent-dispatch-design.md).
 
@@ -508,8 +510,9 @@ An entry may carry images evidencing it — a screenshot of the thing being obje
 The field is additive and **absent** unless the entry has images, so no existing file
 gains a line for a field it does not use, and no schema version bump is involved.
 
-The bytes are **not** in the YAML. They live in sidecar files under the tasks directory
-at `attachments/<task-id>/<sha256><ext>`, and the entry carries only metadata:
+The bytes are **not** in the YAML. On a files project they live in sidecar files under
+the tasks directory at `attachments/<task-id>/<sha256><ext>`; on a SQLite project they
+are blobs in the database (storage guide §1). Either way the entry carries only metadata:
 
 | field | meaning |
 |---|---|
@@ -525,8 +528,9 @@ type is derived from the magic number rather than taken from the caller's claim.
 
 Two consequences are deliberate. The same image pasted twice is stored once, because the
 name *is* the hash. And a file whose bytes no longer hash to its name is refused rather
-than rendered. Git keeps every blob forever, so unreferenced files are **reported, never
-deleted** — `AttachmentStore.orphans()` lists them for a person to decide about.
+than rendered. Git keeps every blob forever, so on a files project unreferenced files are
+**reported, never deleted** — `AttachmentStore.orphans()` lists them for a person to
+decide about.
 
 ## `display_status`
 
@@ -655,12 +659,17 @@ None of it can refuse a move.
 A round-trip check:
 
 ```python
-from pathlib import Path
-from agentjobs.storage import TaskStorage
+from agentjobs.projects import ProjectRegistry
+from agentjobs.store_factory import task_manager_for
 
-task = TaskStorage(Path("tasks/agentjobs")).load_task("task-042-relocate-demo-tasks")
+manager = task_manager_for(ProjectRegistry().get("agentjobs"))
+task = manager.get_task("task-042-relocate-demo-tasks")
 print(task.display_status, len(task.log))
 ```
+
+`task_manager_for` is the one place that knows which backend a registered project is on.
+`TaskStorage(Path("tasks/agentjobs"))` still loads, but on a migrated project it reads the
+frozen pre-cutover copy and answers from stale data without erroring.
 
 `load_task()` returns `None` when the file does not exist, and raises `TaskLoadError`
 naming the file and field when it exists but cannot be read — including when it is an

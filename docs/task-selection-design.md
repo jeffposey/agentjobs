@@ -7,6 +7,14 @@ task list all read the stored order this document designs. **Sections 1 and 14 d
 the behaviour this replaced** and are kept as the before-state; they are not a
 description of anything running.
 
+**Written for the files backend.** The one-file-per-move argument (§3), the queue lock
+(§7) and the renumber-direction rule (§6) are what a directory of YAML needs. On a
+project cut over to SQLite (task-273) the same stored order is held by a transaction and
+a unique partial index instead — a duplicate position is unrepresentable rather than
+checked, and a renumber is one atomic write — see
+[the storage guide §3](storage-sqlite.md#3-invariants-are-constraints-not-checks). The
+selection rule and every verb are the same in both worlds.
+
 **Task:** task-081. **Original acceptance:** 2026-08-20 (Jeff), including the review-pass
 fixes: the renumber skip-if-closed rule (§6), same-band group moves (§5.2), the
 selection-time integrity-check scope (§8), and reopen in the lock table (§7).
@@ -359,8 +367,7 @@ is odd-looking and perfectly valid. So `queue check` stays quiet and `queue repa
 nothing to do; running `queue compact <band>` again is what tidies it. This is a
 cosmetic gap, not a correctness one, which is why it was left.*)*
 
-`agentjobs queue check` reports it; `agentjobs queue repair` finishes the
-job. The repair is deterministic from the band's current order, so re-running it is safe.
+The repair is deterministic from the band's current order, so re-running it is safe.
 
 Neither operation writes a `queue_move` entry to the tasks it renumbers. Nobody decided
 anything, and 47 log entries saying "300 became 1400" would bury the entries that record

@@ -25,6 +25,11 @@ project validation, and only then replace the old corpus through normal version-
 changes. Keep a commit boundary around the migration so the original records remain
 recoverable.
 
+This is the files-project procedure. A project moving to the SQLite backend has its
+records converted at import instead — `agentjobs storage cutover`, in
+[the storage guide](storage-sqlite.md#10-cutting-a-project-over) — and there is no
+commit to make.
+
 The field mapping and rejected alternatives are recorded in the historical
 [schema-v2 design](schema-design.md); the current result is documented in the
 [task schema reference](task-schema.md).

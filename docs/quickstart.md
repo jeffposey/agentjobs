@@ -56,8 +56,9 @@ poetry -P /path/to/agentjobs run agentjobs work --agent codex
 `--ready` matters. Without it a task is born `draft`, and a draft is deliberately
 not claimable -- so `list --lifecycle ready` prints nothing and `work` reports "No
 tasks available". Drafting is the right default for a task whose spec is still being
-written; `agentjobs promote <id>` is the same step taken later. `work` reads the
-project's configured `tasks_directory`, so it sees the same records the UI does.
+written; `agentjobs promote <id>` is the same step taken later. `work` resolves the
+project through the registry and reads whichever backend is authoritative for it, so it
+sees the same records the UI does.
 
 ## 4. Use the schema-v2 Python client
 
