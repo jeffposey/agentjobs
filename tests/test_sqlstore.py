@@ -51,7 +51,7 @@ from agentjobs.sqlstore import (
     upgrade,
     verify,
 )
-from agentjobs.sqlstore.migrations import available
+from agentjobs.sqlstore.migrations import MIGRATIONS_DIR, available
 from agentjobs.storage_protocol import TaskStore
 
 
@@ -795,3 +795,112 @@ class TestImportQuotationPolicy:
 
         assert report.quoted_remarks == {}
         assert "quotation policy" not in report.render()
+
+
+class TestTheNumberAnIdCarries:
+    """``seq``, ``generate_task_id``, and the slugged ids both used to skip (task-378).
+
+    ``generate_task_id`` takes the next id from ``MAX(seq)``, and the column's stated
+    purpose is that an id like ``task-047-lint-debt`` counts towards that maximum
+    instead of being skipped the way the file backend's glob skipped it. The parser
+    read the segment after the *last* hyphen -- ``debt`` -- so it stored NULL for every
+    such id and the intended fix was never in effect.
+
+    What that cost, on 2026-09-08: four projects whose ids all carry slugs were cut over
+    to the database, and the next ``agentjobs create`` in each minted ``task-001`` beside
+    a ``task-001-<slug>`` weeks older than it. Nothing collided, because the two ids are
+    different strings -- but the numbering had restarted, and would have restarted again
+    on every create.
+    """
+
+    def test_a_slugged_id_carries_its_number(self) -> None:
+        assert SqlTaskStore._sequence("task-047-lint-debt") == 47
+        assert SqlTaskStore._sequence("task-001-league-import-yahoo") == 1
+
+    def test_a_bare_id_is_unchanged(self) -> None:
+        assert SqlTaskStore._sequence("task-047") == 47
+
+    def test_an_id_carrying_no_number_has_none(self) -> None:
+        assert SqlTaskStore._sequence("task-lint-debt") is None
+        assert SqlTaskStore._sequence("epic") is None
+
+    def test_the_next_id_counts_a_slugged_one(self, store: SqlTaskStore) -> None:
+        """The failure as a user meets it, rather than as a parser call."""
+        store.save_task(make_task("task-017-two-qb-baseline-gap"))
+
+        assert store.generate_task_id() == "task-018"
+
+    def test_a_slugged_and_a_bare_id_share_one_numbering(self, store: SqlTaskStore) -> None:
+        store.save_task(make_task("task-003", queue_position=100))
+        store.save_task(make_task("task-009-harvest-draft-intel", queue_position=200))
+
+        assert store.generate_task_id() == "task-010"
+
+
+class TestTheSeqRepair:
+    """Migration 003. A parser fixed in Python fixes nothing already written."""
+
+    def _stored(self, database: Database, task_id: str) -> object:
+        row = database.writer.execute(
+            "SELECT seq FROM task WHERE project_id = 'demo' AND task_id = ?", (task_id,)
+        ).fetchone()
+        assert row is not None
+        return row["seq"]
+
+    def test_it_recomputes_a_row_written_by_the_old_parser(
+        self, store: SqlTaskStore, database: Database
+    ) -> None:
+        """Written correctly, then broken back to what the old parser stored."""
+        store.save_task(make_task("task-017-two-qb-baseline-gap"))
+        database.writer.execute(
+            "UPDATE task SET seq = NULL WHERE project_id = 'demo' AND task_id = ?",
+            ("task-017-two-qb-baseline-gap",),
+        )
+        database.writer.commit()
+        assert store.generate_task_id() == "task-001", "the state this repair is for"
+
+        database.writer.executescript(
+            (MIGRATIONS_DIR / "003_seq_is_the_number_after_the_prefix.sql").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        assert self._stored(database, "task-017-two-qb-baseline-gap") == 17
+        assert store.generate_task_id() == "task-018"
+
+    def test_it_leaves_an_id_with_no_number_alone(
+        self, store: SqlTaskStore, database: Database
+    ) -> None:
+        store.save_task(make_task("task-lint-debt"))
+
+        database.writer.executescript(
+            (MIGRATIONS_DIR / "003_seq_is_the_number_after_the_prefix.sql").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        assert self._stored(database, "task-lint-debt") is None
+
+    def test_running_it_on_a_correct_database_changes_nothing(
+        self, store: SqlTaskStore, database: Database
+    ) -> None:
+        """It ships as a numbered migration, so it runs once -- but a repair that is
+        only safe once is a repair nobody dares re-run."""
+        store.save_task(make_task("task-004-a-slug", queue_position=100))
+        store.save_task(make_task("task-011", queue_position=200))
+        before = {
+            "task-004-a-slug": self._stored(database, "task-004-a-slug"),
+            "task-011": self._stored(database, "task-011"),
+        }
+
+        sql = (MIGRATIONS_DIR / "003_seq_is_the_number_after_the_prefix.sql").read_text(
+            encoding="utf-8"
+        )
+        database.writer.executescript(sql)
+        database.writer.executescript(sql)
+
+        assert before == {"task-004-a-slug": 4, "task-011": 11}
+        assert {
+            "task-004-a-slug": self._stored(database, "task-004-a-slug"),
+            "task-011": self._stored(database, "task-011"),
+        } == before
