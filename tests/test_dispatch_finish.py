@@ -2706,6 +2706,43 @@ class TestWritingTheRecordOverTheService:
         assert not world["worktree"].exists()
         assert world["branch"] not in worktree_paths(world["root"])
 
+    def test_it_writes_no_task_file_and_leaves_no_dirty_checkout(
+        self, world: Dict[str, Any], remote: Any
+    ) -> None:
+        """The other half of AC-2, which the assertions above do not reach.
+
+        A finish makes four or five writes to the record -- the branch, the closure, the
+        delivery -- and before the cutover every one of them landed in a tracked file
+        that somebody then had to commit. The observable that says they no longer do is
+        ``git status``: the frozen copy the import left behind must be byte-identical
+        afterwards, and nothing new may appear beside it.
+        """
+        frozen = world["root"] / "tasks" / f"{world['task_id']}.yaml"
+        before = frozen.read_bytes()
+        listing = sorted(path.name for path in (world["root"] / "tasks").iterdir())
+
+        result = finish_task(
+            manager=remote,
+            project=world["project"],
+            task_id=world["task_id"],
+            approver="Jeff Posey",
+            home=world["home"],
+            api_base="http://127.0.0.1:1",
+            settings=settings(),
+        )
+        assert result.outcome == FINISHED, result.render()
+
+        # Scoped to `tasks/` because this fixture's clone has no `.gitignore` for the
+        # machine-local `.agentjobs/` a real project carries one for. The claim is about
+        # the records, and naming the path makes that the claim.
+        assert git(world["root"], "status", "--porcelain", "--", "tasks").stdout.strip() == ""
+        assert frozen.read_bytes() == before
+        assert sorted(path.name for path in (world["root"] / "tasks").iterdir()) == listing
+        # ...and the writes really happened, in the store, so this is not green because
+        # the finish did nothing.
+        closed = remote.get_task(world["task_id"])
+        assert closed is not None and closed.lifecycle is Lifecycle.CLOSED
+
 
 # ----- the invariant, and the two roads that used to defeat it (task-390) ------
 

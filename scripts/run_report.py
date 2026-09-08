@@ -872,12 +872,19 @@ def load_parents(home: Path, project_ids: Iterable[str]) -> Dict[tuple, str]:
     The cost is that it reports the graph as it stands *now*: a child re-parented since
     it ran is grouped where it lives today. That is the right trade for a report and the
     wrong one for an audit; nothing here claims to be an audit.
+
+    **Resolved through ``task_manager_for``, never by composing a tasks directory**
+    (task-378). Composing one is right for a project on files and silently wrong for a
+    migrated one: the directory is still there, holding a frozen copy of what the rows
+    said at the cutover, so the report would group every epic by a parent graph that
+    stopped moving weeks ago and would say nothing about it. On a migrated project the
+    resolution goes over the service, so a report run with the server down groups
+    nothing rather than grouping stale -- which is the failure worth having.
     """
     import logging  # noqa: PLC0415 - only this mode reads a corpus
 
-    from agentjobs.manager import TaskManager  # noqa: PLC0415 - optional for this mode
     from agentjobs.projects import ProjectRegistry
-    from agentjobs.storage import TaskStorage
+    from agentjobs.store_factory import task_manager_for
 
     # A task file this report cannot parse is not this report's business. Task loading
     # logs one error line per broken file, and a neighbouring project with twenty of them
@@ -892,8 +899,7 @@ def load_parents(home: Path, project_ids: Iterable[str]) -> Dict[tuple, str]:
         for project_id in sorted({pid for pid in project_ids if pid}):
             try:
                 project = registry.get(project_id)
-                manager = TaskManager(TaskStorage(project.tasks_dir()))
-                tasks = manager.storage.list_tasks()
+                tasks = task_manager_for(project).storage.list_tasks()
             except Exception:  # noqa: BLE001 - an unreadable project groups nothing
                 continue
             for task in tasks:

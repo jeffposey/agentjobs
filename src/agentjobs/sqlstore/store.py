@@ -620,9 +620,28 @@ class SqlTaskStore:
 
     @staticmethod
     def _sequence(task_id: str) -> Optional[int]:
-        """The numeric part of an id, for generation and ordering. None if unparseable."""
-        tail = task_id.rsplit("-", 1)[-1]
-        return int(tail) if tail.isdigit() else None
+        """The number an id carries, for generation and ordering. None if it has none.
+
+        **The number is the segment after the first hyphen, not the last one.** Reading
+        the tail is right for ``task-047`` and wrong for every id carrying a slug:
+        ``task-047-lint-debt`` ends in ``debt``, so it parsed as "no number" and was
+        left out of the maximum -- which is exactly the omission
+        :meth:`generate_task_id` says this column exists to fix.
+
+        It bit on 2026-09-08 (task-378). Four projects whose ids all carry slugs were
+        cut over, and the next ``agentjobs create`` in each of them minted ``task-001``
+        beside a ``task-001-<slug>`` that had been there for weeks, because every
+        imported row held ``seq = NULL``. Nothing collided -- the two ids are genuinely
+        different strings -- but the numbering had restarted, and it would have kept
+        restarting once per create.
+
+        Migration ``003`` recomputes the column for rows already stored, because a
+        parser fixed here only ever fixes rows written after it.
+        """
+        parts = task_id.split("-")
+        if len(parts) < 2 or not parts[1].isdigit():
+            return None
+        return int(parts[1])
 
     def _replace_children(self, connection: sqlite3.Connection, task: Task) -> None:
         """Rewrite the owned child rows.

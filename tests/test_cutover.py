@@ -136,6 +136,35 @@ class TestPreview:
         # The three good records still arrived: one bad file does not stop the corpus.
         assert imported.imported == 3
 
+    def test_the_verdict_refuses_to_read_as_a_clean_bill(
+        self, home: Path, project: Project
+    ) -> None:
+        """A quarantined record is compared against nothing, so ``ok`` stays true.
+
+        That is the correct meaning of ``ok`` -- every file that could be read arrived
+        unchanged -- and it is not the question an operator is asking, which is whether
+        their backlog arrived. Three real previews reported VERIFIED on 2026-09-08 while
+        together planning to leave 17 open tasks behind (task-378), so the last line now
+        says so rather than leaving it to the lines above it.
+        """
+        (project.root / "tasks" / "task-666.yaml").write_text(
+            "id: task-666\ntitle: broken\n", encoding="utf-8"
+        )
+        _, verified = preview(project)
+
+        assert verified.ok, "the readable files did all arrive; that is what ok means"
+        rendered = verified.render()
+        assert rendered.splitlines()[-1].startswith("VERIFIED -- but 1 record(s)")
+        assert "queue repair" in rendered
+
+    def test_a_corpus_with_nothing_quarantined_still_says_only_verified(
+        self, home: Path, project: Project
+    ) -> None:
+        """The qualification is a warning, not new boilerplate on a clean run."""
+        _, verified = preview(project)
+
+        assert verified.render().splitlines()[-1] == "VERIFIED"
+
 
 class TestImportAndVerify:
     """What the store holds afterwards, checked field by field rather than counted."""

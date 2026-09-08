@@ -347,6 +347,25 @@ which empties the project inside the same transaction that re-fills it. A re-run
 is refused, because a second import over a completed one writes the reconstructed history
 twice and doubles every event with nothing raising.
 
+**Read the quarantine list before you read the verdict.** `VERIFIED` is a claim about the
+files that could be **read**: a record the import could not parse is quarantined and then
+compared against nothing, so a corpus can verify while part of the backlog stays behind.
+Since task-378 the verdict says so itself — `VERIFIED -- but 7 record(s) never reached the
+store` — because the preceding lines naming them are not what an operator remembers.
+
+The likely cause, and the one this repository met, is an older record that is open with no
+`queue_position`: the rule that open work must have a place in line is younger than some of
+these files, and such a record does not load at all. Three of the four projects cut over on
+2026-09-08 were in that state, 17 open tasks between them.
+
+```bash
+agentjobs queue check            # in that project's directory; names each one
+agentjobs queue repair           # gives every open task a place, and prints its guesses
+```
+
+Repair, commit the records, and preview again before cutting over. The positions it
+assigns are guesses and are printed for exactly that reason.
+
 **`--backfill-git` is on by default here and nowhere else**, and this is the one-shot part:
 the backfill reads the git history of the task files, so it must run before those files are
 retired. Retire first and the evidence is gone permanently (§4).

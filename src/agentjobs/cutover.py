@@ -124,8 +124,33 @@ class VerificationReport:
         if self.differing:
             lines.append(f"{len(self.differing)} record(s) differ from their file:")
             lines.extend(f"  {task_id}: {detail}" for task_id, detail in self.differing)
-        lines.append("VERIFIED" if self.ok else "NOT VERIFIED")
+        lines.append(self._verdict())
         return "\n".join(lines)
+
+    def _verdict(self) -> str:
+        """The last line, which is the one an operator reads and quotes.
+
+        ``ok`` is a claim about the files that could be **read**: a quarantined record is
+        not compared against anything, so a corpus with seven unreadable files can arrive
+        as "VERIFIED" while seven open tasks are missing from the backlog. The lines above
+        name them, but the verdict is the sentence that gets remembered, and a bare
+        VERIFIED over a short backlog is the wrong thing to remember.
+
+        Observed on 2026-09-08 (task-378): three previews reported VERIFIED while
+        together planning to leave 17 open tasks behind, every one of them an older
+        record with no ``queue_position``. ``agentjobs queue repair`` fixed all 17 and
+        the re-previews imported the full count.
+        """
+        verdict = "VERIFIED" if self.ok else "NOT VERIFIED"
+        if not self.unreadable:
+            return verdict
+        return (
+            f"{verdict} -- but {len(self.unreadable)} record(s) never reached the store. "
+            "This verdict covers the files that could be read, and those could not: fix "
+            "them and re-run with --replace, or accept a backlog that is short by that "
+            "many. 'agentjobs queue repair' is the fix when the reason is a missing "
+            "queue_position."
+        )
 
 
 def _document(task: Task) -> Dict[str, Any]:
