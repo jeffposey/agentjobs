@@ -154,7 +154,21 @@ test("an edit against a stale read is refused, and the conflict names the field 
   // Saving again, now against the record that was re-read, applies the edit — and does
   // not put the priority back to what the stale page was holding.
   await panel.getByRole("button", { name: "Save fields" }).click();
-  await expect(panel).not.toContainText("changed while you had it open");
+
+  // Waited on the edited value appearing where a reader would look for it, which the
+  // page can only render once the PATCH has been written and re-read.
+  //
+  // The obvious signal — the conflict banner going away — is not one. The page clears
+  // the error at the top of the save, before the request is sent, so `not.toContainText`
+  // is satisfied on the click; reading the API immediately after it raced the write and
+  // turned the gate red on unrelated branches (task-397).
+  await expect(page.getByRole("region", { name: "Task metadata" })).toContainText(
+    "twenty minutes",
+  );
+  // And the form is gone, which happens only on the save's resolution: a refused save
+  // keeps it open with the typing in it, so this distinguishes applied from refused.
+  await expect(panel).toBeHidden();
+
   const record = await recordOf(request, taskId);
   expect(record.effort).toBe("twenty minutes");
   expect(record.priority).toBe("low");
