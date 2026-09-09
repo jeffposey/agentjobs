@@ -69,7 +69,8 @@ from .cutover import status as cutover_status
 from .cutover import restore_backup, verify_backup
 from .quotation import scan_task
 from .sqlstore import CorpusAlreadyImported, QuotationPolicyError
-from .storage_config import load_storage_settings
+from .storage_config import StorageSettings, load_storage_settings
+from .storage_split import SplitError, split_project
 from .storage import TaskStorage, corpus_snapshot
 from .store_factory import TaskManagerLike, dispatch_manager_for, task_manager_for
 
@@ -2081,7 +2082,7 @@ def storage_status(
 
     settings = load_storage_settings()
     known = "" if settings.database.exists() else " (none yet)"
-    typer.echo(f"database: {settings.database}{known}")
+    typer.echo(f"default database: {settings.database}{known}")
     typer.echo(
         f"configuration: {settings.path}" + ("" if settings.path.exists() else " (none yet)")
     )
@@ -2090,6 +2091,16 @@ def storage_status(
         rows = "-" if line.rows is None else str(line.rows)
         files = "-" if line.files is None else str(line.files)
         typer.echo(f"{line.project_id}: {line.backend}  rows={rows} files={files}")
+        # Where this project's records are is now a per-project answer, so it is printed
+        # per project rather than once at the top (task-400).
+        missing = "" if line.database_exists else " (none yet)"
+        typer.echo(f"    database {line.database}{missing}")
+        if line.shared_with:
+            typer.echo(
+                f"    shares that file with {', '.join(line.shared_with)} -- "
+                f"'agentjobs storage split --project {line.project_id}' gives it one of "
+                "its own"
+            )
         if line.cutover_at:
             typer.echo(f"    cut over {line.cutover_at} from {line.source}")
 
@@ -2145,15 +2156,32 @@ def storage_cutover(
     reporting_tz: str = typer.Option(
         "UTC", "--reporting-tz", help="IANA zone name for day bucketing, e.g. America/Chicago."
     ),
+    database: Optional[Path] = typer.Option(
+        None, "--database", help="Put this project's records in this file."
+    ),
+    shared_database: bool = typer.Option(
+        False,
+        "--shared-database",
+        help="Use the machine's default database instead of a file of this project's own.",
+    ),
 ) -> None:
     """Back up, import, verify, and only then make the database authoritative.
 
     ``--backfill-git`` is on by default here and nowhere else: the backfill reads the
     git history of the task files, so it must happen before those files are retired,
     and the cutover is the last moment anybody is looking.
+
+    The project gets a database of its own unless you say otherwise, so a shared file is
+    something you asked for rather than what happened by accident.
     """
     project = _storage_project(project_id)
     _refuse_while_serving(port)
+    if database is not None and shared_database:
+        typer.secho(
+            "--database and --shared-database name two different files. Pick one.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
 
     try:
         result = cut_over(
@@ -2162,6 +2190,8 @@ def storage_cutover(
             backfill_git=backfill_git,
             enforce_quotation_policy=not allow_quotations,
             reporting_tz=reporting_tz,
+            database=database,
+            shared_database=shared_database,
         )
     except QuotationPolicyError as exc:
         typer.secho(str(exc), fg=typer.colors.RED)
@@ -2192,6 +2222,42 @@ def storage_cutover(
         "Enrol this database in your backups now -- 'agentjobs storage backup' writes a "
         "verifiable snapshot, and it is the only copy of the reconstructed history."
     )
+
+
+@storage_app.command("split")
+def storage_split(
+    project_id: Optional[str] = typer.Option(None, "--project"),
+    port: int = typer.Option(8765, help="Port to check for a running server."),
+    into: Optional[Path] = typer.Option(
+        None, "--into", help="Write the new database here instead of the default location."
+    ),
+) -> None:
+    """Move one project's records out of a shared database into a file of its own.
+
+    Backs up the source first, copies, verifies the copy field by field, records the new
+    location, and only then removes the rows from the shared file. A verification that
+    does not pass stops before anything is recorded or removed, and says what differed.
+    """
+    project = _storage_project(project_id)
+    _refuse_while_serving(port)
+    try:
+        report = split_project(project, destination=into)
+    except SplitError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(report.render())
+    if not report.ok:
+        typer.secho(
+            f"\nNothing was moved: {project.id} is still served from {report.source}. The "
+            f"copy is at {report.destination} for inspection; remove it once you have "
+            "looked, then run this again.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+
+    typer.secho(f"\n{project.id} is now served from {report.destination}.", fg=typer.colors.GREEN)
+    typer.echo("Enrol the new file in your backups; the old one no longer holds these records.")
 
 
 @storage_app.command("rollback")
@@ -2231,20 +2297,60 @@ def storage_export(
     typer.echo(report.render())
 
 
+def _databases_in_play(settings: StorageSettings, project_id: Optional[str]) -> List[Path]:
+    """The files a backup or a restore is about, in registration order.
+
+    Every project's, unless one is named. Distinct, because two projects sharing a file
+    must not produce two snapshots of it -- the second would refuse, backups never being
+    overwritten. Only files that exist: a project on the file backend has none.
+    """
+    registry = ProjectRegistry()
+    if project_id:
+        ids = [_storage_project(project_id).id]
+    else:
+        ids = [project.id for project in registry.list_projects()]
+    return [path for path in settings.databases(ids) if path.exists()]
+
+
 @storage_app.command("backup")
 def storage_backup(
     destination: Optional[Path] = typer.Option(None, "--into", help="Where to write the snapshot."),
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Back up just this project's database."
+    ),
 ) -> None:
-    """Take a verifiable snapshot of the database, safe to run while it is in use."""
-    written = back_up(destination=destination)
-    if written is None:
+    """Take a verifiable snapshot of each database, safe to run while one is in use.
+
+    Every project's file after task-400, since a machine now has more than one. Naming a
+    project narrows it to that project's, and ``--into`` needs the choice to be down to
+    a single file before it can mean anything.
+    """
+    settings = load_storage_settings()
+    databases = _databases_in_play(settings, project_id)
+    if not databases:
         typer.echo("There is no database on this machine yet; nothing to back up.")
         return
-    report = verify_backup(written)
-    typer.echo(f"snapshot: {written}")
-    typer.echo(f"manifest: {written}.manifest.json")
-    typer.echo(report.render())
-    if not report.ok:
+    if destination is not None and len(databases) > 1:
+        typer.secho(
+            f"--into names one file and {len(databases)} databases would be backed up. "
+            "Add --project to say which, or drop --into and let each snapshot be written "
+            "beside the database it came from.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+
+    failed = False
+    for source in databases:
+        written = back_up(settings, destination=destination, database=source)
+        if written is None:  # pragma: no cover - existence was checked above
+            continue
+        report = verify_backup(written)
+        typer.echo(f"database: {source}")
+        typer.echo(f"snapshot: {written}")
+        typer.echo(f"manifest: {written}.manifest.json")
+        typer.echo(report.render())
+        failed = failed or not report.ok
+    if failed:
         raise typer.Exit(code=1)
 
 
@@ -2264,19 +2370,38 @@ def storage_restore(
     snapshot: Path = typer.Argument(..., help="A snapshot written by 'storage backup'."),
     port: int = typer.Option(8765, help="Port to check for a running server."),
     force: bool = typer.Option(False, "--force", help="Restore over a database that is newer."),
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Restore over this project's database."
+    ),
 ) -> None:
     """Put a snapshot back, refusing rather than proceeding if it does not verify.
 
     Whatever it replaces is moved aside rather than deleted, so a restore of the wrong
     snapshot is itself recoverable.
+
+    A snapshot is a whole file, so which file it goes over has to be unambiguous: name a
+    project unless this machine has exactly one database. Guessing here would replace one
+    project's records with another's, and the move-aside would be the only thing between
+    that and losing them.
     """
     _refuse_while_serving(port)
     settings = load_storage_settings()
-    report = restore_backup(snapshot, settings=settings, force=force)
+    databases = _databases_in_play(settings, project_id)
+    if len(databases) > 1:
+        typer.secho(
+            "This machine has more than one database and a snapshot replaces a whole "
+            "file. Say which with --project. Candidates:\n"
+            + "\n".join(f"  {path}" for path in databases),
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+    target = databases[0] if databases else settings.database
+
+    report = restore_backup(snapshot, settings=settings, force=force, database=target)
     typer.echo(report.render())
     if not report.ok:
         raise typer.Exit(code=1)
-    typer.secho(f"restored {snapshot} to {settings.database}", fg=typer.colors.GREEN)
+    typer.secho(f"restored {snapshot} to {target}", fg=typer.colors.GREEN)
 
 
 queue_app = typer.Typer(

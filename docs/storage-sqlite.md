@@ -23,7 +23,7 @@ answered on 2026-09-06:
 
 | Question | Answer |
 |---|---|
-| One database or one per project | **One**, with `project_id` on every key |
+| One database or one per project | **One**, with `project_id` on every key — *reversed by task-400, see §11a* |
 | Attachments | **Blobs in the database** |
 | Pre-cutover history | **Reconstruct, reconcile, and mine git** |
 | Coordination with the analytics page | **task-213 runs first**, without a blocking edge |
@@ -31,6 +31,12 @@ answered on 2026-09-06:
 
 The reasoning behind each, with its rejected alternative, is on task-273. What follows
 is what those answers produced.
+
+**The first answer was reversed on 2026-09-09 (task-400) and the row is kept so the
+reversal is legible.** One file for every project made any decision about one project's
+records a decision about all of them, and that cost outweighs the convenience of a single
+file. `project_id` on every key stays, and is now what makes a project's rows separable:
+§11a. Two projects can still share a file where an operator asks for it.
 
 ## 2. The shape, and the one rule behind it
 
@@ -306,7 +312,8 @@ the reason the other world exists:
 
 ### `sqlite` — records are rows beside the server
 
-The database is machine-level, outside every checkout, so:
+The database is machine-level, outside every checkout, and **there is one per project**
+(section 11a), so:
 
 - nothing you do to a task dirties a working tree, and there is nothing to commit;
 - every worktree and every branch sees the same backlog, including a branch with no
@@ -417,6 +424,77 @@ The database is not deleted: a rollback is a decision that can itself be wrong.
 **An export is an interchange artifact, never a mirror.** Nothing calls it on a write and
 nothing commits what it produces. A YAML copy maintained automatically beside the database
 would be the second authority this migration removed.
+
+## 11a. One database per project
+
+**A project's records live in a file of its own** (task-400). Every project on a machine
+used to share `~/.agentjobs/agentjobs.db`, and the cost was that any decision about one
+project's records was silently a decision about all of them: publishing a backlog, backing
+one up on its own schedule, handing one to somebody else, deleting one. Storage was the
+only place where projects shared a container, and AgentJobs already scopes the registry,
+the actor vocabulary, dispatch configuration and authorization to a project.
+
+`storage.yaml` gained a per-project `database`, and the top-level key is now a fallback:
+
+```yaml
+database: C:/Users/me/.agentjobs/agentjobs.db     # for a project that names none
+projects:
+  agentjobs:
+    backend: sqlite
+    cutover_at: '2026-09-07T05:12:00Z'
+    source: C:/projects/agentjobs/tasks
+    database: C:/Users/me/.agentjobs/databases/agentjobs.db
+```
+
+**The whole precedence is `StorageSettings.database_for(project_id)`**: the environment,
+then the project's own entry, then the machine's fallback. Nothing else resolves a
+database, and `open_database` takes a path rather than defaulting to one — a caller with a
+project in hand has to say which project.
+
+- **A new project gets its own file**, `~/.agentjobs/databases/<project id>.db`, written
+  into its entry by the cutover. `--database` names another; `--shared-database` puts it
+  in the machine's file. Sharing is a thing an operator asks for rather than what happens
+  by accident.
+- **A file with only the top-level `database:` key keeps working untouched.** Every
+  project in it resolves exactly as before. This change adds a field; it does not require
+  one.
+- **`AGENTJOBS_DATABASE` still overrides every project**, deliberately. It is the
+  one-invocation escape hatch — a test harness, a machine pointed at a copy on another
+  volume — and a per-project form would be a variable per project whose failure mode is
+  that the one you forgot silently keeps writing elsewhere, which is the divergence
+  per-project files exist to remove. To move *one* project, edit `storage.yaml`.
+
+### Moving a project out of a shared database
+
+```bash
+agentjobs storage status                    # says which projects share a file
+agentjobs storage split --project <id>      # back up, copy, verify, record, then remove
+```
+
+Same sequence as the cutover, and the ordering is the whole of it: back up the source,
+copy into a database the command created, verify field by field against the source,
+record the new location in `storage.yaml`, and **only then** delete the source rows. The
+record is written before the delete on purpose — a crash after it points the project at a
+file that holds its records, whereas a delete-first crash points it at one that no longer
+does. A verification that does not pass stops before either, leaving both files intact and
+the project still served from the shared one.
+
+**What moves is decided by the schema, not by a list.** Every table carrying a
+`project_id` column is copied, discovered from `sqlite_master` at run time, so a table
+added by a later migration comes along without anybody remembering to update a constant.
+A hand-written list would fail by leaving a future table's rows behind in the shared file,
+silently. Discovery also excludes the fts5 shadow tables for free — none of them has that
+column — while `task_fts` itself does and copies like anything else.
+
+`blob` is the exception, because it is content addressed: the same image attached in two
+projects is one row. Only the blobs this project's attachments reference are copied, and
+the source drops a blob only when nothing references it any more. Deleting by project
+instead would leave the other project's attachment pointing at bytes that no longer exist.
+
+`storage backup` snapshots **every** database on the machine, and `--into` needs
+`--project` before it can mean one file. `storage restore` refuses to guess which file a
+snapshot replaces when there is more than one: a snapshot is a whole file, and guessing
+would put one project's records over another's.
 
 ## 12. What this does not do
 

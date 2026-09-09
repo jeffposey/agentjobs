@@ -90,14 +90,15 @@ def _from_store() -> Optional[List[Task]]:
     from agentjobs.store_factory import open_database, server_process
 
     settings = load_storage_settings()
-    if not settings.database.exists():
+    database = settings.database_for(PROJECT_ID)
+    if not database.exists():
         return None
     try:
         ProjectRegistry().get(PROJECT_ID)
     except Exception:  # noqa: BLE001 - not registered here
         return None
     with server_process():
-        return SqlTaskStore(open_database(settings.database), PROJECT_ID).list_tasks()
+        return SqlTaskStore(open_database(database), PROJECT_ID).list_tasks()
 
 
 def product_tasks() -> Optional[List[Task]]:

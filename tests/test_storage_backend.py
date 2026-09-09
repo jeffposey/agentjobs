@@ -171,7 +171,10 @@ class TestTheFactory:
         assert "only the AgentJobs server" in str(raised.value)
         assert "over the service" in str(raised.value)
 
-    def test_one_database_serves_every_project(self, home: Path, tmp_path: Path) -> None:
+    def test_each_project_gets_a_database_of_its_own(self, home: Path, tmp_path: Path) -> None:
+        # Reversed by task-400. It used to be one file under every project, and the
+        # cost was that any decision about one project's records -- publish it, back it
+        # up, hand it over, delete it -- was silently a decision about all of them.
         first = Project(id="first", name="First", root=tmp_path / "a")
         second = Project(id="second", name="Second", root=tmp_path / "b")
         (first.root / "tasks").mkdir(parents=True)
@@ -179,8 +182,25 @@ class TestTheFactory:
         record_cutover(first.id, first.root / "tasks")
         record_cutover(second.id, second.root / "tasks")
         with server_process():
-            # One Database under both stores: a second write connection on one file
-            # would defeat the single-writer rule from inside the server.
+            one, other = open_store(first), open_store(second)
+            assert isinstance(one, SqlTaskStore) and isinstance(other, SqlTaskStore)
+            assert one.database is not other.database
+            assert one.database.path == home / "databases" / "first.db"
+            assert other.database.path == home / "databases" / "second.db"
+
+    def test_projects_told_to_share_a_file_get_one_database(
+        self, home: Path, tmp_path: Path
+    ) -> None:
+        # Still supported, and still the shape of a machine cut over before task-400:
+        # one ``Database`` under both stores, because a second write connection on one
+        # file would defeat the single-writer rule from inside the server.
+        first = Project(id="first", name="First", root=tmp_path / "a")
+        second = Project(id="second", name="Second", root=tmp_path / "b")
+        (first.root / "tasks").mkdir(parents=True)
+        (second.root / "tasks").mkdir(parents=True)
+        record_cutover(first.id, first.root / "tasks", shared=True)
+        record_cutover(second.id, second.root / "tasks", shared=True)
+        with server_process():
             one, other = open_store(first), open_store(second)
             assert isinstance(one, SqlTaskStore) and isinstance(other, SqlTaskStore)
             assert one.database is other.database

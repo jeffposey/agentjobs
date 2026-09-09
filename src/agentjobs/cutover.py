@@ -57,6 +57,7 @@ from .sqlstore.migrations import upgrade
 from .storage import TaskStorage
 from .storage_config import (
     StorageSettings,
+    default_project_database,
     load_storage_settings,
     record_cutover,
     record_rollback,
@@ -276,29 +277,49 @@ def preview(
         shutil.rmtree(scratch, ignore_errors=True)
 
 
-def back_up(
-    settings: Optional[StorageSettings] = None, *, destination: Optional[Path] = None
-) -> Optional[Path]:
-    """Snapshot the database and write the manifest describing it.
+def _next_snapshot_name(source: Path) -> Path:
+    """A snapshot name beside ``source`` that nothing has taken.
 
-    ``None`` when there is no database yet, which is the ordinary state of the first
-    cutover on a machine. Both files are written under one hold of the write lock, so
-    the manifest cannot describe a database one row ahead of the file beside it.
+    The stamp has one-second resolution, and two storage commands inside one second is
+    an ordinary thing to do -- ``storage split`` backs up the same file a ``cutover``
+    just did. ``snapshot`` refuses to overwrite, correctly, so the name has to move
+    rather than the rule. An explicit ``--into`` is left to refuse, because there the
+    operator named the file and a silent rename would put the backup somewhere they did
+    not ask for.
+    """
+    stamp = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    target = source.with_name(f"{source.stem}.backup.{stamp}{source.suffix}")
+    attempt = 2
+    while target.exists():
+        target = source.with_name(f"{source.stem}.backup.{stamp}-{attempt}{source.suffix}")
+        attempt += 1
+    return target
+
+
+def back_up(
+    settings: Optional[StorageSettings] = None,
+    *,
+    destination: Optional[Path] = None,
+    database: Optional[Path] = None,
+) -> Optional[Path]:
+    """Snapshot one database and write the manifest describing it.
+
+    ``database`` names the file; without it the machine's fallback is backed up, which
+    after task-400 is the right target only for a caller that has no project in hand.
+    ``None`` comes back when that file does not exist, which is the ordinary state of the
+    first cutover on a machine.
+
+    Both files are written under one hold of the write lock, so the manifest cannot
+    describe a database one row ahead of the file beside it.
     """
     resolved = settings or load_storage_settings()
-    if not resolved.database.exists():
+    source = Path(database) if database is not None else resolved.database
+    if not source.exists():
         return None
-    stamp = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    target = (
-        Path(destination)
-        if destination is not None
-        else resolved.database.with_name(
-            f"{resolved.database.stem}.backup.{stamp}{resolved.database.suffix}"
-        )
-    )
+    target = Path(destination) if destination is not None else _next_snapshot_name(source)
     with server_process():
-        database = open_database(resolved.database)
-        written = snapshot(database, target)
+        opened = open_database(source)
+        written = snapshot(opened, target)
     return written
 
 
@@ -311,18 +332,24 @@ def import_project(
     backfill_git: bool = False,
     enforce_quotation_policy: bool = True,
     reporting_tz: str = "UTC",
+    database: Optional[Path] = None,
 ) -> Tuple[ImportReport, VerificationReport]:
-    """Import one project's directory into the machine's database, then verify it.
+    """Import one project's directory into its database, then verify it.
 
     Does **not** switch the project over: importing and switching are separate acts so
     that a verified store can sit beside a still-authoritative directory while somebody
     reads the report.
+
+    ``database`` names the file to import into, for the cutover that is about to record
+    that path. Without it the project's currently configured file is used, which for a
+    project not yet cut over is the machine's fallback.
     """
     resolved = settings or load_storage_settings()
     source = Path(tasks_dir) if tasks_dir is not None else project.tasks_dir()
+    target = Path(database) if database is not None else resolved.database_for(project.id)
     with server_process():
-        database = open_database(resolved.database)
-        store = SqlTaskStore(database, project.id)
+        opened = open_database(target)
+        store = SqlTaskStore(opened, project.id)
         store.ensure_project(root=str(project.root), reporting_tz=reporting_tz)
         imported = CorpusImporter(store, source).run(
             reporting_tz=reporting_tz,
@@ -343,6 +370,8 @@ def cut_over(
     enforce_quotation_policy: bool = True,
     reporting_tz: str = "UTC",
     skip_backup: bool = False,
+    database: Optional[Path] = None,
+    shared_database: bool = False,
 ) -> CutoverResult:
     """Back up, import, verify, and only then make the database authoritative.
 
@@ -355,9 +384,21 @@ def cut_over(
     the git history of the task files, so it has to happen before those files are
     retired -- and the cutover is the last moment anybody is looking. Retire first and
     the evidence is gone permanently (storage-sqlite.md §4).
+
+    **Where the records land is decided before the import, not after** (task-400). A
+    project gets a file of its own unless ``database`` names one or ``shared_database``
+    asks for the machine's; whichever it is, that is the file the import writes and the
+    file the configuration then records. Importing somewhere and recording somewhere
+    else is the one ordering this must not have.
     """
     resolved = settings or load_storage_settings()
-    backup = None if skip_backup else back_up(resolved)
+    if shared_database:
+        target = resolved.database
+    elif database is not None:
+        target = Path(database).expanduser().resolve()
+    else:
+        target = default_project_database(project.id, resolved.home)
+    backup = None if skip_backup else back_up(resolved, database=target)
 
     imported, verified = import_project(
         project,
@@ -367,6 +408,7 @@ def cut_over(
         backfill_git=backfill_git,
         enforce_quotation_policy=enforce_quotation_policy,
         reporting_tz=reporting_tz,
+        database=target,
     )
 
     result = CutoverResult(
@@ -374,13 +416,19 @@ def cut_over(
         imported=imported,
         verified=verified,
         backup=backup,
-        database=resolved.database,
+        database=target,
     )
     if not verified.ok:
         return result
 
     source = Path(tasks_dir) if tasks_dir is not None else project.tasks_dir()
-    record_cutover(project.id, source, home=resolved.home)
+    record_cutover(
+        project.id,
+        source,
+        home=resolved.home,
+        database=None if shared_database else target,
+        shared=shared_database,
+    )
     result.recorded = True
     return result
 
@@ -427,7 +475,7 @@ def export_project(
     report = ExportReport(destination=target)
 
     with server_process():
-        database = open_database(resolved.database)
+        database = open_database(resolved.database_for(project.id))
         store = SqlTaskStore(database, project.id)
         for task in store.list_tasks():
             path = target / f"{task.id}.yaml"
@@ -486,6 +534,15 @@ class ProjectStatus:
     source: Optional[str]
     rows: Optional[int]
     files: Optional[int]
+    database: Path
+    database_exists: bool
+    shared_with: List[str] = field(default_factory=list)
+    """Other projects resolving to the same file. Empty in the ordinary case.
+
+    Reported because a shared file is the state where a decision about one project is
+    silently a decision about another, and an operator about to publish, hand over or
+    delete a backlog has to be able to see it without diffing paths by eye.
+    """
 
 
 def status(
@@ -497,20 +554,26 @@ def status(
     because the interesting states are the asymmetric ones: rows and no files means the
     retirement step has run, files and no rows means a cutover was never done, and both
     means a migrated project whose old directory is still on disk.
+
+    Each project's *file* is reported too, since after task-400 the answer differs per
+    project and "where are this project's records" stops being answerable by naming the
+    machine.
     """
     resolved = settings or load_storage_settings()
     lines: List[ProjectStatus] = []
-    database: Optional[Database] = None
-    if resolved.database.exists():
-        with server_process():
-            database = open_database(resolved.database)
+    opened: Dict[Path, Database] = {}
 
+    databases = {project.id: resolved.database_for(project.id) for project in projects}
     for project in projects:
         entry = resolved.for_project(project.id)
+        target = databases[project.id]
         rows: Optional[int] = None
-        if database is not None:
+        if target.exists():
+            if target not in opened:
+                with server_process():
+                    opened[target] = open_database(target)
             with server_process():
-                rows = len(SqlTaskStore(database, project.id).list_tasks())
+                rows = len(SqlTaskStore(opened[target], project.id).list_tasks())
         try:
             files: Optional[int] = len(list(project.tasks_dir().glob("*.yaml")))
         except Exception:  # noqa: BLE001 - an unreadable directory is a fair answer here
@@ -523,6 +586,13 @@ def status(
                 source=entry.source,
                 rows=rows,
                 files=files,
+                database=target,
+                database_exists=target.exists(),
+                shared_with=sorted(
+                    other
+                    for other, path in databases.items()
+                    if path == target and other != project.id
+                ),
             )
         )
     return lines
@@ -535,9 +605,18 @@ def verify_backup(path: Path, *, settings: Optional[StorageSettings] = None) -> 
 
 
 def restore_backup(
-    path: Path, *, settings: Optional[StorageSettings] = None, force: bool = False
+    path: Path,
+    *,
+    settings: Optional[StorageSettings] = None,
+    force: bool = False,
+    database: Optional[Path] = None,
 ) -> VerifyReport:
-    """Put a snapshot back over the configured database.
+    """Put a snapshot back over one database.
+
+    ``database`` names which. A snapshot is a whole file, so restoring it over a
+    different project's file would replace that project's records with somebody else's
+    -- which is why the caller has to say, and why the CLI refuses to guess when more
+    than one file is in play.
 
     Every handle this process holds is closed first, and that is not tidiness: on
     Windows a file cannot be replaced while anything has it open, so a restore issued
@@ -550,7 +629,8 @@ def restore_backup(
     """
     resolved = settings or load_storage_settings()
     close_databases()
-    return restore(Path(path), resolved.database, force=force)
+    target = Path(database) if database is not None else resolved.database
+    return restore(Path(path), target, force=force)
 
 
 def file_store_for(project: Project, *, tasks_dir: Optional[Path] = None) -> TaskStorage:

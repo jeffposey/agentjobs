@@ -24,9 +24,14 @@ only writer while they hold it, which is the same guarantee under a different pr
 
 ``Database`` owns a write connection, so a process that opened two of them against one
 file would defeat the single-writer rule from the inside. The cache here is keyed on the
-resolved path and is what makes "the server has one database" true no matter how many
-projects it serves -- one store per project, one database under all of them, which is
-the shape the physical schema was designed for (``project_id`` on every key).
+resolved path, so a file is opened once however many projects resolve to it.
+
+**Which file is a question about a project, not about the machine** (task-400). Every
+project has its own database by default; the physical schema still carries
+``project_id`` on every key, so two projects sharing one file remains a configuration an
+operator can choose, and one that already exists on machines cut over before that
+change. :func:`open_database` therefore takes a path and nothing else -- the caller has
+to have asked :meth:`~agentjobs.storage_config.StorageSettings.database_for` which one.
 """
 
 from __future__ import annotations
@@ -115,18 +120,20 @@ def server_process() -> Iterator[None]:
 # ----- the database ---------------------------------------------------------
 
 
-def open_database(
-    path: Optional[Path] = None, *, settings: Optional[StorageSettings] = None
-) -> Database:
+def open_database(path: Path) -> Database:
     """The process's ``Database`` for one file, opened on first use.
 
     Migrations are applied on open, which is the only moment they can be: the schema a
     connection needs is the schema the code it belongs to was written against, and
     deferring that to a separate command produces a server that starts fine and fails on
     its first query.
+
+    The path is required. It used to default to the machine's one database, and after
+    task-400 there is no such thing to default to: a caller with a project in hand asks
+    ``settings.database_for(project.id)``, and one without has no business opening
+    anything.
     """
-    resolved = Path(path) if path is not None else (settings or load_storage_settings()).database
-    key = str(Path(resolved).expanduser().resolve())
+    key = str(Path(path).expanduser().resolve())
     with _database_lock:
         existing = _databases.get(key)
         if existing is not None:
@@ -182,7 +189,7 @@ def open_store(
             "store while the server is stopped."
         )
 
-    database = open_database(resolved.database)
+    database = open_database(resolved.database_for(project.id))
     store = SqlTaskStore(database, project.id)
     store.ensure_project(root=str(project.root))
     return store
@@ -273,7 +280,7 @@ def dispatch_manager_for(
 
     resolved = settings or load_storage_settings()
     if resolved.on_sqlite(project.id) and not is_server_process():
-        _assert_schema_current(resolved.database)
+        _assert_schema_current(resolved.database_for(project.id))
         with server_process():
             return TaskManager(open_store(project, settings=resolved), webhook_manager)
     return TaskManager(open_store(project, settings=resolved), webhook_manager)

@@ -41,7 +41,12 @@ from agentjobs.models_v2 import (
 from agentjobs.projects import Project
 from agentjobs.sqlstore import CorpusAlreadyImported, SqlTaskStore
 from agentjobs.storage import TaskStorage
-from agentjobs.storage_config import FILES, SQLITE, load_storage_settings
+from agentjobs.storage_config import (
+    FILES,
+    SQLITE,
+    default_project_database,
+    load_storage_settings,
+)
 from agentjobs.store_factory import open_database, open_store, server_process
 
 NOW = datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc)
@@ -104,7 +109,7 @@ def project(tmp_path: Path) -> Project:
 def stored_tasks(project: Project) -> List[Task]:
     """Every task the database holds for this project."""
     with server_process():
-        database = open_database(load_storage_settings().database)
+        database = open_database(load_storage_settings().database_for(project.id))
         return SqlTaskStore(database, project.id).list_tasks()
 
 
@@ -121,8 +126,10 @@ class TestPreview:
     def test_it_writes_nothing_that_survives_the_call(self, home: Path, project: Project) -> None:
         preview(project)
         # No database, and no configuration saying anything migrated.
-        assert not load_storage_settings().database.exists()
-        assert load_storage_settings().backend_for(project.id) == FILES
+        settings = load_storage_settings()
+        assert not settings.database.exists()
+        assert not default_project_database(project.id, settings.home).exists()
+        assert settings.backend_for(project.id) == FILES
 
     def test_an_unreadable_record_is_named_rather_than_dropped(
         self, home: Path, project: Project
@@ -204,7 +211,8 @@ class TestImportAndVerify:
         # A file appearing after the import is exactly what a missed record looks like.
         TaskStorage(project.root / "tasks").save_task(a_task("task-004", position=400))
         with server_process():
-            store = SqlTaskStore(open_database(load_storage_settings().database), project.id)
+            settings = load_storage_settings()
+            store = SqlTaskStore(open_database(settings.database_for(project.id)), project.id)
             report = verify_import(store, project.root / "tasks")
         assert not report.ok
         assert report.missing == ["task-004"]
@@ -235,7 +243,8 @@ class TestCutover:
 
     def test_a_later_backup_verifies_as_restorable(self, home: Path, project: Project) -> None:
         cut_over(project, backfill_git=False)
-        snapshot_path = back_up()
+        settings = load_storage_settings()
+        snapshot_path = back_up(settings, database=settings.database_for(project.id))
         assert snapshot_path is not None and snapshot_path.exists()
         assert verify_backup(snapshot_path).ok
 
@@ -298,7 +307,7 @@ class TestGettingBackOut:
         roll_back(project)
         # A rollback is a decision that can itself be wrong, and the store holds the
         # only copy of the reconstructed history.
-        assert load_storage_settings().database.exists()
+        assert load_storage_settings().database_for(project.id).exists()
 
     def test_an_attachment_comes_back_as_bytes_beside_the_task(
         self, home: Path, project: Project, tmp_path: Path

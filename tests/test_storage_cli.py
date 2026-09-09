@@ -114,8 +114,9 @@ class TestPreview:
         assert result.exit_code == 0, result.output
         assert "imported 2 tasks" in result.output
         assert "VERIFIED" in result.output
-        assert load_storage_settings().backend_for("demo") == FILES
-        assert not load_storage_settings().database.exists()
+        settings = load_storage_settings()
+        assert settings.backend_for("demo") == FILES
+        assert not settings.database_for("demo").exists()
 
     def test_an_unreadable_record_is_named(self, registered: Path) -> None:
         (registered / "tasks" / "task-666.yaml").write_text("id: task-666\n", encoding="utf-8")
