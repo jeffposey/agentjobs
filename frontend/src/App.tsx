@@ -74,6 +74,7 @@ import { QueueBroken } from "./components/QueueBroken";
 import { QueueDispatch, QueueDispatchGate } from "./components/QueueDispatch";
 import { useWideShell } from "./components/shellLayout";
 import { SlotBoard } from "./components/SlotBoard";
+import { VersionSkew } from "./components/VersionSkew";
 
 function ProjectRedirect() {
   const navigate = useNavigate();
@@ -1109,6 +1110,10 @@ export function App() {
       {/* Outside the routes on purpose: a finding is noticed on whatever page you are
           on, including the ones that render while no project has resolved yet. */}
       <IssueReporter />
+      {/* Beside the routes for the same reason, and one more: a bundle talking to a
+          server it was not built against can break the pages that render before any
+          project resolves, so the warning cannot live inside one of them. */}
+      <VersionSkew />
     </>
   );
 }
