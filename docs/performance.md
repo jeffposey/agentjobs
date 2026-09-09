@@ -308,6 +308,13 @@ The argument used to be stated as "seconds before minutes", and task-233 took th
 away. The ordering stays regardless: it costs nothing, and the gap it exploits reappears
 the moment a slow stage is added.
 
+### Why `-n` is passed by the gate
+
+`pytest`'s `addopts` is empty and xdist's `-n` is passed by `scripts/check.py` rather than
+configured globally, so a hand-run `pytest` is serial. That is deliberate: xdist costs
+more than it saves on a small selection, and its interleaved output is the wrong trade
+when you are reading one failure.
+
 ### How the gate degrades under contention
 
 | Concurrent gates | Serial suite (historical) | Parallel suite | Parallel suite, 2026-09-06 |
@@ -513,6 +520,87 @@ It stays because the reasoning is the durable part — the gate should be able t
 a change cannot reach — and once `pytest` is cheap, the same machinery is what makes it
 safe to add an expensive stage later. Its four properties are rules and live in
 ENGINEERING.md.
+
+### The pre-review gate stays full
+
+Task-386 asked whether the gate an agent runs before handing off for review could be
+narrowed to "the stages the change can reach". On a project with `finish=on` the merge is
+protected by the finish's own full gate, so the pre-review gate is not what admits the
+code to `main` — it only keeps a reviewer from being handed something that does not run.
+The proposal was measured against the ledger and **rejected**. What follows is why, so it
+is not re-proposed from the same intuition.
+
+The corpus, read from `~/.agentjobs/runs/*/phases.jsonl` and this project's own task log,
+2026-09-09. It covers the 70 runs of 197 that carry phase records; `phases.jsonl` arrived
+partway through the ledger, so these are counts of what was recorded.
+
+| | Gates | Time |
+|---|---|---|
+| Pre-review gates — the last full gate before a review handoff | 39, across 26 tasks | 3.27h, mean 302s |
+| Earlier full gates in the same stretch (iteration) | 57, 40 of them red | 3.15h |
+| Full gates that never answered a review at all | 116 | 7.80h |
+| Scripted-finish gates | 125 | 9.45h |
+
+**The premise did not survive the count.** The task was prompted by one run whose
+pre-review gate was thrown away by a change request twelve minutes later. Across the whole
+ledger that happened **4 times in 39** — 30 handoffs were approved and 5 answered a
+question. The gate time a change request discarded is **1138s in total, 0.32h**. There is
+no pot of money there.
+
+**Both halves of the proposed rule are unsound in this repository.** The rule was "a
+Python change runs black, ruff, mypy and pytest; a frontend change runs oxlint, vitest,
+build and e2e". Neither holds:
+
+- **`e2e` is not a frontend stage.** `frontend/e2e/run_server.py` starts
+  `agentjobs.api.main:app` — the Python application — behind Playwright, and the specs
+  drive dispatch, queue moves and task creation through it. A Python change reaches `e2e`
+  directly.
+- **`pytest` reads the frontend.** `tests/test_pwa_contract.py` reads
+  `frontend/src/service-worker.js`; `tests/test_identity_problem_headlines.py` reads
+  `frontend/src/components/identityProblem.ts`. A frontend change reaches `pytest`.
+
+**And the saving is concentrated in exactly the stage the rule gets wrong.** Pricing the
+proposed table against every branch `main` has merged — 214 of them, each diffed against
+its own merge base, costed with the mean each stage took across every `gate_stage_finished`
+record in the ledger: `pytest` 213.6s, `e2e` 114.0s, `vitest` 19.0s, `mypy` 9.6s, `api`
+7.5s, `build` 6.6s, `icons` 3.4s, `black` 1.4s, `oxlint` 1.0s, `ruff` 0.3s — 376s for all
+ten. This is a model over historical diffs, not a replay.
+
+| Selection | Mean per branch | Total | Branches narrowed |
+|---|---|---|---|
+| Full gate every time (today's rule) | 376s | 22.37h | — |
+| `gate_scope`'s table as it stands | 367s | 21.79h | 13 of 214 (6%) |
+| The richer table task-386 proposed | 309s | 18.37h | 99 of 214 (46%) |
+
+The richer table saves 4.00h, or 18%. **2.41h of that 4.00h is `e2e` skipped on a
+Python-only branch** — 76 branches at 114s each, 81% of everything the Python half of the
+rule saves. And `e2e` is the second most common stage to stop a red gate. Every red
+`gate_finished` records the stage that stopped it, so this is read rather than inferred —
+of the 161 red gates in the ledger, 60 stopped in `pytest` (37%) and **34 stopped in
+`e2e`** (21%), ahead of `black` at 32 and `mypy` at 16.
+
+So the trade on offer was: give up the stage that stops a fifth of all red gates, on the
+changes most able to cause them, to save 67 seconds of a 302-second gate. The remaining
+115 branches touch both Python and the frontend, and the rule narrows nothing for them.
+
+**`gate_scope`'s existing table already is the reachable-stage rule, computed correctly.**
+Its three entries — task records, `docs/`, `*.md` — are the classifications this
+repository can actually defend, and its docstring already records that `frontend/*` was
+considered and dropped. It narrows 6% of branches for 0.59h. That is the honest size of
+the win, and it does not justify a new entry point: `--since-gate` needs a receipt, a
+fresh worktree has none, and every dispatched run works in a fresh worktree.
+
+**Where the time actually is.** 116 full gates never answered a review, and 57 more ran
+inside a review stretch that already ended in one — nearly 11 hours against the 3.27h all
+pre-review gates cost together. Those are gates run to iterate, which step 1 of the
+sequence already forbids. The pre-review gate is not the expensive habit; running the full
+gate instead of `--only <stage>` while fixing a known-red stage is.
+
+**Reopen this if** `e2e` stops exercising the Python application, or a classification that
+skips it becomes provable rather than assumed, or the finish's gate stops being the thing
+that admits code to `main`. Until then step 3 of
+[One gate per handoff](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md#one-gate-per-handoff)
+is unqualified, and on a project with `finish=off` it is the only gate the work ever gets.
 
 ---
 

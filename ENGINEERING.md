@@ -55,14 +55,11 @@ source rather than a neighbouring one's.
 
     Use focused pytest or npm commands while iterating, but do not substitute them for
     the gate. A hand-run `pytest` is serial and measures no coverage: `addopts` is empty,
-    and `-n` is passed by the gate rather than configured globally, because xdist
-    costs more than it saves on a small selection and its interleaved output is the wrong
-    trade when you are reading one failure.
--   **The cheapest stage runs first, whatever the slowest one currently costs**, and the
-    checks are *in* the gate rather than only in a pre-commit list, because a list nothing
-    enforces is a statement of intent. Both arguments, with the incidents behind them, are
-    in [docs/performance.md](docs/performance.md#why-the-cheap-stages-run-first) and in
-    `scripts/check.py`.
+    and `-n` is passed by the gate rather than configured globally
+    ([why](docs/performance.md#why--n-is-passed-by-the-gate)).
+-   The checks are *in* the gate rather than only in a pre-commit list, because a list
+    nothing enforces is a statement of intent. That argument and the ordering:
+    [docs/performance.md](docs/performance.md#why-the-cheap-stages-run-first).
 -   Two orderings are real dependencies and stay: `build` writes the bundle `e2e` drives,
     and `api` exports the document a generated client is compared against. Every other
     stage's position is a question of what it costs.
@@ -140,7 +137,10 @@ The sequence, in the order that costs one gate:
 1.  While a named stage is red, iterate with `--only <stage>`. Never a whole gate to
     re-learn what you already know.
 2.  Commit, then rebase onto `main`.
-3.  `scripts/check.py`, no arguments, **once**, on the resulting clean tree.
+3.  `scripts/check.py`, no arguments, **once**, on the resulting clean tree. Narrowing it
+    to the stages a diff can reach was
+    [measured and rejected](docs/performance.md#the-pre-review-gate-stays-full): `e2e`
+    runs the Python app. Where `finish=off` this is the only gate the work gets.
 4.  Hand off.
 
 Committing *before* that run is deliberate: a receipt is only written for a tree that is
