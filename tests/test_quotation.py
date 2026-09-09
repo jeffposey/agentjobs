@@ -408,7 +408,10 @@ class TestTheCommands:
         """An initialised project directory, with the CLI's cwd pointed at it."""
         monkeypatch.chdir(tmp_path)
         result = runner.invoke(
-            app, ["init"], input="Test\ntasks\nprompts\n9000\njeff\n", catch_exceptions=False
+            app,
+            ["init", "--backend", "files"],
+            input="Test\ntasks\nprompts\n9000\njeff\n",
+            catch_exceptions=False,
         )
         assert result.exit_code == 0
         return tmp_path

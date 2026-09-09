@@ -35,10 +35,19 @@ sharing a file is something an operator asks for rather than what happens by acc
 (task-400). The top-level ``database:`` still answers for a project whose entry does not
 name one, which is what keeps a machine configured before this change working untouched.
 
-**The default is ``files``.** A machine that has never run a cutover has no such file,
-every project resolves to the file backend, and nothing about this module is reachable.
-That is what makes the cutover a step somebody takes rather than an upgrade that happens
-to them.
+**A new project is written into this file at ``init``, on ``sqlite``** (task-399).
+``agentjobs init`` calls :func:`record_new_project`, so a fresh install starts on the
+database and never accumulates a corpus it will later have to migrate. The entry carries
+no ``source`` and no ``cutover_at``, because neither is true of a project that has never
+held task files.
+
+**The default for a project with no entry is still ``files``, deliberately.** That
+default is now reached by exactly one kind of project: one registered before task-399
+that was never cut over. Flipping it to ``sqlite`` instead of writing an explicit entry
+would point every one of those at an empty database and make its corpus invisible with
+no diagnosis -- which is the failure this whole module exists to avoid. So they keep
+working, and ``agentjobs storage status`` names the cutover command for each of them
+rather than leaving the operator to infer it.
 """
 
 from __future__ import annotations
@@ -365,6 +374,41 @@ def record_cutover(
     return updated
 
 
+def record_new_project(
+    project_id: str,
+    *,
+    home: Optional[Path] = None,
+    database: Optional[Path] = None,
+) -> StorageSettings:
+    """Put a project that has never held task files on the database from the start.
+
+    What ``agentjobs init`` writes (task-399), and separate from :func:`record_cutover`
+    because there is nothing to cut over. The entry carries no ``source`` and no
+    ``cutover_at``: both would be claims about a migration that did not happen, and
+    ``source`` in particular is what a rollback reads to find the directory the records
+    came from. A project initialised on the database has no such directory, and saying
+    so by omission is more honest than naming one that was never authoritative.
+
+    An entry that already exists is left exactly as it is and returned unchanged. This
+    is reached by ``init`` on a directory whose project id is already configured, and
+    overwriting there would silently discard a recorded cutover -- including the
+    ``source`` a rollback needs.
+    """
+    settings = load_storage_settings(home)
+    if project_id in settings.projects:
+        return settings
+    resolved_database = (
+        str(Path(database).expanduser().resolve())
+        if database is not None
+        else str(default_project_database(project_id, settings.home))
+    )
+    updated = settings.with_project(
+        project_id, ProjectStorage(backend=SQLITE, database=resolved_database)
+    )
+    updated.save()
+    return updated
+
+
 def record_database(
     project_id: str, database: Path, *, home: Optional[Path] = None
 ) -> StorageSettings:
@@ -416,5 +460,6 @@ __all__ = [
     "load_storage_settings",
     "record_cutover",
     "record_database",
+    "record_new_project",
     "record_rollback",
 ]

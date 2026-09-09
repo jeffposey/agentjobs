@@ -49,7 +49,7 @@ def test_cli_init_create_list_show(tmp_path: Path, monkeypatch) -> None:
 
     result = runner.invoke(
         app,
-        ["init"],
+        ["init", "--backend", "files"],
         input="Test Project\ntasks\nprompts\n9000\njeff\n",
         catch_exceptions=False,
     )
@@ -96,7 +96,9 @@ def test_work_command_flow(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
 
     # Setup: Initialize and create a task
-    runner.invoke(app, ["init"], input="Test Project\ntasks\nprompts\n9000\njeff\n")
+    runner.invoke(
+        app, ["init", "--backend", "files"], input="Test Project\ntasks\nprompts\n9000\njeff\n"
+    )
     runner.invoke(app, ["create"], input="Work Task\nDescription\n")
 
     # Manually move the task to ready/agent-available so it can be picked up
@@ -191,7 +193,9 @@ def test_list_tasks_filtering(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
 
     # Setup: Initialize
-    runner.invoke(app, ["init"], input="Test Project\ntasks\nprompts\n9000\njeff\n")
+    runner.invoke(
+        app, ["init", "--backend", "files"], input="Test Project\ntasks\nprompts\n9000\njeff\n"
+    )
 
     # Create PLANNED/HIGH task
     runner.invoke(
@@ -314,7 +318,9 @@ def test_show_task_not_found(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
 
     # Initialize to ensure manager can run
-    runner.invoke(app, ["init"], input="Test Project\ntasks\nprompts\n9000\njeff\n")
+    runner.invoke(
+        app, ["init", "--backend", "files"], input="Test Project\ntasks\nprompts\n9000\njeff\n"
+    )
 
     result = runner.invoke(app, ["show", "non-existent-id"])
     assert result.exit_code == 1
@@ -323,7 +329,9 @@ def test_show_task_not_found(tmp_path: Path, monkeypatch) -> None:
 
 def _init_project() -> None:
     """Run init with the same answers the other tests in this file use."""
-    runner.invoke(app, ["init"], input="Test Project\ntasks\nprompts\n9000\njeff\n")
+    runner.invoke(
+        app, ["init", "--backend", "files"], input="Test Project\ntasks\nprompts\n9000\njeff\n"
+    )
 
 
 def _only_task(tmp_path: Path) -> dict:

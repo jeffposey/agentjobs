@@ -314,6 +314,49 @@ def _assert_schema_current(database: Path) -> None:
         )
 
 
+def provision_project_database(
+    project: Project,
+    *,
+    settings: Optional[StorageSettings] = None,
+    reporting_tz: str = "UTC",
+) -> Path:
+    """Give a newly registered project a database of its own, and record that it has one.
+
+    What ``agentjobs init`` calls (task-399), so a fresh install is on the database
+    before its first task rather than after a migration. Returns the file.
+
+    **The file is created here rather than left to the server's first read.** A project
+    whose configuration says ``sqlite`` and whose database does not exist yet is a state
+    an operator cannot tell apart from a mistake -- ``storage status`` prints
+    ``(none yet)`` for it either way -- and the schema this build expects is applied on
+    open, which is the moment the file is made. Doing it now means the very next command
+    finds a store that is present and current.
+
+    Opening from a short-lived process is safe *here specifically*: the file does not
+    exist, so no server can be holding it. That is the same argument the cutover makes
+    for its own direct open, and it is why this enters :func:`server_process` rather
+    than weakening the rule that guards it.
+    """
+    from .storage_config import record_new_project
+
+    resolved = settings or load_storage_settings()
+    entry = resolved.for_project(project.id)
+    if entry.backend == "files" and project.id in resolved.projects:
+        # A rolled-back project, or one an operator deliberately keeps on files. Its
+        # entry is a decision somebody recorded; init does not overrule it.
+        return resolved.database_for(project.id)
+
+    updated = record_new_project(project.id, home=resolved.home)
+    target = updated.database_for(project.id)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with server_process():
+        database = open_database(target)
+        SqlTaskStore(database, project.id).ensure_project(
+            root=str(project.root), reporting_tz=reporting_tz
+        )
+    return target
+
+
 def store_is_sql(store: object) -> bool:
     """True when this store is the SQLite one.
 
@@ -333,6 +376,7 @@ __all__ = [
     "mark_server_process",
     "open_database",
     "open_store",
+    "provision_project_database",
     "reset_server_process",
     "server_process",
     "store_is_sql",
