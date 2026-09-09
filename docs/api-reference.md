@@ -451,7 +451,7 @@ a name must never depend on which version of AgentJobs is installed.
 | `GET` | `/api/all/tasks` | Every task across every registered project |
 | `GET` | `/api/tasks/{task_id}/attachments/{filename}` | Fetch a file attached to a task |
 | `GET` | `/api/health` | Liveness. Returns `{"status": "ok"}` |
-| `GET` | `/api/version` | Package version, schema version, YAML loader, source root and commit, start time, and whether the frontend bundle is present |
+| `GET` | `/api/version` | Package version, schema version, YAML loader, source root and commit, start time, the API contract digest, the served bundle id, and whether the frontend bundle is present |
 | `GET` | `/api/whoami` | Who this request resolved as: `owner`, `tailnet`, or a dispatched `run` naming its run and task |
 
 `GET /api/whoami` reports identity and enforces nothing -- every other route answers
@@ -467,6 +467,25 @@ is not a human and must never be attributed as one. See the
 rather than the files on disk — which is what makes them evidence that a merge is live
 rather than merely committed. `frontend_bundle` says whether `/app/` can be served at
 all.
+
+Two more fields answer the question those cannot: **is the client talking to me the one
+I was built for?**
+
+-   **`api_digest`** is a SHA-256 of the OpenAPI document this process serves. The
+    TypeScript client is generated from that same document and carries the digest it was
+    generated against, so one comparison settles it. Neither `version` nor
+    `schema_version` can: on 2026-08-17 both matched exactly on both sides while a
+    response field had been added under a long-running process, and the page went blank
+    reading an array that was not there. It moves when the contract moves and not when
+    anything else does, which is why a commit hash was rejected for the job.
+-   **`bundle_id`** identifies the build of the React app being served from disk, or is
+    null when there is none. It is derived from the built asset bytes, so unlike the
+    digest it also moves for the many rebuilds that touch no API route — which is what
+    lets a tab left open across a rebuild notice it is running the previous build.
+
+The app polls this and shows a dismissible banner naming the mismatch and the remedy. It
+never blocks: an unreachable, slow or older server leaves the page exactly as it was,
+because a detector that breaks the app when it cannot determine skew is worse than none.
 
 ## Webhooks
 
