@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from click.testing import Result
 from typer.testing import CliRunner
 
 from agentjobs.cli import app
@@ -36,7 +37,7 @@ INIT = [
 ]
 
 
-def _init(extra: list[str] | None = None) -> object:
+def _init(extra: list[str] | None = None) -> Result:
     return runner.invoke(app, INIT + (extra or []), catch_exceptions=False)
 
 

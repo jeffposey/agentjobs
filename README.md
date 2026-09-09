@@ -280,6 +280,12 @@ poetry -P /path/to/agentjobs run agentjobs init
 poetry -P /path/to/agentjobs run agentjobs open
 ```
 
+`init` gives the project a database of its own beside the server and creates no task
+directory, so no task file ever appears in your repository and the server is what the
+CLI talks to. [The two worlds a project can be
+in](docs/storage-sqlite.md#9-the-two-worlds-a-project-can-be-in) covers the older
+file-backed arrangement and how a project moves between them.
+
 From the AgentJobs clone, useful commands include:
 
 ```bash

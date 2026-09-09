@@ -296,10 +296,22 @@ asymmetric states are the informative ones: rows and no files means the records 
 retired from the checkout, files and no rows means no cutover has happened, and both means
 a migrated project whose old directory is still on disk.
 
+**A new project is created in the second of these.** `agentjobs init` registers the
+project on `sqlite`, creates its database, and makes no tasks directory (task-399), so a
+fresh install starts where a migrated project ends up rather than accumulating a corpus it
+will later be walked through migrating. `--backend files` is the old behaviour, kept while
+that backend exists.
+
+**A project registered before that change keeps working**, because the default for a
+project with no `storage.yaml` entry is still `files`. Flipping that default instead of
+writing an explicit entry at `init` would have pointed every such project at an empty
+database and made its corpus invisible with nothing to diagnose from. They are told rather
+than broken: `storage status` names the cutover command on each `files` line.
+
 ### `files` — records are YAML in the repository
 
-The original design, and still the default. Two consequences follow from it, and they are
-the reason the other world exists:
+The original design, and what a project registered before task-399 is still on. Two
+consequences follow from it, and they are the reason the other world exists:
 
 - **The dashboard reads one working tree**, so a record committed to a feature branch is
   invisible to the person it is addressed to: they open the React app, see the task still

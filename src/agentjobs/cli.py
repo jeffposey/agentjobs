@@ -973,13 +973,18 @@ def create(
         priority=priority,
         category=category,
     )
+    # Named as a file only where the record *is* a file. On the database it is rows,
+    # and a fresh install's very first line of output telling somebody a YAML file was
+    # written sends them looking for a directory this project does not have (task-399).
+    created = (
+        f"{task.id}.yaml" if getattr(manager.storage, "supports_task_files", True) else task.id
+    )
     if ready:
         manager.promote_task(task.id, actor=_resolve_actor(config, actor))
-        typer.echo(f"✅ Created {task.id}.yaml (ready — claimable now)")
+        typer.echo(f"✅ Created {created} (ready — claimable now)")
     else:
         typer.echo(
-            f"✅ Created {task.id}.yaml (draft — not claimable until "
-            f"`agentjobs promote {task.id}`)"
+            f"✅ Created {created} (draft — not claimable until " f"`agentjobs promote {task.id}`)"
         )
 
 

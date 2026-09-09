@@ -22,11 +22,20 @@ install` produces. Skip it and step 2 has nothing to open. See
 [the installation guide](installation.md) for why, and for the release-wheel case that
 needs no Node at all.
 
-Initialization creates `.agentjobs/config.yaml`, the configured task directory, a
-project registration for the local server, and a `.mcp.json` declaring the AgentJobs
-MCP server so agents working here have the tools rather than falling back to the CLI.
-See [the MCP server](mcp.md#every-registered-project-declares-the-server) for what that
-file contains and how to add it to a project registered earlier.
+Initialization creates `.agentjobs/config.yaml`, a project registration for the local
+server, a database of this project's own under `~/.agentjobs/databases/`, and a
+`.mcp.json` declaring the AgentJobs MCP server so agents working here have the tools
+rather than falling back to the CLI. See
+[the MCP server](mcp.md#every-registered-project-declares-the-server) for what that file
+contains and how to add it to a project registered earlier.
+
+**No task directory is created, and no task file will ever appear in your project.** The
+records are rows beside the server, so nothing you do to a task dirties a working tree
+and every branch sees the same backlog. That means the server has to be running for the
+commands below; step 2 starts it. If the directory you are initializing already holds
+task YAML from an earlier AgentJobs, `init` says so and names the import command rather
+than reading or absorbing it — see
+[the two worlds a project can be in](storage-sqlite.md#9-the-two-worlds-a-project-can-be-in).
 
 ## 2. Open the React application
 
