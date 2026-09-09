@@ -28,4 +28,16 @@ const serviceWorker = template
   .replace("__SHELL_URLS__", JSON.stringify(shellUrls, null, 2));
 
 await writeFile(resolve(dist, "sw.js"), serviceWorker, "utf8");
+
+// The same revision, written where the *server* can read it and report it on
+// /api/version. It is derived from the built asset bytes, so it moves on any rebuild
+// that changes the app -- including the majority that touch no API route and so leave
+// the contract digest alone. A tab that has been open across a rebuild compares the id
+// it first saw against the one being served now, and offers the reload it would
+// otherwise wait to be given by hand.
+await writeFile(
+  resolve(dist, "build-info.json"),
+  `${JSON.stringify({ bundle_id: revision }, null, 2)}\n`,
+  "utf8",
+);
 console.log(`Wrote packaged sw.js with ${shellUrls.length} shell resources (${revision}).`);

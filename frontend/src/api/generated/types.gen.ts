@@ -4028,6 +4028,18 @@ export type ValidationError = {
  */
 export type VersionResponse = {
     /**
+     * Api Digest
+     *
+     * SHA-256 of the OpenAPI document this process serves. The generated TypeScript client is built from that same document, so a bundle carries the digest it was generated against and can tell, in one comparison, whether the server answering it is the one it was built for. Neither `version` nor `schema_version` can: in the incident this was added for both matched exactly while a response field had been added underneath a running process. See agentjobs.api.contract.
+     */
+    api_digest: string;
+    /**
+     * Bundle Id
+     *
+     * Which build of the React app this process is serving from disk, or null when no bundle is present or it was built before this field existed. Derived from the built asset bytes, so unlike `api_digest` it also moves for the many rebuilds that change no API route -- which is what lets an open tab notice it is running the previous build and offer a reload.
+     */
+    bundle_id?: string | null;
+    /**
      * Frontend Bundle
      *
      * Whether this process can serve the React app at /app/. The bundle is gitignored and no install step builds it, so a clone that has never run `npm run build` answers every REST call correctly and 404s the one URL a new user is told to open. Reported here so `agentjobs open` can say so before opening a browser rather than after.

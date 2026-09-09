@@ -12,8 +12,9 @@ from agentjobs.environment import describe_source, source_identity
 from agentjobs.models_v2 import SCHEMA_VERSION
 from agentjobs.storage import yaml_loader_name
 
+from ..contract import live_contract_digest
 from ..dependencies import get_principal_resolution
-from ..spa import bundle_is_present
+from ..spa import bundle_id, bundle_is_present
 
 router = APIRouter(prefix="/api", tags=["system"])
 
@@ -61,6 +62,27 @@ class VersionResponse(BaseModel):
             "file on disk now says."
         )
     )
+    api_digest: str = Field(
+        description=(
+            "SHA-256 of the OpenAPI document this process serves. The generated "
+            "TypeScript client is built from that same document, so a bundle carries "
+            "the digest it was generated against and can tell, in one comparison, "
+            "whether the server answering it is the one it was built for. Neither "
+            "`version` nor `schema_version` can: in the incident this was added for "
+            "both matched exactly while a response field had been added underneath a "
+            "running process. See agentjobs.api.contract."
+        )
+    )
+    bundle_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Which build of the React app this process is serving from disk, or null "
+            "when no bundle is present or it was built before this field existed. "
+            "Derived from the built asset bytes, so unlike `api_digest` it also moves "
+            "for the many rebuilds that change no API route -- which is what lets an "
+            "open tab notice it is running the previous build and offer a reload."
+        ),
+    )
     frontend_bundle: Literal["present", "missing"] = Field(
         description=(
             "Whether this process can serve the React app at /app/. The bundle is "
@@ -79,12 +101,17 @@ async def api_health_check() -> dict[str, str]:
 
 
 @router.get("/version", response_model=VersionResponse)
-async def api_version() -> VersionResponse:
+async def api_version(request: Request) -> VersionResponse:
     """Report the versions a client must match before it starts issuing calls.
 
     Added for the MCP server's startup probe, which refuses to serve tools against a
     service it cannot understand. The version is already in ``/openapi.json``, but
     reading it there makes every client parse a large document to learn two fields.
+
+    The React app polls it for a second reason: to notice that the process answering
+    it is not the one its own bundle was built against, and to say so with the remedy
+    rather than crashing somewhere unrelated when a response is not the shape its
+    generated types promise.
     """
     identity = source_identity()
     return VersionResponse(
@@ -94,6 +121,8 @@ async def api_version() -> VersionResponse:
         source_root=describe_source(),
         source_commit=identity.commit,
         started_at=identity.started_at,
+        api_digest=live_contract_digest(request.app),
+        bundle_id=bundle_id(),
         frontend_bundle="present" if bundle_is_present() else "missing",
     )
 

@@ -38,6 +38,7 @@ from .routes import (
     web_router,
 )
 from .routes.status import MutationError, mutation_error_response
+from .contract import live_contract_digest
 from .spa import register_spa
 
 if TYPE_CHECKING:  # pragma: no cover - the runtime import stays inside the function
@@ -132,7 +133,7 @@ def _verify_served_source() -> None:
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     """Reconcile once at startup, then follow live sessions for as long as we serve.
 
     The poller is the missing half of session dispatch. ``poll_session`` has always known
@@ -151,6 +152,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # rather than on demand because the whole value of the answer is that a merge into
     # the served clone cannot change it -- see `capture_source_identity` (task-241).
     capture_source_identity()
+    # Same reason, and one more: building the OpenAPI document costs about 280ms of
+    # synchronous work, so computing the contract digest on demand would block the
+    # event loop inside the first `/api/version` request every process ever answers --
+    # which is at page load, beside everything else the app is fetching. A process
+    # cannot change its own routes, so the answer is fixed here once and read from
+    # memory afterwards.
+    live_contract_digest(app_instance)
     poller = asyncio.create_task(poll_sessions_forever(default_home()))
     _reconcile_dispatch_runs()
     try:
