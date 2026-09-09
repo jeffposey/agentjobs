@@ -80,6 +80,21 @@ class TestTheDigestTracksTheContract:
 
 
 class TestTheVersionEndpointReportsIt:
+    def test_startup_pays_for_the_digest_so_no_request_does(self) -> None:
+        """Building the OpenAPI document is about 280ms of synchronous work.
+
+        Computed on demand, that lands inside the first ``/api/version`` request every
+        process ever answers -- at page load, in an async route, blocking the event loop
+        for everything else the app is fetching at the same moment. A process cannot
+        change its own routes, so the lifespan fixes the answer once.
+        """
+        app.state.contract_digest = None
+
+        with TestClient(app):
+            warmed = app.state.contract_digest
+
+        assert warmed == contract_digest(app.openapi())
+
     def test_it_answers_the_digest_of_the_contract_it_is_serving(self) -> None:
         with TestClient(app) as client:
             body = client.get("/api/version").json()
