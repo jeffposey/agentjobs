@@ -189,7 +189,9 @@ class World:
         """
         settings = load_storage_settings()
         with server_process():
-            store = SqlTaskStore(open_database(settings.database), self.project.id)
+            store = SqlTaskStore(
+                open_database(settings.database_for(self.project.id)), self.project.id
+            )
             store.ensure_project(root=str(self.project.root))
             return TaskManager(store)
 

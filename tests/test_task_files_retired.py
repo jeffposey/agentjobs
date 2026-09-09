@@ -168,6 +168,6 @@ class TestNothingDirtiesTheCheckout:
 
     def test_the_database_is_outside_every_checkout(self, project: Project) -> None:
         migrated(project)
-        database = load_storage_settings().database
+        database = load_storage_settings().database_for(project.id)
         assert project.root not in database.parents
         assert database.exists()
