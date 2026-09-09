@@ -105,7 +105,7 @@ class TestInitWritesTheEntry:
         result = runner.invoke(
             cli_app,
             ["init"],
-            input=f"Test Project\ntasks\nprompts\n{port}\njeff\n",
+            input=f"Test Project\nprompts\n{port}\njeff\n",
         )
         assert result.exit_code == 0, result.output
 
@@ -139,9 +139,7 @@ class TestInitWritesTheEntry:
         monkeypatch.chdir(tmp_path)
         (tmp_path / MCP_CONFIG_FILENAME).write_text("{ broken", encoding="utf-8")
 
-        result = runner.invoke(
-            cli_app, ["init"], input="Test Project\ntasks\nprompts\n9123\njeff\n"
-        )
+        result = runner.invoke(cli_app, ["init"], input="Test Project\nprompts\n9123\njeff\n")
 
         assert result.exit_code == 0, result.output
         assert "No MCP server entry written" in result.output

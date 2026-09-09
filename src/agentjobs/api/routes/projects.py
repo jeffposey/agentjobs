@@ -26,6 +26,7 @@ from agentjobs.projects import (
     slugify_project_id,
     validate_project_id,
 )
+from agentjobs.store_factory import provision_project_database
 
 from ..dependencies import (
     get_principal,
@@ -271,6 +272,13 @@ async def initialize_and_register_project(
     initialize_project(root, config, contain_directories=True)
     _declare_mcp_server(request, root, payload.port)
     project = registry.add(root, project_id=identifier, name=project_name)
+    # A project created here starts on the database like one created by `agentjobs
+    # init` (task-399). This runs inside the server, which is the process that owns the
+    # store, so the direct open the CLI has to justify is simply what is happening.
+    try:
+        provision_project_database(project)
+    except Exception:  # noqa: BLE001 - the project is registered and usable either way
+        logger.warning("Could not provision a database for %s", project.id, exc_info=True)
     return _describe(project, 0)
 
 

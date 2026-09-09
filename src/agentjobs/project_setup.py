@@ -19,6 +19,11 @@ MCP_SERVER_NAME = "agentjobs"
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "project_name": "AgentJobs Project",
+    # Kept, and no longer created (task-399). A new project's records are rows in its
+    # own database, so nothing writes here -- but the field still names where an
+    # *existing* corpus is read from, which is what `agentjobs storage cutover` imports
+    # and what `agentjobs validate` checks. Dropping it would take the import path with
+    # it, and it is on the API's project summary besides.
     "tasks_directory": "tasks",
     # Who this project is served to. "shared" is what an unset key means anyway
     # (agentjobs.exposure), and it is written out so a new project records a decision
@@ -85,12 +90,23 @@ def initialize_project(
     config: Dict[str, Any],
     *,
     contain_directories: bool = False,
+    create_tasks_directory: bool = False,
 ) -> Path:
-    """Write a new config and tasks directory, never replacing an existing config.
+    """Write a new project config, never replacing an existing one.
 
     The root itself must already exist. Web callers enable ``contain_directories`` so
     configured directories cannot turn one approved root into writes elsewhere. The
     CLI retains support for existing absolute-directory workflows.
+
+    **No tasks directory is made unless one is asked for** (task-399). A new project's
+    records are rows in its own database, and an empty ``tasks/`` in every fresh
+    checkout is an invitation to put a task file in it that nothing will ever read.
+    ``create_tasks_directory=True`` is what ``agentjobs init --backend files`` passes,
+    and it goes when the file backend does.
+
+    The configured path is still *resolved* either way, because that is what rejects a
+    ``tasks_directory`` pointing outside an approved root -- a check that has to happen
+    when the value is written, not when something first reads it.
     """
     resolved_root = Path(root).expanduser().resolve()
     if not resolved_root.is_dir():
@@ -115,7 +131,8 @@ def initialize_project(
         if not tasks_path.is_absolute():
             tasks_path = resolved_root / tasks_path
 
-    tasks_path.mkdir(parents=True, exist_ok=True)
+    if create_tasks_directory:
+        tasks_path.mkdir(parents=True, exist_ok=True)
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         yaml.safe_dump(config, sort_keys=False, allow_unicode=False),

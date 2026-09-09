@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from agentjobs.api.dependencies import TASKS_DIR_ENV, reset_dependency_cache
 from agentjobs.api.main import app
 from agentjobs.projects import ProjectRegistry
+from agentjobs.storage_config import load_storage_settings
 
 
 @pytest.fixture()
@@ -128,7 +129,10 @@ class TestInitializeProject:
 
         assert response.status_code == 201, response.text
         assert response.json()["id"] == "fresh-project"
-        assert (root / "tasks").is_dir()
+        # No tasks directory: a project created here starts on the database, like one
+        # created by `agentjobs init` (task-399).
+        assert not (root / "tasks").exists()
+        assert load_storage_settings().on_sqlite("fresh-project")
         config = yaml.safe_load((root / ".agentjobs" / "config.yaml").read_text())
         assert config["project_name"] == "Fresh Project"
         assert config["default_user"] == "jeff"

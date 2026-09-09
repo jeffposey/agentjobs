@@ -69,10 +69,15 @@ from .cutover import status as cutover_status
 from .cutover import restore_backup, verify_backup
 from .quotation import scan_task
 from .sqlstore import CorpusAlreadyImported, QuotationPolicyError
-from .storage_config import StorageSettings, load_storage_settings
+from .storage_config import BACKENDS, FILES, SQLITE, StorageSettings, load_storage_settings
 from .storage_split import SplitError, split_project
 from .storage import TaskStorage, corpus_snapshot
-from .store_factory import TaskManagerLike, dispatch_manager_for, task_manager_for
+from .store_factory import (
+    TaskManagerLike,
+    dispatch_manager_for,
+    provision_project_database,
+    task_manager_for,
+)
 
 
 def _make_output_encoding_safe() -> None:
@@ -261,6 +266,56 @@ def _write_mcp_entry(base_dir: Path, port: int) -> None:
         )
 
 
+def _existing_task_files(base_dir: Path, tasks_dir: str) -> list[Path]:
+    """Task YAML already sitting in the directory being initialized.
+
+    Read before anything is written, because the answer changes what ``init`` has to
+    say: a corpus here is somebody's backlog, and a fresh project on the database will
+    not read a byte of it.
+    """
+    configured = Path(tasks_dir)
+    resolved = configured if configured.is_absolute() else base_dir / configured
+    try:
+        return sorted(resolved.glob("*.yaml"))
+    except OSError:
+        return []
+
+
+def _report_existing_corpus(found: list[Path], project_id: Optional[str]) -> None:
+    """Name an existing corpus and the command that brings it in (task-399).
+
+    Neither ignored nor absorbed. Importing it silently would mean ``init`` deciding
+    that whatever is in this directory is now this project's backlog, quotation policy
+    and history reconciliation included -- which is what ``storage cutover`` does under
+    a preview, a backup and a field-by-field verification, and none of that belongs in
+    a command somebody runs to make a config file.
+    """
+    if not found:
+        return
+    where = found[0].parent
+    typer.secho(
+        f"⚠️  {len(found)} task file(s) already in {where}. This project's records are "
+        "rows in its database, so nothing here is read.",
+        fg=typer.colors.YELLOW,
+    )
+    target = f" --project {project_id}" if project_id else ""
+    typer.echo(
+        f"   To bring them in: 'agentjobs storage preview{target}', then "
+        f"'agentjobs storage cutover{target}'."
+    )
+
+
+def _provision_database(project: Project) -> None:
+    """Put a freshly registered project on the database, but never fail init over it."""
+    try:
+        database = provision_project_database(project)
+    except Exception as exc:  # noqa: BLE001 - a usable project must not hinge on this
+        typer.secho(f"⚠️  No database created: {exc}", fg=typer.colors.YELLOW)
+        typer.echo("   'agentjobs storage status' says where this project stands.")
+        return
+    typer.echo(f"   Records live in {database} — no task files, nothing to commit.")
+
+
 @app.command()
 def init(
     project_name: Optional[str] = typer.Option(None, help="Project display name."),
@@ -268,9 +323,30 @@ def init(
     prompts_dir: Optional[str] = typer.Option(None, help="Relative path for prompt files."),
     port: Optional[int] = typer.Option(None, help="Default port for the web UI."),
     user: Optional[str] = typer.Option(None, help="Your actor id, recorded on your actions."),
+    backend: str = typer.Option(
+        SQLITE,
+        "--backend",
+        help="Where this project's records live: 'sqlite' (default) or 'files' (legacy).",
+    ),
 ) -> None:
-    """Initialize AgentJobs in current directory."""
+    """Initialize AgentJobs in current directory.
+
+    The project's records are rows in a database of its own under
+    ``~/.agentjobs/databases/``, and no task directory is created (task-399). A new
+    install therefore starts where every migrated project ends up, instead of building
+    a corpus it has to be walked through migrating later.
+
+    ``--backend files`` is the old behaviour, kept while the file backend still exists.
+    """
     import getpass
+
+    if backend not in BACKENDS:
+        typer.secho(
+            f"Unknown backend {backend!r}. Known backends: {', '.join(BACKENDS)}.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+    on_files = backend == FILES
 
     base_dir = Path.cwd()
     if (base_dir / CONFIG_FILE).exists():
@@ -281,12 +357,19 @@ def init(
         )
         raise typer.Exit(code=1)
     project_name = project_name or typer.prompt("Project name")
-    tasks_dir = tasks_dir or typer.prompt("Tasks dir", default="tasks")
+    # Asked only when files are what this project will be served from. On the database
+    # the field still names where an import would read, and asking a new user to choose
+    # a directory nothing writes to is ceremony that teaches the wrong model.
+    if on_files:
+        tasks_dir = tasks_dir or typer.prompt("Tasks dir", default="tasks")
+    tasks_dir = tasks_dir or "tasks"
     prompts_dir = prompts_dir or typer.prompt("Prompts dir", default="prompts")
     port = port or int(typer.prompt("Port", default="8765"))
     # Asked at init because a project with no human configured records every review
     # action anonymously, and nobody goes looking for that setting afterwards.
     user = user or typer.prompt("Your user id", default=getpass.getuser().lower())
+
+    found = [] if on_files else _existing_task_files(base_dir, tasks_dir)
 
     config = build_project_config(
         project_name=project_name,
@@ -296,7 +379,7 @@ def init(
         user=user,
     )
     try:
-        initialize_project(base_dir, config)
+        initialize_project(base_dir, config, create_tasks_directory=on_files)
     except ProjectError as exc:
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
@@ -307,12 +390,35 @@ def init(
     # Register on the machine so one server can serve this project alongside others.
     # A registration failure must not fail init -- the project is initialized either
     # way, and it stays usable from its own directory.
+    project = None
     try:
         project = ProjectRegistry().add(base_dir)
     except ProjectError as exc:
         typer.echo(f"⚠️  Not registered for multi-project use: {exc}")
     else:
         typer.echo(f"   Registered as '{project.id}' — visible in 'agentjobs project list'.")
+
+    if on_files:
+        _report_existing_corpus(found, project.id if project else None)
+        return
+
+    if project is None:
+        # The storage map is keyed on a project id, so there is nothing to record for a
+        # project that has none. Saying so beats leaving a config that promises a
+        # database nothing will ever create.
+        typer.secho(
+            "⚠️  Without a registration this project has no database; it falls back to "
+            "task files. Register it with 'agentjobs project add .' and rerun.",
+            fg=typer.colors.YELLOW,
+        )
+        return
+
+    _provision_database(project)
+    _report_existing_corpus(found, project.id)
+    typer.echo(
+        f"   Start the server to work it: 'agentjobs open' (or 'agentjobs serve "
+        f"--port {port}')."
+    )
 
 
 @app.command()
@@ -867,13 +973,18 @@ def create(
         priority=priority,
         category=category,
     )
+    # Named as a file only where the record *is* a file. On the database it is rows,
+    # and a fresh install's very first line of output telling somebody a YAML file was
+    # written sends them looking for a directory this project does not have (task-399).
+    created = (
+        f"{task.id}.yaml" if getattr(manager.storage, "supports_task_files", True) else task.id
+    )
     if ready:
         manager.promote_task(task.id, actor=_resolve_actor(config, actor))
-        typer.echo(f"✅ Created {task.id}.yaml (ready — claimable now)")
+        typer.echo(f"✅ Created {created} (ready — claimable now)")
     else:
         typer.echo(
-            f"✅ Created {task.id}.yaml (draft — not claimable until "
-            f"`agentjobs promote {task.id}`)"
+            f"✅ Created {created} (draft — not claimable until " f"`agentjobs promote {task.id}`)"
         )
 
 
@@ -2103,6 +2214,15 @@ def storage_status(
             )
         if line.cutover_at:
             typer.echo(f"    cut over {line.cutover_at} from {line.source}")
+        if line.backend == FILES:
+            # A new project is created on the database (task-399), so a project still
+            # on files is one registered before that and never migrated. Saying so here
+            # is the "told to import" half of not breaking it silently: it keeps working
+            # until the file backend goes, and this is where an operator looks.
+            typer.echo(
+                f"    still on task files — 'agentjobs storage cutover --project "
+                f"{line.project_id}' moves it, and a new project starts on the database"
+            )
 
 
 @storage_app.command("preview")
