@@ -1743,6 +1743,11 @@ export const resumeTaskApiTasksTaskIdResumePost = <ThrowOnError extends boolean 
  * Added for the MCP server's startup probe, which refuses to serve tools against a
  * service it cannot understand. The version is already in ``/openapi.json``, but
  * reading it there makes every client parse a large document to learn two fields.
+ *
+ * The React app polls it for a second reason: to notice that the process answering
+ * it is not the one its own bundle was built against, and to say so with the remedy
+ * rather than crashing somewhere unrelated when a response is not the shape its
+ * generated types promise.
  */
 export const apiVersionApiVersionGet = <ThrowOnError extends boolean = false>(options?: Options<ApiVersionApiVersionGetData, ThrowOnError>) => (options?.client ?? client).get<ApiVersionApiVersionGetResponses, unknown, ThrowOnError>({ url: '/api/version', ...options });
 

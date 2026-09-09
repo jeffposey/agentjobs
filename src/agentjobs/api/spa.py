@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -32,6 +33,33 @@ def bundle_is_present(dist_dir: Optional[Path] = None) -> bool:
     """
     dist = (dist_dir or default_frontend_dist()).resolve()
     return (dist / "index.html").is_file()
+
+
+def bundle_id(dist_dir: Optional[Path] = None) -> Optional[str]:
+    """Which build of the React app this process is serving right now, or None.
+
+    Written by ``frontend/scripts/build-service-worker.mjs`` as the last step of
+    ``npm run build``, and derived from the built asset bytes, so it moves on any
+    rebuild that changes the app -- including the great majority that touch no API
+    route at all and therefore leave the contract digest alone.
+
+    That is what makes it worth reporting separately. A tab that has been open across
+    a rebuild is running the previous bundle and will keep running it until somebody
+    reloads, which is the complaint this answers: the app compares the id it first saw
+    against the one being served now and offers the reload rather than waiting to be
+    guessed at.
+
+    **Read from disk on every call, deliberately.** Caching it would make a running
+    server report the build it started with forever, which is precisely the class of
+    staleness this whole endpoint exists to expose.
+    """
+    path = (dist_dir or default_frontend_dist()).resolve() / "build-info.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    value = payload.get("bundle_id") if isinstance(payload, dict) else None
+    return value if isinstance(value, str) and value else None
 
 
 def bundle_status(dist_dir: Optional[Path] = None) -> Optional[str]:
