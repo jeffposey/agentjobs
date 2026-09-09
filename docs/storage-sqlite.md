@@ -496,6 +496,27 @@ instead would leave the other project's attachment pointing at bytes that no lon
 snapshot replaces when there is more than one: a snapshot is a whole file, and guessing
 would put one project's records over another's.
 
+### What is left of the shared file
+
+**`split` never deletes the database it moved a project out of**, and once the last
+project has left, that file is still there holding nothing. This is deliberate on both
+counts: a command that removes rows should not also remove the container they were in,
+and the machine's top-level `database:` key still names it as the fallback for a project
+whose entry names no file of its own.
+
+So an operator who splits every project ends up with an empty database beside the
+registry, at whatever size it had grown to — SQLite does not give the pages back. It is
+safe to remove once `agentjobs storage status` shows every project served from its own
+file and a backup of it has been kept, and removing it is a separate, deliberate act
+rather than something a split does on your behalf. Until then, the honest description of
+it is a fallback nothing currently resolves to.
+
+**Check what your backups now cover.** `storage backup` snapshots the database of every
+project the configuration names, so after a split it writes one snapshot per project into
+`databases/` and stops covering the old shared file entirely. A backup routine that names
+`~/.agentjobs/agentjobs.db` by path keeps succeeding against a file that no longer holds
+any records, which is the failure mode worth looking for the day a split is run.
+
 ## 12. What this does not do
 
 - **It does not remove code worktrees.** Those isolate *code*, and that argument is
