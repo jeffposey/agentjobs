@@ -50,7 +50,7 @@ the scoped form so switching projects never depends on the server's current dire
 | `GET` | `/api/tasks/claimable` | Every task that may be worked now, in the queue's order; `/next` is its head. Accepts `agent`, `priority`, `parent` |
 | `GET` | `/api/tasks/{task_id}` | Return one task record |
 | `GET` | `/api/tasks/{task_id}/detail` | Return the full review/resumption view with relationships |
-| `GET` | `/api/tasks/broken` | Report task records that exist but cannot be loaded (a files project's unparseable YAML) |
+| `GET` | `/api/tasks/broken` | Report task records that exist but cannot be loaded |
 | `GET` | `/api/search?q=...` | Search task id, title, spec, ball prompt and tags |
 | `GET` | `/api/dashboard` | Return dashboard counts and activity |
 | `GET` | `/api/attention` | Count the tasks stopped waiting on a person; the header's red badge |
@@ -206,19 +206,21 @@ non-zero on a broken queue; `queue list` and `queue check` do not.
 ### Where the records are, and moving them
 
 ```
-agentjobs storage status                  # per project: backend, rows, files
+agentjobs storage status                  # per project: database, rows, files
 agentjobs storage preview [--project <id>] [--backfill-git]
-agentjobs storage cutover [--project <id>] [--replace] [--no-backfill-git]
-agentjobs storage rollback [--project <id>] [--into <dir>]
+agentjobs storage import [--project <id>] [--replace] [--no-backfill-git]
+agentjobs storage split --project <id>    # out of a shared database into its own
 agentjobs storage export <dir> [--project <id>]
 agentjobs storage backup [--into <path>]  # snapshot + manifest, verified as it is taken
 agentjobs storage verify <snapshot>
 agentjobs storage restore <snapshot> [--force]
 ```
 
-Every one of these opens the database as the single writer, so `cutover`, `rollback` and
-`restore` refuse while a server is listening. The sequence, what each step guarantees and
-the backup-enrolment checkpoint are in [the storage guide](storage-sqlite.md).
+`import` takes a directory of task YAML written by an older AgentJobs, once and in one
+direction; `cutover` is its old name and still works. Every one of these opens the
+database as the single writer, so `import`, `split` and `restore` refuse while a server
+is listening. The sequence, what each step guarantees and the backup-enrolment checkpoint
+are in [the storage guide](storage-sqlite.md).
 
 ## Minimal client example
 

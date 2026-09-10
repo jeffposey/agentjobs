@@ -127,6 +127,14 @@ Three limits, stated rather than buried:
 bundle commit. That is the whole point of the exercise: without a baseline, the next release
 has nothing to compare against. `results/` is where a fresh run lands and is gitignored.
 
+**A baseline can name a scenario the suite no longer has**, and the 2026-08-25 pair does.
+`task-record-on-main` measured the rule that a task record is committed to `main` and never
+to a feature branch; task-402 deleted the file backend, so there is no record in a checkout
+to commit anywhere and the scenario cannot be run or retargeted. It was retired under
+task-403. Both baselines had already scored it **decorative** — 100% compliant with the rule
+ablated as well as present — so nothing measured is lost with it. A retirement belongs here
+rather than as an edit to a dated report.
+
 ### 2026-08-25 — the first two
 
 | | `claude-opus-5` | `claude-haiku-4-5` |

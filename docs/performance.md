@@ -50,20 +50,23 @@ API
 - **p50 / p95** — median and 95th-percentile wall time from the client, over the
   configured iterations, after one discarded warmup request.
 - **parses** — how many task files the server read and parsed from disk to answer.
-  Read from the `X-Task-Parses` response header.
+  Read from the `X-Task-Parses` response header, and zero on every ordinary request.
 - **srv ms** — time spent inside the application, from the `X-Response-Time-Ms`
   header. A large gap between this and p50 points at transport or client overhead
   rather than at the server.
 
-**The parse count is the more useful number.** Wall-clock time depends on the machine,
-what else it is running, and the weather; the parse count does not. A request that
-parses a 119-file corpus 476 times is doing four times too much work on any hardware,
-and a change that drops it to 119 has demonstrably fixed something. Prefer to write
-assertions against parse counts and treat timings as corroboration.
+**The parse count is now a regression alarm rather than a dial.** Records are rows, so
+no request parses a task file and the honest reading of the column is that anything other
+than zero is a request that has quietly started reading a directory again. Only an import
+legitimately parses files. It is kept for exactly that: an assertion that costs nothing
+and holds a property the whole migration was for.
 
-The counter is a files-backend instrument: a project on SQLite reads no files, so it
-reports 0 there, and the benchmark server is always on files (it runs under its own
-`AGENTJOBS_HOME`), which is why the number still means something on a migrated machine.
+What it used to be is worth knowing, because the reasoning still applies to any future
+counter. Wall-clock time depends on the machine, what else it is running, and the
+weather; a count of work done does not. A request that parsed a 119-file corpus 476 times
+was doing four times too much work on any hardware, and the change that dropped it to 119
+had demonstrably fixed something no timing could have proved. Prefer an assertion on work
+done over an assertion on elapsed time wherever you can construct one.
 
 ## The two headers
 

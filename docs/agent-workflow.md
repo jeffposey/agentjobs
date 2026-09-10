@@ -1,10 +1,10 @@
 # Agent Workflow Guide
 
 AgentJobs is a durable handoff protocol for agents, humans, and external dependencies.
-The task record is the source of truth -- whether the project keeps it as YAML or in the
-SQLite store, which [the storage guide](storage-sqlite.md) covers and
-`agentjobs storage status` reports. Chat can wake a participant or make an interactive
-session convenient, but it is never required working memory.
+The task record is the source of truth. It is a row in a database beside the server and
+outside every checkout, which [the storage guide](storage-sqlite.md) covers. Chat can wake
+a participant or make an interactive session convenient, but it is never required working
+memory.
 
 The canonical contract is [schema design section 5](schema-design.md#the-resumption-contract).
 This guide shows how to apply it with the schema-v2 Python client.
@@ -55,8 +55,7 @@ terminal to answer. The run then waits for an answer that cannot arrive — obse
 2026-08-20 on the first dispatch after the `-w` change, which parked on that prompt
 before it wrote a line. The same applies to anything else that moves where the session is
 allowed to act. `git worktree add` is an ordinary shell command, needs no relocation, and
-leaves you able to `git -C` the shared clone, which is where your merge happens — and,
-on a project still on files, where your task records go.
+leaves you able to `git -C` the shared clone, which is where your merge happens.
 
 **Your harness will tell you to do it the other way, and will say so in a sentence that
 sounds like the last word.** A Claude Code background session opens with *"Before making
@@ -84,8 +83,7 @@ This used to be arranged for the agent. Dispatch passed Claude Code's `-w` flag,
 put the session in a worktree the CLI managed, and containment was mechanical. It cannot
 any more: the isolation that flag grants is enforced by a guard that refuses **every**
 git operation aimed at the shared checkout — by `-C` and by `cd` alike — and the merge
-happens there, as does the task-record commit on a files project. A run isolated that way
-could do the work and then be unable to land it. So the containment is unchanged in what
+happens there. A run isolated that way could do the work and then be unable to land it. So the containment is unchanged in what
 it protects; taking it is now your first act rather than the launcher's. The full argument, with the reproduction, is in
 [the dispatch design](agent-dispatch-design.md).
 
@@ -589,9 +587,8 @@ did it would be an agent grading an epic on the strength of its children having 
 
 ## Task records are readable generated state
 
-Read a record whenever you want — `task_get` over MCP, `agentjobs show`, the UI, or
-the YAML itself on a project still on files; reviewing a task means opening it. But **do
-not edit them** directly. Every change goes through a managed interface — the
+Read a record whenever you want — `task_get` over MCP, `agentjobs show`, or the UI;
+reviewing a task means opening it. But **do not edit them** directly. Every change goes through a managed interface — the
 [MCP tools](mcp.md), the REST API, the CLI, or the web UI — which all reach the same
 code path: strict validation, a per-task lock, and a log entry recording who moved what
 and why. A direct edit skips all three and produces a record that looks right and is
@@ -600,7 +597,8 @@ and no `ball` logged no transition, failed no validator, and disappeared from ev
 listing as a broken file.
 
 If a managed operation fails, diagnose the error — every one carries a code and a
-suggested action. A failing tool is not permission to edit YAML. Direct repair is an
+suggested action. A failing tool is not permission to write to the store yourself.
+Direct repair is an
 emergency procedure for a maintainer, requires a stated reason, and is followed by
 `agentjobs validate`.
 
@@ -770,12 +768,11 @@ The claim is atomic: one eligible agent wins and other claimants receive an erro
 and no open child tasks.
 
 The worktree and branch come before the claim — see [above](#before-you-write-anything-take-your-own-worktree).
-For AgentJobs repository work specifically, the project's own records have been on the
-SQLite backend since 2026-09-07 (`agentjobs storage status`), so a task write dirties
-nothing and is committed nowhere: only code and documentation go on the task branch. The
-older rule — task metadata committed on `main`, never on the branch, because a handoff
-committed to a branch is invisible to the human it is addressed to — is the files-project
-case, kept in [the storage guide](storage-sqlite.md#9-the-two-worlds-a-project-can-be-in).
+A task write dirties nothing and is committed nowhere, so only code and documentation go
+on the task branch. The older rule — task metadata committed on `main`, never on the
+branch, because a handoff committed to a branch was invisible to the human it was
+addressed to — described records kept as files, and
+[the storage guide](storage-sqlite.md#what-a-record-still-is) says what replaced it.
 Repository contributors must also follow `ALLAGENTS.md` and `ENGINEERING.md`.
 
 ## Resume an Existing Task

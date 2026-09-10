@@ -35,7 +35,7 @@ and every branch sees the same backlog. That means the server has to be running 
 commands below; step 2 starts it. If the directory you are initializing already holds
 task YAML from an earlier AgentJobs, `init` says so and names the import command rather
 than reading or absorbing it — see
-[the two worlds a project can be in](storage-sqlite.md#9-the-two-worlds-a-project-can-be-in).
+[importing an existing corpus](storage-sqlite.md#9-importing-an-existing-corpus).
 
 ## 2. Open the React application
 

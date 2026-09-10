@@ -615,7 +615,7 @@ a commit specifically to fail a widened rule.
 
 **What is not covered, and is left deliberately.** `reporting_tz` is validated at
 `ensure_project` and by the trigger, and there is no way to *change* it after a cutover
-short of SQL: `agentjobs storage cutover --reporting-tz` is the only setter. This project
+short of SQL: `agentjobs storage import --reporting-tz` is the only setter. This project
 was cut over with `America/Chicago`, so nothing here needs correcting today — but a project
 cut over without the flag holds `UTC` and has no way back. §7 is what reads the column, so
 the setter belongs with the API that makes the value matter rather than with the schema

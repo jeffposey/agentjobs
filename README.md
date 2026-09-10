@@ -6,8 +6,8 @@ many sessions as you can run.**
 Prototyping with an agent is fast until the third session, when nothing remembers what's
 done, what's half-done, or what's waiting on you. AgentJobs is the record that outlives
 the session: a durable record naming who has the ball and what they're being asked to
-do — one YAML file per task in git, or a SQLite store beside the server once more than
-one session is working the backlog.
+do — kept in a database beside the server, outside every checkout, so every session and
+every branch is looking at the same backlog.
 
 ## The ball is always somewhere
 
@@ -128,16 +128,19 @@ the decision instead of re-deriving it.
   not what to start — but it can still be claimed by name, and claiming one hands back a
   *supervision* prompt, not a work prompt. The umbrella is a job, and it is a different
   job from its children.
-- **The record is readable, and it is not writable.** Agents read task YAML freely;
-  every change goes through a managed path that validates, locks and logs. A hand-edited
-  file that looks right and is not is the failure this prevents.
-- **The storage is yours to choose, and it is one line to see.** Records start as one
-  YAML file per task -- diffable, reviewable in a pull request, portable between tools,
-  no service to operate. `agentjobs storage cutover` moves a project to a SQLite store
-  beside the server, which ends the branch-decides-the-backlog coupling and makes
-  historical questions a query — where a backlog worked by concurrent sessions belongs,
-  and where this project's own records live. `agentjobs storage status` says which a
-  project is on; [the storage guide](docs/storage-sqlite.md) is the whole argument.
+- **The record is readable, and it is not writable.** Agents read whole records freely --
+  `agentjobs show` prints one as JSON, the REST API serves it, and
+  `agentjobs storage export` writes the backlog out as the same task YAML it imports. Every
+  change goes through a managed path that validates, locks and logs. A hand-edited record
+  that looks right and is not is the failure this prevents.
+- **The storage is a database beside the server, and there is only the one.** Records are
+  rows in a per-project SQLite file under `~/.agentjobs/`, outside every checkout, so no
+  task file ever appears in your repository. That is what ends the
+  branch-decides-the-backlog coupling — concurrent sessions on different branches see one
+  backlog — and what makes a historical question a query rather than a walk through git
+  history. `agentjobs storage status` says where each project's records are, counted
+  rather than assumed; [the storage guide](docs/storage-sqlite.md) is the whole argument,
+  including what was given up to get here.
 
 **And it closes the loop.** A tracker with an MCP server can record that a human approved
 something. It cannot turn that approval into a running agent, in the right directory,
@@ -219,9 +222,9 @@ a particular desktop operating system.
 - A CLI covering create, list, show, next, promote, work, validate, the queue and
   dispatch command groups, project registration, the MCP server, and server control
 - Markdown-to-YAML and schema-v1-to-v2 migration tools
-- **Per-project storage.** Records start as YAML files; `agentjobs storage cutover` moves
-  a project to a SQLite store beside the server, with preview, verified backup, restore,
-  export and rollback under the same command group
+- **Per-project storage.** Every project's records are rows in a SQLite database of its
+  own beside the server, with preview, one-way import of an existing YAML corpus,
+  verified backup, restore and export under the same command group
 
 The Python client and REST API expose the full schema-v2 state verbs. The CLI has no
 dedicated `claim`/`handoff`/`release`/`close` command — those remain backlog work, and
@@ -282,9 +285,9 @@ poetry -P /path/to/agentjobs run agentjobs open
 
 `init` gives the project a database of its own beside the server and creates no task
 directory, so no task file ever appears in your repository and the server is what the
-CLI talks to. [The two worlds a project can be
-in](docs/storage-sqlite.md#9-the-two-worlds-a-project-can-be-in) covers the older
-file-backed arrangement and how a project moves between them.
+CLI talks to. Arriving with a corpus of task YAML from an older version?
+[The import](docs/storage-sqlite.md#9-importing-an-existing-corpus) takes it once, and
+[the storage guide](docs/storage-sqlite.md) says what a record still is once it is a row.
 
 From the AgentJobs clone, useful commands include:
 
@@ -350,15 +353,14 @@ with TaskClient() as client:
 ## Development
 
 AgentJobs uses itself to manage its own development, and the records are the source of
-truth -- not a chat log. Where they live is a per-project choice:
-`agentjobs storage status` answers it, and
-[the storage guide](docs/storage-sqlite.md) explains both worlds.
+truth -- not a chat log. They live in a database beside the server;
+`agentjobs storage status` prints the path, and
+[the storage guide](docs/storage-sqlite.md) is why.
 
-On the maintainer's machine this repository's own backlog has been on SQLite since
-2026-09-07. The tracked `tasks/agentjobs/` directory is the frozen pre-cutover copy of
-those records: nothing reads it, its files stop at the cutover, and task-380 retires it
-the way
-[the storage guide's section 11](docs/storage-sqlite.md#11-retiring-the-files-and-going-back)
+This repository's own backlog was imported on 2026-09-07. The tracked `tasks/agentjobs/`
+directory is the frozen copy it was built from: nothing reads it, its files stop at the
+import, and task-380 retires it the way
+[the storage guide's section 10](docs/storage-sqlite.md#10-retiring-an-imported-corpus)
 describes. `tasks/test-data/` is fixture material for
 `agentjobs load-test-data` and the test suite, not a backlog.
 
