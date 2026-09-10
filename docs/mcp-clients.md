@@ -140,10 +140,10 @@ start — including in the session you ran the install command from, which will 
 it.
 
 Verify in the new session: `claude plugin list` should show it, and asking "what should
-I work on in *project*?" should trigger the skill. Then, on a project still on files,
-ask Claude to edit a task YAML file directly; it should be refused, with a message naming
-the file and the AgentJobs tools to use instead. A SQLite project has no file in the
-checkout for that check to fire on.
+I work on in *project*?" should trigger the skill. The hook that refuses a direct edit
+of a task file has nothing to fire on in an ordinary project, since records are rows and
+no task file is in the checkout; it still guards a directory of exported or
+awaiting-import YAML, which is where one can now be found.
 
 Protection: MCP tools, plus the pre-tool hook once trusted, plus the receipt gate if
 you install it, plus portable validation. The same as Codex.

@@ -5,13 +5,15 @@ its reasoning, not a statement of what exists.** As of 2026-08-22 `src/agentjobs
 is 15 modules and 9,729 lines (`wc -l src/agentjobs/dispatch/*.py`), with a `dispatch`
 CLI sub-app, REST routes under `/api/dispatch`, and a React surface.
 
-**Written while every project kept its records as files in the repository.** Since
-2026-09-07 this repository's own records are rows in a SQLite store outside every
-checkout ([the storage guide](storage-sqlite.md)), and every project registered on the
-owner's machine followed on 2026-09-08. Wherever this document says a task record is
-git-tracked, committed to `main`, `git blame`-able, or a reason the base moves, read
-"on a files project": the argument is unchanged there and moot on SQLite, where nothing
-commits a record and every branch sees the same backlog. Two passages are corrected
+**Written while every project kept its records as files in the repository, which no
+project does any more.** Records became rows in a SQLite store outside every checkout
+([the storage guide](storage-sqlite.md)) during 2026-09, and task-402 deleted the file
+backend, so the condition below can no longer obtain. Wherever this document says a task
+record is git-tracked, committed to `main`, `git blame`-able, or a reason the base moves,
+read it as an account of why the design was shaped that way rather than as instruction:
+nothing commits a record now and every branch sees the same backlog. The phrase "on a
+files project" survives in the passages below for the same reason — it marks a condition
+that was live when the reasoning was written. Two passages are corrected
 inline rather than by this note, because a reader of §6 or §8 alone would act on them:
 the clean-tree check's exclusion of the tasks directory (task-182) is not made for a
 migrated project, so the coverage it cost is back (task-311, task-378).

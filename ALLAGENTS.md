@@ -100,7 +100,7 @@ reported and verified its work, not re-verifying it.
 Three things do not change because a child is a session:
 
 - Its **task record is written the same way yours is** — see
-  [Where task records live](ENGINEERING.md#where-task-records-live-and-whether-you-commit-them).
+  [Where task records live](ENGINEERING.md#where-task-records-live).
 - Its **merge gate stands or falls on the child's own terms**: a child merges on an
   explicit human approval of *that child*, or — at posture `autonomous` — on its own
   green gate. Never on yours. A supervisor approves nothing under either policy.

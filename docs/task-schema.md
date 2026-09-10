@@ -14,12 +14,10 @@ surface will show you. Make changes through the [MCP tools](mcp.md), the REST AP
 CLI, or the web UI — all four reach the same validated write path — and run
 `agentjobs validate` if you ever suspect a file was shaped by something else.
 
-On a project still on files, tasks live in the directory named by `tasks_directory` in
-`.agentjobs/config.yaml`. `TaskStorage` globs `*.yaml` non-recursively, so files in
-subdirectories are invisible to the store — that is how `tasks/test-data/` stays out of
-a real backlog. A project cut over to SQLite keeps the same records as rows beside the
-server ([the storage guide](storage-sqlite.md)); this repository's own backlog has been
-there since 2026-09-07, and `tasks/agentjobs/` is its frozen pre-cutover copy.
+Tasks are rows in a SQLite database of the project's own beside the server, outside every
+checkout ([the storage guide](storage-sqlite.md)). This repository's own records were
+imported there on 2026-09-07; `tasks/agentjobs/` is the frozen copy they were built from
+and `tasks/test-data/` is fixture material, and no application code reads either.
 
 The schema is **v2**, defined by [`models_v2.py`](https://github.com/jeffposey/agentjobs/blob/main/src/agentjobs/models_v2.py) and
 declared machine-readably in `schema/agentjobs-v2.yaml`. Every file starts with
@@ -137,10 +135,9 @@ posture: autonomous          # read_only | supervised | auto | autonomous
 ```
 
 This is the one field in the schema that touches what a process may *do*, and a task
-record is something the agent working that very task can write — a git-tracked file on
-a files project, a row it reaches through the API on a SQLite one. So the obvious reading, "an agent can widen
-its own permissions by editing a file it can already write", has to be answered rather
-than waved at.
+record is something the agent working that very task can write, through the API. So the
+obvious reading, "an agent can widen its own permissions by editing a record it can
+already write", has to be answered rather than waved at.
 
 **It is answered by a ceiling, not by trusting the writer.** Every machine that
 dispatches declares, per project, in `~/.agentjobs/dispatch.yaml`:
@@ -435,8 +432,8 @@ decision nobody took.
 
 ### `dispatch` and `dispatch_result`
 
-That an agent was launched against a task is a durable fact — `git blame`-able on a
-files project — so it lives in the task record beside the work it produced. Run directories under
+That an agent was launched against a task is a durable fact, so it lives in the task
+record beside the work it produced. Run directories under
 `~/.agentjobs/runs/` are machine-local and disposable; these two entries are the part
 that survives. See [agent-dispatch-design.md](agent-dispatch-design.md).
 
@@ -510,27 +507,26 @@ An entry may carry images evidencing it — a screenshot of the thing being obje
 The field is additive and **absent** unless the entry has images, so no existing file
 gains a line for a field it does not use, and no schema version bump is involved.
 
-The bytes are **not** in the YAML. On a files project they live in sidecar files under
-the tasks directory at `attachments/<task-id>/<sha256><ext>`; on a SQLite project they
-are blobs in the database (storage guide §1). Either way the entry carries only metadata:
+The bytes are **not** in the record. They are blobs in the database, content addressed
+(storage guide §1), and the entry carries only metadata:
 
 | field | meaning |
 |---|---|
-| `path` | Sidecar path, relative to the tasks directory. |
+| `path` | Content-addressed path, `attachments/<task-id>/<sha256><ext>`. |
 | `media_type` | `image/png`, `image/jpeg` or `image/webp`, read from the bytes. |
 | `sha256` | Content hash. Also the filename, and checked on every read. |
 | `size_bytes` | Size of the stored file. |
 | `label` | Accessible label; the alt text where it renders. |
 
-That split is the point: a task file stays something a person reads in a text editor and
-git diffs line by line, which a base64 blob would end. Images only, 5 MiB each, and the
-type is derived from the magic number rather than taken from the caller's claim.
+That split is the point: a record stays something a person or a tool reads whole without
+carrying megabytes of base64 through every listing. Images only, 5 MiB each, and the type
+is derived from the magic number rather than taken from the caller's claim.
 
 Two consequences are deliberate. The same image pasted twice is stored once, because the
 name *is* the hash. And a file whose bytes no longer hash to its name is refused rather
-than rendered. Git keeps every blob forever, so on a files project unreferenced files are
-**reported, never deleted** — `AttachmentStore.orphans()` lists them for a person to
-decide about.
+than rendered. An unreferenced blob is **reported, never deleted** —
+`AttachmentStore.orphans()` lists them for a person to decide about, because the same
+bytes may be referenced by an entry nobody has looked at yet.
 
 ## `display_status`
 

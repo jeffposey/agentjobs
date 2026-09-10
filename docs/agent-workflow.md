@@ -768,12 +768,11 @@ The claim is atomic: one eligible agent wins and other claimants receive an erro
 and no open child tasks.
 
 The worktree and branch come before the claim — see [above](#before-you-write-anything-take-your-own-worktree).
-For AgentJobs repository work specifically, the project's own records have been on the
-SQLite backend since 2026-09-07 (`agentjobs storage status`), so a task write dirties
-nothing and is committed nowhere: only code and documentation go on the task branch. The
-older rule — task metadata committed on `main`, never on the branch, because a handoff
-committed to a branch is invisible to the human it is addressed to — is the files-project
-case, kept in [the storage guide](storage-sqlite.md#9-the-two-worlds-a-project-can-be-in).
+A task write dirties nothing and is committed nowhere, so only code and documentation go
+on the task branch. The older rule — task metadata committed on `main`, never on the
+branch, because a handoff committed to a branch was invisible to the human it was
+addressed to — described records kept as files, and
+[the storage guide](storage-sqlite.md#what-a-record-still-is) says what replaced it.
 Repository contributors must also follow `ALLAGENTS.md` and `ENGINEERING.md`.
 
 ## Resume an Existing Task
