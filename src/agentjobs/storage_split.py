@@ -320,13 +320,6 @@ def split_project(
     from .cutover import back_up
 
     resolved = settings or load_storage_settings()
-    if not resolved.on_sqlite(project.id):
-        raise SplitError(
-            f"Project {project.id!r} is served from its task files, so it has no rows in "
-            "a database to move. 'agentjobs storage cutover' is the command that puts a "
-            "project in a database, and it already gives each one a file of its own."
-        )
-
     source = resolved.database_for(project.id)
     target = (
         Path(destination).expanduser().resolve()

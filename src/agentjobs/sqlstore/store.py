@@ -1,6 +1,6 @@
 """``SqlTaskStore`` -- the authoritative SQLite backend for task records.
 
-Shaped to be a drop-in for :class:`agentjobs.storage.TaskStorage` so that task-311's
+Shaped to be a drop-in for the file backend it replaced, so that task-311's
 cutover is a swap rather than a rewrite of every caller. The file-shaped members of that
 surface are the exception, and they are deliberately not emulated: ``task_path`` raises,
 and the three advisory file locks become real transactions. See
@@ -20,7 +20,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 
 import yaml
 
@@ -29,6 +29,9 @@ from ..models_v2 import Task
 from .blobs import SqlAttachmentStore
 from .connection import Database, SqlStoreError
 from .reporting_tz import check_reporting_tz
+
+if TYPE_CHECKING:  # pragma: no cover - the shape the manager consumes
+    from ..taskfiles import LoadResult
 
 #: Axes carried on every ``task_event`` row, as (event column stem, task attribute).
 EVENT_AXES: Tuple[Tuple[str, str], ...] = (
@@ -121,7 +124,16 @@ class SqlTaskStore:
         return self.database.writer if self.database.in_transaction else self.database.reader()
 
     def load_task(self, task_id: str) -> Optional[Task]:
-        """Assemble one task, or None when there is no such task."""
+        """Assemble one task, ``None`` when there is no such task -- and raise when
+        there *was* one that could not be read.
+
+        The distinction is the reason the loud-load-errors work exists: a record that
+        exists and cannot be read must not be indistinguishable from one that was never
+        there, because a task that silently vanishes is the worst available failure
+        mode. The file backend got that by parsing the file and raising; here the
+        equivalent record is an unresolved ``import_quarantine`` row, and it is looked
+        for only on a miss -- so the ordinary read is one query, exactly as before.
+        """
         task_id = self._normalised_id(task_id)
         connection = self._connection()
         row = connection.execute(
@@ -129,8 +141,22 @@ class SqlTaskStore:
             (self.project_id, task_id),
         ).fetchone()
         if row is None:
+            self._raise_if_quarantined(connection, task_id)
             return None
         return self._assemble(connection, [row])[0]
+
+    def _raise_if_quarantined(self, connection: sqlite3.Connection, task_id: str) -> None:
+        """Report an id the import could not accept as a load error, not as absence."""
+        from ..taskfiles import TaskLoadError
+
+        found = connection.execute(
+            "SELECT source_path, error FROM import_quarantine WHERE project_id = ? "
+            "AND task_id_guess = ? AND resolved_at IS NULL ORDER BY id DESC LIMIT 1",
+            (self.project_id, task_id),
+        ).fetchone()
+        if found is None:
+            return
+        raise TaskLoadError(Path(str(found["source_path"])), str(found["error"]))
 
     # The cache these mirror does not exist here: a query is the read, and there is no
     # snapshot to go stale. They stay because the manager and the API call them by name.
@@ -1068,13 +1094,13 @@ class SqlTaskStore:
         )
         return row is not None
 
-    def load_all(self) -> Any:
-        """Every task, plus the quarantined records, in the file backend's shape.
+    def load_all(self) -> "LoadResult":
+        """Every task, plus the records quarantined at import.
 
         ``LoadResult`` is what the manager, the validator and the broken-tasks endpoint
-        consume, so the SQL store answers in it rather than making three callers learn a
-        second shape. The mapping is exact: a row that loads is a task, and a record
-        that could not become a row is an error carrying the reason it was refused.
+        consume, so the store answers in it rather than making three callers learn a
+        second shape. The mapping is exact: a row is a task, and a record that could not
+        become a row is an error carrying the reason it was refused.
         """
         from ..taskfiles import LoadResult, TaskLoadError
 

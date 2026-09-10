@@ -21,7 +21,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "project_name": "AgentJobs Project",
     # Kept, and no longer created (task-399). A new project's records are rows in its
     # own database, so nothing writes here -- but the field still names where an
-    # *existing* corpus is read from, which is what `agentjobs storage cutover` imports
+    # *existing* corpus is read from, which is what `agentjobs storage import` reads
     # and what `agentjobs validate` checks. Dropping it would take the import path with
     # it, and it is on the API's project summary besides.
     "tasks_directory": "tasks",

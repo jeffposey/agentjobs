@@ -7870,7 +7870,7 @@
     },
     "/api/projects/{project_id}/revision": {
       "get": {
-        "description": "Answer whether any task file changed without loading the task collection.",
+        "description": "Answer whether this project changed, without loading the task collection.",
         "operationId": "get_project_revision_api_projects__project_id__revision_get",
         "parameters": [
           {
@@ -10571,7 +10571,7 @@
     },
     "/api/revision": {
       "get": {
-        "description": "Answer whether any task file changed without loading the task collection.",
+        "description": "Answer whether this project changed, without loading the task collection.",
         "operationId": "get_project_revision_api_revision_get",
         "responses": {
           "200": {

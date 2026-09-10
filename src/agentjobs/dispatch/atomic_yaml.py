@@ -170,7 +170,7 @@ def write_yaml_atomically(
     whose last handle has closed but whose delete has not completed sits in a
     delete-pending state, and a virus scanner holding the target open for a few
     milliseconds looks the same; both are contention, and both clear. This is the same
-    reasoning ``TaskStorage.locked`` gives for retrying ``PermissionError`` there, and
+    reasoning the file backend's task lock gave for retrying ``PermissionError``, and
     it was found the same way -- under real concurrency, not in a serial test.
 
     Raises whatever the filesystem raises if the write itself fails. Callers that must
