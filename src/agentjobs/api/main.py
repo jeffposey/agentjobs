@@ -24,7 +24,8 @@ from agentjobs.instrumentation import reset_task_parses, task_parse_count
 from agentjobs.projects import ProjectError, ProjectRegistry, default_home
 from agentjobs.dispatch.credentials import verify_run_credential
 from agentjobs.principals import set_run_credential_verifier
-from agentjobs.storage import TaskLoadError, corpus_snapshot
+from agentjobs.storage import corpus_snapshot
+from agentjobs.taskfiles import TaskLoadError
 from agentjobs.store_factory import close_databases, mark_server_process
 
 from .authorization import Forbidden, enforce_capability

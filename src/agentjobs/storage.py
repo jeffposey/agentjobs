@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from dataclasses import field as dc_field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Union
+from typing import Callable, Dict, Iterator, List, Optional, Union
 
 import yaml
 from pydantic import ValidationError
@@ -24,58 +24,21 @@ from .models_v2 import SchemaVersionError, Task
 from .receipts import ReceiptStore
 from .models_v2 import load_task as _validate_v2
 from .projects import contained_path
+from .taskfiles import (  # noqa: F401  -- re-exported for existing call sites
+    YAML_LOADER,
+    LoadResult,
+    TaskLoadError,
+    _describe_validation_error,
+    load_yaml,
+    yaml_loader_name,
+)
 
 logger = logging.getLogger(__name__)
 
 
-#: The safe YAML loader task files are read with.
-#:
-#: libyaml is roughly thirteen times faster than PyYAML's pure-Python parser over this
-#: project's corpus (0.859s -> 0.065s, 119 files, measured 2026-08-17), and reading is
-#: the hot path: a listing parses every file, while a write serialises one.
-#:
-#: **Only the loader changes. Dumping stays on the pure-Python SafeDumper**, because
-#: the two dumpers do not agree: 79 of 119 real task files serialise differently under
-#: CSafeDumper, mostly in how long strings are folded and escaped. That is not a
-#: cosmetic difference here. `canonical_bytes` exists so the validator can compare a
-#: stored file against the form AgentJobs would have produced, and the receipt store
-#: hashes those bytes -- so swapping the dumper would make most of the existing corpus
-#: look hand-shaped until rewritten, and would put a formatting churn diff through
-#: every task file on its next write. The read win is available without paying that.
-try:
-    from yaml import CSafeLoader as _SafeLoader
-
-    YAML_LOADER = "libyaml (yaml.CSafeLoader)"
-except ImportError:  # pragma: no cover - exercised by forcing the fallback in tests
-    from yaml import SafeLoader as _SafeLoader  # type: ignore[assignment]
-
-    YAML_LOADER = "pure-python (yaml.SafeLoader) -- libyaml not available"
-    logger.warning(
-        "libyaml is not available, so task files are parsed by PyYAML's pure-Python "
-        "loader. This is around thirteen times slower and is the usual cause of a "
-        "sluggish AgentJobs. Install a PyYAML wheel built with the C extension to fix "
-        "it."
-    )
-
-
-def yaml_loader_name() -> str:
-    """The YAML loader currently in use.
-
-    Surfaced on ``/api/version`` and printed by ``scripts/bench.py`` so a before/after
-    pair cannot be accidentally compared across loaders -- a thirteenfold difference
-    would swamp whatever change was actually under test.
-    """
-    return YAML_LOADER
-
-
-def load_yaml(content: str) -> Any:
-    """Parse YAML with the fastest safe loader available.
-
-    A drop-in for ``yaml.safe_load``: same safety guarantees, same result. The parity
-    is not assumed -- ``tests/test_yaml_loader.py`` asserts that every file in the real
-    corpus loads identically under both.
-    """
-    return yaml.load(content, Loader=_SafeLoader)
+# The YAML loader, the load-error types and the canonical serialisation moved to
+# `agentjobs.taskfiles` when they stopped being about a backend. Re-exported here
+# for the remaining file-backend call sites.
 
 
 #: One parse of the corpus, shared for the duration of a scope.
@@ -130,60 +93,6 @@ def corpus_snapshot() -> Iterator[None]:
         yield
     finally:
         _corpus_snapshot.reset(token)
-
-
-def _describe_validation_error(exc: ValidationError) -> str:
-    """Render a pydantic error as 'field: message', naming the field that is wrong.
-
-    Pydantic's default rendering is several lines per error with a docs URL. The point
-    of this task is that a reader learns *which field* broke without opening a log
-    aggregator, so the first few errors are compressed onto one line.
-    """
-    parts = []
-    for error in exc.errors()[:3]:
-        location = ".".join(str(item) for item in error.get("loc", ())) or "(root)"
-        parts.append(f"{location}: {error.get('msg', 'invalid')}")
-    remaining = len(exc.errors()) - 3
-    if remaining > 0:
-        parts.append(f"and {remaining} more problem(s)")
-    return "; ".join(parts)
-
-
-class TaskLoadError(Exception):
-    """A task file exists but cannot be read as a task.
-
-    Carries the path and a field-level description so the message answers "which file,
-    which field, what is wrong" without further digging.
-    """
-
-    def __init__(self, path: Path, reason: str, *, errors: Optional[List[Any]] = None):
-        """Initialize with the offending file and a human-readable reason."""
-        self.path = Path(path)
-        self.task_id = self.path.stem
-        self.reason = reason
-        self.errors = errors or []
-        super().__init__(f"{self.path.name}: {reason}")
-
-    def as_dict(self) -> Dict[str, Any]:
-        """Serialisable form, for API responses and templates."""
-        return {
-            "task_id": self.task_id,
-            "path": str(self.path),
-            "filename": self.path.name,
-            "reason": self.reason,
-        }
-
-
-@dataclass
-class LoadResult:
-    """Tasks that loaded, plus the files that did not."""
-
-    tasks: List[Task] = dc_field(default_factory=list)
-    errors: List[TaskLoadError] = dc_field(default_factory=list)
-
-    @property
-    def has_errors(self) -> bool:
-        return bool(self.errors)
 
 
 class TaskLockTimeout(Exception):

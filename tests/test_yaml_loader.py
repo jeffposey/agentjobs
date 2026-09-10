@@ -17,7 +17,8 @@ from fastapi.testclient import TestClient
 from yaml import SafeLoader
 
 from agentjobs.api.main import app
-from agentjobs.storage import YAML_LOADER, TaskStorage, load_yaml, yaml_loader_name
+from agentjobs.storage import TaskStorage
+from agentjobs.taskfiles import YAML_LOADER, load_yaml, yaml_loader_name
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CORPUS = REPO_ROOT / "tasks" / "agentjobs"
@@ -119,17 +120,17 @@ def test_the_fallback_is_announced_not_silent(monkeypatch, caplog) -> None:
         return real_import(name, globals, locals, fromlist, level)
 
     monkeypatch.setattr(builtins, "__import__", without_libyaml)
-    import agentjobs.storage as storage_module
+    import agentjobs.taskfiles as loader_module
 
     with caplog.at_level("WARNING"):
-        reloaded = importlib.reload(storage_module)
+        reloaded = importlib.reload(loader_module)
         assert "pure-python" in reloaded.YAML_LOADER
         assert "libyaml" in caplog.text.lower()
         # And it still works, which is the point of a fallback.
         assert reloaded.load_yaml("a: 1\n") == {"a": 1}
 
     monkeypatch.undo()
-    importlib.reload(storage_module)
+    importlib.reload(loader_module)
 
 
 def test_storage_reads_a_task_through_the_fast_loader(tmp_path: Path) -> None:

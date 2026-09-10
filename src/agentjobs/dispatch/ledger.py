@@ -53,7 +53,7 @@ from agentjobs.dispatch.phases import RUN_ID_ENV
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BallReason, DispatchMode, DispatchOutcome
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
-from agentjobs.storage import load_yaml
+from agentjobs.taskfiles import load_yaml
 from agentjobs.store_factory import TaskManagerLike, dispatch_manager_for
 
 LOCKS_DIRNAME = ".locks"

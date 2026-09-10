@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from agentjobs.__version__ import __version__
 from agentjobs.environment import describe_source, source_identity
 from agentjobs.models_v2 import SCHEMA_VERSION
-from agentjobs.storage import yaml_loader_name
+from agentjobs.taskfiles import yaml_loader_name
 
 from ..contract import live_contract_digest
 from ..dependencies import get_principal_resolution

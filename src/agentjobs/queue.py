@@ -26,7 +26,8 @@ from pathlib import Path
 from typing import ClassVar, Collection, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from .models_v2 import PRIORITY_RANK, Priority, Task
-from .storage import TaskStorage, load_yaml
+from .storage import TaskStorage
+from .taskfiles import load_yaml
 
 __all__ = [
     "QUEUE_STEP",

@@ -1076,7 +1076,7 @@ class SqlTaskStore:
         second shape. The mapping is exact: a row that loads is a task, and a record
         that could not become a row is an error carrying the reason it was refused.
         """
-        from ..storage import LoadResult, TaskLoadError
+        from ..taskfiles import LoadResult, TaskLoadError
 
         errors = [
             TaskLoadError(

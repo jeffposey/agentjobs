@@ -1083,7 +1083,7 @@ def load_test_data(
     created_count = 0
     updated_count = 0
 
-    from .storage import TaskLoadError
+    from .taskfiles import TaskLoadError
 
     for task in tasks:
         try:

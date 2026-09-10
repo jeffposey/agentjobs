@@ -100,7 +100,7 @@ from .queue_check import (
 )
 from .quotation import LOG_BODY_FIELD as _LOG_BODY_FIELD
 from .quotation import TASK_PROSE_FIELDS, field_text
-from .storage import TaskLoadError, load_yaml
+from .taskfiles import TaskLoadError, load_yaml
 from .store_factory import TaskStoreBackend, store_is_sql
 
 if TYPE_CHECKING:
