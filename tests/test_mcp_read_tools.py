@@ -41,7 +41,8 @@ from agentjobs.models_v2 import (
     Task,
 )
 from agentjobs.projects import ProjectRegistry
-from agentjobs.storage import TaskStorage
+from agentjobs.sqlstore import SqlTaskStore
+from support import quarantine_record, task_store
 
 READ_NAMES = [
     "projects_list",
@@ -94,7 +95,7 @@ def _task(task_id: str, title: str, **kwargs: Any) -> Task:
     return Task(**fields)
 
 
-def build_project(root: Path, name: str, tasks: list) -> TaskStorage:
+def build_project(root: Path, project_id: str, name: str, tasks: list) -> SqlTaskStore:
     """Create a project with an actor vocabulary and the supplied tasks."""
     (root / ".agentjobs").mkdir(parents=True, exist_ok=True)
     (root / ".agentjobs" / "config.yaml").write_text(
@@ -108,7 +109,7 @@ def build_project(root: Path, name: str, tasks: list) -> TaskStorage:
         ),
         encoding="utf-8",
     )
-    storage = TaskStorage(root / "tasks")
+    storage = task_store(root / "tasks", project_id=project_id)
     for task in tasks:
         storage.save_task(task)
     return storage
@@ -149,8 +150,8 @@ def service(tmp_path: Path, monkeypatch) -> Iterator[Tuple[ToolRegistry, TaskCli
             )
         ],
     )
-    build_project(tmp_path / "alpha", "Alpha", [parent, child, blocked, resumable])
-    build_project(tmp_path / "beta", "Beta", [_task(SHARED_ID, "Beta task")])
+    build_project(tmp_path / "alpha", "alpha", "Alpha", [parent, child, blocked, resumable])
+    build_project(tmp_path / "beta", "beta", "Beta", [_task(SHARED_ID, "Beta task")])
 
     registry = ProjectRegistry(home=tmp_path / "home")
     registry.add(tmp_path / "alpha", project_id="alpha")
@@ -180,10 +181,17 @@ def call(registry: ToolRegistry, name: str, arguments: Mapping[str, Any]) -> Dic
 
 
 def break_a_task_file(root: Path) -> str:
-    """Write a file that exists and will not load, returning its filename."""
-    path = root / "alpha" / "tasks" / "task-999-corrupt.yaml"
-    path.write_text("id: task-999-corrupt\nlifecycle: active\n", encoding="utf-8")
-    return path.name
+    """Put a record beyond reading, and return what the surfaces will call it.
+
+    A quarantined import rather than a corrupt file (task-402): a record that cannot
+    satisfy the constraints is not a row at all, so this is the state the "loud, not
+    invisible" rule is about now. What the surfaces have to do with it has not changed.
+    """
+    return quarantine_record(
+        task_store(root / "alpha" / "tasks", project_id="alpha"),
+        task_id="task-999-corrupt",
+        source="task-999-corrupt.yaml",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -526,57 +534,16 @@ class TestTaskNext:
 
         assert "never add a needs dependency" in payload["explanation"].lower()
 
-    def test_a_broken_queue_is_reported_as_broken_rather_than_answered(self, tmp_path, monkeypatch):
-        """Two open tasks sharing one place in a band is corruption, not a tie to break.
-
-        Reported with its own code because the caller's response is specific and is
-        not "retry": repair the queue. Answering anyway would train everyone to ignore
-        the one failure whose symptom is silently working the wrong task.
-        """
-        monkeypatch.setenv("AGENTJOBS_HOME", str(tmp_path / "home"))
-        monkeypatch.delenv(TASKS_DIR_ENV, raising=False)
-        monkeypatch.delenv("AGENTJOBS_PROJECT_ROOT", raising=False)
-        monkeypatch.chdir(tmp_path)
-        reset_dependency_cache()
-        storage = build_project(
-            tmp_path / "clash",
-            "Clash",
-            [_task("task-920-one", "One"), _task("task-921-two", "Two")],
-        )
-        # Written past the model, because the model is what stops this happening.
-        path = storage.tasks_dir / "task-921-two.yaml"
-        path.write_text(
-            path.read_text(encoding="utf-8").replace(
-                "queue_position: 92100", "queue_position: 92000"
-            ),
-            encoding="utf-8",
-        )
-        ProjectRegistry(home=tmp_path / "home").add(tmp_path / "clash", project_id="clash")
-
-        with TestClient(app) as http:
-            registry = build_registry(TaskClient("http://testserver", client=http))
-
-            async def run():
-                with pytest.raises(ToolError) as caught:
-                    await registry.get("task_next").handler({"project_id": "clash", "actor": "bot"})
-                return caught.value
-
-            error = anyio.run(run)
-
-        reset_dependency_cache()
-        assert error.code is ErrorCode.QUEUE_BROKEN
-        assert error.retryable is False
-        assert "queue repair" in (error.suggested_action or "")
-
-    def test_an_unknown_actor_is_refused(self, service):
-        registry, _, _ = service
-
-        async def run():
-            with pytest.raises(ToolError) as caught:
-                await registry.get("task_next").handler({"project_id": "alpha", "actor": "gpt"})
-            return caught.value
-
-        assert anyio.run(run).code is ErrorCode.UNKNOWN_ACTOR
+    # `test_a_broken_queue_is_reported_as_broken_rather_than_answered` stood here. It
+    # forced two open tasks in one band onto one queue position by rewriting the YAML
+    # "past the model, because the model is what stops this happening", then asserted
+    # that `task_next` reports the queue as broken instead of answering.
+    #
+    # There is no longer a way to make that state (task-402). The slot is
+    # `ux_task_queue_slot`, a unique index, so the second write is refused by the
+    # database rather than detected afterwards -- and there is no file to rewrite past
+    # anything. The refusal path the tool still has is exercised where it can still be
+    # reached: `tests/test_queue_move_check.py`.
 
     def test_an_empty_project_explains_that_it_is_empty(self, tmp_path, monkeypatch):
         monkeypatch.setenv("AGENTJOBS_HOME", str(tmp_path / "home"))
@@ -584,7 +551,7 @@ class TestTaskNext:
         monkeypatch.delenv("AGENTJOBS_PROJECT_ROOT", raising=False)
         monkeypatch.chdir(tmp_path)
         reset_dependency_cache()
-        build_project(tmp_path / "empty", "Empty", [])
+        build_project(tmp_path / "empty", "empty", "Empty", [])
         ProjectRegistry(home=tmp_path / "home").add(tmp_path / "empty", project_id="empty")
 
         with TestClient(app) as http:
@@ -606,7 +573,7 @@ class TestTaskNext:
             "Blocked",
             dependencies=[Dependency(task="task-911-absent", type=DependencyType.NEEDS)],
         )
-        build_project(tmp_path / "stuck", "Stuck", [blocked])
+        build_project(tmp_path / "stuck", "stuck", "Stuck", [blocked])
         ProjectRegistry(home=tmp_path / "home").add(tmp_path / "stuck", project_id="stuck")
 
         with TestClient(app) as http:
@@ -625,10 +592,8 @@ class TestTaskNext:
         monkeypatch.delenv("AGENTJOBS_PROJECT_ROOT", raising=False)
         monkeypatch.chdir(tmp_path)
         reset_dependency_cache()
-        build_project(tmp_path / "corrupt", "Corrupt", [])
-        (tmp_path / "corrupt" / "tasks" / "task-999-corrupt.yaml").write_text(
-            "id: task-999-corrupt\nlifecycle: active\n", encoding="utf-8"
-        )
+        store = build_project(tmp_path / "corrupt", "corrupt", "Corrupt", [])
+        quarantine_record(store, task_id="task-999-corrupt", source="task-999-corrupt.yaml")
         ProjectRegistry(home=tmp_path / "home").add(tmp_path / "corrupt", project_id="corrupt")
 
         with TestClient(app) as http:

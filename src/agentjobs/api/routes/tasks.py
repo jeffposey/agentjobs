@@ -19,7 +19,7 @@ from agentjobs.operations import OperationConflictError, RevisionConflictError
 from agentjobs.projects import Project
 from agentjobs.queue import QueueCorruptionError
 from agentjobs.manager import AnswerError, TaskManager, TaskNotFoundError
-from agentjobs.storage import TaskStorage
+from agentjobs.store_factory import TaskStoreBackend
 from agentjobs.models_v2 import (
     AnswerDraft,
     Ball,
@@ -377,7 +377,7 @@ async def get_attachment(
     task_id: str,
     filename: str,
     manager: TaskManager = Depends(get_task_manager),
-    storage: TaskStorage = Depends(get_task_storage),
+    storage: TaskStoreBackend = Depends(get_task_storage),
 ) -> Response:
     """Serve one image a log entry references.
 

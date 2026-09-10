@@ -331,7 +331,7 @@ def break_a_file(tasks_dir: Path) -> None:
 def build(root: Path) -> Path:
     from agentjobs.manager import TaskManager
     from agentjobs.project_setup import build_project_config
-    from agentjobs.storage import TaskStorage
+    from sandbox_store import sandbox_store  # type: ignore[import-not-found]
 
     project_root = root / PROJECT_ID
     (project_root / ".agentjobs").mkdir(parents=True)
@@ -343,7 +343,7 @@ def build(root: Path) -> Path:
         encoding="utf-8",
     )
     tasks_dir = project_root / "tasks"
-    seed(TaskManager(TaskStorage(tasks_dir)))
+    seed(TaskManager(sandbox_store(tasks_dir)))
     break_a_file(tasks_dir)
     return project_root
 

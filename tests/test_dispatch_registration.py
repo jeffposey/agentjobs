@@ -439,9 +439,15 @@ class TestTheCommand:
     def _cli(self, bench, monkeypatch, *args: str):
         from typer.testing import CliRunner
 
+        from agentjobs import cli as cli_module
         from agentjobs.cli import app
 
         monkeypatch.setenv("AGENTJOBS_HOME", str(bench["home"]))
+        # The command resolves its manager the ordinary way, which outside the server is
+        # a service client -- so exercising the Typer surface would otherwise need a
+        # server running. What these two assert is the option names an agent is told to
+        # type and what the command prints, so the manager is supplied.
+        monkeypatch.setattr(cli_module, "task_manager_for", lambda project: bench["manager"])
         # A test process inherits its own dispatch environment. Left set, every case
         # below would take the already-known path against a run that is not in this
         # temporary home.

@@ -564,7 +564,7 @@ export const repairQueueApiProjectsProjectIdQueueRepairPost = <ThrowOnError exte
 /**
  * Get Project Revision
  *
- * Answer whether any task file changed without loading the task collection.
+ * Answer whether this project changed, without loading the task collection.
  */
 export const getProjectRevisionApiProjectsProjectIdRevisionGet = <ThrowOnError extends boolean = false>(options: Options<GetProjectRevisionApiProjectsProjectIdRevisionGetData, ThrowOnError>) => (options.client ?? client).get<GetProjectRevisionApiProjectsProjectIdRevisionGetResponses, GetProjectRevisionApiProjectsProjectIdRevisionGetErrors, ThrowOnError>({ url: '/api/projects/{project_id}/revision', ...options });
 
@@ -1196,7 +1196,7 @@ export const repairQueueApiQueueRepairPost = <ThrowOnError extends boolean = fal
 /**
  * Get Project Revision
  *
- * Answer whether any task file changed without loading the task collection.
+ * Answer whether this project changed, without loading the task collection.
  */
 export const getProjectRevisionApiRevisionGet = <ThrowOnError extends boolean = false>(options?: Options<GetProjectRevisionApiRevisionGetData, ThrowOnError>) => (options?.client ?? client).get<GetProjectRevisionApiRevisionGetResponses, unknown, ThrowOnError>({ url: '/api/revision', ...options });
 

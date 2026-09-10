@@ -72,7 +72,7 @@ from agentjobs.models_v2 import (
     Outcome,
 )
 from agentjobs.projects import Project
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 PROJECT_CONFIG: Dict[str, object] = {
     "project_name": "Sandbox",
@@ -102,7 +102,7 @@ def project(tmp_path: Path) -> Project:
 
 @pytest.fixture
 def manager(project: Project) -> TaskManager:
-    return TaskManager(TaskStorage(project.root / "tasks"))
+    return TaskManager(task_store(project.root / "tasks"))
 
 
 def make_parent(
@@ -361,23 +361,27 @@ class TestInheritedAuthorization:
         with pytest.raises(ParentNotHumanClockedError):
             resolve_epic_authorization(manager, PROJECT_CONFIG, child)
 
-    def test_a_parent_whose_record_has_gone_is_a_refusal_and_not_a_crash(
+    def test_a_parent_that_is_not_there_is_a_refusal_and_not_a_crash(
         self, manager: TaskManager, project: Project
     ) -> None:
-        """`parent` is validated at creation, so this state arrives by the file going.
+        """The walk has to refuse rather than raise: it runs unattended, and a traceback
+        is not a handoff.
 
-        Which happens: a branch is checked out that predates the epic, or somebody moves
-        a record. The walk has to refuse rather than raise, because it is running
-        unattended and a traceback is not a handoff.
+        It used to arrive at this state by deleting the parent's *file* -- a branch
+        checked out that predated the epic, or a record somebody moved. That cannot
+        happen now (task-402): ``parent_id`` is a foreign key, so a child's parent is
+        either a row or the child was never written. The refusal is reached the way it
+        still can be, with a child naming a parent this manager cannot see, and it is
+        kept because the walk must never turn an unreadable graph into a traceback.
         """
         parent_id = make_parent(manager)
         child_id = make_child(manager, parent_id, "Orphaned")
-        for path in (project.root / "tasks").glob(f"{parent_id}*.yaml"):
-            path.unlink()
         stored = manager.get_task(child_id)
         assert stored is not None
+        orphaned = stored.model_copy(update={"parent": "task-000-not-a-task"})
+
         with pytest.raises(ParentNotSupervisedError):
-            resolve_epic_authorization(manager, PROJECT_CONFIG, stored)
+            resolve_epic_authorization(manager, PROJECT_CONFIG, orphaned)
 
 
 # ----- the bound --------------------------------------------------------------
@@ -1235,51 +1239,18 @@ class TestTheWatcherReadsLivenessFirst:
         assert dispatcher.started == []
 
 
-class TestTheWalkReadsThroughTheSnapshot:
-    """A walk inside a CLI invocation must not be answered from that invocation's cache.
-
-    `agentjobs.storage.corpus_snapshot` exists because one CLI invocation is one logical
-    read. A walk breaks that premise -- it is one invocation that runs for as long as an
-    epic takes, and every fact it turns on is written by a different process. Read
-    through the snapshot and it sees each child exactly as it was when it started
-    watching, forever.
-
-    Constructed the way the failure actually happened: the scope is entered around the
-    whole walk, exactly as the CLI callback does.
-    """
-
-    def test_a_child_that_closes_under_a_held_snapshot_is_still_seen(
-        self, manager: TaskManager, project: Project
-    ) -> None:
-        from agentjobs.storage import corpus_snapshot
-
-        parent_id = make_parent(manager)
-        first = make_child(manager, parent_id, "First")
-        second = make_child(manager, parent_id, "Second")
-        dispatcher = Dispatcher(manager)
-
-        with corpus_snapshot():
-            # Warm the snapshot the way the real CLI does: everything the walk is about
-            # to watch has already been read once, while it was still `ready`.
-            assert manager.get_task(first) is not None
-            assert manager.get_task(second) is not None
-            result = drive(
-                manager,
-                project,
-                parent_id,
-                dispatcher=dispatcher,
-                script={first: ["complete"], second: ["complete"]},
-            )
-
-        assert result.stop is WalkStop.ALL_CHILDREN_DONE
-        assert [a.verdict for a in result.attempts] == [
-            ChildVerdict.COMPLETED,
-            ChildVerdict.COMPLETED,
-        ]
-        assert dispatcher.started == [first, second]
-
-
-# ----- the rolling frontier (task-223) ----------------------------------------
+# `TestTheWalkReadsThroughTheSnapshot` stood here. One CLI invocation used to be one
+# logical read, memoised by `storage.corpus_snapshot`, and a walk broke that premise: it
+# is a single invocation running for as long as an epic takes, and every fact it turns on
+# is written by a different process. Read through the snapshot, it saw each child exactly
+# as it was when it started watching, forever. The test warmed the scope the way the CLI
+# callback did and then required the walk to see a child close inside it.
+#
+# There is no snapshot (task-402): it memoised a parser that no read reaches, and it went
+# with the backend. The premise it protected is now structural -- a walk's every read is
+# a query against the store another process is writing -- so there is nothing left to
+# hold wrong. What the test also proved, that the walk notices a child closing, is
+# asserted by every case in `TestTheWalk` above.
 
 
 class TestConcurrentWalk:

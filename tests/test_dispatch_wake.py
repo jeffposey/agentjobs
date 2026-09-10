@@ -47,7 +47,7 @@ from agentjobs.dispatch.wake import (
 )
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import DispatchTrigger, Lifecycle
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 # ----- a launcher that records what it was given ------------------------------
 
@@ -80,7 +80,7 @@ def workspace(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def manager(workspace: Path) -> TaskManager:
-    return TaskManager(TaskStorage(workspace / "tasks"))
+    return TaskManager(task_store(workspace / "tasks"))
 
 
 @pytest.fixture

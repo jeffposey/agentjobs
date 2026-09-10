@@ -35,7 +35,7 @@ from agentjobs.models_v2 import Task
 from agentjobs.operations import OperationConflictError, RevisionConflictError
 from agentjobs.projects import Project, default_home
 from agentjobs.session_identity import SessionIdentity
-from agentjobs.storage import TaskLockTimeout
+from agentjobs.sqlstore import TaskLockTimeout
 
 from ..authorization import assert_actor_agrees
 from ..dependencies import get_task_manager, project_config, request_project, storage_for

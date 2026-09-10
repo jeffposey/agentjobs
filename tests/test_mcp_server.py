@@ -582,7 +582,7 @@ class TestPackagedCommand:
 # ----------------------------------------------------------------------------
 # Architectural boundary
 # ----------------------------------------------------------------------------
-FORBIDDEN_NAMES = frozenset({"TaskManager", "TaskStorage"})
+FORBIDDEN_NAMES = frozenset({"TaskManager", "SqlTaskStore"})
 FORBIDDEN_MODULES = frozenset({"manager", "storage"})
 
 

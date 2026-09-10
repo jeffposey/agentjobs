@@ -20,7 +20,11 @@ import yaml
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from agentjobs.api.dependencies import get_task_manager, reset_dependency_cache
+from agentjobs.api.dependencies import (
+    TASKS_DIR_ENV,
+    get_task_manager,
+    reset_dependency_cache,
+)
 from agentjobs.api.main import app
 from agentjobs.api.models import TaskRead, TaskUpdateRequest
 from agentjobs.api.routes.status import get_acting_project
@@ -30,7 +34,8 @@ from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Lifecycle, LogEntryType, Outcome, Priority
 from agentjobs.projects import Project
 from agentjobs.queue import REPAIR_COMMAND
-from agentjobs.storage import TaskStorage
+from agentjobs.store_factory import LOCAL_PROJECT_ID
+from support import task_store
 
 runner = CliRunner()
 
@@ -63,21 +68,28 @@ def project(tmp_path: Path) -> Iterator[Tuple[Path, TaskManager]]:
     """A project directory with config, an empty tasks directory, and its manager."""
     (tmp_path / ".agentjobs").mkdir(parents=True)
     (tmp_path / ".agentjobs" / "config.yaml").write_text(yaml.safe_dump(CONFIG), encoding="utf-8")
-    yield tmp_path, TaskManager(TaskStorage(tmp_path / "tasks"))
+    yield tmp_path, TaskManager(task_store(tmp_path / "tasks"))
 
 
 @pytest.fixture()
-def api(project) -> Iterator[Tuple[TestClient, TaskManager, Path]]:
+def api(project, monkeypatch) -> Iterator[Tuple[TestClient, TaskManager, Path]]:
     """A TestClient bound to the fixture project, acting as that project.
 
     The acting project is overridden alongside the manager because actor validation
     resolves the *default* project otherwise -- which, with an empty registry, is the
     working directory: the AgentJobs repository itself. These tests would then be
     checking their actor names against the real ``.agentjobs/config.yaml``.
+
+    The environment is pinned to the same directory as well, and that is not belt and
+    braces: a route that reads the record for itself rather than through the injected
+    manager -- the envelope's replay check does -- resolves the store the ordinary way,
+    and would otherwise open a database nobody seeded.
     """
     root, manager = project
+    monkeypatch.setenv("AGENTJOBS_PROJECT_ROOT", str(root))
+    monkeypatch.setenv(TASKS_DIR_ENV, str(root / "tasks"))
     reset_dependency_cache()
-    acting = Project(id="fixture", name="Fixture", root=root)
+    acting = Project(id=LOCAL_PROJECT_ID, name="Fixture", root=root)
     app.dependency_overrides[get_task_manager] = lambda: manager
     app.dependency_overrides[get_acting_project] = lambda: acting
     with TestClient(app) as client:
@@ -144,151 +156,24 @@ def order(manager: TaskManager, priority: Priority = Priority.HIGH) -> List[str]
     ]
 
 
-def break_the_queue(root: Path, task_id: str, *, band: str, at: int) -> None:
-    """Force a duplicate position by hand, as a bad merge or a stray editor would.
-
-    Deliberately raw. Every verb in the system refuses to produce this state, which is
-    the point -- the corruption these surfaces have to survive arrives from outside
-    them, so a test that produced it through a verb would be testing nothing.
-    """
-    path = root / "tasks" / f"{task_id}.yaml"
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    raw["queue_position"] = at
-    raw["priority"] = band
-    path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
-
-
 # ---------------------------------------------------------------------------
-# sc-2 -- the rule stated in two halves
+# sc-2 -- the rule stated in two halves, and the half the database took over
 # ---------------------------------------------------------------------------
-
-
-class TestCorruptionReachesEverySurface:
-    """A broken queue is refused by what answers, and rendered by what repairs.
-
-    Design section 8 is one rule with two obligations, and they pull in opposite
-    directions: selection must refuse rather than guess, while `check`, `repair` and
-    `list` must keep working *because* it is broken. Implementing one and forgetting
-    the other is the easy mistake, and it is silent in both directions -- a `list` that
-    raises leaves you with no way to see the damage, and a `next` that answers hands
-    somebody the wrong task with no trace at all.
-    """
-
-    def test_next_answers_409_naming_the_offenders_and_the_repair(self, api) -> None:
-        client, manager, root = api
-        first = make(manager, "task-a")
-        second = make(manager, "task-b")
-        break_the_queue(root, second, band="high", at=position(manager, first))
-
-        response = client.get("/api/tasks/next")
-
-        assert response.status_code == 409
-        detail = response.json()["detail"]
-        assert first in detail and second in detail
-        assert REPAIR_COMMAND in detail
-
-    def test_explain_answers_409_for_the_same_reason(self, api) -> None:
-        """The explanation asserts an order over the skipped tasks, so it is no safer."""
-        client, manager, root = api
-        first = make(manager, "task-a")
-        second = make(manager, "task-b")
-        break_the_queue(root, second, band="high", at=position(manager, first))
-
-        response = client.get("/api/tasks/next/explain")
-
-        assert response.status_code == 409
-        assert REPAIR_COMMAND in response.json()["detail"]
-
-    def test_queue_listing_renders_the_broken_band_and_names_the_problem(self, api) -> None:
-        client, manager, root = api
-        first = make(manager, "task-a")
-        second = make(manager, "task-b")
-        break_the_queue(root, second, band="high", at=position(manager, first))
-
-        response = client.get("/api/queue")
-
-        assert response.status_code == 200
-        body = response.json()
-        assert body["repair_command"] == REPAIR_COMMAND
-        assert [problem["kind"] for problem in body["problems"]] == ["duplicate"]
-        assert sorted(body["problems"][0]["tasks"]) == sorted([first, second])
-        listed = {entry["task"] for band in body["bands"] for entry in band["entries"]}
-        assert {first, second} <= listed
-
-    def test_repair_fixes_it_and_selection_answers_again(self, api) -> None:
-        client, manager, root = api
-        first = make(manager, "task-a")
-        second = make(manager, "task-b")
-        break_the_queue(root, second, band="high", at=position(manager, first))
-
-        repaired = client.post(
-            "/api/queue/repair", json={"actor": "Ada", "operation_id": "op-repair"}
-        )
-
-        assert repaired.status_code == 200
-        body = repaired.json()
-        assert body["changed"] is True
-        # Everything a repair guessed is named, because the tie-break is arbitrary by
-        # necessity and naming it is what makes the guess reviewable.
-        assert [item["task"] for item in body["assigned"]] == [second]
-        assert client.get("/api/tasks/next").status_code == 200
-
-    def test_cli_next_exits_non_zero_with_the_same_message(self, project, monkeypatch) -> None:
-        root, manager = project
-        first = make(manager, "task-a")
-        second = make(manager, "task-b")
-        break_the_queue(root, second, band="high", at=position(manager, first))
-        monkeypatch.chdir(root)
-
-        result = runner.invoke(cli_app, ["next"])
-
-        assert result.exit_code == 1
-        assert REPAIR_COMMAND in result.output
-        assert first in result.output and second in result.output
-
-    def test_cli_check_and_list_still_work_against_it(self, project, monkeypatch) -> None:
-        """`check` and `list` report rather than raise: you must be able to see it."""
-        root, manager = project
-        first = make(manager, "task-a")
-        second = make(manager, "task-b")
-        break_the_queue(root, second, band="high", at=position(manager, first))
-        monkeypatch.chdir(root)
-
-        checked = runner.invoke(cli_app, ["queue", "check"])
-        listed = runner.invoke(cli_app, ["queue", "list"])
-
-        assert checked.exit_code == 0
-        assert REPAIR_COMMAND in checked.output
-        assert listed.exit_code == 0
-        assert first in listed.output and second in listed.output
-
-    def test_cli_check_strict_is_the_form_a_script_uses(self, project, monkeypatch) -> None:
-        root, manager = project
-        first = make(manager, "task-a")
-        second = make(manager, "task-b")
-        break_the_queue(root, second, band="high", at=position(manager, first))
-        monkeypatch.chdir(root)
-
-        assert runner.invoke(cli_app, ["queue", "check", "--strict"]).exit_code == 1
-
-    def test_cli_repair_reports_what_it_guessed(self, project, monkeypatch) -> None:
-        root, manager = project
-        first = make(manager, "task-a")
-        second = make(manager, "task-b")
-        break_the_queue(root, second, band="high", at=position(manager, first))
-        monkeypatch.chdir(root)
-
-        result = runner.invoke(cli_app, ["queue", "repair"])
-
-        assert result.exit_code == 0
-        assert second in result.output
-        assert "guessed" in result.output
-        assert runner.invoke(cli_app, ["queue", "check"]).exit_code == 0
-
-
-# ---------------------------------------------------------------------------
-# sc-1 -- every verb exists, and none of them is anonymous
-# ---------------------------------------------------------------------------
+#
+# `TestCorruptionReachesEverySurface` lived here. It forced two tasks into one queue
+# slot by hand-editing YAML -- "as a bad merge or a stray editor would" -- and then
+# asserted that `next` and `explain` refuse loudly while `check`, `repair` and `list`
+# keep working, which is design section 8's rule in its two halves.
+#
+# That corruption is now unrepresentable (task-402). A queue slot is
+# `ux_task_queue_slot`, a unique index, so a duplicate is refused by the database at the
+# write rather than detected by every reader afterwards -- and there is no longer a file
+# for a bad merge or a stray editor to reach. Keeping the tests would have meant keeping
+# a way to produce the state, which is the opposite of the guarantee.
+#
+# The refusal path itself is not gone and is not untested: `agentjobs queue check` and
+# `queue repair` still answer for bands an import left untidy, and
+# `tests/test_queue_move_check.py` covers them.
 
 
 class TestEveryMutatingRouteIsAttributedAndRetrySafe:

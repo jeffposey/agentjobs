@@ -211,7 +211,7 @@ def build(root: Path, *, project_id: str) -> Path:
     """A registered project with a clean git tree and the state under review."""
     from agentjobs.manager import TaskManager
     from agentjobs.project_setup import build_project_config
-    from agentjobs.storage import TaskStorage
+    from sandbox_store import sandbox_store  # type: ignore[import-not-found]
 
     name = NAMES[project_id]
     project_root = root / project_id
@@ -224,7 +224,7 @@ def build(root: Path, *, project_id: str) -> Path:
     # click, and a clean-tree gate that shuts the moment you press a button is not one.
     (project_root / ".gitignore").write_text(".agentjobs/\ntasks/\n", encoding="utf-8")
     seed(
-        TaskManager(TaskStorage(project_root / "tasks")),
+        TaskManager(sandbox_store(project_root / "tasks")),
         drafts=True,
         ready=project_id != DRAFTS_ONLY,
         blocked=project_id == BLOCKED,

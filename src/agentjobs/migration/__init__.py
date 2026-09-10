@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Sequence
 
 from agentjobs.models_v2 import Priority
 from agentjobs.queue import QUEUE_STEP, next_position
-from agentjobs.storage import TaskStorage
+from agentjobs.taskfiles import TaskFileCorpus
 
 from .converter import TaskConverter
 from .parser import MarkdownTaskParser
@@ -37,19 +37,16 @@ def _collect_source_files(source_patterns: Sequence[str]) -> List[Path]:
 def _claim_next_position(
     priority: Priority,
     cursor: Dict[Priority, int],
-    storage: Optional[TaskStorage],
+    storage: Optional[TaskFileCorpus],
 ) -> int:
     """Take the next free position in ``priority``, remembering it for the next call.
 
     The first task to reach a band pays one corpus read to find its bottom; the rest
-    step down from there. On a dry run there is no storage to read, so the band starts
+    step down from there. On a dry run there is no directory to read, so the band starts
     empty -- the numbers are then a preview, which is all a dry run promises.
-
-    Read uncached, because the caller holds the queue lock and a snapshot taken before
-    the lock was acquired is exactly the stale band the lock exists to rule out.
     """
     if priority not in cursor:
-        existing = storage.list_tasks_uncached() if storage is not None else []
+        existing = storage.list_tasks() if storage is not None else []
         cursor[priority] = next_position(existing, priority)
     else:
         cursor[priority] += QUEUE_STEP
@@ -65,6 +62,9 @@ def migrate_tasks(
     """
     Migrate markdown task files to YAML format.
 
+    The output is a directory of task YAML, which is what ``agentjobs storage import``
+    reads. This does not put anything in a database; it makes a corpus that can be.
+
     Args:
         source_patterns: Glob patterns for source files.
         target_dir: Directory to write YAML files.
@@ -78,17 +78,10 @@ def migrate_tasks(
     converter = TaskConverter()
     target_path = Path(target_dir)
     prompts_path = Path(prompts_dir) if prompts_dir is not None else None
-    storage = TaskStorage(target_path) if not dry_run else None
+    storage = TaskFileCorpus(target_path) if not dry_run else None
 
     source_files = _collect_source_files(source_patterns)
-    if storage is None:
-        return _convert_all(source_files, parser, converter, target_path, prompts_path, None)
-    # An import assigns positions, so it holds the queue lock for the whole run
-    # (design section 7). Held across every file rather than per file: the band cursor
-    # below is computed once and stepped, so a create landing halfway through would
-    # take a number this run is about to hand to a later file.
-    with storage.queue_lock():
-        return _convert_all(source_files, parser, converter, target_path, prompts_path, storage)
+    return _convert_all(source_files, parser, converter, target_path, prompts_path, storage)
 
 
 def _convert_all(
@@ -97,9 +90,9 @@ def _convert_all(
     converter: "TaskConverter",
     target_path: Path,
     prompts_path: Path | None,
-    storage: Optional[TaskStorage],
+    storage: Optional[TaskFileCorpus],
 ) -> List[MigrationResult]:
-    """Convert every source file. The caller holds the queue lock when writing."""
+    """Convert every source file into the target directory."""
     dry_run = storage is None
     results: List[MigrationResult] = []
     # An import joins a queue that may already have tasks in it, and every task it

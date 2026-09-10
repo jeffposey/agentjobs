@@ -15,16 +15,16 @@ from agentjobs.models_v2 import (
     Outcome,
     Priority,
 )
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 
 def _manager(tmp_path: Path) -> TaskManager:
-    storage = TaskStorage(tmp_path)
+    storage = task_store(tmp_path)
     return TaskManager(storage)
 
 
-def test_create_task_persists_yaml(tmp_path: Path) -> None:
-    """Creating a task writes YAML to disk, stamped and reloadable."""
+def test_create_task_persists_the_record(tmp_path: Path) -> None:
+    """Creating a task writes a record that reads back, stamped with its schema."""
     manager = _manager(tmp_path)
     task = manager.create_task(
         id="task-001",
@@ -34,8 +34,9 @@ def test_create_task_persists_yaml(tmp_path: Path) -> None:
         category="infra",
     )
 
-    assert (tmp_path / "task-001.yaml").exists()
-    assert (tmp_path / "task-001.yaml").read_text(encoding="utf-8").startswith("schema: 2")
+    reloaded = manager.storage.load_task("task-001")
+    assert reloaded is not None
+    assert reloaded.schema_version == 2
     assert task.priority == Priority.HIGH
     assert manager.get_task("task-001") is not None
 

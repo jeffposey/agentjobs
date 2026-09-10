@@ -25,7 +25,7 @@ from .actors import load_actors
 from .manager import TaskManager
 from .models_v2 import Task
 from .receipts import ReceiptStore, content_hash
-from .storage import TaskStorage
+from .taskfiles import TaskFileCorpus
 
 
 @dataclass(frozen=True)
@@ -70,9 +70,14 @@ def validate_corpus(
     project_config: Optional[Dict[str, object]] = None,
     project_root: Optional[Path] = None,
 ) -> ValidationReport:
-    """Validate every task file in one directory."""
-    storage = TaskStorage(tasks_dir)
-    manager = TaskManager(storage)
+    """Validate every task file in one directory.
+
+    A *directory*, always, and never "this project's records" -- those are rows, and the
+    constraints they satisfy are enforced where they live. What this checks is a corpus
+    of files: one somebody arrived with and is about to import, or one a repository is
+    still carrying from before it moved (task-402).
+    """
+    storage = TaskFileCorpus(tasks_dir, create=False)
     report = ValidationReport()
     config = project_config or {}
 
@@ -105,7 +110,7 @@ def validate_corpus(
         report.findings.extend(_check_paths(task, filename, project_root))
         report.findings.extend(_check_canonical_form(task, filename, storage))
 
-    report.findings.extend(_check_cycles(manager, loaded.tasks))
+    report.findings.extend(_check_cycles(loaded.tasks))
     report.findings.extend(_check_queue(tasks_dir))
     return report
 
@@ -312,18 +317,21 @@ def _check_relationships(task: Task, filename: str, known: Set[str]) -> List[Fin
     return findings
 
 
-def _check_cycles(manager: TaskManager, tasks: Sequence[Task]) -> List[Finding]:
+def _check_cycles(tasks: Sequence[Task]) -> List[Finding]:
     """Report `needs` cycles, using the canonical implementation.
 
-    Calls ``TaskManager.dependency_facts`` rather than walking the graph here. A
+    Calls ``TaskManager``'s own cycle finder rather than walking the graph here. A
     second implementation would be free to disagree with the one the product uses to
     decide what is claimable, and the disagreement would surface as a validator that
     passes a corpus nobody can work.
+
+    It takes the tasks and not a manager, because these tasks are files rather than a
+    project's records and there is no store to build one over.
     """
     findings: List[Finding] = []
-    facts = manager.dependency_facts(list(tasks))
+    by_id = TaskManager._needs_cycles(list(tasks))
     for task in tasks:
-        cycles = facts[task.id].needs_cycles
+        cycles = by_id.get(task.id, ())
         for cycle in cycles:
             findings.append(
                 Finding(
@@ -380,7 +388,7 @@ def _check_paths(task: Task, filename: str, project_root: Optional[Path]) -> Lis
     return findings
 
 
-def _check_canonical_form(task: Task, filename: str, storage: TaskStorage) -> List[Finding]:
+def _check_canonical_form(task: Task, filename: str, storage: TaskFileCorpus) -> List[Finding]:
     """Report a file that AgentJobs would have written differently.
 
     Not a correctness failure on its own -- the file loads and validates. It is the

@@ -3,9 +3,9 @@
 A thin facade over the running AgentJobs HTTP service:
 
     agent -> MCP over STDIO -> TaskClient -> project-scoped REST -> TaskManager
-    -> TaskStorage
+    -> the task store
 
-Nothing in this package imports ``TaskManager`` or ``TaskStorage``. The authoritative
+Nothing in this package imports ``TaskManager`` or a task store. The authoritative
 write path stays behind the REST service, so an MCP write is validated, locked, and
 logged by exactly the same code as a CLI or GUI write.
 

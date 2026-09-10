@@ -35,7 +35,7 @@ from agentjobs.models_v2 import (
     Task,
 )
 from agentjobs.projects import ProjectRegistry
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 NOW = datetime(2026, 8, 11, tzinfo=timezone.utc)
 
@@ -144,7 +144,7 @@ def build_project(root: Path, tasks: list[Task]) -> None:
         yaml.safe_dump({"project_name": "Inbox", "tasks_directory": "tasks"}),
         encoding="utf-8",
     )
-    storage = TaskStorage(root / "tasks")
+    storage = task_store(root / "tasks", project_id="inbox")
     for task in tasks:
         storage.save_task(task)
 

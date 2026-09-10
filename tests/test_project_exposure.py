@@ -55,7 +55,7 @@ from agentjobs.principals import (
     resolve_principal,
 )
 from agentjobs.projects import ProjectRegistry
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 LOOPBACK = "127.0.0.1"
 
@@ -149,7 +149,7 @@ def _make_project(tmp_path: Path, home: Path, project_id: str, **extra: Any) -> 
 
 
 def _make_task(root: Path, task_id: str, title: str) -> None:
-    TaskManager(TaskStorage(root / "tasks")).create_task(
+    TaskManager(task_store(root / "tasks")).create_task(
         id=task_id,
         title=title,
         summary=f"{title}.",

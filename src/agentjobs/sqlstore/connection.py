@@ -38,6 +38,27 @@ class SqlStoreError(RuntimeError):
     """The store could not be opened or used as configured."""
 
 
+class TaskLockTimeout(Exception):
+    """Another writer held the database for longer than we were willing to wait.
+
+    Named for what it means to a caller rather than for the mechanism, because the
+    mechanism has changed once already: it was an advisory lock file under the file
+    backend and is ``SQLITE_BUSY`` now (task-402). The API turns it into a retryable
+    409 either way, which is the answer that matters -- a wait of a few hundred
+    milliseconds is not a reason to tell a client to stop.
+    """
+
+
+def _is_contention(exc: sqlite3.OperationalError) -> bool:
+    """True when SQLite refused because somebody else held the file.
+
+    Matched on the message because ``sqlite3`` raises one exception type for a dozen
+    unrelated conditions, and a broken schema must not be reported as "try again".
+    """
+    message = str(exc).lower()
+    return "locked" in message or "busy" in message
+
+
 def _configure(connection: sqlite3.Connection, *, read_only: bool) -> None:
     """Apply the pragmas every connection needs, in the order they must be applied."""
     connection.row_factory = sqlite3.Row
@@ -64,8 +85,14 @@ class Database:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._write_lock = threading.RLock()
-        self._depth = 0
-        self._savepoints = 0
+        # Per thread, not per database. `in_transaction` is what decides whether a read
+        # is served from the writer or from this thread's reader, and a shared counter
+        # answers "somebody is writing" -- so while one thread held a write block, every
+        # other thread was handed the writer connection and used it concurrently.
+        # sqlite3 reports that as `InterfaceError: bad parameter or other API misuse`,
+        # from inside an unrelated read (task-402, surfaced once the suite's concurrency
+        # tests moved off the file backend).
+        self._state = threading.local()
         self._writer = sqlite3.connect(
             str(self.path), isolation_level=None, check_same_thread=False
         )
@@ -77,6 +104,26 @@ class Database:
         # on Windows makes it impossible to replace, so a restore fails with a
         # permission error that names no cause (task-311).
         self._all_readers: List[sqlite3.Connection] = []
+
+    # ----- per-thread transaction state -----------------------------------------
+
+    @property
+    def _depth(self) -> int:
+        """How many write blocks the calling thread has open."""
+        return int(getattr(self._state, "depth", 0))
+
+    @_depth.setter
+    def _depth(self, value: int) -> None:
+        self._state.depth = value
+
+    @property
+    def _savepoints(self) -> int:
+        """How many savepoints the calling thread has open."""
+        return int(getattr(self._state, "savepoints", 0))
+
+    @_savepoints.setter
+    def _savepoints(self, value: int) -> None:
+        self._state.savepoints = value
 
     # ----- readers -------------------------------------------------------------
 
@@ -128,7 +175,18 @@ class Database:
         with self._write_lock:
             outermost = self._depth == 0
             if outermost:
-                self._writer.execute("BEGIN IMMEDIATE")
+                try:
+                    self._writer.execute("BEGIN IMMEDIATE")
+                except sqlite3.OperationalError as exc:
+                    # Another *process* holds the file and the busy timeout expired.
+                    # Reported as contention rather than as a failure, so the caller is
+                    # told to retry instead of being told the write is impossible.
+                    if _is_contention(exc):
+                        raise TaskLockTimeout(
+                            "another writer holds the AgentJobs database "
+                            f"({exc}); nothing was written."
+                        ) from exc
+                    raise
             self._depth += 1
             try:
                 yield self._writer

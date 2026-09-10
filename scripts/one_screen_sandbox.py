@@ -81,7 +81,7 @@ def build_project(root: Path, *, alarm: bool, claimed: Tuple[str, ...]) -> Path:
     from agentjobs.manager import TaskManager
     from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Priority
     from agentjobs.project_setup import build_project_config
-    from agentjobs.storage import TaskStorage
+    from sandbox_store import sandbox_store  # type: ignore[import-not-found]
 
     project_root = root / "sandbox-crowded"
     (project_root / ".agentjobs").mkdir(parents=True)
@@ -92,7 +92,7 @@ def build_project(root: Path, *, alarm: bool, claimed: Tuple[str, ...]) -> Path:
         ),
         encoding="utf-8",
     )
-    manager = TaskManager(TaskStorage(project_root / "tasks"))
+    manager = TaskManager(sandbox_store(project_root / "tasks"))
 
     bands = [Priority.CRITICAL, Priority.HIGH, Priority.MEDIUM, Priority.LOW]
     for index in range(CROWD):

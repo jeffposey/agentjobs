@@ -1,6 +1,6 @@
 """The backend-neutral storage boundary.
 
-The 2026-08-21 storage audit proposed declaring the existing ``TaskStorage`` surface as
+The 2026-08-21 storage audit proposed declaring the existing task-store surface as
 a Protocol, plus a ``load_raw`` for the four modules that read task files directly. The
 spec for task-273 asked for that to be revisited before it was adopted, and it needed
 revisiting: **most of that surface is a statement about files, not about storage.**

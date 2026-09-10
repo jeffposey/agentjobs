@@ -4,6 +4,12 @@ The point of this layer is to be loud where the Codex hook cannot see. So the te
 are mostly "put a specific defect in a file and check the report names it, by filename
 and by rule" -- a validator whose message does not identify the file is a validator
 people learn to ignore.
+
+**Everything here is about a directory of files, and stays that way** (task-402). A
+project's records are rows and the rules this layer checks are constraints there, so
+what is left to validate is a corpus of files: one about to be imported, or one a
+repository is still carrying. The fixtures write files through
+:class:`~agentjobs.taskfiles.TaskFileCorpus` for the same reason.
 """
 
 from __future__ import annotations
@@ -18,10 +24,17 @@ import yaml
 from typer.testing import CliRunner
 
 from agentjobs.cli import app
-from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Lifecycle, Task
+from agentjobs.models_v2 import (
+    Assignment,
+    Ball,
+    BallReason,
+    Lifecycle,
+    Priority,
+    Spec,
+    Task,
+)
 from agentjobs.receipts import DISABLE_ENV, ReceiptStore, content_hash
-from agentjobs.storage import TaskStorage
+from agentjobs.taskfiles import TaskFileCorpus
 from agentjobs.validation import (
     OVERRIDE_ENV,
     check_staged_receipts,
@@ -42,24 +55,32 @@ CONFIG: dict[str, object] = {
 
 
 @pytest.fixture()
-def project(tmp_path: Path) -> Iterator[Tuple[Path, TaskManager]]:
+def project(tmp_path: Path) -> Iterator[Tuple[Path, TaskFileCorpus]]:
     """A project directory with config and an empty tasks directory."""
     (tmp_path / ".agentjobs").mkdir(parents=True)
     (tmp_path / ".agentjobs" / "config.yaml").write_text(yaml.safe_dump(CONFIG), encoding="utf-8")
-    manager = TaskManager(TaskStorage(tmp_path / "tasks"))
-    yield tmp_path, manager
+    yield tmp_path, TaskFileCorpus(tmp_path / "tasks")
 
 
-def ready(manager: TaskManager, task_id: str = "task-001-work", **kwargs: Any) -> Task:
-    """A valid ready task."""
-    return manager.create_task(
-        id=task_id,
-        title="Work",
-        description="Do the thing.",
-        category="general",
-        lifecycle=Lifecycle.READY,
-        **kwargs,
-    )
+def ready(corpus: TaskFileCorpus, task_id: str = "task-001-work", **kwargs: Any) -> Task:
+    """A valid ready task, written through the managed path so it earns a receipt."""
+    now = datetime(2026, 8, 10, tzinfo=timezone.utc)
+    fields: Dict[str, Any] = {
+        "id": task_id,
+        "title": "Work",
+        "created": now,
+        "updated": now,
+        "lifecycle": Lifecycle.READY,
+        "ball": Ball.AGENT,
+        "ball_reason": BallReason.AVAILABLE,
+        "priority": Priority.MEDIUM,
+        "queue_position": int(task_id.split("-")[1]) * 100,
+        "category": "general",
+        "assignment": Assignment(),
+        "spec": Spec(summary="Do the thing.", description="Do the thing."),
+    }
+    fields.update(kwargs)
+    return corpus.save_task(Task(**fields))
 
 
 def write_raw(root: Path, name: str, payload: Dict[str, Any]) -> Path:
@@ -426,14 +447,15 @@ class TestReceipts:
         assert receipt.filename == f"{task.id}.yaml"
         assert receipt.version
 
-    def test_every_verb_refreshes_the_receipt(self, project):
+    def test_a_second_write_refreshes_the_receipt(self, project):
         """Whatever writes, the receipt tracks the current file."""
-        root, manager = project
-        task = ready(manager)
+        root, corpus = project
+        task = ready(corpus)
         store = ReceiptStore.for_tasks_directory(root / "tasks")
         first = store.latest(task.id).content_hash
 
-        manager.claim_task(task.id, agent="bot")
+        task.assignment = Assignment(owner="bot")
+        corpus.save_task(task)
 
         second = store.latest(task.id).content_hash
         assert second != first
@@ -472,35 +494,30 @@ class TestReceipts:
 
     def test_a_failed_receipt_write_does_not_fail_the_task_write(self, project, monkeypatch):
         """Evidence is corroborating. Losing it must not lose the task."""
-        root, manager = project
+        root, corpus = project
 
         def explode(*args, **kwargs):
             raise OSError("read-only filesystem")
 
         monkeypatch.setattr(Path, "mkdir", explode)
-        task = manager.create_task(
-            id="task-920-resilient",
-            title="Still written",
-            description="d",
-            category="general",
-            lifecycle=Lifecycle.READY,
-        )
+        task = ready(corpus, "task-920-resilient")
 
         assert task.id == "task-920-resilient"
+        assert (root / "tasks" / "task-920-resilient.yaml").exists()
 
 
 # ---------------------------------------------------------------------------
 # ac-3: the staged gate
 # ---------------------------------------------------------------------------
 @pytest.fixture()
-def repo(tmp_path: Path) -> Iterator[Tuple[Path, TaskManager]]:
+def repo(tmp_path: Path) -> Iterator[Tuple[Path, TaskFileCorpus]]:
     """A real git repository with an AgentJobs project inside it."""
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True)
     (tmp_path / ".agentjobs").mkdir()
     (tmp_path / ".agentjobs" / "config.yaml").write_text(yaml.safe_dump(CONFIG), encoding="utf-8")
-    yield tmp_path, TaskManager(TaskStorage(tmp_path / "tasks"))
+    yield tmp_path, TaskFileCorpus(tmp_path / "tasks")
 
 
 def stage(repo_root: Path, path: Path) -> None:
@@ -589,7 +606,7 @@ class TestOverride:
         monkeypatch.setenv(OVERRIDE_ENV, "emergency")
         monkeypatch.chdir(root)
 
-        result = CliRunner().invoke(app, ["validate", "--staged"])
+        result = CliRunner().invoke(app, ["validate", "--tasks-dir", "tasks", "--staged"])
 
         assert result.exit_code == 1
         assert "missing-parent" in result.output
@@ -604,7 +621,7 @@ class TestCommand:
         ready(manager)
         monkeypatch.chdir(root)
 
-        result = CliRunner().invoke(app, ["validate"])
+        result = CliRunner().invoke(app, ["validate", "--tasks-dir", "tasks"])
 
         assert result.exit_code == 0
         assert "no problems found" in result.output
@@ -615,7 +632,7 @@ class TestCommand:
         write_raw(root, "task-923-bad.yaml", valid_payload("task-923-bad", parent="task-nope"))
         monkeypatch.chdir(root)
 
-        result = CliRunner().invoke(app, ["validate"])
+        result = CliRunner().invoke(app, ["validate", "--tasks-dir", "tasks"])
 
         assert result.exit_code == 1
         assert "task-923-bad.yaml" in result.output
@@ -630,7 +647,7 @@ class TestCommand:
             receipt.unlink()
         monkeypatch.chdir(root)
 
-        assert CliRunner().invoke(app, ["validate"]).exit_code == 0
+        assert CliRunner().invoke(app, ["validate", "--tasks-dir", "tasks"]).exit_code == 0
 
     def test_the_hook_installer_writes_a_pre_commit_hook(self, repo, monkeypatch):
         root, _ = repo
@@ -684,7 +701,7 @@ class TestRealCorpus:
         """This repository's own records as files, or a skip saying they are not."""
         directory = Path(__file__).resolve().parents[1] / "tasks" / "agentjobs"
         # Emptiness rather than absence: the directory is recreated, empty, by anything
-        # in the suite that constructs a `TaskStorage` over it, so "is it there" is not
+        # in the suite that constructs a `SqlTaskStore` over it, so "is it there" is not
         # the question. "Does it hold records" is.
         if not any(directory.glob("*.yaml")):
             pytest.skip("this repository's records have been retired from the checkout")

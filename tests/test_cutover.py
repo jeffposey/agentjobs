@@ -1,6 +1,6 @@
 """The operator sequence: preview, back up, import, verify, record -- and back again.
 
-Every test here works on a directory of real task YAML written by ``TaskStorage``, so
+Every test here works on a directory of real task YAML written by ``SqlTaskStore``, so
 what is being exercised is the path a machine actually takes rather than a fixture
 shaped to suit the importer.
 """
@@ -20,7 +20,6 @@ from agentjobs.cutover import (
     export_project,
     import_project,
     preview,
-    roll_back,
     status,
     verify_backup,
     verify_import,
@@ -40,10 +39,8 @@ from agentjobs.models_v2 import (
 )
 from agentjobs.projects import Project
 from agentjobs.sqlstore import CorpusAlreadyImported, SqlTaskStore
-from agentjobs.storage import TaskStorage
+from agentjobs.taskfiles import TaskFileCorpus
 from agentjobs.storage_config import (
-    FILES,
-    SQLITE,
     default_project_database,
     load_storage_settings,
 )
@@ -99,7 +96,7 @@ def project(tmp_path: Path) -> Project:
     (root / ".agentjobs" / "config.yaml").write_text(
         yaml.safe_dump({"project_name": "Demo", "tasks_directory": "tasks"}), encoding="utf-8"
     )
-    storage = TaskStorage(root / "tasks")
+    storage = TaskFileCorpus(root / "tasks")
     storage.save_task(a_task("task-001", position=100))
     storage.save_task(a_task("task-002", position=200))
     storage.save_task(a_task("task-003", position=300, closed=True))
@@ -129,7 +126,7 @@ class TestPreview:
         settings = load_storage_settings()
         assert not settings.database.exists()
         assert not default_project_database(project.id, settings.home).exists()
-        assert settings.backend_for(project.id) == FILES
+        assert settings.for_project(project.id).cutover_at is None
 
     def test_an_unreadable_record_is_named_rather_than_dropped(
         self, home: Path, project: Project
@@ -186,7 +183,7 @@ class TestImportAndVerify:
         # whole corpus to the migration, which no count would notice -- so the stamp
         # each file carries has to be the stamp its row carries.
         on_disk = {
-            task.id: task.updated for task in TaskStorage(project.root / "tasks").list_tasks()
+            task.id: task.updated for task in TaskFileCorpus(project.root / "tasks").list_tasks()
         }
         import_project(project)
         assert {task.id: task.updated for task in stored_tasks(project)} == on_disk
@@ -209,7 +206,7 @@ class TestImportAndVerify:
     ) -> None:
         import_project(project)
         # A file appearing after the import is exactly what a missed record looks like.
-        TaskStorage(project.root / "tasks").save_task(a_task("task-004", position=400))
+        TaskFileCorpus(project.root / "tasks").save_task(a_task("task-004", position=400))
         with server_process():
             settings = load_storage_settings()
             store = SqlTaskStore(open_database(settings.database_for(project.id)), project.id)
@@ -226,7 +223,7 @@ class TestCutover:
     ) -> None:
         result = cut_over(project, backfill_git=False)
         assert result.ok
-        assert load_storage_settings().backend_for(project.id) == SQLITE
+        assert load_storage_settings().for_project(project.id).cutover_at is not None
 
     def test_the_server_then_serves_the_database(self, home: Path, project: Project) -> None:
         cut_over(project, backfill_git=False)
@@ -248,7 +245,7 @@ class TestCutover:
         assert snapshot_path is not None and snapshot_path.exists()
         assert verify_backup(snapshot_path).ok
 
-    def test_a_failed_verification_leaves_the_project_on_its_files(
+    def test_a_failed_verification_records_nothing(
         self, home: Path, project: Project, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from agentjobs import cutover as module
@@ -262,13 +259,19 @@ class TestCutover:
         result = module.cut_over(project, backfill_git=False)
         assert not result.ok
         assert not result.recorded
-        assert load_storage_settings().backend_for(project.id) == FILES
+        assert load_storage_settings().for_project(project.id).cutover_at is None
 
 
 class TestGettingBackOut:
-    """Export is the interchange artifact; rollback is built on it."""
+    """Export is the interchange artifact, and the road out is only that.
 
-    def test_an_export_is_a_directory_the_file_backend_can_serve(
+    There is no rollback: the backend a rollback returned a project to was deleted by
+    task-402. What survives is the property the rollback was built on -- an export is a
+    directory this codebase can read back -- which is what makes moving a project
+    between machines possible at all.
+    """
+
+    def test_an_export_is_a_directory_that_can_be_imported_again(
         self, home: Path, project: Project, tmp_path: Path
     ) -> None:
         cut_over(project, backfill_git=False)
@@ -276,15 +279,15 @@ class TestGettingBackOut:
         report = export_project(project, destination)
         assert report.tasks == 3
 
-        served = TaskStorage(destination)
+        served = TaskFileCorpus(destination, create=False)
         assert {task.id for task in served.list_tasks()} == {
             "task-001",
             "task-002",
             "task-003",
         }
 
-    def test_rollback_preserves_what_was_written_after_the_cutover(
-        self, home: Path, project: Project
+    def test_an_export_carries_what_was_written_after_the_import(
+        self, home: Path, project: Project, tmp_path: Path
     ) -> None:
         cut_over(project, backfill_git=False)
         with server_process():
@@ -293,21 +296,22 @@ class TestGettingBackOut:
                 "task-001", actor="claude", type=LogEntryType.PROGRESS, body="Written after."
             )
 
-        roll_back(project)
+        export_project(project, tmp_path / "exported")
 
-        assert load_storage_settings().backend_for(project.id) == FILES
-        # The entry made after the cutover is on disk. Exporting the pre-cutover
-        # snapshot instead would be a rollback that discarded a day's work.
-        recovered = TaskStorage(project.root / "tasks").load_task("task-001")
+        # The store's *current* state, not the snapshot taken before the import.
+        # Exporting the snapshot instead would hand somebody a corpus missing a day's
+        # work with nothing saying so.
+        recovered = TaskFileCorpus(tmp_path / "exported", create=False).load_task("task-001")
         assert recovered is not None
         assert any(entry.body == "Written after." for entry in recovered.log)
 
-    def test_rollback_keeps_the_database(self, home: Path, project: Project) -> None:
+    def test_an_export_leaves_the_database_alone(
+        self, home: Path, project: Project, tmp_path: Path
+    ) -> None:
         cut_over(project, backfill_git=False)
-        roll_back(project)
-        # A rollback is a decision that can itself be wrong, and the store holds the
-        # only copy of the reconstructed history.
+        export_project(project, tmp_path / "exported")
         assert load_storage_settings().database_for(project.id).exists()
+        assert len(stored_tasks(project)) == 3
 
     def test_an_attachment_comes_back_as_bytes_beside_the_task(
         self, home: Path, project: Project, tmp_path: Path
@@ -319,7 +323,7 @@ class TestGettingBackOut:
             b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01"
             b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
         )
-        storage = TaskStorage(project.root / "tasks")
+        storage = TaskFileCorpus(project.root / "tasks")
         task = storage.load_task("task-001")
         assert task is not None
         attachment = storage.attachments.write("task-001", AttachmentPayload(data=png, label="A"))
@@ -346,17 +350,15 @@ class TestGettingBackOut:
 class TestStatus:
     """The first question an operator asks, answered by counting rather than assuming."""
 
-    def test_it_reports_both_counts_whichever_backend_is_live(
+    def test_it_reports_both_counts_before_and_after_an_import(
         self, home: Path, project: Project
     ) -> None:
         before = status([project])[0]
-        assert before.backend == FILES
         assert before.files == 3
         assert before.rows is None  # no database on this machine yet
 
         cut_over(project, backfill_git=False)
         after = status([project])[0]
-        assert after.backend == SQLITE
         assert after.rows == 3
         # Both counts, deliberately: files still on disk after a cutover is a real and
         # informative state, and so is rows without files once retirement has run.

@@ -2,7 +2,7 @@
 
 ``agentjobs validate`` can prove a task file is *valid*. It cannot prove who wrote it,
 because a careful hand-edit produces a file that validates perfectly. Receipts close
-that gap locally: every successful ``TaskStorage`` write records the hash of what it
+that gap locally: every task file AgentJobs writes records the hash of what it
 just wrote, so a staged file whose hash matches no receipt was written by something
 other than AgentJobs.
 

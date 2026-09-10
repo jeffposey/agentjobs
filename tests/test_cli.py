@@ -12,6 +12,9 @@ import pytest
 from typer.testing import CliRunner
 
 from agentjobs.cli import app, _ensure_gitignore, _make_output_encoding_safe
+from agentjobs.manager import TaskManager
+from agentjobs.models_v2 import Outcome
+from support import task_store
 
 runner = CliRunner()
 
@@ -43,19 +46,27 @@ def test_output_encoding_survives_legacy_codepage_stream(monkeypatch) -> None:
     assert "âŒ" in raw.getvalue().decode("utf-8")
 
 
-def test_cli_init_create_list_show(tmp_path: Path, monkeypatch) -> None:
-    """Exercise the main CLI commands end-to-end."""
+def test_cli_init_writes_config_and_no_task_directory(tmp_path: Path, monkeypatch) -> None:
+    """What `init` leaves behind: a config file, and nothing that looks like a corpus."""
     monkeypatch.chdir(tmp_path)
 
     result = runner.invoke(
         app,
-        ["init", "--backend", "files"],
-        input="Test Project\ntasks\nprompts\n9000\njeff\n",
+        ["init"],
+        input="Test Project\nprompts\n9000\njeff\n",
         catch_exceptions=False,
     )
     assert result.exit_code == 0
-    assert (tmp_path / "tasks").exists()
     assert (tmp_path / ".agentjobs" / "config.yaml").exists()
+    # No tasks directory. A new project's records are rows from its first one, so
+    # conjuring an empty directory would teach the wrong model (task-399, task-402).
+    assert not (tmp_path / "tasks").exists()
+
+
+def test_cli_create_list_show(tmp_path: Path, monkeypatch) -> None:
+    """Exercise the main CLI commands end-to-end."""
+    monkeypatch.chdir(tmp_path)
+    _init_project(tmp_path)
 
     create_result = runner.invoke(
         app,
@@ -63,12 +74,7 @@ def test_cli_init_create_list_show(tmp_path: Path, monkeypatch) -> None:
         input="Sample Task\nExample description\n",
         catch_exceptions=False,
     )
-    assert create_result.exit_code == 0
-    task_files = list((tmp_path / "tasks").glob("*.yaml"))
-    assert len(task_files) == 1
-    task_file = task_files[0]
-    assert task_file.exists()
-    task_id = task_file.stem
+    task_id = _created_id(create_result)
 
     list_result = runner.invoke(
         app,
@@ -95,22 +101,9 @@ def test_work_command_flow(tmp_path: Path, monkeypatch) -> None:
     """Verify the interactive agent workflow (pick task -> start -> complete)."""
     monkeypatch.chdir(tmp_path)
 
-    # Setup: Initialize and create a task
-    runner.invoke(
-        app, ["init", "--backend", "files"], input="Test Project\ntasks\nprompts\n9000\njeff\n"
-    )
-    runner.invoke(app, ["create"], input="Work Task\nDescription\n")
-
-    # Manually move the task to ready/agent-available so it can be picked up
-    import yaml
-
-    task_file = next((tmp_path / "tasks").glob("*.yaml"))
-    content = yaml.safe_load(task_file.read_text())
-    content["lifecycle"] = "ready"
-    content["ball"] = "agent"
-    content["ball_reason"] = "available"
-    content.pop("ball_prompt", None)
-    task_file.write_text(yaml.safe_dump(content, sort_keys=False))
+    _init_project(tmp_path)
+    created = runner.invoke(app, ["create", "--ready"], input="Work Task\nDescription\n")
+    task_id = _created_id(created)
 
     # Run work command with mocked inputs
     # Inputs: Confirm Start (y), Confirm Complete (y), Summary
@@ -123,12 +116,11 @@ def test_work_command_flow(tmp_path: Path, monkeypatch) -> None:
     assert "Task claimed" in result.stdout
     assert "closed: completed" in result.stdout
 
-    # Verify task state on disk
-    task_file = next((tmp_path / "tasks").glob("*.yaml"))
-    content = task_file.read_text()
-    assert "lifecycle: closed" in content
-    assert "outcome: completed" in content
-    assert "Fixed the bug" in content
+    # ...and the record says so, read back through the command a person would use.
+    shown = _the_task(task_id)
+    assert shown["lifecycle"] == "closed"
+    assert shown["outcome"] == "completed"
+    assert any("Fixed the bug" in (entry.get("body") or "") for entry in shown["log"])
 
 
 def test_serve_command_args(monkeypatch) -> None:
@@ -192,10 +184,7 @@ def test_list_tasks_filtering(tmp_path: Path, monkeypatch) -> None:
     """Verify that list correctly filters tasks by status and priority."""
     monkeypatch.chdir(tmp_path)
 
-    # Setup: Initialize
-    runner.invoke(
-        app, ["init", "--backend", "files"], input="Test Project\ntasks\nprompts\n9000\njeff\n"
-    )
+    _init_project(tmp_path)
 
     # Create PLANNED/HIGH task
     runner.invoke(
@@ -204,21 +193,17 @@ def test_list_tasks_filtering(tmp_path: Path, monkeypatch) -> None:
         input="\n",  # default description
     )
 
-    # Create COMPLETED/LOW task (create as draft/medium default, then update manually to simulate state)
-    runner.invoke(app, ["create", "--priority", "low", "--title", "Low Task"], input="\n")
-
-    # Find the Low Task file and close it
-    import yaml
-
-    for task_file in (tmp_path / "tasks").glob("*.yaml"):
-        content = yaml.safe_load(task_file.read_text())
-        if content["title"] == "Low Task":
-            content["lifecycle"] = "closed"
-            content["outcome"] = "completed"
-            for key in ("ball", "ball_reason", "ball_prompt", "queue_position"):
-                content.pop(key, None)
-            task_file.write_text(yaml.safe_dump(content, sort_keys=False))
-            break
+    # Create a low-priority task and close it through the verbs rather than by writing
+    # the end state: closing is a transition with its own rules, and a record edited
+    # into place would not have gone through any of them. There is no `close` command,
+    # so this goes through the manager over the same store the CLI is reading.
+    low = runner.invoke(
+        app, ["create", "--ready", "--priority", "low", "--title", "Low Task"], input="\n"
+    )
+    low_id = _created_id(low)
+    manager = TaskManager(task_store(tmp_path / "tasks"))
+    manager.claim_task(low_id, agent="jeff")
+    manager.close_task(low_id, actor="jeff", outcome=Outcome.COMPLETED, body="Done.")
 
     # Test Filter by Lifecycle
     result_status = runner.invoke(app, ["list", "--lifecycle", "closed"])
@@ -318,47 +303,71 @@ def test_show_task_not_found(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
 
     # Initialize to ensure manager can run
-    runner.invoke(
-        app, ["init", "--backend", "files"], input="Test Project\ntasks\nprompts\n9000\njeff\n"
-    )
+    runner.invoke(app, ["init"], input="Test Project\nprompts\n9000\njeff\n")
 
     result = runner.invoke(app, ["show", "non-existent-id"])
     assert result.exit_code == 1
     assert "Task 'non-existent-id' not found" in result.stdout
 
 
-def _init_project() -> None:
-    """Run init with the same answers the other tests in this file use."""
-    runner.invoke(
-        app, ["init", "--backend", "files"], input="Test Project\ntasks\nprompts\n9000\njeff\n"
-    )
+def _init_project(root: Path | None = None, *, default_user: str | None = "jeff") -> None:
+    """Configure a project in the working directory, without registering it.
 
+    Written rather than run through ``agentjobs init``, and the difference matters after
+    task-402: ``init`` registers the project, and every command in a registered project
+    is a service client -- so these cases would need a server running to exercise a
+    handful of argument-parsing and attribution decisions. An unregistered directory is
+    a real state (a clone on a machine that has never registered it) and the one the CLI
+    still answers for itself.
 
-def _only_task(tmp_path: Path) -> dict:
-    """Load the single task file back off disk, which is where the truth is."""
+    ``agentjobs init``'s own effects are asserted separately, where they belong.
+    """
     import yaml
 
-    task_file = next((tmp_path / "tasks").glob("*.yaml"))
-    loaded = yaml.safe_load(task_file.read_text(encoding="utf-8"))
+    base = root or Path.cwd()
+    config: dict = {
+        "project_name": "Test Project",
+        "tasks_directory": "tasks",
+        "prompts_directory": "prompts",
+        "port": 9000,
+    }
+    if default_user is not None:
+        config["default_user"] = default_user
+    (base / ".agentjobs").mkdir(parents=True, exist_ok=True)
+    (base / ".agentjobs" / "config.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
+
+
+def _the_task(task_id: str) -> dict:
+    """The record, read back through the command a person would use."""
+    shown = runner.invoke(app, ["show", task_id], catch_exceptions=False)
+    assert shown.exit_code == 0, shown.output
+    loaded = json.loads(shown.stdout)
     assert isinstance(loaded, dict)
     return loaded
+
+
+def _created_id(result) -> str:
+    """The id `create` reports, which is the only handle it hands back."""
+    assert result.exit_code == 0, result.output
+    found = [word for word in result.stdout.split() if word.startswith("task-")]
+    assert found, result.stdout
+    return str(found[0])
 
 
 def test_promote_moves_draft_to_ready(tmp_path: Path, monkeypatch) -> None:
     """A draft promoted from the CLI becomes claimable, and the log says who did it."""
     monkeypatch.chdir(tmp_path)
-    _init_project()
-    runner.invoke(app, ["create", "--title", "Draft Task"], input="\n")
+    _init_project(tmp_path)
+    task_id = _created_id(runner.invoke(app, ["create", "--title", "Draft Task"], input="\n"))
 
-    task_id = next((tmp_path / "tasks").glob("*.yaml")).stem
-    assert _only_task(tmp_path)["lifecycle"] == "draft"
+    assert _the_task(task_id)["lifecycle"] == "draft"
 
     result = runner.invoke(app, ["promote", task_id], catch_exceptions=False)
 
     assert result.exit_code == 0
     assert "Promoted" in result.stdout
 
-    content = _only_task(tmp_path)
+    content = _the_task(task_id)
     assert content["lifecycle"] == "ready"
     assert content["ball"] == "agent"
     assert content["ball_reason"] == "available"
@@ -375,9 +384,8 @@ def test_promote_moves_draft_to_ready(tmp_path: Path, monkeypatch) -> None:
 def test_promote_uses_explicit_actor_and_note(tmp_path: Path, monkeypatch) -> None:
     """--actor overrides default_user, and --note replaces the manager's sentence."""
     monkeypatch.chdir(tmp_path)
-    _init_project()
-    runner.invoke(app, ["create", "--title", "Draft Task"], input="\n")
-    task_id = next((tmp_path / "tasks").glob("*.yaml")).stem
+    _init_project(tmp_path)
+    task_id = _created_id(runner.invoke(app, ["create", "--title", "Draft Task"], input="\n"))
 
     result = runner.invoke(
         app,
@@ -386,7 +394,7 @@ def test_promote_uses_explicit_actor_and_note(tmp_path: Path, monkeypatch) -> No
     )
 
     assert result.exit_code == 0
-    entry = _only_task(tmp_path)["log"][-1]
+    entry = _the_task(task_id)["log"][-1]
     assert entry["actor"] == "codex"
     assert entry["body"] == "Spec reviewed and finished."
 
@@ -394,12 +402,11 @@ def test_promote_uses_explicit_actor_and_note(tmp_path: Path, monkeypatch) -> No
 def test_promote_refuses_a_non_draft_without_a_traceback(tmp_path: Path, monkeypatch) -> None:
     """Promoting an already-promoted task is an expected refusal, not a crash."""
     monkeypatch.chdir(tmp_path)
-    _init_project()
-    runner.invoke(app, ["create", "--title", "Draft Task"], input="\n")
-    task_id = next((tmp_path / "tasks").glob("*.yaml")).stem
+    _init_project(tmp_path)
+    task_id = _created_id(runner.invoke(app, ["create", "--title", "Draft Task"], input="\n"))
 
     assert runner.invoke(app, ["promote", task_id]).exit_code == 0
-    log_length_before = len(_only_task(tmp_path)["log"])
+    log_length_before = len(_the_task(task_id)["log"])
 
     result = runner.invoke(app, ["promote", task_id], catch_exceptions=False)
 
@@ -407,7 +414,7 @@ def test_promote_refuses_a_non_draft_without_a_traceback(tmp_path: Path, monkeyp
     assert "is not a draft" in result.stdout
     assert "Traceback" not in result.stdout
     # The refused attempt left no trace: same lifecycle, no extra log entry.
-    after = _only_task(tmp_path)
+    after = _the_task(task_id)
     assert after["lifecycle"] == "ready"
     assert len(after["log"]) == log_length_before
 
@@ -415,7 +422,7 @@ def test_promote_refuses_a_non_draft_without_a_traceback(tmp_path: Path, monkeyp
 def test_promote_missing_task_reports_not_found(tmp_path: Path, monkeypatch) -> None:
     """A bad task id reads the same as it does from `show`."""
     monkeypatch.chdir(tmp_path)
-    _init_project()
+    _init_project(tmp_path)
 
     result = runner.invoke(app, ["promote", "task-nope"], catch_exceptions=False)
 
@@ -427,15 +434,15 @@ def test_promote_without_an_actor_refuses_rather_than_guessing(tmp_path: Path, m
     """With no default_user and no --actor, refuse instead of writing an anonymous
     transition -- an unattributed state change is worse than a refused one."""
     monkeypatch.chdir(tmp_path)
-    # No init at all, so the default config applies and default_user is null.
-    runner.invoke(app, ["create", "--title", "Draft Task"], input="\n")
-    task_id = next((tmp_path / "tasks").glob("*.yaml")).stem
+    _init_project(tmp_path, default_user=None)
+    # No default_user, and no --actor.
+    task_id = _created_id(runner.invoke(app, ["create", "--title", "Draft Task"], input="\n"))
 
     result = runner.invoke(app, ["promote", task_id], catch_exceptions=False)
 
     assert result.exit_code == 1
     assert "No actor" in result.stdout
-    assert _only_task(tmp_path)["lifecycle"] == "draft"
+    assert _the_task(task_id)["lifecycle"] == "draft"
 
 
 def test_load_config_fallback(tmp_path: Path, monkeypatch) -> None:

@@ -7,9 +7,10 @@ from pathlib import Path
 import pytest
 
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle
-from agentjobs.storage import TaskStorage
+from support import task_store
 from agentjobs.manager import TaskManager
 from agentjobs.webhooks import WebhookManager, WebhookStorage
+from agentjobs.sqlstore import SqlTaskStore
 
 
 @pytest.fixture
@@ -26,14 +27,14 @@ def webhook_manager(webhook_storage: WebhookStorage) -> WebhookManager:
 
 
 @pytest.fixture
-def task_storage(tmp_path: Path) -> TaskStorage:
+def task_storage(tmp_path: Path) -> SqlTaskStore:
     """Create a temporary task storage."""
     tasks_dir = tmp_path / "tasks"
-    return TaskStorage(tasks_dir)
+    return task_store(tasks_dir)
 
 
 @pytest.fixture
-def task_manager(task_storage: TaskStorage, webhook_manager: WebhookManager) -> TaskManager:
+def task_manager(task_storage: SqlTaskStore, webhook_manager: WebhookManager) -> TaskManager:
     """Create a task manager with webhook support."""
     return TaskManager(task_storage, webhook_manager)
 

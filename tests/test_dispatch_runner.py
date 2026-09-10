@@ -91,7 +91,7 @@ from agentjobs.models_v2 import (
     Outcome,
     utcnow,
 )
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -181,7 +181,7 @@ def workspace(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def manager(workspace: Path) -> TaskManager:
-    return TaskManager(TaskStorage(workspace / "tasks"))
+    return TaskManager(task_store(workspace / "tasks"))
 
 
 @pytest.fixture

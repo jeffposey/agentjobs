@@ -29,7 +29,7 @@ from agentjobs.models_v2 import (
     Task,
     utcnow,
 )
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 
 def dispatch_payload(**overrides: object) -> dict:
@@ -52,7 +52,7 @@ def dispatch_payload(**overrides: object) -> dict:
 
 def round_trip(task: Task, tmp_path: Path) -> Task:
     """Save and reload through storage -- the path a real task file actually takes."""
-    storage = TaskStorage(tmp_path)
+    storage = task_store(tmp_path)
     storage.save_task(task)
     reloaded = storage.load_task(task.id)
     assert reloaded is not None
@@ -286,7 +286,7 @@ class TestDerivedDispatchCount:
 
 class TestManagerWritesThem:
     def manager(self, tmp_path: Path) -> TaskManager:
-        return TaskManager(TaskStorage(tmp_path))
+        return TaskManager(task_store(tmp_path))
 
     def seed(self, tmp_path: Path) -> tuple[TaskManager, str]:
         manager = self.manager(tmp_path)
@@ -362,7 +362,7 @@ class TestManagerWritesThem:
             log_path="~/.agentjobs/runs/run_a1b2c3d4/",
         )
 
-        reloaded = TaskStorage(tmp_path).load_task(task_id)
+        reloaded = task_store(tmp_path).load_task(task_id)
         assert reloaded is not None
         result = reloaded.log[-1]
         assert result.type is LogEntryType.DISPATCH_RESULT

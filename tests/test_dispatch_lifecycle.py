@@ -47,7 +47,7 @@ from agentjobs.dispatch.runner import RunDirectory
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, Lifecycle, LogEntryType, Outcome
 from agentjobs.projects import Project, ProjectRegistry
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 PROJECT_CONFIG = {
     "project_name": "Sandbox",
@@ -85,7 +85,7 @@ def project(tmp_path: Path, home: Path) -> Project:
 
 @pytest.fixture
 def manager(project: Project) -> TaskManager:
-    return TaskManager(TaskStorage(project.root / "tasks"))
+    return TaskManager(task_store(project.root / "tasks", project_id=project.id))
 
 
 @pytest.fixture

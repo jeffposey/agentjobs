@@ -33,7 +33,7 @@ from agentjobs.operations import (
     stamp,
 )
 from agentjobs.projects import ProjectRegistry
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 ACTORS = [
     {"name": "Ada", "kind": "human", "display_name": "Ada Lovelace"},
@@ -65,7 +65,7 @@ def write_config(root: Path, name: str) -> None:
 def manager(tmp_path: Path) -> TaskManager:
     """A manager over a fresh temp project, used directly for the storage-level tests."""
     write_config(tmp_path, "Temp")
-    return TaskManager(TaskStorage(tmp_path / "tasks"))
+    return TaskManager(task_store(tmp_path / "tasks"))
 
 
 @pytest.fixture()
@@ -79,7 +79,7 @@ def service(tmp_path: Path, monkeypatch) -> Iterator[Tuple[TaskClient, TaskManag
 
     write_config(tmp_path / "solo", "Solo")
     ProjectRegistry(home=tmp_path / "home").add(tmp_path / "solo", project_id="solo")
-    manager = TaskManager(TaskStorage(tmp_path / "solo" / "tasks"))
+    manager = TaskManager(task_store(tmp_path / "solo" / "tasks"))
 
     with TestClient(app) as http:
         yield TaskClient("http://testserver", client=http).for_project("solo"), manager
@@ -282,11 +282,11 @@ class TestReplay:
         which is exactly when a client is most likely to resend.
         """
         write_config(tmp_path, "Restart")
-        first_manager = TaskManager(TaskStorage(tmp_path / "tasks"))
+        first_manager = TaskManager(task_store(tmp_path / "tasks"))
         task = ready_task(first_manager)
         first_manager.claim_task(task.id, agent="bot", operation_id=OP_A)
 
-        second_manager = TaskManager(TaskStorage(tmp_path / "tasks"))
+        second_manager = TaskManager(task_store(tmp_path / "tasks"))
         replayed = second_manager.claim_task(task.id, agent="bot", operation_id=OP_A)
 
         assert replayed.assignment.owner == "bot"
@@ -396,10 +396,10 @@ class TestCreation:
     def test_concurrent_auto_id_creates_are_serialised(self, tmp_path):
         """Two writers must not both take the same generated id."""
         write_config(tmp_path, "Race")
-        storage = TaskStorage(tmp_path / "tasks")
+        storage = task_store(tmp_path / "tasks")
 
         def create(index: int) -> str:
-            local = TaskManager(TaskStorage(tmp_path / "tasks"))
+            local = TaskManager(task_store(tmp_path / "tasks"))
             return local.create_task(
                 title=f"Racer {index}",
                 description="d",
@@ -647,11 +647,11 @@ class TestServiceContract:
 class TestExistingBehaviourPreserved:
     def test_racing_claims_still_produce_exactly_one_winner(self, tmp_path):
         write_config(tmp_path, "Race")
-        seed = TaskManager(TaskStorage(tmp_path / "tasks"))
+        seed = TaskManager(task_store(tmp_path / "tasks"))
         task = ready_task(seed)
 
         def claim(index: int):
-            local = TaskManager(TaskStorage(tmp_path / "tasks"))
+            local = TaskManager(task_store(tmp_path / "tasks"))
             try:
                 local.claim_task(task.id, agent="bot")
                 return True
@@ -666,11 +666,11 @@ class TestExistingBehaviourPreserved:
     def test_concurrent_independent_appends_all_land(self, tmp_path):
         """Appends carry no revision precisely so they do not conflict with each other."""
         write_config(tmp_path, "Appends")
-        seed = TaskManager(TaskStorage(tmp_path / "tasks"))
+        seed = TaskManager(task_store(tmp_path / "tasks"))
         task = ready_task(seed)
 
         def append(index: int) -> None:
-            local = TaskManager(TaskStorage(tmp_path / "tasks"))
+            local = TaskManager(task_store(tmp_path / "tasks"))
             local.add_log_entry(
                 task.id,
                 actor="bot",

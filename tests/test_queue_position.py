@@ -27,7 +27,8 @@ from agentjobs.queue import (
     plan_queue_migration,
     read_queue_records,
 )
-from agentjobs.storage import TaskStorage
+from agentjobs.taskfiles import TaskFileCorpus
+from support import task_store
 from agentjobs.validation import validate_corpus
 
 NOW = datetime(2026, 8, 10, tzinfo=timezone.utc)
@@ -69,7 +70,7 @@ def project(tmp_path: Path) -> Iterator[Tuple[Path, TaskManager]]:
     """A project directory with config and an empty tasks directory."""
     (tmp_path / ".agentjobs").mkdir(parents=True)
     (tmp_path / ".agentjobs" / "config.yaml").write_text(yaml.safe_dump(CONFIG), encoding="utf-8")
-    yield tmp_path, TaskManager(TaskStorage(tmp_path / "tasks"))
+    yield tmp_path, TaskManager(task_store(tmp_path / "tasks"))
 
 
 def write_raw(root: Path, name: str, payload: Dict[str, Any]) -> Path:
@@ -155,12 +156,20 @@ class TestRuleSixTheInvariant:
             Task.model_validate(task_data(queue_position=position))
 
     def test_it_survives_a_round_trip_through_yaml(self, tmp_path: Path) -> None:
-        storage = TaskStorage(tmp_path)
-        storage.save_task(Task.model_validate(task_data(queue_position=4200)))
+        """Through the file format, which is what an export and an import carry it in."""
+        corpus = TaskFileCorpus(tmp_path)
+        corpus.save_task(Task.model_validate(task_data(queue_position=4200)))
 
         assert "queue_position: 4200" in (tmp_path / "task-001-example.yaml").read_text(
             encoding="utf-8"
         )
+        reloaded = corpus.load_task("task-001-example")
+        assert reloaded is not None and reloaded.queue_position == 4200
+
+    def test_it_survives_a_round_trip_through_the_store(self, tmp_path: Path) -> None:
+        storage = task_store(tmp_path)
+        storage.save_task(Task.model_validate(task_data(queue_position=4200)))
+
         reloaded = storage.load_task("task-001-example")
         assert reloaded is not None and reloaded.queue_position == 4200
 
@@ -497,12 +506,12 @@ class TestTheMigrationAgainstRealFiles:
 
     def test_writing_makes_every_open_task_loadable_again(self, tmp_path: Path) -> None:
         tasks = self._unpositioned(tmp_path)
-        storage = TaskStorage(tasks)
-        assert storage.load_all().errors, "precondition: rule 6 refuses the corpus as it is"
+        corpus = TaskFileCorpus(tasks, create=False)
+        assert corpus.load_all().errors, "precondition: rule 6 refuses the corpus as it is"
 
         migrate_queue_positions(tasks, write=True)
 
-        loaded = storage.load_all()
+        loaded = corpus.load_all()
         assert loaded.errors == []
         positions = {task.id: task.queue_position for task in loaded.tasks}
         assert positions == {"task-001-x": 100, "task-002-x": 200, "task-003-x": 100}

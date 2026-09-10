@@ -27,7 +27,7 @@ from agentjobs.attachments import (
     sniff_media_type,
 )
 from agentjobs.manager import TaskManager
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 
 def png_bytes(payload: bytes = b"agentjobs") -> bytes:
@@ -139,7 +139,15 @@ def test_a_non_image_and_an_oversized_image_are_both_refused(tmp_path: Path) -> 
 
 
 def test_orphans_are_reported_and_never_deleted(tmp_path: Path) -> None:
-    storage = TaskStorage(tmp_path)
+    """A stored image nothing references any more is named, and left where it is.
+
+    The stray used to be a PNG written into the attachments directory beside the task
+    files. A blob is a row now (task-402), so the way one becomes unreferenced is that
+    the entry referencing it goes -- and the query is exact where the directory walk was
+    not: a reference can only exist as a row, so no unchecked-out branch might still
+    point at it.
+    """
+    storage = task_store(tmp_path)
     manager = TaskManager(storage)
     task = manager.create_task(
         title="Has an image",
@@ -147,15 +155,17 @@ def test_orphans_are_reported_and_never_deleted(tmp_path: Path) -> None:
         actor="claude",
         attachments=[AttachmentPayload(data=png_bytes(), label="kept")],
     )
-    referenced = task.log[0].attachments[0].path  # type: ignore[index]
-    stray = tmp_path / "attachments" / task.id / "deadbeef.png"
-    stray.write_bytes(png_bytes(b"stray"))
+    kept = task.log[0].attachments[0].sha256  # type: ignore[index]
+    stray = storage.attachments.write(
+        task.id, AttachmentPayload(data=png_bytes(b"stray"), label="stray")
+    )
 
     orphans = storage.attachments.orphans(storage.list_tasks())
-    assert orphans == [f"attachments/{task.id}/deadbeef.png"]
-    assert referenced not in orphans
-    # Reported, not removed: the file is still there afterwards.
-    assert stray.exists()
+
+    assert orphans == [stray.sha256]
+    assert kept not in orphans
+    # Reported, not removed: the bytes are still readable afterwards.
+    assert storage.attachments.read(stray) == png_bytes(b"stray")
 
 
 def test_the_cli_reports_orphans_without_removing_them(tmp_path: Path, monkeypatch) -> None:
@@ -167,7 +177,7 @@ def test_the_cli_reports_orphans_without_removing_them(tmp_path: Path, monkeypat
     # The project fixture already made this; the CLI reads the same directory.
     tasks_dir = tmp_path / "tasks"
     tasks_dir.mkdir(exist_ok=True)
-    storage = TaskStorage(tasks_dir)
+    storage = task_store(tasks_dir)
     manager = TaskManager(storage)
     task = manager.create_task(
         title="Has an image",
@@ -175,29 +185,32 @@ def test_the_cli_reports_orphans_without_removing_them(tmp_path: Path, monkeypat
         actor="claude",
         attachments=[AttachmentPayload(data=png_bytes(), label="kept")],
     )
-    stray = tasks_dir / "attachments" / task.id / "deadbeef.png"
-    stray.write_bytes(png_bytes(b"stray"))
+    stray = storage.attachments.write(
+        task.id, AttachmentPayload(data=png_bytes(b"stray"), label="stray")
+    )
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("AGENTJOBS_TASKS_DIR", str(tasks_dir))
     result = CliRunner().invoke(cli_app, ["attachments", "--orphans"])
 
     assert result.exit_code == 0, result.output
-    assert "deadbeef.png" in result.output
+    assert stray.sha256 in result.output
     assert "Nothing was deleted" in result.output
-    assert stray.exists()
+    # Reported, never removed: the bytes are still there afterwards.
+    assert storage.attachments.read(stray) == png_bytes(b"stray")
 
 
 # ----- the record --------------------------------------------------------------
 
 
-def test_the_task_file_stays_readable_and_carries_only_metadata(tmp_path: Path) -> None:
-    """ac-5, asserted on the bytes on disk rather than on the model.
+def test_the_record_stays_readable_and_carries_only_metadata(tmp_path: Path) -> None:
+    """ac-5, asserted on the serialised record rather than on the model.
 
-    This is the whole storage decision in one test: if a screenshot ever ends up inline
-    the file stops being diffable, and that is the property the YAML model exists for.
+    This is the whole storage decision in one test: if a screenshot ever ends up inline,
+    the record stops being readable and an export stops being diffable. Asserted on the
+    exported form, which is what leaves this machine and what a person opens.
     """
-    storage = TaskStorage(tmp_path)
+    storage = task_store(tmp_path)
     manager = TaskManager(storage)
     task = manager.create_task(
         title="Filters match nothing",
@@ -206,7 +219,9 @@ def test_the_task_file_stays_readable_and_carries_only_metadata(tmp_path: Path) 
         attachments=[AttachmentPayload(data=png_bytes(), label="The empty list")],
     )
 
-    text = (tmp_path / f"{task.id}.yaml").read_text(encoding="utf-8")
+    reloaded = storage.load_task(task.id)
+    assert reloaded is not None
+    text = storage.canonical_bytes(reloaded).decode("utf-8")
     document = yaml.safe_load(text)
     entry = document["log"][0]
     assert entry["attachments"] == [
@@ -224,12 +239,14 @@ def test_the_task_file_stays_readable_and_carries_only_metadata(tmp_path: Path) 
 
 
 def test_an_entry_without_images_gains_no_attachments_key(tmp_path: Path) -> None:
-    """Additive means additive: existing files must not all grow a field they never use."""
-    storage = TaskStorage(tmp_path)
+    """Additive means additive: a record with no images must not grow a field it never uses."""
+    storage = task_store(tmp_path)
     manager = TaskManager(storage)
     task = manager.create_task(title="Plain", description="No images.", actor="claude")
 
-    text = (tmp_path / f"{task.id}.yaml").read_text(encoding="utf-8")
+    reloaded = storage.load_task(task.id)
+    assert reloaded is not None
+    text = storage.canonical_bytes(reloaded).decode("utf-8")
     assert "attachments" not in text
 
 

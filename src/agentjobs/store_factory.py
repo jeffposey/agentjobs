@@ -3,8 +3,12 @@
 Before the cutover there were twenty-odd ``TaskStorage(project.tasks_dir())`` calls
 scattered across the CLI, the API, dispatch, the queue tools and the validator. Each was
 a small independent decision that task state is files in a directory. This module is the
-single decision they now defer to, so switching a project's authority is a line in
-``storage.yaml`` rather than an audit of every call site.
+single decision they now defer to.
+
+**There is one kind of store** (task-402). What is left to resolve is *which database
+file* a project's rows are in, and *whether this process may open it at all* -- not which
+backend it is on. A caller that used to branch on the answer no longer has one to branch
+on.
 
 ## Only the server opens the database
 
@@ -36,24 +40,26 @@ to have asked :meth:`~agentjobs.storage_config.StorageSettings.database_for` whi
 
 from __future__ import annotations
 
+import hashlib
 import threading
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterator, Optional, Union
 
 from .__version__ import __version__
-from .projects import Project
+from .projects import Project, default_home
 from .sqlstore import SqlTaskStore
 from .sqlstore.connection import Database
 from .sqlstore.migrations import upgrade
-from .storage import TaskStorage
-from .storage_config import StorageSettings, load_storage_settings
+from .storage_config import DATABASES_DIRNAME, StorageSettings, load_storage_settings
 
 if TYPE_CHECKING:  # pragma: no cover - both import this module at runtime
     from .manager import TaskManager
     from .remote_manager import RemoteTaskManager
 
-TaskStoreBackend = Union[TaskStorage, SqlTaskStore]
+TaskStoreBackend = SqlTaskStore
+"""The task store. A name rather than a union, kept because a hundred annotations say
+it and because "the store this machine serves" is still worth naming."""
 
 TaskManagerLike = Union["TaskManager", "RemoteTaskManager"]
 """Either manager. The two are the same surface reached two ways, and a caller that
@@ -164,22 +170,49 @@ def close_databases() -> None:
 # ----- the factory ----------------------------------------------------------
 
 
+LOCAL_PROJECT_ID = "_local"
+"""The project id for a directory nobody registered.
+
+Shared by the server's implicit single-project mode and by the CLI's fallback, and it
+has to be the same string in both: they address one database, and a store is keyed on
+(file, project id). Two spellings would mean the CLI writing rows the server serving the
+same directory could not see.
+"""
+
+
+def local_database(tasks_dir: Path) -> Path:
+    """Where a directory-addressed project keeps its rows.
+
+    The registry is what knows a project's id, and the id is what
+    :meth:`~agentjobs.storage_config.StorageSettings.database_for` answers about. A
+    project addressed by *directory* rather than by id -- the server's implicit
+    single-project mode -- has no id to ask about, so its file is named from the
+    directory instead.
+
+    **Named from the directory, but not placed in it.** The directory is the only
+    identity such a project has, so two servers started on two directories must not
+    share a file -- hence the digest. Putting the file *inside* the checkout is the
+    thing this migration exists to stop: it would be branch-switched, rebased over,
+    and would dirty the working tree that the dispatch clean-tree gate inspects. So it
+    goes beside the registry, like every other database.
+    """
+    resolved = Path(tasks_dir).expanduser().resolve()
+    digest = hashlib.blake2s(str(resolved).encode("utf-8"), digest_size=5).hexdigest()
+    return default_home() / DATABASES_DIRNAME / f"local-{resolved.name}-{digest}.db"
+
+
 def open_store(
     project: Project,
     *,
     settings: Optional[StorageSettings] = None,
-    tasks_dir: Optional[Path] = None,
+    database: Optional[Path] = None,
 ) -> TaskStoreBackend:
-    """The task store for one project, according to this machine's configuration.
+    """The task store for one project.
 
-    ``tasks_dir`` overrides where the file backend looks. The API passes it because a
-    project's directory is created on demand there and because the implicit
-    single-project mode resolves it from the environment rather than from the registry.
+    ``database`` names the file, for a caller that resolved it some other way than by
+    project id -- which is the implicit single-project mode and nothing else.
     """
     resolved = settings or load_storage_settings()
-    if not resolved.on_sqlite(project.id):
-        return TaskStorage(Path(tasks_dir) if tasks_dir is not None else project.tasks_dir())
-
     if not is_server_process():
         raise StoreAccessError(
             f"Project {project.id!r} is served from SQLite, and only the AgentJobs "
@@ -189,8 +222,9 @@ def open_store(
             "store while the server is stopped."
         )
 
-    database = open_database(resolved.database_for(project.id))
-    store = SqlTaskStore(database, project.id)
+    target = Path(database) if database is not None else resolved.database_for(project.id)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    store = SqlTaskStore(open_database(target), project.id)
     store.ensure_project(root=str(project.root))
     return store
 
@@ -203,24 +237,21 @@ def task_manager_for(
 ) -> TaskManagerLike:
     """A manager for one project, local or remote according to who is asking.
 
-    This is what every call site outside the API now uses, and it is deliberately the
-    *only* branch in the product between the two worlds:
+    This is what every call site outside the API uses, and the branch left in it is
+    about *processes*, not about backends:
 
-    -   A project on files, or any project inside the server process, gets a real
-        :class:`~agentjobs.manager.TaskManager` over the store this machine configured.
-    -   A project on SQLite, asked for from anywhere else, gets a
-        :class:`~agentjobs.remote_manager.RemoteTaskManager` -- the same surface, over
-        the service, because only the server opens the database.
+    -   Inside the server process, a real :class:`~agentjobs.manager.TaskManager` over
+        the store.
+    -   Anywhere else, a :class:`~agentjobs.remote_manager.RemoteTaskManager` -- the same
+        surface, over the service, because only the server opens the database.
 
-    A caller therefore does not have to know which world it is in, which is what keeps
-    the CLI's twelve construction sites from each becoming a decision. What a caller
-    *cannot* do either way is read a directory the machine no longer considers
-    authoritative: that is the failure this replaces, and it was silent.
+    A caller therefore does not have to know which side it is on, which is what keeps
+    the CLI's twelve construction sites from each becoming a decision.
     """
     from .manager import TaskManager
 
     resolved = settings or load_storage_settings()
-    if resolved.on_sqlite(project.id) and not is_server_process():
+    if not is_server_process():
         from .remote_manager import remote_manager_for
 
         return remote_manager_for(project, settings=resolved)
@@ -279,11 +310,11 @@ def dispatch_manager_for(
     from .manager import TaskManager
 
     resolved = settings or load_storage_settings()
-    if resolved.on_sqlite(project.id) and not is_server_process():
-        _assert_schema_current(resolved.database_for(project.id))
-        with server_process():
-            return TaskManager(open_store(project, settings=resolved), webhook_manager)
-    return TaskManager(open_store(project, settings=resolved), webhook_manager)
+    if is_server_process():
+        return TaskManager(open_store(project, settings=resolved), webhook_manager)
+    _assert_schema_current(resolved.database_for(project.id))
+    with server_process():
+        return TaskManager(open_store(project, settings=resolved), webhook_manager)
 
 
 def _assert_schema_current(database: Path) -> None:
@@ -340,12 +371,6 @@ def provision_project_database(
     from .storage_config import record_new_project
 
     resolved = settings or load_storage_settings()
-    entry = resolved.for_project(project.id)
-    if entry.backend == "files" and project.id in resolved.projects:
-        # A rolled-back project, or one an operator deliberately keeps on files. Its
-        # entry is a decision somebody recorded; init does not overrule it.
-        return resolved.database_for(project.id)
-
     updated = record_new_project(project.id, home=resolved.home)
     target = updated.database_for(project.id)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -357,29 +382,19 @@ def provision_project_database(
     return target
 
 
-def store_is_sql(store: object) -> bool:
-    """True when this store is the SQLite one.
-
-    A predicate rather than ``isinstance`` at each call site, so the handful of places
-    that still have to care -- queue repair over raw files, receipt checks, the
-    validator's byte comparison -- name *what* they are asking rather than which class
-    they happened to get.
-    """
-    return isinstance(store, SqlTaskStore)
-
-
 __all__ = [
     "StoreAccessError",
     "TaskStoreBackend",
     "close_databases",
     "is_server_process",
     "mark_server_process",
+    "LOCAL_PROJECT_ID",
+    "local_database",
     "open_database",
     "open_store",
     "provision_project_database",
     "reset_server_process",
     "server_process",
-    "store_is_sql",
     "TaskManagerLike",
     "dispatch_manager_for",
     "task_manager_for",

@@ -20,7 +20,7 @@ from agentjobs.api.main import app
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Lifecycle
 from agentjobs.projects import ProjectRegistry
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 SESSION = "0feedf93-6af3-40bf-832a-81f722fdb841"
 
@@ -51,7 +51,7 @@ def served(tmp_path: Path, monkeypatch) -> Iterator[Tuple[TestClient, Path, str]
     (root / ".agentjobs" / "config.yaml").write_text(yaml.safe_dump(CONFIG), encoding="utf-8")
     (root / "tasks").mkdir()
     ProjectRegistry(home=home).add(root, project_id="sandbox")
-    manager = TaskManager(TaskStorage(root / "tasks"))
+    manager = TaskManager(task_store(root / "tasks"))
     task = manager.create_task(
         id="task-001",
         title="Worked in a chat window",

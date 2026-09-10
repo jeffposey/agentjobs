@@ -61,7 +61,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from agentjobs.project_setup import build_project_config  # noqa: E402
-from agentjobs.storage import yaml_loader_name  # noqa: E402
+from agentjobs.taskfiles import yaml_loader_name  # noqa: E402
 
 BENCH_PORT_ENV = "AGENTJOBS_BENCH_PORT"
 BENCH_PORT_BASE = 30000

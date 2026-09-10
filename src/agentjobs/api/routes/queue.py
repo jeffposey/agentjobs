@@ -20,7 +20,7 @@ from agentjobs.actors import actor_kinds
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Priority
 from agentjobs.projects import Project
-from agentjobs.storage import TaskLockTimeout
+from agentjobs.sqlstore import TaskLockTimeout
 
 from .status import acting_actor, get_acting_project, lock_timeout_error
 from ..dependencies import get_task_manager, project_config

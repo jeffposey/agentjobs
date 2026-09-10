@@ -36,7 +36,7 @@ from agentjobs.dispatch.runner import RunDirectory
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import DispatchPosture, Lifecycle, LogEntryType
 from agentjobs.projects import Project
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 PROJECT_CONFIG: Dict[str, object] = {
     "project_name": "Sandbox",
@@ -86,7 +86,7 @@ def project(tmp_path: Path) -> Project:
 
 @pytest.fixture
 def manager(project: Project) -> TaskManager:
-    return TaskManager(TaskStorage(project.root / "tasks"))
+    return TaskManager(task_store(project.root / "tasks", project_id=project.id))
 
 
 def write_config(
@@ -588,7 +588,9 @@ class TestTheTaskFieldIsOptional:
     ) -> None:
         """``exclude_none`` keeps the field out of every task file that never set it,
         so introducing it rewrites nothing."""
-        stored = (manager.storage.tasks_dir / f"{ready_task.id}.yaml").read_text(encoding="utf-8")
+        reloaded = manager.storage.load_task(ready_task.id)
+        assert reloaded is not None
+        stored = manager.storage.canonical_bytes(reloaded).decode("utf-8")
         assert "posture:" not in stored
 
     def test_setting_and_clearing_it_round_trips(self, manager: TaskManager, ready_task) -> None:

@@ -16,7 +16,6 @@ from typer.testing import CliRunner
 from agentjobs.cli import app
 from agentjobs.projects import ProjectRegistry, default_home
 from agentjobs.storage_config import (
-    ProjectStorage,
     load_storage_settings,
     record_cutover,
     record_new_project,
@@ -50,14 +49,17 @@ class TestANewProjectIsOnTheDatabase:
         assert result.exit_code == 0, result.output
         assert not (tmp_path / "tasks").exists()
 
-    def test_the_project_is_recorded_on_sqlite(self, tmp_path: Path, monkeypatch) -> None:
+    def test_the_project_is_recorded_with_a_database_of_its_own(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
         monkeypatch.chdir(tmp_path)
 
         _init()
 
         entry = load_storage_settings().for_project("fresh-project")
-        assert entry.backend == "sqlite"
-        assert entry.on_sqlite
+        assert entry.database and entry.database.endswith("fresh-project.db")
+        # Nothing was imported, so neither claim about a migration is made.
+        assert entry.source is None and entry.cutover_at is None
 
     def test_the_database_file_exists_afterwards(self, tmp_path: Path, monkeypatch) -> None:
         """Created at init, not left to whatever opens the store first.
@@ -134,7 +136,7 @@ class TestAnExistingCorpusIsNamed:
 
         result = _init()
 
-        assert "agentjobs storage cutover --project fresh-project" in result.output
+        assert "agentjobs storage import --project fresh-project" in result.output
 
     def test_it_absorbs_nothing(self, tmp_path: Path, monkeypatch) -> None:
         """The files are left alone and the database starts empty."""
@@ -158,76 +160,28 @@ class TestAnExistingCorpusIsNamed:
         assert "task file(s) already in" not in result.output
 
 
-class TestTheFileBackendIsStillReachable:
-    """``--backend files`` is the old behaviour, kept while the backend exists."""
-
-    def test_it_creates_the_directory(self, tmp_path: Path, monkeypatch) -> None:
-        monkeypatch.chdir(tmp_path)
-
-        result = runner.invoke(
-            app,
-            ["init", "--backend", "files", "--tasks-dir", "tasks"] + INIT[1:],
-            catch_exceptions=False,
-        )
-
-        assert result.exit_code == 0, result.output
-        assert (tmp_path / "tasks").is_dir()
-
-    def test_it_records_nothing(self, tmp_path: Path, monkeypatch) -> None:
-        monkeypatch.chdir(tmp_path)
-
-        runner.invoke(
-            app,
-            ["init", "--backend", "files", "--tasks-dir", "tasks"] + INIT[1:],
-            catch_exceptions=False,
-        )
-
-        assert load_storage_settings().projects == {}
-
-    def test_an_unknown_backend_is_refused(self, tmp_path: Path, monkeypatch) -> None:
-        monkeypatch.chdir(tmp_path)
-
-        result = runner.invoke(app, INIT + ["--backend", "postgres"])
-
-        assert result.exit_code == 1
-        assert "Unknown backend" in result.output
-        assert not (tmp_path / ".agentjobs").exists()
-
-
-class TestAProjectAlreadyOnFiles:
-    """Registered before this change and never cut over: it keeps working, and is told.
-
-    The alternative -- flipping ``ProjectStorage.backend``'s default to sqlite -- would
-    point every one of these at an empty database with no diagnosis.
-    """
-
-    def test_the_default_for_an_unregistered_project_is_still_files(self) -> None:
-        assert ProjectStorage().backend == "files"
-        assert load_storage_settings().backend_for("never-seen") == "files"
-
-    def test_status_names_the_cutover_command(self, tmp_path: Path, monkeypatch) -> None:
-        monkeypatch.chdir(tmp_path)
-        runner.invoke(
-            app,
-            ["init", "--backend", "files", "--tasks-dir", "tasks"] + INIT[1:],
-            catch_exceptions=False,
-        )
-
-        result = runner.invoke(app, ["storage", "status"], catch_exceptions=False)
-
-        assert "still on task files" in result.output
-        assert "agentjobs storage cutover --project fresh-project" in result.output
+# `TestTheFileBackendIsStillReachable` and `TestAProjectAlreadyOnFiles` stood here.
+# The first drove `init --backend files` -- the old behaviour, kept while the backend
+# still existed -- and the second covered a project registered before task-399 and never
+# cut over: it kept working, `storage status` told its owner so, and the default for an
+# unrecorded project stayed `files` precisely so that nobody's corpus went silently
+# invisible.
+#
+# The backend is gone (task-402). There is no flag, no default to keep, and a project
+# still recorded on `files` is now refused by name at configuration load with the import
+# command in the message -- which is the same obligation those tests encoded, moved to
+# where it can still be met. `tests/test_storage_backend.py` asserts the refusal.
 
 
 class TestRecordNewProject:
-    def test_it_writes_a_sqlite_entry(self, tmp_path: Path) -> None:
+    def test_it_writes_an_entry_naming_a_database(self, tmp_path: Path) -> None:
         settings = record_new_project("alpha", home=tmp_path)
 
-        assert settings.on_sqlite("alpha")
+        assert settings.for_project("alpha").database
         assert settings.path.is_file()
 
     def test_it_leaves_an_existing_entry_alone(self, tmp_path: Path) -> None:
-        """A recorded cutover carries a ``source`` a rollback needs. Never overwrite it."""
+        """A recorded import carries the file its rows are in. Never overwrite it."""
         record_cutover("alpha", tmp_path / "tasks", home=tmp_path)
         before = load_storage_settings(tmp_path).for_project("alpha")
 

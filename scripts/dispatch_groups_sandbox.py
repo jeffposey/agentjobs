@@ -123,7 +123,7 @@ def build(root: Path, *, project_id: str) -> tuple[Path, str]:
     """A registered project with a clean git tree and one dispatchable task."""
     from agentjobs.manager import TaskManager
     from agentjobs.project_setup import build_project_config
-    from agentjobs.storage import TaskStorage
+    from sandbox_store import sandbox_store  # type: ignore[import-not-found]
 
     name = NAMES[project_id]
     project_root = root / project_id
@@ -135,7 +135,9 @@ def build(root: Path, *, project_id: str) -> tuple[Path, str]:
     # Tasks are ignored rather than committed: this sandbox writes to them on every
     # click, and a clean-tree gate that shuts the moment you press a button is not one.
     (project_root / ".gitignore").write_text(".agentjobs/\ntasks/\n", encoding="utf-8")
-    task_id = seed(TaskManager(TaskStorage(project_root / "tasks")), title=f"Dispatch me ({name})")
+    task_id = seed(
+        TaskManager(sandbox_store(project_root / "tasks")), title=f"Dispatch me ({name})"
+    )
 
     for command in (
         ["git", "init"],

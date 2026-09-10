@@ -21,7 +21,6 @@ from .models_v2 import (  # noqa: F401
     Spec,
     Task,
 )
-from .storage import TaskStorage  # noqa: F401
 from .__version__ import __version__  # noqa: F401
 
 __all__ = [
@@ -45,7 +44,6 @@ __all__ = [
     "Branch",
     "TaskManager",
     "TaskNotFoundError",
-    "TaskStorage",
     "TaskClient",
     "TaskClientError",
     "ServiceUnavailable",

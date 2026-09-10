@@ -1018,7 +1018,7 @@ export const getProjectRevisionApiProjectsProjectIdRevisionGetQueryKey = (option
 /**
  * Get Project Revision
  *
- * Answer whether any task file changed without loading the task collection.
+ * Answer whether this project changed, without loading the task collection.
  */
 export const getProjectRevisionApiProjectsProjectIdRevisionGetOptions = (options: Options<GetProjectRevisionApiProjectsProjectIdRevisionGetData>) => queryOptions<GetProjectRevisionApiProjectsProjectIdRevisionGetResponse, GetProjectRevisionApiProjectsProjectIdRevisionGetError, GetProjectRevisionApiProjectsProjectIdRevisionGetResponse, ReturnType<typeof getProjectRevisionApiProjectsProjectIdRevisionGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -1987,7 +1987,7 @@ export const getProjectRevisionApiRevisionGetQueryKey = (options?: Options<GetPr
 /**
  * Get Project Revision
  *
- * Answer whether any task file changed without loading the task collection.
+ * Answer whether this project changed, without loading the task collection.
  */
 export const getProjectRevisionApiRevisionGetOptions = (options?: Options<GetProjectRevisionApiRevisionGetData>) => queryOptions<GetProjectRevisionApiRevisionGetResponse, DefaultError, GetProjectRevisionApiRevisionGetResponse, ReturnType<typeof getProjectRevisionApiRevisionGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

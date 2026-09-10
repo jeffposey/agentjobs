@@ -24,7 +24,7 @@ from agentjobs.mcp import routing
 from agentjobs.mcp.errors import ErrorCode, ToolError
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Priority, Spec, Task
 from agentjobs.projects import ProjectRegistry
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 SHARED_TASK_ID = "task-001-shared-id"
 """Both projects get a task with this id. Task ids are unique only within a project,
@@ -40,7 +40,7 @@ BETA_ACTORS = [
 ]
 
 
-def build_project(root: Path, name: str, actors: list, default_user: str) -> None:
+def build_project(root: Path, project_id: str, name: str, actors: list, default_user: str) -> None:
     """Create a project directory with an actor vocabulary and one task."""
     (root / ".agentjobs").mkdir(parents=True, exist_ok=True)
     (root / ".agentjobs" / "config.yaml").write_text(
@@ -55,7 +55,7 @@ def build_project(root: Path, name: str, actors: list, default_user: str) -> Non
         encoding="utf-8",
     )
     now = datetime(2026, 8, 10, tzinfo=timezone.utc)
-    TaskStorage(root / "tasks").save_task(
+    task_store(root / "tasks", project_id=project_id).save_task(
         Task(
             id=SHARED_TASK_ID,
             title=f"{name} task",
@@ -82,8 +82,8 @@ def two_projects(tmp_path: Path, monkeypatch) -> Iterator[Tuple[TaskClient, Test
     monkeypatch.chdir(tmp_path)
     reset_dependency_cache()
 
-    build_project(tmp_path / "alpha", "Alpha", ALPHA_ACTORS, "Ada")
-    build_project(tmp_path / "beta", "Beta", BETA_ACTORS, "Grace")
+    build_project(tmp_path / "alpha", "alpha", "Alpha", ALPHA_ACTORS, "Ada")
+    build_project(tmp_path / "beta", "beta", "Beta", BETA_ACTORS, "Grace")
 
     registry = ProjectRegistry(home=tmp_path / "home")
     registry.add(tmp_path / "alpha", project_id="alpha")
@@ -105,7 +105,7 @@ def local_project(tmp_path: Path, monkeypatch) -> Iterator[TaskClient]:
     monkeypatch.delenv(TASKS_DIR_ENV, raising=False)
     reset_dependency_cache()
 
-    build_project(tmp_path / "solo", "Solo", [], "")
+    build_project(tmp_path / "solo", "_local", "Solo", [], "")
 
     with TestClient(app) as http:
         yield TaskClient("http://testserver", client=http)

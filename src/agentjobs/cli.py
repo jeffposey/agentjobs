@@ -64,18 +64,21 @@ from .projects import Project, ProjectError, ProjectRegistry, default_home
 from .queue import REPAIR_COMMAND, QueueCorruptionError
 from .cutover import back_up, cut_over, export_project
 from .cutover import preview as cutover_preview
-from .cutover import roll_back
 from .cutover import status as cutover_status
 from .cutover import restore_backup, verify_backup
 from .quotation import scan_task
 from .sqlstore import CorpusAlreadyImported, QuotationPolicyError
-from .storage_config import BACKENDS, FILES, SQLITE, StorageSettings, load_storage_settings
+from .storage_config import StorageConfigError, StorageSettings, load_storage_settings
 from .storage_split import SplitError, split_project
-from .storage import TaskStorage, corpus_snapshot
+from .taskfiles import TaskFileCorpus
 from .store_factory import (
+    LOCAL_PROJECT_ID,
     TaskManagerLike,
     dispatch_manager_for,
+    local_database,
+    open_store,
     provision_project_database,
+    server_process,
     task_manager_for,
 )
 
@@ -118,25 +121,22 @@ CONFIG_FILE = CONFIG_DIR / "config.yaml"
 
 
 @app.callback()
-def _scope_one_invocation(ctx: typer.Context) -> None:
-    """Parse each task file at most once per CLI invocation.
+def _check_storage_configuration() -> None:
+    """Refuse every command while a project is recorded on the retired file backend.
 
-    A command like ``list`` used to walk the corpus several times for one answer, for
-    the same reason the API did: the dependency computations each went back to storage
-    independently. One invocation is one logical read, so it gets one scope.
+    Read once, before any command runs, because the answer is the same for all of them
+    and the failure it prevents is silent: a project whose entry still says
+    ``backend: files`` has no readable backlog, and a command that carried on would
+    answer from an empty database and look like a project with no tasks.
 
-    Entered here and closed through Click's ``call_on_close`` rather than wrapping the
-    console-script entry point, so it applies identically however the app is invoked --
-    the installed ``agentjobs`` command, ``python -m agentjobs.cli``, and the test
-    runner's CliRunner, which calls ``app()`` directly and would otherwise never
-    exercise this path.
-
-    Writes drop the snapshot, so a command that mutates and then reads sees its own
-    write.
+    Only this configuration error is caught here, and only to print it. Everything else
+    is left to raise where it happens, where the traceback names the caller.
     """
-    scope = corpus_snapshot()
-    scope.__enter__()
-    ctx.call_on_close(lambda: scope.__exit__(None, None, None))
+    try:
+        load_storage_settings()
+    except StorageConfigError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
 
 
 def _load_config(base_dir: Path) -> dict:
@@ -160,37 +160,31 @@ def _ensure_gitignore(base_dir: Path) -> None:
         gitignore_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _resolve_tasks_dir(base_dir: Path, config: dict) -> Path:
-    """Resolve tasks directory relative to the project root."""
-    tasks_dir = Path(config.get("tasks_directory", "tasks"))
-    if not tasks_dir.is_absolute():
-        tasks_dir = base_dir / tasks_dir
-    tasks_dir.mkdir(parents=True, exist_ok=True)
-    return tasks_dir
-
-
-def _refuse_if_not_files(project_id: str, command: str) -> None:
+def _refuse_project_corpus(command: str, flag: str) -> None:
     """Stop a file-era command from silently reading a directory nothing writes.
 
     ``validate`` and ``quotations`` are about *files*: one checks that each parses and
-    is canonical, the other reads their prose. After a cutover the directory may still
-    be sitting in the checkout, frozen at the moment of the migration -- so both would
-    keep working, keep passing, and keep answering about a corpus that has moved on.
-    That is a worse failure than an error, because nothing in the output says the answer
-    is stale.
+    is canonical, the other reads their prose. A project's records are rows, and any
+    task directory still in a checkout is a frozen copy from before it was imported --
+    so pointed at a project rather than at a directory, both would keep working, keep
+    passing, and keep answering about a corpus that has moved on. That is a worse
+    failure than an error, because nothing in the output says the answer is stale.
+
+    Both commands still do something worth doing: they check a directory of files.
+    ``flag`` names the option that says which one.
     """
-    if not load_storage_settings().on_sqlite(project_id):
-        return
     typer.secho(
-        f"{project_id!r} is served from the AgentJobs database, so `{command}` has no "
-        "files to read. Anything still under the tasks directory is a frozen copy from "
-        "before the cutover.",
+        f"A project's records are rows in its database, so `{command}` has no files to "
+        "read. Anything under a tasks directory is a frozen copy from before the "
+        "records were imported.",
         fg=typer.colors.RED,
     )
     typer.echo(
         "  The database enforces every consistency rule as a constraint, so a record "
         "that would fail validation cannot be a row."
     )
+    typer.echo("  To check a directory of task YAML -- an import candidate, or a")
+    typer.echo(f"  frozen copy -- name it: `{flag} <directory>`.")
     typer.echo("  `agentjobs storage status` says where the records are.")
     raise typer.Exit(code=1)
 
@@ -207,14 +201,27 @@ def _build_manager(base_dir: Path) -> TaskManagerLike:
     the files and ``agentjobs create`` wrote one. That is the coupling this migration
     exists to remove, so the resolution has to happen here rather than at each call site.
 
-    The fallback is the case the registry cannot answer: a directory that is not inside
-    any registered project. That is on files by definition -- a cutover is recorded
-    against a registered id -- so reading it is right.
+    **The fallback is a directory the registry cannot answer for**, and it is the
+    command-line half of the server's implicit single-project mode: the directory is the
+    only identity such a project has, so its records go in a database named from it. No
+    server is serving a project nobody registered, so this process is the only writer --
+    the same argument ``provision_project_database`` makes for opening a file that does
+    not exist yet, and the reason the declaration is taken here rather than weakened.
     """
     try:
         project = ProjectRegistry().resolve_default(base_dir)
     except ProjectError:
-        return TaskManager(TaskStorage(_resolve_tasks_dir(base_dir, _load_config(base_dir))))
+        config = _load_config(base_dir)
+        tasks_dir = Path(config.get("tasks_directory", "tasks"))
+        if not tasks_dir.is_absolute():
+            tasks_dir = base_dir / tasks_dir
+        local = Project(
+            id=LOCAL_PROJECT_ID,
+            name=str(config.get("project_name") or base_dir.name),
+            root=base_dir,
+        )
+        with server_process():
+            return TaskManager(open_store(local, database=local_database(tasks_dir)))
     return task_manager_for(project)
 
 
@@ -286,7 +293,7 @@ def _report_existing_corpus(found: list[Path], project_id: Optional[str]) -> Non
 
     Neither ignored nor absorbed. Importing it silently would mean ``init`` deciding
     that whatever is in this directory is now this project's backlog, quotation policy
-    and history reconciliation included -- which is what ``storage cutover`` does under
+    and history reconciliation included -- which is what ``storage import`` does under
     a preview, a backup and a field-by-field verification, and none of that belongs in
     a command somebody runs to make a config file.
     """
@@ -301,7 +308,7 @@ def _report_existing_corpus(found: list[Path], project_id: Optional[str]) -> Non
     target = f" --project {project_id}" if project_id else ""
     typer.echo(
         f"   To bring them in: 'agentjobs storage preview{target}', then "
-        f"'agentjobs storage cutover{target}'."
+        f"'agentjobs storage import{target}'."
     )
 
 
@@ -323,30 +330,15 @@ def init(
     prompts_dir: Optional[str] = typer.Option(None, help="Relative path for prompt files."),
     port: Optional[int] = typer.Option(None, help="Default port for the web UI."),
     user: Optional[str] = typer.Option(None, help="Your actor id, recorded on your actions."),
-    backend: str = typer.Option(
-        SQLITE,
-        "--backend",
-        help="Where this project's records live: 'sqlite' (default) or 'files' (legacy).",
-    ),
 ) -> None:
     """Initialize AgentJobs in current directory.
 
     The project's records are rows in a database of its own under
-    ``~/.agentjobs/databases/``, and no task directory is created (task-399). A new
-    install therefore starts where every migrated project ends up, instead of building
-    a corpus it has to be walked through migrating later.
-
-    ``--backend files`` is the old behaviour, kept while the file backend still exists.
+    ``~/.agentjobs/databases/``, and no task directory is created (task-399). There is
+    nothing else it could be: the file backend was removed by task-402, and the only way
+    a directory of task YAML becomes a backlog is ``agentjobs storage import``.
     """
     import getpass
-
-    if backend not in BACKENDS:
-        typer.secho(
-            f"Unknown backend {backend!r}. Known backends: {', '.join(BACKENDS)}.",
-            fg=typer.colors.RED,
-        )
-        raise typer.Exit(code=1)
-    on_files = backend == FILES
 
     base_dir = Path.cwd()
     if (base_dir / CONFIG_FILE).exists():
@@ -357,11 +349,9 @@ def init(
         )
         raise typer.Exit(code=1)
     project_name = project_name or typer.prompt("Project name")
-    # Asked only when files are what this project will be served from. On the database
-    # the field still names where an import would read, and asking a new user to choose
-    # a directory nothing writes to is ceremony that teaches the wrong model.
-    if on_files:
-        tasks_dir = tasks_dir or typer.prompt("Tasks dir", default="tasks")
+    # Not prompted for. The field still names where an import would read and where an
+    # export would go, and asking a new user to choose a directory nothing writes to is
+    # ceremony that teaches the wrong model.
     tasks_dir = tasks_dir or "tasks"
     prompts_dir = prompts_dir or typer.prompt("Prompts dir", default="prompts")
     port = port or int(typer.prompt("Port", default="8765"))
@@ -369,7 +359,7 @@ def init(
     # action anonymously, and nobody goes looking for that setting afterwards.
     user = user or typer.prompt("Your user id", default=getpass.getuser().lower())
 
-    found = [] if on_files else _existing_task_files(base_dir, tasks_dir)
+    found = _existing_task_files(base_dir, tasks_dir)
 
     config = build_project_config(
         project_name=project_name,
@@ -379,7 +369,7 @@ def init(
         user=user,
     )
     try:
-        initialize_project(base_dir, config, create_tasks_directory=on_files)
+        initialize_project(base_dir, config, create_tasks_directory=False)
     except ProjectError as exc:
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
@@ -398,19 +388,16 @@ def init(
     else:
         typer.echo(f"   Registered as '{project.id}' — visible in 'agentjobs project list'.")
 
-    if on_files:
-        _report_existing_corpus(found, project.id if project else None)
-        return
-
     if project is None:
         # The storage map is keyed on a project id, so there is nothing to record for a
         # project that has none. Saying so beats leaving a config that promises a
         # database nothing will ever create.
         typer.secho(
-            "⚠️  Without a registration this project has no database; it falls back to "
-            "task files. Register it with 'agentjobs project add .' and rerun.",
+            "⚠️  Without a registration this project has no database and no records. "
+            "Register it with 'agentjobs project add .' and rerun.",
             fg=typer.colors.YELLOW,
         )
+        _report_existing_corpus(found, None)
         return
 
     _provision_database(project)
@@ -448,6 +435,11 @@ def serve(
 
 @app.command()
 def validate(
+    tasks_dir_option: Optional[str] = typer.Option(
+        None,
+        "--tasks-dir",
+        help="Directory of task YAML to check. Required: records are rows, files are not.",
+    ),
     staged: bool = typer.Option(
         False,
         "--staged",
@@ -459,7 +451,13 @@ def validate(
         help="Install a pre-commit hook that runs `agentjobs validate --staged`.",
     ),
 ) -> None:
-    """Check every task file, and optionally the staged ones.
+    """Check a directory of task YAML, and optionally the staged files in it.
+
+    A *directory*, named explicitly. A project's records are rows and the rules this
+    checks are constraints there, so validating a project would mean validating whatever
+    frozen copy its checkout still carries -- an answer that looks current and is not.
+    What is worth checking is a corpus of files: one about to be imported, or one a
+    repository is still carrying.
 
     Without `--staged` this needs nothing but the files, so it is the check that works
     in CI and in a clean clone. It proves the corpus is safe to load; it cannot prove
@@ -474,9 +472,18 @@ def validate(
 
     base_dir = Path.cwd()
     config = _load_config(base_dir)
-    with suppress(ProjectError):
-        _refuse_if_not_files(ProjectRegistry().resolve_default(base_dir).id, "validate")
-    tasks_dir = _resolve_tasks_dir(base_dir, config)
+
+    if install_hook and tasks_dir_option is None:
+        typer.echo(_install_pre_commit_hook(base_dir))
+        raise typer.Exit(0)
+    if tasks_dir_option is None:
+        _refuse_project_corpus("validate", "--tasks-dir")
+    tasks_dir = Path(tasks_dir_option or "")
+    if not tasks_dir.is_absolute():
+        tasks_dir = base_dir / tasks_dir
+    if not tasks_dir.is_dir():
+        typer.secho(f"{tasks_dir} is not a directory.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
 
     if install_hook:
         typer.echo(_install_pre_commit_hook(base_dir))
@@ -1069,7 +1076,12 @@ def load_test_data(
         help="Directory for task storage.",
     ),
 ) -> None:
-    """Load sample test data for demos and manual testing."""
+    """Write a directory of sample task YAML, for demos and manual testing.
+
+    A directory rather than a project's records, because seeding a backlog is
+    ``agentjobs storage import`` and this is what makes the corpus it reads. The last
+    line of output names the command.
+    """
     from agentjobs.test_data import create_sample_tasks
 
     base_dir = Path.cwd()
@@ -1077,13 +1089,13 @@ def load_test_data(
     if not target_dir.is_absolute():
         target_dir = base_dir / target_dir
 
-    storage = TaskStorage(target_dir)
+    storage = TaskFileCorpus(target_dir)
 
     tasks = create_sample_tasks()
     created_count = 0
     updated_count = 0
 
-    from .storage import TaskLoadError
+    from .taskfiles import TaskLoadError
 
     for task in tasks:
         try:
@@ -1113,6 +1125,10 @@ def load_test_data(
         typer.echo(f"\n📦 {created_count} created.")
     elif updated_count:
         typer.echo(f"\n📦 {updated_count} refreshed.")
+    typer.echo(
+        f"   These are files. To make them a backlog: 'agentjobs storage import "
+        f"--source {target_dir}'."
+    )
 
 
 @app.command()
@@ -1125,28 +1141,15 @@ def work(
     priority: Optional[str] = typer.Option(
         None, help="Filter by priority (high, medium, low, critical)"
     ),
-    storage_dir: Optional[str] = typer.Option(
-        None,
-        help="Directory for task storage. Defaults to the project's configured tasks_directory.",
-    ),
 ) -> None:
     """Interactive agent workflow: get task, display prompt, mark complete.
 
-    The default storage directory is the project's configured ``tasks_directory``, the
-    same one every other command resolves through ``_build_manager``. It used to be a
-    literal ``./tasks``, so in a project that configures anything else -- this
-    repository configures ``tasks/agentjobs`` -- ``work`` reported "No tasks available"
-    from an empty directory it had just created, while ``next`` answered correctly.
+    Acts on the project this directory belongs to, the same one every other command
+    resolves through ``_build_manager``. It used to take a ``--storage-dir`` naming a
+    directory of task files; a directory is not a backlog any more (task-402).
     """
     base_dir = Path.cwd()
-    if storage_dir is None:
-        manager = _build_manager(base_dir)
-    else:
-        target_dir = Path(storage_dir)
-        if not target_dir.is_absolute():
-            target_dir = base_dir / target_dir
-        target_dir.mkdir(parents=True, exist_ok=True)
-        manager = TaskManager(TaskStorage(target_dir))
+    manager = _build_manager(base_dir)
 
     priority_enum = None
     if priority:
@@ -2143,7 +2146,7 @@ def run_register(
 
 storage_app = typer.Typer(
     name="storage",
-    help="Move a project's tasks into the server's database, and back out again.",
+    help="Import a directory of task YAML into a project's database, and export one out.",
 )
 app.add_typer(storage_app)
 
@@ -2201,7 +2204,7 @@ def storage_status(
     for line in cutover_status(projects, settings=settings):
         rows = "-" if line.rows is None else str(line.rows)
         files = "-" if line.files is None else str(line.files)
-        typer.echo(f"{line.project_id}: {line.backend}  rows={rows} files={files}")
+        typer.echo(f"{line.project_id}: rows={rows} files={files}")
         # Where this project's records are is now a per-project answer, so it is printed
         # per project rather than once at the top (task-400).
         missing = "" if line.database_exists else " (none yet)"
@@ -2213,15 +2216,13 @@ def storage_status(
                 "its own"
             )
         if line.cutover_at:
-            typer.echo(f"    cut over {line.cutover_at} from {line.source}")
-        if line.backend == FILES:
-            # A new project is created on the database (task-399), so a project still
-            # on files is one registered before that and never migrated. Saying so here
-            # is the "told to import" half of not breaking it silently: it keeps working
-            # until the file backend goes, and this is where an operator looks.
+            typer.echo(f"    imported {line.cutover_at} from {line.source}")
+        if line.files and not line.rows:
+            # Files and no rows: a directory nothing reads. Named here because this is
+            # where an operator looks, and because the fix is one command.
             typer.echo(
-                f"    still on task files — 'agentjobs storage cutover --project "
-                f"{line.project_id}' moves it, and a new project starts on the database"
+                f"    {line.files} task file(s) and no rows — 'agentjobs storage import "
+                f"--project {line.project_id}' brings them in"
             )
 
 
@@ -2262,9 +2263,13 @@ def storage_preview(
         raise typer.Exit(code=1)
 
 
-@storage_app.command("cutover")
-def storage_cutover(
+@storage_app.command("import")
+@storage_app.command("cutover", hidden=True)
+def storage_import(
     project_id: Optional[str] = typer.Option(None, "--project"),
+    source: Optional[Path] = typer.Option(
+        None, "--source", help="Directory of task YAML to read. Defaults to the project's."
+    ),
     port: int = typer.Option(8765, help="Port to check for a running server."),
     replace: bool = typer.Option(
         False, "--replace", help="Empty this project in the database and import it again."
@@ -2285,14 +2290,20 @@ def storage_cutover(
         help="Use the machine's default database instead of a file of this project's own.",
     ),
 ) -> None:
-    """Back up, import, verify, and only then make the database authoritative.
+    """Back up, import a directory of task YAML, verify it field by field, and record it.
+
+    **The one road in.** A corpus of task files becomes a backlog here or not at all --
+    there is no file backend to serve it from (task-402), so a directory sitting in a
+    checkout is read by nothing until this has run.
 
     ``--backfill-git`` is on by default here and nowhere else: the backfill reads the
     git history of the task files, so it must happen before those files are retired,
-    and the cutover is the last moment anybody is looking.
+    and the import is the last moment anybody is looking.
 
     The project gets a database of its own unless you say otherwise, so a shared file is
     something you asked for rather than what happened by accident.
+
+    ``cutover`` is the old name for this command and still works.
     """
     project = _storage_project(project_id)
     _refuse_while_serving(port)
@@ -2306,6 +2317,7 @@ def storage_cutover(
     try:
         result = cut_over(
             project,
+            tasks_dir=source,
             replace=replace,
             backfill_git=backfill_git,
             enforce_quotation_policy=not allow_quotations,
@@ -2328,9 +2340,8 @@ def storage_cutover(
     typer.echo(result.verified.render())
     if not result.ok:
         typer.secho(
-            "\nNothing was switched: the project is still served from its files. The "
-            "import is in the database for inspection; re-run with --replace once the "
-            "cause is fixed.",
+            "\nNothing was recorded: verification did not pass. The import is in the "
+            "database for inspection; re-run with --replace once the cause is fixed.",
             fg=typer.colors.RED,
         )
         raise typer.Exit(code=1)
@@ -2380,27 +2391,6 @@ def storage_split(
     typer.echo("Enrol the new file in your backups; the old one no longer holds these records.")
 
 
-@storage_app.command("rollback")
-def storage_rollback(
-    project_id: Optional[str] = typer.Option(None, "--project"),
-    port: int = typer.Option(8765, help="Port to check for a running server."),
-    into: Optional[Path] = typer.Option(
-        None, "--into", help="Write the files here instead of the recorded source."
-    ),
-) -> None:
-    """Put a project back on its files, keeping everything written since the cutover.
-
-    The export runs first and against the store's current state, so a handoff made
-    after the cutover is on disk before anything is switched back. The database is not
-    deleted: a rollback is a decision that can itself be wrong.
-    """
-    project = _storage_project(project_id)
-    _refuse_while_serving(port)
-    report = roll_back(project, tasks_dir=into)
-    typer.echo(report.render())
-    typer.secho(f"{project.id} is served from its files again.", fg=typer.colors.GREEN)
-
-
 @storage_app.command("export")
 def storage_export(
     destination: Path = typer.Argument(..., help="Directory to write the task files into."),
@@ -2422,7 +2412,7 @@ def _databases_in_play(settings: StorageSettings, project_id: Optional[str]) -> 
 
     Every project's, unless one is named. Distinct, because two projects sharing a file
     must not produce two snapshots of it -- the second would refuse, backups never being
-    overwritten. Only files that exist: a project on the file backend has none.
+    overwritten. Only files that exist: a project nobody has written to yet has none.
     """
     registry = ProjectRegistry()
     if project_id:
@@ -2924,10 +2914,11 @@ def migrate_schema_command(
     from .migrate_schema import migrate_corpus
 
     base_dir = Path.cwd()
-    config = _load_config(base_dir)
-    with suppress(ProjectError):
-        _refuse_if_not_files(ProjectRegistry().resolve_default(base_dir).id, "migrate-schema")
-    source = Path(tasks_dir) if tasks_dir else _resolve_tasks_dir(base_dir, config)
+    if not tasks_dir:
+        _refuse_project_corpus("migrate-schema", "--tasks-dir")
+    source = Path(tasks_dir or "")
+    if not source.is_absolute():
+        source = base_dir / source
     paths = sorted(source.glob("*.yaml"))
     if not paths:
         typer.secho(f"No task files found in {source}", fg=typer.colors.YELLOW)
@@ -3467,15 +3458,15 @@ def quotations(
     """
     base_dir = Path.cwd()
     if storage_dir is None:
-        # Resolved rather than composed, so it reads the live records after a cutover
-        # instead of the frozen copy beside them. An explicit --storage-dir still means
-        # exactly that directory, which is how you inspect an export.
+        # Resolved rather than composed, so it reads the live records instead of a
+        # frozen copy beside them. --storage-dir means exactly that directory, which is
+        # how you inspect an export or a corpus about to be imported.
         source: Any = _build_manager(base_dir).storage
     else:
         tasks_dir = Path(storage_dir)
         if not tasks_dir.is_absolute():
             tasks_dir = base_dir / tasks_dir
-        source = TaskStorage(tasks_dir)
+        source = TaskFileCorpus(tasks_dir, create=False)
 
     if task_id:
         task = source.load_task(task_id)

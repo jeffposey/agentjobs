@@ -210,7 +210,7 @@ class RemoteStorage:
         project can still hold quarantined records from its import, and a listing that
         quietly reported none would hide exactly the records an operator needs to see.
         """
-        from .storage import LoadResult, TaskLoadError
+        from .taskfiles import LoadResult, TaskLoadError
 
         errors = [
             TaskLoadError(

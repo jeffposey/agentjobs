@@ -6,7 +6,7 @@ The design, its measurements and its rejected alternatives are in
 """
 
 from .backup import restore, snapshot, verify
-from .connection import Database, SqlStoreError
+from .connection import Database, SqlStoreError, TaskLockTimeout
 from .importer import (
     CorpusAlreadyImported,
     CorpusImporter,
@@ -24,6 +24,7 @@ __all__ = [
     "MigrationReport",
     "QuotationPolicyError",
     "SqlStoreError",
+    "TaskLockTimeout",
     "SqlTaskStore",
     "TaskNotFound",
     "current_version",

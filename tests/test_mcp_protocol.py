@@ -36,7 +36,10 @@ from agentjobs.client import TaskClient
 from agentjobs.manager import TaskManager
 from agentjobs.mcp.inventory import build_registry
 from agentjobs.projects import HOME_ENV, ProjectRegistry
-from agentjobs.storage import TaskStorage
+from agentjobs.sqlstore import SqlTaskStore
+from agentjobs.storage_config import default_project_database
+from agentjobs.store_factory import open_database, server_process
+from support import task_store
 
 from mcp_evals import EVAL_FORMAT_VERSION
 from mcp_evals.scenarios import Harness, run_all
@@ -341,7 +344,15 @@ class TestPackagedProtocol:
         created, claimed = over_stdio(url, exchange)
 
         assert created.isError is False and claimed.isError is False
-        stored = TaskManager(TaskStorage(workspace / "alpha" / "tasks")).get_task("task-950-pipe")
+        # Read from the served process's own machine home, not this one's: the service
+        # runs as a subprocess with its own AGENTJOBS_HOME, and a project's database is
+        # resolved against it.
+        with server_process():
+            store = SqlTaskStore(
+                open_database(default_project_database("alpha", workspace / "home")),
+                "alpha",
+            )
+            stored = TaskManager(store).get_task("task-950-pipe")
         assert stored is not None
         assert stored.lifecycle.value == "active"
         assert stored.assignment.owner == "bot"
@@ -369,7 +380,8 @@ def harness(tmp_path: Path, monkeypatch) -> Iterator[Harness]:
         registry.add(root, project_id=project)
 
     managers = {
-        project: TaskManager(TaskStorage(root / "tasks")) for project, root in roots.items()
+        project: TaskManager(task_store(root / "tasks", project_id=project))
+        for project, root in roots.items()
     }
     with TestClient(app) as http:
         client = TaskClient("http://testserver", client=http)
@@ -400,8 +412,8 @@ class TestAgentEvaluations:
             "05-retry-after-timeout",
             "06-refuse-direct-lifecycle",
             "07-direct-write-attempt",
-            "08-read-yaml-for-review",
-            "09-broken-file",
+            "08-read-a-record-for-review",
+            "09-broken-record",
             "10-invalid-handoff-and-close",
         ]
 
@@ -426,7 +438,7 @@ class TestAgentEvaluations:
             "04-racing-claim",
             "06-refuse-direct-lifecycle",
             "07-direct-write-attempt",
-            "09-broken-file",
+            "09-broken-record",
             "10-invalid-handoff-and-close",
         ):
             codes = [call.error_code for call in by_name[name].calls if not call.ok]

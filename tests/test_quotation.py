@@ -45,8 +45,9 @@ from agentjobs.quotation import (
     speakers_in,
 )
 from agentjobs.receipts import content_hash
+from agentjobs.taskfiles import canonical_bytes
 from agentjobs.record_check import QUOTED_REMARK, check_record
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 runner = CliRunner()
 
@@ -65,7 +66,7 @@ PARAPHRASE = "The reviewer rejected the panel's layout outright, so it is being 
 @pytest.fixture()
 def manager(tmp_path: Path) -> TaskManager:
     """A manager over an empty corpus."""
-    return TaskManager(TaskStorage(tmp_path / "tasks"))
+    return TaskManager(task_store(tmp_path / "tasks"))
 
 
 def task_with(manager: TaskManager, **content: object) -> Task:
@@ -328,8 +329,13 @@ class TestRedactionVerb:
         assert next(entry for entry in task.log if entry.id == entry_id).body == PARAPHRASE
         assert scan_task(task) == []
 
-    def test_the_file_is_left_canonical(self, manager, tmp_path):
-        """The hand-splice's other cost: a file AgentJobs would have written differently."""
+    def test_the_record_is_left_in_canonical_form(self, manager, tmp_path):
+        """The hand-splice's other cost: a record AgentJobs would have written differently.
+
+        It used to read the file back off disk. A record is rows now, so the comparable
+        artifact is what an export would write for it -- which is the form anybody
+        receiving this record would see, and the one a hand-splice would have spoiled.
+        """
         task = task_with(manager, description=ATTRIBUTED_REMARK)
         task = manager.redact(
             task.id,
@@ -340,13 +346,13 @@ class TestRedactionVerb:
         )
 
         storage = manager.storage
-        on_disk = storage.task_path(task.id).read_bytes()
-        expected = storage.canonical_bytes(storage.load_task_uncached(task.id))
-
+        reloaded = storage.load_task(task.id)
+        assert reloaded is not None
         # Hashed rather than compared byte for byte, for `receipts.content_hash`'s
-        # reason: git may hand a file back with CRLF and the writer emits LF, and this
-        # test is about the shape of the document, not the platform's line endings.
-        assert content_hash(on_disk) == content_hash(expected)
+        # reason: line endings are not what this is about.
+        assert content_hash(storage.canonical_bytes(reloaded)) == content_hash(
+            canonical_bytes(task)
+        )
 
     def test_an_unaddressable_region_is_refused_rather_than_guessed_at(self, manager):
         task = task_with(manager)
@@ -405,19 +411,33 @@ class TestTheCommands:
 
     @pytest.fixture()
     def project(self, tmp_path: Path, monkeypatch) -> Path:
-        """An initialised project directory, with the CLI's cwd pointed at it."""
+        """A configured project directory, with the CLI's cwd pointed at it.
+
+        Configured rather than initialised: ``init`` registers the project, and a
+        registered project's commands are service clients, so these cases would need a
+        server running to exercise a scan and a redaction. An unregistered directory is
+        the shape the CLI still answers for itself.
+        """
+        import yaml
+
         monkeypatch.chdir(tmp_path)
-        result = runner.invoke(
-            app,
-            ["init", "--backend", "files"],
-            input="Test\ntasks\nprompts\n9000\njeff\n",
-            catch_exceptions=False,
+        (tmp_path / ".agentjobs").mkdir(parents=True, exist_ok=True)
+        (tmp_path / ".agentjobs" / "config.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "project_name": "Test",
+                    "tasks_directory": "tasks",
+                    "prompts_directory": "prompts",
+                    "port": 9000,
+                    "default_user": "jeff",
+                }
+            ),
+            encoding="utf-8",
         )
-        assert result.exit_code == 0
         return tmp_path
 
     def _seed(self, project: Path, description: str) -> str:
-        manager = TaskManager(TaskStorage(project / "tasks"))
+        manager = TaskManager(task_store(project / "tasks"))
         task = manager.create_task(
             id="task-001",
             title="Rework the panel",
@@ -486,7 +506,7 @@ class TestTheCommands:
         )
 
         assert result.exit_code == 0
-        task = TaskStorage(project / "tasks").load_task_uncached(task_id)
+        task = task_store(project / "tasks").load_task_uncached(task_id)
         assert "A second paragraph." in task.spec.description
 
     def test_both_replacement_forms_at_once_is_refused(self, project):

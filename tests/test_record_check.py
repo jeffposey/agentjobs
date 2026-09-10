@@ -35,7 +35,8 @@ from agentjobs.record_check import (
     summary_words,
     warning_dicts,
 )
-from agentjobs.storage import TaskStorage
+from support import task_store
+from agentjobs.taskfiles import TaskFileCorpus
 from agentjobs.validation import validate_corpus
 
 #: A summary one word past the ceiling. Built rather than written out so the fixture
@@ -47,7 +48,7 @@ JUST_SHORT = " ".join(["word"] * SUMMARY_WORD_CEILING)
 @pytest.fixture()
 def manager(tmp_path: Path) -> TaskManager:
     """A manager over an empty corpus."""
-    return TaskManager(TaskStorage(tmp_path / "tasks"))
+    return TaskManager(task_store(tmp_path / "tasks"))
 
 
 def worked_task(manager: TaskManager, *, summary: str = "Short enough.") -> Task:
@@ -361,7 +362,16 @@ class TestValidateIsUnaffected:
             manager.claim_task(task.id, agent="bot")
             manager.add_log_entry(task.id, actor="bot", type=LogEntryType.PROGRESS, body="On it.")
 
-        report = validate_corpus(tmp_path / "tasks")
+        # Exported first, because `validate_corpus` checks a *directory* of task YAML
+        # (task-402) and the records are rows. That is the shape it will meet in
+        # practice too: a corpus somebody is about to import.
+        exported = tmp_path / "exported"
+        exported.mkdir()
+        corpus = TaskFileCorpus(exported)
+        for task in manager.storage.list_tasks():
+            corpus.save_task(task)
+
+        report = validate_corpus(exported)
 
         assert report.checked == 3
         assert report.ok, report.render()

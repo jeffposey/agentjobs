@@ -25,7 +25,7 @@ from agentjobs.api.main import app
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType
 from agentjobs.projects import ProjectRegistry
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 CONFIG = {
     "project_name": "Sandbox",
@@ -120,7 +120,7 @@ def enable_dispatch(
 
 def seed_task(root: Path, *, last_actor: str = "Jeff Posey") -> str:
     """A ready task whose newest log entry belongs to ``last_actor``."""
-    manager = TaskManager(TaskStorage(root / "tasks"))
+    manager = TaskManager(task_store(root / "tasks"))
     task = manager.create_task(
         title="Dispatchable",
         category="general",
@@ -253,7 +253,7 @@ class TestTheNoteThatAuthorisesARun:
 
     def agent_filed_task(self, root: Path) -> str:
         """A ready task whose only entry is the creation transition an agent wrote."""
-        manager = TaskManager(TaskStorage(root / "tasks"))
+        manager = TaskManager(task_store(root / "tasks"))
         task = manager.create_task(
             title="Filed by an agent",
             category="general",
@@ -353,7 +353,7 @@ class TestTheNoteThatAuthorisesARun:
         """The other half of task-185: tasks predating the creation entry have none."""
         client, root, home = served
         enable_dispatch(home, tmp_path)
-        manager = TaskManager(TaskStorage(root / "tasks"))
+        manager = TaskManager(task_store(root / "tasks"))
         task = manager.create_task(
             title="Filed before creation entries existed",
             category="general",
@@ -550,17 +550,23 @@ class TestDispatchRuns:
             "run_id"
         ]
 
+        # The run the wait observed is the one asserted on. Re-querying afterwards is a
+        # second read of a listing another thread is still writing, and it comes back
+        # empty often enough to fail under a loaded gate.
+        seen: list[dict] = []
+
         def finished() -> bool:
             runs = client.get(
                 "/api/projects/sandbox/dispatch/runs", params={"task_id": task_id}
             ).json()
-            return bool(runs) and runs[0]["live"] is False
+            if runs and runs[0]["live"] is False:
+                seen.append(runs[0])
+                return True
+            return False
 
         assert wait_for(finished), "the batch supervisor should conclude the run"
 
-        run = client.get("/api/projects/sandbox/dispatch/runs", params={"task_id": task_id}).json()[
-            0
-        ]
+        run = seen[0]
         assert run["outcome"]
         output = client.get(f"/api/projects/sandbox/dispatch/runs/{run_id}/output")
         assert output.status_code == 200
@@ -1022,7 +1028,7 @@ class TestDispatchAgainstAGroup:
 
         client.post(f"/api/tasks/{task_id}/dispatch", json={})
 
-        manager = TaskManager(TaskStorage(root / "tasks"))
+        manager = TaskManager(task_store(root / "tasks"))
         task = manager.get_task(task_id)
         assert task is not None
         entry = [e for e in task.log if e.type is LogEntryType.DISPATCH][0]
@@ -1210,7 +1216,7 @@ class TestOneClickDispatch:
         assert response.status_code == 202, response.text
         caused_by = response.json()["caused_by"]
 
-        stored = TaskManager(TaskStorage(root / "tasks")).get_task(task_id)
+        stored = TaskManager(task_store(root / "tasks")).get_task(task_id)
         assert stored is not None
         entry = next(item for item in stored.log if item.id == caused_by)
         assert entry.actor == "Jeff Posey"
@@ -1235,7 +1241,7 @@ class TestOneClickDispatch:
         """ac-4. The one case that stops, and it names itself so the page can react."""
         client, root, home = served
         enable_dispatch(home, tmp_path)
-        manager = TaskManager(TaskStorage(root / "tasks"))
+        manager = TaskManager(task_store(root / "tasks"))
         task = manager.create_task(
             title="Nothing to go on",
             category="general",
@@ -1256,7 +1262,7 @@ class TestOneClickDispatch:
         """ac-4. One action serves both purposes: the brief and the authorisation."""
         client, root, home = served
         enable_dispatch(home, tmp_path)
-        manager = TaskManager(TaskStorage(root / "tasks"))
+        manager = TaskManager(task_store(root / "tasks"))
         task = manager.create_task(
             title="Nothing to go on",
             category="general",
@@ -1304,14 +1310,14 @@ class TestOneClickDispatch:
         client, root, home = served
         enable_dispatch(home, tmp_path)
         task_id = seed_task(root, last_actor="claude")
-        before = TaskManager(TaskStorage(root / "tasks")).get_task(task_id)
+        before = TaskManager(task_store(root / "tasks")).get_task(task_id)
         assert before is not None
 
         response = client.post(f"/api/projects/sandbox/tasks/{task_id}/dispatch", json={})
 
         assert response.status_code == 403
         assert response.json()["code"] == "not_human_clocked"
-        after = TaskManager(TaskStorage(root / "tasks")).get_task(task_id)
+        after = TaskManager(task_store(root / "tasks")).get_task(task_id)
         assert after is not None
         assert len(after.log) == len(before.log)
 

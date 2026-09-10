@@ -24,7 +24,7 @@ from agentjobs.instrumentation import reset_task_parses, task_parse_count
 from agentjobs.projects import ProjectError, ProjectRegistry, default_home
 from agentjobs.dispatch.credentials import verify_run_credential
 from agentjobs.principals import set_run_credential_verifier
-from agentjobs.storage import TaskLoadError, corpus_snapshot
+from agentjobs.taskfiles import TaskLoadError
 from agentjobs.store_factory import close_databases, mark_server_process
 
 from .authorization import Forbidden, enforce_capability
@@ -219,22 +219,17 @@ async def measure_request(request: Any, call_next: Any) -> Any:
     - ``X-Response-Time-Ms`` -- wall time inside the application.
     - ``X-Task-Parses`` -- task files read and parsed from disk while serving it.
 
-    The parse count is the more useful of the two. It says *why* a request was slow
-    without attaching a profiler, and unlike a millisecond figure it means the same
-    thing on a fast laptop and a loaded CI box: a request that parses a 112-file
-    corpus four times is doing four times too much work on any hardware.
+    The parse count is zero on every ordinary request now that records are rows, and
+    is kept for exactly that reason: it is the cheap standing assertion that no request
+    has quietly started reading a directory again. It still counts the one operation
+    that legitimately parses files, which is an import.
 
     The counter is reset per request rather than read as a running total, because a
     long-lived server would otherwise report a number that only ever grows.
     """
     reset_task_parses()
     started = time.perf_counter()
-    # One parse of the corpus per request. The scope is entered here, around the whole
-    # request, because that is the widest window in which the answer has to be
-    # self-consistent and the narrowest one that fixes the repeated walks -- see
-    # storage.corpus_snapshot for why it is not process-wide.
-    with corpus_snapshot():
-        response = await call_next(request)
+    response = await call_next(request)
     elapsed_ms = (time.perf_counter() - started) * 1000
     response.headers[MEASUREMENT_HEADER] = f"{elapsed_ms:.1f}"
     response.headers[PARSE_COUNT_HEADER] = str(task_parse_count())

@@ -1,9 +1,17 @@
-"""A broken task file must be loud, not invisible.
+"""A record that cannot be read must be loud, not invisible.
 
 Storage used to return None for a file that failed validation, which made it
 indistinguishable from a file that does not exist. The task dropped out of every
 listing and the only evidence was a log line. These tests cover both halves of the
-fix: the error carries file and field, and every listing surface shows it.
+fix: the error names the record and what is wrong with it, and every listing surface
+shows it.
+
+**The unreadable record is now a quarantined import** (task-402). A record that cannot
+satisfy the constraints is not a row at all, so what the surfaces must not swallow is an
+unresolved ``import_quarantine`` entry rather than a file on disk -- same guarantee,
+same surfaces, and the only thing that changed is where the state comes from. The one
+genuinely file-shaped case in here, an unmigrated v1 file, stays a file: it is an
+assertion about the format the importer reads.
 """
 
 from __future__ import annotations
@@ -21,7 +29,8 @@ from agentjobs.api.dependencies import TASKS_DIR_ENV, reset_dependency_cache
 from agentjobs.api.main import app
 from agentjobs.cli import app as cli_app
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Priority, Spec, Task
-from agentjobs.storage import TaskLoadError, TaskStorage
+from agentjobs.taskfiles import TaskFileCorpus, TaskLoadError
+from support import quarantine_record, task_store
 
 NOW = datetime(2026, 8, 10, tzinfo=timezone.utc)
 BROKEN_FILENAME = "task-666-corrupt.yaml"
@@ -30,7 +39,7 @@ UNMIGRATED_FILENAME = "task-777-unmigrated.yaml"
 
 def write_good_task(tasks_dir: Path, task_id: str = "task-100-good") -> Task:
     """A task that loads cleanly."""
-    storage = TaskStorage(tasks_dir)
+    storage = task_store(tasks_dir)
     return storage.save_task(
         Task(
             id=task_id,
@@ -48,33 +57,23 @@ def write_good_task(tasks_dir: Path, task_id: str = "task-100-good") -> Task:
     )
 
 
-def write_broken_task(tasks_dir: Path) -> Path:
-    """A file that parses as YAML but is not a valid task: priority is not a Priority."""
-    path = tasks_dir / BROKEN_FILENAME
-    path.write_text(
-        yaml.safe_dump(
-            {
-                "schema": 2,
-                "id": "task-666-corrupt",
-                "title": "Corrupt",
-                "created": "2026-08-10T00:00:00Z",
-                "updated": "2026-08-10T00:00:00Z",
-                "lifecycle": "ready",
-                "ball": "agent",
-                "ball_reason": "available",
-                "category": "infrastructure",
-                "spec": {"summary": "x", "description": "x"},
-                "priority": "extremely-urgent",
-            }
-        ),
-        encoding="utf-8",
+def write_broken_task(tasks_dir: Path) -> str:
+    """A record the import could not accept: its priority is not a Priority.
+
+    The reason is recorded verbatim, exactly as the importer records the model's
+    complaint, because "which record, which field, what is wrong" is the whole point.
+    """
+    return quarantine_record(
+        task_store(tasks_dir),
+        task_id="task-666-corrupt",
+        source=BROKEN_FILENAME,
+        error="priority: input should be 'critical', 'high', 'medium' or 'low'",
     )
-    return path
 
 
 @pytest.fixture()
 def corpus(tmp_path: Path) -> Tuple[Path, Task]:
-    """A tasks directory holding one good task and one broken file."""
+    """A project holding one good task and one record that could not be read."""
     tasks_dir = tmp_path / "tasks"
     tasks_dir.mkdir()
     good = write_good_task(tasks_dir)
@@ -97,7 +96,7 @@ def client(corpus, tmp_path: Path, monkeypatch) -> Iterator[TestClient]:
 class TestStorageIsLoud:
     def test_the_error_names_the_file_and_the_field(self, corpus) -> None:
         tasks_dir, _ = corpus
-        storage = TaskStorage(tasks_dir)
+        storage = task_store(tasks_dir)
 
         with pytest.raises(TaskLoadError) as caught:
             storage.load_task("task-666-corrupt")
@@ -109,21 +108,34 @@ class TestStorageIsLoud:
     def test_the_error_is_serialisable_for_uis(self, corpus) -> None:
         tasks_dir, _ = corpus
         try:
-            TaskStorage(tasks_dir).load_task("task-666-corrupt")
+            task_store(tasks_dir).load_task("task-666-corrupt")
         except TaskLoadError as exc:
             payload = exc.as_dict()
         assert payload["filename"] == BROKEN_FILENAME
         assert "priority" in payload["reason"]
 
-    def test_an_unmigrated_v1_file_is_reported_with_the_fix(self, corpus) -> None:
-        """A file with no `schema: 2` stamp is broken-with-a-reason, not invisible."""
-        tasks_dir, _ = corpus
-        (tasks_dir / UNMIGRATED_FILENAME).write_text(
-            "id: task-777-unmigrated\ntitle: Old\ncategory: x\ndescription: y\n",
+    def test_an_unmigrated_v1_file_is_reported_with_the_fix(self, tmp_path: Path) -> None:
+        """A file with no `schema: 2` stamp is broken-with-a-reason, not invisible.
+
+        Against the file reader rather than the store, and deliberately: this is what an
+        operator meets when they point an import at a corpus nobody migrated, which is
+        the only way such a file reaches AgentJobs now.
+        """
+        directory = tmp_path / "candidate"
+        directory.mkdir()
+        (directory / UNMIGRATED_FILENAME).write_text(
+            "id: task-777-unmigrated"
+            + chr(10)
+            + "title: Old"
+            + chr(10)
+            + "category: x"
+            + chr(10)
+            + "description: y"
+            + chr(10),
             encoding="utf-8",
         )
 
-        result = TaskStorage(tasks_dir).load_all()
+        result = TaskFileCorpus(directory, create=False).load_all()
 
         reasons = {error.path.name: error.reason for error in result.errors}
         assert UNMIGRATED_FILENAME in reasons
@@ -133,12 +145,12 @@ class TestStorageIsLoud:
         # Absent and broken must stay distinguishable; conflating them is the bug.
         tasks_dir, _ = corpus
 
-        assert TaskStorage(tasks_dir).load_task("task-999-nonexistent") is None
+        assert task_store(tasks_dir).load_task("task-999-nonexistent") is None
 
-    def test_one_broken_file_does_not_take_down_the_listing(self, corpus) -> None:
+    def test_one_broken_record_does_not_take_down_the_listing(self, corpus) -> None:
         tasks_dir, good = corpus
 
-        result = TaskStorage(tasks_dir).load_all()
+        result = task_store(tasks_dir).load_all()
 
         assert [task.id for task in result.tasks] == [good.id]
         assert [error.path.name for error in result.errors] == [BROKEN_FILENAME]
@@ -147,7 +159,7 @@ class TestStorageIsLoud:
     def test_list_tasks_keeps_its_old_signature(self, corpus) -> None:
         tasks_dir, good = corpus
 
-        assert [t.id for t in TaskStorage(tasks_dir).list_tasks()] == [good.id]
+        assert [t.id for t in task_store(tasks_dir).list_tasks()] == [good.id]
 
 
 class TestApiSurfacesIt:

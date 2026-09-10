@@ -1,4 +1,4 @@
-"""Moving a project's tasks into the database, and moving them back out again.
+"""Bringing a directory of task YAML into the database, and writing one back out.
 
 The store, the importer and the backup machinery were built by task-273. This module is
 the operator-facing sequence they were built for, and the reason it is one module rather
@@ -22,9 +22,10 @@ than a CLI command is that every step has to be able to run in a test.
     decide where to look, so flipping it before the store holds the corpus points the
     whole machine at an empty database.
 
-Rollback runs the same list backwards, and the direction matters: the export writes the
-store's **current** state, not the snapshot taken before the cutover, so changes made
-after the cutover survive going back. That is the property the spec asks for by name.
+**The road runs one way** (task-402). There is no file backend to go back to, so what
+was rollback is now :func:`export_project` alone: it writes the store's current state as
+an interchange artifact that a person reads or another tool ingests, and nothing switches
+as a result of it.
 
 ## What this module will not do
 
@@ -54,13 +55,11 @@ from .sqlstore.backup import VerifyReport, restore, snapshot, verify
 from .sqlstore.connection import Database
 from .sqlstore.importer import CorpusImporter, ImportReport
 from .sqlstore.migrations import upgrade
-from .storage import TaskStorage
 from .storage_config import (
     StorageSettings,
     default_project_database,
     load_storage_settings,
     record_cutover,
-    record_rollback,
 )
 from .store_factory import close_databases, open_database, server_process
 
@@ -188,9 +187,9 @@ def _first_difference(left: Dict[str, Any], right: Dict[str, Any]) -> str:
 def verify_import(store: SqlTaskStore, tasks_dir: Path) -> VerificationReport:
     """Compare every task file against the row it became.
 
-    Reads the directory directly rather than through ``TaskStorage`` so that a file the
-    model refuses is *reported* rather than dropped: a record that could not be imported
-    and a record that was never there look identical from a listing.
+    Reads the directory directly rather than through a loader that drops what it
+    cannot parse, so that a file the model refuses is *reported*: a record that could
+    not be imported and a record that was never there look identical from a listing.
     """
     report = VerificationReport()
     on_disk: Dict[str, Dict[str, Any]] = {}
@@ -465,9 +464,9 @@ def export_project(
     person asks for rather than a mirror something maintains: nothing calls this on a
     write, and nothing commits what it produces.
 
-    It is also the mechanism rollback is built on, which is why the filenames and the
-    attachment layout are byte-compatible with what the file backend produced. A
-    directory this wrote is a directory ``TaskStorage`` can serve.
+    The filenames and the attachment layout are the ones the file backend used, which
+    is what makes a directory this wrote a directory :func:`import_project` can read
+    back -- the round trip an operator moving a project between machines depends on.
     """
     resolved = settings or load_storage_settings()
     target = Path(destination)
@@ -491,36 +490,6 @@ def export_project(
     return report
 
 
-def roll_back(
-    project: Project,
-    *,
-    settings: Optional[StorageSettings] = None,
-    tasks_dir: Optional[Path] = None,
-) -> ExportReport:
-    """Put the project back on its files, keeping everything written since the cutover.
-
-    The export runs first and against the store's **current** state, so a handoff made
-    after the cutover is on disk before anything is switched. Exporting the pre-cutover
-    snapshot instead would be a rollback that silently discarded a day's work, which is
-    the failure this ordering exists to prevent.
-
-    The database is not deleted. A rollback is a decision that can itself be wrong, and
-    the store is the only copy of the reconstructed and backfilled history.
-    """
-    resolved = settings or load_storage_settings()
-    entry = resolved.for_project(project.id)
-    destination = (
-        Path(tasks_dir)
-        if tasks_dir is not None
-        else Path(entry.source)
-        if entry.source
-        else project.tasks_dir()
-    )
-    report = export_project(project, destination, settings=resolved)
-    record_rollback(project.id, home=resolved.home)
-    return report
-
-
 # ----- what an operator asks first ------------------------------------------
 
 
@@ -529,7 +498,6 @@ class ProjectStatus:
     """One line of ``agentjobs storage status``."""
 
     project_id: str
-    backend: str
     cutover_at: Optional[str]
     source: Optional[str]
     rows: Optional[int]
@@ -550,10 +518,10 @@ def status(
 ) -> List[ProjectStatus]:
     """Where each project's tasks actually are, counted rather than assumed.
 
-    Both counts are reported for every project, whichever backend is authoritative,
-    because the interesting states are the asymmetric ones: rows and no files means the
-    retirement step has run, files and no rows means a cutover was never done, and both
-    means a migrated project whose old directory is still on disk.
+    Both counts are reported for every project, because the interesting states are the
+    asymmetric ones: rows and no files means the retirement step has run, files and no
+    rows means the import was never done, and both means an imported project whose old
+    directory is still on disk.
 
     Each project's *file* is reported too, since after task-400 the answer differs per
     project and "where are this project's records" stops being answerable by naming the
@@ -581,7 +549,6 @@ def status(
         lines.append(
             ProjectStatus(
                 project_id=project.id,
-                backend=entry.backend,
                 cutover_at=entry.cutover_at,
                 source=entry.source,
                 rows=rows,
@@ -633,15 +600,6 @@ def restore_backup(
     return restore(Path(path), target, force=force)
 
 
-def file_store_for(project: Project, *, tasks_dir: Optional[Path] = None) -> TaskStorage:
-    """The file backend for a project, whatever the machine's configuration says.
-
-    Used by the rollback path and by the tests, both of which legitimately need to read
-    the directory of a project that is currently served from the database.
-    """
-    return TaskStorage(Path(tasks_dir) if tasks_dir is not None else project.tasks_dir())
-
-
 __all__ = [
     "CutoverError",
     "CutoverResult",
@@ -651,11 +609,9 @@ __all__ = [
     "back_up",
     "cut_over",
     "export_project",
-    "file_store_for",
     "import_project",
     "preview",
     "restore_backup",
-    "roll_back",
     "status",
     "verify_backup",
     "verify_import",

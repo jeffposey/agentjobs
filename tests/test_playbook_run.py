@@ -41,7 +41,7 @@ from agentjobs.playbooks.run import (
     run_playbook,
 )
 from agentjobs.projects import Project
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 PROJECT_CONFIG: Dict[str, object] = {
     "project_name": "Sandbox",
@@ -145,7 +145,7 @@ def project(tmp_path: Path) -> Project:
 
 @pytest.fixture
 def manager(project: Project) -> TaskManager:
-    return TaskManager(TaskStorage(project.root / "tasks"))
+    return TaskManager(task_store(project.root / "tasks"))
 
 
 def write_dispatch_config(

@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import ClassVar, Collection, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from .models_v2 import PRIORITY_RANK, Priority, Task
-from .storage import TaskStorage, load_yaml
+from .taskfiles import TaskFileCorpus, load_yaml
 
 __all__ = [
     "QUEUE_STEP",
@@ -526,7 +526,7 @@ class QueueRecord:
 
     **Deliberately not a** :class:`~agentjobs.models_v2.Task`. This migration exists
     precisely because the corpus has no positions yet, and consistency rule 6 refuses
-    to load an open task without one -- so a migration built on ``TaskStorage.load_all``
+    to load an open task without one -- so a migration built on a loader that validates
     could not read a single one of the files it was written to fix. Reading the raw
     mapping is the same shape :mod:`agentjobs.migrate_schema` uses to convert v1 files
     that v2 cannot load either.
@@ -714,33 +714,34 @@ def migrate_queue_positions(tasks_dir: Path, *, write: bool = False) -> QueueMig
     Nothing is written unless ``write`` is true, so the plan can be read before it is
     trusted -- the same shape as :func:`agentjobs.migrate_schema.migrate_corpus`.
 
-    Writes go through ``TaskStorage.save_task`` rather than editing the YAML in place,
-    so every file comes out in canonical form with a write receipt behind it. A
-    migration that hand-shaped the YAML would leave each file it touched looking
-    hand-edited to ``agentjobs validate``, which is exactly what receipts exist to
-    detect.
+    Writes go through the canonical writer rather than editing the YAML in place, so
+    every file comes out in the form AgentJobs would have produced with a write receipt
+    behind it. A migration that hand-shaped the YAML would leave each file it touched
+    looking hand-edited to ``agentjobs validate``, which is exactly what receipts exist
+    to detect.
 
     That also bumps each migrated file's ``updated``, which is correct: this *is* a
     real write. The rule the design states is about the migration's **inputs** --
     ``updated`` is not one of them, and no assignment above depends on it.
+
+    **A directory, not a project.** This prepares a corpus of files for import; the
+    positions a *project* hands out are a unique index in the database, and nothing here
+    can collide with them. That is why there is no lock: the old one existed to keep a
+    concurrent create from taking a number this plan was about to hand out, and a
+    directory of files has no creates landing in it.
     """
     directory = Path(tasks_dir)
-    storage = TaskStorage(directory)
-    # Migration assigns positions, so it is a queue-lock holder like every other path
-    # that does (design section 7). The plan is taken *inside* the lock rather than
-    # before it: a create landing between the read and the writes would take a number
-    # this plan is about to hand to somebody else.
-    with storage.queue_lock():
-        records, skipped = read_queue_records(directory)
-        report = plan_queue_migration(records)
-        report.unreadable = skipped
-        if not write:
-            return report
-
-        for assignment in report.assignments:
-            path = directory / f"{assignment.task_id}.yaml"
-            raw = load_yaml(path.read_text(encoding="utf-8"))
-            raw["queue_position"] = assignment.position
-            storage.save_task(Task.model_validate(raw))
-        report.written = True
+    corpus = TaskFileCorpus(directory, create=False)
+    records, skipped = read_queue_records(directory)
+    report = plan_queue_migration(records)
+    report.unreadable = skipped
+    if not write:
         return report
+
+    for assignment in report.assignments:
+        path = directory / f"{assignment.task_id}.yaml"
+        raw = load_yaml(path.read_text(encoding="utf-8"))
+        raw["queue_position"] = assignment.position
+        corpus.save_task(Task.model_validate(raw))
+    report.written = True
+    return report
