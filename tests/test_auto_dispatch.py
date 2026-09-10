@@ -36,7 +36,7 @@ from agentjobs.models_v2 import (
     utcnow,
 )
 from agentjobs.projects import ProjectRegistry
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 CONFIG: dict[str, object] = {
     "project_name": "Sandbox",
@@ -108,7 +108,7 @@ def write_dispatch_config(home: Path, tmp_path: Path, *, auto: bool) -> None:
 
 
 def manager_for(root: Path) -> TaskManager:
-    return TaskManager(TaskStorage(root / "tasks"))
+    return TaskManager(task_store(root / "tasks"))
 
 
 def seed_task(root: Path, *, ball: Ball = Ball.HUMAN) -> str:

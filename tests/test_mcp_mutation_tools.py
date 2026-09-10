@@ -30,7 +30,7 @@ from agentjobs.mcp.tools import ToolRegistry
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle
 from agentjobs.projects import ProjectRegistry
 from agentjobs.record_check import DEFAULT_BALL_PROMPT, LONG_SUMMARY, SUMMARY_WORD_CEILING
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 ACTORS = [
     {"name": "Ada", "kind": "human", "display_name": "Ada Lovelace"},
@@ -80,7 +80,7 @@ def service(tmp_path: Path, monkeypatch) -> Iterator[Tuple[ToolRegistry, TaskMan
         encoding="utf-8",
     )
     ProjectRegistry(home=tmp_path / "home").add(root, project_id="solo")
-    manager = TaskManager(TaskStorage(root / "tasks"))
+    manager = TaskManager(task_store(root / "tasks"))
 
     with TestClient(app) as http:
         client = TaskClient("http://testserver", client=http)
@@ -1197,7 +1197,7 @@ class TestBoundary:
 
         tree = ast.parse(Path(mutation_tools.__file__).read_text(encoding="utf-8"))
         forbidden_modules = {"yaml", "pathlib", "os", "io", "storage", "manager"}
-        forbidden_names = {"TaskManager", "TaskStorage", "Path", "open"}
+        forbidden_names = {"TaskManager", "SqlTaskStore", "Path", "open"}
 
         offenders = []
         for node in ast.walk(tree):

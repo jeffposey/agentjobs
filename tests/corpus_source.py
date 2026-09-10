@@ -1,4 +1,4 @@
-"""Where this repository's own task records are, whichever backend holds them.
+"""Where this repository's own task records are.
 
 The corpus checks -- every record still loads, no relationship dangles, no record quotes
 a person -- are about *the backlog*, not about a directory. They were written when a
@@ -7,18 +7,25 @@ are not part of what they are checking:
 
 *   **They read whatever branch is checked out.** A record fixed on ``main`` still fails
     them from a worktree whose copy predates the fix. That is the coupling task-311
-    removes, and it was in the tests as well as in the product.
+    removed, and it was in the tests as well as in the product.
 *   **They stop being possible once the records are retired from the checkout**, which is
-    a deliberate step an operator takes after a cutover -- and a corpus check that
+    a deliberate step an operator takes after an import -- and a corpus check that
     vanishes when the corpus moves is not much of a check.
 
-So the source is resolved rather than assumed. A project on files answers from the files;
-a project on the database answers from the rows, through the same model. The checks
-themselves do not change, which is the point: they are about the records.
+So the source is the store, and it is resolved rather than assumed: the machine's storage
+configuration says which file, and the records come back through the same model whichever
+way they were written.
+
+**It never falls back to the directory** (task-402). It used to, because a project could
+still be served from files; now a ``tasks/`` directory in the checkout is a frozen copy,
+and answering from it would mean these checks silently validating a corpus months out of
+date -- passing, and about nothing. A store that cannot be read returns ``None``, which a
+caller turns into a skip.
 
 The per-file tests -- YAML stamping, loader parity, byte-level round trips -- are
-different, and stay files-only. They are assertions about a *file format*, and skipping
-them where there are no files is the honest answer rather than a gap.
+different, and stay files-only. They are assertions about a *file format*, which is what
+an import reads and an export writes, and they run against a directory they make
+themselves.
 """
 
 from __future__ import annotations
@@ -38,23 +45,10 @@ PROJECT_ID = "agentjobs"
 """This repository's own project id, as registered on a developer's machine."""
 
 CORPUS_DIRS = ("tasks/agentjobs", "tasks/test-data")
-"""Where the records live while they are files. ``test-data`` is fixture material that
-ships with the repository and is checked alongside the product corpus."""
+"""Where the frozen copies live. ``test-data`` is fixture material that ships with the
+repository and is checked alongside the product corpus."""
 
 PRODUCT_DIR = "tasks/agentjobs"
-
-
-def on_sqlite() -> bool:
-    """True when this machine serves this repository's own records from the database.
-
-    Read from the machine's storage configuration rather than inferred from whether a
-    directory happens to exist: an operator who has cut over but not yet retired the
-    files has both, and the configuration is the thing that decides which one is true.
-    """
-    try:
-        return load_storage_settings().on_sqlite(PROJECT_ID)
-    except Exception:  # noqa: BLE001 - an unreadable config is not this test's subject
-        return False
 
 
 def corpus_files() -> Iterator[Path]:
@@ -79,8 +73,8 @@ def _from_files(relative: str) -> List[Task]:
     ]
 
 
-def _from_store() -> Optional[List[Task]]:
-    """Every record the database holds for this project, or ``None`` if it cannot answer.
+def product_tasks() -> Optional[List[Task]]:
+    """This repository's own backlog, or ``None`` if this machine cannot read it.
 
     ``None`` rather than an empty list, and the difference matters: a machine where this
     repository is not registered, or where the database has been moved, must skip the
@@ -98,18 +92,8 @@ def _from_store() -> Optional[List[Task]]:
     except Exception:  # noqa: BLE001 - not registered here
         return None
     with server_process():
-        return SqlTaskStore(open_database(database), PROJECT_ID).list_tasks()
-
-
-def product_tasks() -> Optional[List[Task]]:
-    """This repository's own backlog, from whichever backend holds it.
-
-    ``None`` when it cannot be read at all, which a caller turns into a skip.
-    """
-    if on_sqlite():
-        return _from_store()
-    records = _from_files(PRODUCT_DIR)
-    return records or None
+        found = SqlTaskStore(open_database(database), PROJECT_ID).list_tasks()
+    return found or None
 
 
 def all_tasks() -> Optional[List[Task]]:
@@ -127,6 +111,5 @@ __all__ = [
     "REPO_ROOT",
     "all_tasks",
     "corpus_files",
-    "on_sqlite",
     "product_tasks",
 ]

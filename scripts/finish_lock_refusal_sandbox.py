@@ -31,7 +31,7 @@ from agentjobs.dispatch.ledger import locks_root
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Lifecycle
 from agentjobs.projects import Project
-from agentjobs.storage import TaskStorage
+from sandbox_store import sandbox_store  # type: ignore[import-not-found]
 
 SLOW_GATE = "import time\nprint('gate running')\ntime.sleep(180)\n"
 
@@ -42,14 +42,14 @@ import agentjobs.dispatch.finish as F
 from agentjobs.dispatch.config import FinishSettings
 from agentjobs.manager import TaskManager
 from agentjobs.projects import Project
-from agentjobs.storage import TaskStorage
+from sandbox_store import sandbox_store  # type: ignore[import-not-found]
 
 root = Path(sys.argv[1]); home = Path(sys.argv[2]); task_id = sys.argv[3]
 # A temp repository has no Poetry project, so the interpreter is supplied. This is the
 # same substitution tests/test_dispatch_finish.py makes, and for the same reason.
 F.worktree_interpreter = lambda path: Path(sys.executable)
 result = F.finish_task(
-    manager=TaskManager(TaskStorage(root / "tasks")),
+    manager=TaskManager(sandbox_store(root / "tasks")),
     project=Project(id="sandbox", name="Sandbox", root=root),
     task_id=task_id,
     approver="Jeff Posey",
@@ -104,7 +104,7 @@ def main() -> int:
         encoding="utf-8",
     )
 
-    manager = TaskManager(TaskStorage(root / "tasks"))
+    manager = TaskManager(sandbox_store(root / "tasks"))
     task = manager.create_task(
         title="The deliverable",
         category="infrastructure",

@@ -31,8 +31,8 @@ def two_projects_web(tmp_path: Path, monkeypatch) -> Iterator[Tuple[TestClient, 
     monkeypatch.chdir(tmp_path)
     reset_dependency_cache()
 
-    build_project(tmp_path / "alpha", "Alpha")
-    build_project(tmp_path / "beta", "Beta")
+    build_project(tmp_path / "alpha", "alpha", "Alpha")
+    build_project(tmp_path / "beta", "beta", "Beta")
     registry = ProjectRegistry(home=tmp_path / "home")
     registry.add(tmp_path / "alpha", project_id="alpha")
     registry.add(tmp_path / "beta", project_id="beta")
@@ -249,7 +249,7 @@ class TestSingleProjectCompatibility:
         monkeypatch.setenv(TASKS_DIR_ENV, str(tmp_path / "solo" / "tasks"))
         monkeypatch.setenv("AGENTJOBS_PROJECT_ROOT", str(tmp_path / "solo"))
         reset_dependency_cache()
-        build_project(tmp_path / "solo", "Solo")
+        build_project(tmp_path / "solo", "_local", "Solo")
 
         with TestClient(app) as client:
             # Redirects followed here: the point is that the page still arrives.

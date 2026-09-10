@@ -71,7 +71,7 @@ from agentjobs.models_v2 import (
     utcnow,
 )
 from agentjobs.projects import Project
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 PROJECT_CONFIG: dict[str, object] = {
     "project_name": "Sandbox",
@@ -129,7 +129,7 @@ def project(tmp_path: Path) -> Project:
 
 @pytest.fixture
 def manager(project: Project) -> TaskManager:
-    return TaskManager(TaskStorage(project.root / "tasks"))
+    return TaskManager(task_store(project.root / "tasks"))
 
 
 def write_dispatch_config(
@@ -552,63 +552,51 @@ class TestWorkingTree:
         assert dispatched.actor == "Jeff Posey"
 
 
-class TestTaskRecordsInsideTheDispatchedRepo:
-    """task-182: dispatch dirties the tree it inspects, at both ends of a run.
+class TestTaskRecordsNoLongerDirtyTheDispatchedRepo:
+    """task-182, and what removing its cause left behind.
 
-    This project keeps its task YAML in the repository being dispatched, which is the
-    default `agentjobs init` leaves behind. Two of AgentJobs' own writes land there:
-    the claim, before the spawn, and the terminal `dispatch_result` entry, after the
-    run's last commit. Counting either as dirt refused every dispatch on the strength of
-    a file AgentJobs wrote itself.
+    This project kept its task YAML in the repository being dispatched, which is what
+    ``agentjobs init`` used to leave behind. Two of AgentJobs' own writes landed there --
+    the claim, before the spawn, and the terminal ``dispatch_result``, after the run's
+    last commit -- so counting either as dirt refused every dispatch on the strength of
+    a file AgentJobs wrote itself. The exclusion that fixed it cost real coverage: a
+    genuine change under ``tasks/`` stopped being seen.
 
-    What must survive: a human's genuinely uncommitted work still refuses. The tests
-    below pin the two apart.
+    A record is a row now (task-402). The four cases that pinned the exclusion apart from
+    genuine dirt are gone with it, because none of them can be set up: the writes below
+    leave the tree clean, so there is nothing to excuse. What is asserted here instead is
+    the pair that still means something -- AgentJobs' own writes do not dirty the tree,
+    and a person's uncommitted work still refuses -- plus, in
+    ``tests/test_dispatch_on_sqlite.py``, that a real change under ``tasks/`` refuses
+    again, which is the coverage task-182 had to give up.
     """
 
     @staticmethod
     def commit_tasks(project: Project) -> None:
-        """Commit the tasks directory, so its files are tracked as in a real project."""
+        """Commit whatever is in the tasks directory, if anything is."""
         subprocess.run(
             ["git", "-C", str(project.root), "add", "tasks"], capture_output=True, check=True
         )
         subprocess.run(
-            ["git", "-C", str(project.root), "commit", "-m", "tasks"],
-            capture_output=True,
-            check=True,
+            ["git", "-C", str(project.root), "commit", "-m", "tasks"], capture_output=True
         )
 
-    def test_a_task_file_dispatch_already_modified_does_not_refuse(
+    def test_the_writes_around_a_dispatch_leave_the_tree_clean(
         self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
     ) -> None:
-        """The resting state after any previous run: one modified, tracked task file.
-
-        The dispatcher appends `dispatch_result` once the run is over, which is after
-        the agent's last commit however well-behaved it was. Nobody commits that but a
-        human, so the next dispatch meets it.
-        """
+        """The claim before the spawn and the terminal entry after it, both invisible."""
         write_dispatch_config(home, fake_runner)
         self.commit_tasks(project)
         manager.add_log_entry(
-            ready_task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Left uncommitted."
+            ready_task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Left unrecorded."
         )
-        assert _porcelain(project) == [f"tasks/{ready_task.id}.yaml"]
+        assert _porcelain(project) == []
 
         handle = run(manager, project, home, ready_task.id)
         settle(handle)
 
         assert handle.run_id
-
-    def test_a_task_file_the_claim_creates_does_not_refuse(
-        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
-    ) -> None:
-        """The front half: an untracked task record, written before this very dispatch."""
-        write_dispatch_config(home, fake_runner)
-        assert _porcelain(project) == ["tasks/"]
-
-        handle = run(manager, project, home, ready_task.id)
-        settle(handle)
-
-        assert handle.run_id
+        assert _porcelain(project) == []
 
     def test_a_completed_run_does_not_block_the_next_dispatch(
         self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
@@ -627,22 +615,19 @@ class TestTaskRecordsInsideTheDispatchedRepo:
             actor="Jeff Posey",
         )
         manager.add_log_entry(second.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go.")
-        assert _porcelain(project), "the finished run should have left the tasks directory dirty"
+        assert _porcelain(project) == [], "the finished run must have left the tree clean"
 
         handle = run(manager, project, home, second.id)
         settle(handle)
 
         assert handle.run_id
 
-    def test_uncommitted_work_outside_the_tasks_directory_still_refuses(
+    def test_uncommitted_work_still_refuses(
         self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
     ) -> None:
-        """The protection the exclusion must not give away, alongside dirt that is ignored."""
+        """The protection the exclusion used to put at risk, now with nothing excused."""
         write_dispatch_config(home, fake_runner)
         self.commit_tasks(project)
-        manager.add_log_entry(
-            ready_task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Left uncommitted."
-        )
         (project.root / "README.md").write_text("someone is mid-edit\n", encoding="utf-8")
 
         with pytest.raises(DirtyTreeError) as caught:
@@ -653,23 +638,14 @@ class TestTaskRecordsInsideTheDispatchedRepo:
     def test_the_refusal_names_the_files_that_caused_it(
         self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
     ) -> None:
-        """Otherwise `git status` disagrees with the refusal and neither explains the other.
-
-        The tasks directory is dirty here too, and must not appear: a reader told to look
-        for uncommitted work needs the paths that are actually blocking them.
-        """
+        """Otherwise `git status` disagrees with the refusal and neither explains the other."""
         write_dispatch_config(home, fake_runner)
         self.commit_tasks(project)
-        manager.add_log_entry(
-            ready_task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Left uncommitted."
-        )
         (project.root / "README.md").write_text("someone is mid-edit\n", encoding="utf-8")
 
         with pytest.raises(DirtyTreeError) as caught:
             run(manager, project, home, ready_task.id)
-        message = str(caught.value)
-        assert "README.md" in message
-        assert ready_task.id not in message
+        assert "README.md" in str(caught.value)
 
 
 class TestConcurrency:
@@ -980,7 +956,7 @@ class TestAuthorizingEntryIsWritten:
 
         # Re-read through a fresh manager rather than trusting the handle, because "it
         # is on disk" is precisely the property under test.
-        stored = TaskManager(TaskStorage(project.root / "tasks")).get_task(agent_filed_task.id)
+        stored = TaskManager(task_store(project.root / "tasks")).get_task(agent_filed_task.id)
         assert stored is not None
         caused_by = handle.directory.read_meta()["caused_by"]
         entry = resolve_causing_entry(stored, caused_by)

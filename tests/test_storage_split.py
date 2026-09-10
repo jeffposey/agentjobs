@@ -44,9 +44,10 @@ from agentjobs.models_v2 import (
     Task,
 )
 from agentjobs.projects import Project, ProjectRegistry
-from agentjobs.storage import TaskStorage
+from agentjobs.taskfiles import TaskFileCorpus
 from agentjobs.storage_config import (
     STORAGE_FILENAME,
+    default_project_database,
     load_storage_settings,
     record_cutover,
 )
@@ -99,12 +100,16 @@ def a_task(task_id: str, *, position: int) -> Task:
 
 
 def build_project(root: Path, name: str, task_ids: List[str]) -> Project:
-    """A registered project directory holding these task files."""
+    """A project directory holding these task files, ready to be imported.
+
+    Files, because every case here starts before the import: the module is about where
+    the rows land and what moves them between files afterwards.
+    """
     (root / ".agentjobs").mkdir(parents=True)
     (root / ".agentjobs" / "config.yaml").write_text(
         yaml.safe_dump({"project_name": name, "tasks_directory": "tasks"}), encoding="utf-8"
     )
-    storage = TaskStorage(root / "tasks")
+    storage = TaskFileCorpus(root / "tasks")
     for index, task_id in enumerate(task_ids, start=1):
         storage.save_task(a_task(task_id, position=index * 100))
     return Project(id=name, name=name.title(), root=root)
@@ -181,7 +186,7 @@ class TestResolvingAProjectsDatabase:
         )
         assert load_storage_settings().database_for("alpha") == elsewhere.resolve()
 
-    def test_a_file_with_only_the_top_level_key_resolves_every_project_as_before(
+    def test_a_file_with_only_the_top_level_key_answers_for_every_entry(
         self, home: Path, tmp_path: Path
     ) -> None:
         # The compatibility promise: this change adds a field, it does not require one.
@@ -201,7 +206,13 @@ class TestResolvingAProjectsDatabase:
         settings = load_storage_settings()
         assert settings.database_for("alpha") == machine.resolve()
         assert settings.database_for("beta") == machine.resolve()
-        assert settings.database_for("never-registered") == machine.resolve()
+        # A project with *no entry* is a different question and gets a different answer
+        # (task-402): an entry naming no database is an operator asking to share the
+        # machine's file, while no entry at all says nothing, and the honest default for
+        # a project nobody has recorded is a file of its own.
+        assert settings.database_for("never-registered") == default_project_database(
+            "never-registered", home
+        )
 
     def test_the_environment_still_overrides_every_project(
         self, home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -471,7 +482,7 @@ class TestAttachments:
             (first, "task-001", [PNG, OTHER_PNG]),
             (second, "task-010", [PNG]),
         ):
-            storage = TaskStorage(project.root / "tasks")
+            storage = TaskFileCorpus(project.root / "tasks", create=False)
             task = storage.load_task(task_id)
             assert task is not None
             attachments = [
@@ -522,9 +533,12 @@ class TestAttachments:
 class TestRefusals:
     """Every precondition it can check, it checks."""
 
-    def test_a_project_on_files_is_told_where_to_start(self, home: Path, tmp_path: Path) -> None:
+    def test_a_project_with_no_database_yet_is_told_so(self, home: Path, tmp_path: Path) -> None:
+        # It used to be told to run the cutover, because a project with no database was
+        # one still on files. There is no such state now (task-402): the refusal names
+        # the file it expected and says nothing was changed.
         project = build_project(tmp_path / "alpha", "alpha", ["task-001"])
-        with pytest.raises(SplitError, match="storage cutover"):
+        with pytest.raises(SplitError, match="does not exist"):
             split_project(project)
 
     def test_splitting_a_project_that_is_already_alone_is_refused(

@@ -10,8 +10,15 @@ worked, and both are retired here rather than left to be paid for:
 
 The exclusion is the more interesting of the two. It was a real loss of coverage --
 a genuine change under ``tasks/`` stopped being seen -- accepted because the
-alternative was refusing every dispatch. A migrated project gets that coverage back,
-and this is the test that says so.
+alternative was refusing every dispatch. A project served from the database gets that
+coverage back, and this is the test that says so.
+
+**There is no longer a contrasting arm.** Each case here used to assert the old
+behaviour on a project still served from its files and the new one after a cutover, so
+that the second read as a change rather than as a tautology. The backend is gone
+(task-402), so what is left is the standing assertion that neither workaround has crept
+back -- and the contrast, where it can still be drawn, is in
+``tests/test_dispatch_on_sqlite.py``, which refuses a dispatch on a dirty ``tasks/``.
 """
 
 from __future__ import annotations
@@ -35,7 +42,7 @@ from agentjobs.models_v2 import (
     Task,
 )
 from agentjobs.projects import Project
-from agentjobs.storage import TaskStorage
+from agentjobs.taskfiles import TaskFileCorpus
 from agentjobs.storage_config import load_storage_settings
 from agentjobs.store_factory import open_store, server_process
 
@@ -71,7 +78,7 @@ def a_task(task_id: str, position: int) -> Task:
 
 @pytest.fixture()
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Project:
-    """A project on files, on a machine with its own AgentJobs home."""
+    """A project with a corpus of files, on a machine with its own AgentJobs home."""
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("AGENTJOBS_HOME", str(home))
@@ -81,13 +88,12 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Project:
     (root / ".agentjobs" / "config.yaml").write_text(
         yaml.safe_dump({"project_name": "Demo", "tasks_directory": "tasks"}), encoding="utf-8"
     )
-    storage = TaskStorage(root / "tasks")
-    storage.save_task(a_task("task-001", 100))
+    TaskFileCorpus(root / "tasks").save_task(a_task("task-001", 100))
     return Project(id="demo", name="Demo", root=root)
 
 
 def migrated(project: Project) -> TaskManager:
-    """Cut the project over and return a manager on the database."""
+    """Import the project's files and return a manager on the database."""
     from agentjobs.cutover import cut_over
 
     result = cut_over(project, backfill_git=False)
@@ -99,14 +105,7 @@ def migrated(project: Project) -> TaskManager:
 class TestTheDispatcherStopsCommitting:
     """A write that lands in a row leaves no working tree dirty."""
 
-    def test_a_file_backed_project_still_has_a_path_to_commit(self, project: Project) -> None:
-        manager = TaskManager(open_store(project))
-        # Not a git repository here, so the attempt gets that far and stops there --
-        # which is enough to show it looked for a file rather than declining outright.
-        outcome = commit_task_record(manager, "task-001", subject="a subject")
-        assert "not inside a git repository" in outcome.detail
-
-    def test_a_migrated_project_has_nothing_to_commit(self, project: Project) -> None:
+    def test_there_is_nothing_to_commit(self, project: Project) -> None:
         manager = migrated(project)
         outcome = commit_task_record(manager, "task-001", subject="a subject")
         assert outcome.committed is False
@@ -116,23 +115,18 @@ class TestTheDispatcherStopsCommitting:
     def test_it_is_answered_as_a_fact_rather_than_caught_as_a_failure(
         self, project: Project
     ) -> None:
-        # The store says whether a record is a file. A caller that discovered this by
-        # catching an exception would be branching on a failure rather than on a fact,
-        # and would swallow a real error the same way.
-        assert TaskStorage(project.root / "tasks").supports_task_files is True
-        assert migrated(project).storage.supports_task_files is False
+        # Answered, not raised. A caller that discovered this by catching an exception
+        # would be branching on a failure rather than on a fact, and would swallow a
+        # real error the same way.
+        outcome = commit_task_record(migrated(project), "task-001")
+        assert outcome.committed is False
+        assert outcome.path is None
 
 
 class TestTheCleanTreeExceptionIsRetired:
     """task-182's workaround has nothing left to cover."""
 
-    def test_a_file_backed_project_still_excludes_its_tasks_directory(
-        self, project: Project
-    ) -> None:
-        manager = TaskManager(open_store(project))
-        assert task_file_exclusions(manager) == [project.tasks_dir()]
-
-    def test_a_migrated_project_excludes_nothing(self, project: Project) -> None:
+    def test_nothing_is_excluded(self, project: Project) -> None:
         # The coverage task-182 had to give up: a real change under `tasks/` was
         # invisible to the dispatch gate. Nothing writes there any more, so nothing
         # needs excusing and the check sees the whole tree again.

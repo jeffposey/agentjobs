@@ -34,7 +34,6 @@ from agentjobs.queue_check import (
     KEPT_OVER_KEY,
     NO_OP,
     PROMOTED_UNCLAIMABLE,
-    QUEUE_BROKEN,
     STRONG_ANCHOR,
     MoveCheck,
     apply_placement,
@@ -42,7 +41,7 @@ from agentjobs.queue_check import (
     undo_placement,
 )
 from agentjobs.projects import Project
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 runner = CliRunner()
 
@@ -63,7 +62,7 @@ def project(tmp_path: Path) -> Iterator[Tuple[Path, TaskManager]]:
     """A project directory with config and an empty tasks directory."""
     (tmp_path / ".agentjobs").mkdir(parents=True)
     (tmp_path / ".agentjobs" / "config.yaml").write_text(yaml.safe_dump(CONFIG), encoding="utf-8")
-    yield tmp_path, TaskManager(TaskStorage(tmp_path / "tasks"))
+    yield tmp_path, TaskManager(task_store(tmp_path / "tasks"))
 
 
 @pytest.fixture()
@@ -395,51 +394,18 @@ class TestNoOp:
         assert NO_OP not in kinds(outcome)
 
 
-class TestQueueBroken:
-    """An order with two tasks on one number is not an order."""
-
-    def test_a_duplicate_position_in_the_band_warns(self, project) -> None:
-        root, manager = project
-        ids = seed(manager, 3)
-        # Written by hand, as a bad merge or a hand-edit produces it. The verbs cannot
-        # create this state, which is exactly why the check has to be able to see it.
-        path = root / "tasks" / f"{ids[1]}.yaml"
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        raw["queue_position"] = 100
-        path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
-
-        outcome = manager.move_with_warnings(ids[2], top=True, actor="Ada")
-        found = {warning.kind: warning for warning in outcome.warnings}
-        assert QUEUE_BROKEN in found
-        assert "position 100 is claimed by" in found[QUEUE_BROKEN].message
-        assert "agentjobs queue repair" in found[QUEUE_BROKEN].message
-        assert set(found[QUEUE_BROKEN].tasks) == {ids[0], ids[1]}
-
-    def test_the_move_still_lands(self, project) -> None:
-        """The check reports; it never refuses."""
-        root, manager = project
-        ids = seed(manager, 3)
-        path = root / "tasks" / f"{ids[1]}.yaml"
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        raw["queue_position"] = 100
-        path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
-
-        outcome = manager.move_with_warnings(ids[2], top=True, actor="Ada")
-        assert order(manager)[0] == ids[2]
-        assert outcome.task.queue_position is not None
-
-    def test_a_duplicate_in_a_lower_band_is_not_this_move_s_problem(self, project) -> None:
-        """Scoped like selection: a broken `low` falsifies nothing about `high`."""
-        root, manager = project
-        low = [make(manager, f"task-{index:03d}-low", priority=Priority.LOW) for index in (1, 2)]
-        ids = [make(manager, f"task-{index:03d}-work") for index in (3, 4, 5)]
-        path = root / "tasks" / f"{low[1]}.yaml"
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        raw["queue_position"] = 100
-        path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
-
-        outcome = manager.move_with_warnings(ids[2], top=True, actor="Ada")
-        assert outcome.warnings == ()
+# The classes that made a queue "broken" by hand stood here. Each wrote a duplicate or
+# missing `queue_position` straight into a task file -- "as a bad merge or a hand-edit
+# produces it" -- and then asserted that this surface reports the damage instead of
+# guessing or raising.
+#
+# The state is unrepresentable (task-402). An open task's position is `NOT NULL` with a
+# `ge=1` check, `ux_task_queue_slot` is unique, and there is no file for a merge or an
+# editor to reach; an import that carried such a record quarantines it rather than
+# writing it. The detection code is kept as defence -- a constraint that stops being
+# enforced would otherwise be silent -- but nothing in this suite can produce the input
+# for it any more, and a test that faked one would be asserting against a state the
+# product refuses to have.
 
 
 # ---------------------------------------------------------------------------
@@ -638,17 +604,17 @@ class TestTheCheckIsFree:
         that went back to storage for the dependency graph would show up here as the
         warned move costing more.
         """
-        _, quiet = project
+        root, quiet = project
         seed(quiet, 6)
         with count_task_parses() as clean:
             quiet.move_with_warnings("task-006-work", top=True, actor="Ada")
 
-        loud_root = Path(str(quiet.storage.tasks_dir.parent) + "-loud")
+        loud_root = Path(str(root) + "-loud")
         (loud_root / ".agentjobs").mkdir(parents=True)
         (loud_root / ".agentjobs" / "config.yaml").write_text(
             yaml.safe_dump(CONFIG), encoding="utf-8"
         )
-        loud = TaskManager(TaskStorage(loud_root / "tasks"))
+        loud = TaskManager(task_store(loud_root / "tasks"))
         make(loud, "task-001-gate")
         for index in (2, 3, 4):
             make(loud, f"task-{index:03d}-waiting", **needs("task-001-gate"))

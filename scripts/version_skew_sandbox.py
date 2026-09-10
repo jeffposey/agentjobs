@@ -201,7 +201,7 @@ def main() -> None:
     from agentjobs.manager import TaskManager
     from agentjobs.project_setup import build_project_config
     from agentjobs.projects import ProjectRegistry
-    from agentjobs.storage import TaskStorage
+    from sandbox_store import sandbox_store  # type: ignore[import-not-found]
 
     name = "Sandbox: version skew"
     project_root = root / PROJECT_ID
@@ -210,7 +210,7 @@ def main() -> None:
         yaml.safe_dump(build_project_config(project_name=name, user="Jeff Posey"), sort_keys=False),
         encoding="utf-8",
     )
-    seed(TaskManager(TaskStorage(project_root / "tasks")))
+    seed(TaskManager(sandbox_store(project_root / "tasks")))
     ProjectRegistry(home).add(project_root, project_id=PROJECT_ID, name=name)
 
     import uvicorn

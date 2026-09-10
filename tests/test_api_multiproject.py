@@ -22,15 +22,16 @@ from agentjobs.api.dependencies import (
 )
 from agentjobs.api.main import app
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Priority, Spec, Task
-from agentjobs.projects import ProjectError, ProjectRegistry
-from agentjobs.storage import TaskStorage
+from agentjobs.projects import ProjectRegistry
+from agentjobs.sqlstore import SqlTaskStore
+from support import task_store
 
 SHARED_TASK_ID = "task-001-shared-id"
 """Both projects get a task with this id. Task ids are only unique within a project,
 so any cross-project surface keying on the id alone will fail these tests."""
 
 
-def build_project(root: Path, name: str) -> TaskStorage:
+def build_project(root: Path, project_id: str, name: str) -> SqlTaskStore:
     """Create a project directory with config and one task, returning its storage."""
     (root / ".agentjobs").mkdir(parents=True, exist_ok=True)
     (root / ".agentjobs" / "config.yaml").write_text(
@@ -38,7 +39,7 @@ def build_project(root: Path, name: str) -> TaskStorage:
         encoding="utf-8",
     )
     now = datetime(2026, 8, 10, tzinfo=timezone.utc)
-    storage = TaskStorage(root / "tasks")
+    storage = task_store(root / "tasks", project_id=project_id)
     storage.save_task(
         Task(
             id=SHARED_TASK_ID,
@@ -67,8 +68,8 @@ def two_projects(tmp_path: Path, monkeypatch) -> Iterator[Tuple[TestClient, Proj
     monkeypatch.chdir(tmp_path)
     reset_dependency_cache()
 
-    build_project(tmp_path / "alpha", "Alpha")
-    build_project(tmp_path / "beta", "Beta")
+    build_project(tmp_path / "alpha", "alpha", "Alpha")
+    build_project(tmp_path / "beta", "beta", "Beta")
 
     registry = ProjectRegistry(home=tmp_path / "home")
     registry.add(tmp_path / "alpha", project_id="alpha")
@@ -110,15 +111,22 @@ class TestScopedIsolation:
         assert alpha["title"] == "Alpha task"
         assert beta["title"] == "Beta task"
 
-    def test_revision_is_small_project_scoped_and_changes_after_a_direct_write(
+    def test_revision_is_small_project_scoped_and_changes_after_a_write(
         self, two_projects, tmp_path: Path
     ) -> None:
         client, _ = two_projects
         alpha_before = client.get("/api/projects/alpha/revision")
         beta_before = client.get("/api/projects/beta/revision")
 
-        path = tmp_path / "alpha" / "tasks" / f"{SHARED_TASK_ID}.yaml"
-        path.write_text(path.read_text(encoding="utf-8") + "# direct writer\n", encoding="utf-8")
+        # Written through a *second* store on the same database, so the revision has to
+        # come from the data rather than from a counter the serving store kept. There is
+        # no "direct writer" outside the store any more (task-402), and this is the
+        # nearest thing to one: another process holding the same file.
+        writer = task_store(tmp_path / "alpha" / "tasks", project_id="alpha")
+        task = writer.load_task(SHARED_TASK_ID)
+        assert task is not None
+        task.title = "Alpha task, edited"
+        writer.save_task(task)
 
         alpha_after = client.get("/api/projects/alpha/revision")
         beta_after = client.get("/api/projects/beta/revision")
@@ -261,7 +269,7 @@ class TestSingleProjectCompatibility:
         monkeypatch.setenv(TASKS_DIR_ENV, str(tmp_path / "solo" / "tasks"))
         monkeypatch.setenv("AGENTJOBS_PROJECT_ROOT", str(tmp_path / "solo"))
         reset_dependency_cache()
-        build_project(tmp_path / "solo", "Solo")
+        build_project(tmp_path / "solo", "_local", "Solo")
 
         with TestClient(app) as client:
             assert [t["title"] for t in client.get("/api/tasks").json()] == ["Solo task"]
@@ -275,8 +283,8 @@ class TestSingleProjectCompatibility:
         # Pinning by environment is how the CLI and tests address one directory; a
         # registry that happens to exist must not override an explicit instruction.
         monkeypatch.setenv("AGENTJOBS_HOME", str(tmp_path / "home"))
-        build_project(tmp_path / "alpha", "Alpha")
-        build_project(tmp_path / "solo", "Solo")
+        build_project(tmp_path / "alpha", "alpha", "Alpha")
+        build_project(tmp_path / "solo", "_local", "Solo")
         ProjectRegistry(home=tmp_path / "home").add(tmp_path / "alpha", project_id="alpha")
 
         monkeypatch.setenv(TASKS_DIR_ENV, str(tmp_path / "solo" / "tasks"))
@@ -301,17 +309,21 @@ class TestPathContainment:
         assert response.status_code in (400, 404), response.text
         assert "nope" not in response.text
 
-    def test_storage_refuses_a_traversing_task_id(self, tmp_path: Path) -> None:
+    def test_a_traversing_task_id_reads_nothing(self, tmp_path: Path) -> None:
         # The route test above is defence in depth: FastAPI does not match "/" in a
-        # plain path parameter, so it may never reach storage. This asserts the
-        # containment itself, which is the guarantee that actually matters.
-        (tmp_path / "tasks").mkdir()
-        (tmp_path / "secret.yaml").write_text("id: secret\ntitle: nope\n", encoding="utf-8")
-        storage = TaskStorage(tmp_path / "tasks")
+        # plain path parameter, so it may never reach storage. This asserts the store's
+        # own answer, which is the guarantee that actually matters.
+        #
+        # It is a different guarantee now (task-402). Containment was a check on a
+        # *composed path*, because the file backend turned an id into one; a store that
+        # holds rows has no path to compose, so a traversing id is simply an id nothing
+        # is filed under. Absence rather than a refusal, and nothing outside the project
+        # is reachable either way -- which is what the test was for.
+        (tmp_path / "secret.yaml").write_text("id: secret" + chr(10), encoding="utf-8")
+        storage = task_store(tmp_path / "tasks")
 
         for probe in ("../secret", "../secret.yaml", "..\\secret"):
-            with pytest.raises(ProjectError, match="outside the project directory"):
-                storage.load_task(probe)
+            assert storage.load_task(probe) is None
 
     def test_a_refused_path_is_a_400_not_a_500(self, two_projects) -> None:
         # ProjectError escaping a handler must be a bad request, not a stack trace.

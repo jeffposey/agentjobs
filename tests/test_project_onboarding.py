@@ -132,7 +132,7 @@ class TestInitializeProject:
         # No tasks directory: a project created here starts on the database, like one
         # created by `agentjobs init` (task-399).
         assert not (root / "tasks").exists()
-        assert load_storage_settings().on_sqlite("fresh-project")
+        assert load_storage_settings().for_project("fresh-project").database
         config = yaml.safe_load((root / ".agentjobs" / "config.yaml").read_text())
         assert config["project_name"] == "Fresh Project"
         assert config["default_user"] == "jeff"

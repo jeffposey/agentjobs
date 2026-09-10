@@ -517,10 +517,13 @@ class TestAgainstARealDispatchedRun:
     """
 
     def test_a_dispatched_run_is_its_run_and_leaves_no_credential_behind(
-        self, tmp_path: Path
+        self, tmp_path: Path, monkeypatch
     ) -> None:
         home = tmp_path / "home"
         home.mkdir()
+        # Pointed at before the project is seeded: the served process reads this home,
+        # and a project's database is resolved against it.
+        monkeypatch.setenv("AGENTJOBS_HOME", str(home))
         root = tmp_path / "sandbox"
         build_project(root)
         ProjectRegistry(home=home).add(root, project_id="sandbox")

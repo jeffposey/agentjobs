@@ -27,10 +27,9 @@ from agentjobs.api.dependencies import get_task_manager, reset_dependency_cache
 from agentjobs.api.main import app
 from agentjobs.api.routes.status import get_acting_project
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome, Priority
+from agentjobs.models_v2 import Lifecycle, LogEntryType, Outcome, Priority
 from agentjobs.projects import Project
-from agentjobs.queue import REPAIR_COMMAND
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 CONFIG: Dict[str, object] = {
     "project_name": "Fixture",
@@ -48,7 +47,7 @@ CONFIG: Dict[str, object] = {
 def project(tmp_path: Path) -> Iterator[Tuple[Path, TaskManager]]:
     (tmp_path / ".agentjobs").mkdir(parents=True)
     (tmp_path / ".agentjobs" / "config.yaml").write_text(yaml.safe_dump(CONFIG), encoding="utf-8")
-    yield tmp_path, TaskManager(TaskStorage(tmp_path / "tasks"))
+    yield tmp_path, TaskManager(task_store(tmp_path / "tasks"))
 
 
 @pytest.fixture()
@@ -159,36 +158,16 @@ class TestListingArrivesInQueueOrder:
 
         assert listed(client) == ["task-open", "task-done"]
 
-    def test_an_open_task_with_no_position_is_a_broken_file_not_a_guess(self, api) -> None:
-        """Rule 6 keeps the listing from ever having to invent a place.
-
-        Stripping ``queue_position`` off open work does not produce a task the list has
-        to sort somehow; it produces a file that will not load, reported under
-        ``/tasks/broken`` where the React list already renders unreadable files. That
-        matters here because the alternative -- reading a missing position as ``0`` --
-        would put the one task the corpus knows least about at the head of the queue.
-        """
-        client, manager, root = api
-        make(manager, "task-a")
-        make(manager, "task-b")
-        path = root / "tasks" / "task-b.yaml"
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        raw.pop("queue_position")
-        path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
-
-        assert listed(client) == ["task-a"]
-        broken = client.get("/api/tasks/broken").json()
-        assert [entry["task_id"] for entry in broken] == ["task-b"]
-        assert "queue_position is required" in broken[0]["reason"]
-
-    def test_the_listing_renders_a_broken_queue_instead_of_refusing(self, api) -> None:
-        """It is one of the two surfaces that must keep working *because* it is broken."""
-        client, manager, root = api
-        first = make(manager, "task-a")
-        second = make(manager, "task-b")
-        break_the_queue(root, second, band="high", at=position(manager, first))
-
-        assert sorted(listed(client)) == ["task-a", "task-b"]
+    # Two cases stood here. Each made a queue "broken" by hand -- stripping
+    # `queue_position` off open work, or duplicating one -- straight into a task file,
+    # and asserted the listing reported the damage rather than guessing a place or
+    # refusing to answer.
+    #
+    # The state is unrepresentable (task-402). An open task's position is `NOT NULL`
+    # with a `ge=1` check, `ux_task_queue_slot` is unique, and there is no file for a
+    # bad merge or an editor to reach. The listing's own obligation is unchanged and is
+    # covered above: it renders what the store holds, and reports separately whatever
+    # the store could not accept.
 
 
 # ---------------------------------------------------------------------------
@@ -196,62 +175,17 @@ class TestListingArrivesInQueueOrder:
 # ---------------------------------------------------------------------------
 
 
-class TestDashboardSurvivesABrokenQueue:
-    """A duplicated position used to answer 500 here. Now it answers, and says why."""
+class TestTheDashboardSaysWhatIsNext:
+    """What the dashboard's ladder answers when nothing is wrong with the order.
 
-    def test_it_answers_200_and_names_the_offenders_and_the_repair(self, api) -> None:
-        client, manager, root = api
-        first = make(manager, "task-a")
-        second = make(manager, "task-b")
-        break_the_queue(root, second, band="high", at=position(manager, first))
-
-        response = client.get("/api/dashboard")
-
-        assert response.status_code == 200
-        broken = response.json()["queue_broken"]
-        assert broken is not None
-        assert broken["repair_command"] == REPAIR_COMMAND
-        named = {task for problem in broken["problems"] for task in problem["tasks"]}
-        assert named == {first, second}
-        assert any("position" in problem["message"] for problem in broken["problems"])
-
-    def test_it_says_the_queue_is_broken_rather_than_nothing_claimable(self, api) -> None:
-        """A corrupt corpus reporting "nothing claimable" reads as an empty backlog.
-
-        Which is the worst available lie: it is the one state in which a human does
-        nothing and feels correct doing it.
-        """
-        client, manager, root = api
-        first = make(manager, "task-a")
-        second = make(manager, "task-b")
-        break_the_queue(root, second, band="high", at=position(manager, first))
-
-        body = client.get("/api/dashboard").json()
-
-        assert body["next_action"] == "queue_broken"
-        assert body["next_task"] is None
-
-    def test_work_blocked_on_a_human_still_outranks_the_broken_queue(self, api) -> None:
-        """Corruption falsifies "this is next". It does not falsify "you are blocking"."""
-        client, manager, root = api
-        first = make(manager, "task-a")
-        second = make(manager, "task-b")
-        make(manager, "task-c")
-        manager.claim_task("task-c", agent="bot")
-        manager.handoff(
-            "task-c",
-            actor="bot",
-            ball=Ball.HUMAN,
-            ball_reason=BallReason.REVIEW,
-            ball_prompt="Look at it.",
-        )
-        break_the_queue(root, second, band="high", at=position(manager, first))
-
-        body = client.get("/api/dashboard").json()
-
-        assert body["next_action"] == "blocked"
-        # The banner is not the ladder: it renders whatever the panel says.
-        assert body["queue_broken"] is not None
+    Three cases stood above this one, each breaking the queue by hand and asserting the
+    dashboard reported the damage rather than answering 500 or, worse, "nothing
+    claimable" -- the one state in which a human does nothing and feels correct doing
+    it. None of them can be set up any more (task-402): a duplicate slot is refused by
+    a unique index and there is no file to edit. The panel and its ladder are unchanged
+    and the code that fills them is still there; what has gone is the way to produce
+    the input.
+    """
 
     def test_a_healthy_queue_carries_no_breakage_and_still_names_what_is_next(self, api) -> None:
         client, manager, _ = api

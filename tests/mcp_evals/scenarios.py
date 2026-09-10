@@ -11,6 +11,7 @@ import uuid
 from typing import Any, Dict, List
 
 from agentjobs.mcp.tools import ToolRegistry
+from support import quarantine_record, task_store
 
 from . import EvalReport, Recorder, ScenarioResult
 
@@ -410,7 +411,7 @@ async def scenario_07_direct_write_attempt(harness: Harness) -> ScenarioResult:
     )
 
 
-async def scenario_08_read_yaml_for_review(harness: Harness) -> ScenarioResult:
+async def scenario_08_read_a_record_for_review(harness: Harness) -> ScenarioResult:
     """Reading a task record stays available; only writing is managed."""
     recorder = Recorder(harness.registry)
     created = await recorder.call(
@@ -427,24 +428,32 @@ async def scenario_08_read_yaml_for_review(harness: Harness) -> ScenarioResult:
     task_id = created["task"]["id"]
     document = await recorder.call("task_get", {"project_id": "alpha", "task_id": task_id})
 
-    path = harness.roots["alpha"] / "tasks" / f"{task_id}.yaml"
-    on_disk = path.read_text(encoding="utf-8")
-    passed = path.exists() and task_id in on_disk and document["task"]["id"] == task_id
+    # It used to read the YAML file beside the task and compare. There is no file
+    # (task-402), and the claim was never about files: it is that a *read* needs no
+    # ceremony, so the whole record comes back to anyone who asks for it. Asserted on
+    # the record's own contents, which is what a reviewer is actually after.
+    task = document["task"]
+    passed = (
+        task["id"] == task_id
+        and task["title"] == "Readable"
+        and task["spec"]["summary"] == "Review needs to see it."
+        and bool(task["log"])
+    )
     return ScenarioResult(
-        name="08-read-yaml-for-review",
-        intent="Task YAML is readable generated state; the design forbids editing, not reading.",
+        name="08-read-a-record-for-review",
+        intent="A record is readable in full; the design manages writing, not reading.",
         passed=passed,
         calls=recorder.calls,
-        final_state={"file_bytes": len(on_disk), "task_id": task_id},
-        notes=["The file was read directly and agreed with what task_get returned."],
+        final_state={"task_id": task_id, "log_entries": len(task["log"])},
+        notes=["task_get returned the spec and the log without a second call."],
     )
 
 
-async def scenario_09_broken_file(harness: Harness) -> ScenarioResult:
-    """A corrupt file is reported as repairable, never as a task that does not exist."""
+async def scenario_09_broken_record(harness: Harness) -> ScenarioResult:
+    """A record that could not be read is reported as repairable, never as absent."""
     recorder = Recorder(harness.registry)
-    broken = harness.roots["alpha"] / "tasks" / "task-998-corrupt.yaml"
-    broken.write_text("id: task-998-corrupt\nlifecycle: active\n", encoding="utf-8")
+    store = task_store(harness.roots["alpha"] / "tasks", project_id="alpha")
+    quarantine_record(store, task_id="task-998-corrupt", source="task-998-corrupt.yaml")
 
     listing = await recorder.call("tasks_list", {"project_id": "alpha"})
     refusal = await recorder.expect_refusal(
@@ -457,11 +466,11 @@ async def scenario_09_broken_file(harness: Harness) -> ScenarioResult:
         and refusal["code"] == "broken_task"
         and refusal["code"] != "task_not_found"
         and bool(refusal.get("suggested_action"))
+        and bool(listing["tasks"])
     )
-    broken.unlink()
     return ScenarioResult(
-        name="09-broken-file",
-        intent="A file that will not parse is a repair job, not a missing task.",
+        name="09-broken-record",
+        intent="A record that could not be read is a repair job, not a missing task.",
         passed=passed,
         calls=recorder.calls,
         final_state={"broken_reported": filenames, "code": refusal["code"]},
@@ -551,8 +560,8 @@ SCENARIOS = [
     scenario_05_retry_after_timeout,
     scenario_06_refuse_direct_lifecycle,
     scenario_07_direct_write_attempt,
-    scenario_08_read_yaml_for_review,
-    scenario_09_broken_file,
+    scenario_08_read_a_record_for_review,
+    scenario_09_broken_record,
     scenario_10_invalid_handoff_and_close,
 ]
 

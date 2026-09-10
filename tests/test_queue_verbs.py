@@ -20,7 +20,7 @@ from typing import Any, Dict, Iterator, List, Tuple
 import pytest
 import yaml
 
-from agentjobs.manager import QueueRepairReport, TaskManager
+from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
     Lifecycle,
     LogEntryType,
@@ -32,14 +32,13 @@ from agentjobs.queue import (
     QUEUE_STEP,
     BandEntry,
     Placement,
-    QueueCorruptionError,
     band_entries,
     plan_compaction,
     plan_insertion,
     plan_rebalance,
     plan_renumber,
 )
-from agentjobs.storage import TaskStorage
+from support import set_updated, task_store
 
 NOW = datetime(2026, 8, 10, tzinfo=timezone.utc)
 
@@ -60,7 +59,7 @@ def project(tmp_path: Path) -> Iterator[Tuple[Path, TaskManager]]:
     """A project directory with config and an empty tasks directory."""
     (tmp_path / ".agentjobs").mkdir(parents=True)
     (tmp_path / ".agentjobs" / "config.yaml").write_text(yaml.safe_dump(CONFIG), encoding="utf-8")
-    yield tmp_path, TaskManager(TaskStorage(tmp_path / "tasks"))
+    yield tmp_path, TaskManager(task_store(tmp_path / "tasks"))
 
 
 def make(
@@ -94,17 +93,14 @@ def order(manager: TaskManager, priority: Priority = Priority.HIGH) -> List[str]
     return [task_id for task_id, _ in band(manager, priority)]
 
 
-def touch_updated(root: Path, task_id: str, when: datetime) -> None:
-    """Rewrite one task's ``updated`` stamp by hand, as a stray editor would.
+def touch_updated(manager: TaskManager, task_id: str, when: datetime) -> None:
+    """Put a value in one record's ``updated`` column, bypassing every verb.
 
     Deliberately raw. Going through a verb would be a *real* write and would stamp its
     own time; the point of the test that uses this is that the field itself has stopped
     mattering, however it got its value.
     """
-    path = root / "tasks" / f"{task_id}.yaml"
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    raw["updated"] = when.isoformat().replace("+00:00", "Z")
-    path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    set_updated(manager.storage, task_id, when)
 
 
 def queue_moves(manager: TaskManager, task_id: str) -> List[Any]:
@@ -137,7 +133,7 @@ class TestTimestampsNoLongerDecide:
         # Invert the old ranking exactly: the task that was last in line becomes the
         # most recently touched, which is what used to win.
         for offset, task_id in enumerate(order(manager)):
-            touch_updated(root, task_id, NOW + timedelta(days=offset + 1))
+            touch_updated(manager, task_id, NOW + timedelta(days=offset + 1))
 
         again = manager.get_next_task()
         assert again is not None
@@ -154,7 +150,7 @@ class TestTimestampsNoLongerDecide:
         for index in range(1, 4):
             make(manager, f"task-{index:03d}-work")
         for offset, task_id in enumerate(order(manager)):
-            touch_updated(root, task_id, NOW + timedelta(days=offset + 1))
+            touch_updated(manager, task_id, NOW + timedelta(days=offset + 1))
 
         by_timestamp = sorted(
             manager.storage.list_tasks_uncached(),
@@ -374,180 +370,41 @@ class TestARenumberIsSafeToInterrupt:
 # ---------------------------------------------------------------------------
 
 
-def break_position(root: Path, task_id: str, position: Any) -> None:
-    """Put a bad `queue_position` into a file by hand, the way a bad merge would."""
-    path = root / "tasks" / f"{task_id}.yaml"
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if position is None:
-        raw.pop("queue_position", None)
-    else:
-        raw["queue_position"] = position
-    path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
-
-
-class TestABrokenQueueRefusesToAnswer:
-    """Selection raises; check, list and repair still work on the same corpus.
-
-    A queue that quietly answers while corrupt trains everybody to ignore corruption,
-    and the failure it produces -- an agent silently working the wrong task -- leaves no
-    trace at all. But you must be able to *see* a broken queue in order to fix it, which
-    is why the reporting paths are the deliberate exception.
-    """
-
-    def test_a_duplicate_position_stops_selection_and_names_the_repair(self, project) -> None:
-        root, manager = project
-        make(manager, "task-001-work")
-        make(manager, "task-002-work")
-        break_position(root, "task-002-work", 100)
-
-        with pytest.raises(QueueCorruptionError) as caught:
-            manager.get_next_task()
-        message = str(caught.value)
-        assert "task-001-work" in message and "task-002-work" in message
-        assert "agentjobs queue repair" in message
-
-    def test_a_missing_position_stops_selection_too(self, project) -> None:
-        """The commonest corruption, and the one a loaded-tasks check cannot see.
-
-        Rule 6 refuses to load an open task with no position, so this file is not in
-        `list_tasks()` at all. Reading the broken files raw is what makes it visible.
-        """
-        root, manager = project
-        make(manager, "task-001-work")
-        make(manager, "task-002-work")
-        break_position(root, "task-002-work", None)
-
-        with pytest.raises(QueueCorruptionError) as caught:
-            manager.get_next_task()
-        assert "task-002-work" in str(caught.value)
-        assert "no queue_position" in str(caught.value)
-
-    def test_a_position_below_one_stops_selection(self, project) -> None:
-        root, manager = project
-        make(manager, "task-001-work")
-        make(manager, "task-002-work")
-        break_position(root, "task-002-work", 0)
-        with pytest.raises(QueueCorruptionError) as caught:
-            manager.get_next_task()
-        assert "task-002-work" in str(caught.value)
-
-    def test_nothing_claimable_at_all_is_still_None_rather_than_a_raise(self, project) -> None:
-        """No winning band means no claim to justify, so there is nothing to check.
-
-        The broken file is still loudly reported -- by the loader, by `/tasks/broken`
-        and by `check_queue` -- it just is not selection's business, because selection
-        is not asserting anything about it.
-        """
-        root, manager = project
-        make(manager, "task-001-work")
-        break_position(root, "task-001-work", 0)
-        assert manager.get_next_task() is None
-        assert [problem.kind for problem in manager.check_queue()] == ["not-positive"]
-
-    def test_corruption_below_the_winning_band_is_not_selection_s_problem(self, project) -> None:
-        """Scope, from design section 8.
-
-        A duplicate in `low` does not falsify the claim that a particular `high` task is
-        next. Making every selection hostage to corruption in a band it never reads
-        would punish the wrong caller -- and would mean nobody could get any work out of
-        the queue until an unrelated band was tidied.
-        """
-        root, manager = project
-        make(manager, "task-001-work", priority=Priority.HIGH)
-        make(manager, "task-002-low", priority=Priority.LOW)
-        make(manager, "task-003-low", priority=Priority.LOW)
-        break_position(root, "task-003-low", 100)
-
-        winner = manager.get_next_task()
-        assert winner is not None and winner.id == "task-001-work"
-        # Still reported, though: `check` covers every band, always.
-        assert [problem.kind for problem in manager.check_queue()] == ["duplicate"]
-
-    def test_check_and_repair_both_work_on_the_corpus_selection_refused(self, project) -> None:
-        root, manager = project
-        make(manager, "task-001-work")
-        make(manager, "task-002-work")
-        make(manager, "task-003-work")
-        break_position(root, "task-002-work", 100)
-        break_position(root, "task-003-work", None)
-
-        problems = manager.check_queue()
-        assert {problem.kind for problem in problems} == {"duplicate", "missing"}
-
-        report = manager.repair_queue()
-        assert isinstance(report, QueueRepairReport)
-        assert report.changed
-        assert manager.check_queue() == []
-        winner = manager.get_next_task()
-        assert winner is not None and winner.id == "task-001-work"
-
-    def test_repair_is_deterministic_and_names_what_it_guessed(self, project) -> None:
-        root, manager = project
-        make(manager, "task-001-work")
-        make(manager, "task-002-work")
-        break_position(root, "task-002-work", 100)
-
-        report = manager.repair_queue()
-        assert [item.task_id for item in report.assigned] == ["task-002-work"]
-        assert "task-002-work" in report.render()
-        # The earlier-created task keeps the contested number; the loser goes to the
-        # bottom. Both halves of that rule are immutable, so it is reproducible.
-        assert order(manager) == ["task-001-work", "task-002-work"]
-
-    def test_repair_leaves_a_healthy_corpus_alone(self, project) -> None:
-        root, manager = project
-        make(manager, "task-001-work")
-        make(manager, "task-002-work")
-        before = band(manager)
-        report = manager.repair_queue()
-        assert not report.changed
-        assert band(manager) == before
-
-    def test_nothing_falls_back_to_a_timestamp_when_the_queue_is_broken(self, project) -> None:
-        """The constraint, stated as a test: refusing *is* the behaviour.
-
-        A fallback ordering would be the worst of both worlds -- an answer nobody chose,
-        delivered with no sign that the queue had stopped working.
-        """
-        root, manager = project
-        make(manager, "task-001-work")
-        make(manager, "task-002-work")
-        break_position(root, "task-002-work", 100)
-        with pytest.raises(QueueCorruptionError):
-            manager.get_next_task()
-        with pytest.raises(QueueCorruptionError):
-            manager.explain_next()
-
-
-# ---------------------------------------------------------------------------
-# sc-5 -- the verbs, their records, and their replays
-# ---------------------------------------------------------------------------
+# `break_position` and `TestABrokenQueueRefusesToAnswer` stood here. They put a bad
+# `queue_position` into a task file by hand -- duplicated, missing, zero -- "the way a
+# bad merge would", and asserted that selection raises while check, list and repair keep
+# working on the same corpus.
+#
+# None of those states can be made now (task-402). An open task's position is `NOT NULL`
+# with a `ge=1` check and `ux_task_queue_slot` is unique, so the write is refused by the
+# database instead of being detected by every reader afterwards, and there is no file for
+# a bad merge to reach. The rule the class encoded -- selection must refuse rather than
+# guess, and the reporting paths must keep working so you can see the damage -- is still
+# reachable through `agentjobs queue check` and `queue repair`, which answer for bands an
+# import left untidy; `tests/test_queue_move_check.py` covers them.
 
 
 class TestTheReorderVerbs:
     """`move` and `reprioritize` are decisions, so each leaves one entry saying so."""
 
-    def test_a_move_writes_exactly_one_file(self, project) -> None:
+    def test_a_move_touches_exactly_one_record(self, project) -> None:
         """The load-bearing property of sparse numbering.
 
-        If a move is rewriting the band, the numbering has been implemented wrong: in a
-        git-backed, one-file-per-task corpus worked by several agents at once, that is
-        the difference between a one-line diff and a diff that conflicts with everything
-        in flight.
+        If a move is rewriting the band, the numbering has been implemented wrong. It
+        used to be a claim about the size of a git diff; it is now a claim about how
+        many rows a move contends for, which is the same property and the reason the
+        numbering is sparse.
         """
-        root, manager = project
+        _, manager = project
         for index in range(1, 6):
             make(manager, f"task-{index:03d}-work")
-        stamps = {path.name: path.read_bytes() for path in (root / "tasks").glob("*.yaml")}
+        before = {task.id: task.queue_position for task in manager.storage.list_tasks()}
 
         manager.move("task-005-work", top=True, actor="Ada")
 
-        changed = [
-            name
-            for name, content in stamps.items()
-            if (root / "tasks" / name).read_bytes() != content
-        ]
-        assert changed == ["task-005-work.yaml"], changed
+        after = {task.id: task.queue_position for task in manager.storage.list_tasks()}
+        changed = sorted(task_id for task_id in before if before[task_id] != after[task_id])
+        assert changed == ["task-005-work"], changed
 
     def test_a_move_records_the_decision(self, project) -> None:
         root, manager = project

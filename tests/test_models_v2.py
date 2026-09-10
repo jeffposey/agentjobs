@@ -83,7 +83,7 @@ class TestAgreesWithTheLinkMLSchema:
         task = load_task(data)
 
         # display_status is computed for API responses; the stored form excludes it,
-        # exactly as TaskStorage._write_task does, and the strict loader rejects it.
+        # exactly as SqlTaskStore._write_task does, and the strict loader rejects it.
         dumped = task.model_dump(
             mode="json", by_alias=True, exclude_none=True, exclude={"display_status"}
         )

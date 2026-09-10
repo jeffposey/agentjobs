@@ -36,6 +36,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
@@ -52,7 +53,7 @@ from agentjobs.dispatch.guards import (
     dispatch_task,
 )
 from agentjobs.dispatch.ledger import find_run
-from agentjobs.dispatch.record_commit import commit_task_record, task_file_exclusions
+from agentjobs.dispatch.record_commit import commit_task_record
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
     Ball,
@@ -61,13 +62,17 @@ from agentjobs.models_v2 import (
     DispatchOutcome,
     DispatchPosture,
     Lifecycle,
+    LogEntry,
     LogEntryType,
     Outcome,
+    Priority,
+    Spec,
+    Task,
 )
 from agentjobs.projects import Project, ProjectRegistry
 from agentjobs.sqlstore import SqlTaskStore
-from agentjobs.storage import TaskStorage
 from agentjobs.storage_config import load_storage_settings
+from agentjobs.taskfiles import TaskFileCorpus
 from agentjobs.store_factory import (
     close_databases,
     dispatch_manager_for,
@@ -152,19 +157,51 @@ def write_dispatch_config(home: Path, tmp_path: Path, *, require_clean_tree: boo
 
 
 def seed(root: Path, *, title: str = "Dispatchable", parent: Optional[str] = None) -> str:
-    """A ready task whose newest entry is a human's, written as a file, pre-cutover."""
-    manager = TaskManager(TaskStorage(root / "tasks"))
-    task = manager.create_task(
-        title=title,
-        category="general",
-        summary="A task to dispatch.",
-        description="Do the thing.",
-        lifecycle=Lifecycle.READY,
-        actor="Jeff Posey",
-        parent=parent,
+    """A ready task whose newest entry is a human's, written as a file, pre-import.
+
+    Written straight into the directory rather than through a manager, because a
+    directory of files is not a store: it has no locks, allocates no ids and enforces
+    nothing. That is exactly what an operator arriving with a corpus has, and what every
+    assertion below is about leaving behind.
+    """
+    corpus = TaskFileCorpus(root / "tasks")
+    existing = len(list((root / "tasks").glob("*.yaml")))
+    task_id = f"task-{existing + 1:03d}"
+    now = datetime.now(tz=timezone.utc)
+    corpus.save_task(
+        Task(
+            id=task_id,
+            title=title,
+            created=now,
+            updated=now,
+            lifecycle=Lifecycle.READY,
+            ball=Ball.AGENT,
+            ball_reason=BallReason.AVAILABLE,
+            priority=Priority.MEDIUM,
+            queue_position=(existing + 1) * 100,
+            category="general",
+            parent=parent,
+            spec=Spec(summary="A task to dispatch.", description="Do the thing."),
+            log=[
+                LogEntry(
+                    id=1,
+                    ts=now,
+                    actor="Jeff Posey",
+                    type=LogEntryType.TRANSITION,
+                    body="Created ready by Jeff Posey.",
+                    data={"lifecycle": "ready"},
+                ),
+                LogEntry(
+                    id=2,
+                    ts=now,
+                    actor="Jeff Posey",
+                    type=LogEntryType.NOTE,
+                    body="Go.",
+                ),
+            ],
+        )
     )
-    manager.add_log_entry(task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go.")
-    return task.id
+    return task_id
 
 
 class World:
@@ -253,7 +290,7 @@ def migrate(world: World) -> None:
     git(world.root, "add", "--", "tasks")
     if dirty(world.root):
         git(world.root, "commit", "-m", "chore: the records as they stood at the cutover")
-    assert load_storage_settings().on_sqlite("sandbox")
+    assert load_storage_settings().for_project("sandbox").cutover_at is not None
     assert dirty(world.root) == []
 
 
@@ -418,24 +455,15 @@ class TestTheCleanTreeCheckCoversTheTasksDirectory:
 
         assert "tasks/" in str(refusal.value).replace("\\", "/")
 
-    def test_the_same_change_was_invisible_before_the_cutover(
-        self, world: World, tmp_path: Path
-    ) -> None:
-        """The contrast, so the case above is a change in behaviour and not a tautology.
-
-        On files the identical edit is excused, because dispatch dirtied that directory
-        itself and refusing on its own writes refused every dispatch.
-        """
-        write_dispatch_config(world.home, tmp_path, require_clean_tree=True)
-        task_id = seed(world.root)
-        git(world.root, "add", "--", "tasks")
-        git(world.root, "commit", "-m", "chore: the record")
-        edit_the_frozen_copy(world, task_id)
-
-        handle = start(world, task_id)
-
-        assert handle.run_id
-        assert task_file_exclusions(world.manager) == [world.project.tasks_dir()]
+    # `test_the_same_change_was_invisible_before_the_cutover` stood here. It made the
+    # identical edit on a project still served from its files and showed the gate
+    # excusing it, so that the case above read as a change in behaviour rather than as a
+    # tautology. There is no second world to contrast with any more (task-402): the
+    # exclusion is gone, `task_file_exclusions` returns `[]` for everything, and the
+    # only way to have the old behaviour back would be to keep the backend that needed
+    # it. The contrast that remains is the pair below -- a dirty `tasks/` refuses, a
+    # clean one dispatches -- which is what stops the case above being satisfied by a
+    # gate that refuses everything.
 
     def test_the_gate_ignores_a_change_it_should_not_see(
         self, world: World, tmp_path: Path

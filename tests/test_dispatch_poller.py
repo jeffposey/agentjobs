@@ -39,7 +39,7 @@ from agentjobs.dispatch.runner import TRANSCRIPT_FILENAME, DispatchRunner, Sessi
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType
 from agentjobs.projects import ProjectRegistry
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 from test_dispatch_auth import (
     auth_failure_line,
@@ -94,8 +94,13 @@ def _dispatch_yaml(home: Path, fake_cli: Path, *, project_id: str = "sandbox") -
 
 
 @pytest.fixture
-def machine(tmp_path: Path):
-    """A registered project, a configured dispatch home, and a fake session CLI."""
+def machine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A registered project, a configured dispatch home, and a fake session CLI.
+
+    The machine home is pointed at as well as passed: a project's database is resolved
+    against `AGENTJOBS_HOME`, so a fixture that seeds under one home and a command that
+    reads under another would be looking at two different files.
+    """
     home = tmp_path / "home"
     root = tmp_path / "project"
     (root / ".agentjobs").mkdir(parents=True)
@@ -106,8 +111,9 @@ def machine(tmp_path: Path):
     )
     fake_cli = write_script(tmp_path / "fakecli.py", FAKE_CLI)
     _dispatch_yaml(home, fake_cli)
+    monkeypatch.setenv("AGENTJOBS_HOME", str(home))
     ProjectRegistry(home=home).add(root, project_id="sandbox")
-    manager = TaskManager(TaskStorage(root / "tasks"))
+    manager = TaskManager(task_store(root / "tasks", project_id="sandbox"))
     return home, root, manager, fake_cli
 
 

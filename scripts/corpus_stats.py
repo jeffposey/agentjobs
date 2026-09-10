@@ -43,7 +43,7 @@ from agentjobs.record_check import (  # noqa: E402
     check_record,
     summary_words,
 )
-from agentjobs.storage import TaskStorage  # noqa: E402
+from agentjobs.taskfiles import TaskFileCorpus  # noqa: E402
 
 #: The eras the audit split the corpus into, by leading task number. Kept because a
 #: single median over the whole corpus hides the drift entirely -- the finding was that
@@ -193,7 +193,7 @@ def _percent(part: int, whole: int) -> str:
 
 def report(tasks_dir: Path, today: str) -> str:
     """The whole report, for one corpus."""
-    loaded = TaskStorage(tasks_dir).load_all()
+    loaded = TaskFileCorpus(tasks_dir, create=False).load_all()
     tasks = sorted(loaded.tasks, key=lambda task: task.id)
     blocks = [
         "AgentJobs record-quality statistics",

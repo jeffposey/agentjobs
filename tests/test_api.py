@@ -13,7 +13,7 @@ from agentjobs.api.routes.status import get_acting_project
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Dependency, DependencyType, Lifecycle, Outcome, Priority
 from agentjobs.projects import Project
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 
 @pytest.fixture()
@@ -29,7 +29,7 @@ def api_client(tmp_path) -> Iterator[Tuple[TestClient, TaskManager]]:
     transport-level test wants to exercise.
     """
     reset_dependency_cache()
-    storage = TaskStorage(tmp_path)
+    storage = task_store(tmp_path)
     manager = TaskManager(storage)
     project = Project(id="test-project", name="Test Project", root=tmp_path)
 

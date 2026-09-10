@@ -27,7 +27,7 @@ from agentjobs.api.main import app
 from agentjobs.dispatch.ledger import KIND_FINISH, KIND_RUNWAY, locks_root, runway_lock_name
 from agentjobs.manager import TaskManager
 from agentjobs.projects import ProjectRegistry
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 CONFIG = {
     "tasks_directory": "tasks",
@@ -49,7 +49,7 @@ def _make_project(tmp_path: Path, home: Path, project_id: str, name: str) -> Pat
 
 def _make_task(root: Path, task_id: str, title: str) -> None:
     """One ready task in a project, so a run has a title to resolve."""
-    manager = TaskManager(TaskStorage(root / "tasks"))
+    manager = TaskManager(task_store(root / "tasks"))
     manager.create_task(
         id=task_id,
         title=title,

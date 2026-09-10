@@ -51,7 +51,7 @@ from agentjobs.dispatch.runner import DispatchRunner, SessionPhase
 from agentjobs.dispatch.scaffold import EXAMPLE_CONFIG, write_example_config
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, DispatchMode, Lifecycle, LogEntryType
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 PROJECT_ID = "sandbox"
 
@@ -210,7 +210,7 @@ def project_root(tmp_path: Path) -> Path:
 def manager(tmp_path: Path) -> TaskManager:
     tasks = tmp_path / "tasks"
     tasks.mkdir()
-    return TaskManager(TaskStorage(tasks))
+    return TaskManager(task_store(tasks))
 
 
 @pytest.fixture

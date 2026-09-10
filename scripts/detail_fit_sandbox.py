@@ -178,7 +178,7 @@ def seed(manager) -> None:
 def build(root: Path, *, project_id: str, name: str) -> Path:
     from agentjobs.manager import TaskManager
     from agentjobs.project_setup import build_project_config
-    from agentjobs.storage import TaskStorage
+    from sandbox_store import sandbox_store  # type: ignore[import-not-found]
 
     project_root = root / project_id
     (project_root / ".agentjobs").mkdir(parents=True)
@@ -186,7 +186,7 @@ def build(root: Path, *, project_id: str, name: str) -> Path:
         yaml.safe_dump(build_project_config(project_name=name, user="Jeff Posey"), sort_keys=False),
         encoding="utf-8",
     )
-    seed(TaskManager(TaskStorage(project_root / "tasks")))
+    seed(TaskManager(sandbox_store(project_root / "tasks")))
     return project_root
 
 

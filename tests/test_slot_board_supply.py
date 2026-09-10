@@ -32,7 +32,7 @@ from agentjobs.dashboard import QUEUE_PREVIEW_LIMIT
 from agentjobs.dispatch.config import machine_ceiling
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Spec, Task
 from agentjobs.projects import ProjectRegistry
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 NOW = datetime(2026, 9, 5, 12, 0, tzinfo=timezone.utc)
 
@@ -90,7 +90,7 @@ def board_server(tmp_path: Path, monkeypatch):
             yaml.safe_dump({"project_name": "Inbox", "tasks_directory": "tasks"}),
             encoding="utf-8",
         )
-        storage = TaskStorage(root / "tasks")
+        storage = task_store(root / "tasks", project_id="inbox")
         for index in range(task_count):
             storage.save_task(ready_task(index))
         ProjectRegistry(home=home).add(root, project_id="inbox")

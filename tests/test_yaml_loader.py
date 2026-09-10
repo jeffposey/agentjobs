@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from yaml import SafeLoader
 
 from agentjobs.api.main import app
-from agentjobs.storage import TaskStorage
+from support import task_store
 from agentjobs.taskfiles import YAML_LOADER, load_yaml, yaml_loader_name
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -140,7 +140,7 @@ def test_storage_reads_a_task_through_the_fast_loader(tmp_path: Path) -> None:
     from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Priority, Spec, Task
 
     now = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    storage = TaskStorage(tmp_path)
+    storage = task_store(tmp_path)
     storage.save_task(
         Task(
             id="task-001",

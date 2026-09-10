@@ -25,6 +25,7 @@ from typing import Iterator, List
 
 import pytest
 
+from agentjobs.taskfiles import TaskLoadError
 from agentjobs.models_v2 import (
     Assignment,
     Ball,
@@ -508,7 +509,11 @@ class TestImport:
         held = store.quarantined()
         assert len(held) == 1
         assert held[0]["task_id_guess"] == "task-666"
-        assert store.load_task("task-666") is None
+        # Reading it back is a load error naming the record, not absence (task-402):
+        # a record that could not be accepted must stay distinguishable from one that
+        # was never there, which is the guarantee quarantine exists to keep.
+        with pytest.raises(TaskLoadError, match="task-666"):
+            store.load_task("task-666")
 
     def test_a_record_that_fails_halfway_leaves_no_partial_row(
         self, store: SqlTaskStore, tmp_path: Path
@@ -549,9 +554,12 @@ class TestImport:
 
         report = CorpusImporter(store, tasks_dir).run()
 
-        # It is quarantined, named, and *absent* -- not present with a truncated log.
+        # It is quarantined, named, and *not in the live tables* -- rather than present
+        # with a truncated log. Reading it back names it as unreadable, which is the
+        # other half: quarantined is not the same as never having existed.
         assert any("task-001" in name for name, _ in report.quarantined)
-        assert store.load_task("task-001") is None
+        with pytest.raises(TaskLoadError, match="task-001"):
+            store.load_task("task-001")
         assert (
             store.database.reader()
             .execute("SELECT COUNT(*) AS n FROM log_entry WHERE task_id = 'task-001'")

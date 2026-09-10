@@ -38,7 +38,7 @@ from agentjobs.dispatch.address import API_BASE_ENV, DEFAULT_API_BASE
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Lifecycle, LogEntryType
 from agentjobs.projects import ProjectRegistry
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -106,7 +106,7 @@ def write_dispatch_config(
 
 def seed_task(root: Path) -> str:
     """A ready task whose newest log entry is a human's, so dispatch is permitted."""
-    manager = TaskManager(TaskStorage(root / "tasks"))
+    manager = TaskManager(task_store(root / "tasks"))
     task = manager.create_task(
         title="Dispatchable",
         category="general",
@@ -125,7 +125,7 @@ def recorded_argv(root: Path, task_id: str) -> List[str]:
     Read from the task file rather than from the response, because this is the artefact
     a human debugging a silent run actually opens.
     """
-    manager = TaskManager(TaskStorage(root / "tasks"))
+    manager = TaskManager(task_store(root / "tasks"))
     task = manager.get_task(task_id)
     assert task is not None
     dispatches = [entry for entry in task.log if entry.type is LogEntryType.DISPATCH]
@@ -227,7 +227,7 @@ class TestAutoDispatchAgrees:
         raw["projects"]["sandbox"]["auto_dispatch"] = True
         (home / "dispatch.yaml").write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
 
-        manager = TaskManager(TaskStorage(root / "tasks"))
+        manager = TaskManager(task_store(root / "tasks"))
         task_id = seed_task(root)
         manager.claim_task(task_id, agent="claude")
 
@@ -318,9 +318,13 @@ class TestAgainstARealServer:
     loopback proxy this dashboard is actually published through.
     """
 
-    def test_the_prompt_names_the_port_uvicorn_bound(self, tmp_path: Path) -> None:
+    def test_the_prompt_names_the_port_uvicorn_bound(self, tmp_path: Path, monkeypatch) -> None:
         home = tmp_path / "home"
         home.mkdir()
+        # Pointed at before the project is seeded: the served process reads this home,
+        # and a project's database is resolved against it -- so seeding under any other
+        # would put the task in a file the server never opens.
+        monkeypatch.setenv("AGENTJOBS_HOME", str(home))
         root = tmp_path / "sandbox"
         build_project(root)
         ProjectRegistry(home=home).add(root, project_id="sandbox")

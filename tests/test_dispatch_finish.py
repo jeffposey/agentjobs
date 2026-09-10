@@ -66,8 +66,8 @@ from agentjobs.models_v2 import (
     LogEntryType,
     Outcome,
 )
-from agentjobs.projects import Project
-from agentjobs.storage import TaskStorage
+from agentjobs.projects import Project, ProjectRegistry
+from support import task_store
 
 GREEN_GATE = "import sys\nsys.exit(0)\n"
 RED_GATE = "import sys\nprint('vitest failed')\nsys.exit(1)\n"
@@ -92,9 +92,9 @@ def head(root: Path, ref: str = "HEAD") -> str:
 def world(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[str, Any]:
     """A clone on ``main``, a feature branch in its own worktree, and a task for it.
 
-    Shaped like the real thing on purpose: the task records live inside the clone being
-    merged into, which is the arrangement that makes the finisher's own commits land in
-    the tree it is working -- and the reason ``commit_task_record`` exists at all.
+    Shaped like the real thing on purpose. The task record is a row rather than a file
+    in the clone (task-402), so the finisher's own writes leave the tree it is merging
+    into clean -- which is what the clean-tree checks below are now free to assert.
     """
     root = tmp_path / "clone"
     (root / "tasks").mkdir(parents=True)
@@ -120,8 +120,15 @@ def world(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[str, Any]:
     git(worktree, "add", "--", "docs/feature.md")
     git(worktree, "commit", "-m", "docs: the deliverable")
 
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("AGENTJOBS_HOME", str(home))
     project = Project(id="demo", name="Demo", root=root)
-    manager = TaskManager(TaskStorage(root / "tasks"))
+    ProjectRegistry(home).add(root, project_id="demo")
+    # Addressed by project id, so the rows go in the file the server would open for
+    # this project rather than in one named from a directory. Seeding anywhere else is
+    # invisible to every route the tests below drive.
+    manager = TaskManager(task_store(root / "tasks", project_id="demo"))
     task = manager.create_task(
         title="The deliverable",
         category="infrastructure",
@@ -131,11 +138,6 @@ def world(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[str, Any]:
     )
     manager.claim_task(task.id, agent="claude")
     manager.update_task(task.id, actor="claude", branches=[{"name": branch, "status": "active"}])
-    git(root, "add", "--", "tasks")
-    git(root, "commit", "-m", "chore(tasks): the record")
-
-    home = tmp_path / "home"
-    home.mkdir()
     # `worktree_interpreter` asks Poetry, and a temp repository has no Poetry project.
     # The question this suite is asking is never "does Poetry answer" -- it is what the
     # sequence does with the answer -- so it is supplied. The real hazard the function
@@ -912,6 +914,11 @@ class TestQueuingForTheRunwayIsSilentInGit:
     right, a task queued behind three others must not read as hung. What it must not do
     is *commit* that note: the finish it is queued behind is mid-gate, and a commit to
     the base is precisely what escalates that finish with ``base_moved``.
+
+    Task-402 removed the whole class of commit rather than this one instance -- a record
+    is a row, so nothing the finish writes to it touches git. The second case is kept
+    and widened to say so: it is now the standing check that no record write has found
+    its way back into the repository.
     """
 
     def test_the_note_is_written(self, world: Dict[str, Any], contended_runway: Any) -> None:
@@ -929,10 +936,12 @@ class TestQueuingForTheRunwayIsSilentInGit:
         result = run(world)
         assert result.outcome == FINISHED, result.render()
         subjects = git(world["root"], "log", "--format=%s", f"{before}..main").stdout.splitlines()
+        # Nothing the finish wrote to the *record* reaches the base at all now
+        # (task-402), so the assertion is the whole class rather than the one note:
+        # only the merge commit and the branch's own work are here.
+        assert [line for line in subjects if "chore(task" in line] == [], subjects
         assert [line for line in subjects if "queuing" in line] == [], subjects
-        # And the note is not left dangling either: the next commit on this record --
-        # `announce_start`, a minute later -- carries it.
-        assert any("scripted finish starting" in line for line in subjects), subjects
+        assert any(line.startswith("Merge branch") for line in subjects), subjects
 
 
 # ----- escalating after the merge: the record must never be ambiguous ---------
@@ -2284,8 +2293,6 @@ def approve(world: Dict[str, Any]) -> int:
     )
     task = manager.get_task(world["task_id"])
     assert task is not None
-    git(world["root"], "add", "--", "tasks")
-    git(world["root"], "commit", "-m", "chore(tasks): the approval")
     return task.log[-1].id
 
 
@@ -2577,8 +2584,6 @@ def remote(world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> Iterator[A
     from agentjobs.api.dependencies import reset_dependency_cache
     from agentjobs.api.main import app
     from agentjobs.client import TaskClient
-    from agentjobs.cutover import cut_over
-    from agentjobs.projects import ProjectRegistry
     from agentjobs.remote_manager import RemoteTaskManager
     from agentjobs.store_factory import close_databases, mark_server_process
 
@@ -2586,13 +2591,6 @@ def remote(world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> Iterator[A
     # Both caches are process-global and both outlive a test: a handle to the
     # previous case's database, and the dependency wiring that resolved it.
     close_databases()
-    reset_dependency_cache()
-    registry = ProjectRegistry(world["home"])
-    registry.add(world["root"], project_id="demo")
-    # The records exist as files at this point -- `world` wrote them there. This is
-    # the same move the real project made on 2026-09-07, and what it changes is the
-    # manager, not the data.
-    cut_over(world["project"], backfill_git=False)
     reset_dependency_cache()
 
     # `agentjobs.api.main` declares the server on import, and the import is cached,
@@ -2610,15 +2608,14 @@ def remote(world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> Iterator[A
 
 
 class TestWritingTheRecordOverTheService:
-    """The manager a finish gets on a project that has cut over to SQLite.
+    """The manager a finish gets outside the server process.
 
-    Every test above hands the sequence a :class:`~agentjobs.manager.TaskManager` over
-    files, which is what the finisher had for as long as this project stored its records
-    that way. It is not what it has now: ``task_manager_for`` returns a
-    :class:`~agentjobs.remote_manager.RemoteTaskManager` for a SQLite project outside the
-    server, so every patch the finish writes becomes an HTTP request body -- and the
-    difference between a Python object and its JSON form, which the file backend simply
-    did not have, is a ``TypeError`` in ``httpx``'s encoder.
+    Every test above hands the sequence a local :class:`~agentjobs.manager.TaskManager`.
+    That is not what a finish run from a shell gets: ``task_manager_for`` returns a
+    :class:`~agentjobs.remote_manager.RemoteTaskManager` outside the server, so every
+    patch the finish writes becomes an HTTP request body -- and the difference between a
+    Python object and its JSON form, which a local manager simply does not have, is a
+    ``TypeError`` in ``httpx``'s encoder.
 
     Task-388 is that failure: after a real merge, a real rebuild and a verified restart,
     `mark_branch_merged` died on ``Object of type datetime is not JSON serializable`` and
@@ -2712,13 +2709,10 @@ class TestWritingTheRecordOverTheService:
         """The other half of AC-2, which the assertions above do not reach.
 
         A finish makes four or five writes to the record -- the branch, the closure, the
-        delivery -- and before the cutover every one of them landed in a tracked file
-        that somebody then had to commit. The observable that says they no longer do is
-        ``git status``: the frozen copy the import left behind must be byte-identical
-        afterwards, and nothing new may appear beside it.
+        delivery -- and every one of them used to land in a tracked file that somebody
+        then had to commit. The observable that says they no longer do is ``git
+        status``: nothing may appear under ``tasks/`` and nothing there may change.
         """
-        frozen = world["root"] / "tasks" / f"{world['task_id']}.yaml"
-        before = frozen.read_bytes()
         listing = sorted(path.name for path in (world["root"] / "tasks").iterdir())
 
         result = finish_task(
@@ -2736,7 +2730,6 @@ class TestWritingTheRecordOverTheService:
         # machine-local `.agentjobs/` a real project carries one for. The claim is about
         # the records, and naming the path makes that the claim.
         assert git(world["root"], "status", "--porcelain", "--", "tasks").stdout.strip() == ""
-        assert frozen.read_bytes() == before
         assert sorted(path.name for path in (world["root"] / "tasks").iterdir()) == listing
         # ...and the writes really happened, in the store, so this is not green because
         # the finish did nothing.

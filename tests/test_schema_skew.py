@@ -45,7 +45,8 @@ from agentjobs.models_v2 import (
     Task,
 )
 from agentjobs.projects import ProjectRegistry
-from agentjobs.storage import TaskStorage
+from agentjobs.taskfiles import TaskFileCorpus
+from support import task_store
 
 ACTORS = [
     {"name": "Ada", "kind": "human", "display_name": "Ada Lovelace"},
@@ -154,7 +155,7 @@ def skewed(tmp_path: Path, monkeypatch) -> Iterator[Tuple[ToolRegistry, TaskMana
         encoding="utf-8",
     )
     ProjectRegistry(home=tmp_path / "home").add(root, project_id="solo")
-    manager = TaskManager(TaskStorage(root / "tasks"))
+    manager = TaskManager(task_store(root / "tasks"))
 
     with TestClient(app) as http:
         transport = NewerServiceTransport(http)
@@ -342,10 +343,14 @@ class TestStrictnessThatMustSurvive:
         with pytest.raises(ValueError):
             DispatchPosture(UNKNOWN_POSTURE)
 
-    def test_storage_still_refuses_a_file_carrying_one(self, tmp_path: Path) -> None:
-        """ac-3, on the path a hand-edited file takes. The service is the authority on
-        validity precisely because it does this."""
-        storage = TaskStorage(tmp_path)
+    def test_reading_a_file_still_refuses_one_carrying_it(self, tmp_path: Path) -> None:
+        """ac-3, on the path a corpus being imported takes.
+
+        Over the file reader, which is where a document AgentJobs did not write can
+        still arrive (task-402). The store is stricter still: an unknown posture is a
+        `CHECK` constraint there, so such a record cannot become a row at all.
+        """
+        storage = TaskFileCorpus(tmp_path)
         good = dispatch_only_task_file(tmp_path)
         good["log"][-1]["data"]["posture"] = UNKNOWN_POSTURE
         (tmp_path / f"{TASK_ID}.yaml").write_text(yaml.safe_dump(good), encoding="utf-8")
@@ -367,7 +372,7 @@ class TestStrictnessThatMustSurvive:
 
 def dispatch_only_task_file(tmp_path: Path) -> Dict[str, Any]:
     """A valid task file on disk, as a dict, ready to be corrupted by one field."""
-    storage = TaskStorage(tmp_path)
+    storage = task_store(tmp_path)
     manager = TaskManager(storage)
     manager.create_task(
         id=TASK_ID,
@@ -391,9 +396,11 @@ def dispatch_only_task_file(tmp_path: Path) -> Dict[str, Any]:
         cwd="C:/projects/agentjobs",
         git_head="4887b74",
     )
-    loaded: Dict[str, Any] = yaml.safe_load(
-        (tmp_path / f"{TASK_ID}.yaml").read_text(encoding="utf-8")
-    )
+    # Serialised the way an export writes it, which is the form a document AgentJobs
+    # did not write would arrive in.
+    stored = storage.load_task(TASK_ID)
+    assert stored is not None
+    loaded: Dict[str, Any] = yaml.safe_load(storage.canonical_bytes(stored).decode("utf-8"))
     return loaded
 
 

@@ -57,7 +57,7 @@ from agentjobs.remote_manager import (
     _provenance,
     _warning,
 )
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 NOW = datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc)
 
@@ -186,7 +186,7 @@ def _seed(root: Path) -> None:
         ),
         encoding="utf-8",
     )
-    storage = TaskStorage(root / "tasks")
+    storage = task_store(root / "tasks", project_id="sandbox")
     for index, task_id in enumerate(("task-001", "task-002"), start=1):
         storage.save_task(
             Task(

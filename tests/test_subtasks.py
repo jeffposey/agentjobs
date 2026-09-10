@@ -27,7 +27,7 @@ from agentjobs.api.main import app
 from agentjobs.manager import TaskManager, TaskNotFoundError
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Outcome, Priority
 from agentjobs.projects import ProjectRegistry
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 UMBRELLA = "task-100-umbrella"
 CHILD_A = "task-101-alpha"
@@ -36,7 +36,7 @@ UNRELATED = "task-200-unrelated"
 
 
 def _manager(tmp_path: Path) -> TaskManager:
-    return TaskManager(TaskStorage(tmp_path))
+    return TaskManager(task_store(tmp_path))
 
 
 def _ready(manager: TaskManager, task_id: str, title: str, **kwargs: Any) -> None:
@@ -369,7 +369,7 @@ def web_client(tmp_path: Path, monkeypatch) -> Iterator[Tuple[TestClient, TaskMa
         yaml.safe_dump({"project_name": "Solo", "tasks_directory": "tasks"}),
         encoding="utf-8",
     )
-    manager = TaskManager(TaskStorage(root / "tasks"))
+    manager = TaskManager(task_store(root / "tasks", project_id="solo"))
     _hierarchy(manager)
     ProjectRegistry(home=tmp_path / "home").add(root, project_id="solo")
 
@@ -572,22 +572,14 @@ class TestHierarchyInTheTaskList:
 
         assert "2 sub-tasks, 1 open" in page
 
-    def test_a_task_pointing_at_a_parent_that_does_not_exist_is_still_drawn(
-        self, web_client, tmp_path: Path
-    ) -> None:
-        """The manager refuses to write one; a hand-edited file can still carry one.
-
-        Treating it as a root is a judgement call. Dropping the row is not available:
-        a task that vanishes from the listing is invisible exactly when someone needs
-        to notice it is wrong.
-        """
-        client, manager = web_client
-        stray = manager.get_task(UNRELATED).model_copy(
-            update={"id": "task-900-stray", "parent": "task-nope"}
-        )
-        manager.storage.save_task(stray)
-
-        page = client.get("/p/solo/tasks").text
-
-        assert "task-900-stray" in _row_ids(page)
-        assert _ancestors(page, "task-900-stray") == ""
+    # `test_a_task_pointing_at_a_parent_that_does_not_exist_is_still_drawn` stood here.
+    # It wrote a record whose `parent` named nothing, on the reasoning that "the manager
+    # refuses to write one; a hand-edited file can still carry one", and asserted the
+    # listing drew it as a root rather than dropping it.
+    #
+    # There is no hand-edited file any more, and `parent` is a foreign key: the write is
+    # refused by the database rather than tolerated by the renderer (task-402, and
+    # `tests/test_sqlstore.py::test_a_parent_that_does_not_exist_is_refused`). The
+    # judgement the test recorded -- never drop a row, because a task that vanishes is
+    # invisible exactly when somebody needs to notice it is wrong -- is kept by the
+    # quarantine path, which reports a record it could not accept instead of losing it.

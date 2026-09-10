@@ -30,7 +30,7 @@ from agentjobs.dispatch.ledger import list_runs
 from agentjobs.dispatch.scaffold import EXAMPLE_CONFIG
 from agentjobs.manager import TaskManager
 from agentjobs.projects import ProjectRegistry
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 from test_dispatch_auth import (
     SESSION,
@@ -261,7 +261,7 @@ class TestDispatchRun:
         assert len(runs) == 1
         assert runs[0].status == "finished"
         assert runs[0].outcome is not None
-        task = TaskManager(TaskStorage(root / "tasks")).get_task(task_id)
+        task = TaskManager(task_store(root / "tasks")).get_task(task_id)
         assert task is not None
         assert any(entry.type.value == "dispatch_result" for entry in task.log)
 
@@ -292,9 +292,8 @@ class TestDispatchRun:
         """A ready task whose newest entry belongs to ``last_actor``."""
         from agentjobs.manager import TaskManager
         from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType
-        from agentjobs.storage import TaskStorage
 
-        manager = TaskManager(TaskStorage(root / "tasks"))
+        manager = TaskManager(task_store(root / "tasks"))
         task = manager.create_task(
             title="Dispatchable",
             category="general",
@@ -396,7 +395,7 @@ class TestDispatchWalkPosture:
             LogEntryType,
         )
 
-        manager = TaskManager(TaskStorage(root / "tasks"))
+        manager = TaskManager(task_store(root / "tasks"))
         parent = manager.create_task(
             title="An epic",
             category="general",

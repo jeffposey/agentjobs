@@ -3,23 +3,26 @@
 **These assert on work done, not on elapsed time.** A wall-clock threshold means
 something different on every machine, drifts with hardware, fails on a loaded laptop,
 and eventually gets loosened until it catches nothing -- or deleted, which is worse
-than never having had it. "This request read each task file once" means the same thing
-on every machine forever, and it is precisely the property the original defect
-violated: a single `GET /tasks` used to walk a 119-file corpus 476 times.
+than never having had it. "This request read no task files" means the same thing on
+every machine forever, and it is precisely the property the original defect violated:
+a single `GET /tasks` used to walk a 119-file corpus 476 times.
 
-Measured on the real corpus before the fixes (task-131's baseline) and after:
+Measured on the real corpus before the task-131 fixes and after:
 
     GET /dashboard          7344ms, 952 parses  ->  174ms, 119 parses
     GET /tasks              3659ms, 476 parses  ->  181ms, 119 parses
     GET /tasks/{id}/detail  3954ms, 478 parses  ->  162ms, 119 parses
 
-The parse counts are what these tests pin. The milliseconds are recorded in the task
-log, where they belong, because they describe one afternoon on one laptop.
+**The budget is now zero, and that is a stronger assertion than the one it replaces.**
+Records are rows (task-402), so a request that parses a task file is a request that has
+started reading a directory again -- the exact coupling the migration removed, and the
+kind of regression that would otherwise be invisible because it would still return the
+right answer. The counter is kept for this and for nothing else.
 
-**The corpus is generated, at a fixed size.** Running against `tasks/` would tie the
-thresholds to a backlog that grows, so the suite would start failing because the
-project succeeded. The generator is the one `scripts/bench.py` uses, so a budget and a
-benchmark run cannot drift apart.
+**The corpus is generated, at a fixed size.** Running against the repository's own
+backlog would tie the thresholds to something that grows, so the suite would start
+failing because the project succeeded. The generator is the one `scripts/bench.py` uses,
+so a budget and a benchmark run cannot drift apart.
 """
 
 from __future__ import annotations
@@ -68,18 +71,19 @@ build_corpus = load_script("bench").build_corpus  # the shared synthetic-corpus 
 
 from agentjobs.api.dependencies import reset_dependency_cache  # noqa: E402
 from agentjobs.api.main import PARSE_COUNT_HEADER, app  # noqa: E402
-from agentjobs.instrumentation import count_task_parses, reset_task_parses  # noqa: E402
 from agentjobs.project_setup import build_project_config  # noqa: E402
-from agentjobs.storage import TaskStorage  # noqa: E402
+from agentjobs.taskfiles import TaskFileCorpus  # noqa: E402
+from support import task_store  # noqa: E402
+
 
 #: Fixed, and stated. Big enough that a repeated corpus walk is unmissable in the
 #: counts, small enough that generating it costs a fraction of a second.
 CORPUS_SIZE = 60
 
-#: Wall-clock budgets exist only to catch an order-of-magnitude collapse -- losing the
-#: libyaml loader, or reintroducing a corpus walk in a loop. They are deliberately far
-#: looser than the measured numbers (a whole-corpus load measures around 60ms for this
-#: size; the budget is 5 seconds).
+#: Wall-clock budgets exist only to catch an order-of-magnitude collapse -- a
+#: per-record query in a loop, or a lost index. They are deliberately far looser than
+#: the measured numbers (a whole-corpus read measures well under 60ms for this size;
+#: the budget is 5 seconds).
 #:
 #: **Do not tighten these.** A performance test that fails on a busy laptop gets
 #: disabled, and a disabled test catches nothing at all. The parse-count assertions
@@ -87,9 +91,15 @@ CORPUS_SIZE = 60
 CATASTROPHE_SECONDS = 5.0
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def budget_project(tmp_path_factory) -> Iterator[Path]:
-    """A generated project of stated size, built once for the whole module."""
+    """A generated project of stated size.
+
+    Per test rather than per module, and the reason is the machine home: the suite
+    re-points ``AGENTJOBS_HOME`` for every test, and a project's database is resolved
+    against it. A corpus imported once for the module would be sitting in a home the
+    next test no longer looks in.
+    """
     root = tmp_path_factory.mktemp("budget-project")
     config = root / ".agentjobs" / "config.yaml"
     config.parent.mkdir(parents=True, exist_ok=True)
@@ -100,7 +110,13 @@ def budget_project(tmp_path_factory) -> Iterator[Path]:
         ),
         encoding="utf-8",
     )
+    # Generated as files and then imported, which is the only road in now. The
+    # directory is left in place: it is what the implicit project's database is named
+    # from, and nothing reads the YAML after this line.
     build_corpus(root / "tasks", kind="synthetic", count=CORPUS_SIZE, source=root)
+    store = task_store(root / "tasks", root=root)
+    for task in TaskFileCorpus(root / "tasks", create=False).list_tasks():
+        store.save_task(task)
     yield root
 
 
@@ -117,13 +133,12 @@ def _parses(response) -> int:
     return int(response.headers[PARSE_COUNT_HEADER])
 
 
-class TestOneParsePerFilePerRequest:
-    """The durable form of task-132, and the budget that would actually catch it.
+class TestARequestParsesNothing:
+    """The durable form of task-132, tightened to zero by task-402.
 
     Each of these endpoints computes dependency facts, which used to mean four
-    independent passes over the corpus. If someone adds a fifth caller that goes back
-    to storage on its own, or moves a `list_tasks()` inside a loop, the count moves and
-    this fails -- on any machine, at any speed.
+    independent passes over a directory. None of them may touch a file now, on any
+    machine, at any speed.
     """
 
     @pytest.mark.parametrize(
@@ -137,13 +152,13 @@ class TestOneParsePerFilePerRequest:
             "/api/projects/_local/tasks/broken",
         ],
     )
-    def test_a_request_never_reads_a_task_file_twice(self, budget_client, path: str) -> None:
+    def test_a_request_reads_no_task_files_at_all(self, budget_client, path: str) -> None:
         parses = _parses(budget_client.get(path))
-        assert parses <= CORPUS_SIZE, (
-            f"{path} parsed {parses} task files for a {CORPUS_SIZE}-file corpus. "
-            f"A request must walk the corpus at most once; {parses / CORPUS_SIZE:.1f} "
-            "passes means something is reading storage independently again. "
-            "See task-132: this was 4x, and the dashboard was 8x."
+        assert parses == 0, (
+            f"{path} parsed {parses} task files. A project's records are rows, so a "
+            "request that parses YAML has started reading a directory again -- which "
+            "would still return the right answer today and be wrong the moment the "
+            "directory is retired. See task-132 for the 4x walk this replaces."
         )
 
 
@@ -158,64 +173,32 @@ class TestTheRevisionPollStaysCheap:
     def test_the_poll_parses_nothing(self, budget_client) -> None:
         parses = _parses(budget_client.get("/api/projects/_local/revision"))
         assert parses == 0, (
-            f"GET /revision parsed {parses} task files. The revision signal is a hash "
-            "over file bytes precisely so it can answer without parsing or validating; "
-            "if it is parsing, something has started loading tasks to compute it."
+            f"GET /revision parsed {parses} task files. The revision signal exists to "
+            "answer without loading or validating anything; if it is parsing, something "
+            "has started loading tasks to compute it."
         )
 
 
 class TestTheStorageLayerItself:
-    """Below the API, so a regression is attributed to storage rather than to a route."""
+    """Below the API, so a regression is attributed to storage rather than to a route.
 
-    def test_a_scope_parses_each_file_once_however_often_it_is_asked(
-        self, budget_project: Path
-    ) -> None:
-        from agentjobs.storage import corpus_snapshot
-
-        storage = TaskStorage(budget_project / "tasks")
-        reset_task_parses()
-        with corpus_snapshot():
-            with count_task_parses() as tally:
-                for _ in range(5):
-                    storage.list_tasks()
-                    storage.load_all()
-        assert tally.parses == CORPUS_SIZE, (
-            f"Ten whole-corpus reads inside one scope parsed {tally.parses} files "
-            f"instead of {CORPUS_SIZE}. The request-scoped snapshot is not holding."
-        )
-
-    def test_without_a_scope_nothing_is_cached_across_calls(self, budget_project: Path) -> None:
-        """The other half of the contract, and the one that keeps it honest.
-
-        The snapshot must not leak into a process-wide cache. AgentJobs has several
-        writers -- the CLI, other agents, git checkouts, a person editing YAML -- and a
-        cache that outlived its request would serve a task record that had already
-        changed on disk. task-134 was cancelled rather than take that risk; this test
-        is what notices if it arrives by accident.
-        """
-        storage = TaskStorage(budget_project / "tasks")
-        reset_task_parses()
-        with count_task_parses() as tally:
-            storage.list_tasks()
-            storage.list_tasks()
-        assert tally.parses == CORPUS_SIZE * 2, (
-            f"Two unscoped corpus reads parsed {tally.parses} files instead of "
-            f"{CORPUS_SIZE * 2}. Something is caching across scopes, which is only safe "
-            "with an invalidation story -- see task-134's decision log."
-        )
+    The two tests that used to live here pinned the per-request parse snapshot -- that
+    each file was parsed once inside a scope, and that nothing was cached across scopes.
+    Both went with the parser they memoised (task-402); the assertion that survives them
+    is the zero above, which is stronger than either.
+    """
 
     def test_a_whole_corpus_load_has_not_collapsed(self, budget_project: Path) -> None:
         """The catastrophe check: order of magnitude only, never a percentage."""
         import time
 
-        storage = TaskStorage(budget_project / "tasks")
+        storage = task_store(budget_project / "tasks")
         started = time.perf_counter()
         assert len(storage.list_tasks()) == CORPUS_SIZE
         elapsed = time.perf_counter() - started
         assert elapsed < CATASTROPHE_SECONDS, (
-            f"Loading {CORPUS_SIZE} task files took {elapsed:.2f}s against a "
+            f"Reading {CORPUS_SIZE} records took {elapsed:.2f}s against a "
             f"{CATASTROPHE_SECONDS}s catastrophe budget. This budget is loose on "
-            "purpose, so failing it means something structural: the libyaml loader is "
-            "gone (13x), or the read path grew a per-file cost. Do not fix this by "
-            "raising the number."
+            "purpose, so failing it means something structural: a per-record query in "
+            "a loop, or an index gone. Do not fix this by raising the number."
         )

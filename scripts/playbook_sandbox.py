@@ -87,7 +87,7 @@ def build(root: Path, *, project_id: str, name: str, thin_task: bool) -> Path:
     from agentjobs.models_v2 import Lifecycle, Priority
     from agentjobs.playbooks import install_references
     from agentjobs.project_setup import build_project_config
-    from agentjobs.storage import TaskStorage
+    from sandbox_store import sandbox_store  # type: ignore[import-not-found]
 
     project_root = root / project_id
     (project_root / ".agentjobs").mkdir(parents=True)
@@ -99,7 +99,7 @@ def build(root: Path, *, project_id: str, name: str, thin_task: bool) -> Path:
     if thin_task:
         # Something for `flesh-out` to be aimed at. Its newest entry is a human's,
         # which is what the human-clocked rule reads on a task-target run.
-        TaskManager(TaskStorage(project_root / "tasks")).create_task(
+        TaskManager(sandbox_store(project_root / "tasks")).create_task(
             id="task-101",
             title="Thin: the notification service",
             summary="A title and a sentence, which is not enough to work from.",

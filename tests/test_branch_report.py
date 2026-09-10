@@ -24,7 +24,7 @@ from agentjobs.branch_report import survey_branches
 from agentjobs.cli import app
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Lifecycle
-from agentjobs.storage import TaskStorage
+from support import task_store
 
 
 def git(root: Path, *args: str) -> "subprocess.CompletedProcess[str]":
@@ -56,7 +56,7 @@ def repo(tmp_path: Path) -> Dict[str, Any]:
     git(root, "config", "user.email", "t@t.t")
     git(root, "config", "user.name", "t")
     commit(root, "base.txt")
-    manager = TaskManager(TaskStorage(root / "tasks"))
+    manager = TaskManager(task_store(root / "tasks", project_id="demo"))
     return {"root": root, "manager": manager, "tmp": tmp_path}
 
 
@@ -225,7 +225,7 @@ class TestAge:
 class TestTheCommand:
     """``agentjobs branches`` end to end, through the registry the CLI really reads."""
 
-    def _register(self, repo: Dict[str, Any]) -> None:
+    def _register(self, repo: Dict[str, Any], monkeypatch=None) -> None:
         import os
 
         from agentjobs.projects import ProjectRegistry
@@ -237,11 +237,18 @@ class TestTheCommand:
             encoding="utf-8",
         )
         ProjectRegistry(home=Path(os.environ["AGENTJOBS_HOME"])).add(root, project_id="demo")
+        if monkeypatch is not None:
+            # `branches` resolves its manager the ordinary way, which outside the server
+            # is a service client. What these cases assert is what the command prints
+            # about git, so the manager is supplied rather than a server started.
+            from agentjobs import cli as cli_module
+
+            monkeypatch.setattr(cli_module, "task_manager_for", lambda project: repo["manager"])
 
     def test_it_names_the_leftovers_and_the_command_that_removes_them(
-        self, repo: Dict[str, Any]
+        self, repo: Dict[str, Any], monkeypatch
     ) -> None:
-        self._register(repo)
+        self._register(repo, monkeypatch)
         make_branch(repo, "feat/task-011-left", "left.txt")
         task_id = task_for(repo, "feat/task-011-left", closed=True)
         git(repo["root"], "merge", "--no-ff", "--no-edit", "-m", "merge", "feat/task-011-left")
@@ -254,8 +261,10 @@ class TestTheCommand:
         assert "git branch -d" in result.output
         assert "-D" in result.output  # stated as the thing not to reach for
 
-    def test_a_clean_clone_says_so_rather_than_printing_nothing(self, repo: Dict[str, Any]) -> None:
-        self._register(repo)
+    def test_a_clean_clone_says_so_rather_than_printing_nothing(
+        self, repo: Dict[str, Any], monkeypatch
+    ) -> None:
+        self._register(repo, monkeypatch)
         make_branch(repo, "feat/task-012-open", "open.txt")
 
         result = CliRunner().invoke(app, ["branches", "--project", "demo"])
@@ -264,9 +273,9 @@ class TestTheCommand:
         assert "left behind" in result.output
         assert "does not contain" in result.output
 
-    def test_it_exits_zero_even_with_litter(self, repo: Dict[str, Any]) -> None:
+    def test_it_exits_zero_even_with_litter(self, repo: Dict[str, Any], monkeypatch) -> None:
         """Untidy is not broken, and a report that fails a script gets suppressed."""
-        self._register(repo)
+        self._register(repo, monkeypatch)
         make_branch(repo, "feat/task-013-left", "l.txt")
         git(repo["root"], "merge", "--no-ff", "--no-edit", "-m", "merge", "feat/task-013-left")
 
