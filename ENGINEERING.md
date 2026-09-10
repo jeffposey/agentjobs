@@ -4,11 +4,11 @@ This handbook is the canonical source for universal engineering practices across
 
 ## Project Mission
 **AgentJobs** is a lightweight task management system designed for AI agent workflows.
--   **Core Philosophy**: "Git-Friendly" & "Lightweight".
--   **Data Source**: the task record. One YAML file per task under `tasks/` by default;
-    a project cut over with `agentjobs storage cutover` keeps its records in a SQLite
-    store beside the server instead. This repository's own backlog has been on SQLite
-    since 2026-09-07, and `tasks/agentjobs/` is a frozen copy that nothing reads.
+-   **Core Philosophy**: "Lightweight" — one process, no service to operate, and it works
+    alongside git rather than inside it.
+-   **Data Source**: the task record, a row in a per-project SQLite database beside the
+    server and outside every checkout. This repository's own records were imported there
+    on 2026-09-07; `tasks/agentjobs/` is a frozen copy no application code reads.
 -   **Interface**: CLI (`agentjobs`) and packaged React Web UI (`agentjobs open`, or
     `/app/` on a running `agentjobs serve`).
 
@@ -410,31 +410,26 @@ and what it records are in
 Pushing to the remote is a separate act from merging; do not assume approval to merge
 carries approval to push.
 
-### Where task records live, and whether you commit them
+### Where task records live
 
-**Ask, do not assume: `agentjobs storage status`.** It prints `sqlite` or `files` per
-project, counted rather than inferred, and the answer decides everything below.
+**Rows in a database beside the server, outside every checkout — and you do not commit
+them.** Nothing you do to a task touches your working tree, so there is nothing to stage
+and no `tasks/` directory for a branch to disagree about. Write through the API, MCP or
+the CLI as always, then carry on with your code.
 
-**`sqlite` — the records are rows in a database beside the server, outside every
-checkout.** Nothing you do to a task touches your working tree, so there is nothing to
-commit and no `tasks/` directory for a branch to disagree about. Write through the
-API, MCP or the CLI as always, then carry on with your code. The database is
-machine-level, so it is neither in the repository nor in a clone somebody else made —
-see [the storage guide](docs/storage-sqlite.md), and back it up.
+Two consequences worth carrying. The database is machine-level, so the records are
+neither in the repository nor in a clone somebody else made: back it up, and do not expect
+a fresh clone elsewhere to arrive with the backlog. And every worktree and every branch
+sees the same backlog, including a branch holding no records at all, so a task missing
+from the dashboard is never explained by what is checked out.
 
-**`files` — records are YAML under `tasks/`, and are committed directly to `main`,
-never to a feature branch**, with a `chore(task-nnn):` commit in the main clone for every
-create, claim, log, handoff and close. That rule exists because the dashboard reads one
-working tree, so a handoff committed to a branch is invisible to the person it is
-addressed to. Both halves are in
-[the storage guide](docs/storage-sqlite.md#9-the-two-worlds-a-project-can-be-in), with what
-moves a project between the two: `agentjobs storage cutover` backs up, imports, verifies
-field by field and only then switches, and `agentjobs storage rollback` goes back keeping
-whatever was written since.
+`agentjobs storage status` prints the file each project is served from.
+[The storage guide](docs/storage-sqlite.md) is the reasoning, including what a record
+still is once it is a row and what reviewing one in a pull request cost.
 
 ## Safety Rails
 -   **Never** delete user data without explicit confirmation.
--   **Always** reach storage through `store_factory.task_manager_for`, never by composing a directory. It is the one place that knows whether a project is on files or on the database, and a call site that goes straight to a directory reads a stale corpus on a migrated project without erroring.
+-   **Always** reach storage through `store_factory.task_manager_for`, never by composing a directory. It is the one place that resolves which database a project is served from, and a call site that goes straight to a directory reads a stale corpus without erroring.
 -   **Verify** local server startup and the React `/app/` route (`poetry run agentjobs
     open`) after modifying API routes or frontend serving.
 -   **A server that refuses to start because it "imported its own source from the wrong

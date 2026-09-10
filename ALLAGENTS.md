@@ -148,10 +148,8 @@ are not working it — you are supervising, you take no worktree, and
     silent stall then leaves the task reading `agent`/`work` while your supervisor waits
     on a process nobody is watching (task-320).
 
-    **Whether a task record is something you commit depends on the project's storage**
-    -- `agentjobs storage status` says. On `sqlite` it is a row; on `files` the commit
-    goes to `main`, never to your branch. See
-    [Where task records live](ENGINEERING.md#where-task-records-live-and-whether-you-commit-them).
+    **A task record is a row in a database outside your checkout, so it is not something
+    you commit.** See [Where task records live](ENGINEERING.md#where-task-records-live).
 3.  **Work**: Small, single-logical-change commits with tests green before each one.
     Stage explicit paths — never `git add -A`.
 4.  **Verify**: Run `poetry run pytest` and exercise the change the way a user would —
@@ -289,9 +287,9 @@ State is four fields, not one (schema v2 — see [docs/task-schema.md](docs/task
 (set only when closed). `archived` is a separate flag.
 
 The axes move **only** through the manager verbs — `claim`, `handoff`, `release`,
-`close` — each of which appends its own log entry. Editing them directly, or by hand in
-the YAML, skips the record of *why* they moved. Only `ready` tasks with no unmet `needs`
-dependencies are returned by `get_next_task()`.
+`close` — each of which appends its own log entry. Editing them directly skips the record
+of *why* they moved. Only `ready` tasks with no unmet `needs` dependencies are returned by
+`get_next_task()`.
 
 `ball_prompt` is required whenever the ball is set, **except `agent/available`**, where
 the spec is itself the ask. A handoff without a stated ask is a notification with no
@@ -320,8 +318,8 @@ A human working alone does not need this; they have no peer to collide with. You
     list` and `git branch --list` are the inventories; a worktree for a closed task is
     litter, and so is its branch. `agentjobs branches` reads both and names what is left.
 -   **Never `git checkout` in the shared clone** to start work.
--   Committing task metadata straight to `main`, on a files project, does not need one.
-    Anything that goes on a branch does.
+-   Working a task writes no files, so recording one needs no worktree. Anything that
+    goes on a branch does.
 -   **Do not use Claude Code's `--worktree` / `-w` or `EnterWorktree` to get one.** It
     looks like the CLI doing this for you and it is not the same thing: such a session is
     isolated by a guard that refuses *every* git operation aimed at the shared clone —
@@ -357,9 +355,9 @@ two things from that are worth carrying:
 -   **If you commit a peer's in-flight files** — which is what `git add -A` does here —
     recover with `git reset --soft HEAD~1`, then `git restore --staged` their paths.
     Never `git checkout --` them; that destroys work you did not write.
--   **A project on `sqlite` shows the same backlog from every branch; one on `files`
-    shows whatever is checked out.** `agentjobs storage status` says which, and it is
-    the first thing to check before reporting a task missing from the dashboard.
+-   **Every branch shows the same backlog**, because the records are not in the checkout.
+    So a task missing from the dashboard is never explained by what is checked out; look
+    for it being closed, archived, or in another project.
 
 ### Bootstrapping a worktree
 

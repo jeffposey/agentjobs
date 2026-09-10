@@ -4,11 +4,10 @@ AgentJobs is a durable handoff protocol with a packaged React web application. T
 schema-v2 task record is the source of truth; the React UI at `/app/`, the REST API, CLI,
 Python client, and [MCP server](mcp.md) are views and controlled writers over it.
 
-**Where a record physically lives is a per-project choice.** By default it is one YAML
-file under the project's tasks directory; a project that has run
-`agentjobs storage cutover` keeps its records in a SQLite store beside the server
-instead. `agentjobs storage status` says which, and [the storage guide](storage-sqlite.md)
-covers both.
+**A record lives in a SQLite database beside the server**, one per project and outside
+every checkout, so no task file appears in your repository and every branch sees the same
+backlog. `agentjobs storage status` prints the path, and
+[the storage guide](storage-sqlite.md) is why.
 
 For agents, a record is **readable generated state**: read it freely, and make every
 change through the [MCP tools](mcp.md), the API, or the CLI, all of which reach the same
@@ -83,7 +82,7 @@ is how this project has lost the most time, so the status word comes first.
 | [Understand schema v2](schema/understanding.md) | The schema explained rather than tabulated |
 | [Schema migration](migration-guide.md) | v1 to v2, and the all-or-nothing rule |
 | [Performance](performance.md) | The measurement tools and their contract |
-| [SQLite storage](storage-sqlite.md) | The authoritative store, its invariants and its upgrade path, plus the cutover, backup and rollback an operator runs. |
+| [SQLite storage](storage-sqlite.md) | The store, its invariants and its upgrade path, what a record still is once it is a row, and the import, backup and export an operator runs. |
 | [The Tasks surface](tasks-shell.md) | The two-region list-and-record shell, the device-class rule that decides its default, and what the geometry forces (task-235, task-237). Supersedes the epic's log entries. |
 | [Codex dispatch rollout](codex-dispatch.md) | The Codex runner setup |
 | [Durable Codex dispatch architecture](codex-dispatch-architecture.md) | The per-run App Server coordinator, resume policy and persistence reporting — **shipped** as task-281 through task-285 |

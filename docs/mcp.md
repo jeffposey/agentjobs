@@ -4,7 +4,7 @@ AgentJobs ships an MCP server so an agent can discover projects, read a task, an
 it through the workflow using validated domain operations instead of editing YAML.
 
 **Task records are generated state.** Reading them is supported and always will be —
-`task_get` here, or the YAML itself on a project still on files. Writing one directly
+`task_get` here, `agentjobs show`, or the REST API. Writing one directly
 is not: a direct edit skips validation, skips the lock, and writes no log entry, so
 it produces a record that looks correct and quietly is not. That is the failure this
 whole interface exists to prevent — an agent once created a task with `lifecycle:
@@ -19,8 +19,8 @@ agent
     -> TaskClient
       -> project-scoped REST  (/api/projects/{id}/...)
         -> TaskManager verb   (claim, handoff, release, close, log)
-          -> the project's backend  (TaskStorage on files: lock, strict validation,
-                                     atomic write; one transaction on SQLite)
+          -> the project's SQLite store  (strict validation and the whole verb in
+                                          one transaction)
 ```
 
 The MCP process never opens a task file and never imports `TaskManager` or
@@ -233,9 +233,8 @@ them makes the record lie.
 Every mutation takes a caller-generated `operation_id` (a UUID). Resending the same
 request with the same id **replays** the original result rather than writing again, and
 the result's `replayed` field says which happened. The marker is stored durably with
-the record — in the task file on a files project, in the project-scoped `operation`
-ledger on a SQLite one — so replay detection survives the MCP process, the service, and
-the machine all restarting — which is exactly when a client retries.
+the record, in the project-scoped `operation` ledger, so replay detection survives the
+MCP process, the service, and the machine all restarting — which is exactly when a client retries.
 
 **Five** tools require `expected_revision` — `task_promote`, `task_handoff`,
 `task_close`, `task_update_content` and `task_queue_move`:

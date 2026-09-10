@@ -1,14 +1,47 @@
 # Authoritative SQLite task storage
 
 The store built on task-273. This document is the *why*; the schema itself is
-`src/agentjobs/sqlstore/migrations/001_initial.sql`, and the boundary every backend
+`src/agentjobs/sqlstore/migrations/001_initial.sql`, and the boundary the store
 satisfies is `src/agentjobs/storage_protocol.py`.
 
-**Status: built, and switchable per project.** Task-273 built the store; task-311 built
-the cutover around it. A project is on one of two backends and
-`agentjobs storage status` says which, counted rather than inferred. Nothing migrates on
-its own: a machine that has never run `agentjobs storage cutover` has no database at all
-and every project reads its files exactly as it always did.
+**Status: built, and the only storage there is.** Task-273 built the store, task-311 built
+the import around it, and task-402 deleted the file backend it was once an alternative to.
+Every project's records are rows in a SQLite database of its own beside the server;
+`agentjobs storage status` prints the file each project is served from, counted rather than
+inferred.
+
+## What a record still is
+
+The original pitch for one YAML file per task was that a record was a thing you could read,
+move and review with no tool at all. Three of those properties survive the move and one
+does not, so here is each of them plainly.
+
+**You can still read a record without AgentJobs.** `agentjobs show <id>` prints the whole
+record as JSON and the REST API serves the same, but neither is the floor: the store is one
+SQLite file, a format with a published specification and a reader in every language, so
+`sqlite3 ~/.agentjobs/databases/<project>.db` answers a question no command was written for.
+What is gone is reading a record in an editor that had never heard of the tool, and it is
+worth being honest that this is a real loss and not only a rearrangement.
+
+**You can still get your records out**, in the same format they went in:
+
+```bash
+agentjobs storage export <destination> --project <id>
+```
+
+That writes the store's current state as task YAML with its attachment bytes — an
+interchange artifact, not a mirror. Nothing calls it on a write and nothing commits what it
+produces, because a YAML copy maintained automatically beside the database would be the
+second authority this migration exists to remove.
+
+**Reviewing a task record in a pull request is gone, deliberately.** Task state is not code:
+a diff of `ball_reason` changing from `work` to `review` is a fact about the work rather
+than a proposal about it, and there was nothing for a reviewer to approve or reject. What
+it cost was concrete and paid daily — a handoff committed to a feature branch was invisible
+to the person it was addressed to, because the dashboard reads one working tree, and that
+was observed repeatedly through 2026-08-11 before the cause was understood. The log is
+still an append-only history of who changed what and why; it is queried rather than
+diffed.
 
 ---
 
@@ -23,9 +56,9 @@ answered on 2026-09-06:
 
 | Question | Answer |
 |---|---|
-| One database or one per project | **One**, with `project_id` on every key — *reversed by task-400, see §11a* |
+| One database or one per project | **One**, with `project_id` on every key — *reversed by task-400, see §11* |
 | Attachments | **Blobs in the database** |
-| Pre-cutover history | **Reconstruct, reconcile, and mine git** |
+| Pre-import history | **Reconstruct, reconcile, and mine git** |
 | Coordination with the analytics page | **task-213 runs first**, without a blocking edge |
 | Search | **FTS5** |
 
@@ -36,7 +69,7 @@ is what those answers produced.
 reversal is legible.** One file for every project made any decision about one project's
 records a decision about all of them, and that cost outweighs the convenience of a single
 file. `project_id` on every key stays, and is now what makes a project's rows separable:
-§11a. Two projects can still share a file where an operator asks for it.
+§11. Two projects can still share a file where an operator asks for it.
 
 ## 2. The shape, and the one rule behind it
 
@@ -184,7 +217,7 @@ a trigger, for the writer that does not come through that door. A wrong value he
 fail: it silently misfiles late-evening work by a day for six months, which is why it is a
 constraint and not a convention.
 
-**Set it at cutover** — `agentjobs storage cutover --reporting-tz America/Chicago` — because
+**Set it at import** — `agentjobs storage import --reporting-tz America/Chicago` — because
 that is currently the only setter. A project cut over without the flag holds `UTC`, and
 changing it afterwards means SQL.
 
@@ -281,7 +314,7 @@ is its text, because `import_quarantine.raw_text` holds the whole file. Quaranti
 record for its content would put the content in the database in the same act that
 claimed to keep it out.
 
-The cost is that a false positive stops a cutover. Three things bound it: the same
+The cost is that a false positive stops an import. Three things bound it: the same
 detector fails the gate over `tasks/`, so a record reaching an import has already passed
 the check on its way into `main`; `agentjobs redact` makes a real hit a one-command fix;
 and `run(enforce_quotation_policy=False)` lets an operator who has read the hits proceed
@@ -289,79 +322,47 @@ anyway, with `ImportReport.render()` saying the policy was off and naming every 
 let through. The refusal and the report name regions and tone groups, never the quoted
 text.
 
-## 9. The two worlds a project can be in
+## 9. Importing an existing corpus
 
-`agentjobs storage status` prints one line per project, with both counts, because the
-asymmetric states are the informative ones: rows and no files means the records have been
-retired from the checkout, files and no rows means no cutover has happened, and both means
-a migrated project whose old directory is still on disk.
+**A new project needs none of this.** `agentjobs init` registers the project, creates its
+database, and makes no tasks directory (task-399), so a fresh install begins where a
+migrated one ends up. This section is for somebody arriving with a corpus of task YAML
+written by an older version, and it runs **once, in one direction**.
 
-**A new project is created in the second of these.** `agentjobs init` registers the
-project on `sqlite`, creates its database, and makes no tasks directory (task-399), so a
-fresh install starts where a migrated project ends up rather than accumulating a corpus it
-will later be walked through migrating. `--backend files` is the old behaviour, kept while
-that backend exists.
+What the numbers mean first. `agentjobs storage status` prints one line per project with a
+row count and a file count, because the asymmetric states are the informative ones: rows
+and no files is the settled state, and rows plus files is a project whose old directory is
+still on disk awaiting section 10. A file count on its own no longer describes anything the
+application will read.
 
-**A project registered before that change keeps working**, because the default for a
-project with no `storage.yaml` entry is still `files`. Flipping that default instead of
-writing an explicit entry at `init` would have pointed every such project at an empty
-database and made its corpus invisible with nothing to diagnose from. They are told rather
-than broken: `storage status` names the cutover command on each `files` line.
-
-### `files` — records are YAML in the repository
-
-The original design, and what a project registered before task-399 is still on. Two
-consequences follow from it, and they are the reason the other world exists:
-
-- **The dashboard reads one working tree**, so a record committed to a feature branch is
-  invisible to the person it is addressed to: they open the React app, see the task still
-  `ready`, and conclude nothing is waiting for them. That is why
-  [ENGINEERING.md](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md#where-task-records-live-and-whether-you-commit-them)
-  requires records to be committed to `main` and never to a branch. Observed 2026-08-11,
-  repeatedly, before the cause was understood.
-- **A record and the code it describes are not one atomic commit.** Checking out an old
-  revision does not show you the task state as it was then; `main`'s history has it.
-
-### `sqlite` — records are rows beside the server
-
-The database is machine-level, outside every checkout, and **there is one per project**
-(section 11a), so:
-
-- nothing you do to a task dirties a working tree, and there is nothing to commit;
-- every worktree and every branch sees the same backlog, including a branch with no
-  records on disk at all;
-- the dispatch gate's clean-tree check stops excusing the directory AgentJobs was
-  dirtying itself, which is coverage task-182 had to give up;
-- and the records stop travelling with a clone, which is the trade: a fresh clone on
-  another machine has the code and not the backlog.
-
-## 10. Cutting a project over
-
-**Quiesce first.** Stop the server and stop any agent that writes. `storage cutover`
-refuses while it can see a server listening, which is the part that can be checked rather
-than assumed; the rest is yours.
+**Quiesce first.** Stop the server and stop any agent that writes. `storage import` refuses
+while it can see a server listening, which is the part that can be checked rather than
+assumed; the rest is yours.
 
 ```bash
 agentjobs storage status                     # where are we now
 agentjobs storage preview --project <id>     # the real import, against a throwaway database
-agentjobs storage cutover --project <id>     # back up, import, verify, then switch
+agentjobs storage import --project <id>      # back up, import, verify, then record
 ```
+
+`cutover` is the old name for that third command and still works, from when it named a
+change of backend rather than an import.
 
 `preview` runs the import and writes nothing that survives the call, which is where a
 malformed record, a quoted remark or a history that will not reconcile is found. The
-cutover then does five things in one order that matters:
+import then does five things in one order that matters:
 
 1.  **Back up** the existing database, if there is one, with its manifest.
 2.  **Import** — one transaction, each record inside its own savepoint, so an interruption
     leaves nothing and a record that fails halfway leaves no partial row.
 3.  **Verify** field by field against every readable file, plus the backlog invariant and
     the attachment blobs. A row count agreeing with a file count proves almost nothing.
-4.  **Record** the switch in `~/.agentjobs/storage.yaml` — last, because it is what every
-    client reads to decide where to look.
+4.  **Record** the project's database in `~/.agentjobs/storage.yaml` — last, because it is
+    what every client reads to decide where to look.
 5.  **Report** everything, including anything quarantined.
 
-A verification that does not pass **switches nothing**: the project stays on its files and
-the import stays in the database for inspection. Fix the cause and re-run with `--replace`,
+A verification that does not pass **records nothing**: the entry is not written and the
+import stays in the database for inspection. Fix the cause and re-run with `--replace`,
 which empties the project inside the same transaction that re-fills it. A re-run without it
 is refused, because a second import over a completed one writes the reconstructed history
 twice and doubles every event with nothing raising.
@@ -374,7 +375,7 @@ store` — because the preceding lines naming them are not what an operator reme
 
 The likely cause, and the one this repository met, is an older record that is open with no
 `queue_position`: the rule that open work must have a place in line is younger than some of
-these files, and such a record does not load at all. Three of the four projects cut over on
+these files, and such a record does not load at all. Three of the four projects imported on
 2026-09-08 were in that state, 17 open tasks between them.
 
 ```bash
@@ -382,7 +383,7 @@ agentjobs queue check            # in that project's directory; names each one
 agentjobs queue repair           # gives every open task a place, and prints its guesses
 ```
 
-Repair, commit the records, and preview again before cutting over. The positions it
+Repair, commit the records, and preview again before importing. The positions it
 assigns are guesses and are printed for exactly that reason.
 
 **`--backfill-git` is on by default here and nowhere else**, and this is the one-shot part:
@@ -406,12 +407,13 @@ agentjobs storage restore <path>         # refuses rather than proceeding if it 
 the moment it is taken rather than at the moment it is needed. `restore` moves aside
 whatever it replaces, so restoring the wrong snapshot is itself recoverable.
 
-## 11. Retiring the files, and going back
+## 10. Retiring an imported corpus
 
-**Retirement is a separate, deliberate step, and it is not automatic.** After the cutover
-the old directory is still on disk: harmless, because nothing reads it, and useful, because
-it is what a rollback would otherwise have to reconstruct. Retire it when you are satisfied
-the store is right — the dashboard read, the CLI used, a backup taken and verified:
+**Retirement is a separate, deliberate step, and it is not automatic.** After the import the
+old directory is still on disk: harmless, because nothing reads it, and useful, because it is
+what a mistake would otherwise have to be reconstructed from. Retire it when you are
+satisfied the store is right — the dashboard read, the CLI used, a backup taken and
+verified:
 
 ```bash
 agentjobs storage export <somewhere outside the repo>   # keep a copy you can read
@@ -421,23 +423,15 @@ git rm -r --cached <the records directory>              # stop tracking them
 Do it as its own commit, and keep the export: git history holds the files, and an export is
 what a person reads without checking out an old revision.
 
-**Rollback works before and after that step**, and in both directions it preserves what was
-written since the cutover:
+**There is no way back to a directory of files, and there is no longer anything to go back
+to.** `storage rollback` existed while two backends did; task-402 deleted the file backend
+and the rollback with it. What is left of it is `storage export`, which still writes the
+store's current state as readable YAML — so a corpus can be recovered from AgentJobs, but
+not served from a checkout by it. That is what makes this a one-way import rather than a
+switch, and it is the reason section 9 tells you to preview and to take a backup before you
+rely on the store.
 
-```bash
-agentjobs storage rollback --project <id>
-```
-
-It exports the store's **current** state into the recorded source directory and then points
-the project back at its files. Exporting the pre-cutover snapshot instead would be a
-rollback that silently discarded a day's work, which is why the order is export-then-switch.
-The database is not deleted: a rollback is a decision that can itself be wrong.
-
-**An export is an interchange artifact, never a mirror.** Nothing calls it on a write and
-nothing commits what it produces. A YAML copy maintained automatically beside the database
-would be the second authority this migration removed.
-
-## 11a. One database per project
+## 11. One database per project
 
 **A project's records live in a file of its own** (task-400). Every project on a machine
 used to share `~/.agentjobs/agentjobs.db`, and the cost was that any decision about one
@@ -464,7 +458,7 @@ database, and `open_database` takes a path rather than defaulting to one — a c
 project in hand has to say which project.
 
 - **A new project gets its own file**, `~/.agentjobs/databases/<project id>.db`, written
-  into its entry by the cutover. `--database` names another; `--shared-database` puts it
+  into its entry by the import. `--database` names another; `--shared-database` puts it
   in the machine's file. Sharing is a thing an operator asks for rather than what happens
   by accident.
 - **A file with only the top-level `database:` key keeps working untouched.** Every
@@ -483,7 +477,7 @@ agentjobs storage status                    # says which projects share a file
 agentjobs storage split --project <id>      # back up, copy, verify, record, then remove
 ```
 
-Same sequence as the cutover, and the ordering is the whole of it: back up the source,
+Same sequence as the import, and the ordering is the whole of it: back up the source,
 copy into a database the command created, verify field by field against the source,
 record the new location in `storage.yaml`, and **only then** delete the source rows. The
 record is written before the delete on purpose — a crash after it points the project at a

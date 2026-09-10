@@ -128,9 +128,10 @@ def test_the_docs_say_task_yaml_is_readable_generated_state() -> None:
         assert "generated state" in (ROOT / path).read_text(encoding="utf-8"), path
 
 
-def test_the_agent_workflow_guide_forbids_editing_yaml_on_a_tool_failure() -> None:
+def test_the_agent_workflow_guide_forbids_direct_writes_on_a_tool_failure() -> None:
+    """The rule outlived the file backend; only the noun it names changed (task-403)."""
     text = flat((ROOT / "docs" / "agent-workflow.md").read_text(encoding="utf-8"))
-    assert "A failing tool is not permission to edit YAML." in text
+    assert "A failing tool is not permission to write to the store yourself." in text
     assert "do not edit them" in text.lower()
 
 

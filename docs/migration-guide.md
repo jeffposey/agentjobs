@@ -20,15 +20,17 @@ poetry run agentjobs migrate-schema \
 ```
 
 The migration is all-or-nothing: if one file cannot be converted without information
-loss, nothing is written. Review the report and converted YAML, run the repository or
-project validation, and only then replace the old corpus through normal version-control
-changes. Keep a commit boundary around the migration so the original records remain
-recoverable.
+loss, nothing is written. Review the report and the converted YAML, then import that
+directory:
 
-This is the files-project procedure. A project moving to the SQLite backend has its
-records converted at import instead — `agentjobs storage cutover`, in
-[the storage guide](storage-sqlite.md#10-cutting-a-project-over) — and there is no
-commit to make.
+```bash
+poetry run agentjobs storage import --project <id>
+```
+
+Task records are rows in a database beside the server, so the converted files are an
+input to that import rather than a corpus you commit. Keep them until the import verifies
+and you have taken a backup; [the storage guide](storage-sqlite.md#9-importing-an-existing-corpus)
+is the sequence, and it runs once, in one direction.
 
 The field mapping and rejected alternatives are recorded in the historical
 [schema-v2 design](schema-design.md); the current result is documented in the

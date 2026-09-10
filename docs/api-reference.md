@@ -50,7 +50,7 @@ the scoped form so switching projects never depends on the server's current dire
 | `GET` | `/api/tasks/claimable` | Every task that may be worked now, in the queue's order; `/next` is its head. Accepts `agent`, `priority`, `parent` |
 | `GET` | `/api/tasks/{task_id}` | Return one task record |
 | `GET` | `/api/tasks/{task_id}/detail` | Return the full review/resumption view with relationships |
-| `GET` | `/api/tasks/broken` | Report task records that exist but cannot be loaded (a files project's unparseable YAML) |
+| `GET` | `/api/tasks/broken` | Report task records that exist but cannot be loaded |
 | `GET` | `/api/search?q=...` | Search task id, title, spec, ball prompt and tags |
 | `GET` | `/api/dashboard` | Return dashboard counts and activity |
 | `GET` | `/api/attention` | Count the tasks stopped waiting on a person; the header's red badge |
