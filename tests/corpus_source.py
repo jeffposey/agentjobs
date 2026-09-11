@@ -16,26 +16,31 @@ So the source is the store, and it is resolved rather than assumed: the machine'
 configuration says which file, and the records come back through the same model whichever
 way they were written.
 
-**It never falls back to the directory** (task-402). It used to, because a project could
-still be served from files; now a ``tasks/`` directory in the checkout is a frozen copy,
-and answering from it would mean these checks silently validating a corpus months out of
-date -- passing, and about nothing. A store that cannot be read returns ``None``, which a
-caller turns into a skip.
+**There is no longer a directory to fall back to.** It stopped being consulted at
+task-402, when a project could no longer be served from files; task-380 then removed the
+frozen copies themselves, so the second bullet above has happened. A store that cannot be
+read returns ``None``, which a caller turns into a skip.
 
-The per-file tests -- YAML stamping, loader parity, byte-level round trips -- are
-different, and stay files-only. They are assertions about a *file format*, which is what
-an import reads and an export writes, and they run against a directory they make
-themselves.
+**And right now every caller does skip**, for a reason that has nothing to do with either
+of those: see :data:`WHY_THESE_SKIP` before citing anything built on this module as a
+check that runs.
+
+**The per-file tests went with the files.** YAML stamping, loader parity and byte-level
+round trips were assertions about a *file format*, parametrised over the frozen records;
+with no records in the checkout they collected nothing, and a test that collects nothing
+passes without asserting anything. What is left of each guarantee is named where it
+lives: the stamp and the shape are a ``CHECK`` constraint the database enforces on every
+write (``docs/storage-sqlite.md`` section 3), and the format an import reads and an
+export writes is round-tripped over a corpus the test builds itself, in
+``tests/test_storage_cli.py``.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterator, List, Optional
+from typing import List, Optional
 
-import yaml
-
-from agentjobs.models_v2 import Task, load_task
+from agentjobs.models_v2 import Task
 from agentjobs.projects import ProjectRegistry
 from agentjobs.storage_config import load_storage_settings
 
@@ -44,33 +49,28 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ID = "agentjobs"
 """This repository's own project id, as registered on a developer's machine."""
 
-CORPUS_DIRS = ("tasks/agentjobs", "tasks/test-data")
-"""Where the frozen copies live. ``test-data`` is fixture material that ships with the
-repository and is checked alongside the product corpus."""
+WHY_THESE_SKIP = """\
+Every check built on this module skips, and has since task-311 -- task-411.
 
-PRODUCT_DIR = "tasks/agentjobs"
+``tests/conftest.py`` re-points ``AGENTJOBS_HOME`` at a temp directory for **every**
+test, autouse, so that nothing writes a developer's real registry. From inside a test the
+machine's database therefore does not exist, ``product_tasks`` answers ``None``, and each
+caller turns that into a skip. Nothing was wrong with either half; the corpus checks moved
+to the store in task-311, the isolation fixture protects the registry, and the two were
+never introduced to each other.
 
+It stayed invisible because the per-file arm over the frozen records collected hundreds of
+green cases beside the five skips. task-380 retired those records, which is what made the
+silence audible, and measured it: turning the reads back on surfaces eighteen dangling
+context pointers in the live backlog on the first run.
 
-def corpus_files() -> Iterator[Path]:
-    """Every task file this repository tracks, in a stable order.
-
-    Empty once the records have been retired from the checkout, which is what makes the
-    per-file tests skip rather than fail.
-    """
-    for relative in CORPUS_DIRS:
-        directory = REPO_ROOT / relative
-        if directory.is_dir():
-            yield from sorted(directory.glob("*.yaml"))
-
-
-def _from_files(relative: str) -> List[Task]:
-    directory = REPO_ROOT / relative
-    if not directory.is_dir():
-        return []
-    return [
-        load_task(yaml.safe_load(path.read_text(encoding="utf-8")), source=path.name)
-        for path in sorted(directory.glob("*.yaml"))
-    ]
+Fixing it here was considered and rejected. Correcting the corpus is most of the work, the
+records in question belong to other sessions, and a check that reads a store several
+agents are writing to would make one branch's merge depend on another agent's record being
+clean at that instant. That is task-411's problem to solve deliberately, alongside
+task-409, which is the same coupling seen from the gate's side.
+"""
+"""Why the checks in this module assert nothing at the moment. Read before trusting one."""
 
 
 def product_tasks() -> Optional[List[Task]]:
@@ -79,6 +79,9 @@ def product_tasks() -> Optional[List[Task]]:
     ``None`` rather than an empty list, and the difference matters: a machine where this
     repository is not registered, or where the database has been moved, must skip the
     check rather than pass it by finding nothing.
+
+    **Under pytest it is always ``None`` today, so every caller skips** -- see
+    :data:`WHY_THESE_SKIP`.
     """
     from agentjobs.sqlstore import SqlTaskStore
     from agentjobs.store_factory import open_database, server_process
@@ -97,19 +100,20 @@ def product_tasks() -> Optional[List[Task]]:
 
 
 def all_tasks() -> Optional[List[Task]]:
-    """The product backlog plus the fixture records that ship beside it."""
-    product = product_tasks()
-    if product is None:
-        return None
-    return [*product, *_from_files("tasks/test-data")]
+    """Every record this repository's checks are about.
+
+    The same list as :func:`product_tasks` since task-380. It used to append the fixture
+    records in ``tasks/test-data``, and the two names are kept apart because the callers
+    mean different things by them: one is the product backlog, the other is everything
+    checked.
+    """
+    return product_tasks()
 
 
 __all__ = [
-    "CORPUS_DIRS",
-    "PRODUCT_DIR",
     "PROJECT_ID",
     "REPO_ROOT",
+    "WHY_THESE_SKIP",
     "all_tasks",
-    "corpus_files",
     "product_tasks",
 ]

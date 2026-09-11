@@ -15,7 +15,15 @@ from pathlib import Path
 from flask import Flask, Request, abort, request
 
 SECRET = os.environ.get("WEBHOOK_SECRET", "change-me")
-TASKS_DIR = Path(os.environ.get("TASKS_DIR", "tasks/agentjobs"))
+
+TASKS_DIR = Path(os.environ.get("TASKS_DIR", "tasks"))
+"""Where this listener looks for a file to open.
+
+It used to default to ``tasks/agentjobs``, this repository's own records, which task-380
+retired. A project whose records are rows has no file for any of this to open, so the
+opener below reports that it found nothing rather than failing -- treat the signature
+verification and the event handling as what this example is for.
+"""
 
 app = Flask(__name__)
 

@@ -357,12 +357,14 @@ truth -- not a chat log. They live in a database beside the server;
 `agentjobs storage status` prints the path, and
 [the storage guide](docs/storage-sqlite.md) is why.
 
-This repository's own backlog was imported on 2026-09-07. The tracked `tasks/agentjobs/`
-directory is the frozen copy it was built from: nothing reads it, its files stop at the
-import, and task-380 retires it the way
+This repository's own backlog was imported on 2026-09-07, and the frozen copy it was built
+from was removed on 2026-09-11 (task-380) the way
 [the storage guide's section 10](docs/storage-sqlite.md#10-retiring-an-imported-corpus)
-describes. `tasks/test-data/` is fixture material for
-`agentjobs load-test-data` and the test suite, not a backlog.
+describes. **So there is no `tasks/` directory here, and a clone does not arrive with the
+records.** That is deliberate rather than an omission: a frozen copy that still looks
+authoritative is the thing somebody reads six months later and acts on. Git history holds
+the files if you need them, and `agentjobs storage export` writes the current records out
+as YAML without checking anything out.
 
 **[ROADMAP.md](ROADMAP.md) is what to read instead.** A database beside a server is the
 right home for a backlog and the wrong shop window for a public repository, so the open

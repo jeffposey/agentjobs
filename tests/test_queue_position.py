@@ -12,7 +12,7 @@ from __future__ import annotations
 import random
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Any, Dict, Iterator, Tuple
 
 import pytest
 import yaml
@@ -554,32 +554,18 @@ class TestTheMigrationAgainstRealFiles:
         assert "task-001-x: high -> 100" in rendered
 
 
-class TestTheLiveCorpus:
-    """sc-5. The repository's own tasks, which is the corpus this was written for."""
-
-    def _corpus_dirs(self) -> List[Path]:
-        root = Path(__file__).resolve().parents[1]
-        return [root / "tasks" / "agentjobs", root / "tasks" / "test-data"]
-
-    def test_every_open_task_carries_a_position(self) -> None:
-        for directory in self._corpus_dirs():
-            records, unreadable = read_queue_records(directory)
-            assert unreadable == [], directory
-            missing = [r.task_id for r in records if r.is_open and r.queue_position is None]
-            assert missing == [], f"{directory}: {missing}"
-
-    def test_no_band_has_a_duplicate(self) -> None:
-        for directory in self._corpus_dirs():
-            records, _ = read_queue_records(directory)
-            seen: Dict[Tuple[str, int], str] = {}
-            for entry in records:
-                if not entry.is_open or entry.queue_position is None:
-                    continue
-                key = (entry.priority, entry.queue_position)
-                assert key not in seen, f"{directory}: {entry.task_id} vs {seen.get(key)}"
-                seen[key] = entry.task_id
-
-    def test_running_the_migration_again_would_change_nothing(self) -> None:
-        for directory in self._corpus_dirs():
-            report = migrate_queue_positions(directory, write=False)
-            assert report.changed is False, f"{directory}: {report.positions()}"
+# `TestTheLiveCorpus` stood here -- sc-5, three assertions over `tasks/agentjobs` and
+# `tasks/test-data`: every open record positioned, no duplicate within a band, and a
+# re-run of the migration changing nothing. task-380 retired those directories.
+#
+# It is removed rather than left because of how it would have failed, which is not at
+# all. `read_queue_records` globs a directory, and a directory that does not exist globs
+# to nothing, so all three would have gone on passing over an empty sequence -- three
+# green cases asserting that no records have a problem, in a checkout holding no records.
+#
+# The properties themselves are live and better enforced than they were. The store keeps
+# `queue_position` under a uniqueness constraint rather than a periodic check, `agentjobs
+# queue check` reports a broken order to anyone who asks, and `tests/test_queue_verbs.py`
+# and `tests/test_queue_move_check.py` assert both against stores they build themselves.
+# What is gone is the sweep over this one repository's own backlog; task-411 is where the
+# question of checking the live corpus from inside the suite belongs.

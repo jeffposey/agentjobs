@@ -90,9 +90,17 @@ cannot write to the real backlog and is unaffected by whatever a long-running se
 happens to hold in memory.
 
 ```bash
-poetry run python scripts/bench.py --corpus real        # a copy of the tracked tasks/agentjobs files (default)
 poetry run python scripts/bench.py --corpus synthetic --tasks 200
+poetry run python scripts/bench.py --corpus real --source <a directory of task YAML>
 ```
+
+`--corpus real` copied this repository's own tracked records until task-380 retired them,
+so it now needs a directory naming: `agentjobs storage export <dir>` writes one.
+
+**Numbers from either mode are not currently trustworthy — see task-408.** The benchmark
+seeds a directory of YAML, which stopped being a backlog when the file backend was
+deleted, so a run today times an empty store: zero parses on every surface, and a 404 from
+the detail endpoint. Every figure below was measured before that and is kept as history.
 
 The synthetic corpus is generated at a size you choose, with realistically sized
 records — prose, a multi-entry log, acceptance criteria, a dependency. Use it whenever

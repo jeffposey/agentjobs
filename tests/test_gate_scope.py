@@ -4,6 +4,10 @@ Task-221, absorbed into task-233. The worked example is a branch that was rebase
 ``main``, bringing in **one task YAML**, after which the full six-minute gate was run
 again to re-establish something that could not have changed.
 
+That path is gone from every checkout since task-380, so the example here is a prose
+correction instead -- the same shape, a classified path reaching one stage. The record
+spelling survives as :data:`RETIRED_RECORD`, asserted to be unclassified now.
+
 The rule is an exception to an emphatic rule in ENGINEERING.md -- that the unqualified
 ``scripts/check.py`` is what the commit rule means -- and exceptions of that kind erode
 into "except when I judged it unnecessary". So the tests here are mostly about the
@@ -43,8 +47,20 @@ EVERY = [
     "e2e",
 ]
 
-RECORD = "tasks/some-project/task-042.yaml"
-"""A task record, spelled without naming a real one so no write guard mistakes it."""
+PROSE = "docs/agent-workflow.md"
+"""A classified path that reaches one stage. The worked example, now that records are rows.
+
+Task-221's example was a rebase that brought in one task YAML, and until task-380 that is
+what this constant was. The corpus is no longer in any checkout, so a path like that is
+unclassified -- asserted below rather than merely stated -- and prose is the family that
+still demonstrates the property the example was about.
+"""
+
+RETIRED_RECORD = "tasks/some-project/task-042.yaml"
+"""What a task record used to look like, spelled so no write guard mistakes it for one.
+
+Kept only so the retirement can be asserted: this now selects every stage.
+"""
 
 
 def load_script(name: str) -> ModuleType:
@@ -78,8 +94,8 @@ def repository(tmp_path: Path) -> Path:
     git("config", "user.name", "Gate")
     (root / "src").mkdir()
     (root / "src" / "thing.py").write_text("x = 1\n", encoding="utf-8")
-    (root / "tasks" / "some-project").mkdir(parents=True)
-    (root / RECORD).write_text("id: task-042\n", encoding="utf-8")
+    (root / "docs").mkdir()
+    (root / PROSE).write_text("# How to work a task\n", encoding="utf-8")
     git("add", "-A")
     git("commit", "-q", "-m", "first")
     return root
@@ -92,11 +108,15 @@ def commit_all(root: Path, message: str) -> None:
     )
 
 
-def add_a_record(root: Path) -> str:
-    """The change the worked example is about: one more task record, committed."""
-    path = "tasks/some-project/task-043.yaml"
-    (root / path).write_text("id: task-043\n", encoding="utf-8")
-    commit_all(root, "a record correction brought in by a rebase")
+def add_a_classified_change(root: Path) -> str:
+    """The shape the worked example is about: one committed change to a classified path.
+
+    A task record until task-380, prose since. What matters to every caller is that it
+    is a path the table claims, so the reduced run it produces is a real reduction.
+    """
+    path = "docs/storage-sqlite.md"
+    (root / path).write_text("# Storage\n", encoding="utf-8")
+    commit_all(root, "a documentation correction brought in by a rebase")
     return path
 
 
@@ -106,27 +126,31 @@ def add_a_record(root: Path) -> str:
 class TestClassification:
     """What each family of paths can reach, and what happens to a path nobody claimed."""
 
-    def test_a_task_record_reaches_pytest_and_nothing_else(self) -> None:
-        """The worked example. One task YAML, and only the suite that reads the corpus.
+    def test_a_classified_path_reaches_one_stage_and_nothing_else(self) -> None:
+        """The worked example. One prose file, and only the suite that reads it.
 
         ``roadmap`` is in every answer and is subtracted here rather than asserted
         against, because it is not something the *path* selected -- see
         :class:`TestUnboundedStages`.
         """
-        stages, _ = gate_scope.stages_for([RECORD], EVERY)
+        stages, _ = gate_scope.stages_for([PROSE], EVERY)
 
         assert [name for name in stages if name not in gate_scope.UNBOUNDED_STAGES] == ["pytest"]
 
-    def test_a_task_record_still_runs_the_stage_that_reads_the_live_corpus(self) -> None:
-        """'It was only a task file' is not a safe skip, and this is why.
+    def test_a_task_path_is_no_longer_claimed_by_the_table(self) -> None:
+        """task-380's acceptance, asserted rather than left to the absence of a row.
 
-        ``tests/test_validate.py::TestRealCorpus`` loads this repository's own records.
-        It is the one stage whose inputs are not bounded by the diff, so a rule that
-        skipped it would be unsound however convenient.
+        The class that routed ``tasks/*`` to pytest described a directory this
+        repository no longer has. Deleting it is not a loss of coverage because
+        default-deny catches what it used to claim: a path spelled like a record now
+        selects **every** stage, which is the safe direction and is what should happen
+        to a path nobody has classified.
         """
-        stages, _ = gate_scope.stages_for(["tasks/other-project/task-9.yaml"], EVERY)
+        stages, reasons = gate_scope.stages_for([RETIRED_RECORD], EVERY)
 
-        assert "pytest" in stages
+        assert gate_scope.classify(RETIRED_RECORD) is None
+        assert stages == EVERY
+        assert "unclassified" in reasons[RETIRED_RECORD]
 
     def test_prose_reaches_pytest_because_the_documentation_contract_reads_it(self) -> None:
         stages, _ = gate_scope.stages_for(["docs/agent-workflow.md", "ENGINEERING.md"], EVERY)
@@ -147,7 +171,7 @@ class TestClassification:
 
     def test_one_unclassified_path_beside_a_classified_one_still_runs_everything(self) -> None:
         """A reduced set is only sound if *every* change is accounted for."""
-        stages, _ = gate_scope.stages_for([RECORD, "src/agentjobs/manager.py"], EVERY)
+        stages, _ = gate_scope.stages_for([PROSE, "src/agentjobs/manager.py"], EVERY)
 
         assert stages == EVERY
 
@@ -180,9 +204,9 @@ class TestUnboundedStages:
 
     def test_it_is_not_attributed_to_any_path(self) -> None:
         """The report must not claim a path selected it; nothing did."""
-        _, reasons = gate_scope.stages_for([RECORD], EVERY)
+        _, reasons = gate_scope.stages_for([PROSE], EVERY)
 
-        assert "roadmap" not in reasons[RECORD]
+        assert "roadmap" not in reasons[PROSE]
 
     def test_a_gate_without_that_stage_does_not_gain_one(self) -> None:
         """``--only`` narrows the names; an unbounded stage cannot smuggle itself back."""
@@ -220,7 +244,7 @@ class TestReceipts:
     def test_a_derived_receipt_records_what_it_derived_from(self, repository: Path) -> None:
         """A chain of reduced runs has to be auditable rather than anonymous."""
         first = gate_scope.head_commit(repository)
-        add_a_record(repository)
+        add_a_classified_change(repository)
         second = gate_scope.head_commit(repository)
 
         gate_scope.write_receipt(repository, second, basis=first)
@@ -274,7 +298,7 @@ class TestChangedSince:
 
     def test_a_commit_made_since_counts(self, repository: Path) -> None:
         head = gate_scope.head_commit(repository)
-        path = add_a_record(repository)
+        path = add_a_classified_change(repository)
 
         assert gate_scope.changed_since(repository, head) == [path]
 
@@ -297,9 +321,9 @@ class TestResolve:
         assert "receipt" in scope.refusal
 
     def test_the_worked_example_runs_pytest_alone(self, repository: Path) -> None:
-        """task-221's example: a rebase whose only import is one task record."""
+        """task-221's example, in its surviving spelling: a rebase importing one doc."""
         gate_scope.write_receipt(repository, gate_scope.head_commit(repository), basis=None)
-        add_a_record(repository)
+        add_a_classified_change(repository)
 
         scope = gate_scope.resolve(repository, EVERY)
 
@@ -338,7 +362,7 @@ class TestRendering:
     @staticmethod
     def reduced(repository: Path) -> object:
         gate_scope.write_receipt(repository, gate_scope.head_commit(repository), basis=None)
-        add_a_record(repository)
+        add_a_classified_change(repository)
         return gate_scope.resolve(repository, EVERY)
 
     def test_it_cannot_be_mistaken_for_the_full_gate(self, repository: Path) -> None:
@@ -359,8 +383,8 @@ class TestRendering:
     ) -> None:
         text = gate_scope.render(self.reduced(repository), EVERY)
 
-        assert "task-043.yaml" in text
-        assert "TestRealCorpus" in text
+        assert "docs/storage-sqlite.md" in text
+        assert "documentation contract tests read it" in text
 
     def test_it_names_every_stage_it_skipped(self, repository: Path) -> None:
         text = gate_scope.render(self.reduced(repository), EVERY)

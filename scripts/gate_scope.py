@@ -6,6 +6,11 @@ rebased onto ``main``; the rebase brought in **one task YAML** -- a record corre
 committed minutes earlier -- and the full gate was then run again from the top to
 re-establish something that could not have changed.
 
+That example cannot recur, and the table no longer has a row for it: task-380 retired the
+frozen task records from the checkout, so no diff carries one and a stray ``tasks/`` path
+is now unclassified like any other. The example is kept because it is what the rule below
+was argued from, and prose changes reach the gate the same way a record correction did.
+
 The rule ``ENGINEERING.md`` states is emphatic and correct: the unqualified
 ``scripts/check.py`` is what the commit rule means, and ``--only``/``--from`` are for
 iterating on a failure, never for committing. Anything here is an exception to that, and
@@ -45,19 +50,6 @@ right, because each verifies its own branch. It is also outside the tree the gat
 verifying, so a receipt can never itself be a change the next run has to classify.
 """
 
-CORPUS_STAGES = ("pytest",)
-"""What a task-record change can move.
-
-Not "nothing", which is the tempting answer and the wrong one. Two tests load this
-repository's own task files, so a task YAML genuinely can turn the suite red, and this is
-the one stage whose inputs are not bounded by the diff. ``tests/test_validate.py
-::TestRealCorpus`` asserts none is unreadable or points at nothing;
-``tests/test_task_corpus.py::test_no_task_record_quotes_a_person_verbatim`` asserts none
-quotes a person verbatim (task-376). It runs. Nothing else reads ``tasks/``: Black, Ruff
-and MyPy do not see YAML, and no frontend stage reads the corpus off disk (the React app
-asks the API, which the e2e server seeds itself).
-"""
-
 DOCS_STAGES = ("pytest",)
 """What a prose change can move.
 
@@ -83,8 +75,13 @@ anywhere files, closes or reorders a task. An unchanged tree is therefore no evi
 all about it -- ``NOTHING CHANGED`` would otherwise issue a receipt attesting to a
 roadmap that had gone stale since breakfast.
 
-``tasks/ -> pytest`` is the same problem solved where it could be: the corpus is in the
-tree, so a path could carry it. This one cannot, so it is named instead.
+There used to be a second answer to the same problem, and it worked only because the
+corpus was in the tree: ``tasks/ -> pytest`` let a record correction select the one stage
+that read it. Since task-380 no corpus is in any checkout, so no path can carry such a
+change and naming a stage is the only mechanism left. Whether ``pytest`` should be named
+here for the same reason as ``roadmap`` -- its corpus checks read the same store -- is a
+question this deliberately did not settle; it costs the expensive stage on every reduced
+run, and task-409 weighs that.
 """
 
 
@@ -98,7 +95,6 @@ class Class:
 
 
 CLASSES: Tuple[Class, ...] = (
-    Class("tasks/*", CORPUS_STAGES, "task records; the live corpus TestRealCorpus reads"),
     Class("ROADMAP.md", ROADMAP_STAGES, "the generated roadmap; the roadmap stage reads it"),
     Class("docs/*", DOCS_STAGES, "prose; the documentation contract tests read it"),
     Class("*.md", DOCS_STAGES, "prose; the documentation contract tests read it"),
@@ -123,7 +119,7 @@ def classify(path: str) -> Optional[Class]:
 
     Matching is on the forward-slash path git reports, so it behaves the same on
     Windows. ``fnmatch`` treats ``*`` as matching separators too, which is what is wanted
-    here: ``tasks/*`` should claim ``tasks/agentjobs/task-233.yaml``.
+    here: ``docs/*`` should claim ``docs/schema/v1/index.md``, not only the top level.
     """
     for candidate in CLASSES:
         if fnmatch(path, candidate.pattern):
