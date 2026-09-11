@@ -20,6 +20,10 @@ decision log, branches, verification evidence — stays in the store.
 
 ## Critical (3)
 
+- **task-410** — Big Dawg Audit II — hold the first audit to account, then audit everything built since
+
+  Follow-up to task-242, the Big Dawg Audit of 2026-08-21. Fourteen auditors and a synthesis session, overnight on 2026-09-11, on claude-fable-5-1; the runbook is audits/2026-09-11/PLAN.md.
+
 - **task-398** — SQLite is the only storage, and each project gets its own database
 
   Phase two of the storage migration. The file backend stops being a choice a new install can make and is deleted, and a project's records move out of one machine-wide database into a database of its own.
@@ -28,15 +32,9 @@ decision log, branches, verification evidence — stays in the store.
 
   The 2026-09-07 and 2026-09-08 cutovers left a frozen copy of every project's task YAML on disk. Remove those directories, and the checks that still read them.
 
-  *needs task-392 · part of task-398 (SQLite is the only storage, and each project gets its own database)*
+  *part of task-398 (SQLite is the only storage, and each project gets its own database) · in progress*
 
-- **task-392** — Publish a generated ROADMAP.md so the public repo has a live roadmap again
-
-  The SQLite cutover moved roadmap visibility to a running instance, and the only instance is on a private tailnet. Anyone reading the public GitHub repo now sees a backlog frozen at 2026-09-07. Generate a committed ROADMAP.md from the store and gate it against drift, the way openapi.json already is.
-
-  *in progress*
-
-## High (61)
+## High (64)
 
 - **task-364** — A fold is thrown away on reload whenever a descendant of the folded parent is selected
 
@@ -342,7 +340,19 @@ decision log, branches, verification evidence — stays in the store.
 
   A run whose meta lacks dispatch_entry_id is invisible to the poller for ever, and shows as Starting until somebody cancels it by hand
 
-## Medium (37)
+- **task-406** — A dispatched run cannot execute groom or reorder: both act on tasks other than their own, which task-332 forbids
+
+  `agentjobs playbook run groom` dispatches a run at the playbook's own run task, and task-332 scopes every task verb a run holds to that one task. Groom's whole executable set is closing other tasks and reorder's is moving them, so both playbooks refuse `wrong_task` at their first real write.
+
+- **task-407** — Any task written during a finish's gate turns the roadmap stage red, so the merge is declined for a reason that has nothing to do with the branch
+
+  The roadmap stage compares a committed file against a live database, and `agentjobs finish` re-gates before merging. So anybody filing, closing or claiming a task during that 200-second window declines a merge on a branch that never touched the roadmap.
+
+- **task-408** — scripts/bench.py measures an empty backlog: it seeds a directory of YAML nothing serves
+
+  The benchmark builds its corpus by writing task YAML into a throwaway project root, which stopped being a backlog when task-402 deleted the file backend. Every run since has timed an empty store, and the detail endpoint 404s.
+
+## Medium (39)
 
 - **task-243** — The grandchild-kill test asserts on a moment, and loses the race under load
 
@@ -519,6 +529,14 @@ decision log, branches, verification evidence — stays in the store.
 - **task-404** — A Playwright browser that dies at launch turns the whole gate red, and nothing distinguishes it from a real failure
 
   One e2e test failed with `browser.newContext: Target page, context or browser has been closed` -- the browser process died during launch, before the test ran. The stage went red, so the gate went red, and the only way to learn it was infrastructure was to re-run and watch it pass.
+
+- **task-405** — Groom the agentjobs backlog
+
+  A run of the `groom` playbook over the 136 open tasks: find duplicates and superseded work, propose a closure list, and close only what the owner approves.
+
+- **task-409** — --since-gate can skip pytest on evidence that no longer covers it: its corpus checks read a store outside the tree
+
+  The pytest stage loads this repository's own backlog from the database, which anybody filing or closing a task moves. A diff over the working tree is therefore no evidence about it, which is the exact argument that put the roadmap stage in UNBOUNDED_STAGES.
 
 ## Low (7)
 
