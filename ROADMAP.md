@@ -18,7 +18,7 @@ A task shows its id, its title, its one-sentence summary, what it is still waiti
 and the umbrella it belongs to. Everything else a record carries — the working spec, the
 decision log, branches, verification evidence — stays in the store.
 
-## Critical (3)
+## Critical (4)
 
 - **task-410** — Big Dawg Audit II — hold the first audit to account, then audit everything built since
 
@@ -33,6 +33,10 @@ decision log, branches, verification evidence — stays in the store.
   The 2026-09-07 and 2026-09-08 cutovers left a frozen copy of every project's task YAML on disk. Remove those directories, and the checks that still read them.
 
   *part of task-398 (SQLite is the only storage, and each project gets its own database) · in progress*
+
+- **task-411** — The corpus checks have asserted nothing since task-311: an autouse fixture hides the store from them
+
+  Every check that reads this repository's own backlog skips under pytest, because conftest re-points AGENTJOBS_HOME at a temp directory for every test. Turning them on finds eighteen dangling context pointers immediately.
 
 ## High (64)
 
