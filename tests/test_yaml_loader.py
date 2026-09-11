@@ -1,10 +1,17 @@
 """The libyaml read path must agree with the pure-Python one, everywhere.
 
 Speed bought by parsing things differently is not speed, it is a data-corruption bug
-with a good benchmark. So the parity is asserted against the real corpus rather than
-against a handful of hand-written samples, and the awkward cases -- unicode, folded
-multi-line prose, timestamps, the empty document -- are pinned individually because
-those are where the two parsers could plausibly diverge.
+with a good benchmark. So the awkward cases -- unicode, folded multi-line prose,
+timestamps, the empty document -- are pinned individually, because those are where the
+two parsers could plausibly diverge.
+
+**There used to be a second arm and it is worth knowing what went.** Parity was also
+asserted file by file over this repository's own records, which was the stronger half:
+real prose written by many hands beats any sample somebody thought to write down.
+task-380 retired those records from the checkout, at which point the arm parametrised
+over nothing and passed without comparing a single document. What remains is the pinned
+cases, and they are now the whole of this check -- so add to them when a real divergence
+is found rather than assuming a corpus will catch it.
 """
 
 from __future__ import annotations
@@ -21,28 +28,9 @@ from support import task_store
 from agentjobs.taskfiles import YAML_LOADER, load_yaml, yaml_loader_name
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CORPUS = REPO_ROOT / "tasks" / "agentjobs"
 
 csafe = pytest.importorskip("yaml", reason="PyYAML is required")
 HAS_LIBYAML = hasattr(yaml, "CSafeLoader")
-
-
-def _corpus_files() -> list[Path]:
-    """Every real task file, or none once a project has retired them (task-311).
-
-    An empty list collects no cases rather than failing, which is right: this asserts
-    that two YAML parsers agree about *files*, and a project whose records are rows has
-    no files for them to disagree about.
-    """
-    return sorted(CORPUS.glob("*.yaml")) if CORPUS.is_dir() else []
-
-
-@pytest.mark.skipif(not HAS_LIBYAML, reason="libyaml is not installed here")
-@pytest.mark.parametrize("path", _corpus_files(), ids=lambda path: path.name)
-def test_every_real_task_file_loads_identically_under_both_loaders(path: Path) -> None:
-    """The check that matters: the actual data, not a sample of it."""
-    text = path.read_text(encoding="utf-8")
-    assert load_yaml(text) == yaml.load(text, Loader=SafeLoader)
 
 
 @pytest.mark.parametrize(

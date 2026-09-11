@@ -5,21 +5,25 @@ src/agentjobs/models_v2.py that breaks loading of an existing record fails here 
 exact record and validation error, and any file that lost its `schema: 2` stamp is named
 rather than silently treated as v1.
 
-**Two kinds of check live here and they resolve their corpus differently** (task-311).
-The per-file assertions -- the stamp, the byte-level round trip -- are about a *file
-format*, so they read files and skip when a project has retired them. Everything else is
-about *the backlog*, so it reads whichever backend holds it: see `tests/corpus_source.py`
-for why that distinction is worth making rather than assuming a directory.
+**Every check here now reads the store** (task-311, then task-380). There used to be a
+second kind, parametrised per file and about the *file format*; it collected nothing once
+the frozen records left the checkout, and a test that collects nothing is not a check.
+`tests/corpus_source.py` says where each of those guarantees went. Everything here is
+about *the backlog*, and reads whichever store holds it.
+
+**Which means everything here currently skips, and this file is not enforcing anything.**
+An autouse fixture hides the machine's store from every test; the measurement, why it was
+not fixed in passing, and what it costs to fix are in
+`corpus_source.WHY_THESE_SKIP` and task-411. Do not cite a check in this module as
+enforcement until that closes.
 """
 
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Iterator
+from pathlib import PurePosixPath, PureWindowsPath
 
 import pytest
-import yaml
 
 from agentjobs.models_v2 import DeliverableStatus, Lifecycle, SCHEMA_VERSION, Task, load_task
 from agentjobs.quotation import scan_task
@@ -27,12 +31,6 @@ from agentjobs.quotation import scan_task
 import corpus_source
 
 REPO_ROOT = corpus_source.REPO_ROOT
-CORPUS_DIRS = corpus_source.CORPUS_DIRS
-
-
-def corpus_files() -> Iterator[Path]:
-    """Yield every task file tracked as part of the corpus. Empty once retired."""
-    yield from corpus_source.corpus_files()
 
 
 def is_absolute(path: str) -> bool:
@@ -100,34 +98,36 @@ def test_corpus_is_not_empty() -> None:
     )
 
 
-@pytest.mark.parametrize("path", corpus_files(), ids=lambda p: p.name)
-def test_task_yaml_is_stamped_and_round_trips(path: Path) -> None:
-    """Every task file must carry the stamp, validate, and round-trip losslessly.
+def test_every_record_carries_the_stamp_and_round_trips() -> None:
+    """The stamp and the lossless round trip, asserted over rows rather than files.
 
-    Files only, and it collects nothing once a project has retired them. That is the
-    honest answer rather than a gap: this asserts a property of the *file format*, and
-    the equivalent guarantee for a row is a `CHECK` constraint the database enforces on
-    every write (docs/storage-sqlite.md section 3).
+    This used to be parametrised over every task file and it took its stamp straight
+    from the YAML. task-380 retired those files, at which point it collected no cases
+    at all -- so it is asked of the records instead, which is where the corpus is.
+
+    The two halves land differently now, and only one of them is fully covered here.
+    The *stamp* is a `CHECK` constraint the database enforces on every write
+    (docs/storage-sqlite.md section 3), so this is a second opinion on it rather than
+    the enforcement. The *round trip* is the real assertion: a record that does not
+    survive being dumped and reloaded breaks the export an operator recovers a corpus
+    with, and nothing in the database can notice that.
     """
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    assert data, f"{path} parsed to an empty document"
-    assert data.get("schema") == SCHEMA_VERSION, (
-        f"{path.name} is not stamped 'schema: {SCHEMA_VERSION}' -- an unstamped file "
-        "is treated as v1 and refused by the loader"
-    )
+    for task in corpus_tasks():
+        assert task.schema_version == SCHEMA_VERSION, (
+            f"{task.id} is not at schema {SCHEMA_VERSION} -- a record below it is "
+            "treated as v1 and refused by the loader"
+        )
 
-    task = load_task(data, source=path.name)
-
-    dumped = task.model_dump(
-        mode="json", by_alias=True, exclude_none=True, exclude={"display_status"}
-    )
-    reparsed = load_task(dumped, source=path.name)
-    assert (
-        reparsed.model_dump(
+        dumped = task.model_dump(
             mode="json", by_alias=True, exclude_none=True, exclude={"display_status"}
         )
-        == dumped
-    ), f"{path.name} does not survive a serialize/deserialize round trip"
+        reparsed = load_task(dumped, source=task.id)
+        assert (
+            reparsed.model_dump(
+                mode="json", by_alias=True, exclude_none=True, exclude={"display_status"}
+            )
+            == dumped
+        ), f"{task.id} does not survive a serialize/deserialize round trip"
 
 
 def test_agentjobs_task_ids_and_relationships_are_not_dangling() -> None:
@@ -215,14 +215,16 @@ def test_open_ui_tasks_do_not_target_legacy_templates() -> None:
 
 
 def test_no_task_record_quotes_a_person_verbatim() -> None:
-    """The paraphrase rule, enforced over `tasks/` before a record reaches `main`.
+    """The paraphrase rule, enforced over the backlog before a record reaches `main`.
 
     The author-time half of task-376. `agentjobs.record_check` warns whoever wrote the
     quotation while they are still in context, and `agentjobs.sqlstore.importer` refuses
     an import carrying one -- but the importer fires long after the author has gone, and
-    a warning refuses nothing. This is the tier in between: `scripts/gate_scope.py`
-    already maps `tasks/` to the pytest stage, so a record written with a verbatim quote
-    of a person fails the gate rather than reaching a public remote.
+    a warning refuses nothing. This is the tier in between: a record written with a
+    verbatim quote of a person fails the gate rather than reaching a public remote.
+
+    It reads the store, so nothing in a diff selects it. That is task-409's subject;
+    until it is settled, the unqualified gate is what this is guaranteed by.
 
     The failure names regions, not remarks. Reproducing the quotation in a test failure
     would put it in CI output, which is the same mistake one layer out; run

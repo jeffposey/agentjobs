@@ -23,9 +23,6 @@ from agentjobs.migrate_schema import (
     normalise_actors,
     verify_no_loss,
 )
-from agentjobs.models_v2 import load_task
-
-CORPUS = Path(__file__).resolve().parents[1] / "tasks"
 
 
 def v1_task(**overrides: Any) -> Dict[str, Any]:
@@ -406,32 +403,16 @@ class TestCorpusMigration:
         assert "schema: 2" in (out / "task-900-example.yaml").read_text(encoding="utf-8")
 
 
-class TestTheRealCorpus:
-    """The migration that actually matters, run as a dry run on every real file."""
-
-    def _corpus_files(self) -> list:
-        return sorted((CORPUS / "agentjobs").glob("*.yaml")) + sorted(
-            (CORPUS / "test-data").glob("*.yaml")
-        )
-
-    def test_every_real_task_converts_loads_and_loses_nothing(self) -> None:
-        failures = []
-        for path in self._corpus_files():
-            v1 = yaml.safe_load(path.read_text(encoding="utf-8"))
-            if v1.get("schema"):
-                continue  # already migrated; this test is about the v1 path
-            conversion = convert_task(v1, source=str(path))
-            losses = verify_no_loss(v1, conversion.data)
-            if losses:
-                failures.append(f"{path.name}: {losses[0]}")
-            round_tripped = yaml.safe_load(
-                yaml.safe_dump(
-                    yaml.safe_load(yaml.safe_dump(conversion.data, default_flow_style=False))
-                )
-            )
-            try:
-                load_task(round_tripped, source=str(path))
-            except Exception as exc:
-                failures.append(f"{path.name}: does not load as v2 -- {exc}")
-
-        assert not failures, failures
+# `TestTheRealCorpus` stood here and was removed by task-380, which is worth a note
+# rather than a silent deletion: it dry-ran the v1 conversion over every file in
+# `tasks/agentjobs` and `tasks/test-data`.
+#
+# It had already stopped asserting anything long before those directories went. Its loop
+# skipped any file carrying a `schema:` stamp, and the whole corpus was stamped during
+# the v1-to-v2 migration -- 247 of 247 by the 2026-08-21 audit's count -- so the body
+# never executed. Retiring the records only changed which empty sequence it iterated.
+#
+# The v1 path itself is still covered, by the hand-written `v1_task()` cases above and by
+# the importer's own tests. What is genuinely gone is the breadth: a real v1 corpus to
+# convert. Anyone who finds one should point this module's helpers at it rather than
+# trusting that the coverage is still here.
