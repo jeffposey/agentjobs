@@ -16,8 +16,9 @@ CLI, or the web UI — all four reach the same validated write path — and run
 
 Tasks are rows in a SQLite database of the project's own beside the server, outside every
 checkout ([the storage guide](storage-sqlite.md)). This repository's own records were
-imported there on 2026-09-07; `tasks/agentjobs/` is the frozen copy they were built from
-and `tasks/test-data/` is fixture material, and no application code reads either.
+imported there on 2026-09-07, and the frozen copy they were built from was removed on
+2026-09-11 (task-380), so no task YAML is tracked here at all. Files are what an import
+reads and an export writes, and nothing else.
 
 The schema is **v2**, defined by [`models_v2.py`](https://github.com/jeffposey/agentjobs/blob/main/src/agentjobs/models_v2.py) and
 declared machine-readably in `schema/agentjobs-v2.yaml`. Every file starts with
@@ -663,9 +664,11 @@ task = manager.get_task("task-042-relocate-demo-tasks")
 print(task.display_status, len(task.log))
 ```
 
-`task_manager_for` is the one place that knows which backend a registered project is on.
-`TaskStorage(Path("tasks/agentjobs"))` still loads, but on a migrated project it reads the
-frozen pre-cutover copy and answers from stale data without erroring.
+`task_manager_for` is the one place that resolves which database a registered project is
+served from. Reach storage through it and nothing else: composing a directory yourself
+reads whatever happens to be at that path, which on this project is nothing at all since
+task-380 and on somebody else's is a pre-import copy that answers from stale data without
+erroring.
 
 `load_task()` returns `None` when the file does not exist, and raises `TaskLoadError`
 naming the file and field when it exists but cannot be read — including when it is an

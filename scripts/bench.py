@@ -4,10 +4,16 @@ Run it, change something, run it again, and compare. That is the whole purpose: 
 performance work in task-130 relaxed the per-change human review gate in exchange for
 recorded before/after numbers, and this is where those numbers come from.
 
-    poetry run python scripts/bench.py                      # real corpus, full report
+    poetry run python scripts/bench.py --corpus synthetic --tasks 200
     poetry run python scripts/bench.py --json before.json   # keep it for comparison
     poetry run python scripts/bench.py --compare before.json
-    poetry run python scripts/bench.py --corpus synthetic --tasks 200
+    poetry run python scripts/bench.py --corpus real --source <an exported directory>
+
+**Read task-408 before trusting a number from this.** Since the file backend was deleted
+the seeded directory is not a backlog the server reads, so both corpus kinds currently
+measure an empty store; the run reports zero parses on every surface and the detail
+endpoint 404s. The `--corpus real` default source went with this repository's tracked
+records in task-380, which is why that mode now asks for a directory.
 
 ## What it measures
 
@@ -253,10 +259,16 @@ def _synthetic_task(index: int, *, total: int) -> Dict[str, Any]:
     return task
 
 
-def build_corpus(destination: Path, *, kind: str, count: int, source: Path) -> None:
+def build_corpus(destination: Path, *, kind: str, count: int, source: Optional[Path]) -> None:
     """Populate ``destination`` with the corpus to measure."""
     destination.mkdir(parents=True, exist_ok=True)
     if kind == "real":
+        if source is None:
+            raise SystemExit(
+                "--corpus real needs --source: this repository's tracked records were "
+                "retired in task-380, so there is no longer a directory to default to. "
+                "`agentjobs storage export <dir>` writes one."
+            )
         found = sorted(source.glob("*.yaml"))
         if not found:
             raise SystemExit(f"No task files found in {source}")
@@ -349,7 +361,7 @@ class BenchServer:
             self._process.wait(timeout=10)
 
 
-def prepare_project(root: Path, *, kind: str, count: int, source: Path) -> Path:
+def prepare_project(root: Path, *, kind: str, count: int, source: Optional[Path]) -> Path:
     """Write a project config and its corpus under ``root``; return the tasks dir."""
     config_path = root / ".agentjobs" / "config.yaml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -643,8 +655,12 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--source",
         type=Path,
-        default=ROOT / "tasks" / "agentjobs",
-        help="Where the real corpus is copied from.",
+        default=None,
+        help=(
+            "Where the real corpus is copied from. Required by --corpus real, which no "
+            "longer has a default: task-380 retired this repository's tracked records. "
+            "`agentjobs storage export <dir>` writes a directory to point at."
+        ),
     )
     return parser.parse_args(argv)
 

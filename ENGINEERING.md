@@ -8,7 +8,7 @@ This handbook is the canonical source for universal engineering practices across
     alongside git rather than inside it.
 -   **Data Source**: the task record, a row in a per-project SQLite database beside the
     server and outside every checkout. This repository's own records were imported there
-    on 2026-09-07; `tasks/agentjobs/` is a frozen copy no application code reads.
+    on 2026-09-07, and no task YAML is tracked here since task-380.
 -   **Interface**: CLI (`agentjobs`) and packaged React Web UI (`agentjobs open`, or
     `/app/` on a running `agentjobs serve`).
 
