@@ -164,12 +164,19 @@ the whole point of printing it.
 | 3 | `mypy` | Python types | 1.5s | 1.6 / 1.6s |
 | 4 | `api` | `openapi.json` and the generated client both match the app | 4.2s | 2.4 / 2.5s |
 | 5 | `icons` | the committed PWA icons match `assets/app-icon.svg` | 2.8s | 1.2 / 1.2s |
-| 6 | `oxlint` | frontend lint | 0.6s | 0.4 / 0.4s |
-| 7 | `pytest` | the Python suite, across every core | 52.1s | 79.3 / 89.1s |
-| 8 | `vitest` | the jsdom component tests | 5.2s | 28.4 / 7.2s |
-| 9 | `build` | `tsc --noEmit` and the production bundle | 3.7s | 4.5 / 4.3s |
-| 10 | `e2e` | the Playwright suite against a live server | 25.0s | 135.3 / 138.8s |
+| 6 | `roadmap` | the committed `ROADMAP.md` matches the task store | — | — |
+| 7 | `oxlint` | frontend lint | 0.6s | 0.4 / 0.4s |
+| 8 | `pytest` | the Python suite, across every core | 52.1s | 79.3 / 89.1s |
+| 9 | `vitest` | the jsdom component tests | 5.2s | 28.4 / 7.2s |
+| 10 | `build` | `tsc --noEmit` and the production bundle | 3.7s | 4.5 / 4.3s |
+| 11 | `e2e` | the Playwright suite against a live server | 25.0s | 135.3 / 138.8s |
 | | | | **95.8s** | **254.3 / 245.8s** |
+
+`roadmap` arrived after both columns were measured, so it has no entry in either rather
+than a number carried over from a run that did not include it. On its own, three
+consecutive `--check` runs against this repository's store on 2026-09-11 took **0.6s**
+each: a SQLite read of 401 records and a render. It sits above `oxlint` on the
+cheapest-first rule and has no dependency on any other stage.
 
 **The gate is now bounded by `e2e`, not by `pytest`** — 138.8s against 89.1s — and every
 argument in this file that assumes otherwise was written before that was true. The

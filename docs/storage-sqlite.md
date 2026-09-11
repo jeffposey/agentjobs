@@ -34,6 +34,17 @@ interchange artifact, not a mirror. Nothing calls it on a write and nothing comm
 produces, because a YAML copy maintained automatically beside the database would be the
 second authority this migration exists to remove.
 
+**A tracked `ROADMAP.md` is not that second authority, and the distinction is worth
+stating because the shapes look alike.** What is rejected above is *bidirectionality* — a
+copy something may write back to, or read as truth, or point `storage restore` at. The
+roadmap is a one-way projection: `scripts/export_roadmap.py` renders open work into
+markdown, nothing in this repository reads it back, and no code path treats it as a source
+of truth. That makes it a build artefact that happens to be tracked, which the repository
+already does for `openapi.json` and the generated API client, and it is held to the same
+freshness gate they are. It also pays back a cost §9 named and left standing: `origin` is
+public, the only server is on a private tailnet, and without it a reader who clones this
+repository can see no plan at all.
+
 **Reviewing a task record in a pull request is gone, deliberately.** Task state is not code:
 a diff of `ball_reason` changing from `work` to `review` is a fact about the work rather
 than a proposal about it, and there was nothing for a reviewer to approve or reject. What

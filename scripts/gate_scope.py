@@ -65,6 +65,28 @@ DOCS_STAGES = ("pytest",)
 docs edit can fail the suite. Nothing else reads them.
 """
 
+ROADMAP_STAGES = ("roadmap", "pytest")
+"""What editing the published roadmap can move.
+
+``roadmap`` because a hand-edit to a generated file is precisely what that stage exists
+to catch, and ``*.md`` below would otherwise route ``ROADMAP.md`` to the docs class and
+skip it. ``pytest`` on the same terms as any other prose.
+"""
+
+UNBOUNDED_STAGES: Tuple[str, ...] = ("roadmap",)
+"""Stages whose input is not in the working tree at all, so a diff cannot clear them.
+
+Every other stage reads files a diff can be taken over, which is what lets a path that
+changed nothing they read stand as evidence they need not run. The roadmap is generated
+from a database **outside every checkout**, and that database moves whenever anybody
+anywhere files, closes or reorders a task. An unchanged tree is therefore no evidence at
+all about it -- ``NOTHING CHANGED`` would otherwise issue a receipt attesting to a
+roadmap that had gone stale since breakfast.
+
+``tasks/ -> pytest`` is the same problem solved where it could be: the corpus is in the
+tree, so a path could carry it. This one cannot, so it is named instead.
+"""
+
 
 @dataclass(frozen=True)
 class Class:
@@ -77,16 +99,22 @@ class Class:
 
 CLASSES: Tuple[Class, ...] = (
     Class("tasks/*", CORPUS_STAGES, "task records; the live corpus TestRealCorpus reads"),
+    Class("ROADMAP.md", ROADMAP_STAGES, "the generated roadmap; the roadmap stage reads it"),
     Class("docs/*", DOCS_STAGES, "prose; the documentation contract tests read it"),
     Class("*.md", DOCS_STAGES, "prose; the documentation contract tests read it"),
 )
-"""Deliberately three entries.
+"""Deliberately short, and ordered: the first pattern that matches wins.
 
-Every candidate fourth entry was measured against what it would save and dropped.
+``ROADMAP.md`` sits above ``*.md`` because it is not prose -- it is a generated artefact
+that happens to end in ``.md``, and routing it to the docs class would skip the one stage
+that can tell a hand-edit from a regeneration.
+
+Every candidate entry beyond these was measured against what it would save and dropped.
 ``frontend/*`` would spare Black, Ruff and MyPy -- 2.1 seconds. ``assets/*`` would spare
 about the same. Neither is worth a row in a table whose whole risk is being wrong, and a
 table that grows for savings of that size is one nobody audits. Add an entry only when
-it skips a stage measured in minutes, and say in the docstring what reads the paths.
+it skips a stage measured in minutes, or when it stops a stage being wrongly skipped, and
+say in the docstring what reads the paths.
 """
 
 
@@ -109,8 +137,12 @@ def stages_for(paths: Sequence[str], every: Sequence[str]) -> Tuple[List[str], D
     Returns the stage names in ``every``'s order, plus a path -> reason mapping for the
     report. An unclassified path selects everything and says so; that is the default-deny
     property, and it is what makes an incomplete ``CLASSES`` table safe.
+
+    ``UNBOUNDED_STAGES`` are in the answer before any path is looked at, including when
+    there are no paths at all -- see that constant for why a diff is no evidence about
+    them.
     """
-    selected: set[str] = set()
+    selected: set[str] = {name for name in UNBOUNDED_STAGES if name in every}
     reasons: Dict[str, str] = {}
     for path in paths:
         matched = classify(path)
@@ -357,10 +389,17 @@ def render(scope: Scope, every: Sequence[str]) -> str:
         return "\n".join(lines)
     short = (scope.commit or "")[:8]
     if not scope.paths:
-        return (
-            f"NOTHING CHANGED since the gate verified {short}.\n"
-            "The working tree is identical to the commit that last passed every stage."
-        )
+        lines = [
+            f"NOTHING CHANGED since the gate verified {short}.",
+            "The working tree is identical to the commit that last passed every stage.",
+        ]
+        unbounded = [name for name in (scope.stages or []) if name in UNBOUNDED_STAGES]
+        if unbounded:
+            lines.append(
+                f"Running {', '.join(unbounded)} anyway: it reads a store outside this "
+                "checkout, so an unchanged tree says nothing about it."
+            )
+        return "\n".join(lines)
     lines = [
         f"NECESSITY RUN: {len(scope.stages or [])} of {len(every)} stages, "
         f"derived from the diff against {short} -- the commit this checkout's gate "

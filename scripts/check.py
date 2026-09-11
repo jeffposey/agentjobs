@@ -344,6 +344,12 @@ def stages(*, coverage: bool = False, parallel: bool = True) -> list[Stage]:
             FRONTEND,
             "generated PWA icons",
         ),
+        Stage(
+            "roadmap",
+            ((PYTHON, "scripts/export_roadmap.py", "ROADMAP.md", "--check"),),
+            ROOT,
+            "generated public roadmap",
+        ),
         Stage("oxlint", ((NPM, "run", "lint"),), FRONTEND, "frontend lint"),
         Stage("pytest", (tuple(pytest_args),), ROOT, "Python test suite"),
         Stage("vitest", ((NPM, "run", "test"),), FRONTEND, "frontend component suite"),
