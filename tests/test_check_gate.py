@@ -367,12 +367,12 @@ class TestSinceGate:
         commands = TestTheUnqualifiedGate.record_runs(monkeypatch)
         monkeypatch.setattr(check.gate_scope, "read_receipt", lambda root: {"commit": "a" * 40})
         monkeypatch.setattr(
-            check.gate_scope, "changed_since", lambda root, commit: ["tasks/p/task-1.yaml"]
+            check.gate_scope, "changed_since", lambda root, commit: ["docs/agent-workflow.md"]
         )
 
         assert check.main(["--since-gate"]) == 0
-        # pytest, because a task record can turn the live-corpus tests red, plus the
-        # roadmap stage, which no diff can ever clear.
+        # pytest, because the documentation contract tests read prose, plus the roadmap
+        # stage, which no diff can ever clear.
         assert len(commands) == 2
         out = capsys.readouterr().out
         assert "NECESSITY RUN" in out

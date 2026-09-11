@@ -752,27 +752,33 @@ class TestBeforeTheMerge:
 class TestCatchingUpWithAMovedBase:
     """The base moving mid-gate is the normal case here, not the exceptional one.
 
-    Every session commits its task records to the base by design, and a gate takes
+    Every session committed its task records to the base by design, and a gate takes
     minutes, so ``base_moved`` fired on nearly every finish on a busy evening -- each
     refusal costing a whole dispatched run, over other people's bookkeeping.
 
+    **That cause is gone and the mechanism is not.** Records are rows, so no session
+    commits one; task-380 removed the last of them from the checkout. What still lands on
+    the base mid-gate is prose -- another branch merging a docs change -- and it costs a
+    refusal for exactly the same reason, which is why these are now written around a
+    documentation commit.
+
     **A real commit is landed on the base while the gate is running**, by the stub gate
     itself, because that is the only arrangement that tests the race rather than a
-    simulation of it. The two tests that matter are the pair: a record commit is caught
-    up with and merged, a source commit is still refused.
+    simulation of it. The two tests that matter are the pair: an absorbable commit is
+    caught up with and merged, a source commit is still refused.
     """
 
-    def test_a_task_record_landing_mid_gate_is_caught_up_with_and_merged(
+    def test_an_absorbable_commit_landing_mid_gate_is_caught_up_with_and_merged(
         self, world: Dict[str, Any]
     ) -> None:
         publish_gate_scope(world)
-        gate_that_moves_the_base(world, "tasks/somebody-elses-record.yaml")
+        gate_that_moves_the_base(world, "docs/somebody-elses-note.md")
         result = run(world)
         assert result.outcome == FINISHED, result.render()
         assert landed(world["root"], result)
-        # And the record it raced with is still there -- catching up rebases onto it, it
+        # And the commit it raced with is still there -- catching up rebases onto it, it
         # does not step over it.
-        assert (world["root"] / "tasks" / "somebody-elses-record.yaml").is_file()
+        assert (world["root"] / "docs" / "somebody-elses-note.md").is_file()
 
     def test_a_source_commit_landing_mid_gate_still_refuses(self, world: Dict[str, Any]) -> None:
         publish_gate_scope(world)
@@ -786,7 +792,7 @@ class TestCatchingUpWithAMovedBase:
 
     def test_the_step_table_says_it_caught_up_and_with_what(self, world: Dict[str, Any]) -> None:
         publish_gate_scope(world)
-        gate_that_moves_the_base(world, "tasks/somebody-elses-record.yaml")
+        gate_that_moves_the_base(world, "docs/somebody-elses-note.md")
         result = run(world)
         assert result.outcome == FINISHED, result.render()
         rendered = "\n".join(step.render() for step in result.steps)
@@ -827,7 +833,7 @@ class TestCatchingUpWithAMovedBase:
         disagreement `StepLog` exists to prevent (task-321).
         """
         publish_gate_scope(world)
-        gate_that_moves_the_base(world, "tasks/somebody-elses-record.yaml")
+        gate_that_moves_the_base(world, "docs/somebody-elses-note.md")
         result = run(world)
         assert result.outcome == FINISHED, result.render()
 
@@ -843,7 +849,7 @@ class TestCatchingUpWithAMovedBase:
         is what it is catching up with. The evidence goes in the step table instead.
         """
         publish_gate_scope(world)
-        gate_that_moves_the_base(world, "tasks/somebody-elses-record.yaml")
+        gate_that_moves_the_base(world, "docs/somebody-elses-note.md")
         result = run(world)
         assert result.outcome == FINISHED, result.render()
         task = world["manager"].get_task(world["task_id"])
@@ -852,7 +858,7 @@ class TestCatchingUpWithAMovedBase:
     def test_a_red_re_run_stops_the_merge(self, world: Dict[str, Any]) -> None:
         """The catch-up is a verification, so it has to be able to say no."""
         publish_gate_scope(world)
-        gate_that_moves_the_base(world, "tasks/somebody-elses-record.yaml", reduced_exit=1)
+        gate_that_moves_the_base(world, "docs/somebody-elses-note.md", reduced_exit=1)
         result = run(world)
         assert result.outcome == ESCALATED
         assert result.reason == "catch_up_gate_failed"
@@ -866,7 +872,7 @@ class TestCatchingUpWithAMovedBase:
         No ``scripts/gate_scope.py`` means nothing classifies anything, so even a
         task-record move refuses exactly as it did before this existed.
         """
-        gate_that_moves_the_base(world, "tasks/somebody-elses-record.yaml")
+        gate_that_moves_the_base(world, "docs/somebody-elses-note.md")
         result = run(world)
         assert result.outcome == ESCALATED
         assert result.reason == "base_moved"
@@ -876,29 +882,37 @@ class TestCatchingUpWithAMovedBase:
 class TestWhatAChangedPathCanReach:
     """``reachable_stages`` delegates the judgement; these check it delegates correctly."""
 
-    def test_a_task_record_reaches_the_python_suite_and_nothing_else(
+    def test_prose_reaches_the_python_suite_and_nothing_else(self, world: Dict[str, Any]) -> None:
+        publish_gate_scope(world)
+        assert reachable_stages(world["root"], ["docs/agent-workflow.md"]) == ["pytest"]
+
+    def test_a_retired_task_path_is_unclassified_and_so_denies_the_move(
         self, world: Dict[str, Any]
     ) -> None:
+        """It used to reach pytest alone. task-380 removed the class, not the safety.
+
+        Worth asserting rather than deleting: the direction of the change is what makes
+        it safe. A path the table no longer claims refuses the catch-up and costs a
+        merge, where claiming it wrongly would have cost coverage.
+        """
         publish_gate_scope(world)
-        assert reachable_stages(world["root"], ["tasks/agentjobs/task-001.yaml"]) == ["pytest"]
+        assert reachable_stages(world["root"], ["tasks/agentjobs/task-001.yaml"]) is None
 
     def test_one_unclassified_path_denies_the_whole_move(self, world: Dict[str, Any]) -> None:
         publish_gate_scope(world)
         assert (
-            reachable_stages(
-                world["root"], ["tasks/agentjobs/task-001.yaml", "src/agentjobs/manager.py"]
-            )
+            reachable_stages(world["root"], ["docs/agent-workflow.md", "src/agentjobs/manager.py"])
             is None
         )
 
     def test_no_table_classifies_nothing(self, world: Dict[str, Any]) -> None:
-        assert reachable_stages(world["root"], ["tasks/agentjobs/task-001.yaml"]) is None
+        assert reachable_stages(world["root"], ["docs/agent-workflow.md"]) is None
 
     def test_a_table_that_will_not_import_classifies_nothing(self, world: Dict[str, Any]) -> None:
         (world["root"] / "scripts" / "gate_scope.py").write_text(
             "raise RuntimeError('half-written')\n", encoding="utf-8"
         )
-        assert reachable_stages(world["root"], ["tasks/agentjobs/task-001.yaml"]) is None
+        assert reachable_stages(world["root"], ["docs/agent-workflow.md"]) is None
 
     def test_a_base_that_moved_without_changing_a_path_is_not_absorbed(
         self, world: Dict[str, Any]
