@@ -382,6 +382,48 @@ class TestThisRepositorysOwnPlaybooks:
             "## 5. What you write"
         )
 
+    def test_roadmap_may_edit_only_what_the_projection_publishes(self) -> None:
+        """task-392, pinned against the project's copy.
+
+        The narrowness is the whole safety argument. A run of this brief is told to
+        improve wording on a public page, which is an unusually plausible-looking reason
+        to reach into a record -- so the contract lets it ``update`` and nothing that
+        moves work: no ``close``, no ``queue_move``, no ``promote``, no ``claim``. The
+        judgment that finds a dead task or a wrong position belongs to ``groom`` and
+        ``reorder``, and the brief says to raise it as a question instead.
+        """
+        roadmap = read_playbook(self.directory, "roadmap")
+        assert roadmap.contract.target is PlaybookTarget.PROJECT
+        assert set(roadmap.contract.verbs) == {"update", "log", "handoff", "close"}
+        for forbidden in ("close_task", "queue_move", "promote", "claim", "release", "create"):
+            assert forbidden not in roadmap.contract.verbs
+        assert [gate.before for gate in roadmap.contract.gates] == ["update"]
+        assert roadmap.contract.run_task is not None
+
+    def test_roadmap_forbids_hand_editing_the_generated_file(self) -> None:
+        """The one instruction whose absence would silently lose a run's whole output.
+
+        An edit to ``ROADMAP.md`` survives exactly until the next regeneration. A brief
+        that did not say so would produce runs whose work vanished without a trace, and
+        no gate would notice -- the file would match the store again.
+        """
+        body = read_playbook(self.directory, "roadmap").body
+
+        assert "Never edit `ROADMAP.md`" in body
+        assert "scripts/export_roadmap.py" in body
+
+    def test_roadmap_sends_the_reader_to_groom_and_reorder_first(self) -> None:
+        """Publishing an unpruned, unordered backlog is the failure this sequencing avoids.
+
+        The owner asked for the order on 2026-09-11: a roadmap's central claim is that
+        this is what happens next, which is untrue of a backlog nobody has groomed.
+        """
+        body = read_playbook(self.directory, "roadmap").body
+
+        assert body.index("## 1. Run `groom` and `reorder` first") < body.index(
+            "## 2. What you may change"
+        )
+
     def test_the_shipped_reference_matches_this_project_s_copy(self) -> None:
         """The two copies of a brief this project authored do not drift apart.
 
