@@ -371,21 +371,33 @@ class TestSinceGate:
         )
 
         assert check.main(["--since-gate"]) == 0
-        assert len(commands) == 1
+        # pytest, because a task record can turn the live-corpus tests red, plus the
+        # roadmap stage, which no diff can ever clear.
+        assert len(commands) == 2
         out = capsys.readouterr().out
         assert "NECESSITY RUN" in out
         assert "Ran every stage" not in out
 
-    def test_an_unchanged_tree_runs_nothing_and_claims_nothing(
+    def test_an_unchanged_tree_runs_only_what_no_diff_can_clear(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        """It ran nothing at all until a stage read a store outside the checkout.
+
+        Everything the other nine stages read is in the tree, so an identical tree is
+        evidence about them. The roadmap is generated from a database anybody filing a
+        task moves, so it is evidence about nothing, and the run says so rather than
+        printing that it did no work.
+        """
         commands = TestTheUnqualifiedGate.record_runs(monkeypatch)
         monkeypatch.setattr(check.gate_scope, "read_receipt", lambda root: {"commit": "a" * 40})
         monkeypatch.setattr(check.gate_scope, "changed_since", lambda root, commit: [])
 
         assert check.main(["--since-gate"]) == 0
-        assert commands == []
-        assert "NOTHING CHANGED" in capsys.readouterr().out
+        assert len(commands) == 1
+        assert "export_roadmap.py" in " ".join(commands[0])
+        out = capsys.readouterr().out
+        assert "NOTHING CHANGED" in out
+        assert "Running roadmap anyway" in out
 
 
 # --- receipts -----------------------------------------------------------------------
@@ -641,7 +653,7 @@ class TestReporting:
         assert check.main(["--from", "e2e"]) == 0
 
         printed = capsys.readouterr().out
-        assert "PARTIAL RUN: 1 of 10" in printed
+        assert "PARTIAL RUN: 1 of 11" in printed
         assert "pytest" in printed  # named among the stages it skipped
         assert "not the gate" in printed
         assert printed.count("PARTIAL RUN") == 2
