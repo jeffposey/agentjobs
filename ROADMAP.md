@@ -346,7 +346,7 @@ decision log, branches, verification evidence — stays in the store.
 
   The benchmark builds its corpus by writing task YAML into a throwaway project root, which stopped being a backlog when task-402 deleted the file backend. Every run since has timed an empty store, and the detail endpoint 404s.
 
-## Medium (39)
+## Medium (40)
 
 - **task-243** — The grandchild-kill test asserts on a moment, and loses the race under load
 
@@ -531,6 +531,10 @@ decision log, branches, verification evidence — stays in the store.
 - **task-409** — --since-gate can skip pytest on evidence that no longer covers it: its corpus checks read a store outside the tree
 
   The pytest stage loads this repository's own backlog from the database, which anybody filing or closing a task moves. A diff over the working tree is therefore no evidence about it, which is the exact argument that put the roadmap stage in UNBOUNDED_STAGES.
+
+- **task-412** — The roadmap playbook's last act is a commit on a branch, and it never says how that branch reaches main or comes down
+
+  The roadmap playbook ends at "commit the result" and never says where that commit goes. A run that follows it exactly can leave a branch and a worktree behind and still satisfy the playbook's own acceptance criteria.
 
 ## Low (7)
 
