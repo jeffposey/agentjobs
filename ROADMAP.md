@@ -18,7 +18,7 @@ A task shows its id, its title, its one-sentence summary, what it is still waiti
 and the umbrella it belongs to. Everything else a record carries — the working spec, the
 decision log, branches, verification evidence — stays in the store.
 
-## Critical (4)
+## Critical (3)
 
 - **task-410** — Big Dawg Audit II — hold the first audit to account, then audit everything built since
 
@@ -27,12 +27,6 @@ decision log, branches, verification evidence — stays in the store.
 - **task-398** — SQLite is the only storage, and each project gets its own database
 
   Phase two of the storage migration. The file backend stops being a choice a new install can make and is deleted, and a project's records move out of one machine-wide database into a database of its own.
-
-- **task-380** — Retire the frozen task YAML directories from every repository
-
-  The 2026-09-07 and 2026-09-08 cutovers left a frozen copy of every project's task YAML on disk. Remove those directories, and the checks that still read them.
-
-  *part of task-398 (SQLite is the only storage, and each project gets its own database) · in progress*
 
 - **task-411** — The corpus checks have asserted nothing since task-311: an autouse fixture hides the store from them
 

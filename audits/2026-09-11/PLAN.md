@@ -64,6 +64,14 @@ Run these in order. Each is cheap, and the second one is the reason the others m
    `C:/ai/shared/launchers/open-agentjobs.ps1` and proxied to the tailnet. No auditor
    stops, restarts or writes through it.
 5. **Create the findings directory.** `audits/2026-09-11/`.
+6. **Note what is already known, and tell the auditors.** Three records filed in the hours
+   before this audit describe defects auditors would otherwise spend the night
+   rediscovering: task-411 (the corpus checks have skipped for weeks, and turning them on
+   finds eighteen dangling context pointers), task-409 (a store change moves no file, so
+   the gate cannot see it), and task-398's just-closed children (the storage migration's
+   second phase). Auditors 02, 07 and 14 each touch all three. The preamble already tells
+   every auditor to search the backlog first; name these three explicitly in the briefs
+   for 02, 07 and 14 so none of them starts from zero.
 
 ---
 
@@ -116,6 +124,23 @@ Prepend this verbatim to every auditor brief.
 >   sentence level. An honest "inferred, not verified" is worth more than a confident
 >   wrong verdict.
 > - **The fix, or the question.** Concrete.
+>
+> **Find out what is already on the record before you start.** The backlog holds 139 open
+> tasks, and roughly a quarter of them are known defects somebody already wrote up.
+> Search it for your system — `agentjobs search`, or the dashboard — and read what you
+> find. Then mark every finding you report as one of:
+>
+> - **New** — nobody has filed this.
+> - **Confirms task-NNN** — an existing record describes it, and here is fresh evidence
+>   that it is still true today, on today's code.
+> - **Refutes task-NNN** — an existing record describes it and it is no longer true, or
+>   was never true. Say what changed.
+>
+> This costs you a few minutes and it is worth far more than that. An hour spent
+> re-deriving a finding that has sat on the backlog since August produces a duplicate,
+> and three auditors doing it independently produces three. Confirming or refuting an
+> existing record is the more valuable finding in any case: it is the difference between
+> a survey and a regression test.
 >
 > **Stance.** Adversarial. The standing question from ENGINEERING.md is "what would this
 > have caught?" — apply it to code, documentation and tests alike. Praise is not a
@@ -545,7 +570,10 @@ files and nothing else at depth.
 >    disposition. This is the section the owner acts on first, so put it above the new
 >    findings.
 > 3. **Ranked findings** — every P1 and P2 across all fourteen auditors, deduplicated
->    into clusters, ranked by blast radius rather than by auditor number.
+>    into clusters, ranked by blast radius rather than by auditor number. Each auditor
+>    marked its findings new, confirms-task-NNN, or refutes-task-NNN; carry that marking
+>    through, and fold every confirmation and refutation into section 2's closure list
+>    rather than filing it again as though it were new.
 > 4. **Contradiction sweep** — every place two auditors' facts disagree. Adjudicate as
 >    many as you can by opening source, and say which you adjudicated and which you could
 >    not. These were the most valuable section of the last report.
