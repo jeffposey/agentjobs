@@ -50,8 +50,10 @@ repository, which is the one thing a person deciding to click it needs.
 ### The run that goes wrong
 
 A run that stalls, is cancelled, or is polled with the wrong executable currently ends in
-a state nothing resolves, and several of these are how an epic quietly stops.
+a state nothing resolves, and several of these are how an epic quietly stops. The first
+task here is the model the rest of them are symptoms of.
 
+- `task-414` — treat a dispatch as a durable intent the system owes a completion to
 - `task-389` — a run whose meta lacks a dispatch entry id is invisible to the poller for ever
 - `task-197` — the poller resolves the project's default runner, not the group's
 - `task-310` — a machine-wide default group makes `dispatch enable --runner` a silent no-op

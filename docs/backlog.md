@@ -23,13 +23,17 @@ A task shows its id, its title, its one-sentence summary, what it is still waiti
 and the umbrella it belongs to. Everything else a record carries — the working spec, the
 decision log, branches, verification evidence — stays in the store.
 
-## Critical (2)
+## Critical (3)
 
 - **task-410** — Big Dawg Audit II — hold the first audit to account, then audit everything built since
 
   Follow-up to task-242, the Big Dawg Audit of 2026-08-21. Fourteen auditors and a synthesis session, overnight on 2026-09-11, on claude-fable-5-1; the runbook is audits/2026-09-11/PLAN.md.
 
   *in progress*
+
+- **task-414** — Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do
+
+  Apply the durable-execution model (Temporal's workflow/activity/event-history/retry-policy/signal model, and Restate's journal) to AgentJobs dispatch, so that an authorised dispatch is a durable intent the system owes a completion to. Filed from the supervisor of task-410 on 2026-09-11 after one expired login cost three human touches and silently downgraded the runner.
 
 - **task-411** — The corpus checks have asserted nothing since task-311: an autouse fixture hides the store from them
 
