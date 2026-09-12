@@ -18,7 +18,7 @@ A task shows its id, its title, its one-sentence summary, what it is still waiti
 and the umbrella it belongs to. Everything else a record carries — the working spec, the
 decision log, branches, verification evidence — stays in the store.
 
-## Critical (13)
+## Critical (14)
 
 - **task-410** — Big Dawg Audit II — hold the first audit to account, then audit everything built since
 
@@ -96,7 +96,29 @@ decision log, branches, verification evidence — stays in the store.
 
   *needs task-264 · needs task-375 · needs task-312 · needs task-322 · needs task-348 · needs task-415 · needs task-416 · needs task-417 · needs task-418 · part of task-414 (Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do)*
 
-## High (63)
+- **task-424** — Let a human choose a specific runner, including Codex, for one dispatch
+
+  Add a per-dispatch runner override so the human can explicitly choose a configured Codex runner rather than relying on group order. Persist the authorized choice so retries and resumes cannot silently substitute a different runner.
+
+  *in progress*
+
+## High (67)
+
+- **task-421** — Notify the human when AgentJobs is waiting on them
+
+  Add a durable, chat-independent attention system that tells the human when one or more AgentJobs tasks have moved to the human’s ball. The epic covers a persistent Windows indicator and toast notifications, with mobile push delivered as a separate child.
+
+- **task-422** — Show human-waiting attention in the Windows taskbar and notification center
+
+  Implement the notifications epic’s shared attention-episode state and Windows experience. When AgentJobs needs the human, keep a red taskbar/tray indication visible and emit a bottom-right Windows notification without repeatedly interrupting for every additional wait.
+
+  *part of task-421 (Notify the human when AgentJobs is waiting on them)*
+
+- **task-423** — Send mobile push notifications when AgentJobs needs the human
+
+  Add mobile push delivery for the notifications epic as a distinct implementation child. Push must wake the human for a new attention episode, open the relevant AgentJobs context, and share the desktop deduplication policy.
+
+  *needs task-422 · part of task-421 (Notify the human when AgentJobs is waiting on them)*
 
 - **task-364** — A fold is thrown away on reload whenever a descendant of the folded parent is selected
 
@@ -121,6 +143,18 @@ decision log, branches, verification evidence — stays in the store.
   Since task-021, a posture carries a merge policy and a project carries a push switch — so choosing `autonomous` means the run merges its own work with no review. The browser still renders posture as a bare word next to the runner name and says nothing about merging or pushing. The one surface where a human decides to start a run is the one that cannot tell them what the run is allowed to do with their repository.
 
   *part of task-160-dispatch-phase-two (Dispatch phase two: who can cause one, what it can be told, and what it does with an epic)*
+
+- **task-413** — The published roadmap is a flat printout of the queue, so a reader learns the order of the work but never what the work is
+
+  ROADMAP.md lists 113 open tasks under four priority headings and nothing else, so a stranger reading it cannot tell that half the backlog is one subject. Split it: the deterministic projection becomes docs/backlog.md and keeps its gate stage, while ROADMAP.md becomes an analysed page of phases and workstreams that the roadmap playbook writes.
+
+  *in progress*
+
+- **task-420** — Evaluate OpenAI Agents API adoption for AgentJobs
+
+  Evaluate whether OpenAI's September 2026 Agents API should become an optional AgentJobs execution backend, and define an evidence-based adoption path.
+
+  *in progress*
 
 - **task-212** — Analytics page: move the count tiles off the dashboard and grow them into trends
 
@@ -406,12 +440,6 @@ decision log, branches, verification evidence — stays in the store.
 
   The benchmark builds its corpus by writing task YAML into a throwaway project root, which stopped being a backlog when task-402 deleted the file backend. Every run since has timed an empty store, and the detail endpoint 404s.
 
-- **task-413** — The published roadmap is a flat printout of the queue, so a reader learns the order of the work but never what the work is
-
-  ROADMAP.md lists 113 open tasks under four priority headings and nothing else, so a stranger reading it cannot tell that half the backlog is one subject. Split it: the deterministic projection becomes docs/backlog.md and keeps its gate stage, while ROADMAP.md becomes an analysed page of phases and workstreams that the roadmap playbook writes.
-
-  *in progress*
-
 ## Medium (38)
 
 - **task-243** — The grandchild-kill test asserts on a moment, and loses the race under load
@@ -630,4 +658,4 @@ decision log, branches, verification evidence — stays in the store.
 
 ---
 
-28 further open tasks are drafts, not listed here. A draft is an idea that has not been specified yet: no agent can claim one and the queue does not hand one out.
+31 further open tasks are drafts, not listed here. A draft is an idea that has not been specified yet: no agent can claim one and the queue does not hand one out.
