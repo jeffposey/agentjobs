@@ -239,8 +239,9 @@ than leaving the rationale in a chat transcript:
   memory for a zero-context agent, including the ball model and canonical handoff loop.
 - [Agent dispatch](docs/agent-dispatch-design.md) is the design record for turning
   authorized task state into a supervised agent process, with bounded autonomy and
-  explicit safety gates. **It shipped** — the document's own header says what landed
-  under which task, and marks the four things in it that were never built.
+  explicit safety gates. Its shipped sections identify their implementation tasks;
+  [durable execution](docs/agent-dispatch-design.md#9a-durable-execution-an-accepted-dispatch-survives-its-processes-task-414)
+  is the proposed next increment, with recovery contracts and fault-injection criteria.
 - [Codex dispatch rollout](docs/codex-dispatch.md) documents the current Codex
   runner setup and rollout sequence.
 - [Durable Codex dispatch architecture](docs/codex-dispatch-architecture.md)

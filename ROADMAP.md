@@ -18,17 +18,85 @@ A task shows its id, its title, its one-sentence summary, what it is still waiti
 and the umbrella it belongs to. Everything else a record carries — the working spec, the
 decision log, branches, verification evidence — stays in the store.
 
-## Critical (2)
+## Critical (13)
 
 - **task-410** — Big Dawg Audit II — hold the first audit to account, then audit everything built since
 
   Follow-up to task-242, the Big Dawg Audit of 2026-08-21. Fourteen auditors and a synthesis session, overnight on 2026-09-11, on claude-fable-5-1; the runbook is audits/2026-09-11/PLAN.md.
 
+  *in progress*
+
+- **task-414** — Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do
+
+  Apply the durable-execution model (Temporal's workflow/activity/event-history/retry-policy/signal model, and Restate's journal) to AgentJobs dispatch, so that an authorised dispatch is a durable intent the system owes a completion to. Filed from the supervisor of task-410 on 2026-09-11 after one expired login cost three human touches and silently downgraded the runner.
+
+  *in progress*
+
+- **task-264** — Build the transactional execution journal and atomic dispatch ownership
+
+  Build the transactional execution journal that makes dispatch admission, ownership, budgets and terminal results recoverable. Close the existing cancel/poll races, machine-cap race and cross-project identity collisions through one authoritative transition path.
+
+  *part of task-414 (Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do)*
+
+- **task-415** — Report every runner candidate's actual eligibility after selecting a winner
+
+  Evaluate disabled, undefined and unavailable runner candidates even after the first eligible member is selected. Fix task-410's misleading candidate list without changing selection order.
+
+  *part of task-414 (Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do)*
+
+- **task-375** — Preserve the authorised execution envelope across retries and resumes
+
+  Freeze the authorised runner, group, posture and prompt clauses for every execution. Preserve them on retries and resumes, while treating explicit new grants and current revocations separately.
+
+  *needs task-264 · part of task-414 (Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do)*
+
+- **task-416** — Replay accepted dispatches after interruption with classified, bounded recovery
+
+  Drive accepted executions from the durable journal through one replay entry point shared by startup and polling. Recover safely with recorded inputs, durable timers, budgets and side-effect reconciliation.
+
+  *needs task-264 · needs task-375 · part of task-414 (Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do)*
+
+- **task-312** — Deliver durable feedback and approval without cancellation or lost clearance
+
+  Buffer feedback and approval durably, deliver them to the correct execution, and transfer a live reviewing session to finish without cancellation. Preserve standing human decisions across delayed polls, retries and restart.
+
+  *needs task-264 · needs task-375 · part of task-414 (Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do)*
+
+- **task-348** — A finish whose gate went red should re-rebase and re-run that stage once before escalating
+
+  Permit one red-stage retry only when recorded evidence proves relevant gate inputs changed. Revalidate every affected stage and preserve an honest receipt for the final tree.
+
+  *needs task-264 · part of task-414 (Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do)*
+
+- **task-322** — Resume finish from durable merge evidence and report delivery truthfully
+
+  Persist finish progress so recovery after merge resumes delivery and cleanup. Show the execution's earlier merge alongside the latest activity failure, without changing what the newest attempt's state means.
+
+  *needs task-264 · needs task-312 · needs task-348 · part of task-414 (Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do)*
+
+- **task-417** — Recover auth parks with a shared positive probe and deduplicated wake
+
+  Probe a parked runner's credential context on a bounded schedule and wake the safe continuation automatically when it recovers. Notify once only when login is actually required past the deadline.
+
+  *needs task-264 · needs task-375 · needs task-312 · needs task-416 · part of task-414 (Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do)*
+
+- **task-418** — Persist epic waits and resume supervision without relaunching children
+
+  Persist the epic's authority, child admissions, waits, attempts and grounding state so coordinator death costs no child restart or new human click. Keep the existing rolling frontier and merge gates.
+
+  *needs task-264 · needs task-416 · part of task-414 (Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do)*
+
 - **task-411** — The corpus checks have asserted nothing since task-311: an autouse fixture hides the store from them
 
   Every check that reads this repository's own backlog skips under pytest, because conftest re-points AGENTJOBS_HOME at a temp directory for every test. Turning them on finds eighteen dangling context pointers immediately.
 
-## High (64)
+- **task-419** — Prove durable dispatch with crash injection and incident human-touch counts
+
+  Exercise production replay and adapters against the recorded failure timelines, using crashes across every commit/effect boundary. Assert completion, justified waits, human actions and duplicate effects separately.
+
+  *needs task-264 · needs task-375 · needs task-312 · needs task-322 · needs task-348 · needs task-415 · needs task-416 · needs task-417 · needs task-418 · part of task-414 (Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do)*
+
+## High (63)
 
 - **task-364** — A fold is thrown away on reload whenever a descendant of the folded parent is selected
 
@@ -228,10 +296,6 @@ decision log, branches, verification evidence — stays in the store.
 
   The playbooks design deferred recurrence and wrote the condition for reopening it. That condition was met on the day the playbooks shipped: groom ran twice and reorder ran twice in one day, against a stated threshold of "more than weekly". Design how a run fires on an event -- an epic closing, a batch of tasks arriving -- with the authorisation and bounds the product already requires of every other autonomy.
 
-- **task-312** — Approving a task whose session is still alive declines the finish, and the documented remedy posts a false alarm to the human
-
-  A dispatched session that hands off for review stays alive, so its run keeps the task's lock. The scripted finish that approval triggers then declines `locked` and nothing merges. The remedy the tool itself prints is to cancel the run — and cancelling rewrites the task's `ball_prompt` with "Run X ended `cancelled` and nobody was told what this task needs", which is false, alarming, and lands in front of the human who just approved. Both approvals on 2026-08-23/24 hit this.
-
 - **task-325** — test_the_timeout_kills_the_grandchild_too flakes often enough to stop a scripted finish, and its 30-second budget rests on a premise that is no longer true
 
   One test — TestProcessGroup::test_the_timeout_kills_the_grandchild_too — has now failed three unrelated gates by timing out rather than by finding a bug. Its own comment says its 30-second budget is "large enough that a loaded machine cannot exhaust it"; that premise was written for a machine running one gate, and this one routinely runs two or three. Establish whether the grandchild genuinely survives or the check is simply slow, then fix the one that is wrong.
@@ -314,10 +378,6 @@ decision log, branches, verification evidence — stays in the store.
 
   *needs task-373 · part of task-212 (Analytics page: move the count tiles off the dashboard and grow them into trends)*
 
-- **task-375** — A resumed run records its posture and never tells the session, so an autonomous epic child stops at the merge gate anyway
-
-  When a dispatch resumes an existing session instead of starting a cold one, the run record gets the new posture but the session receives only the ball prompt. It keeps operating under the posture clause from its original prompt. An epic dispatched `autonomous` therefore has its children hand off for review, and the walk stops with `child_needs_a_human` on a branch it was authorised to merge.
-
 - **task-377** — A supervisor that discovers its children need sequencing has no move but to wake a human
 
   Three individually-correct rules compose into a dead end. When an epic supervisor learns mid-flight that one child must precede another, it cannot record the dependency, cannot start the one child, and cannot run the walk without starting both. The only exit is a human click, which is the thing the epic walk exists to avoid.
@@ -346,7 +406,13 @@ decision log, branches, verification evidence — stays in the store.
 
   The benchmark builds its corpus by writing task YAML into a throwaway project root, which stopped being a backlog when task-402 deleted the file backend. Every run since has timed an empty store, and the detail endpoint 404s.
 
-## Medium (40)
+- **task-413** — The published roadmap is a flat printout of the queue, so a reader learns the order of the work but never what the work is
+
+  ROADMAP.md lists 113 open tasks under four priority headings and nothing else, so a stranger reading it cannot tell that half the backlog is one subject. Split it: the deterministic projection becomes docs/backlog.md and keeps its gate stage, while ROADMAP.md becomes an analysed page of phases and workstreams that the roadmap playbook writes.
+
+  *in progress*
+
+## Medium (38)
 
 - **task-243** — The grandchild-kill test asserts on a moment, and loses the race under load
 
@@ -476,10 +542,6 @@ decision log, branches, verification evidence — stays in the store.
 
   Found by the task-184 session while establishing sc-3 against a throwaway home. On a machine whose `dispatch.yaml` sets a top-level `default_group:`, enabling a project with `--runner <name>` appears to succeed and changes nothing — the project still resolves through the default group. It affects the CLI as well as the browser. See log entry 2: this is live on Jeff's machine, contrary to what the finding session reported.
 
-- **task-322** — The finish panel reports only the newest attempt, so a merged branch can read "nothing was merged"
-
-  The task page's finish panel shows the most recent finish for a task. When an earlier attempt merged and a later one stopped, its headline says "Stopped — nothing was merged" about a branch that is in `main`. Carry the earlier merge into the panel so it cannot contradict the record.
-
 - **task-323** — The context budget measures only the repository half of the @-chain, but calls itself the always-loaded bundle
 
   The bundle budget caps four repository files, but a session loads more than that. Decide what the cap should claim to cover, and whether the rest can be measured at all.
@@ -491,10 +553,6 @@ decision log, branches, verification evidence — stays in the store.
 - **task-343** — The approval note is dropped the moment the scripted finish takes over
 
   Approving with a note records it on the task, then the scripted finish merges without it -- the note reaches no merge commit, no prompt, and no agent.
-
-- **task-348** — A finish whose gate went red should re-rebase and re-run that stage once before escalating
-
-  When the gate goes red and main has moved since the rebase, the red may belong to the old base rather than to the branch. Re-rebase once, re-run only the stage that failed, and only when gate_scope classifies every moved path. Escalate if it is still red.
 
 - **task-349** — The task page lights a Dispatch button on a task that already has a live run, so clicking it can only fail
 
@@ -572,4 +630,4 @@ decision log, branches, verification evidence — stays in the store.
 
 ---
 
-29 further open tasks are drafts, not listed here. A draft is an idea that has not been specified yet: no agent can claim one and the queue does not hand one out.
+28 further open tasks are drafts, not listed here. A draft is an idea that has not been specified yet: no agent can claim one and the queue does not hand one out.

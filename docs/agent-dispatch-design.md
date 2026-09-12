@@ -3362,6 +3362,506 @@ that the session is parked, stalled, expired or gone, and leave it attachable.
 
 ---
 
+## 9a. Durable execution: an accepted dispatch survives its processes (task-414)
+
+**Design, 2026-09-11 Central / 2026-09-12 UTC; not implemented.** This section specifies
+the next increment of dispatch. Earlier sections describe shipped mechanisms and their
+history; where this section differs, it is a proposed replacement, not a claim that the
+runtime already works this way. Implementation is the child program on task-414.
+
+An accepted dispatch is an obligation with a durable identity. AgentJobs keeps advancing
+it until the authorised work is delivered, an explicit Stop cancels it, or a named
+condition requires human action. A waiting workflow remains resumable. Finishing an
+agent turn, requesting review, merging a branch and delivering that merge are different
+facts. None may stand in for another.
+
+The guarantee is conditional: the machine must run again, its disk must survive, required
+services must recover, and authorisation and budgets must permit continuation. We can
+remove unnecessary human intervention; we cannot guarantee that arbitrary agent code
+finishes, that a dead disk recovers, or that an external tool executes exactly once.
+
+### Evidence and corrections to the starting model
+
+Inspected against `096f33ae`, including the implementation rather than only its prose:
+
+| Evidence | What it establishes | Consequence |
+| --- | --- | --- |
+| task-410 entries 8–17 and its first run's machine-local metadata | `big-dawg` / `claude-fable-5-1` became `default` / `claude-opus-5` on resume; `handback_pending` survived until cancellation | Freeze execution inputs; buffer messages independently of attempt lifetime |
+| Same incident, entries 10–13 | Feedback was buffered at 02:32:40 UTC; cancellation concluded at 02:33:13; no recorded cancellation requester | The causal origin of Stop is **unknown**. `handback.py` contains no cancel call; do not assert the handback issued it. Record future stop source and actor before acting |
+| task-224 entries 6, 47, 53; `dispatch/auth.py` | Fresh-process probes distinguish some recoverable auth failures; billing errors invalidated an earlier experiment; a probe can itself invoke the CLI's normal refresh | Require positive model success, not absence of an auth error; do not interpret a probe as passive observation |
+| task-296 and task-320 decisions | The four-hour task-217 stall was an unregistered session; detection and adoption shipped, restart was deliberately excluded | Keep adoption distinct from dispatch authority; no invented restart envelope for adopted sessions |
+| task-313; `runner._park_auth_stall` | The detector and two-branch recovery guidance exist; the machine does not perform the probe-and-nudge loop | Add that loop, retaining the detector and the prohibition on token management |
+| task-384; `handback.deliver_handback`, `poller._deliver_pending_handback` | Feedback gets one pending entry pointer; delivery waits for a terminal phase | Replace latest-only state with a durable inbox; auth recovery must not wait for a park to settle itself |
+| task-390; `ledger.write_status`, deferred escalation | Cancellation guard and atomic file replacement exist; deferred escalation is a persisted flag | File replacement is not a transaction spanning flags, task log, budget and spawn |
+| task-394; `runner._start_session`, `ledger.reconcile` | A resumed conversation may produce a different session ID; self-reconciliation is refused | Store returned identity, and preserve live-session reattachment already present |
+| `poller.poll_live_sessions`, `ledger.reconcile` | Session reattachment exists; polling re-resolves project configuration; orphaned batches are marked interrupted | Reuse the reattachment seam with history-based drivers; add safe batch recovery |
+| `config.select_runner` | After finding a winner, later members are marked eligible without checking them | Evaluate each candidate's local eligibility; keep selection and eligibility separate |
+| `finish._sequence`, `previous_merge_commit` | Finish steps and merge evidence exist, but a retry enters preflight/rebase/gate again | Resume delivery from verified merge evidence; never make an earlier merge disappear |
+
+Task records are SQLite rows. **Run metadata is still YAML**, finish records are files,
+and the epic walk's `in_flight`, retry queue and grounding state are in memory. Calling
+the combination an existing SQLite execution ledger would hide the work this design
+requires. The task resumption contract remains the agent's working memory; the new
+journal records machine decisions, not reasoning transcripts.
+
+### What the research contributes
+
+These are adaptations for AgentJobs, not claims that the three reference systems have
+identical semantics. Primary documentation was checked on 2026-09-12 UTC.
+
+| Reference | Adopt or adapt | Do not import |
+| --- | --- | --- |
+| [Temporal workflows](https://docs.temporal.io/evaluate/understanding-temporal) and [retry policies](https://docs.temporal.io/encyclopedia/retry-policies) | Persist the orchestration; retry a failed activity within it. Its documented activity defaults are 1s initial delay, 2x backoff, 100s cap and unlimited attempts unless bounded | Unlimited retries or restarting a whole workflow whenever an activity fails; local spend limits remain binding |
+| [Temporal timeouts](https://docs.temporal.io/encyclopedia/detecting-activity-failures) | Separate queue delay, one attempt's duration, total activity duration and heartbeat silence | Its Schedule-to-Start timeout is non-retryable: putting the same work back in the same queue does not fix capacity. Our launch reconciliation is a separate operation |
+| [Temporal messages](https://docs.temporal.io/encyclopedia/workflow-message-passing) | Signals are asynchronous writes, queries are reads, updates provide a tracked response | An approval HTTP response must acknowledge durable acceptance, not pretend the merge completed |
+| [Restate durable steps](https://docs.restate.dev/develop/ts/durable-steps) and [architecture](https://docs.restate.dev/references/architecture) | Journal results, deterministic identifiers and timers; generation numbers reject stale coordinator results | A journal entry does not fence an arbitrary child process's filesystem writes; we need driver-specific ownership and reconciliation |
+| [DBOS architecture](https://docs.dbos.dev/architecture) and [workflow rules](https://docs.dbos.dev/python/tutorials/workflow-tutorial) | Recorded inputs and step results let a fresh process recover; incomplete steps must be safe to retry | Treating a Python decorator or step name as an external system's idempotency guarantee |
+| [DBOS upgrades](https://docs.dbos.dev/python/tutorials/upgrading-workflows) | Version the workflow definition and explicitly migrate incompatible histories | Replaying old events through whichever new control flow happens to be installed |
+| [SQLite WAL](https://sqlite.org/wal.html) | Short transactions and a single machine-local execution database | Atomicity across separate task databases, execution database, git and subprocesses; WAL does not provide it |
+
+**Decision:** implement a small explicit state machine beside the poller, using SQLite
+already in the stack. No Temporal, Restate or DBOS dependency, broker, service cluster,
+general workflow DSL or arbitrary Python-stack replay. The existing drivers and finisher
+remain activity implementations. Task-379 still decides which process hosts dispatch;
+the journal and reducer must work with either hosting choice.
+
+### Mapping the existing mechanisms
+
+| Durable-execution role | Existing AgentJobs mechanism | Change |
+| --- | --- | --- |
+| Workflow | Task, authorised dispatch, review/finish sequence | Stable execution identity spanning attempts and human waits |
+| Event history | Task log, dispatch/result entries, `meta.yaml`, finish records | Typed execution events and atomic transition receipts; existing records remain linked evidence |
+| Activities | Launch, poll, handback, auth detector, rebase, gate, merge, build, restart, verify, notify | Intent/result/reconcile contract per external operation |
+| Retry policy | `budget.py`, auto-dispatch and epic counters | Per-activity policy plus existing outer caps, reserved atomically |
+| Timers | Poll tick, batch timeout, stale/stall thresholds | Persist due times and timer identities; no sleeping thread is the source of truth |
+| Heartbeat | `output_changed_at`, task progress entries | Preserve observations and last meaningful progress separately; silence starts diagnosis |
+| Signals | Human handoffs, `handback_pending`, deferred escalation | Ordered inbox keyed to source event and execution generation |
+| Update | Approve endpoint and standing clearance | Durable acceptance receipt scoped to reviewed branch/commit and preserved note |
+| Query | Run health, finish panel, task detail | Execution state plus current attempt, next action, cause and delivery status |
+| Ownership | Run locks, live-run scan, machine ceiling, merge runway | Cross-project keys, transactional admission and fenced coordinator ownership; keep OS locks at git/process boundaries |
+| Child workflows | `walk_epic`, inherited authorisation, two attempts per child | Durable child subscriptions, frontier and grounding; resumed wait never reauthorises children |
+| Continuation | `wake.py`, Claude session IDs, Codex persisted thread/turn IDs | Frozen execution envelope and actual returned continuation identity |
+| Human working memory | Spec, decisions, ball prompt, branch evidence | Keep it; never ask an LLM to reconstruct machine state from prose |
+
+### Identity, authority and the immutable execution envelope
+
+Use four identities, with different lifetimes:
+
+- `execution_id`: one accepted dispatch intent, scoped by `(project_id, task_id)`.
+- `run_id`: one agent attempt, with `attempt_no` and `previous_run_id` under that intent.
+- `activity_id`: a logical effect within the execution, including its occurrence. A
+  delivery uses its signal ID; a gate uses its verification generation. `(run_id, step)`
+  alone would collide on repeated gates and fail to deduplicate effects across runs.
+- Driver-returned `session_id`, `thread_id`, `turn_id`: observed external identities.
+  Never derive one from another or poll the conversation ID requested on resume as if it
+  were the newly returned session ID (task-394).
+
+Acceptance saves a versioned, non-secret envelope: project identity and canonical root,
+task ID and starting revision, authorising actor/event, parent authority if any, runner
+name and driver, group and candidate decision, model/argv template, effective posture
+and ceiling at grant, exact posture/push prompt clauses, settings digest, required MCP
+configuration references, retry policy, limits, and workflow/adapter versions. Save the
+values required to reproduce behaviour, not only a hash that cannot reconstruct them.
+Credentials are references to the normal credential store; values never enter history.
+Renew run-scoped credentials for a successor rather than replaying expired secrets.
+
+**Retry and resume use that envelope**, reporting `selection.source=history` and the
+source execution. Changing the project default, group ordering or task posture cannot
+silently select another model. A disabled or missing recorded runner yields a named
+availability/policy condition; it never selects the next member of the old group.
+
+**Frozen inputs are not irrevocable authority.** Before a new side effect, observe current
+Stop/hold, machine/project enablement, applicable narrower ceiling and remaining caps;
+record that observation before the reducer acts. Revocation wins. Raising a ceiling
+does not enlarge an existing grant; lowering it prevents further incompatible effects.
+Continue read-only health and stop processing even if launching is disabled. The reducer
+reads only recorded facts; the adapter is allowed to read the clock/config/world and
+append a new observation. This separates determinism from stale policy enforcement.
+
+A human deliberately changing the runner or posture creates an explicit superseding
+authorisation and envelope after the old worker stands down. **Do not resume a session
+across a posture change.** Start a fresh session using the existing worktree and durable
+task context, once exclusive ownership is proved. This resolves task-375's epic case
+without falsely describing a retry as a new grant. Same-envelope wakes receive the full
+posture/push clauses in the actually delivered message, with payload hash and receipt.
+An initial launch prompt and a saved intent are not evidence a resumed turn received it.
+
+### Storage and a replay entry point
+
+Add a machine-local `execution.db` through an execution-store factory beside existing
+store factories. It coordinates all projects on that machine; one database is needed
+for atomic machine-wide admission. Task access still goes through
+`store_factory.task_manager_for` or the dispatch manager adapter. Never build database
+paths at call sites or move the task corpus into this store.
+The execution store has its own transaction/ownership contract; this does not relax
+the server-only task-store rule. A CLI executor uses the existing managed task API.
+Any host arrangement task-379 selects must preserve that separation.
+
+The following logical tables are the initial schema contract; representation can remain
+small, with typed JSON payloads and indexed scalar keys:
+
+| Record | Essential fields and invariant |
+| --- | --- |
+| executions | ID, project/task, envelope/version, state, event sequence, control generation, next due time; at most one nonterminal execution per project/task |
+| events | Execution, monotonic sequence, kind, source operation/event ID, payload, observed time; unique source ID per execution |
+| activities | Stable ID, input hash, state, attempt count, intent/result, due time, error class, owner epoch; a conflicting input under the same ID is refused |
+| inbox/outbox | Source event or destination operation ID, payload reference/hash, status, receipt and sequence; no best-effort-only delivery |
+| ownership/admissions | Project/task ownership, machine slot, paid-attempt reservation, holder and epoch; all allocated together before launch |
+| child waits | Parent execution/authority, child execution references, observed terminal revisions, grounding cause; one durable subscription per child |
+
+Use WAL on a local disk, `synchronous=FULL`, foreign keys, a bounded busy timeout and
+short write transactions. Do no network, process launch or git operation inside a SQLite
+transaction. Disk-full/busy/corrupt results must not acknowledge acceptance or release
+ownership without a committed record. A process lease expiring fences its *journal
+writes*, not the agent process it launched. Replacement work still requires the driver
+to establish that the previous writer cannot continue. Preserve the existing OS task
+lock and repository merge runway at these external boundaries.
+
+There is no cross-database transaction with the project task log. Handle both directions:
+
+1. Accept dispatch by committing its envelope, identity and pending work in the execution
+   store; return that ID as **accepted**, not started. A response lost after commit can
+   be retried with the same operation ID. Pending task audit writes live in its outbox
+   before a launch is allowed. Acceptance may wait for capacity; subsequent launch
+   admission allocates the machine slot and paid-attempt reservation together. Permanent
+   authorisation failures refuse acceptance rather than creating an unworkable promise.
+2. Accept a human handoff/approval in the task store as today. The durable log event is
+   the source message. A reconciler imports **every unconsumed event**, using persisted
+   source cursors and deduplication, even if the API process died before notifying the
+   coordinator. Advance the cursor only in the same transaction as inbox insertion.
+3. Project mutations from the coordinator use stable `operation_id`s and expected
+   revisions. A lost response repeats the same operation. A revision conflict reads the
+   new event, then re-decides; it never overwrites a newer approval or Stop.
+
+Task managers need a bounded event feed with source cursors; scanning only the newest
+handoff loses intervening messages. Task event ID, not wall-clock sorting, is the order
+within a task. All current task stores are SQLite (task-402); no new file-backend
+compatibility layer is needed. Legacy migration below refers to execution metadata,
+not to a second task-storage backend.
+
+`advance_execution(execution_id)` is the single replay entry point for the poller, CLI
+and startup recovery. Under a short transaction it loads the versioned snapshot and
+subsequent events, reduces them, and records one eligible activity intent with an owner
+epoch. Outside the transaction the adapter performs or reconciles that intent. A second
+short transaction records its result only if the epoch and generation still match.
+Events, materialised state, new timers and outbox inserts commit together. Replaying
+the same history must produce the same next intents and no new effects by itself.
+
+```text
+accepted -> awaiting_capacity -> launching -> working -> finishing -> delivered
+                                  |            |           |
+                                  +------ recovering ------+
+                                               |
+                              retry_wait / waiting_auth / waiting_human
+
+any nonterminal state -- explicit Stop --> stopping --> cancelled
+waiting_human -- matching accepted answer/approval --> next authorised activity
+```
+
+These are execution states, not new task lifecycle enums. Project them through existing
+domain verbs: automated recovery stays agent/work with a concrete next action; genuine
+human input/review uses the matching human reason. A permission park does not time out
+into permission. After a branch merges, delivery can remain incomplete and visible.
+Do not close the execution merely because the task was closed before cleanup finished.
+
+### Side effects and the crash window
+
+For every activity persist intent **before** calling the outside world and result after.
+On recovery the adapter returns `applied`, `not_applied`, `still_running` or `unknown`.
+Only `not_applied`, or a destination that honours the same idempotency key, permits a
+retry. Every `unknown` has a bounded reconciliation plan and then one actionable
+escalation; it never silently becomes `not_applied` after a timeout.
+
+| Activity | Evidence needed before retrying |
+| --- | --- |
+| Launch/resume | Stable attempt token in the driver invocation; correlate exact project, name, root and returned IDs. Query failed or multiple matches means unknown. Keep ownership until the old launcher and worker are known quiescent. A launcher crash after spawn is not permission to spawn again |
+| Send feedback/nudge | Stable signal ID, immutable payload and observed receiver message/turn acknowledgement. If a driver cannot find a lost acknowledgement, surface delivery uncertainty rather than blindly send a second work instruction |
+| Probe/poll/query | Readiness results may be re-observed; process timeouts and concurrency still apply. A probe may cause the CLI's own refresh, but cannot mutate AgentJobs tasks or touch repository tools |
+| Task log/state write | Existing operation deduplication plus expected revision; stable ID survives executor restart |
+| Rebase | Recorded old head/base and actual git state. Resume only a recognised operation; dirty or conflicted state is preserved for repair |
+| Gate | Receipt for exact head/tree, gate version and relevant mutable-input revision; never reuse a result for changed inputs |
+| Merge | Durable intent includes reviewed head, base and expected parents. Reconcile git ancestry, merge parents/tree and task/operation provenance under the runway before another merge; recover the SHA if git committed before the journal did |
+| Build/restart/verify | Target merged SHA and deployment configuration. Reconcile the live version/root before repeating restart; a successful restart command alone does not prove delivery |
+| Close/cleanup | Idempotent close; clean, merged, task-owned worktree only; absent already-removed paths succeed. Never discard dirty work to finish recovery |
+| Notify | Durable notification ID and destination receipt when supported; task-visible incident is deduplicated even if a transport cannot deduplicate delivery |
+
+Launch needs a small recoverable launcher/driver receipt boundary, not PID adoption.
+Persist the attempt token before launch, publish the returned handle before releasing
+launch ownership, and retain process-group identity/exit evidence. A surviving launcher
+remains the sole writer. A replacement coordinator first asks it or the driver's store.
+If the installed driver offers neither authoritative absence nor deduplicated creation,
+automatic recovery of that ambiguous window is **unsupported**, not solved by naming
+the session. Acceptance must expose that limitation rather than let a fake driver
+quietly assume an API capability the real driver does not have.
+
+For generic batch runners, use a minimal detached worker receipt protocol or a proved
+process identity/termination boundary before retry. Keep PID-only adoption rejected.
+For Codex, preserve the existing persisted-thread, active-writer and explicit-fresh-start
+contracts in [the Codex architecture](codex-dispatch-architecture.md); do not implement
+an automatic cold fallback behind them. Same-envelope continuation is distinct from
+recreating an irrecoverable conversation. LLM output and arbitrary shell effects are
+opaque activities: this system does not deterministically replay an agent's thoughts.
+
+### Signals, approval and Stop
+
+Each inbox item carries source task event ID, kind, immutable payload reference/hash,
+target execution/generation, accepted time and acknowledgement. Import all events in
+order. Multiple change requests remain distinct; no latest-wins overwrite. A stale or
+superseded message gets an explicit disposition, with a pointer to what superseded it.
+No message silently retargets a later unrelated execution.
+
+Approval is a validated update at the API boundary and a durable signal internally.
+Return its acceptance/operation ID immediately after the source commit; queued finish
+is not a failed approval and accepted approval is not a completed merge. Bind clearance
+to the reviewed branch/head and authority, not prose alone. A newer change request or
+Stop invalidates outstanding clearance; an unrelated progress note does not. Rebase
+uses the existing reviewed-change policy; conflict resolution or new substantive edits
+require fresh review unless autonomous posture already authorises them.
+
+Preserve the approval note as part of the immutable source event. A note does not
+suppress finish or change permission (task-343's unresolved semantic proposal stays
+out). For a still-live reviewing session, arrange a recorded stand-down and transfer
+exclusive task ownership to the finisher. Do not tell the person to cancel and approve
+again. Finish waits while the agent can still write; it does not merge concurrently.
+
+**Stop cancels intent; administrative stand-down does not.** Persist requester, source
+(GUI, CLI, panic switch, internal transfer), reason, target IDs and control generation
+before signalling a process. A real Stop prevents new work and auth nudges, including
+after restart. Confirm quiescence before declaring cancellation complete or releasing
+the task lock. A failed stop stays `stopping`; the process may still be alive.
+An effect already committed when Stop arrives stays recorded: a merge is not rolled
+back automatically, and incomplete delivery is shown. Stop after merge cancels further
+actions and records the remaining delivery work for explicit resumption.
+
+Cancellation and settlement use one compare-and-set terminal transition. A delayed poll
+cannot publish a contradictory result or replace an accepted approval with a generic
+request for a decision. The task-410 fixture must have two branches: explicit human
+Stop prevents recovery; administrative stand-down permits delivery of the buffered
+message. Its original record does not establish which happened.
+
+### Failure classes, retries and timeouts
+
+Errors carry `class`, activity, evidence reference, retry disposition, attempt/budget
+usage, next due time and, if escalated, the single action that clears the condition.
+Do not classify arbitrary exceptions by optimistic message matching.
+
+| Class | Machine action | Human action, only when needed |
+| --- | --- | --- |
+| `auth_unavailable` | Enter the shared probe loop; no repeated failed work turns | At deadline, authenticate once using `claude auth login` |
+| `provider_transient` / `rate_limited` | Back off; honour recorded Retry-After, respect outer bounds | If bounded recovery exhausts, inspect the named provider condition |
+| `usage_exhausted` | Record actual reset time if available; no auth success or model fallback | Change account limit only if continuation requires it |
+| `launch_unconfirmed` / `effect_unknown` | Reconcile recorded intent; never blindly retry | Resolve the named ambiguous external operation if evidence cannot |
+| `worker_gone` | Prove no surviving writer; retry/continue under saved inputs and budget | Repair preserved workspace only if unsafe to continue |
+| `observer_unavailable` | Retry query, preserve live ownership; unreadable listing is not an empty listing | Restore driver access after diagnostic deadline |
+| `heartbeat_silent` | Diagnose last output and progress, child wait, gate and permission state | Inspect a genuinely unresponsive worker if safe recovery cannot be proved |
+| `capacity_wait` / `runway_busy` / `cooldown` | Persist wait; consume no new agent attempt | None merely because capacity is occupied |
+| `gate_inputs_changed` | One proof-based correction under task-348, recorded with commit/input range | Investigate a second red or unclassifiable change |
+| `gate_code_failure` / `rebase_conflict` | Preserve output/worktree; never rerun unchanged code hoping for green | Review/repair the named failing code or conflict |
+| `permission_required` / `spec_gap` | Park durably without polling work into a higher posture | Answer the specific permission or specification question |
+| `policy_revoked` / `budget_exhausted` | Stop new effects; keep query and reconciliation working | Make the explicit policy/budget decision; no implicit new grant |
+| `history_incompatible` / `storage_failure` | Fail closed on mutations; retain history and visible diagnostics | Restore compatible code/storage |
+| `cancelled_by_user` | Stop and confirm; no automatic restart | No further request to decide what the already-stopped run should do |
+
+Retry schedule: ordinary transient activities use 10s initial delay, 2x backoff and a
+120s cap, with bounded jitter recorded when the timer is created. At most five attempts
+and ten minutes per such activity by default. Special cases below override these
+defaults. They are proposed policy values, not measurements of optimal latency.
+One `timer_fired` event per timer; waking after machine sleep fires overdue work once,
+not a catch-up burst. Persist UTC deadlines, use monotonic elapsed time within a live
+process, and handle clock regression without manufacturing extra attempts.
+
+Keep the configured per-task/day (default 3), lifetime (10), cooldown (60s), machine
+starts/hour (30), machine concurrency, and epic two-attempt limits. **Every new paid
+agent attempt, including a recovery work turn or resume, reserves budget before launch**;
+shared retries cannot race around the limit. No new execution ID resets lifetime/day
+counts. Timers, polls
+and probes are not new dispatches, but probes have their own limits. A fresh grant can
+renew an epic allowance only through existing authorisation rules, not a replay.
+An auth continuation starts a new attempt only after the failed turn is known ended;
+it may keep the same session and task ownership. Lost launch acknowledgement retains
+its reservation until reconciliation proves no paid work started; it cannot refund an
+ambiguous launch and spend the same allowance again.
+Daily/lifetime exhaustion retains the current explicit human cap decision; do not
+quietly wait until tomorrow to spend another allowance. Cooldown/hourly capacity waits
+remain automatic within the execution's recorded recovery deadline.
+
+| Timeout role | Existing key / proposed treatment |
+| --- | --- |
+| Schedule-to-start | New launch-observation deadline, proposed 120s after admission. Reconcile a launch not yet acknowledged; capacity wait is shown separately and retried when a slot frees |
+| Start-to-close | Keep `run_timeout_seconds` for batch attempts; code default is 1800s, local deployments may set 5400s. Do not turn this into a session wall-clock kill |
+| Schedule-to-close | Persist activity recovery deadline including backoff; proposed 10m ordinary transient, auth has its own deadline. Human review/permission waits suspend automatic work rather than expire permission |
+| Heartbeat | Keep `session_stall_seconds` (1800s); output change and latest task progress are separate evidence. TTY repaints can keep output moving without useful progress |
+| Idle without handoff | Keep `session_stale_seconds` (3600s); detect unmet task contract separately from process death |
+
+`dispatch config` must label these roles beside existing key names, resolved values and
+source. Preserve existing configuration keys and user-tuned limits; do not reset them
+through a rename. A pure reducer does not call `datetime.now()` to decide its next step;
+it receives recorded observations and timer events.
+
+### Auth recovery: probe, then wake, then verify progress
+
+1. A fresh `authentication_failed` observation opens an incident keyed by credential
+   profile and driver, with per-execution links. Park the work turn and retain exclusive
+   task ownership. Do not notify immediately for a store that may recover in two minutes.
+2. Run one bounded fresh-process probe per credential profile, initially immediately,
+   then at 60s intervals, with a proposed 30s timeout. Use the same credential context and
+   recorded model, a tiny exact-response request and a diagnostic cwd with tools/MCP
+   execution disabled using supported driver options. Verify those options before
+   enabling the adapter. This is a real model call with a bounded cost, not a free ping.
+3. Success requires exit 0 and a positive real response matching the probe contract.
+   Auth rejection, billing/quota, rate limit, timeout, malformed result and launch failure
+   are distinct. Task-224 entry 47 must be a regression: billing output never says healthy.
+4. Positive probe permits one deduplicated nudge or buffered-message delivery to the
+   existing safe continuation. Read its actual new output/turn acknowledgement; a probe
+   succeeding does not prove the old session has recovered. A new auth rejection keeps
+   the incident open and rearms the next probe; do not create an immediate nudge loop.
+5. After five minutes of auth rejection, create one actionable incident notification:
+   `auth_unavailable` and `claude auth login`. The same incident card links all affected
+   tasks. Keep probing every 60s after notification, with a shared hourly probe cap of
+   60 and no overlapping probes. Re-auth needs no Answer or Dispatch click.
+6. On recovery, automatically clear only the matching auth handoff. Do not overwrite a
+   later permission question, review, hold or Stop. Stop removes that execution from
+   the incident's waiters; no remaining waiter means no further probes.
+
+On a running healthy coordinator, detect recovery within one probe period; resumption
+also includes bounded probe/driver latency and available execution capacity. Show those
+separately. Do not promise sub-interval completion when the machine is asleep, the
+provider is slow or a budget is exhausted. A permanently dead store gets one actionable
+notification per incident; later polls update the same incident rather than page again.
+Probe results are shared only for the same credential profile and proven compatible
+driver context, never merely because two tasks both use Claude.
+
+This honours task-224's rejections: no credential reading, token refresher, API-key
+fallback, daemon-auth latch or blind retry of work against a dead store. The CLI may
+perform its own refresh during a probe, which is normal CLI behaviour and is recorded
+as a confound in experiments about the cause of expiry.
+
+### Finishing and durable supervision
+
+Finish is part of the same execution. Persist approval, runway ownership, rebase, gate
+receipt, merge SHA, build, restart, live verification and cleanup as distinct facts.
+If a crash follows merge, reconcile the SHA and resume delivery. A failed delivery never
+re-enters the gate merely to rediscover that the branch already merged. The finish panel
+shows both the latest activity failure and the execution's earlier merge (task-322).
+
+Task-348's exception is narrow: at most one red-stage retry, only with machine-checkable
+proof that relevant inputs changed and every changed path is classified. Merely observing
+that `main` moved is insufficient. Revalidate all other affected stages or run the full
+gate on the changed tree; a lone green stage is not a branch receipt. Mutable task-corpus
+inputs now live outside git, so old task-YAML incidents need explicit source revision
+evidence. Without it, escalate. This is not retry-until-green.
+
+The epic walk becomes a durable wait over child execution/task records. Save its parent
+authority, admitted child set, cursor, active executions, per-child attempts and grounding
+cause. Resume the same wait after coordinator death. Reconstruct children from records
+before dispatching anything; persisted child admission prevents a second launch in the
+gap between child dispatch and parent bookkeeping. Subscribe and inspect child state in
+a race-safe loop so a child completing during subscription cannot be missed.
+
+Keep the rolling frontier and machine cap. First child requiring human action or ending
+other than completed grounds further takeoffs; already-running independent siblings
+may land. Persist grounding before releasing ownership. A resumed supervisor cannot
+forget a failed child, reset attempts or approve anything. Waiting consumes no agent
+session slot, and task closure—not process exit—proves a child delivered. Parent closure
+still requires its own acceptance evidence. New scope, dependency-edit privileges and
+subset dispatch remain task-377; durability grants none of them.
+
+### Rollout, operations and proof
+
+Introduce the journal in a disabled/shadow mode first. Import legacy history with stable
+source IDs and `legacy_import` provenance; incomplete envelope fields stay unknown.
+Never reconstruct a missing model or posture from today's defaults. Preserve historical
+logs and original metadata. Shadow replay may compare proposed next actions but performs
+none. Drain or explicitly migrate active legacy runs under ownership; never let legacy
+and durable pollers both control a run. Each migrated execution records its owner mode.
+
+Use a workflow-definition version independent of package version. Compatible reducers
+remain available for active histories; migrations append explicit migration events at
+quiescent boundaries. An unknown version fails closed. Rollback means disabling new
+admissions while a compatible controller drains/reconciles existing intents, not running
+the old YAML writer over new histories. Backup uses SQLite's supported snapshot API and
+includes execution state alongside task databases and referenced artifacts. Restore
+reconciles outside effects before action; restoring an old database is not undoing git.
+
+History retains compact decision/result data and artifact hashes, not full transcripts.
+Do not prune unfinished executions, pending signals, merge evidence or live idempotency
+receipts. Start with no automatic history pruning; measure volume before adding an
+explicit retention policy. Snapshots accelerate replay without changing source history.
+The database is a local reliability boundary, not isolation from arbitrary code running
+as the same OS user. Run-scoped API credentials and generation checks still enforce
+their existing scope; editable worker metadata cannot grant new authority.
+
+Query surfaces must answer: what was accepted, which runner/posture governs it, which
+attempt is active, what already happened, what is waiting, when the next attempt is due,
+what budget remains, and the single human action if one is required. Record observer
+failures durably; do not let a dropped polling exception be the only evidence. Notify
+through an outbox. Exactly one task-visible incident is enforceable; exactly one external
+push requires receiver deduplication. With an ambiguous network acknowledgement, report
+at-least-once transport delivery rather than claim an impossible exactly-once page.
+
+The implementation harness must drive production reducers and adapters using a fake
+clock, temporary SQLite stores, disposable git repositories, isolated task managers,
+controllable subprocesses and a fake driver with explicitly declared capabilities.
+Inject process death before intent commit, after intent, after the external effect,
+before result commit and before/after outbox acknowledgement. Restart a fresh coordinator
+against the same stores; do not reconstruct its in-memory objects for it.
+
+| Fixture / interleaving | Required assertion |
+| --- | --- |
+| task-224 self-recovery (~two minutes) and task-410 without Stop | Zero human actions; exactly one safe continuation; runner/group/posture and prompt preserved |
+| task-224 genuinely dead store | One auth incident/notification, one login action; no Answer click; invalid/billing probe is not success |
+| task-410 original cancellation ambiguity | Test human Stop and internal stand-down separately; no invented historical requester |
+| Feedback while busy/auth-parked; duplicate/reordered source delivery | No lost message, no duplicate accepted operation, no implicit Stop, no stale retarget |
+| Cancel/poll/approval race (task-264/312) | One terminal result; standing decisions preserved; no second writer |
+| Crash after external launch, before returned ID is saved | Reconcile actual driver identity; unknown-capability adapter fails closed instead of launching twice |
+| Crash after git merge, before record (task-322) | One merge; delivery resumes; UI still reports the merge |
+| Driver listing timeout across multiple runs; session ID changes (task-394) | Nobody declared dead from an unreadable listing; returned identity is followed |
+| Server/batch coordinator death; machine restart | Reattach/reconcile, no blind PID adoption or duplicate child; dirty work survives |
+| Parent dies before/after child admission or grounding | Child attempt count unchanged; frontier/waits recover; failed child still grounds takeoffs |
+| Two projects with the same task ID; concurrent admissions at capacity minus one | No cross-project resume; exactly one remaining slot awarded |
+| Caps, kill switch, changed defaults/ceiling, expired approval, incompatible history | No reset of authority/budget, silent downgrade, or stale effect |
+| Later disabled/missing candidate after first eligible winner | Eligibility truthful and chosen runner unchanged |
+| Red gate with changed/unchanged/unclassified inputs | Only proved changed inputs earn the one retry; no partial green masquerades as full verification |
+
+Human-touch count is the count of required human actions after initial authorisation,
+excluding the deliberate merge review required by non-autonomous posture. Notification
+count is measured separately. Tests must assert completion or the exact justified wait
+as well as touch count: doing nothing would otherwise score a perfect zero. Fixture
+times are relative and sanitised; no credentials, real session identifiers or user
+quotations enter committed test data. Live acceptance must use isolated projects and
+supported driver contracts; never fault-inject against the user's authentication store.
+
+### Implementation ownership and order
+
+The task records carry the full specifications and remain the source of queue order.
+`needs` below means a required implementation contract, not a preference about ordering.
+
+| Task | Owns | Needs |
+| --- | --- | --- |
+| task-264 | Execution journal, reducer, atomic ownership/admission, source feed and outbox; absorbs original race/scoping findings | None |
+| task-415 | Truthful eligibility for every candidate | None |
+| task-375 | Immutable envelope, history-based resume, explicit new-grant handling | task-264 |
+| task-416 | Activity adapters, crash reconciliation, timers, budgets, startup replay and rollout | task-264, task-375 |
+| task-312 | Signal inbox, approval acceptance, stop provenance and safe finisher ownership transfer | task-264, task-375 |
+| task-348 | Evidence for one red-stage retry and a complete final gate receipt | task-264 |
+| task-322 | Durable finish, post-merge recovery, truthful finish projection | task-264, task-312, task-348 |
+| task-417 | Shared auth probe, incident notification and acknowledged continuation | task-264, task-375, task-312, task-416 |
+| task-418 | Persistent epic frontier, waits, admissions and grounding | task-264, task-416 |
+| task-419 | Cross-component incident/crash harness and final guarantee evidence | All preceding children |
+
+Task-314 stays separate: Kiro-specific comparison and new event triggers are not proved
+by this research. Task-343 stays separate: preserving an approval payload does not
+deliver its exact merge-message/escalation-copy requirements or decide what a note
+means. Task-377 stays separate: recovering an existing plan is not authority to change
+its dependency structure. Each disposition is recorded on the original task; none is
+closed as a duplicate merely because it shares vocabulary with durability.
+
+The design pass files and specifies children; it does not implement or dispatch them.
+Integrate the design before implementation sessions use it as their shared contract.
+Task-414's parent
+acceptance remains pending until the children demonstrate these behaviours. A researched
+design and a green documentation branch are not evidence the runtime is durable.
+
 ## 10. Rejected alternatives
 
 Recorded so they are not relitigated. The invocation candidates (§4) and trigger
