@@ -93,6 +93,10 @@ nav:
 
 # The 160+ per-class/slot/enum/type pages under schema/v1 and schema/v2 are reached
 # from each schema's Reference index rather than enumerated in the sidebar.
+#
+# backlog.md is a generated repository artefact that happens to live in this directory.
+# Its reader is somebody browsing the repository rather than the documentation site, and
+# the link it carries to ROADMAP.md beside the clone resolves there and not here.
 not_in_nav: |
   schema/*/classes/*
   schema/*/enums/*
@@ -100,3 +104,4 @@ not_in_nav: |
   schema/*/types/*
   schema/*/schemas/*
   integration/*
+  backlog.md

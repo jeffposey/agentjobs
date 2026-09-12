@@ -442,7 +442,7 @@ question is the same for both surfaces.
 
 ### 12 — Documentation versus reality
 
-Every file in `docs/`, plus `README.md`, `ROADMAP.md`, `docs/index.md`,
+Every file in `docs/`, plus `README.md`, `ROADMAP.md`, `docs/backlog.md`, `docs/index.md`,
 `docs/quickstart.md`, `docs/installation.md`, `docs/mobile-access.md`, and the
 `docs/integration/` and `docs/schema/` subdirectories.
 
@@ -459,8 +459,8 @@ instead of against code. So:
   index, README, ROADMAP — over breadth across design documents nobody executes.
 - Flag anything a new user would follow off a cliff, and anything written in the present
   tense about something unbuilt. `agent-dispatch-design.md` had both problems last time.
-- `ROADMAP.md` is generated and public. Read it as a stranger and say what impression it
-  gives.
+- `ROADMAP.md` is hand-written and public, and `docs/backlog.md` beside it is generated
+  from the store. Read both as a stranger and say what impression they give.
 
 ### 13 — Context architecture and the agent contract
 
@@ -514,8 +514,9 @@ and it is the one whose findings the owner is most likely to act on.
 - **Does the record survive the work?** Take five recently completed tasks and read only
   their records. Do they say what was decided and why, or does the reasoning live in a
   transcript nobody can read? That is the whole premise of the tool.
-- **The public face.** `ROADMAP.md` is generated from these records and pushed. What does
-  the backlog look like to a stranger.
+- **The public face.** `docs/backlog.md` is generated from these records and pushed, and
+  `ROADMAP.md` groups the same work into phases by hand. What does the backlog look like
+  to a stranger.
 
 ---
 

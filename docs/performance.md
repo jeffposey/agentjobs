@@ -172,7 +172,7 @@ the whole point of printing it.
 | 3 | `mypy` | Python types | 1.5s | 1.6 / 1.6s |
 | 4 | `api` | `openapi.json` and the generated client both match the app | 4.2s | 2.4 / 2.5s |
 | 5 | `icons` | the committed PWA icons match `assets/app-icon.svg` | 2.8s | 1.2 / 1.2s |
-| 6 | `roadmap` | the committed `ROADMAP.md` matches the task store | — | — |
+| 6 | `roadmap` | `docs/backlog.md` matches the store, and `ROADMAP.md` rosters no closed task | — | — |
 | 7 | `oxlint` | frontend lint | 0.6s | 0.4 / 0.4s |
 | 8 | `pytest` | the Python suite, across every core | 52.1s | 79.3 / 89.1s |
 | 9 | `vitest` | the jsdom component tests | 5.2s | 28.4 / 7.2s |

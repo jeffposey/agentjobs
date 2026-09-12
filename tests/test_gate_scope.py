@@ -180,12 +180,23 @@ class TestClassification:
         for entry in gate_scope.CLASSES:
             assert set(entry.stages) <= set(EVERY), entry
 
-    def test_the_generated_roadmap_is_classified_before_prose_can_claim_it(self) -> None:
-        """Order in the table is load-bearing: ``*.md`` would route it to the docs class.
+    def test_the_generated_listing_is_classified_before_prose_can_claim_it(self) -> None:
+        """Order in the table is load-bearing: ``docs/*`` would route it to the docs class.
 
         The hand-edit this guards against is the whole point of the stage. A person
-        corrects a title in ROADMAP.md, the docs class selects pytest alone, and the one
-        check that can tell an edit from a regeneration never runs.
+        corrects a title in docs/backlog.md, the docs class selects pytest alone, and the
+        one check that can tell an edit from a regeneration never runs.
+        """
+        stages, _ = gate_scope.stages_for(["docs/backlog.md"], EVERY)
+
+        assert "roadmap" in stages
+        assert gate_scope.classify("docs/backlog.md").pattern == "docs/backlog.md"
+
+    def test_the_roadmap_page_selects_the_stage_that_audits_it(self) -> None:
+        """It is prose, but it is the only prose whose claims a stage checks.
+
+        Routed to the docs class it would reach main rostering a closed task, which is
+        the one thing the audit exists to stop.
         """
         stages, _ = gate_scope.stages_for(["ROADMAP.md"], EVERY)
 

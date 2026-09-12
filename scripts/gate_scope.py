@@ -58,11 +58,14 @@ docs edit can fail the suite. Nothing else reads them.
 """
 
 ROADMAP_STAGES = ("roadmap", "pytest")
-"""What editing the published roadmap can move.
+"""What editing either published roadmap file can move.
 
-``roadmap`` because a hand-edit to a generated file is precisely what that stage exists
-to catch, and ``*.md`` below would otherwise route ``ROADMAP.md`` to the docs class and
-skip it. ``pytest`` on the same terms as any other prose.
+``roadmap`` for both, for opposite reasons. ``docs/backlog.md`` is generated, and a
+hand-edit to a generated file is precisely what that stage exists to catch --
+``docs/*`` below would otherwise route it to the docs class and skip it. ``ROADMAP.md``
+is hand-written, and the same stage audits what it rosters against the store, so an
+edit to it is the one change that can turn that audit red. ``pytest`` on the same terms
+as any other prose.
 """
 
 UNBOUNDED_STAGES: Tuple[str, ...] = ("roadmap",)
@@ -95,15 +98,18 @@ class Class:
 
 
 CLASSES: Tuple[Class, ...] = (
-    Class("ROADMAP.md", ROADMAP_STAGES, "the generated roadmap; the roadmap stage reads it"),
+    Class("ROADMAP.md", ROADMAP_STAGES, "the roadmap page; the roadmap stage audits it"),
+    Class("docs/backlog.md", ROADMAP_STAGES, "the generated listing; the roadmap stage reads it"),
     Class("docs/*", DOCS_STAGES, "prose; the documentation contract tests read it"),
     Class("*.md", DOCS_STAGES, "prose; the documentation contract tests read it"),
 )
 """Deliberately short, and ordered: the first pattern that matches wins.
 
-``ROADMAP.md`` sits above ``*.md`` because it is not prose -- it is a generated artefact
-that happens to end in ``.md``, and routing it to the docs class would skip the one stage
-that can tell a hand-edit from a regeneration.
+Both roadmap entries sit above the prose patterns that would otherwise swallow them.
+``docs/backlog.md`` is a generated artefact that happens to end in ``.md``, and routing
+it to the docs class would skip the one stage that can tell a hand-edit from a
+regeneration. ``ROADMAP.md`` genuinely is prose, but it is the only prose in the
+repository whose claims the roadmap stage checks against a store.
 
 Every candidate entry beyond these was measured against what it would save and dropped.
 ``frontend/*`` would spare Black, Ruff and MyPy -- 2.1 seconds. ``assets/*`` would spare

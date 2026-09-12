@@ -1,4 +1,4 @@
-"""Write the tracked ``ROADMAP.md`` from the task store, or say it is stale.
+"""Write the tracked ``docs/backlog.md`` from the task store, or say it is stale.
 
 The same contract ``scripts/export_openapi.py`` already satisfies for ``openapi.json``:
 one render, written on demand and compared against **the working tree** under
@@ -20,9 +20,17 @@ project, the check is real.
 
 **The file goes stale for reasons outside the branch.** Any task created, closed,
 reordered, retitled or re-summarised anywhere makes every open branch's copy stale. That
-is the cost of a live roadmap and it is deliberately cheap to pay: the failure names the
+is the cost of a live listing and it is deliberately cheap to pay: the failure names the
 one command that fixes it, and the projection carries nothing that churns for a reason a
 reader would not care about (no timestamps, no ball state, no run ids).
+
+``--audit`` is the other half, and it is a different kind of check on a different kind of
+file. ``ROADMAP.md`` is written by a person: the phases, the workstreams, and what each
+one is for -- the things no projection of the records can produce, because no record
+carries them. Nothing regenerates it, so nothing can compare it against a render. What
+can be compared is its *claims*: every task it rosters should still be open work. Stale
+ids fail; open tasks it has not yet placed are counted and let through, for the reason
+``NarrativeAudit`` gives.
 """
 
 from __future__ import annotations
@@ -33,9 +41,14 @@ from pathlib import Path
 from typing import Optional
 
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
-from agentjobs.roadmap import RoadmapLeakError, database_for, roadmap_for
+from agentjobs.roadmap import (
+    RoadmapLeakError,
+    audit_narrative_for,
+    database_for,
+    roadmap_for,
+)
 
-REGENERATE = "poetry run python scripts/export_roadmap.py ROADMAP.md"
+REGENERATE = "poetry run python scripts/export_roadmap.py docs/backlog.md"
 
 
 def repository_root(start: Path) -> Path:
@@ -78,16 +91,58 @@ def resolve_project(project_id: Optional[str], start: Path) -> Optional[Project]
         return None
 
 
+def audit(project: Project, narrative: Path) -> int:
+    """Check what a hand-written roadmap page claims against the project's store.
+
+    Two outcomes are possible and only one of them is red. A rostered task that is closed
+    or was never filed is a lie the page tells a reader, and it fails. An open task the
+    page has not placed in a workstream is lateness rather than error -- the generated
+    listing beside it carries that task in full -- so it is counted and let through.
+    """
+    if not narrative.is_file():
+        print(f"{narrative} does not exist, so there is no roadmap page to audit.")
+        return 1
+
+    result = audit_narrative_for(project, narrative.read_text(encoding="utf-8"))
+
+    if result.stale:
+        print(f"{narrative} rosters work that is no longer open:")
+        for task_id in result.stale:
+            print(f"  {task_id} is closed, archived, a draft, or was never filed")
+        print("Remove it from its workstream, or move it to what replaced it.")
+        return 1
+
+    placed = f"{narrative} rosters {len(result.placed)} open tasks"
+    if result.unplaced:
+        preview = ", ".join(result.unplaced[:8])
+        more = "" if len(result.unplaced) <= 8 else f", and {len(result.unplaced) - 8} more"
+        print(f"{placed}; {len(result.unplaced)} are not placed in a workstream yet.")
+        print(f"  {preview}{more}")
+        print(f"They are listed in full by `{REGENERATE}`. Run the roadmap playbook to place them.")
+    else:
+        print(f"{placed}, which is every open task in the {project.id} store.")
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("output", type=Path, help="Path to the checked-in roadmap")
+    parser.add_argument("output", type=Path, help="Path to the checked-in listing")
     parser.add_argument("--project", default=None, help="Project id (default: this repository's)")
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Report instead of writing when the checked-in roadmap is stale",
+        help="Report instead of writing when the checked-in listing is stale",
+    )
+    parser.add_argument(
+        "--audit",
+        type=Path,
+        default=None,
+        help="Audit a hand-written roadmap page instead: fail on a task it rosters "
+        "that is no longer open, and report the open tasks it has not placed",
     )
     args = parser.parse_args(argv)
+
+    unverifiable = args.check or args.audit is not None
 
     project = resolve_project(args.project, Path.cwd())
     if project is None:
@@ -95,7 +150,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             "No AgentJobs project is registered for this checkout, so the roadmap "
             "cannot be verified against a store. Nothing was checked."
         )
-        return 0 if args.check else 1
+        return 0 if unverifiable else 1
 
     database = database_for(project)
     if not database.is_file():
@@ -103,7 +158,10 @@ def main(argv: Optional[list[str]] = None) -> int:
             f"Project {project.id!r} has no database at {database}, so the roadmap "
             "cannot be verified against a store. Nothing was checked."
         )
-        return 0 if args.check else 1
+        return 0 if unverifiable else 1
+
+    if args.audit is not None:
+        return audit(project, args.audit)
 
     try:
         expected = roadmap_for(project)

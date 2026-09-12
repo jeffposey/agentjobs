@@ -1,4 +1,4 @@
-"""Project the backlog into the tracked ``ROADMAP.md`` the public repository reads.
+"""Project the backlog into the tracked ``docs/backlog.md`` the public repository reads.
 
 The SQLite cutover moved the backlog into a database beside the server, which is the
 right home for it and cost one thing nobody separated out: the repository's shop
@@ -12,7 +12,7 @@ Three properties are load-bearing, and none of them is decoration.
 **It is a projection, not a mirror.** ``docs/storage-sqlite.md`` section 11 rejects a
 second authority, and it is right to: a mirror something may write back to, or read as
 truth, re-creates the split the migration removed. What is rejected there is
-*bidirectionality*, not *derivation*. Nothing in this repository reads ``ROADMAP.md``
+*bidirectionality*, not *derivation*. Nothing in this repository reads ``docs/backlog.md``
 back, no code path treats it as a source of truth, and ``storage restore`` cannot be
 pointed at it -- it is a build artefact that happens to be tracked, exactly like
 ``openapi.json`` and ``frontend/src/api/generated``.
@@ -31,6 +31,15 @@ store, which is both an editorial decision and the reason this file is safe to p
 a summary is written for a public reader -- that is the ``roadmap`` playbook's work --
 but it can refuse to publish a home directory or an email address, and a check that
 fires on the unarguable cases is worth more than a rule nobody applies.
+
+**The other half of the arrangement is not generated at all**, and this module holds a
+second, much weaker check for it. A complete listing in queue order tells a reader what
+happens next and nothing whatever about what the work *is*: half this backlog is one
+subject spread over four bands, and no projection of the records can say so, because no
+record says it. ``ROADMAP.md`` is therefore written by a person -- phases, the
+workstreams inside them, and what each is for -- and links here for the detail.
+:func:`audit_narrative` is what keeps a hand-written page from rotting unnoticed, and
+its asymmetry is argued at :class:`NarrativeAudit`.
 """
 
 from __future__ import annotations
@@ -149,6 +158,64 @@ def draft_count(tasks: Iterable[Task]) -> int:
     )
 
 
+ROSTER_ENTRY = re.compile(r"^\s*[-*]\s+`(task-[0-9A-Za-z][0-9A-Za-z-]*)`")
+"""A task placed in a workstream: a list item whose first thing is a backticked id.
+
+The narrative page names tasks in two quite different ways and only one of them is a
+claim. A roster line -- ``- `task-309` -- the panel never says it will merge`` -- asserts
+that this task is planned work in this workstream. A mention inside a paragraph is
+commentary, and commentary about a task that has since closed is usually still true:
+"the failure task-407 already exists about" does not stop being accurate history the day
+task-407 merges. Auditing prose would therefore punish the page for being well written.
+"""
+
+
+@dataclass(frozen=True)
+class NarrativeAudit:
+    """What a hand-written roadmap page claims, checked against the store.
+
+    The asymmetry between the two lists is the whole design, and it is deliberate rather
+    than an oversight about to be tightened. :attr:`stale` is a lie -- the page offers a
+    reader planned work that is finished or was never filed, and they can act on it.
+    :attr:`unplaced` is merely lateness: a task filed this morning that nobody has put in
+    a workstream yet, whose full entry is in the generated listing regardless.
+
+    So stale ids fail and unplaced ids are reported. The stricter rule -- every open task
+    placed, or the gate goes red -- was considered and rejected: it would make filing a
+    task break the build until somebody edited prose, which is the shape of failure
+    task-407 already exists about, and a check that stops ordinary work gets switched off
+    inside a week.
+    """
+
+    placed: Tuple[str, ...]
+    stale: Tuple[str, ...]
+    unplaced: Tuple[str, ...]
+
+    @property
+    def ok(self) -> bool:
+        """Whether the page may be published. Only :attr:`stale` can answer no."""
+        return not self.stale
+
+
+def placed_ids(narrative: str) -> Tuple[str, ...]:
+    """Every task id the page rosters, in the order it rosters them."""
+    found = [
+        match.group(1) for line in narrative.splitlines() if (match := ROSTER_ENTRY.match(line))
+    ]
+    return tuple(dict.fromkeys(found))
+
+
+def audit_narrative(narrative: str, tasks: Iterable[Task]) -> NarrativeAudit:
+    """Compare a hand-written roadmap page against the records it claims to describe."""
+    listed = published(tasks)
+    open_ids = {task.id for task in listed}
+
+    placed = placed_ids(narrative)
+    stale = tuple(task_id for task_id in placed if task_id not in open_ids)
+    unplaced = tuple(task.id for task in listed if task.id not in set(placed))
+    return NarrativeAudit(placed=placed, stale=stale, unplaced=unplaced)
+
+
 def _relations(task: Task, titles: Dict[str, str], open_ids: frozenset) -> List[str]:
     """The one line under a task saying what it waits on and what it belongs to.
 
@@ -183,18 +250,23 @@ def _entry(task: Task, titles: Dict[str, str], open_ids: frozenset) -> str:
 
 
 PREAMBLE = """\
-# Roadmap
+# Backlog
 
-The open AgentJobs backlog: what is planned, in the order it will be worked. Bands run
-critical, high, medium then low, and within a band the order is the queue's own — the
-same order `agentjobs next` hands work out in.
+Every open AgentJobs task, in the order it will be worked. Bands run critical, high,
+medium then low, and within a band the order is the queue's own — the same order
+`agentjobs next` hands work out in.
+
+This is the complete listing, and it is the one that is always current.
+[ROADMAP.md](../ROADMAP.md) is the same work read as a plan — phases, and the
+workstreams inside them — and it is written by a person rather than generated, so it
+runs behind this file between passes.
 
 This file is generated from the task store, which lives in a database beside the server
 rather than in this repository. It is written one way and read by people: nothing here
 reads it back, and it is never a source of truth. Regenerate it with
 
 ```bash
-poetry run python scripts/export_roadmap.py ROADMAP.md
+poetry run python scripts/export_roadmap.py docs/backlog.md
 ```
 
 A task shows its id, its title, its one-sentence summary, what it is still waiting on,
@@ -274,3 +346,13 @@ def database_for(project: Project, *, settings: Optional[StorageSettings] = None
 def roadmap_for(project: Project, *, settings: Optional[StorageSettings] = None) -> str:
     """The rendered roadmap for one project, read from its store."""
     return render(store_tasks(project, settings=settings))
+
+
+def audit_narrative_for(
+    project: Project,
+    narrative: str,
+    *,
+    settings: Optional[StorageSettings] = None,
+) -> NarrativeAudit:
+    """Audit a hand-written roadmap page against one project's store."""
+    return audit_narrative(narrative, store_tasks(project, settings=settings))

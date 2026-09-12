@@ -37,6 +37,7 @@ from agentjobs.roadmap import (
     PUBLISHED_LIFECYCLES,
     Leak,
     RoadmapLeakError,
+    audit_narrative,
     draft_count,
     leaks,
     published,
@@ -329,3 +330,92 @@ class TestLeaks:
         leak = Leak(task_id="task-001", field="title", what="an email address", matched="a@b.co")
 
         assert leak.render() == "task-001 title contains an email address: a@b.co"
+
+
+class TestNarrativeAudit:
+    """What the hand-written page claims, and which claims are allowed to be wrong.
+
+    ``ROADMAP.md`` is prose, so nothing can compare it against a render. What can be
+    compared is the set of tasks it rosters, and the asymmetry in the verdict is the
+    whole design: advertising closed work is a lie a reader acts on, while not having
+    placed this morning's task is lateness the listing beside it already covers.
+    """
+
+    PAGE = """# Roadmap
+
+## Phase 1 - a phase
+
+### A workstream
+
+- `task-001` - the first thing
+- `task-002` - the second thing
+"""
+
+    def test_a_rostered_open_task_is_placed(self) -> None:
+        audit = audit_narrative(self.PAGE, [make_task("task-001"), make_task("task-002")])
+
+        assert audit.placed == ("task-001", "task-002")
+        assert audit.stale == ()
+        assert audit.unplaced == ()
+        assert audit.ok
+
+    def test_rostering_a_closed_task_is_the_one_failure(self) -> None:
+        """The page offers a reader planned work that is finished, and they can act on it."""
+        tasks = [make_task("task-001"), make_task("task-002", lifecycle=Lifecycle.CLOSED)]
+        audit = audit_narrative(self.PAGE, tasks)
+
+        assert audit.stale == ("task-002",)
+        assert not audit.ok
+
+    def test_rostering_an_id_that_was_never_filed_fails_the_same_way(self) -> None:
+        """A typo and a close are the same experience for the reader who follows the link."""
+        audit = audit_narrative(self.PAGE, [make_task("task-001")])
+
+        assert audit.stale == ("task-002",)
+        assert not audit.ok
+
+    def test_an_unplaced_open_task_is_reported_and_does_not_fail(self) -> None:
+        """Filing a task must never turn the gate red; that check gets switched off."""
+        tasks = [make_task("task-001"), make_task("task-002"), make_task("task-003")]
+        audit = audit_narrative(self.PAGE, tasks)
+
+        assert audit.unplaced == ("task-003",)
+        assert audit.stale == ()
+        assert audit.ok
+
+    def test_a_task_named_only_in_prose_is_neither_placed_nor_demanded(self) -> None:
+        """Commentary about a closed task is usually still true, so auditing it would
+        punish the page for explaining itself."""
+        page = self.PAGE + "\nThis is the failure task-404 already exists about.\n"
+        tasks = [make_task("task-001"), make_task("task-002")]
+
+        audit = audit_narrative(page, tasks)
+
+        assert "task-404" not in audit.placed
+        assert audit.ok
+
+    def test_a_draft_is_not_demanded_of_the_page(self) -> None:
+        """The listing counts drafts rather than listing them; the page follows it."""
+        tasks = [
+            make_task("task-001"),
+            make_task("task-002"),
+            make_task("task-003", lifecycle=Lifecycle.DRAFT),
+        ]
+
+        assert audit_narrative(self.PAGE, tasks).unplaced == ()
+
+    def test_a_roster_line_may_use_either_bullet_marker(self) -> None:
+        page = "* `task-001` - the first thing\n- `task-002` - the second thing\n"
+
+        audit = audit_narrative(page, [make_task("task-001"), make_task("task-002")])
+
+        assert audit.placed == ("task-001", "task-002")
+
+    def test_a_task_rostered_twice_is_counted_once(self) -> None:
+        """A task legitimately readable under two workstreams is not an error."""
+        page = self.PAGE + "\n- `task-001` - and again, under another heading\n"
+
+        audit = audit_narrative(page, [make_task("task-001"), make_task("task-002")])
+
+        assert audit.placed == ("task-001", "task-002")
+        assert audit.ok
