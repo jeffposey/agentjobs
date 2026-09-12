@@ -1,7 +1,8 @@
 ---
 name: roadmap
-description: Read the whole backlog, group it into phases and workstreams, write
-  ROADMAP.md from that reading, and regenerate the listing beside it.
+description: Read the owner's phases, read the whole backlog against them, place every
+  task in a workstream under the phase it serves, write ROADMAP.md from that reading,
+  and regenerate the listing beside it.
 target: project
 difficulty: standard
 verbs: [update, log, handoff, close]
@@ -15,10 +16,14 @@ run_task:
   priority: medium
   tags: [roadmap, playbook]
   acceptance:
+    - text: The phases were taken from ROADMAP.md as the owner wrote them. None was
+        added, removed, renamed or reordered; anything that fits no phase, and any phase
+        the backlog leaves empty, is a question on this task rather than an edit.
     - text: The workstreams were derived by reading the whole open backlog in one pass,
-        and this task names each one, what it is for, and which tasks are in it.
-    - text: Every phase boundary is argued on this task, including the tasks that were
-        hard to place and why they went where they did.
+        and this task names each one, the phase it serves, what it is for, and which
+        tasks are in it.
+    - text: Every hard placement is argued on this task -- the tasks that could sit in
+        two phases, and why they went where they did.
     - text: Every record edited is named on this task with what was wrong with it and
         what it now says. No record was edited that is not on that list.
     - text: Only titles and spec summaries were touched. No task was closed, reordered,
@@ -38,12 +43,21 @@ The listing is not yours to write. `scripts/export_roadmap.py` renders `docs/bac
 from the store, deterministically, and a hand-edit to it survives exactly until the next
 regeneration.
 
-`ROADMAP.md` is yours entirely, and it is the reason this is a playbook rather than a
-script. Nothing derivable from the records can produce it, because the thing it carries
-is not in any record: that a hundred-odd open tasks are really a dozen subjects, which
-subjects matter together, and what each one is *for*. A generator can sort by band. Only
-a reader who has held the whole backlog in mind at once can say that half of it is one
-problem.
+`ROADMAP.md` is written by two hands, and the split is the whole method.
+**The phases are the owner's.** They say where the project is going, in what order,
+and where it stops for now, and a run of this playbook never adds, removes, renames or
+reorders one: a phase is a decision about the product, and the store holds no record
+that could justify a run making it. Everything under a phase is yours — which of a
+hundred-odd open tasks belong together, what each group is *for*, and which phase it
+serves. That part is the reason this is a playbook rather than a script: a generator
+can sort by band, and only a reader who has held the whole backlog in mind at once can
+say that half of it is one problem and name the phase that problem stands in the way
+of.
+
+Two consequences follow, and both are findings rather than edits. A task that fits no
+phase is a question for the owner, not a new phase. A phase the backlog leaves empty
+stays on the page, says so in a sentence, and is raised as a question too — the plan is
+allowed to be ahead of the backlog, and the page is where that gap is visible.
 
 Run this before a release, when somebody points at the published roadmap and says it
 reads badly, or after a `groom` and `reorder` pass has changed what the top of the
@@ -69,15 +83,17 @@ frozen months ago — but say on the record that you did, and why.
 
 ## 2. Read the whole backlog in one pass, and find the workstreams
 
-**This is the work.** Regenerate the listing first —
-`poetry run python scripts/export_roadmap.py docs/backlog.md` — and then read every entry
-in it, start to finish, before writing anything. Not the records: the listing, because
-that is the half a stranger sees, and a task that makes no sense there is the problem you
-are here to solve.
+**This is the work.** Read the phases on the current `ROADMAP.md` first, so that you
+read the backlog against a destination rather than for its own shape. Then regenerate
+the listing — `poetry run python scripts/export_roadmap.py docs/backlog.md` — and read
+every entry in it, start to finish, before writing anything. Not the records: the
+listing, because that is the half a stranger sees, and a task that makes no sense there
+is the problem you are here to solve.
 
-You are looking for the subject each task actually belongs to. A workstream is a group of
-tasks that a reader would want explained together and that a person would think about in
-one sitting — usually five to fifteen of them. The signals are reliable:
+You are looking for the subject each task actually belongs to, and the phase that
+subject serves. A workstream is a group of tasks that a reader would want explained
+together and that a person would think about in one sitting — usually five to fifteen
+of them. The signals are reliable:
 
 - **An open umbrella task is a workstream already named.** Its children belong with it
   unless one of them has drifted into somebody else's subject.
@@ -97,20 +113,29 @@ case say so in the workstream that is nearest and explain the oddity in one clau
 Write the grouping onto your run task before writing the page. It is the argument, and
 the page is only its output.
 
-## 3. Place the workstreams in phases, and argue the boundaries
+## 3. Place each workstream in the owner's phase it serves, and argue the hard ones
 
 A phase answers "why this group of work, and why now" for a reader who does not know the
-project. Three or four is the useful number; more than five and it is a table of contents.
+project, and its order on the page is the order the owner wants the project to move in.
+**Never add, remove, rename or reorder a phase.** If the backlog seems to want a phase
+the page does not have, or a phase reads as though it has been overtaken, raise it as a
+`question` on the run task with the tasks that made you think so, and place the work in
+the nearest phase that exists until the owner answers.
 
-**A phase is not a release and not a date.** The queue decides order, and the page must
-say so. What a phase carries is a *rationale* — that this work makes an existing thing
-trustworthy, or makes a daily act cheaper, or takes the project somewhere it has not been.
-A reader who disagrees with a phase boundary should be able to see what they are
-disagreeing with.
+**A phase is not a release and not a date.** It is the owner's statement of priority,
+and the queue is expected to follow it: a task in a later phase sitting above one in an
+earlier phase is a `reorder` finding, raised on the run task and never fixed here. Until
+the queue has caught up it still decides what an agent works, and the page must say so.
 
 Argue the hard placements on the run task. A task that could sit in two phases is where
 the reading is doing real work, and the reason it went one way is the thing a later pass
-will want and cannot recover from the diff.
+will want and cannot recover from the diff. An umbrella's child may sit in a different
+phase from its parent when it plainly serves a different one — say so in the clause.
+
+An empty phase is a result, not an error. Leave it on the page with one paragraph saying
+what it will hold once somebody has tried, and raise a `question` naming the work the
+backlog is missing. Do not file that work yourself; which gaps become tasks is the
+owner's call.
 
 ## 4. Write the page, and keep it honest by hand
 
@@ -119,9 +144,14 @@ property it has is one you gave it:
 
 - **Open with what the project is**, in three or four sentences, for somebody who arrived
   from a search result. The listing cannot do this and neither can any record.
-- **Say the queue is the ordering authority, and that the page runs behind the listing.**
-  Both are true, both will otherwise be assumed the other way, and a reader who trusts a
+- **Say how the page and the queue relate, and that the page runs behind the listing.**
+  The phases and their order are the owner's plan, the queue is expected to follow it,
+  and until it has an agent still takes work from `agentjobs next` rather than from this
+  page. All three will otherwise be assumed some other way, and a reader who trusts a
   hand-written page as though it were generated has been misled by you.
+- **Keep every phase on the page, including an empty one.** A phase with no tasks under
+  it is the owner's plan running ahead of the backlog; say so in a sentence, and say what
+  the phase will hold.
 - **Roster each task as a list item beginning with its backticked id**, followed by a
   short clause in your own words. That shape is what the audit reads: a rostered id is a
   claim that this is live planned work, and a mention inside a paragraph is not audited at
@@ -242,4 +272,6 @@ The same holds for the grouping, and more strongly. **Workstreams are worth more
 longer they survive**, because a reader returning in three months recognises them and can
 see what moved. Re-deriving them from scratch every pass produces churn that looks like
 progress; keep the grouping that still fits, place the new tasks into it, and change a
-boundary only when you can say on the record what stopped being true.
+boundary only when you can say on the record what stopped being true. The phases are
+stronger still: they change when the owner changes them, and a pass that finds them
+unchanged has found the plan holding, which is the outcome it exists to report.

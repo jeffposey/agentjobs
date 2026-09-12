@@ -427,6 +427,36 @@ class TestThisRepositorysOwnPlaybooks:
         assert "Do not group by category or by band" in body
         assert "miscellaneous bucket" in body
 
+    def test_roadmap_keeps_the_phases_as_the_owner_wrote_them(self) -> None:
+        """The phases are a decision about the product, and a run never makes one.
+
+        The owner asked on 2026-09-12 for the roadmap to be human-driven, with agent
+        task management following it. A brief that let a run derive the phases from the
+        backlog would produce a page that restated the queue's shape in prose and
+        overwrote the plan every pass; a brief that let it drop an empty phase would
+        hide the one place the plan is visibly ahead of the backlog.
+        """
+        body = read_playbook(self.directory, "roadmap").body
+
+        assert body.index("The phases are the owner's") < body.index("find the workstreams")
+        assert "Never add, remove, rename or reorder a phase" in body
+        assert "An empty phase is a result, not an error" in body
+        assert "Do not file that work yourself" in body
+
+    def test_reorder_reads_the_roadmap_before_moving_anything(self) -> None:
+        """The queue follows the owner's phases, and this is where that becomes a rule.
+
+        Without it the roadmap and the queue would be two orderings with nothing saying
+        which yields, and a run's move bodies could argue from age or centrality while
+        ignoring the one statement of priority the owner actually wrote.
+        """
+        body = read_playbook(self.directory, "reorder").body
+
+        assert "`ROADMAP.md` is the owner's statement of priority" in body
+        assert body.index("Read it before moving anything") < body.index(
+            "### Read the warnings your own move returns"
+        )
+
     def test_roadmap_states_that_the_page_is_hand_written_and_audited(self) -> None:
         """Two files with opposite rules is the arrangement's one confusable part.
 

@@ -381,11 +381,13 @@ contract `openapi.json` is held to. Regenerate it rather than editing it:
 poetry run python scripts/export_roadmap.py docs/backlog.md
 ```
 
-[ROADMAP.md](ROADMAP.md) is the reading: phases, the workstreams inside them, and what
-each one is for. No projection can produce that, because no record carries it — half this
-backlog is one subject spread across four priority bands, and only a person looking at
-all of it at once can say so. It is written by hand, by the `roadmap` playbook, and the
-same gate stage audits its claims rather than regenerating it:
+[ROADMAP.md](ROADMAP.md) is the plan: the owner's phases, in the order the project is
+meant to move through them, with the workstreams inside each and what each one is for.
+No projection can produce that, because no record carries it — the phases are a decision
+about the product, and half this backlog is one subject spread across four priority
+bands that only a person looking at all of it at once can name. The phases are written
+by the owner; the `roadmap` playbook places the backlog under them; and the same gate
+stage audits the page's claims rather than regenerating it:
 
 ```bash
 poetry run python scripts/export_roadmap.py docs/backlog.md --audit ROADMAP.md

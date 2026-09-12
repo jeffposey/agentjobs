@@ -101,6 +101,14 @@ Move through the verb — `agentjobs queue move`, `task_queue_move` over MCP, or
 call under either. Never by editing `queue_position`, which no surface will let you do
 anyway, and never by adding a `needs` dependency to force an order (§8).
 
+**`ROADMAP.md` is the owner's statement of priority, and the order it gives its phases
+is the strongest reason a move can cite.** Read it before moving anything. A task that
+serves a later phase sitting above one that serves an earlier phase needs a reason of
+its own — it unblocks something, or it is nearly done — and a body that names the
+phases is an argument a reader can check against the page. Not every task is placed
+there yet, and a task the page has not placed carries no phase to argue from; say so
+rather than guessing one.
+
 **The body of the move is the reason for the placement.** It is the audit trail the
 optional review rests on, so it has to answer the question a reader will actually ask,
 which is *why is this ahead of that*:

@@ -45,10 +45,11 @@ freshness gate they are. It also pays back a cost §9 named and left standing: `
 public, the only server is on a private tailnet, and without it a reader who clones this
 repository can see no plan at all.
 
-`ROADMAP.md` beside it is neither a projection nor an authority. It is prose about the
-store — the phases and workstreams no record carries, because grouping 114 tasks by
-subject is a judgement rather than a field — and the gate audits its claims rather than
-regenerating it. Nothing reads it back either, so the rule above is undisturbed.
+`ROADMAP.md` beside it is not a projection, and no code treats it as one. It is the
+owner's plan — phases in the order the project is meant to move through them — over a
+reading of the store: the workstreams no record carries, because grouping a hundred-odd
+tasks by subject is a judgement rather than a field. The gate audits its claims rather
+than regenerating it. Nothing reads it back either, so the rule above is undisturbed.
 
 **Reviewing a task record in a pull request is gone, deliberately.** Task state is not code:
 a diff of `ball_reason` changing from `work` to `review` is a fact about the work rather
