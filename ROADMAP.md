@@ -18,17 +18,11 @@ A task shows its id, its title, its one-sentence summary, what it is still waiti
 and the umbrella it belongs to. Everything else a record carries — the working spec, the
 decision log, branches, verification evidence — stays in the store.
 
-## Critical (3)
+## Critical (2)
 
 - **task-410** — Big Dawg Audit II — hold the first audit to account, then audit everything built since
 
   Follow-up to task-242, the Big Dawg Audit of 2026-08-21. Fourteen auditors and a synthesis session, overnight on 2026-09-11, on claude-fable-5-1; the runbook is audits/2026-09-11/PLAN.md.
-
-- **task-398** — SQLite is the only storage, and each project gets its own database
-
-  Phase two of the storage migration. The file backend stops being a choice a new install can make and is deleted, and a project's records move out of one machine-wide database into a database of its own.
-
-  *in progress*
 
 - **task-411** — The corpus checks have asserted nothing since task-311: an autouse fixture hides the store from them
 
