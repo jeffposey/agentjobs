@@ -926,6 +926,14 @@ class DispatchRequestBody(BaseModel):
             "that is closed."
         ),
     )
+    runner: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "Specific machine-local runner for this run, overriding group and project "
+            "defaults. Mutually exclusive with group."
+        ),
+    )
     user: Optional[str] = Field(
         default=None,
         min_length=1,
@@ -966,6 +974,8 @@ class DispatchRequestBody(BaseModel):
                 "Send either 'caused_by' (cite an existing entry) or 'user' (write a new "
                 "one), not both."
             )
+        if self.runner is not None and self.group is not None:
+            raise ValueError("Send either 'runner' or 'group', not both.")
         return self
 
 

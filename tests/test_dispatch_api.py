@@ -1048,6 +1048,35 @@ class TestDispatchAgainstAGroup:
         assert response.json()["runner"] == "reserve"
         assert response.json()["group"] == "deep"
 
+    def test_a_dispatch_may_choose_one_specific_runner(self, served) -> None:
+        client, root, home = served
+        enable_grouped_dispatch(home, root.parent)
+        task_id = seed_task(root)
+
+        response = client.post(f"/api/tasks/{task_id}/dispatch", json={"runner": "reserve"})
+
+        assert response.status_code == 202, response.text
+        assert response.json()["runner"] == "reserve"
+        assert response.json()["group"] is None
+        task = TaskManager(task_store(root / "tasks")).get_task(task_id)
+        assert task is not None
+        entry = next(item for item in task.log if item.type is LogEntryType.DISPATCH)
+        assert entry.data["runner"] == "reserve"
+        assert entry.data["runner_source"] == "dispatch_runner"
+
+    def test_a_dispatch_cannot_choose_a_runner_and_group(self, served) -> None:
+        client, root, home = served
+        enable_grouped_dispatch(home, root.parent)
+        task_id = seed_task(root)
+
+        response = client.post(
+            f"/api/tasks/{task_id}/dispatch",
+            json={"runner": "reserve", "group": "deep"},
+        )
+
+        assert response.status_code == 400
+        assert "either 'runner' or 'group'" in response.json()["detail"]
+
     def test_naming_an_unknown_group_is_refused_under_its_own_code(self, served) -> None:
         client, root, home = served
         enable_grouped_dispatch(home, root.parent)

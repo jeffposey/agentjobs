@@ -708,6 +708,36 @@ describe("choosing a runner group for one dispatch", () => {
   });
 });
 
+describe("choosing a specific runner for one dispatch", () => {
+  it("offers every machine-local runner and sends the chosen one", async () => {
+    const { onDispatch } = renderPanel();
+
+    const select = screen.getByLabelText("Runner");
+    expect([...select.querySelectorAll("option")].map((option) => option.textContent)).toEqual([
+      "Project default",
+      "claude-session",
+      "claude-batch",
+    ]);
+
+    fireEvent.change(select, { target: { value: "claude-batch" } });
+    fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
+
+    await waitFor(() => expect(onDispatch).toHaveBeenLastCalledWith({ runner: "claude-batch" }));
+    expect(screen.getByRole("region", { name: "Dispatch" })).toHaveTextContent(
+      /Runner\s*claude-batch/,
+    );
+  });
+
+  it("clears a group choice when a specific runner is chosen", () => {
+    renderPanel({ state: grouped() });
+
+    fireEvent.change(screen.getByLabelText("Group"), { target: { value: "big" } });
+    fireEvent.change(screen.getByLabelText("Runner"), { target: { value: "claude-batch" } });
+
+    expect(screen.getByLabelText("Group")).toHaveValue("");
+  });
+});
+
 /**
  * A project whose ceiling has been raised, so there is genuinely a choice to make.
  *

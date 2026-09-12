@@ -614,6 +614,34 @@ class TestGroupPrecedence:
             assert_dispatch_permitted("agentjobs", home(), group="audit")
 
 
+class TestDirectRunnerChoice:
+    def test_a_runner_named_on_this_dispatch_beats_the_project(self, monkeypatch) -> None:
+        write_config()
+        monkeypatch.setattr("agentjobs.dispatch.config.shutil.which", lambda name: name)
+
+        resolution = assert_dispatch_permitted("agentjobs", home(), runner="codex")
+
+        assert resolution.runner.name == "codex"
+        assert resolution.selection is not None
+        assert resolution.selection.source is SelectionSource.DISPATCH_RUNNER
+
+    def test_an_unknown_direct_runner_is_refused(self) -> None:
+        write_config()
+        with pytest.raises(UnknownRunnerError, match="This dispatch names runner 'nope'"):
+            assert_dispatch_permitted("agentjobs", home(), runner="nope")
+
+    def test_an_unavailable_direct_runner_is_refused(self, monkeypatch) -> None:
+        write_config()
+        monkeypatch.setattr("agentjobs.dispatch.config.shutil.which", lambda _name: None)
+        with pytest.raises(NoEligibleRunnerError, match="not available on PATH"):
+            assert_dispatch_permitted("agentjobs", home(), runner="codex")
+
+    def test_a_direct_runner_and_group_are_mutually_exclusive(self) -> None:
+        write_config()
+        with pytest.raises(DispatchConfigError, match="both a runner and a runner group"):
+            assert_dispatch_permitted("agentjobs", home(), runner="codex", group="audit")
+
+
 class TestFlatConfigIsUntouched:
     """Backwards compatibility, stated as tests rather than as an intention."""
 

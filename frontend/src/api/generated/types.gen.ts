@@ -695,6 +695,12 @@ export type DispatchRequestBody = {
      */
     posture?: DispatchPosture | null;
     /**
+     * Runner
+     *
+     * Specific machine-local runner for this run, overriding group and project defaults. Mutually exclusive with group.
+     */
+    runner?: string | null;
+    /**
      * User
      *
      * The signed-in human clicking Dispatch. Their authorising entry is written to the task before the run starts, and the dispatch is attributed to it. Must be an actor this project configures with 'kind: human'. Mutually exclusive with caused_by.

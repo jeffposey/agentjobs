@@ -106,6 +106,8 @@ export type DispatchRefusal = {
  * keeps a machine with no groups behaving as it did before they were added.
  */
 export type DispatchOptions = {
+  /** Specific runner for this run. Mutually exclusive with group. */
+  runner?: string;
   /** Runner group to choose from. Outranks the project's own group and its runner. */
   group?: string;
   /**
@@ -295,6 +297,7 @@ export function DispatchPanel({
   // model" is a decision about one task, and a sticky override would silently apply it
   // to the next one.
   const [group, setGroup] = useState("");
+  const [runner, setRunner] = useState("");
   // Same rule as `group`, and it matters more here: an override that stuck would carry
   // "let this one merge itself" onto the next task the reader opened, which is the one
   // sticky default nobody would want.
@@ -326,6 +329,7 @@ export function DispatchPanel({
   const blocked = busy || finishLive;
   /** What this click will send. Omitted keys are the point -- see `DispatchOptions`. */
   const options = (note?: string): DispatchOptions => ({
+    ...(runner ? { runner } : {}),
     ...(group ? { group } : {}),
     // Narrowed rather than validated: every value this can hold came out of
     // `offerable_postures`, which the server derives from the same `Posture` enum the
@@ -420,9 +424,32 @@ export function DispatchPanel({
           >
             ▶ Dispatch — start an agent now
           </button>
-          <DispatchGroupChoice state={state} value={group} busy={blocked} onChange={setGroup} />
+          <DispatchRunnerChoice
+            state={state}
+            value={runner}
+            busy={blocked}
+            onChange={(next) => {
+              setRunner(next);
+              if (next) setGroup("");
+            }}
+          />
+          <DispatchGroupChoice
+            state={state}
+            value={group}
+            busy={blocked}
+            onChange={(next) => {
+              setGroup(next);
+              if (next) setRunner("");
+            }}
+          />
           <DispatchPostureChoice state={state} value={posture} busy={blocked} onChange={setPosture} />
-          <DispatchRunnerNote state={state} user={user} group={group} posture={posture} />
+          <DispatchRunnerNote
+            state={state}
+            user={user}
+            runner={runner}
+            group={group}
+            posture={posture}
+          />
         </div>
       )}
 
@@ -476,14 +503,37 @@ export function DispatchPanel({
             >
               ▶ Dispatch — start an agent now
             </button>
-            <DispatchGroupChoice state={state} value={group} busy={blocked} onChange={setGroup} />
+            <DispatchRunnerChoice
+              state={state}
+              value={runner}
+              busy={blocked}
+              onChange={(next) => {
+                setRunner(next);
+                if (next) setGroup("");
+              }}
+            />
+            <DispatchGroupChoice
+              state={state}
+              value={group}
+              busy={blocked}
+              onChange={(next) => {
+                setGroup(next);
+                if (next) setRunner("");
+              }}
+            />
             <DispatchPostureChoice
               state={state}
               value={posture}
               busy={blocked}
               onChange={setPosture}
             />
-            <DispatchRunnerNote state={state} user={user} group={group} posture={posture} />
+            <DispatchRunnerNote
+              state={state}
+              user={user}
+              runner={runner}
+              group={group}
+              posture={posture}
+            />
           </div>
         </form>
       )}
@@ -498,6 +548,43 @@ export function DispatchPanel({
         renderOutput={renderOutput}
       />
     </section>
+  );
+}
+
+/** A specific machine-local runner for this run, including Codex when configured. */
+function DispatchRunnerChoice({
+  state,
+  value,
+  busy,
+  onChange,
+}: {
+  state: DispatchStateView | null;
+  value: string;
+  busy: boolean;
+  onChange: (next: string) => void;
+}) {
+  const runners = state?.available_runners ?? [];
+  if (runners.length <= 1) return null;
+  return (
+    <div className="flex items-center gap-2">
+      <label htmlFor="dispatch-runner" className="text-sm text-dark-muted">
+        Runner
+      </label>
+      <select
+        id="dispatch-runner"
+        value={value}
+        disabled={busy}
+        onChange={(event) => onChange(event.target.value)}
+        className="rounded-lg border border-dark-border bg-dark-bg p-2 text-sm text-dark-text focus:border-sky-500 focus:outline-none"
+      >
+        <option value="">Project default</option>
+        {runners.map((name) => (
+          <option key={name} value={name}>
+            {name}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
 
@@ -662,11 +749,13 @@ function mergeConsequence(posture: string, state: DispatchStateView | null): str
 function DispatchRunnerNote({
   state,
   user,
+  runner: chosenRunner,
   group,
   posture: chosen,
 }: {
   state: DispatchStateView | null;
   user: string;
+  runner: string;
   group: string;
   posture: string;
 }) {
@@ -687,6 +776,13 @@ function DispatchRunnerNote({
       <strong className="text-dark-text">{user}</strong>
     </>
   );
+  if (chosenRunner) {
+    return (
+      <span className="text-sm text-dark-muted">
+        Runner <strong className="text-dark-text">{chosenRunner}</strong>, {posture}
+      </span>
+    );
+  }
   // A group picked for this one dispatch outranks everything the project says, and the
   // browser holds no member list to resolve it with -- so it names the group that will
   // choose rather than guessing which member wins. Leaving the project's runner on

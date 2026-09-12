@@ -557,6 +557,9 @@ class SelectionSource(str, Enum):
     DISPATCH = "dispatch"
     """A group named on this one dispatch. The narrowest thing that can win today."""
 
+    DISPATCH_RUNNER = "dispatch_runner"
+    """A specific runner named on this one dispatch."""
+
     PROJECT = "project"
     """``projects.<id>.group``."""
 
@@ -1550,6 +1553,7 @@ def resolve_runner(
     config: DispatchConfig,
     settings: ProjectDispatchSettings,
     *,
+    runner: Optional[str] = None,
     group: Optional[str] = None,
 ) -> RunnerSelection:
     """Walk the precedence ladder and return the runner with its full account.
@@ -1557,7 +1561,7 @@ def resolve_runner(
     Narrowest first, exactly the ladder design section 4 decided for profiles, with the
     profile rungs not yet built:
 
-    1. a group named on **this dispatch**;
+    1. a runner or group named on **this dispatch**;
     2. *(unbuilt)* a profile named on this dispatch, mapping difficulty to a group;
     3. ``projects.<id>.group``;
     4. *(unbuilt)* a machine default profile;
@@ -1568,6 +1572,27 @@ def resolve_runner(
     flat config behave exactly as it did. It is *not* reached when a group applies and
     turns out to be exhausted: see ``NoEligibleRunnerError``.
     """
+    if runner and group:
+        raise DispatchConfigError(
+            "This dispatch names both a runner and a runner group. Choose one; a "
+            "specific runner and a group-selected runner are different requests."
+        )
+
+    if runner:
+        chosen = config.runners.get(runner)
+        if chosen is None:
+            raise UnknownRunnerError(
+                f"This dispatch names runner {runner!r}, which is not defined in "
+                f"{config.path}. Known runners: {_known(config.runners)}."
+            )
+        if not executable_available(chosen.argv):
+            raise NoEligibleRunnerError(
+                f"This dispatch names runner {runner!r}, but executable "
+                f"{chosen.argv[0]!r} is not available on PATH. Install it or choose "
+                "a different runner."
+            )
+        return RunnerSelection(runner=chosen, source=SelectionSource.DISPATCH_RUNNER)
+
     for name, source in (
         (group, SelectionSource.DISPATCH),
         (settings.group, SelectionSource.PROJECT),
@@ -1592,14 +1617,14 @@ def resolve_runner(
             f".group in {config.path}."
         )
 
-    runner = config.runners.get(settings.runner)
-    if runner is None:
+    project_runner = config.runners.get(settings.runner)
+    if project_runner is None:
         raise UnknownRunnerError(
             f"Project {settings.project_id!r} names runner {settings.runner!r}, which "
             f"is not defined in {config.path}. Known runners: {_known(config.runners)}."
         )
 
-    return RunnerSelection(runner=runner, source=SelectionSource.PROJECT_RUNNER)
+    return RunnerSelection(runner=project_runner, source=SelectionSource.PROJECT_RUNNER)
 
 
 def _group_origin(source: SelectionSource, project_id: str) -> str:
@@ -1615,7 +1640,11 @@ def _group_origin(source: SelectionSource, project_id: str) -> str:
 
 
 def assert_dispatch_permitted(
-    project_id: str, home: Optional[Path] = None, *, group: Optional[str] = None
+    project_id: str,
+    home: Optional[Path] = None,
+    *,
+    runner: Optional[str] = None,
+    group: Optional[str] = None,
 ) -> DispatchResolution:
     """Walk every dispatch gate for ``project_id`` and resolve its runner.
 
@@ -1659,7 +1688,7 @@ def assert_dispatch_permitted(
 
     # Gate 2, and only now: every other gate is about whether this machine will run
     # anything at all, and none of them may be reachable from a caller's choice of group.
-    selection = resolve_runner(config, settings, group=group)
+    selection = resolve_runner(config, settings, runner=runner, group=group)
 
     return DispatchResolution(
         project_id=project_id,
@@ -1667,7 +1696,11 @@ def assert_dispatch_permitted(
         settings=settings,
         limits=config.limits,
         config=config,
-        selection=selection if selection.from_group else None,
+        selection=(
+            selection
+            if selection.from_group or selection.source is SelectionSource.DISPATCH_RUNNER
+            else None
+        ),
     )
 
 

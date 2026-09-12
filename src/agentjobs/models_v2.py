@@ -562,6 +562,13 @@ class DispatchData(StrictModel):
     run_id: str = Field(..., description="Machine-local run identifier.")
     agent: str = Field(..., description="Actor id the run acts as.")
     runner: str = Field(..., description="Runner name from ~/.agentjobs/dispatch.yaml.")
+    runner_source: Optional[str] = Field(
+        default=None,
+        description=(
+            "Present as 'dispatch_runner' when the human chose this runner for this "
+            "run. Absent preserves the historical project/group interpretation."
+        ),
+    )
     mode: DispatchMode = Field(..., description="Session or batch (task-077).")
     posture: DispatchPosture = Field(..., description="What the run may do (task-076).")
     posture_source: Optional[str] = Field(

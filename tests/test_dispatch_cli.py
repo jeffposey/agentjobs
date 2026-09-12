@@ -265,6 +265,44 @@ class TestDispatchRun:
         assert task is not None
         assert any(entry.type.value == "dispatch_result" for entry in task.log)
 
+    def test_runner_option_chooses_one_runner_for_this_run(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        root = self.make_project(tmp_path, "alpha")
+        task_id = self.seed(root)
+        write_config(
+            runners={
+                "default": {
+                    "argv": [sys.executable, "-c", "pass", "{prompt}"],
+                    "actor": "claude",
+                },
+                "codex": {
+                    "argv": [sys.executable, "-c", "pass", "{prompt}"],
+                    "actor": "claude",
+                },
+            },
+            projects={
+                "alpha": {
+                    "enabled": True,
+                    "runner": "default",
+                    "require_clean_tree": False,
+                }
+            },
+        )
+        monkeypatch.setattr("agentjobs.dispatch.guards.assert_api_base_answers", lambda *_: None)
+
+        result = runner.invoke(
+            app,
+            ["dispatch", "run", task_id, "--project", "alpha", "--runner", "codex"],
+        )
+
+        assert result.exit_code == 0, result.output
+        task = TaskManager(task_store(root / "tasks")).get_task(task_id)
+        assert task is not None
+        entry = next(item for item in task.log if item.type.value == "dispatch")
+        assert entry.data["runner"] == "codex"
+        assert entry.data["runner_source"] == "dispatch_runner"
+
     # ----- helpers -----
 
     def make_project(self, tmp_path: Path, project_id: str) -> Path:

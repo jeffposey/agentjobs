@@ -943,6 +943,19 @@
             ],
             "description": "What this one run may do, overriding both the project default and any posture on the task record. Refused with 'posture_above_ceiling' when it exceeds the project's machine-local max_posture -- populate a chooser from the dispatch state view's 'offerable_postures' so the refusal is never reachable by clicking (task-308)."
           },
+          "runner": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Specific machine-local runner for this run, overriding group and project defaults. Mutually exclusive with group.",
+            "title": "Runner"
+          },
           "user": {
             "anyOf": [
               {
