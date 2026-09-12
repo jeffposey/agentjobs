@@ -11,10 +11,10 @@ on adjacent ports, and stops both together:
 
     port      ~/.agentjobs/dispatch.yaml       projects
     --------  ------------------------------  ---------------------------------------
-    8900      two runners, two groups         grouped: ``group: default``
+    8900      three runners, two groups       grouped: ``group: default``
                                               runner:  a plain ``runner:``, on a
                                                        machine that has groups
-    8901      two runners, no groups at all   flat:    what every machine looked like
+    8901      three runners, no groups at all flat:    what every machine looked like
                                                        before groups existed
 
 The second server is the control. Nothing on it should differ by a character from what
@@ -45,6 +45,10 @@ What to look for, since "it renders" is not the property under review:
   * Press Dispatch with ``big-dawg`` picked, then read the task log's dispatch entry: it
     records the group the run was chosen from, which is the choice having reached the
     API rather than the page having drawn a control.
+  * The **Runner** pulldown offers ``codex`` independently of the groups. Pick it and
+    press Dispatch; the task log records ``codex`` with a direct-dispatch source. This
+    is the task-424 review path: a person's one-run choice outranks both the selected
+    group and the project default.
   * Press **Disable dispatch**, then look at the enable control. It lists this machine's
     groups *and* its runners, preselected on ``group: default`` -- what the project
     actually uses. Before this it preselected the first runner, and pressing Enable then
@@ -76,6 +80,7 @@ DEFAULT_PORT = 8900
 #: genuinely eligible -- which makes ``default -> claude-opus-5`` a resolution rather
 #: than a caption.
 RUNNERS = ("claude-opus-5", "claude-sonnet-5")
+DIRECT_RUNNER = "codex"
 
 GROUPED = "grouped"
 RUNNER = "runner"
@@ -159,7 +164,9 @@ def write_dispatch_config(home: Path, root: Path, *, with_groups: bool) -> None:
     config: dict[str, object] = {
         "version": 1,
         "enabled": True,
-        "runners": {name: {"argv": list(argv), "actor": "claude"} for name in RUNNERS},
+        "runners": {
+            name: {"argv": list(argv), "actor": "claude"} for name in (*RUNNERS, DIRECT_RUNNER)
+        },
         "projects": projects,
     }
     if with_groups:
