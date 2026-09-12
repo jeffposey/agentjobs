@@ -28,6 +28,8 @@ decision log, branches, verification evidence — stays in the store.
 
   Phase two of the storage migration. The file backend stops being a choice a new install can make and is deleted, and a project's records move out of one machine-wide database into a database of its own.
 
+  *in progress*
+
 - **task-411** — The corpus checks have asserted nothing since task-311: an autouse fixture hides the store from them
 
   Every check that reads this repository's own backlog skips under pytest, because conftest re-points AGENTJOBS_HOME at a temp directory for every test. Turning them on finds eighteen dangling context pointers immediately.
