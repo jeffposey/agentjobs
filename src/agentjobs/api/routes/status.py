@@ -820,6 +820,7 @@ async def dispatch_task_endpoint(
             request=DispatchRequest(
                 task_id=task_id,
                 caused_by=payload.caused_by,
+                runner=payload.runner,
                 group=payload.group,
                 # Passed straight through, and deliberately not defaulted to the
                 # project's `default_user` when the client omits it. A dispatch nobody

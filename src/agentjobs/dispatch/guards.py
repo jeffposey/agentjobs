@@ -671,6 +671,8 @@ class DispatchRequest:
     task_id: str
     caused_by: Optional[int] = None
     trigger: DispatchTrigger = DispatchTrigger.MANUAL
+    runner: Optional[str] = None
+    """Specific machine-local runner requested for this dispatch."""
     group: Optional[str] = None
     """Runner group this dispatch asks for -- the narrowest rung of the ladder.
 
@@ -847,7 +849,9 @@ def dispatch_task(
     # Gate 1-4 from task-068, including the sentinel. Re-checked at spawn time by the
     # runner: this proves dispatch was permitted when it was asked, not for the lifetime
     # of the answer.
-    resolution = assert_dispatch_permitted(project.id, home, group=request.group)
+    resolution = assert_dispatch_permitted(
+        project.id, home, runner=request.runner, group=request.group
+    )
     machine_home = resolve_machine_home(home, resolution)
 
     # Two ways in, and they differ only in where the authorising entry comes from.

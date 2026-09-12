@@ -695,6 +695,12 @@ export type DispatchRequestBody = {
      */
     posture?: DispatchPosture | null;
     /**
+     * Runner
+     *
+     * Specific machine-local runner for this run, overriding group and project defaults. Mutually exclusive with group.
+     */
+    runner?: string | null;
+    /**
      * User
      *
      * The signed-in human clicking Dispatch. Their authorising entry is written to the task before the run starts, and the dispatch is attributed to it. Must be an actor this project configures with 'kind: human'. Mutually exclusive with caused_by.
@@ -1064,6 +1070,14 @@ export type DispatchStateView = {
      * Runner this project is pointed at.
      */
     runner?: string | null;
+    /**
+     * Runner Labels
+     *
+     * Human-facing model names for available_runners, keyed by the stable machine-local runner id. The browser submits the id and displays the label, so presentation never changes dispatch authority.
+     */
+    runner_labels?: {
+        [key: string]: string;
+    };
     /**
      * Sentinel Active
      *

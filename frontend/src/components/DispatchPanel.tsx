@@ -106,6 +106,8 @@ export type DispatchRefusal = {
  * keeps a machine with no groups behaving as it did before they were added.
  */
 export type DispatchOptions = {
+  /** Specific runner for this run. Mutually exclusive with group. */
+  runner?: string;
   /** Runner group to choose from. Outranks the project's own group and its runner. */
   group?: string;
   /**
@@ -116,23 +118,6 @@ export type DispatchOptions = {
   /** The human's brief, sent only when the panel asked for one. */
   note?: string;
 };
-
-/**
- * Where this project's runs come from, in the words the CLI already uses for it.
- *
- * The server resolves this rather than the browser: a project pointed at a group names
- * no runner of its own, and a page that re-implemented the precedence ladder to work
- * out which member wins would be the one place in the system that could disagree with
- * the dispatcher about what actually runs.
- */
-function projectDefaultLabel(_state: DispatchStateView | null): string {
-  // Two words, and deliberately not the resolution. This is the *Group* select, so an
-  // option reading "default → claude-opus-5" offers a runner as though it were a group
-  // -- and spends the row's width saying "default" twice to do it. What the project
-  // actually resolves to is already stated in the sentence beside the button, which is
-  // where a clarification belongs: after the choice, not inside it. Jeff, 2026-08-24.
-  return "Project default";
-}
 
 /** How often to re-read the runs list. Fast while something is running, never otherwise. */
 export function runsPollInterval(runs: Array<DispatchRunView>): number | false {
@@ -295,6 +280,7 @@ export function DispatchPanel({
   // model" is a decision about one task, and a sticky override would silently apply it
   // to the next one.
   const [group, setGroup] = useState("");
+  const [runner, setRunner] = useState("");
   // Same rule as `group`, and it matters more here: an override that stuck would carry
   // "let this one merge itself" onto the next task the reader opened, which is the one
   // sticky default nobody would want.
@@ -326,6 +312,7 @@ export function DispatchPanel({
   const blocked = busy || finishLive;
   /** What this click will send. Omitted keys are the point -- see `DispatchOptions`. */
   const options = (note?: string): DispatchOptions => ({
+    ...(runner ? { runner } : {}),
     ...(group ? { group } : {}),
     // Narrowed rather than validated: every value this can hold came out of
     // `offerable_postures`, which the server derives from the same `Posture` enum the
@@ -420,9 +407,24 @@ export function DispatchPanel({
           >
             ▶ Dispatch — start an agent now
           </button>
-          <DispatchGroupChoice state={state} value={group} busy={blocked} onChange={setGroup} />
+          <DispatchTargetChoice
+            state={state}
+            runner={runner}
+            group={group}
+            busy={blocked}
+            onChange={(next) => {
+              setRunner(next.runner);
+              setGroup(next.group);
+            }}
+          />
           <DispatchPostureChoice state={state} value={posture} busy={blocked} onChange={setPosture} />
-          <DispatchRunnerNote state={state} user={user} group={group} posture={posture} />
+          <DispatchRunnerNote
+            state={state}
+            user={user}
+            runner={runner}
+            group={group}
+            posture={posture}
+          />
         </div>
       )}
 
@@ -476,14 +478,29 @@ export function DispatchPanel({
             >
               ▶ Dispatch — start an agent now
             </button>
-            <DispatchGroupChoice state={state} value={group} busy={blocked} onChange={setGroup} />
+            <DispatchTargetChoice
+              state={state}
+              runner={runner}
+              group={group}
+              busy={blocked}
+              onChange={(next) => {
+                setRunner(next.runner);
+                setGroup(next.group);
+              }}
+            />
             <DispatchPostureChoice
               state={state}
               value={posture}
               busy={blocked}
               onChange={setPosture}
             />
-            <DispatchRunnerNote state={state} user={user} group={group} posture={posture} />
+            <DispatchRunnerNote
+              state={state}
+              user={user}
+              runner={runner}
+              group={group}
+              posture={posture}
+            />
           </div>
         </form>
       )}
@@ -501,61 +518,89 @@ export function DispatchPanel({
   );
 }
 
-/**
- * Which class of runner to spend this one dispatch on.
- *
- * A `<select>` over groups this machine already defines, never a text field, for the
- * same reason the runner control on the settings page is one: the browser may choose
- * among things a human wrote into `dispatch.yaml`, and may never describe a new one.
- *
- * **Absent entirely on a machine that defines no groups.** A pulldown with one option
- * meaning "the only thing that can happen" is furniture, and a project that never had
- * a group must go on reading exactly as it did before groups existed.
- *
- * This is the shape task-307 copies for posture: a labelled select whose empty option
- * is the project's own answer, spelled out, and whose value is sent only when it is not
- * that. Nothing about it is specific to groups except the list and the two words.
- */
-function DispatchGroupChoice({
+/** One unambiguous choice between the project default, a group, and a specific model. */
+function DispatchTargetChoice({
   state,
-  value,
+  runner,
+  group,
   busy,
   onChange,
 }: {
   state: DispatchStateView | null;
-  value: string;
+  runner: string;
+  group: string;
   busy: boolean;
-  onChange: (next: string) => void;
+  onChange: (next: { runner: string; group: string }) => void;
 }) {
+  const runners = state?.available_runners ?? [];
   const groups = state?.available_groups ?? [];
-  if (groups.length === 0) return null;
+  if (runners.length === 0 && groups.length === 0) return null;
+  const value = runner ? runnerOptionValue(runner) : group ? groupOptionValue(group) : "";
+
+  const choose = (next: string) => {
+    if (next.startsWith("runner:")) {
+      onChange({ runner: next.slice("runner:".length), group: "" });
+    } else if (next.startsWith("group:")) {
+      onChange({ runner: "", group: next.slice("group:".length) });
+    } else {
+      onChange({ runner: "", group: "" });
+    }
+  };
+
   return (
     <div className="flex items-center gap-2">
-      <label htmlFor="dispatch-group" className="text-sm text-dark-muted">
-        Group
+      <label htmlFor="dispatch-target" className="text-sm text-dark-muted">
+        Run with
       </label>
       <select
-        id="dispatch-group"
+        id="dispatch-target"
         value={value}
         disabled={busy}
-        onChange={(event) => onChange(event.target.value)}
-        className="rounded-lg border border-dark-border bg-dark-bg p-2 text-sm text-dark-text focus:border-sky-500 focus:outline-none"
+        onChange={(event) => choose(event.target.value)}
+        className="min-w-52 rounded-lg border border-dark-border bg-dark-bg p-2 text-sm text-dark-text focus:border-sky-500 focus:outline-none"
       >
-        <option value="">{projectDefaultLabel(state)}</option>
-        {groups.map((name) => (
-          <option key={name} value={name}>
-            {name}
-          </option>
-        ))}
+        <option value="">Project default</option>
+        {groups.length > 0 && (
+          <optgroup label="Automatic groups">
+            {groups.map((name) => (
+              <option key={name} value={groupOptionValue(name)}>
+                {humanizeChoiceName(name)}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        <optgroup label="Specific agents">
+          {runners.map((name) => (
+            <option key={name} value={runnerOptionValue(name)}>
+              {runnerLabel(state, name)}
+            </option>
+          ))}
+        </optgroup>
       </select>
     </div>
   );
 }
 
+function runnerOptionValue(name: string): string {
+  return `runner:${name}`;
+}
+
+function runnerLabel(state: DispatchStateView | null, name: string): string {
+  return state?.runner_labels?.[name] ?? name;
+}
+
+function humanizeChoiceName(name: string): string {
+  return name
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((word) => word.slice(0, 1).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 /**
  * What this one run may do, chosen at the moment of dispatching (task-307).
  *
- * The same shape as `DispatchGroupChoice` above, deliberately: a labelled select whose
+ * The same shape as `DispatchTargetChoice` above, deliberately: a labelled select whose
  * empty option is the project's own answer, whose value is sent only when it is not
  * that, and which is absent entirely when there is nothing to choose between.
  *
@@ -662,11 +707,13 @@ function mergeConsequence(posture: string, state: DispatchStateView | null): str
 function DispatchRunnerNote({
   state,
   user,
+  runner: chosenRunner,
   group,
   posture: chosen,
 }: {
   state: DispatchStateView | null;
   user: string;
+  runner: string;
   group: string;
   posture: string;
 }) {
@@ -687,6 +734,14 @@ function DispatchRunnerNote({
       <strong className="text-dark-text">{user}</strong>
     </>
   );
+  if (chosenRunner) {
+    return (
+      <span className="text-sm text-dark-muted">
+        Agent <strong className="text-dark-text">{runnerLabel(state, chosenRunner)}</strong>,{" "}
+        {posture}
+      </span>
+    );
+  }
   // A group picked for this one dispatch outranks everything the project says, and the
   // browser holds no member list to resolve it with -- so it names the group that will
   // choose rather than guessing which member wins. Leaving the project's runner on
@@ -695,7 +750,8 @@ function DispatchRunnerNote({
   if (group) {
     return (
       <span className="text-sm text-dark-muted">
-        Runner chosen from group <strong className="text-dark-text">{group}</strong>, {posture}
+        Automatic group <strong className="text-dark-text">{humanizeChoiceName(group)}</strong>,{" "}
+        {posture}
       </span>
     );
   }
@@ -706,11 +762,11 @@ function DispatchRunnerNote({
   if (!runner) return null;
   return (
     <span className="text-sm text-dark-muted">
-      Runner <strong className="text-dark-text">{runner}</strong>
+      Agent <strong className="text-dark-text">{runnerLabel(state, runner)}</strong>
       {state?.resolved_group ? (
         <>
           {" "}
-          from group <strong className="text-dark-text">{state.resolved_group}</strong>
+          from <strong className="text-dark-text">{humanizeChoiceName(state.resolved_group)}</strong>
         </>
       ) : null}
       , {posture}
@@ -880,16 +936,20 @@ export function DispatchSettings({
   // is noise a project that never had a group should not have to read.
   const options: Array<EnableOption> =
     groups.length === 0
-      ? runners.map((name) => ({ value: name, label: name, target: { runner: name } }))
+      ? runners.map((name) => ({
+          value: name,
+          label: runnerLabel(state, name),
+          target: { runner: name },
+        }))
       : [
           ...groups.map((name) => ({
             value: groupOptionValue(name),
-            label: `group: ${name}`,
+            label: `group: ${humanizeChoiceName(name)}`,
             target: { group: name },
           })),
           ...runners.map((name) => ({
             value: name,
-            label: `runner: ${name}`,
+            label: `agent: ${runnerLabel(state, name)}`,
             target: { runner: name },
           })),
         ];

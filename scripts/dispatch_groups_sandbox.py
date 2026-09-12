@@ -11,15 +11,14 @@ on adjacent ports, and stops both together:
 
     port      ~/.agentjobs/dispatch.yaml       projects
     --------  ------------------------------  ---------------------------------------
-    8900      two runners, two groups         grouped: ``group: default``
+    8900      eight runners, three groups     grouped: ``group: default``
                                               runner:  a plain ``runner:``, on a
                                                        machine that has groups
-    8901      two runners, no groups at all   flat:    what every machine looked like
+    8901      eight runners, no groups at all flat:    what every machine looked like
                                                        before groups existed
 
-The second server is the control. Nothing on it should differ by a character from what
-it showed before task-177 -- no Group pulldown, bare runner names in the enable select,
-and the same sentence beside the Dispatch button.
+The second server is the control: the same specific agents remain available without
+the automatic-group section.
 
 Everything here is throwaway. Press anything, including Disable and Dispatch: the
 configs, the registries and the tasks all live under temporary directories these
@@ -37,24 +36,27 @@ What to look for, since "it renders" is not the property under review:
   * On **grouped**, the Dispatch page's THIS PROJECT tile reads
     ``group: default -> claude-opus-5``. It used to read "no runner chosen" while every
     gate was open, which is the defect this task was filed for.
-  * On its seeded task, a **Group** pulldown sits beside the Dispatch button. Its first
-    option spells out what the project would resolve to; the rest are this machine's
-    groups. Pick ``big-dawg`` and the sentence beside it stops naming a member and names the
-    group instead -- the browser holds no member list, so guessing which member wins
-    would be the one sentence there that is reliably wrong.
+  * On its seeded task, one **Run with** pulldown contains separate ``Automatic groups``
+    and ``Specific agents`` sections. There is no runner/group pair that can contradict
+    itself. Pick ``Big Dawg`` and the sentence below names that automatic group.
   * Press Dispatch with ``big-dawg`` picked, then read the task log's dispatch entry: it
     records the group the run was chosen from, which is the choice having reached the
     API rather than the page having drawn a control.
+  * The specific-agent section uses model names rather than configuration ids. It
+    includes Claude Fable 5.1, ChatGPT GPT-6 Astra and ChatGPT GPT-5.6 Sol. Pick one and
+    press Dispatch; the task log records its stable runner id with a direct-dispatch
+    source. This is the task-424 review path: a person's one-run choice outranks the
+    project default.
   * Press **Disable dispatch**, then look at the enable control. It lists this machine's
     groups *and* its runners, preselected on ``group: default`` -- what the project
     actually uses. Before this it preselected the first runner, and pressing Enable then
     changed nothing at all, silently: the config layer keeps a project's group and
     declines a runner sent beside it. Re-enable against ``group: big-dawg``; the tile follows.
   * On **runner** (same machine, plain ``runner:``), the tile reads ``runner: <name>``
-    and the Group pulldown is still offered -- a group named on one dispatch outranks
-    the project's runner, and that is a real thing to be able to ask for.
-  * On **flat**, port 8901, none of that appears anywhere: no Group pulldown, the enable
-    select is labelled "Runner" over bare names, and the tile reads ``runner: <name>``.
+    and the same single chooser can override it with either an automatic group or a
+    specific agent.
+  * On **flat**, port 8901, the chooser has no automatic-group section and keeps all
+    specific agents available.
 """
 
 from __future__ import annotations
@@ -71,11 +73,19 @@ import yaml
 
 DEFAULT_PORT = 8900
 
-#: Two names for one harmless script. Group selection asks only whether ``argv[0]`` is
-#: on PATH, so this interpreter satisfies it and every member of every group is
-#: genuinely eligible -- which makes ``default -> claude-opus-5`` a resolution rather
-#: than a caption.
-RUNNERS = ("claude-opus-5", "claude-sonnet-5")
+#: The machine's real runner/model shape, all backed by one harmless local script. The
+#: ids remain what dispatch records; ``--model`` and ``driver`` supply the names a
+#: person sees.
+RUNNER_MODELS = {
+    "claude-opus-5": ("claude-opus-5", "claude"),
+    "claude-sonnet-5": ("claude-sonnet-5", "claude"),
+    "claude-fable-5": ("claude-fable-5", "claude"),
+    "claude-fable-5-1": ("claude-fable-5-1", "claude"),
+    "codex-astra": ("gpt-6-astra", "codex"),
+    "codex-terra": ("gpt-5.6-terra", "codex"),
+    "codex-luna": ("gpt-5.6-luna", "codex"),
+    "codex-sol": ("gpt-5.6-sol", "codex"),
+}
 
 GROUPED = "grouped"
 RUNNER = "runner"
@@ -154,29 +164,47 @@ def write_dispatch_config(home: Path, root: Path, *, with_groups: bool) -> None:
     """This machine's dispatch.yaml, with or without any notion of a group."""
     fake = root / "fake-agent.py"
     fake.write_text("import sys\nprint('sandbox agent started:', sys.argv[1:])\n", encoding="utf-8")
-    argv = [sys.executable, str(fake), "{prompt}"]
     projects: dict[str, dict[str, object]] = {}
     config: dict[str, object] = {
         "version": 1,
         "enabled": True,
-        "runners": {name: {"argv": list(argv), "actor": "claude"} for name in RUNNERS},
+        "runners": {
+            name: {
+                "argv": [sys.executable, str(fake), "--model", model, "{prompt}"],
+                "actor": driver,
+                "driver": driver,
+            }
+            for name, (model, driver) in RUNNER_MODELS.items()
+        },
         "projects": projects,
     }
     if with_groups:
         config["runner_groups"] = {
             "default": {
                 "description": "Cheapest capable model first.",
-                "members": list(RUNNERS),
+                "members": ["claude-opus-5", "codex-terra"],
+            },
+            "simple": {
+                "description": "Mechanical work.",
+                "members": ["claude-sonnet-5", "codex-luna"],
             },
             "big-dawg": {
                 "description": "The big model, for work worth paying for.",
-                "members": list(reversed(RUNNERS)),
+                "members": ["claude-fable-5-1", "codex-astra"],
             },
         }
         projects[GROUPED] = {"enabled": True, "group": "default", "require_clean_tree": False}
-        projects[RUNNER] = {"enabled": True, "runner": RUNNERS[1], "require_clean_tree": False}
+        projects[RUNNER] = {
+            "enabled": True,
+            "runner": "claude-sonnet-5",
+            "require_clean_tree": False,
+        }
     else:
-        projects[FLAT] = {"enabled": True, "runner": RUNNERS[1], "require_clean_tree": False}
+        projects[FLAT] = {
+            "enabled": True,
+            "runner": "claude-sonnet-5",
+            "require_clean_tree": False,
+        }
     (home / "dispatch.yaml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
 
 

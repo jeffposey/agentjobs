@@ -943,6 +943,19 @@
             ],
             "description": "What this one run may do, overriding both the project default and any posture on the task record. Refused with 'posture_above_ceiling' when it exceeds the project's machine-local max_posture -- populate a chooser from the dispatch state view's 'offerable_postures' so the refusal is never reachable by clicking (task-308)."
           },
+          "runner": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Specific machine-local runner for this run, overriding group and project defaults. Mutually exclusive with group.",
+            "title": "Runner"
+          },
           "user": {
             "anyOf": [
               {
@@ -1444,6 +1457,14 @@
             ],
             "description": "Runner this project is pointed at.",
             "title": "Runner"
+          },
+          "runner_labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Human-facing model names for available_runners, keyed by the stable machine-local runner id. The browser submits the id and displays the label, so presentation never changes dispatch authority.",
+            "title": "Runner Labels",
+            "type": "object"
           },
           "sentinel_active": {
             "description": "DISPATCH_DISABLED exists; all runs refused.",

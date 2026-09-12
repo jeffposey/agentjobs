@@ -1377,6 +1377,11 @@ def dispatch_run(
         "--caused-by",
         help="Log entry authorising this run. Defaults to the newest; must be a human's.",
     ),
+    runner: Optional[str] = typer.Option(
+        None,
+        "--runner",
+        help="Specific runner for this run, overriding the project default.",
+    ),
     group: Optional[str] = typer.Option(
         None,
         "--group",
@@ -1429,7 +1434,11 @@ def dispatch_run(
             project=project,
             project_config=project.load_config(),
             request=DispatchRequest(
-                task_id=task_id, caused_by=caused_by, group=group, posture=chosen_posture
+                task_id=task_id,
+                caused_by=caused_by,
+                runner=runner,
+                group=group,
+                posture=chosen_posture,
             ),
         )
     except (DispatchError, DispatchRunError) as exc:

@@ -118,6 +118,38 @@ class TestLoading:
         assert config is not None
         assert config.runners["codex"].driver is RunnerDriver.CODEX
 
+    def test_runner_display_names_come_from_the_configured_model(self) -> None:
+        write_config(
+            runners={
+                "claude-fable-5-1": {
+                    "argv": ["claude", "--model", "claude-fable-5-1", "{prompt}"],
+                },
+                "codex-astra": {
+                    "argv": ["codex", "app-server", "--model", "gpt-6-astra", "{prompt}"],
+                    "driver": "codex",
+                },
+                "codex-sol": {
+                    "argv": ["codex", "app-server", "--model", "gpt-5.6-sol", "{prompt}"],
+                    "driver": "codex",
+                },
+            }
+        )
+
+        config = load_dispatch_config()
+
+        assert config is not None
+        assert config.runners["claude-fable-5-1"].display_name == "Claude Fable 5.1"
+        assert config.runners["codex-astra"].display_name == "ChatGPT · GPT-6 Astra"
+        assert config.runners["codex-sol"].display_name == "ChatGPT · GPT-5.6 Sol"
+
+    def test_custom_runner_without_a_model_keeps_its_configured_name(self) -> None:
+        write_config(runners={"local-reviewer": {"argv": ["review", "{prompt}"]}})
+
+        config = load_dispatch_config()
+
+        assert config is not None
+        assert config.runners["local-reviewer"].display_name == "local-reviewer"
+
     def test_unknown_runner_driver_is_refused(self) -> None:
         write_config(runners={"bad": {"argv": ["bad", "{prompt}"], "driver": "other"}})
 
@@ -612,6 +644,34 @@ class TestGroupPrecedence:
         write_config()
         with pytest.raises(UnknownGroupError, match="none defined"):
             assert_dispatch_permitted("agentjobs", home(), group="audit")
+
+
+class TestDirectRunnerChoice:
+    def test_a_runner_named_on_this_dispatch_beats_the_project(self, monkeypatch) -> None:
+        write_config()
+        monkeypatch.setattr("agentjobs.dispatch.config.shutil.which", lambda name: name)
+
+        resolution = assert_dispatch_permitted("agentjobs", home(), runner="codex")
+
+        assert resolution.runner.name == "codex"
+        assert resolution.selection is not None
+        assert resolution.selection.source is SelectionSource.DISPATCH_RUNNER
+
+    def test_an_unknown_direct_runner_is_refused(self) -> None:
+        write_config()
+        with pytest.raises(UnknownRunnerError, match="This dispatch names runner 'nope'"):
+            assert_dispatch_permitted("agentjobs", home(), runner="nope")
+
+    def test_an_unavailable_direct_runner_is_refused(self, monkeypatch) -> None:
+        write_config()
+        monkeypatch.setattr("agentjobs.dispatch.config.shutil.which", lambda _name: None)
+        with pytest.raises(NoEligibleRunnerError, match="not available on PATH"):
+            assert_dispatch_permitted("agentjobs", home(), runner="codex")
+
+    def test_a_direct_runner_and_group_are_mutually_exclusive(self) -> None:
+        write_config()
+        with pytest.raises(DispatchConfigError, match="both a runner and a runner group"):
+            assert_dispatch_permitted("agentjobs", home(), runner="codex", group="audit")
 
 
 class TestFlatConfigIsUntouched:

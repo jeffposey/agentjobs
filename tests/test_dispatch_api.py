@@ -80,6 +80,7 @@ def enable_dispatch(
     body: str = "print('started')\n",
     project_enabled: bool = True,
     extra_runners: Sequence[str] = (),
+    model_runners: Sequence[Tuple[str, str, str]] = (),
     max_posture: Optional[str] = None,
     finish_enabled: bool = False,
     push: bool = False,
@@ -97,6 +98,12 @@ def enable_dispatch(
     defined: Dict[str, Dict[str, object]] = {"fake": {"argv": argv, "actor": "claude"}}
     for name in extra_runners:
         defined[name] = {"argv": list(argv), "actor": "claude"}
+    for name, model, driver in model_runners:
+        defined[name] = {
+            "argv": [sys.executable, str(runner), "--model", model, "{prompt}"],
+            "actor": driver,
+            "driver": driver,
+        }
     project_entry: Dict[str, object] = {"enabled": project_enabled, "runner": "fake"}
     if max_posture is not None:
         project_entry["max_posture"] = max_posture
@@ -411,6 +418,34 @@ class TestDispatchState:
         assert body["runner"] == "fake"
         assert body["posture"] == "auto"
         assert body["available_runners"] == ["fake"]
+        assert body["runner_labels"] == {"fake": "fake"}
+
+    def test_runner_choices_keep_config_order_and_name_the_models(self, served, tmp_path) -> None:
+        client, _, home = served
+        enable_dispatch(
+            home,
+            tmp_path,
+            model_runners=(
+                ("claude-fable-5-1", "claude-fable-5-1", "claude"),
+                ("codex-astra", "gpt-6-astra", "codex"),
+                ("codex-sol", "gpt-5.6-sol", "codex"),
+            ),
+        )
+
+        body = client.get("/api/projects/sandbox/dispatch").json()
+
+        assert body["available_runners"] == [
+            "fake",
+            "claude-fable-5-1",
+            "codex-astra",
+            "codex-sol",
+        ]
+        assert body["runner_labels"] == {
+            "fake": "fake",
+            "claude-fable-5-1": "Claude Fable 5.1",
+            "codex-astra": "ChatGPT · GPT-6 Astra",
+            "codex-sol": "ChatGPT · GPT-5.6 Sol",
+        }
 
     def test_the_sentinel_is_reported_by_name_so_the_gui_can_say_which_file(
         self, served, tmp_path: Path
@@ -1048,6 +1083,35 @@ class TestDispatchAgainstAGroup:
         assert response.json()["runner"] == "reserve"
         assert response.json()["group"] == "deep"
 
+    def test_a_dispatch_may_choose_one_specific_runner(self, served) -> None:
+        client, root, home = served
+        enable_grouped_dispatch(home, root.parent)
+        task_id = seed_task(root)
+
+        response = client.post(f"/api/tasks/{task_id}/dispatch", json={"runner": "reserve"})
+
+        assert response.status_code == 202, response.text
+        assert response.json()["runner"] == "reserve"
+        assert response.json()["group"] is None
+        task = TaskManager(task_store(root / "tasks")).get_task(task_id)
+        assert task is not None
+        entry = next(item for item in task.log if item.type is LogEntryType.DISPATCH)
+        assert entry.data["runner"] == "reserve"
+        assert entry.data["runner_source"] == "dispatch_runner"
+
+    def test_a_dispatch_cannot_choose_a_runner_and_group(self, served) -> None:
+        client, root, home = served
+        enable_grouped_dispatch(home, root.parent)
+        task_id = seed_task(root)
+
+        response = client.post(
+            f"/api/tasks/{task_id}/dispatch",
+            json={"runner": "reserve", "group": "deep"},
+        )
+
+        assert response.status_code == 400
+        assert "either 'runner' or 'group'" in response.json()["detail"]
+
     def test_naming_an_unknown_group_is_refused_under_its_own_code(self, served) -> None:
         client, root, home = served
         enable_grouped_dispatch(home, root.parent)
@@ -1077,7 +1141,7 @@ class TestDispatchAgainstAGroup:
         state = client.get("/api/projects/sandbox/dispatch").json()
 
         assert state["group"] == "standard"
-        assert state["available_groups"] == ["deep", "standard"]
+        assert state["available_groups"] == ["standard", "deep"]
         assert state["can_dispatch"] is True
 
     def test_a_flat_machine_reports_no_groups(self, served) -> None:
@@ -1391,7 +1455,7 @@ class TestDispatchStateWithGroups:
         assert body["resolved_group"] == "cheap"
         assert body["resolved_runner"] == "fake"
         assert body["resolved_from"] == "project"
-        assert body["available_groups"] == ["big", "cheap"]
+        assert body["available_groups"] == ["cheap", "big"]
 
     def test_a_machine_wide_default_group_is_reported_as_the_machine_s_choice(
         self, served, tmp_path: Path

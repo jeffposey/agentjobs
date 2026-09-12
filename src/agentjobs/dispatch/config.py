@@ -516,9 +516,56 @@ class DispatchRunner:
         """The identity this runner acts as. Never empty."""
         return self.actor or self.name
 
+    @property
+    def display_name(self) -> str:
+        """A model-facing runner name suitable for a human choice.
+
+        Runner ids are stable machine-local keys, not interface copy. In particular,
+        ``codex-astra`` says neither GPT-6 nor ChatGPT, and
+        ``claude-fable-5-1`` reads like an implementation token instead of the model a
+        person is choosing. The command already names the model explicitly, so use
+        that authoritative value while keeping the runner id as the submitted value.
+
+        Custom runners without ``--model`` retain their exact configured name. We do
+        not guess what an arbitrary command means.
+        """
+        try:
+            model = self.argv[self.argv.index("--model") + 1]
+        except (ValueError, IndexError):
+            return self.name
+
+        label = _model_display_name(model)
+        return f"ChatGPT · {label}" if self.driver is RunnerDriver.CODEX else label
+
     def render(self, values: Mapping[str, str]) -> List[str]:
         """Substitute ``values`` into this runner's argv, per element and literally."""
         return substitute_argv(self.argv, values)
+
+
+def _model_display_name(model: str) -> str:
+    """Turn a CLI model id into its product name without maintaining a model catalog."""
+    words = model.replace("_", "-").split("-")
+    rendered: List[str] = []
+    index = 0
+    while index < len(words):
+        word = words[index]
+        if word.isdigit():
+            digits = [word]
+            while index + 1 < len(words) and words[index + 1].isdigit():
+                index += 1
+                digits.append(words[index])
+            rendered.append(".".join(digits))
+        elif word.lower() == "gpt":
+            rendered.append("GPT")
+        else:
+            rendered.append(word[:1].upper() + word[1:])
+        index += 1
+
+    # Product spelling joins GPT to its version with a hyphen; the other model
+    # families read as ordinary words (Claude Fable 5.1).
+    if len(rendered) >= 2 and rendered[0] == "GPT":
+        return f"GPT-{rendered[1]}" + (f" {' '.join(rendered[2:])}" if rendered[2:] else "")
+    return " ".join(rendered)
 
 
 @dataclass(frozen=True)
@@ -556,6 +603,9 @@ class SelectionSource(str, Enum):
 
     DISPATCH = "dispatch"
     """A group named on this one dispatch. The narrowest thing that can win today."""
+
+    DISPATCH_RUNNER = "dispatch_runner"
+    """A specific runner named on this one dispatch."""
 
     PROJECT = "project"
     """``projects.<id>.group``."""
@@ -1550,6 +1600,7 @@ def resolve_runner(
     config: DispatchConfig,
     settings: ProjectDispatchSettings,
     *,
+    runner: Optional[str] = None,
     group: Optional[str] = None,
 ) -> RunnerSelection:
     """Walk the precedence ladder and return the runner with its full account.
@@ -1557,7 +1608,7 @@ def resolve_runner(
     Narrowest first, exactly the ladder design section 4 decided for profiles, with the
     profile rungs not yet built:
 
-    1. a group named on **this dispatch**;
+    1. a runner or group named on **this dispatch**;
     2. *(unbuilt)* a profile named on this dispatch, mapping difficulty to a group;
     3. ``projects.<id>.group``;
     4. *(unbuilt)* a machine default profile;
@@ -1568,6 +1619,27 @@ def resolve_runner(
     flat config behave exactly as it did. It is *not* reached when a group applies and
     turns out to be exhausted: see ``NoEligibleRunnerError``.
     """
+    if runner and group:
+        raise DispatchConfigError(
+            "This dispatch names both a runner and a runner group. Choose one; a "
+            "specific runner and a group-selected runner are different requests."
+        )
+
+    if runner:
+        chosen = config.runners.get(runner)
+        if chosen is None:
+            raise UnknownRunnerError(
+                f"This dispatch names runner {runner!r}, which is not defined in "
+                f"{config.path}. Known runners: {_known(config.runners)}."
+            )
+        if not executable_available(chosen.argv):
+            raise NoEligibleRunnerError(
+                f"This dispatch names runner {runner!r}, but executable "
+                f"{chosen.argv[0]!r} is not available on PATH. Install it or choose "
+                "a different runner."
+            )
+        return RunnerSelection(runner=chosen, source=SelectionSource.DISPATCH_RUNNER)
+
     for name, source in (
         (group, SelectionSource.DISPATCH),
         (settings.group, SelectionSource.PROJECT),
@@ -1592,14 +1664,14 @@ def resolve_runner(
             f".group in {config.path}."
         )
 
-    runner = config.runners.get(settings.runner)
-    if runner is None:
+    project_runner = config.runners.get(settings.runner)
+    if project_runner is None:
         raise UnknownRunnerError(
             f"Project {settings.project_id!r} names runner {settings.runner!r}, which "
             f"is not defined in {config.path}. Known runners: {_known(config.runners)}."
         )
 
-    return RunnerSelection(runner=runner, source=SelectionSource.PROJECT_RUNNER)
+    return RunnerSelection(runner=project_runner, source=SelectionSource.PROJECT_RUNNER)
 
 
 def _group_origin(source: SelectionSource, project_id: str) -> str:
@@ -1615,7 +1687,11 @@ def _group_origin(source: SelectionSource, project_id: str) -> str:
 
 
 def assert_dispatch_permitted(
-    project_id: str, home: Optional[Path] = None, *, group: Optional[str] = None
+    project_id: str,
+    home: Optional[Path] = None,
+    *,
+    runner: Optional[str] = None,
+    group: Optional[str] = None,
 ) -> DispatchResolution:
     """Walk every dispatch gate for ``project_id`` and resolve its runner.
 
@@ -1659,7 +1735,7 @@ def assert_dispatch_permitted(
 
     # Gate 2, and only now: every other gate is about whether this machine will run
     # anything at all, and none of them may be reachable from a caller's choice of group.
-    selection = resolve_runner(config, settings, group=group)
+    selection = resolve_runner(config, settings, runner=runner, group=group)
 
     return DispatchResolution(
         project_id=project_id,
@@ -1667,7 +1743,11 @@ def assert_dispatch_permitted(
         settings=settings,
         limits=config.limits,
         config=config,
-        selection=selection if selection.from_group else None,
+        selection=(
+            selection
+            if selection.from_group or selection.source is SelectionSource.DISPATCH_RUNNER
+            else None
+        ),
     )
 
 

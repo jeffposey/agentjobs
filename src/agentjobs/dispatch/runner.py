@@ -66,6 +66,7 @@ from agentjobs.dispatch.config import (
     RunnerDriver,
     RunnerMode,
     RunnerSelection,
+    SelectionSource,
     resolve_posture,
     sentinel_active,
     substitute_argv,
@@ -1894,6 +1895,12 @@ class DispatchRunner:
             run_id=run_id,
             agent=self.runner.actor_id,
             runner=self.runner.name,
+            runner_source=(
+                self.resolution.selection.source.value
+                if self.resolution.selection is not None
+                and self.resolution.selection.source is SelectionSource.DISPATCH_RUNNER
+                else None
+            ),
             mode=mode,
             posture=DispatchPosture(self.posture.posture.value),
             posture_source=self.posture.source.value,
