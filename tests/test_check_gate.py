@@ -372,8 +372,10 @@ class TestSinceGate:
 
         assert check.main(["--since-gate"]) == 0
         # pytest, because the documentation contract tests read prose, plus the roadmap
-        # stage, which no diff can ever clear.
-        assert len(commands) == 2
+        # stage, which no diff can ever clear. Counted as commands rather than stages:
+        # roadmap runs two, the listing's freshness and the roadmap page's claims.
+        selected = [stage for stage in check.stages() if stage.name in {"pytest", "roadmap"}]
+        assert len(commands) == command_count(selected)
         out = capsys.readouterr().out
         assert "NECESSITY RUN" in out
         assert "Ran every stage" not in out
@@ -393,8 +395,9 @@ class TestSinceGate:
         monkeypatch.setattr(check.gate_scope, "changed_since", lambda root, commit: [])
 
         assert check.main(["--since-gate"]) == 0
-        assert len(commands) == 1
-        assert "export_roadmap.py" in " ".join(commands[0])
+        roadmap = [stage for stage in check.stages() if stage.name == "roadmap"]
+        assert len(commands) == command_count(roadmap)
+        assert all("export_roadmap.py" in " ".join(command) for command in commands)
         out = capsys.readouterr().out
         assert "NOTHING CHANGED" in out
         assert "Running roadmap anyway" in out
