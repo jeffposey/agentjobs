@@ -20,12 +20,6 @@ decision log, branches, verification evidence — stays in the store.
 
 ## Critical (14)
 
-- **task-410** — Big Dawg Audit II — hold the first audit to account, then audit everything built since
-
-  Follow-up to task-242, the Big Dawg Audit of 2026-08-21. Fourteen auditors and a synthesis session, overnight on 2026-09-11, on claude-fable-5-1; the runbook is audits/2026-09-11/PLAN.md.
-
-  *in progress*
-
 - **task-414** — Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do
 
   Apply the durable-execution model (Temporal's workflow/activity/event-history/retry-policy/signal model, and Restate's journal) to AgentJobs dispatch, so that an authorised dispatch is a durable intent the system owes a completion to. Filed from the supervisor of task-410 on 2026-09-11 after one expired login cost three human touches and silently downgraded the runner.
@@ -101,6 +95,10 @@ decision log, branches, verification evidence — stays in the store.
   Add a per-dispatch runner override so the human can explicitly choose a configured Codex runner rather than relying on group order. Persist the authorized choice so retries and resumes cannot silently substitute a different runner.
 
   *in progress*
+
+- **task-425** — `agentjobs redact` on a log entry body records a redaction the SQLite store never performs
+
+  Redacting a log entry's body appends a note saying the words were removed and leaves the original words in the stored row, on every surface. Title and spec redactions work; log bodies never reach the store.
 
 ## High (67)
 
@@ -658,4 +656,4 @@ decision log, branches, verification evidence — stays in the store.
 
 ---
 
-31 further open tasks are drafts, not listed here. A draft is an idea that has not been specified yet: no agent can claim one and the queue does not hand one out.
+30 further open tasks are drafts, not listed here. A draft is an idea that has not been specified yet: no agent can claim one and the queue does not hand one out.
