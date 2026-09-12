@@ -21,8 +21,9 @@ Three things to know before reading further:
   says what is worked: an agent never reads this page to pick a task.
 - **This page runs behind the listing.** A check keeps it from advertising finished
   work, but a task filed this morning may not be placed in a phase yet.
-- **A phase can be empty.** That is not an omission; it is the plan saying the backlog
-  is short of what the plan needs, and it is written here so the gap has an owner.
+- **A phase can run ahead of its backlog.** A phase holding only an umbrella, or nothing
+  at all, is not an omission. It is the plan saying the backlog is short of what the
+  plan needs, and it is written here so the gap has an owner.
 
 ---
 
@@ -189,11 +190,14 @@ that machine. Before AgentJobs can work from anybody else's computer it has to w
 a computer that is not this one, and Linux is the first such computer because it is
 where the owner's own serious projects move to and where any server would live.
 
-**Nothing is filed for this phase yet.** What it will hold, once somebody has tried it:
-the CLI, the server and the gate green on a Linux checkout; dispatch starting and
-polling a real run there; the install path of Phase 4 exercised from a shell that is not
-PowerShell; and whatever the first attempt breaks. The phase is here so that the
-attempt is planned work rather than a surprise.
+The code already branches on platform in the places that matter most — killing a
+process tree, stopping a run, asking whether a pid is alive, finding an executable — and
+only the Windows side of each branch has ever run. So this phase starts as a single
+umbrella whose first act is to try: bootstrap and gate a Linux checkout, dispatch a run
+there and cancel another, and file each breakage as a child. The children are unknown
+until somebody has tried, which is the point of planning the attempt.
+
+- `task-428` — the umbrella: the CLI, the server, dispatch and the gate on a machine that is not Windows
 
 ---
 
@@ -302,15 +306,22 @@ kept using it. Every phase above is a precondition, and the tasks here are the o
 that only make sense once the preconditions hold — the proof from outside, and the
 front door a stranger arrives through.
 
+### The proof from outside
+
 - `task-146-embed-reference-integration` — prove the loop from a real project that is not AgentJobs, then write the guide
+- `task-429` — a first-run walkthrough that somebody other than the author has followed from a clean machine
+
+### The front door
+
+A stranger needs three things the author never has: a page that shows them what they
+are installing, somewhere to say what broke, and a straight account of where their data
+goes. The store is a database beside the server, and nobody but the owner has yet had to
+trust that.
+
+- `task-430` — somewhere for a user who is not the author to report what broke
+- `task-431` — what AgentJobs promises a user about their data: where it lives, what leaves the machine, how to back it up
 - `task-104-react-readme-screenshots` — stage and capture polished screenshots for the README
 - `task-287` — the docs site renders no Mermaid diagrams at all
-
-**What is not filed yet**, and will need to be before this phase can close: an install
-walkthrough that somebody other than the author has followed from a clean machine, a
-place for that person to report what broke, and a statement of what AgentJobs promises
-them about their data — the store is a database beside the server, and nobody but the
-owner has yet had to trust that.
 
 ---
 
