@@ -119,23 +119,6 @@ export type DispatchOptions = {
   note?: string;
 };
 
-/**
- * Where this project's runs come from, in the words the CLI already uses for it.
- *
- * The server resolves this rather than the browser: a project pointed at a group names
- * no runner of its own, and a page that re-implemented the precedence ladder to work
- * out which member wins would be the one place in the system that could disagree with
- * the dispatcher about what actually runs.
- */
-function projectDefaultLabel(_state: DispatchStateView | null): string {
-  // Two words, and deliberately not the resolution. This is the *Group* select, so an
-  // option reading "default → claude-opus-5" offers a runner as though it were a group
-  // -- and spends the row's width saying "default" twice to do it. What the project
-  // actually resolves to is already stated in the sentence beside the button, which is
-  // where a clarification belongs: after the choice, not inside it. Jeff, 2026-08-24.
-  return "Project default";
-}
-
 /** How often to re-read the runs list. Fast while something is running, never otherwise. */
 export function runsPollInterval(runs: Array<DispatchRunView>): number | false {
   return runs.some((run) => run.live) ? RUN_POLL_MS : false;
@@ -424,22 +407,14 @@ export function DispatchPanel({
           >
             ▶ Dispatch — start an agent now
           </button>
-          <DispatchRunnerChoice
+          <DispatchTargetChoice
             state={state}
-            value={runner}
+            runner={runner}
+            group={group}
             busy={blocked}
             onChange={(next) => {
-              setRunner(next);
-              if (next) setGroup("");
-            }}
-          />
-          <DispatchGroupChoice
-            state={state}
-            value={group}
-            busy={blocked}
-            onChange={(next) => {
-              setGroup(next);
-              if (next) setRunner("");
+              setRunner(next.runner);
+              setGroup(next.group);
             }}
           />
           <DispatchPostureChoice state={state} value={posture} busy={blocked} onChange={setPosture} />
@@ -503,22 +478,14 @@ export function DispatchPanel({
             >
               ▶ Dispatch — start an agent now
             </button>
-            <DispatchRunnerChoice
+            <DispatchTargetChoice
               state={state}
-              value={runner}
+              runner={runner}
+              group={group}
               busy={blocked}
               onChange={(next) => {
-                setRunner(next);
-                if (next) setGroup("");
-              }}
-            />
-            <DispatchGroupChoice
-              state={state}
-              value={group}
-              busy={blocked}
-              onChange={(next) => {
-                setGroup(next);
-                if (next) setRunner("");
+                setRunner(next.runner);
+                setGroup(next.group);
               }}
             />
             <DispatchPostureChoice
@@ -551,98 +518,89 @@ export function DispatchPanel({
   );
 }
 
-/** A specific machine-local runner for this run, including Codex when configured. */
-function DispatchRunnerChoice({
+/** One unambiguous choice between the project default, a group, and a specific model. */
+function DispatchTargetChoice({
   state,
-  value,
+  runner,
+  group,
   busy,
   onChange,
 }: {
   state: DispatchStateView | null;
-  value: string;
+  runner: string;
+  group: string;
   busy: boolean;
-  onChange: (next: string) => void;
+  onChange: (next: { runner: string; group: string }) => void;
 }) {
   const runners = state?.available_runners ?? [];
-  if (runners.length <= 1) return null;
+  const groups = state?.available_groups ?? [];
+  if (runners.length === 0 && groups.length === 0) return null;
+  const value = runner ? runnerOptionValue(runner) : group ? groupOptionValue(group) : "";
+
+  const choose = (next: string) => {
+    if (next.startsWith("runner:")) {
+      onChange({ runner: next.slice("runner:".length), group: "" });
+    } else if (next.startsWith("group:")) {
+      onChange({ runner: "", group: next.slice("group:".length) });
+    } else {
+      onChange({ runner: "", group: "" });
+    }
+  };
+
   return (
     <div className="flex items-center gap-2">
-      <label htmlFor="dispatch-runner" className="text-sm text-dark-muted">
-        Runner
+      <label htmlFor="dispatch-target" className="text-sm text-dark-muted">
+        Run with
       </label>
       <select
-        id="dispatch-runner"
+        id="dispatch-target"
         value={value}
         disabled={busy}
-        onChange={(event) => onChange(event.target.value)}
-        className="rounded-lg border border-dark-border bg-dark-bg p-2 text-sm text-dark-text focus:border-sky-500 focus:outline-none"
+        onChange={(event) => choose(event.target.value)}
+        className="min-w-52 rounded-lg border border-dark-border bg-dark-bg p-2 text-sm text-dark-text focus:border-sky-500 focus:outline-none"
       >
         <option value="">Project default</option>
-        {runners.map((name) => (
-          <option key={name} value={name}>
-            {name}
-          </option>
-        ))}
+        {groups.length > 0 && (
+          <optgroup label="Automatic groups">
+            {groups.map((name) => (
+              <option key={name} value={groupOptionValue(name)}>
+                {humanizeChoiceName(name)}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        <optgroup label="Specific agents">
+          {runners.map((name) => (
+            <option key={name} value={runnerOptionValue(name)}>
+              {runnerLabel(state, name)}
+            </option>
+          ))}
+        </optgroup>
       </select>
     </div>
   );
 }
 
-/**
- * Which class of runner to spend this one dispatch on.
- *
- * A `<select>` over groups this machine already defines, never a text field, for the
- * same reason the runner control on the settings page is one: the browser may choose
- * among things a human wrote into `dispatch.yaml`, and may never describe a new one.
- *
- * **Absent entirely on a machine that defines no groups.** A pulldown with one option
- * meaning "the only thing that can happen" is furniture, and a project that never had
- * a group must go on reading exactly as it did before groups existed.
- *
- * This is the shape task-307 copies for posture: a labelled select whose empty option
- * is the project's own answer, spelled out, and whose value is sent only when it is not
- * that. Nothing about it is specific to groups except the list and the two words.
- */
-function DispatchGroupChoice({
-  state,
-  value,
-  busy,
-  onChange,
-}: {
-  state: DispatchStateView | null;
-  value: string;
-  busy: boolean;
-  onChange: (next: string) => void;
-}) {
-  const groups = state?.available_groups ?? [];
-  if (groups.length === 0) return null;
-  return (
-    <div className="flex items-center gap-2">
-      <label htmlFor="dispatch-group" className="text-sm text-dark-muted">
-        Group
-      </label>
-      <select
-        id="dispatch-group"
-        value={value}
-        disabled={busy}
-        onChange={(event) => onChange(event.target.value)}
-        className="rounded-lg border border-dark-border bg-dark-bg p-2 text-sm text-dark-text focus:border-sky-500 focus:outline-none"
-      >
-        <option value="">{projectDefaultLabel(state)}</option>
-        {groups.map((name) => (
-          <option key={name} value={name}>
-            {name}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
+function runnerOptionValue(name: string): string {
+  return `runner:${name}`;
+}
+
+function runnerLabel(state: DispatchStateView | null, name: string): string {
+  return state?.runner_labels?.[name] ?? name;
+}
+
+function humanizeChoiceName(name: string): string {
+  return name
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((word) => word.slice(0, 1).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 /**
  * What this one run may do, chosen at the moment of dispatching (task-307).
  *
- * The same shape as `DispatchGroupChoice` above, deliberately: a labelled select whose
+ * The same shape as `DispatchTargetChoice` above, deliberately: a labelled select whose
  * empty option is the project's own answer, whose value is sent only when it is not
  * that, and which is absent entirely when there is nothing to choose between.
  *
@@ -779,7 +737,8 @@ function DispatchRunnerNote({
   if (chosenRunner) {
     return (
       <span className="text-sm text-dark-muted">
-        Runner <strong className="text-dark-text">{chosenRunner}</strong>, {posture}
+        Agent <strong className="text-dark-text">{runnerLabel(state, chosenRunner)}</strong>,{" "}
+        {posture}
       </span>
     );
   }
@@ -791,7 +750,8 @@ function DispatchRunnerNote({
   if (group) {
     return (
       <span className="text-sm text-dark-muted">
-        Runner chosen from group <strong className="text-dark-text">{group}</strong>, {posture}
+        Automatic group <strong className="text-dark-text">{humanizeChoiceName(group)}</strong>,{" "}
+        {posture}
       </span>
     );
   }
@@ -802,11 +762,11 @@ function DispatchRunnerNote({
   if (!runner) return null;
   return (
     <span className="text-sm text-dark-muted">
-      Runner <strong className="text-dark-text">{runner}</strong>
+      Agent <strong className="text-dark-text">{runnerLabel(state, runner)}</strong>
       {state?.resolved_group ? (
         <>
           {" "}
-          from group <strong className="text-dark-text">{state.resolved_group}</strong>
+          from <strong className="text-dark-text">{humanizeChoiceName(state.resolved_group)}</strong>
         </>
       ) : null}
       , {posture}
@@ -976,16 +936,20 @@ export function DispatchSettings({
   // is noise a project that never had a group should not have to read.
   const options: Array<EnableOption> =
     groups.length === 0
-      ? runners.map((name) => ({ value: name, label: name, target: { runner: name } }))
+      ? runners.map((name) => ({
+          value: name,
+          label: runnerLabel(state, name),
+          target: { runner: name },
+        }))
       : [
           ...groups.map((name) => ({
             value: groupOptionValue(name),
-            label: `group: ${name}`,
+            label: `group: ${humanizeChoiceName(name)}`,
             target: { group: name },
           })),
           ...runners.map((name) => ({
             value: name,
-            label: `runner: ${name}`,
+            label: `agent: ${runnerLabel(state, name)}`,
             target: { runner: name },
           })),
         ];

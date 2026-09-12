@@ -180,6 +180,14 @@ class DispatchStateView(BaseModel):
             "project at one of these and can never create one."
         ),
     )
+    runner_labels: Dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Human-facing model names for available_runners, keyed by the stable "
+            "machine-local runner id. The browser submits the id and displays the "
+            "label, so presentation never changes dispatch authority."
+        ),
+    )
     available_groups: List[str] = Field(
         default_factory=list,
         description=(
@@ -686,8 +694,11 @@ def _state(project: Project) -> DispatchStateView:
         finish_enabled=bool(settings and settings.finish.enabled),
         push=bool(settings and settings.push),
         auto_dispatch=bool(settings and settings.auto_dispatch),
-        available_runners=sorted(config.runners) if config else [],
-        available_groups=sorted(config.runner_groups) if config else [],
+        available_runners=list(config.runners) if config else [],
+        runner_labels=(
+            {name: runner.display_name for name, runner in config.runners.items()} if config else {}
+        ),
+        available_groups=list(config.runner_groups) if config else [],
         default_group=config.default_group if config else None,
         resolved_runner=resolved_runner,
         resolved_group=resolved_group,

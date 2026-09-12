@@ -516,9 +516,56 @@ class DispatchRunner:
         """The identity this runner acts as. Never empty."""
         return self.actor or self.name
 
+    @property
+    def display_name(self) -> str:
+        """A model-facing runner name suitable for a human choice.
+
+        Runner ids are stable machine-local keys, not interface copy. In particular,
+        ``codex-astra`` says neither GPT-6 nor ChatGPT, and
+        ``claude-fable-5-1`` reads like an implementation token instead of the model a
+        person is choosing. The command already names the model explicitly, so use
+        that authoritative value while keeping the runner id as the submitted value.
+
+        Custom runners without ``--model`` retain their exact configured name. We do
+        not guess what an arbitrary command means.
+        """
+        try:
+            model = self.argv[self.argv.index("--model") + 1]
+        except (ValueError, IndexError):
+            return self.name
+
+        label = _model_display_name(model)
+        return f"ChatGPT · {label}" if self.driver is RunnerDriver.CODEX else label
+
     def render(self, values: Mapping[str, str]) -> List[str]:
         """Substitute ``values`` into this runner's argv, per element and literally."""
         return substitute_argv(self.argv, values)
+
+
+def _model_display_name(model: str) -> str:
+    """Turn a CLI model id into its product name without maintaining a model catalog."""
+    words = model.replace("_", "-").split("-")
+    rendered: List[str] = []
+    index = 0
+    while index < len(words):
+        word = words[index]
+        if word.isdigit():
+            digits = [word]
+            while index + 1 < len(words) and words[index + 1].isdigit():
+                index += 1
+                digits.append(words[index])
+            rendered.append(".".join(digits))
+        elif word.lower() == "gpt":
+            rendered.append("GPT")
+        else:
+            rendered.append(word[:1].upper() + word[1:])
+        index += 1
+
+    # Product spelling joins GPT to its version with a hyphen; the other model
+    # families read as ordinary words (Claude Fable 5.1).
+    if len(rendered) >= 2 and rendered[0] == "GPT":
+        return f"GPT-{rendered[1]}" + (f" {' '.join(rendered[2:])}" if rendered[2:] else "")
+    return " ".join(rendered)
 
 
 @dataclass(frozen=True)

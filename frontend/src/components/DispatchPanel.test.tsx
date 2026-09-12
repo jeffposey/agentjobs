@@ -629,29 +629,27 @@ describe("choosing a runner group for one dispatch", () => {
     renderPanel({ state: grouped() });
 
     const panel = screen.getByRole("region", { name: "Dispatch" });
-    expect(panel).toHaveTextContent(/Runner\s*claude-opus-5\s*from group\s*default/);
+    expect(panel).toHaveTextContent(/Agent\s*claude-opus-5\s*from\s*Default/);
     expect(panel).toHaveTextContent(/authorised by\s*Jeff Posey/i);
   });
 
-  it("offers this machine's groups, with the project's own answer spelled out", () => {
+  it("offers groups and specific agents in one unambiguous choice", () => {
     renderPanel({ state: grouped() });
 
-    const select = screen.getByLabelText("Group");
+    const select = screen.getByLabelText("Run with");
     expect([...select.querySelectorAll("option")].map((option) => option.textContent)).toEqual([
-      // Groups, and a way to not choose one. Nothing else.
-      //
-      // This read "Project default — group default → claude-opus-5" until Jeff reviewed
-      // it on 2026-08-24: it said "default" twice, ate the row's width, and offered
-      // `claude-opus-5` -- a *runner* -- inside a select labelled Group. "just list the
-      // damn groups in the pulldown for the group pulldown, dont add all that into it,
-      // use the text below for mor info". What the project resolves to is already in
-      // the sentence beside the button, which is where it belongs: after the choice.
       "Project default",
-      "big",
-      "default",
+      "Big",
+      "Default",
+      "claude-session",
+      "claude-batch",
     ]);
     // Nothing pre-picked: a value the human did not choose is never sent as one.
     expect(select).toHaveValue("");
+    expect(screen.getByRole("group", { name: "Automatic groups" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Specific agents" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Runner")).toBeNull();
+    expect(screen.queryByLabelText("Group")).toBeNull();
   });
 
   it("sends the group the human picked, and only then", async () => {
@@ -660,7 +658,7 @@ describe("choosing a runner group for one dispatch", () => {
     fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
     await waitFor(() => expect(onDispatch).toHaveBeenLastCalledWith({}));
 
-    fireEvent.change(screen.getByLabelText("Group"), { target: { value: "big" } });
+    fireEvent.change(screen.getByLabelText("Run with"), { target: { value: "group:big" } });
     fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
 
     await waitFor(() => expect(onDispatch).toHaveBeenLastCalledWith({ group: "big" }));
@@ -669,7 +667,7 @@ describe("choosing a runner group for one dispatch", () => {
   it("carries the group alongside a brief on the task that needed one", async () => {
     const { onDispatch } = renderPanel({ state: grouped(), recordCanBrief: false });
 
-    fireEvent.change(screen.getByLabelText("Group"), { target: { value: "big" } });
+    fireEvent.change(screen.getByLabelText("Run with"), { target: { value: "group:big" } });
     fireEvent.change(screen.getByRole("textbox", { name: /say what the agent should do/i }), {
       target: { value: "Audit the guard chain." },
     });
@@ -686,55 +684,87 @@ describe("choosing a runner group for one dispatch", () => {
     // would be the one sentence on this panel that is reliably wrong.
     renderPanel({ state: grouped() });
 
-    fireEvent.change(screen.getByLabelText("Group"), { target: { value: "big" } });
+    fireEvent.change(screen.getByLabelText("Run with"), { target: { value: "group:big" } });
 
     const panel = screen.getByRole("region", { name: "Dispatch" });
-    expect(panel).toHaveTextContent(/Runner chosen from group\s*big/);
+    expect(panel).toHaveTextContent(/Automatic group\s*Big/);
     // The pulldown still spells out the project's default in its first option, which is
     // the whole point of that option -- what must not survive is the *claim* that
     // claude-opus-5 is what this click will run.
-    expect(panel).not.toHaveTextContent(/Runner\s*claude-opus-5/);
+    expect(panel).not.toHaveTextContent(/Agent\s*claude-opus-5/);
   });
 
-  it("offers no group control at all on a machine that defines none", () => {
-    // sc-4: a project that never had a group reads exactly as it did before they
-    // existed -- no pulldown, and the same sentence beside the button.
+  it("uses the same single choice on a machine that defines no groups", () => {
     renderPanel();
 
-    expect(screen.queryByLabelText("Group")).toBeNull();
+    expect(screen.getByLabelText("Run with")).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Automatic groups" })).toBeNull();
     expect(screen.getByRole("region", { name: "Dispatch" })).toHaveTextContent(
-      /Runner\s*claude-session, posture\s*supervised, authorised by\s*Jeff Posey/,
+      /Agent\s*claude-session, posture\s*supervised, authorised by\s*Jeff Posey/,
     );
   });
 });
 
 describe("choosing a specific runner for one dispatch", () => {
+  it("still offers an explicit choice when exactly one runner is configured", () => {
+    renderPanel({
+      state: state({
+        available_runners: ["codex-sol"],
+        runner_labels: { "codex-sol": "ChatGPT · GPT-5.6 Sol" },
+      }),
+    });
+
+    expect(screen.getByLabelText("Run with")).toHaveTextContent("ChatGPT · GPT-5.6 Sol");
+  });
+
   it("offers every machine-local runner and sends the chosen one", async () => {
     const { onDispatch } = renderPanel();
 
-    const select = screen.getByLabelText("Runner");
+    const select = screen.getByLabelText("Run with");
     expect([...select.querySelectorAll("option")].map((option) => option.textContent)).toEqual([
       "Project default",
       "claude-session",
       "claude-batch",
     ]);
 
-    fireEvent.change(select, { target: { value: "claude-batch" } });
+    fireEvent.change(select, { target: { value: "runner:claude-batch" } });
     fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
 
     await waitFor(() => expect(onDispatch).toHaveBeenLastCalledWith({ runner: "claude-batch" }));
     expect(screen.getByRole("region", { name: "Dispatch" })).toHaveTextContent(
-      /Runner\s*claude-batch/,
+      /Agent\s*claude-batch/,
     );
   });
 
-  it("clears a group choice when a specific runner is chosen", () => {
-    renderPanel({ state: grouped() });
+  it("shows model names while submitting stable runner ids", async () => {
+    const { onDispatch } = renderPanel({
+      state: grouped({
+        available_runners: ["claude-fable-5-1", "codex-astra", "codex-sol"],
+        runner_labels: {
+          "claude-fable-5-1": "Claude Fable 5.1",
+          "codex-astra": "ChatGPT · GPT-6 Astra",
+          "codex-sol": "ChatGPT · GPT-5.6 Sol",
+        },
+      }),
+    });
 
-    fireEvent.change(screen.getByLabelText("Group"), { target: { value: "big" } });
-    fireEvent.change(screen.getByLabelText("Runner"), { target: { value: "claude-batch" } });
+    const select = screen.getByLabelText("Run with");
+    expect([...select.querySelectorAll("option")].map((option) => option.textContent)).toEqual([
+      "Project default",
+      "Big",
+      "Default",
+      "Claude Fable 5.1",
+      "ChatGPT · GPT-6 Astra",
+      "ChatGPT · GPT-5.6 Sol",
+    ]);
 
-    expect(screen.getByLabelText("Group")).toHaveValue("");
+    fireEvent.change(select, { target: { value: "runner:codex-sol" } });
+    fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
+
+    await waitFor(() => expect(onDispatch).toHaveBeenLastCalledWith({ runner: "codex-sol" }));
+    expect(screen.getByRole("region", { name: "Dispatch" })).toHaveTextContent(
+      /Agent\s*ChatGPT · GPT-5.6 Sol/,
+    );
   });
 });
 
@@ -815,7 +845,7 @@ describe("choosing a posture for one dispatch (task-307)", () => {
       recordCanBrief: false,
     });
 
-    fireEvent.change(screen.getByLabelText("Group"), { target: { value: "big" } });
+    fireEvent.change(screen.getByLabelText("Run with"), { target: { value: "group:big" } });
     fireEvent.change(screen.getByLabelText("Envelope"), { target: { value: "autonomous" } });
     fireEvent.change(screen.getByRole("textbox", { name: /say what the agent should do/i }), {
       target: { value: "Audit the guard chain." },
@@ -960,10 +990,10 @@ describe("enabling a project against a group", () => {
 
     const select = screen.getByLabelText("Runner or group");
     expect([...select.querySelectorAll("option")].map((option) => option.textContent)).toEqual([
-      "group: big",
-      "group: default",
-      "runner: claude-session",
-      "runner: claude-batch",
+      "group: Big",
+      "group: Default",
+      "agent: claude-session",
+      "agent: claude-batch",
     ]);
     // Until task-184 this fell through to the first runner, so pressing Enable on a
     // grouped project offered to change something the config layer then silently

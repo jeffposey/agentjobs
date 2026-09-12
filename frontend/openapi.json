@@ -1458,6 +1458,14 @@
             "description": "Runner this project is pointed at.",
             "title": "Runner"
           },
+          "runner_labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Human-facing model names for available_runners, keyed by the stable machine-local runner id. The browser submits the id and displays the label, so presentation never changes dispatch authority.",
+            "title": "Runner Labels",
+            "type": "object"
+          },
           "sentinel_active": {
             "description": "DISPATCH_DISABLED exists; all runs refused.",
             "title": "Sentinel Active",

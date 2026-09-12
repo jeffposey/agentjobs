@@ -1071,6 +1071,14 @@ export type DispatchStateView = {
      */
     runner?: string | null;
     /**
+     * Runner Labels
+     *
+     * Human-facing model names for available_runners, keyed by the stable machine-local runner id. The browser submits the id and displays the label, so presentation never changes dispatch authority.
+     */
+    runner_labels?: {
+        [key: string]: string;
+    };
+    /**
      * Sentinel Active
      *
      * DISPATCH_DISABLED exists; all runs refused.

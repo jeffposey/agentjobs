@@ -118,6 +118,38 @@ class TestLoading:
         assert config is not None
         assert config.runners["codex"].driver is RunnerDriver.CODEX
 
+    def test_runner_display_names_come_from_the_configured_model(self) -> None:
+        write_config(
+            runners={
+                "claude-fable-5-1": {
+                    "argv": ["claude", "--model", "claude-fable-5-1", "{prompt}"],
+                },
+                "codex-astra": {
+                    "argv": ["codex", "app-server", "--model", "gpt-6-astra", "{prompt}"],
+                    "driver": "codex",
+                },
+                "codex-sol": {
+                    "argv": ["codex", "app-server", "--model", "gpt-5.6-sol", "{prompt}"],
+                    "driver": "codex",
+                },
+            }
+        )
+
+        config = load_dispatch_config()
+
+        assert config is not None
+        assert config.runners["claude-fable-5-1"].display_name == "Claude Fable 5.1"
+        assert config.runners["codex-astra"].display_name == "ChatGPT · GPT-6 Astra"
+        assert config.runners["codex-sol"].display_name == "ChatGPT · GPT-5.6 Sol"
+
+    def test_custom_runner_without_a_model_keeps_its_configured_name(self) -> None:
+        write_config(runners={"local-reviewer": {"argv": ["review", "{prompt}"]}})
+
+        config = load_dispatch_config()
+
+        assert config is not None
+        assert config.runners["local-reviewer"].display_name == "local-reviewer"
+
     def test_unknown_runner_driver_is_refused(self) -> None:
         write_config(runners={"bad": {"argv": ["bad", "{prompt}"], "driver": "other"}})
 
