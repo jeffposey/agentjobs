@@ -3181,6 +3181,33 @@ answers from any device, and the session resumes.
 It follows that a parked run is never escalated by a timeout — see §4. A timeout is not
 a human act, and §2 requires that every grant of autonomy trace to one.
 
+**A question is not a permission prompt, though the ledger reports both the same way**
+(task-441). Claude Code's multiple-choice question menu also reads `waiting`/`blocked`.
+On 2026-09-13 that paged the owner "Needs input" about a question they were already
+answering in the same session, with about 170 KB of repainted terminal as the prompt.
+The two are now told apart from the session's JSONL, not its screen. A pending
+`AskUserQuestion` `tool_use` with no `tool_result` is a question; anything else,
+including an unreadable transcript, is still a park.
+
+- If a person typed into the session within ten minutes before the question, it is left
+  to that conversation. The ball does not move and nothing is sent.
+- If nobody was there, or nobody has answered ten minutes after the question, it becomes
+  the same human/input handoff, quoting the question and its options.
+- The question goes in the ball prompt, not as structured handoff `questions`. An answer
+  tapped into AgentJobs would never reach the session's menu.
+
+Three more rules from the same incident:
+
+- **Terminal text in a ball prompt is bounded.** `terminal_excerpt` takes the last
+  repaints, removes repeated lines and caps the result at 4 KB. A line cap alone let the
+  whole capture through, because `claude logs` positions rows with escape sequences and
+  emits no newlines.
+- **A parked session that is seen working again returns to `running`.** Its ball also
+  goes back to where it was before the park, but only while the park handoff is still
+  the newest handoff on the task.
+- **A park is idempotent per prompt, not per run.** Without that, the first park on a run
+  swallowed every later one.
+
 ### An expired login is the one session failure the ledger cannot see
 
 A parked session is alive and waiting. An **expired login is the opposite**, and that

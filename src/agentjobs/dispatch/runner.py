@@ -56,6 +56,12 @@ from agentjobs.dispatch.atomic_yaml import (
     write_yaml_atomically,
 )
 from agentjobs.dispatch.auth import AuthStall, read_auth_stall
+from agentjobs.dispatch.session_question import (
+    QUESTION_GRACE_SECONDS,
+    PendingQuestion,
+    read_pending_question,
+    render_questions,
+)
 from agentjobs.dispatch.codex_app_server import (
     CodexAppServerError,
     CodexAppServerProcess,
@@ -102,6 +108,7 @@ from agentjobs.models_v2 import (
     DispatchPosture,
     DispatchSelectionData,
     DispatchTrigger,
+    LogEntryType,
     Task,
     utcnow,
 )
@@ -790,8 +797,9 @@ def compose_argv(
 # ----- runs on disk -----------------------------------------------------------
 
 
-_ANSI = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
-"""CSI and OSC escape sequences."""
+_ANSI = re.compile(r"\x1b\[[0-9;?<>=]*[a-zA-Z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+"""CSI and OSC escape sequences, including the private-mode ones (``ESC[<u``, ``ESC[>4m``)
+a Claude Code session emits for its keyboard protocol."""
 
 _FRAME_ONLY = re.compile(r"^[\s←-⇿─-▟■-◿⬀-⯿]*$")
 """A line of nothing but box-drawing, arrows and whitespace: frame, not content."""
@@ -850,6 +858,57 @@ def drop_repainted_lines(text: str) -> str:
             seen.add(stripped)
         kept.append(line)
     return "\n".join(reversed(kept))
+
+
+TERMINAL_EXCERPT_MAX_BYTES = 4096
+"""The most terminal text any ball prompt quotes (task-441). A few KB, never a capture."""
+
+_SCREEN_HOME = re.compile(r"\x1b\[H")
+"""Cursor home: where a full-screen repaint starts."""
+
+_ROW_END = re.compile(r"\x1b\[\d*[KX]")
+"""Erase-to-end-of-line and erase-characters: where a painted row stops."""
+
+_ROW_PADDING = re.compile(r" {8,}")
+"""A run of padding wide enough to be the gap between panes, not a space in a sentence."""
+
+_EXCERPT_MAX_FRAMES = 4
+"""How many trailing repaints an excerpt reads. More only repeats the same screen."""
+
+
+def terminal_excerpt(
+    text: str, lines: int = OUTPUT_TAIL_LINES, max_bytes: int = TERMINAL_EXCERPT_MAX_BYTES
+) -> str:
+    """The end of a session's screen as a person would read it, bounded in lines *and* bytes.
+
+    ``readable_tail`` caps lines, which is no cap at all on the capture Claude Code
+    actually produces: ``logs`` returns every full-screen repaint, each starting at cursor
+    home and positioning its rows with escape sequences rather than newlines. run_5f6044f0's
+    capture on 2026-09-13 was 273 KB in 24 frames and **not one newline**, so forty
+    "lines" was the whole thing, and task-414's ball prompt quoted about 170 KB of the same
+    screen painted a dozen times (task-441).
+
+    So: the last frames, cut into rows where the terminal ended one, repeated lines
+    collapsed, the last ``lines`` kept, and the result held under ``max_bytes`` from the
+    end. Earlier frames are taken in only while the later ones hold fewer than ``lines``
+    rows, because a last "frame" can be a partial repaint of one status line. A capture
+    with real newlines and no cursor-home is one frame. Rendering only -- nothing decides
+    anything on it.
+    """
+    frames = _SCREEN_HOME.split(text)
+    tail = ""
+    for start in range(len(frames) - 1, max(-1, len(frames) - 1 - _EXCERPT_MAX_FRAMES), -1):
+        screen = "\n".join(frames[start:])
+        rows = _ROW_PADDING.sub("\n", strip_ansi(_ROW_END.sub("\n", screen)))
+        tail = readable_tail(drop_repainted_lines(rows), lines)
+        if tail.count("\n") + 1 >= lines:
+            break
+    encoded = tail.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return tail
+    marker = "…"
+    room = max(0, max_bytes - len(marker.encode("utf-8")))
+    return marker + encoded[-room:].decode("utf-8", errors="ignore")
 
 
 def _git(project_root: Path, *args: str) -> Optional[str]:
@@ -2786,12 +2845,17 @@ class DispatchRunner:
             return SessionPhase.AUTH_STALLED
 
         if phase is SessionPhase.PARKED:
-            self._park_session(handle)
+            question = self.pending_question(handle)
+            if question is None:
+                self._park_session(handle)
+            else:
+                self._hold_question(handle, question)
         elif phase is SessionPhase.STOPPED:
             self._finish_session(handle, DispatchOutcome.CANCELLED)
         elif phase is SessionPhase.FINISHED:
             self._settle_finished_session(handle)
         elif phase is SessionPhase.RUNNING:
+            self._resume_from_park(handle)
             self._check_running_stall(handle, transcript)
         return phase
 
@@ -3040,38 +3104,212 @@ class DispatchRunner:
         """
         # Keyed on this run's own state rather than on the ball, because a task whose
         # ball is already human for some unrelated reason still needs its permission
-        # prompt surfaced -- and polling is repeated, so it must be idempotent.
-        if handle.directory.read_meta().get("status") == "parked":
-            return
-        if self.manager.get_task(handle.task_id) is None:  # pragma: no cover - deleted
+        # prompt surfaced -- and polling is repeated, so it must be idempotent. A park on
+        # a *question* is a different prompt: one answered straight into a permission
+        # prompt, between two polls, must still be surfaced (task-441).
+        meta = handle.directory.read_meta()
+        if meta.get("status") == "parked" and meta.get("parked_on") != "question":
             return
         transcript = self.transcript(handle.session_id or "")
-        tail = readable_tail(transcript, OUTPUT_TAIL_LINES)
-        url = REMOTE_CONTROL_URL.search(strip_ansi(transcript))
-        where = (
-            f"Answer it at {url.group(0)} — that link works from a phone."
-            if url
-            else "Answer it wherever the session is open."
+        tail = terminal_excerpt(transcript)
+        quoted = (
+            f"\n\nThe end of its terminal, repeated repaints removed:\n\n```\n{tail}\n```"
+            if tail
+            else ""
         )
-        quoted = f"\n\nThe end of its terminal, verbatim:\n\n```\n{tail}\n```" if tail else ""
-        self.manager.handoff(
+        self._hand_parked_session_to_human(
+            handle,
+            kind="permission",
+            prompt=(
+                f"{self.session_noun(handle)} session `{handle.session_id}` is parked on a "
+                f"permission prompt and will wait indefinitely. {self._where_to_answer(transcript)}"
+                f" Or attach locally with `{self.display_command()} attach "
+                f"{handle.session_id}`.{quoted}"
+            ),
+        )
+
+    def pending_question(self, handle: RunHandle) -> Optional[PendingQuestion]:
+        """The question-tool menu this session is showing, if that is what it waits on.
+
+        ``None`` for a permission prompt, for every runner that is not Claude Code, and for
+        a transcript that cannot be read -- each of which parks exactly as before. See
+        ``dispatch.session_question`` for why this reads the JSONL and not the screen.
+        """
+        if not handle.session_id:
+            return None
+        argv = handle.directory.read_meta().get("argv")
+        prompt = argv[-1] if isinstance(argv, list) and argv and isinstance(argv[-1], str) else ""
+        try:
+            return read_pending_question(
+                handle.session_id,
+                home=self.claude_home,
+                since=self._started_at(handle),
+                exclude_texts=[prompt],
+            )
+        except OSError:  # pragma: no cover - the Claude home went away underneath us
+            return None
+
+    def _hold_question(self, handle: RunHandle, question: PendingQuestion) -> None:
+        """Leave a question to the conversation it was asked in, for a while (task-441).
+
+        A question asked straight after a person's own message is addressed to that
+        person, who is reading the session: moving the ball and paging them is the
+        false alarm of 2026-09-13. So the ball stays where it is, and the run's meta says
+        what it is waiting on.
+
+        It is held, not ignored. If nobody was in the conversation, or nobody has answered
+        ``QUESTION_GRACE_SECONDS`` after it was asked, it becomes the same handoff a park
+        does -- quoting the question, not the terminal. **Not** as structured handoff
+        ``questions``: an answer tapped into AgentJobs would never reach the session's
+        menu, and the owner would answer while the session went on waiting.
+        """
+        meta = handle.directory.read_meta()
+        if meta.get("status") == "parked" and meta.get("question_id") == question.tool_use_id:
+            return
+        waited = (self.clock() - question.at).total_seconds()
+        if question.live() and waited < QUESTION_GRACE_SECONDS:
+            if meta.get("question_id") != question.tool_use_id:
+                handle.directory.update_meta(
+                    question_id=question.tool_use_id,
+                    question_asked_at=question.at.isoformat(),
+                )
+            return
+        transcript = self.transcript(handle.session_id or "")
+        rendered = render_questions(question.questions)
+        why = (
+            f"that has not been answered in {int(waited // 60)} minutes"
+            if question.live()
+            else "with nobody in the conversation"
+        )
+        self._hand_parked_session_to_human(
+            handle,
+            kind="question",
+            prompt=(
+                f"{self.session_noun(handle)} session `{handle.session_id}` asked a question "
+                f"{why}, and will wait until it is answered. "
+                f"{self._where_to_answer(transcript)}"
+                f" Or attach locally with `{self.display_command()} attach "
+                f"{handle.session_id}`." + (f"\n\n{rendered}" if rendered else "")
+            ),
+            extra_meta={
+                "question_id": question.tool_use_id,
+                "question_asked_at": question.at.isoformat(),
+            },
+        )
+
+    def _where_to_answer(self, transcript: str) -> str:
+        url = REMOTE_CONTROL_URL.search(strip_ansi(transcript))
+        if url:
+            return f"Answer it at {url.group(0)} — that link works from a phone."
+        return "Answer it wherever the session is open."
+
+    def _hand_parked_session_to_human(
+        self,
+        handle: RunHandle,
+        *,
+        kind: str,
+        prompt: str,
+        extra_meta: Optional[Dict[str, object]] = None,
+    ) -> None:
+        """Move the ball to human/input for a waiting session, remembering what it replaced.
+
+        The previous ball is kept in the run's meta so that a session which carries on
+        once answered can put the task back exactly where it was (``_resume_from_park``).
+        """
+        task = self.manager.get_task(handle.task_id)
+        if task is None:  # pragma: no cover - deleted
+            return
+        prior: Dict[str, object] = {
+            "ball": task.ball.value if task.ball is not None else None,
+            "ball_reason": task.ball_reason.value if task.ball_reason is not None else None,
+            "ball_prompt": task.ball_prompt,
+        }
+        after = self.manager.handoff(
             handle.task_id,
             actor="dispatcher",
             ball=Ball.HUMAN,
             ball_reason=BallReason.INPUT,
-            ball_prompt=(
-                f"{self.session_noun(handle)} session `{handle.session_id}` is parked on a "
-                f"permission "
-                f"prompt and will wait indefinitely. {where} Or attach locally with "
-                f"`{self.display_command()} attach {handle.session_id}`.{quoted}"
-            ),
+            ball_prompt=prompt,
+            data={"park": {"run_id": handle.run_id, "kind": kind}},
         )
-        handle.directory.update_meta(status="parked")
+        entry = next((e for e in reversed(after.log) if e.type is LogEntryType.HANDOFF), None)
+        handle.directory.update_meta(
+            status="parked",
+            parked_on=kind,
+            park_entry=entry.id if entry is not None else None,
+            park_prior=prior,
+            **(extra_meta or {}),
+        )
         # A parked session is alive but will not act again until a human answers its
         # prompt, so it is not going to commit this handoff on its way past.
         self._commit_record(
             handle.task_id,
-            f"park run {handle.run_id} on a permission prompt",
+            f"park run {handle.run_id} on a {kind} prompt",
+            directory=handle.directory,
+        )
+
+    def _resume_from_park(self, handle: RunHandle) -> None:
+        """A parked session that is working again is no longer parked (task-441).
+
+        Nothing used to write this, so a run stayed ``parked`` after its prompt was
+        answered and the idempotency check in ``_park_session`` swallowed every later
+        park on the same run: run_5f6044f0 read ``parked`` for hours while it worked.
+
+        Safe to reach only because ``poll_session`` has already returned for a run an auth
+        or quota recovery holds -- those parks are ``auth_recovery``'s to clear. And the
+        ball is put back only while the dispatcher's own park handoff is still the newest
+        handoff on the task: anything written since is somebody's later word.
+        """
+        meta = handle.directory.read_meta()
+        fields: Dict[str, object] = {}
+        if meta.get("question_id") is not None:
+            fields.update(question_id=None, question_asked_at=None)
+        if meta.get("status") != "parked":
+            if fields:
+                handle.directory.update_meta(**fields)
+            return
+        fields.update(status="running", parked_on=None, park_entry=None, park_prior=None)
+        handle.directory.update_meta(**fields)
+        self._restore_ball_after_park(handle, meta)
+
+    def _restore_ball_after_park(self, handle: RunHandle, meta: Dict[str, object]) -> None:
+        entry_id = meta.get("park_entry")
+        prior = meta.get("park_prior")
+        if not isinstance(entry_id, int) or not isinstance(prior, dict):
+            return
+        task = self.manager.get_task(handle.task_id)
+        if task is None or not task.is_open or task.ball is not Ball.HUMAN:
+            return
+        newest = next((e for e in reversed(task.log) if e.type is LogEntryType.HANDOFF), None)
+        if newest is None or newest.id != entry_id:
+            return
+        try:
+            ball = Ball(prior.get("ball"))
+            reason = BallReason(prior.get("ball_reason"))
+        except ValueError:
+            return
+        prompt = prior.get("ball_prompt")
+        if reason is BallReason.AVAILABLE or not isinstance(prompt, str) or not prompt:
+            return
+        try:
+            self.manager.handoff(
+                handle.task_id,
+                actor="dispatcher",
+                ball=ball,
+                ball_reason=reason,
+                ball_prompt=prompt,
+                body=(
+                    f"Session `{handle.session_id}` is working again, so the prompt it was "
+                    f"parked on in entry {entry_id} was answered. The ball is back where it was."
+                ),
+                expected_revision=task.updated,
+                data={"park": {"run_id": handle.run_id, "cleared": entry_id}},
+            )
+        except Exception:  # noqa: BLE001 - a changed task is a later word, not an error
+            return
+        self._commit_record(
+            handle.task_id,
+            f"clear run {handle.run_id}'s park",
             directory=handle.directory,
         )
 
@@ -3151,8 +3389,12 @@ class DispatchRunner:
             return
 
         minutes = int(quiet.total_seconds() // 60)
-        tail = readable_tail(transcript, OUTPUT_TAIL_LINES)
-        quoted = f"\n\nThe end of its terminal, verbatim:\n\n```\n{tail}\n```" if tail else ""
+        tail = terminal_excerpt(transcript)
+        quoted = (
+            f"\n\nThe end of its terminal, repeated repaints removed:\n\n```\n{tail}\n```"
+            if tail
+            else ""
+        )
         self.manager.handoff(
             handle.task_id,
             actor="dispatcher",
