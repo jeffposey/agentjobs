@@ -164,7 +164,27 @@ def poll_live_sessions(
     results.extend(_drive_controller(home, registry, managers))
     results.extend(_recover_parked(home, registry, managers))
     results.extend(_resume_interrupted_finishes(home, registry, managers))
+    results.extend(_sweep_idle_sessions(home))
     return results
+
+
+def _sweep_idle_sessions(home: Path) -> List[PollResult]:
+    """Stop idle, resumable Claude sessions, only when ``idle_sessions.enforce`` is on (task-447).
+
+    After everything else, so a run settled this tick has already had its session reaped by
+    the runner and is not the sweep's business. Throttled inside the module to one sweep per
+    five minutes; with enforcement off it reads the config and records nothing new.
+    """
+    from agentjobs.dispatch.idle_sessions import tick
+
+    try:
+        lines = tick(home)
+    except Exception as exc:  # noqa: BLE001 - the sweep must never take the poller down
+        return [PollResult("idle-sessions", None, f"failed: {exc}")]
+    return [
+        PollResult(subject, None, detail)
+        for subject, _, detail in (line.partition(": ") for line in lines)
+    ]
 
 
 def _recover_parked(

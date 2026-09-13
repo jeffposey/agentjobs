@@ -161,6 +161,16 @@ class TestARunIsRefused:
         assert refusal(client.post("/api/dispatch/enable"))["code"] == "capability_denied"
         assert refusal(client.post("/api/dispatch/disable"))["code"] == "capability_denied"
 
+    def test_it_cannot_switch_on_the_idle_session_sweep(self, sandbox: Path) -> None:
+        """Enforcement stops the owner's own sessions, so only the owner turns it on
+        (task-447)."""
+        task_id = a_task(owner())
+        client, _ = dispatched(sandbox, task_id)
+
+        response = client.put("/api/sessions/idle/settings", json={"enforce": True})
+
+        assert refusal(response)["code"] == "capability_denied"
+
     def test_it_cannot_register_or_initialise_a_project(self, sandbox: Path) -> None:
         """Registering a directory is how the audit's S-6 turned any path on the machine
         into served content."""

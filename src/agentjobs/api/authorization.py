@@ -112,6 +112,8 @@ ROUTE_CAPABILITIES: Dict[str, RouteRule] = {
     "cancel_dispatch_run": RouteRule(Capability.DISPATCH),
     "enable_dispatch": RouteRule(Capability.DISPATCH_ADMIN),
     "disable_dispatch": RouteRule(Capability.DISPATCH_ADMIN),
+    # Switching the idle-session sweep on lets it stop the owner's own sessions (task-447).
+    "update_idle_session_settings": RouteRule(Capability.DISPATCH_ADMIN),
     # ----- machine-level administration -------------------------------------------
     "register_project": RouteRule(Capability.PROJECT_ADMIN),
     "initialize_and_register_project": RouteRule(Capability.PROJECT_ADMIN),
