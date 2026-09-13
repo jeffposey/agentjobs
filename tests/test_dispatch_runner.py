@@ -2175,6 +2175,12 @@ if argv and argv[0] == "stop":
     print("stopped")
     raise SystemExit(0)
 
+# A fresh-process auth probe (task-417): this fake credential store never answers, and
+# the probe must not fall through to the launch below and rewrite the ledger.
+if argv and argv[0] == "-p":
+    print("Login expired - Please run /login")
+    raise SystemExit(1)
+
 # Launch: behave like `--bg`, which prints a short id and returns immediately.
 state_file.write_text(json.dumps([{
     "id": "b55b35ad", "sessionId": "session_0142Vng", "pid": 4242,

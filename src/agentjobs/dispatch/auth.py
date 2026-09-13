@@ -224,6 +224,159 @@ def _stall_in(lines: Iterable[str], *, session_id: str, path: Path) -> Optional[
     return stall
 
 
+LIMIT_ERROR = "rate_limit"
+"""The ``error`` field on a turn refused for a quota, as Claude Code writes it (task-417).
+
+Across this machine's transcripts on 2026-09-13 it carried two different refusals, and they
+need opposite answers: a **session limit** ("You've hit your session limit · resets
+3:30am (America/Chicago)") clears by itself at a known time, and a **monthly spend limit**
+("You've hit your monthly spend limit · raise it at claude.ai/settings/usage") clears only
+when a person raises it. One spend-limit line still carried a five-hour ``resetsAt``, so the
+two are told apart by what the message says, never by whether a reset time is present.
+"""
+
+SPEND_LIMIT_MARKERS = ("spend limit", "usage credits", "/usage-credits")
+"""Phrases that make a quota refusal the account-owner's to clear rather than the clock's."""
+
+KIND_USAGE_LIMIT = "usage_limit"
+KIND_SPEND_LIMIT = "spend_limit"
+
+
+@dataclass(frozen=True)
+class LimitStall:
+    """A session whose most recent word was a quota refusal, with nothing after it."""
+
+    session_id: str
+    at: datetime
+    """When the refused turn was written, in UTC. The idempotency key, as for auth."""
+    message: str
+    kind: str
+    """``usage_limit`` (clears at ``resets_at``) or ``spend_limit`` (a person raises it)."""
+    resets_at: Optional[datetime]
+    """``quotaLimits.resetsAt`` as UTC, when the line carried one. ``None`` otherwise."""
+    limit_type: Optional[str]
+    """``quotaLimits.rateLimitType`` -- ``five_hour`` on every line seen so far."""
+    log_path: Path
+
+
+@dataclass(frozen=True)
+class TranscriptActivity:
+    """What a session wrote after a moment: the evidence a nudge's result is judged by."""
+
+    user_message: bool
+    """A user turn landed after the moment -- the nudge was delivered."""
+    real_reply: bool
+    """A turn the model produced landed after the moment -- the session is working."""
+
+
+def read_limit_stall(
+    session_id: str,
+    *,
+    home: Optional[Path] = None,
+    since: Optional[datetime] = None,
+    tail_bytes: int = TAIL_BYTES,
+) -> Optional[LimitStall]:
+    """Report a session stopped on a quota refusal, or ``None`` for every other state.
+
+    The same shape as :func:`read_auth_stall` and for the same reasons: parsed JSON matched
+    on the field, the last thing that happened wins, and a real reply underneath clears it.
+    """
+    path = session_log_path(session_id, home=home)
+    if path is None:
+        return None
+    try:
+        lines = _tail_lines(path, tail_bytes)
+    except OSError:  # pragma: no cover - the transcript went away mid-read
+        return None
+    stall: Optional[LimitStall] = None
+    for entry in _entries(lines):
+        if _is_limit_refusal(entry, session_id):
+            moment = _moment(entry.get("timestamp"))
+            if moment is None:
+                continue
+            text = _text_of(entry)
+            raw_quota = entry.get("quotaLimits")
+            quota: dict = raw_quota if isinstance(raw_quota, dict) else {}
+            stall = LimitStall(
+                session_id=session_id,
+                at=moment,
+                message=text,
+                kind=limit_kind(text),
+                resets_at=_epoch(quota.get("resetsAt")),
+                limit_type=quota.get("rateLimitType")
+                if isinstance(quota.get("rateLimitType"), str)
+                else None,
+                log_path=path,
+            )
+        elif _is_real_reply(entry):
+            stall = None
+    if stall is None or (since is not None and stall.at < since):
+        return None
+    return stall
+
+
+def limit_kind(text: str) -> str:
+    """``spend_limit`` when the refusal names a spend limit or credits, else ``usage_limit``."""
+    lowered = (text or "").lower()
+    if any(marker in lowered for marker in SPEND_LIMIT_MARKERS):
+        return KIND_SPEND_LIMIT
+    return KIND_USAGE_LIMIT
+
+
+def activity_since(
+    session_id: str,
+    moment: datetime,
+    *,
+    home: Optional[Path] = None,
+    tail_bytes: int = TAIL_BYTES,
+) -> Optional[TranscriptActivity]:
+    """What the session wrote after ``moment``, or ``None`` when there is no transcript.
+
+    The one place a nudge's lost acknowledgement is reconciled from (task-417): a user turn
+    after the intent means the message arrived, and a real reply means the session is
+    working again. Neither is inferred from the launcher having exited cleanly.
+    """
+    path = session_log_path(session_id, home=home)
+    if path is None:
+        return None
+    try:
+        lines = _tail_lines(path, tail_bytes)
+    except OSError:  # pragma: no cover - the transcript went away mid-read
+        return None
+    user = False
+    reply = False
+    for entry in _entries(lines):
+        if not _belongs_to(entry, session_id):
+            continue
+        at = _moment(entry.get("timestamp"))
+        if at is None or at <= moment:
+            continue
+        if entry.get("type") == "user":
+            user = True
+        elif _is_real_reply(entry):
+            reply = True
+    return TranscriptActivity(user_message=user, real_reply=reply)
+
+
+def _is_limit_refusal(entry: dict, session_id: str) -> bool:
+    if entry.get("error") != LIMIT_ERROR:
+        return False
+    if entry.get("isApiErrorMessage") is not True or entry.get("isSidechain") is True:
+        # A subagent's refusal is the subagent's; the session carries on without it.
+        return False
+    return _belongs_to(entry, session_id)
+
+
+def _epoch(raw: object) -> Optional[datetime]:
+    """An epoch-seconds value as an aware UTC datetime, or ``None`` if it is not one."""
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        return None
+    try:
+        return datetime.fromtimestamp(float(raw), tz=timezone.utc)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
 def _entries(lines: Iterable[str]) -> Iterator[dict]:
     """The JSON objects in a transcript window. Anything else is skipped in silence."""
     for line in lines:

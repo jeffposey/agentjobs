@@ -567,9 +567,15 @@ class TestASessionKilledByAnExpiredLogin:
     def _dead(self, offset: int = 1) -> dict:
         return auth_failure_line(at=_now() + timedelta(seconds=offset), session=FAKE_FULL_SESSION)
 
-    def test_the_poller_hands_the_ball_back_with_the_command_that_fixes_it(
+    def test_the_poller_probes_before_it_pages_anybody(
         self, machine, tmp_path: Path, monkeypatch
     ) -> None:
+        """task-417 replaced the immediate page. task-313's two causes -- a dead store and a
+        live credential behind a stuck session -- are now told apart by AgentJobs' own
+        probe rather than by asking a person to run one, so the poll parks the run, opens
+        an incident and says so on the task, and the ball stays where it was. The
+        notification naming `claude auth login` comes only after the deadline, backed by
+        a probe verdict (``test_auth_recovery.TestADeadStore``)."""
         home, _, manager, fake_cli = machine
         run_id = _start_session(machine)
         task_id = _run_meta(home, run_id)["task_id"]
@@ -580,21 +586,15 @@ class TestASessionKilledByAnExpiredLogin:
 
         after = manager.get_task(task_id)
         assert after is not None
-        assert after.ball is Ball.HUMAN
-        assert after.ball_reason is BallReason.INPUT
-        assert after.ball_prompt is not None
-        # Both recoveries, and the probe that says which one applies. The prompt used
-        # to name `claude auth login` alone, as "the one instruction that works" -- and
-        # on 2026-08-23 a supervising session relayed that to Jeff as established fact
-        # for a stall it had not diagnosed. It happened to be right; the reasoning was
-        # not, and the other cause (a live credential behind a stuck session) is
-        # indistinguishable from this side. Assert the prompt offers the test, not a
-        # verdict.
-        assert 'claude -p "Reply with exactly: AUTH_OK"' in after.ball_prompt
-        assert "fresh process" in after.ball_prompt
-        assert "claude auth login" in after.ball_prompt, "still named, for the dead case"
-        assert "Logging in again changes nothing" in after.ball_prompt, "the live case"
-        assert "authentication failure" in after.ball_prompt
+        assert after.ball is Ball.AGENT, "a store that may recover in two minutes pages nobody"
+        notes = [
+            entry
+            for entry in after.log
+            if entry.actor == "dispatcher" and "auth_recovery" in (entry.data or {})
+        ]
+        assert len(notes) == 1
+        assert "authentication failure" in (notes[0].body or "")
+        assert _run_meta(home, run_id)["auth_incident"]
 
     def test_the_run_is_parked_rather_than_recorded_as_a_success(
         self, machine, tmp_path: Path, monkeypatch
@@ -654,12 +654,12 @@ class TestASessionKilledByAnExpiredLogin:
 
         after = manager.get_task(task_id)
         assert after is not None
-        handoffs = [
+        said = [
             entry
             for entry in after.log
-            if entry.type is LogEntryType.HANDOFF and entry.actor == "dispatcher"
+            if entry.actor == "dispatcher" and "auth_recovery" in (entry.data or {})
         ]
-        assert len(handoffs) == 1, f"repeated itself: {handoffs}"
+        assert len(said) == 1, f"repeated itself: {said}"
 
     def test_a_session_that_was_re_authenticated_settles_normally(
         self, machine, tmp_path: Path, monkeypatch

@@ -3209,6 +3209,11 @@ not AgentJobs'.
   that field had three occurrences and all three were genuine. It is parsed as JSON and
   matched on the field, never grepped as a substring — any session that reads *about*
   this bug has the string in its own transcript.
+*(superseded 2026-09-13 by task-417 -- the next bullet described the first build. A poll
+now parks the run into a shared auth incident, probes, and resumes the session itself;
+a person is paged only past a five-minute deadline. See
+[What task-417 built](#what-task-417-built-2026-09-13).)*
+
 - **A poll that finds one parks the run and hands the ball to `human`/`input`**, with a
   `ball_prompt` naming the only thing that fixes it: `claude auth login`, in a terminal,
   on that machine. Answering inside the session cannot work; the credential is already
@@ -3376,10 +3381,11 @@ history-based continuation in task-375** -- see
 and Stop signals with the finisher's ownership transfer in task-312** -- see
 [What task-312 built](#what-task-312-built-2026-09-13), **the replay controller,
 bounded recovery and durable epic supervision in task-416** -- see
-[What task-416 built](#what-task-416-built-2026-09-13), and **the durable finish and its
+[What task-416 built](#what-task-416-built-2026-09-13), **the durable finish and its
 one gate retry in task-322** -- see
-[What task-322 built](#what-task-322-built-2026-09-13); everything else here is still
-design.
+[What task-322 built](#what-task-322-built-2026-09-13) -- and **auth and usage-limit
+recovery in task-417** -- see [What task-417 built](#what-task-417-built-2026-09-13);
+everything else here is still design.
 
 An accepted dispatch is an obligation with a durable identity. AgentJobs keeps advancing
 it until the authorised work is delivered, an explicit Stop cancels it, or a named
@@ -4026,6 +4032,44 @@ finishes, on a full gate, because approval notes ask for follow-up commits (task
 Re-review is task-343's note semantics. Automatic resumption of a killed finish is
 task-443. Receipts live beside finish records rather than in the execution store; the
 controller task-416 built drives runs, not finishes.
+
+### What task-417 built (2026-09-13)
+
+Auth recovery as specified above, plus the five-hour usage limit, which had no other
+home. **The research behind it is on task-417, entries 13 and 14.** It confirmed the
+cause the design only guessed at: Claude Code's refresh-token race blanks the shared
+credential store when several processes refresh together. The vendor has acknowledged it
+repeatedly and still reproduces it on 2.1.251-2.1.268. Reducing how often that happens is
+task-442. This build recovers after it happens.
+
+| Fact | Where it is decided |
+| --- | --- |
+| What a probe is | `dispatch.auth_probe`. `claude -p --model <recorded> --output-format json --tools "" --strict-mcp-config --no-session-persistence`, prompt on stdin, from `<home>/auth-probe`, with a 30s timeout. Both halves were verified on 2.1.270: the machine's own home answered `AUTH_OK` (exit 0, about $0.07), and an empty home was refused (exit 1, `is_error: true` while `subtype` still read `success`). `--bare` is excluded because it restricts authentication to an API key |
+| What ready means | `classify_probe`: exit 0 **and** `subtype: success` **and** `is_error: false` **and** `result` is exactly `AUTH_OK`. Otherwise one of `auth_rejected`, `spend_limit`, `usage_exhausted` (with `resetsAt`), `rate_limited`, `timeout`, `malformed`, `launch_failed`. Spend is checked before the usage window, because a spend refusal has been seen carrying a five-hour reset. task-224 entry 47's text is a regression test |
+| What a stall is | `dispatch.auth`: `authentication_failed` as before, plus `error: rate_limit` with `quotaLimits.resetsAt` (epoch seconds) and `rateLimitType`. Found on this machine's transcripts; the text has changed wording at least twice upstream, so the structured field is used. Text decides only spend versus session limit |
+| Who shares a probe | `auth_recovery.Profile`: driver, executable, recorded model, Claude home, and the *names* of auth env vars. One open incident per (kind, profile) in the execution store (additive schema revision 3: `auth_incident`, `auth_waiter`, `auth_probe`). No two probes run at once for a profile, and a profile gets at most 60 probes an hour, both enforced in the claiming transaction |
+| What each kind says, and when | `auth`: a note at once, probed immediately and then every 60s, one `human`/`input` naming `claude auth login` at five minutes. `usage_limit`: `external`/`service` at once naming the reset, probed at reset + 60s. `spend_limit`: `human`/`input` at once, probed every 15 min. Late joiners to a notified incident get the same handoff, carrying the same incident id |
+| How a session is woken | `ClaudeSessionNudger`, task-417 entry 8's verified sequence: `stop`, observe no pid in `agents --json --all`, then `--bg --resume <full uuid>` with the message on stdin and no other flag, so the saved runner, model and posture come back. A launcher that reports a copy is `not_applied`, and the copy is stopped. A session listed `busy` is never stopped; the nudge is deferred and spends no resume |
+| What the resume carries | `recovery_message`: the stall, the probe time, every human handoff to the agent since the run last received one (task-410 without Stop), and the execution's frozen `policy_clause`. `delivered_through_entry` on the run makes the settle-time handback skip what was delivered |
+| That a nudge happened at most once | Intent (`nudging`, payload hash) before the effect, result after. A nudge intent with no result for 5 min is reconciled from the transcript: a user line or real reply after the intent means `nudged`, anything else is `uncertain` with one escalation. It is never resent. `poll_session` returns `auth_stalled` without settling while a waiter is `nudging` or `uncertain`, which closes the untracked-session defect in entry 8 |
+| That it recovered | A real model reply after the nudge intent, read from the transcript. The launcher's acknowledgement is not enough. No reply within 15 min is one escalation. A session that recovers without a nudge is recognised the same way |
+| What stops recovery | Before each nudge: task closed, hold, a Stop or stand-down on the run, a later handoff that is not recovery's own (judged by log entry id against the high-water mark recorded at park), a refused launch gate, or 3 resumes already spent. A Stop removes the waiter; an incident with no waiter closes and probes nothing |
+| What a recovery clears | Only recovery's own handoff, and only while it is still the newest handoff: `agent`/`work`, with `expected_revision` |
+| Usage limits never loop | A resume is recorded against the reset it was for. A new refusal whose reset is not later is escalated. A probe still refused reschedules to its own reported reset |
+| The walk | `epic._recovering`: a child whose newest handoff carries an `auth_recovery` `park` or `notify` marker is still flying, bounded by its deadline. `escalate` grounds as before |
+| Query | `agentjobs execution status` lists open incidents with kind, model, last probe class, next probe, reset, and each waiter's status and resume count |
+
+**Decided, with the alternative rejected** (task-417 entry 13). A nudge continues the same
+attempt and is not a new paid admission. The failed turn reached no model, so admitting an
+attempt per nudge would spend the per-task allowance on turns that never ran. The bound is
+the per-run resume cap plus re-observed policy. Rejected for the incident key: the driver
+alone, which would share readiness between host-injected desktop auth and the npm CLI
+store.
+
+**Not built here.** Codex has no nudge adapter; its runs never write the transcripts this
+reads, so they never join. Batch runs are not recovered. A probe blocks the poll thread
+for up to its timeout, and only while an incident is due. The probe does not use
+`setup-token`, which task-442 may evaluate.
 
 ### Implementation ownership and order
 

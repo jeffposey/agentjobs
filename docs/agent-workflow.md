@@ -560,19 +560,26 @@ What to do instead, in order:
 
 1. **Do not restart, and do not start the next child.** Every child you start now dies
    identically.
-2. **Hand the parent off** to `human`/`input`, saying that a login expired and naming
-   `claude auth login` as the fix. That is the whole recovery and the human cannot guess
-   it — answering inside the session does not work, because the credential is already
-   gone and anything sent to it is retried against nothing.
-3. **Nothing is lost.** After the re-auth, a message to the stalled child wakes it and it
-   resumes in place. Children that AgentJobs dispatched are handed back automatically by
-   the poller; the ones you started yourself are yours to nudge.
+2. **A child AgentJobs dispatched recovers without you** (task-417). The poller parks it,
+   probes the credential store with a fresh process every minute, and resumes the same
+   session once the model answers, with no Answer and no Dispatch. Only if the store is
+   still refusing after five minutes does the child's task go to `human`/`input` naming
+   `claude auth login`: one notification for every task on that login.
+   `agentjobs execution status` lists open auth incidents. A five-hour usage limit is
+   handled the same way: parked `external`/`service` until its reported reset, then
+   resumed once.
+3. **A child you started yourself is still yours.** Hand the parent off to
+   `human`/`input`, naming `claude auth login` as the fix. Answering inside the session
+   does not work while the store is dead, because anything sent to it is retried against
+   nothing. After the re-auth, wake the child with the sequence task-417 entry 8
+   verified: `claude stop <id>`, wait for no pid, then pipe the message to
+   `claude --bg --resume <full uuid>` with no other flags.
 
-A walk cannot tell this apart from an ordinary death either, so it will spend the child's
-retry on it and then stop — with both attempts recorded on the child and the reason on the
-parent. That is a bounded waste rather than a night of them, and `dispatch auth-check` on
-the child's session id is the first thing to run when a walk stops on two deaths in a
-row.
+An epic walk **holds** on a child parked by auth recovery rather than grounding
+(task-417), so one lost login no longer stops a walk. A walk that started before that
+build cannot tell a logout from an ordinary death. It spends the child's retry and then
+stops, recording both attempts on the child and the reason on the parent. When a walk
+stops on two deaths in a row, first run `dispatch auth-check` on the child's session id.
 
 **Parent idle.** While a child runs, do nothing that costs context. That is not idleness
 for its own sake — your context is the resource this rule protects, and spending it while
