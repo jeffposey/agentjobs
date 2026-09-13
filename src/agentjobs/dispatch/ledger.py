@@ -1370,8 +1370,11 @@ class DispatchLedger:
             )
         import json
 
+        if not (completed.stdout or "").strip():
+            # Unreadable, not empty: a real empty listing prints `[]` (task-416).
+            raise LedgerError("Session ledger printed nothing; no run is judged from it.")
         try:
-            loaded = json.loads(completed.stdout or "[]")
+            loaded = json.loads(completed.stdout)
         except json.JSONDecodeError as exc:
             raise LedgerError(f"Session ledger was not JSON: {exc}") from exc
         if isinstance(loaded, dict):
@@ -1393,8 +1396,11 @@ class DispatchLedger:
             )
         import json
 
+        if not (completed.stdout or "").strip():
+            # Unreadable, not empty: a real empty listing prints `[]` (task-416).
+            raise LedgerError("Session ledger printed nothing; no run is judged from it.")
         try:
-            loaded = json.loads(completed.stdout or "[]")
+            loaded = json.loads(completed.stdout)
         except json.JSONDecodeError as exc:
             raise LedgerError(f"Session ledger was not JSON: {exc}") from exc
         if isinstance(loaded, dict):

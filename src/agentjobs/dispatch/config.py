@@ -937,6 +937,38 @@ class DispatchLimits:
     auto: AutoDispatchLimits = field(default_factory=AutoDispatchLimits)
 
 
+CONTROLLER_SHADOW = "shadow"
+CONTROLLER_ACTIVE = "active"
+CONTROLLER_MODES = (CONTROLLER_SHADOW, CONTROLLER_ACTIVE)
+
+
+@dataclass(frozen=True)
+class ExecutionSettings:
+    """How far this machine trusts the durable execution controller (task-416).
+
+    ``shadow``, the default, is exactly the behaviour before task-416: the legacy poller
+    follows every run and the journal only replays proposals. ``active`` stamps each new
+    admission as driven by the controller, which then observes it, recovers it after a
+    crash and retries it within its envelope. **Only new admissions change hands**, so
+    switching this on under live runs moves nothing that is flying -- those drain under
+    the poller that started them -- and switching it off leaves already-controlled
+    executions with the controller until they end. Legacy and durable never both act on
+    one run.
+    """
+
+    controller: str = CONTROLLER_SHADOW
+    launch_observation_seconds: int = 120
+    """Schedule-to-start: how long a launch may go unacknowledged before reconciliation
+    asks the driver what happened, rather than waiting for the launcher."""
+    reconcile_deadline_seconds: int = 600
+    """How long an ambiguous launch is reconciled before it is escalated ``effect_unknown``
+    with one action. Never converted into "it did not happen"."""
+
+    @property
+    def active(self) -> bool:
+        return self.controller == CONTROLLER_ACTIVE
+
+
 @dataclass(frozen=True)
 class DispatchConfig:
     """The parsed contents of ``~/.agentjobs/dispatch.yaml``."""
@@ -958,6 +990,10 @@ class DispatchConfig:
     See ``dispatch/address.py`` for the full precedence.
     """
     path: Optional[Path] = None
+    execution: "ExecutionSettings" = field(default_factory=lambda: ExecutionSettings())
+    explicit_keys: frozenset = frozenset()
+    """Which ``limits.*`` and ``execution.*`` keys the file set, so a report can say whether
+    a value is this machine's choice or the default."""
 
     def project(self, project_id: str) -> ProjectDispatchSettings:
         """Settings for ``project_id``, defaulted (and therefore disabled) if absent."""
@@ -1095,6 +1131,11 @@ def _parse(raw: dict, path: Path) -> DispatchConfig:
     # it once you have set it up" a legal, working state rather than a file that will not
     # load. The selector reports each one against the member it came from.
 
+    limits_raw = _mapping(raw.get("limits"), "limits", path)
+    execution_raw = _mapping(raw.get("execution"), "execution", path)
+    explicit = {f"limits.{key}" for key in limits_raw}
+    explicit |= {f"limits.auto.{key}" for key in _mapping(limits_raw.get("auto"), "limits.auto", path)}
+    explicit |= {f"execution.{key}" for key in execution_raw}
     return DispatchConfig(
         version=version,
         enabled=_bool(raw.get("enabled"), "enabled", path, default=False),
@@ -1102,10 +1143,109 @@ def _parse(raw: dict, path: Path) -> DispatchConfig:
         runner_groups=runner_groups,
         default_group=default_group or None,
         projects=projects,
-        limits=_parse_limits(_mapping(raw.get("limits"), "limits", path), path),
+        limits=_parse_limits(limits_raw, path),
         api_base=_parse_api_base(raw.get("api_base"), path),
         path=path,
+        execution=_parse_execution(execution_raw, path),
+        explicit_keys=frozenset(explicit),
     )
+
+
+def _parse_execution(raw: Mapping[str, object], path: Path) -> ExecutionSettings:
+    """Validate the ``execution:`` block, defaulting anything absent."""
+    defaults = ExecutionSettings()
+    controller = raw.get("controller", defaults.controller)
+    if controller not in CONTROLLER_MODES:
+        raise DispatchConfigError(
+            f"Invalid dispatch config at {path}: execution.controller must be one of "
+            f"{', '.join(CONTROLLER_MODES)}, not {controller!r}."
+        )
+    return ExecutionSettings(
+        controller=str(controller),
+        launch_observation_seconds=_positive_int(
+            raw.get("launch_observation_seconds"),
+            "execution.launch_observation_seconds",
+            path,
+            defaults.launch_observation_seconds,
+        ),
+        reconcile_deadline_seconds=_positive_int(
+            raw.get("reconcile_deadline_seconds"),
+            "execution.reconcile_deadline_seconds",
+            path,
+            defaults.reconcile_deadline_seconds,
+        ),
+    )
+
+
+@dataclass(frozen=True)
+class TimeoutRole:
+    """One timeout, named by the role design section 9a gives it, beside its real key."""
+
+    role: str
+    key: str
+    value: int
+    source: str
+    meaning: str
+
+
+def timeout_roles(config: Optional["DispatchConfig"]) -> List[TimeoutRole]:
+    """Every timeout this machine applies, by role, with its value and where it came from.
+
+    The keys are the ones a machine has already tuned and are not renamed: a rename would
+    silently return a tuned machine to the defaults, the direction a limit must never move
+    by accident. The role is a label printed beside the key, not a second name for it.
+    """
+    effective = config or DispatchConfig()
+    explicit = effective.explicit_keys
+    path = str(effective.path) if effective.path else "dispatch.yaml"
+
+    def source(key: str) -> str:
+        return path if key in explicit else "default"
+
+    limits = effective.limits
+    execution = effective.execution
+    rows = [
+        (
+            "schedule-to-start",
+            "execution.launch_observation_seconds",
+            execution.launch_observation_seconds,
+            "how long an admitted launch may go unacknowledged before it is reconciled",
+        ),
+        (
+            "start-to-close",
+            "limits.run_timeout_seconds",
+            limits.run_timeout_seconds,
+            "one batch attempt's wall clock; never a session kill",
+        ),
+        (
+            "schedule-to-close",
+            "execution.reconcile_deadline_seconds",
+            execution.reconcile_deadline_seconds,
+            "how long an ambiguous effect is reconciled before it escalates as unknown",
+        ),
+        (
+            "heartbeat",
+            "limits.session_stall_seconds",
+            limits.session_stall_seconds,
+            "output silence before a working session is reported stalled",
+        ),
+        (
+            "idle-without-handoff",
+            "limits.session_stale_seconds",
+            limits.session_stale_seconds,
+            "an ended turn with no handoff before the task contract is reported unmet",
+        ),
+        (
+            "cooldown",
+            "limits.auto.cooldown_seconds",
+            limits.auto.cooldown_seconds,
+            "minimum gap between two dispatches of one task, retries included",
+        ),
+    ]
+    return [
+        TimeoutRole(role=role, key=key, value=value, source=source(key), meaning=meaning)
+        for role, key, value, meaning in rows
+    ]
 
 
 def _parse_api_base(raw: object, path: Path) -> Optional[str]:

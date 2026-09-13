@@ -2051,6 +2051,21 @@ def dispatch_show_config(
         f"per_task_lifetime={limits.auto.per_task_lifetime}  "
         f"cooldown_seconds={limits.auto.cooldown_seconds}"
     )
+    typer.echo(
+        f"Controller:     {config.execution.controller}"
+        + (
+            "  (new admissions are driven, recovered and retried by the durable controller)"
+            if config.execution.active
+            else "  (the session poller follows runs; the journal replays in shadow)"
+        )
+    )
+    from agentjobs.dispatch.config import timeout_roles
+
+    typer.echo("\nTimeouts by role (task-414 section 9a):")
+    for role in timeout_roles(config):
+        typer.echo(
+            f"  {role.role:22} {role.key:40} {role.value:>6}s  [{role.source}]  {role.meaning}"
+        )
 
     if project_id:
         # Reported whether or not dispatch is permitted right now: an agent woken after

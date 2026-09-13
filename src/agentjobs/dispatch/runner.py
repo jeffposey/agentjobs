@@ -2610,8 +2610,18 @@ class DispatchRunner:
                 f"Session ledger command failed ({completed.returncode}): "
                 f"{(completed.stderr or '').strip()[:300]}"
             )
+        if not (completed.stdout or "").strip():
+            # **An unreadable listing is not an empty one** (task-416). A real empty
+            # ledger prints `[]` -- measured on Claude Code 2.1.270 with `--cwd` naming a
+            # directory that holds no sessions -- so no output at all is a command that
+            # did not answer, and reading it as "no sessions" declared every live run on
+            # the project gone in one poll.
+            raise DispatchRunError(
+                "Session ledger printed nothing, which is not the empty listing `[]`; "
+                "no run is judged from it."
+            )
         try:
-            loaded = json.loads(completed.stdout or "[]")
+            loaded = json.loads(completed.stdout)
         except json.JSONDecodeError as exc:
             raise DispatchRunError(f"Session ledger was not JSON: {exc}") from exc
         if isinstance(loaded, dict):
