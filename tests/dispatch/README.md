@@ -91,7 +91,7 @@ failing on a duplicate.
 
 ## Defects this harness found
 
-Both are fixed on task-419's branch, and each has a test that fails with its fix reverted:
+All are fixed on task-419's branch, and each has a test that fails without its fix:
 
 - An `effect_unknown` launch lost its ownership as soon as any other dispatch ran on the
   machine (`journal.attempt_evidence` ignored the launch marker).
@@ -99,3 +99,8 @@ Both are fixed on task-419's branch, and each has a test that fails with its fix
   `ActivityConflict`, so the retried attempt was never followed.
 - A flaky test's id was lost from the finish record because pytest colours the summary
   line.
+- A walk whose supervisor had died stayed refused as "already being walked" whenever an
+  unrelated process inherited the dead supervisor's pid. The walk now records the holder's
+  creation-time identity. This is the **suspected** cause of the harness's one red, under
+  a contended gate on 2026-09-13; that run printed nothing about how its walk ended. The
+  supervisor child now prints it, so a recurrence names its cause.

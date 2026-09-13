@@ -4194,13 +4194,14 @@ table above to its test.
   records. A test id that flaked or lost its browser more than once is flagged
   `REPEATED`. The harness checks it against exactly what it injected.
 
-**Defects found and fixed by it.** Each fix has a test that fails with the fix reverted:
+**Defects found and fixed by it.** Each fix has a test that fails without it:
 
 | Defect | Consequence | Fix |
 | --- | --- | --- |
 | `attempt_evidence` released an admitted attempt as never launched while ignoring its launch marker | Any later admission on the machine freed an `effect_unknown` launch's ownership, so a second writer could start beside a possible orphan | A marked or unreadable run is not evidence of never launching |
 | The reducer's `deliver_signal` id named the signal but its input named the run | A signal still pending across a retry raised `ActivityConflict` on every replay before `observe` was recorded, so the retried attempt was never followed | The id names the attempt. Delivering a message at most once across attempts stays with task-312's `deliver:` activity |
 | `finish.failing_tests` matched `FAILED` on coloured output | A real `flaky_test` (fin_fe726017) was recorded with no test id | CSI colour is stripped first |
+| `open_walk` judged a walk's holder alive by pid alone | A dead supervisor whose pid an unrelated process inherited kept its walk refused, with nobody walking it. This is the suspected cause of the harness's one red under a contended gate | `supervision.holder_identity` (additive revision 4) records `process_identity`, and a mismatch means the holder is gone. A row with no identity is judged by pid, as before |
 
 The first rollup over this machine's real runs (2026-09-13, `--since 3`) found six browser
 deaths, all retried, two of them on repeated test ids, plus one flaky test and one
