@@ -11,9 +11,11 @@ refusals that make the mistake impossible to repeat quietly.
 from __future__ import annotations
 
 import ast
+import importlib
 import sys
 from pathlib import Path
-from typing import Iterator
+from types import ModuleType
+from typing import Callable, Iterator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -30,10 +32,11 @@ SANDBOXES = sorted(SCRIPTS.glob("*_sandbox.py"))
 
 
 @pytest.fixture()
-def scripts_on_path() -> Iterator[None]:
+def script() -> Iterator[Callable[[str], ModuleType]]:
+    """Import a module from scripts/, the way a sandbox run from that directory does."""
     sys.path.insert(0, str(SCRIPTS))
     try:
-        yield
+        yield importlib.import_module
     finally:
         sys.path.remove(str(SCRIPTS))
 
@@ -53,10 +56,10 @@ def sandbox_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Pa
 
 
 def test_a_built_sandbox_serves_the_tasks_it_seeded(
-    tmp_path: Path, sandbox_home: Path, scripts_on_path: None
+    tmp_path: Path, sandbox_home: Path, script: Callable[[str], ModuleType]
 ) -> None:
     """The review panel sandbox, built and registered exactly the way its main() does."""
-    import review_panel_sandbox  # type: ignore[import-not-found]
+    review_panel_sandbox = script("review_panel_sandbox")
 
     project_id, name = "sandbox-panel", "Sandbox: the review panel"
     root = tmp_path / "sandbox"
@@ -79,47 +82,77 @@ def test_a_built_sandbox_serves_the_tasks_it_seeded(
     assert not list((sandbox_home / "databases").glob("local-*.db"))
 
 
-def test_sandbox_store_requires_a_project_id(sandbox_home: Path, scripts_on_path: None) -> None:
-    from sandbox_store import SandboxStoreError, sandbox_store  # type: ignore[import-not-found]
+def test_a_second_sandbox_project_does_not_seed_into_the_first(
+    tmp_path: Path, sandbox_home: Path, script: Callable[[str], ModuleType]
+) -> None:
+    """Build, register, build, register -- the loop every two-project sandbox runs.
+
+    Before task-427 the second build asked the registry which project it was in, got
+    "the sole registered project" back, and seeded into the first project's database:
+    dispatch_groups_sandbox served the runner project's task on the grouped project's
+    page, and an empty runner project.
+    """
+    review_panel_sandbox = script("review_panel_sandbox")
+
+    registry = ProjectRegistry(sandbox_home)
+    root = tmp_path / "sandbox"
+    projects = {}
+    for project_id in ("sandbox-first", "sandbox-second"):
+        projects[project_id] = registry.add(
+            review_panel_sandbox.build(root, project_id=project_id, name=project_id),
+            project_id=project_id,
+            name=project_id,
+        )
+
+    seeded = len(review_panel_sandbox.STATES)
+    with server_process():
+        counts = {pid: len(task_manager_for(p).list_tasks()) for pid, p in projects.items()}
+    assert counts == {"sandbox-first": seeded, "sandbox-second": seeded}
+
+
+def test_sandbox_store_requires_a_project_id(
+    sandbox_home: Path, script: Callable[[str], ModuleType]
+) -> None:
+    store = script("sandbox_store")
 
     with pytest.raises(TypeError):
-        sandbox_store(sandbox_home.parent / "p" / "tasks")  # type: ignore[call-arg]
-    with pytest.raises(SandboxStoreError, match="project id"):
-        sandbox_store(sandbox_home.parent / "p" / "tasks", project_id="")
+        store.sandbox_store(sandbox_home.parent / "p" / "tasks")
+    with pytest.raises(store.SandboxStoreError, match="project id"):
+        store.sandbox_store(sandbox_home.parent / "p" / "tasks", project_id="")
 
 
 def test_sandbox_store_refuses_an_unredirected_home(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scripts_on_path: None
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, script: Callable[[str], ModuleType]
 ) -> None:
-    from sandbox_store import SandboxStoreError, sandbox_store  # type: ignore[import-not-found]
+    store = script("sandbox_store")
 
     monkeypatch.delenv(HOME_ENV, raising=False)
-    with pytest.raises(SandboxStoreError, match="not set"):
-        sandbox_store(tmp_path / "p" / "tasks", project_id="sandbox-x")
+    with pytest.raises(store.SandboxStoreError, match="not set"):
+        store.sandbox_store(tmp_path / "p" / "tasks", project_id="sandbox-x")
 
 
 def test_sandbox_store_refuses_the_real_home(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scripts_on_path: None
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, script: Callable[[str], ModuleType]
 ) -> None:
-    from sandbox_store import SandboxStoreError, sandbox_store  # type: ignore[import-not-found]
+    store = script("sandbox_store")
 
     monkeypatch.setenv(HOME_ENV, str(Path.home() / ".agentjobs"))
-    with pytest.raises(SandboxStoreError, match="real home"):
-        sandbox_store(tmp_path / "p" / "tasks", project_id="sandbox-x")
+    with pytest.raises(store.SandboxStoreError, match="real home"):
+        store.sandbox_store(tmp_path / "p" / "tasks", project_id="sandbox-x")
 
 
 def test_sandbox_store_refuses_a_database_override_outside_the_home(
     tmp_path: Path,
     sandbox_home: Path,
     monkeypatch: pytest.MonkeyPatch,
-    scripts_on_path: None,
+    script: Callable[[str], ModuleType],
 ) -> None:
-    from sandbox_store import SandboxStoreError, sandbox_store  # type: ignore[import-not-found]
+    store = script("sandbox_store")
 
     elsewhere = tmp_path / "elsewhere" / "live.db"
     monkeypatch.setenv(DATABASE_ENV, str(elsewhere))
-    with pytest.raises(SandboxStoreError, match="outside the sandbox home"):
-        sandbox_store(tmp_path / "p" / "tasks", project_id="sandbox-x")
+    with pytest.raises(store.SandboxStoreError, match="outside the sandbox home"):
+        store.sandbox_store(tmp_path / "p" / "tasks", project_id="sandbox-x")
     assert not elsewhere.exists()
 
 
