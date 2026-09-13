@@ -245,6 +245,35 @@ def wake_argv(argv: Sequence[str], prompt: str, session_uuid: str) -> List[str]:
     return rewritten
 
 
+def resume_refusal(previous_meta: Mapping[str, object], posture: str) -> Optional[str]:
+    """Why a session must not be resumed under ``posture``, or ``None`` if it may be.
+
+    **A session is never resumed across a posture change** (task-375). Posture reaches
+    an agent only in the text it is sent, and a conversation remembers every clause it
+    was ever told: resuming a session that last ran at ``auto`` with an ``autonomous``
+    clause would raise a live agent's authority mid-flight, after it may already have
+    decided things under the narrower one. That is an authorisation change, not a retry,
+    so it gets a fresh session instead -- the task record and the worktree carry the
+    context across. task-358's child task-273 is the incident: its record said
+    ``autonomous`` and its resumed session had only ever been told ``auto``.
+
+    A previous run that recorded no posture cannot be shown to match, so it is refused
+    too. Starting cold is always a correct answer; resuming on a guess is not.
+    """
+    recorded = previous_meta.get("posture")
+    if not isinstance(recorded, str) or not recorded:
+        return (
+            "the session's previous run recorded no posture, so it cannot be shown to have "
+            f"been told `{posture}`"
+        )
+    if recorded != posture:
+        return (
+            f"the session last ran at posture `{recorded}` and this run is granted "
+            f"`{posture}`; a conversation is not resumed across a posture change"
+        )
+    return None
+
+
 def build_wake_prompt(
     *,
     agent: str,
@@ -253,8 +282,15 @@ def build_wake_prompt(
     api_base: str,
     run_id: str,
     previous_run_id: str,
+    policy: str = "",
 ) -> str:
-    """Render ``WAKE_STUB``. A blank ball prompt still produces a usable instruction."""
+    """Render ``WAKE_STUB``. A blank ball prompt still produces a usable instruction.
+
+    ``policy`` is the run's posture and push clause, appended verbatim (task-375). A
+    resumed session is only ever resumed at the posture it last ran under, but it is told
+    the clause again anyway: the dispatch entry records what this payload carried, and
+    "the session heard it last time" is not evidence a reader can check.
+    """
     stated = (ball_prompt or "").strip()
     if not stated:
         stated = (
@@ -265,7 +301,7 @@ def build_wake_prompt(
         stated = stated[:BALL_PROMPT_LIMIT].rstrip() + (
             "\n\n(truncated -- the whole entry is on the task record)"
         )
-    return WAKE_STUB.format(
+    rendered = WAKE_STUB.format(
         agent=agent,
         task_id=task_id,
         ball_prompt=stated,
@@ -273,3 +309,6 @@ def build_wake_prompt(
         run_id=run_id,
         previous_run_id=previous_run_id,
     )
+    if policy:
+        rendered = f"{rendered}\n\n{policy}"
+    return rendered

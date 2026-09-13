@@ -89,12 +89,18 @@ from agentjobs.dispatch.config import (
     DispatchResolution,
     Posture,
     PostureSource,
-    ResolvedPosture,
     assert_dispatch_permitted,
     dispatch_config_path,
     resolve_posture,
 )
 from agentjobs.dispatch.config import DispatchRunner as ConfigRunner
+from agentjobs.dispatch.envelope import (
+    History,
+    assert_not_stopped,
+    build_envelope,
+    continuation_history,
+    is_continuation,
+)
 from agentjobs.dispatch.record_commit import task_file_exclusions
 from agentjobs.dispatch import journal
 from agentjobs.dispatch.ledger import RunLockTimeout, acquire_run_lock
@@ -850,11 +856,33 @@ def dispatch_task(
             "Release it from the review panel before dispatching an agent at it."
         )
 
+    # A retry or resume continues the grant its execution was admitted with, rather than
+    # re-reading today's defaults (task-375). Read before the gates so the runner the
+    # gates resolve *is* the recorded one; the gates themselves still run in full, which
+    # is how a kill switch or a disabled runner defeats a historical grant.
+    history: Optional[History] = None
+    if is_continuation(request):
+        try:
+            history = continuation_history(journal.journal(_config_home(home)), project.id, task.id)
+        except ExecutionStoreError as exc:
+            # Unreadable history is not "no history": resolving from today's defaults
+            # here would be the silent substitution this read exists to prevent.
+            raise DispatchRefused(
+                f"{task.id}'s execution history could not be read, so this continuation "
+                f"was not started on a guess about what it was granted: {exc}"
+            ) from exc
+        if history is not None:
+            assert_not_stopped(history, task.id)
+
     # Gate 1-4 from task-068, including the sentinel. Re-checked at spawn time by the
     # runner: this proves dispatch was permitted when it was asked, not for the lifetime
     # of the answer.
     resolution = assert_dispatch_permitted(
-        project.id, home, runner=request.runner, group=request.group
+        project.id,
+        home,
+        runner=request.runner,
+        group=request.group,
+        recorded=(history.runner, history.group) if history is not None else None,
     )
     machine_home = resolve_machine_home(home, resolution)
 
@@ -973,7 +1001,12 @@ def dispatch_task(
         task=Posture(task.posture.value) if task.posture is not None else None,
         requested=request.posture,
         inherited=epic_posture,
+        history=history.posture if history is not None else None,
     )
+    # Push only ever narrows across a continuation, like the ceiling: a project that has
+    # since switched it off wins, and one that has since switched it on grants nothing to
+    # an execution that was told it could not.
+    push = resolution.settings.push and (history is None or history.push is None or history.push)
 
     if resolution.settings.require_clean_tree:
         dirty = uncommitted_paths(project.root, ignore=task_file_exclusions(manager))
@@ -992,6 +1025,21 @@ def dispatch_task(
     # socket it read the address from is the socket answering this call.
     if api_base is None:
         assert_api_base_answers(machine_home)
+
+    # Built before admission rather than at the spawn, because the envelope the journal
+    # freezes has to carry the exact policy clause this runner will tell the agent -- and
+    # the runner is the only thing that composes it.
+    runner = DispatchRunner(
+        manager=manager,
+        resolution=resolution,
+        project_root=project.root,
+        home=machine_home,
+        api_base=api_base,
+        playbook=request.playbook,
+        posture=posture,
+        push=push,
+        history=history,
+    )
 
     # Taken before the claim and held for the run's lifetime. The storage lock the
     # claim uses protects a write lasting microseconds; this one protects a process
@@ -1014,14 +1062,21 @@ def dispatch_task(
     # the journal names.
     run_id = new_run_id()
     try:
-        journal.admit_dispatch(
+        attempt = journal.admit_dispatch(
             machine_home,
             project_id=project.id,
             task_id=task.id,
             run_id=run_id,
             capacity=resolution.limits.max_concurrent_runs,
             hourly_limit=resolution.limits.dispatches_per_hour,
-            envelope=_admission_envelope(resolution, posture, request),
+            envelope=build_envelope(
+                resolution,
+                posture,
+                request,
+                push=push,
+                policy_clause=runner.policy_clause_for(task.id),
+                history=history,
+            ),
             mode=resolution.runner.mode.value,
             resolve_manager=_manager_resolver(machine_home, project.id, manager),
             reservation={"trigger": request.trigger.value},
@@ -1063,6 +1118,7 @@ def dispatch_task(
             f"journal refused ({exc}). Try again; if it persists, the journal's disk needs "
             "attention."
         ) from exc
+    runner.execution_id = attempt.execution_id
 
     try:
         if authorizer is not None:
@@ -1095,15 +1151,6 @@ def dispatch_task(
 
         task = _claim_or_verify(manager, task, resolution.runner.actor_id)
 
-        runner = DispatchRunner(
-            manager=manager,
-            resolution=resolution,
-            project_root=project.root,
-            home=machine_home,
-            api_base=api_base,
-            playbook=request.playbook,
-            posture=posture,
-        )
         handle = runner.start(
             task,
             actor=causing.actor,
@@ -1159,29 +1206,13 @@ def effective_live_runs(home: Path, runs: Sequence[LiveRun]) -> List[LiveRun]:
     return kept
 
 
-def _admission_envelope(
-    resolution: DispatchResolution, posture: ResolvedPosture, request: DispatchRequest
-) -> Dict[str, object]:
-    """The non-secret envelope an execution is accepted with.
+def _config_home(home: Optional[Path]) -> Path:
+    """The machine home ``assert_dispatch_permitted`` will read, known before it runs.
 
-    What task-375 will make every retry and resume reuse. Recorded now so the history
-    exists from the first attempt; nothing here reads it back yet. The playbook pointer is
-    deliberately absent: no gate in this module reads one (playbooks design section 6.3),
-    and the ``dispatch`` entry already records it.
+    ``resolve_machine_home`` answers the same question from a resolution, which does not
+    exist yet when a continuation's history has to be read.
     """
-    selection = resolution.selection
-    return {
-        "runner": resolution.runner.name,
-        "driver": resolution.runner.driver.value,
-        "mode": resolution.runner.mode.value,
-        "group": selection.group if selection is not None else None,
-        "selection_source": selection.source.value if selection is not None else None,
-        "posture": posture.posture.value,
-        **posture.as_data(),
-        "trigger": request.trigger.value,
-        "requested_runner": request.runner,
-        "requested_group": request.group,
-    }
+    return dispatch_config_path(home).parent
 
 
 def _manager_resolver(

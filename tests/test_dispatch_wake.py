@@ -19,11 +19,12 @@ directly rather than through their consequences:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import textwrap
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import pytest
 import yaml
@@ -34,7 +35,9 @@ from agentjobs.dispatch.config import (
     DispatchResolution,
     DispatchRunner as RunnerConfig,
     Posture,
+    PostureSource,
     ProjectDispatchSettings,
+    ResolvedPosture,
     RunnerMode,
 )
 from agentjobs.dispatch.runner import DispatchRunner, RunDirectory
@@ -42,6 +45,7 @@ from agentjobs.dispatch.wake import (
     WakeError,
     build_wake_prompt,
     find_wake_target,
+    resume_refusal,
     session_uuids,
     wake_argv,
 )
@@ -113,7 +117,12 @@ def stopped_row(short: str, uuid: str) -> dict:
 
 
 def build(
-    workspace: Path, manager: TaskManager, cli: Path, *, resume_sessions: bool = True
+    workspace: Path,
+    manager: TaskManager,
+    cli: Path,
+    *,
+    resume_sessions: bool = True,
+    posture: Optional[ResolvedPosture] = None,
 ) -> DispatchRunner:
     runner = RunnerConfig(
         name="fake",
@@ -142,6 +151,7 @@ def build(
         project_root=workspace / "project",
         home=workspace / "home",
         api_base="http://localhost:8899",
+        posture=posture,
     )
 
 
@@ -154,13 +164,14 @@ def seed_finished_run(
     status: str = "finished",
     started_at: str = "2026-08-20T08:00:00+00:00",
     reaped: bool = False,
+    posture: Optional[str] = "auto",
 ) -> RunDirectory:
     meta: Dict[str, object] = {
         "run_id": run_id,
         "task_id": task_id,
         "project_id": "sandbox",
         "mode": "session",
-        "posture": "auto",
+        "posture": posture,
         "status": status,
         "session_id": session_id,
         "started_at": started_at,
@@ -584,4 +595,120 @@ class TestDispatchStartsColdInstead:
         )
 
         assert handle.session_id == "feed1234"
+        assert "--resume" not in ran_argv(workspace)
+
+
+# ----- posture across a resume (task-375) -------------------------------------
+
+AUTONOMOUS_FROM_EPIC = ResolvedPosture(
+    posture=Posture.AUTONOMOUS, source=PostureSource.EPIC, ceiling=Posture.AUTONOMOUS
+)
+
+
+def newest_entry(manager: TaskManager, task_id: str):
+    updated = manager.get_task(task_id)
+    assert updated is not None
+    return updated.log[-1]
+
+
+class TestResumeRefusal:
+    def test_the_same_posture_may_be_resumed(self) -> None:
+        assert resume_refusal({"posture": "auto"}, "auto") is None
+
+    def test_a_different_posture_is_refused_and_names_both(self) -> None:
+        refusal = resume_refusal({"posture": "auto"}, "autonomous")
+        assert refusal is not None
+        assert "`auto`" in refusal and "`autonomous`" in refusal
+
+    def test_an_unrecorded_posture_cannot_be_shown_to_match(self) -> None:
+        assert resume_refusal({}, "auto") is not None
+
+
+class TestPostureAcrossAResume:
+    """task-358's child task-273: recorded ``autonomous``, only ever told ``auto``."""
+
+    def test_a_session_last_run_at_auto_is_not_resumed_at_autonomous(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", posture="auto")
+        set_sessions(workspace, [stopped_row("aaaa1111", "u-u-i-d")])
+
+        handle = build(workspace, manager, cli, posture=AUTONOMOUS_FROM_EPIC).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.CHILD
+        )
+
+        argv = ran_argv(workspace)
+        assert "--resume" not in argv
+        assert ran_stdin(workspace) == ""
+        assert any("releases the merge gate" in element for element in argv)
+        meta = handle.directory.read_meta()
+        assert "posture `auto`" in str(meta["resume_refused"])
+        assert "resumed" not in meta
+
+    def test_the_record_says_why_and_what_the_fresh_session_was_told(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", posture="auto")
+        set_sessions(workspace, [stopped_row("aaaa1111", "u-u-i-d")])
+
+        build(workspace, manager, cli, posture=AUTONOMOUS_FROM_EPIC).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.CHILD
+        )
+
+        entry = newest_entry(manager, task.id)
+        data = dict(entry.data or {})
+        assert data["posture"] == "autonomous"
+        delivery = data["delivery"]
+        assert delivery["channel"] == "argv"
+        assert delivery["posture_delivered"] is True
+        assert delivery["acknowledged_by"] == "feed1234"
+        assert "run_previous" in delivery["resume_refused"]
+        assert "Started a fresh session" in (entry.body or "")
+        assert "Resumed" not in (entry.body or "")
+
+    def test_a_same_posture_wake_carries_the_posture_clause_on_stdin(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", posture="autonomous")
+        set_sessions(workspace, [stopped_row("aaaa1111", "u-u-i-d")])
+
+        build(workspace, manager, cli, posture=AUTONOMOUS_FROM_EPIC).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.CHILD
+        )
+
+        stdin = ran_stdin(workspace)
+        assert "--resume" in ran_argv(workspace)
+        assert "same session" in stdin
+        assert "releases the merge gate" in stdin
+        delivery = dict(newest_entry(manager, task.id).data or {})["delivery"]
+        assert delivery["channel"] == "stdin"
+        assert delivery["posture_delivered"] is True
+        assert delivery["payload_sha256"] == hashlib.sha256(stdin.encode("utf-8")).hexdigest()
+        assert "resume_refused" not in delivery
+
+    def test_an_auto_wake_is_told_auto_again(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        """The defect's other half: a wake used to carry no posture clause at all."""
+        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", posture="auto")
+        set_sessions(workspace, [stopped_row("aaaa1111", "u-u-i-d")])
+
+        build(workspace, manager, cli).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.AUTO
+        )
+
+        assert "Do not merge." in ran_stdin(workspace)
+        delivery = dict(newest_entry(manager, task.id).data or {})["delivery"]
+        assert delivery["posture_delivered"] is True
+
+    def test_a_previous_run_with_no_recorded_posture_starts_cold(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", posture=None)
+        set_sessions(workspace, [stopped_row("aaaa1111", "u-u-i-d")])
+
+        build(workspace, manager, cli).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.AUTO
+        )
+
         assert "--resume" not in ran_argv(workspace)

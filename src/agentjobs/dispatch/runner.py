@@ -31,6 +31,7 @@ install. A real transcript is full of box-drawing characters, and the default ra
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -86,6 +87,7 @@ from agentjobs.dispatch.wake import (
     WakeTarget,
     build_wake_prompt,
     find_wake_target,
+    resume_refusal,
     wake_argv,
     newest_session_run,
 )
@@ -93,6 +95,8 @@ from agentjobs.models_v2 import (
     Ball,
     BallReason,
     DispatchCandidateData,
+    DispatchDeliveryData,
+    DispatchEnvelopeData,
     DispatchMode,
     DispatchOutcome,
     DispatchPosture,
@@ -113,6 +117,7 @@ from agentjobs.execution.errors import ExecutionStoreError
 from agentjobs.store_factory import TaskManagerLike
 
 if TYPE_CHECKING:  # pragma: no cover - ledger imports this module
+    from agentjobs.dispatch.envelope import History
     from agentjobs.dispatch.ledger import RunRecord
 
 RUNS_DIRNAME = "runs"
@@ -1193,6 +1198,7 @@ def selection_data(selection: Optional[RunnerSelection]) -> Optional[DispatchSel
                     candidate.skipped_because.value if candidate.skipped_because else None
                 ),
                 detail=candidate.detail,
+                selected=True if candidate.selected else None,
             )
             for candidate in selection.candidates
         ],
@@ -1280,9 +1286,18 @@ class DispatchRunner:
         claude_home: Optional[Path] = None,
         playbook: Optional[PlaybookPointer] = None,
         posture: Optional[ResolvedPosture] = None,
+        push: Optional[bool] = None,
+        history: Optional["History"] = None,
     ) -> None:
         self.manager = manager
         self.resolution = resolution
+        self.push = resolution.settings.push if push is None else push
+        """Whether this run's agent is told it may push. The project's setting, narrowed by
+        a continuation's recorded one (task-375); never wider than the project's."""
+        self.history = history
+        """The execution this run continues, or ``None`` for a new grant (task-375)."""
+        self.execution_id: Optional[str] = None
+        """The execution admission put this run under, when the caller admitted one."""
         self.posture = posture or resolve_posture(resolution.settings)
         """What this run may do, and which of the three sources said so (task-308).
 
@@ -1381,16 +1396,7 @@ class DispatchRunner:
             run_id=run_id,
             children=describe_children(children),
         )
-        settings = self.resolution.settings
-        clause = policy_clause(
-            self.posture.posture,
-            push=settings.push,
-            task_id=task_id,
-            project_id=self.resolution.project_id,
-            project_root=self.project_root,
-            base_branch=settings.finish.base_branch,
-            supervisor=bool(children),
-        )
+        clause = self.policy_clause_for(task_id, children)
         if clause:
             rendered = f"{rendered} {clause}"
         # A playbook run appends one line and changes nothing else about the stub. It is
@@ -1398,6 +1404,24 @@ class DispatchRunner:
         if self.playbook is not None:
             rendered = f"{rendered} {self.playbook.prompt_line()}"
         return rendered
+
+    def policy_clause_for(self, task_id: str, children: Optional[Sequence[str]] = None) -> str:
+        """The posture and push sentences this run's agent is told, exactly (task-021).
+
+        One composition, used by the cold prompt, the wake prompt and the envelope the
+        journal freezes (task-375), so the three cannot describe different runs.
+        """
+        if children is None:
+            children = self.open_child_ids(task_id)
+        return policy_clause(
+            self.posture.posture,
+            push=self.push,
+            task_id=task_id,
+            project_id=self.resolution.project_id,
+            project_root=self.project_root,
+            base_branch=self.resolution.settings.finish.base_branch,
+            supervisor=bool(children),
+        )
 
     def build_argv(self, task_id: str, run_id: str) -> List[str]:
         """The full argv for a run, posture flags included."""
@@ -1458,20 +1482,35 @@ class DispatchRunner:
         session run is the authoritative candidate. As with Claude, only that newest
         run is considered; a missing or reaped conversation starts no second wake chain.
         """
+        return self._codex_wake_plan(task_id)[0]
+
+    def _codex_wake_plan(self, task_id: str) -> tuple[Optional[WakeTarget], Optional[str]]:
+        """The Codex thread to resume, and why a resumable one was not, if it was not.
+
+        A posture change is not a resume *failure*, so the explicit-fresh-start policy is
+        not engaged by it: no resume is attempted at all (``wake.resume_refusal``,
+        task-375).
+        """
         if not self.resolution.settings.resume_sessions:
-            return None
+            return None, None
         record = newest_session_run(self.home, task_id, project_id=self.resolution.project_id)
         if record is None or record.is_live or not record.session_id:
-            return None
+            return None, None
         meta = RunDirectory(record.path).read_meta()
         if meta.get("driver") != RunnerDriver.CODEX.value:
-            return None
+            return None, None
         if meta.get("reaped") is True or meta.get("codex_status") != "completed":
-            return None
-        return WakeTarget(
-            previous_run_id=record.run_id,
-            session_id=record.session_id,
-            session_uuid=record.session_id,
+            return None, None
+        refusal = resume_refusal(meta, self.posture.posture.value)
+        if refusal is not None:
+            return None, f"Did not resume run `{record.run_id}`: {refusal}."
+        return (
+            WakeTarget(
+                previous_run_id=record.run_id,
+                session_id=record.session_id,
+                session_uuid=record.session_id,
+            ),
+            None,
         )
 
     def _start_codex_app_server_session(
@@ -1486,7 +1525,7 @@ class DispatchRunner:
         """Start a persisted Codex App Server thread and its first turn."""
         run_id = run_id or new_run_id()
         argv, prompt = self.build_argv_and_prompt(task.id, run_id)
-        wake = self._codex_wake_target(task.id)
+        wake, resume_refused = self._codex_wake_plan(task.id)
         if wake is not None:
             prompt = build_wake_prompt(
                 agent=self.runner.actor_id,
@@ -1495,6 +1534,7 @@ class DispatchRunner:
                 api_base=self.api_base,
                 run_id=run_id,
                 previous_run_id=wake.previous_run_id,
+                policy=self.policy_clause_for(task.id),
             )
         settings = parse_session_settings(
             argv, posture=self.posture.posture.value, project_root=self.project_root
@@ -1516,6 +1556,8 @@ class DispatchRunner:
                 "started_at": self.clock().isoformat(),
                 "caused_by": caused_by,
                 "argv": argv,
+                **({"resume_refused": resume_refused} if resume_refused else {}),
+                **({"execution_id": self.execution_id} if self.execution_id else {}),
                 **(
                     {
                         "resumed": True,
@@ -1584,6 +1626,10 @@ class DispatchRunner:
                             "The run is parked as resume_busy; its task lock remains held and "
                             "no fresh thread was started."
                         ),
+                        # Nothing reached a model, so nothing about posture was told to one.
+                        delivery=self.delivery_data(
+                            task.id, channel="none", payload=None, acknowledged_by=None
+                        ),
                     )
                     directory.update_meta(
                         status="parked",
@@ -1613,7 +1659,8 @@ class DispatchRunner:
                 }:
                     raise
                 app_server = new_app_server()
-                started = app_server.start(self.build_argv_and_prompt(task.id, run_id)[1])
+                prompt = self.build_argv_and_prompt(task.id, run_id)[1]
+                started = app_server.start(prompt)
                 resumed = False
                 resume_replacement = True
                 resume_replacement_reason = failure.value
@@ -1642,10 +1689,22 @@ class DispatchRunner:
                             f"persisted thread `{wake.session_uuid}` from run "
                             f"`{wake.previous_run_id}` was classified {resume_replacement_reason}."
                             if resume_replacement and wake is not None
-                            else "Started a Codex App Server thread. Its conversation is persisted in "
-                            "the Codex session store and can be opened by Codex Desktop."
+                            else (
+                                f"Started a fresh Codex App Server thread. {resume_refused}"
+                                if resume_refused
+                                else "Started a Codex App Server thread. Its conversation is "
+                                "persisted in the Codex session store and can be opened by "
+                                "Codex Desktop."
+                            )
                         )
                     )
+                ),
+                delivery=self.delivery_data(
+                    task.id,
+                    channel="turn",
+                    payload=prompt,
+                    acknowledged_by=started.turn_id or started.thread_id,
+                    resume_refused=resume_refused,
                 ),
             )
         except (CodexAppServerError, DispatchRunError) as exc:
@@ -1949,6 +2008,7 @@ class DispatchRunner:
         mode: DispatchMode,
         session_id: Optional[str],
         body: Optional[str] = None,
+        delivery: Optional[DispatchDeliveryData] = None,
     ) -> int:
         """Append the dispatch entry and return its id."""
         updated = self.manager.record_dispatch(
@@ -1960,7 +2020,8 @@ class DispatchRunner:
             runner_source=(
                 self.resolution.selection.source.value
                 if self.resolution.selection is not None
-                and self.resolution.selection.source is SelectionSource.DISPATCH_RUNNER
+                and self.resolution.selection.source
+                in (SelectionSource.DISPATCH_RUNNER, SelectionSource.HISTORY)
                 else None
             ),
             mode=mode,
@@ -1979,9 +2040,69 @@ class DispatchRunner:
             selection=selection_data(self.resolution.selection),
             playbook=self.playbook.name if self.playbook else None,
             playbook_hash=self.playbook.digest if self.playbook else None,
+            envelope=self.envelope_data(),
+            delivery=delivery,
             body=body,
         )
         return updated.log[-1].id
+
+    def envelope_data(self) -> DispatchEnvelopeData:
+        """Which execution this run serves, and whether its grant is new or carried over."""
+        return DispatchEnvelopeData(
+            source="history" if self.history is not None else "grant",
+            execution_id=self.execution_id,
+            continues_execution_id=self.history.execution_id if self.history else None,
+        )
+
+    def argv_delivery(
+        self,
+        task_id: str,
+        argv: Sequence[str],
+        prompt: str,
+        *,
+        acknowledged_by: Optional[str],
+        resume_refused: Optional[str] = None,
+    ) -> DispatchDeliveryData:
+        """The delivery record for a prompt that rides in argv -- if the template put it there.
+
+        A runner whose argv template has no ``{prompt}`` delivers nothing, and is recorded
+        as channel ``none`` rather than credited with a prompt it never passed on.
+        """
+        carried = any(prompt in part for part in argv)
+        return self.delivery_data(
+            task_id,
+            channel="argv" if carried else "none",
+            payload=prompt if carried else None,
+            acknowledged_by=acknowledged_by,
+            resume_refused=resume_refused,
+        )
+
+    def delivery_data(
+        self,
+        task_id: str,
+        *,
+        channel: str,
+        payload: Optional[str],
+        acknowledged_by: Optional[str],
+        resume_refused: Optional[str] = None,
+    ) -> DispatchDeliveryData:
+        """What was actually sent to the agent, checked rather than assumed (task-375).
+
+        ``posture_delivered`` is computed from the payload: it is true only when the exact
+        clause this run's posture composes is inside the text that went out. Nothing here
+        infers it from the run having been started, or from an earlier run of the session
+        having been told it.
+        """
+        clause = self.policy_clause_for(task_id)
+        return DispatchDeliveryData(
+            channel=channel,
+            payload_sha256=(
+                hashlib.sha256(payload.encode("utf-8")).hexdigest() if payload else None
+            ),
+            posture_delivered=(bool(payload) and clause in (payload or "")) if clause else None,
+            acknowledged_by=acknowledged_by,
+            resume_refused=resume_refused,
+        )
 
     # ----- entry point -------------------------------------------------------
 
@@ -2021,14 +2142,25 @@ class DispatchRunner:
 
     _SHORT_ID = re.compile(r"\b([0-9a-f]{8})\b")
 
+    def _previous_meta(self, run_id: str) -> Dict[str, object]:
+        """A previous run's meta, or an empty mapping when it cannot be read."""
+        try:
+            return RunDirectory(runs_root(self.home) / run_id).read_meta()
+        except Exception:  # noqa: BLE001 - an unreadable meta proves nothing either way
+            return {}
+
     def _plan_wake(
         self, task: Task, run_id: str, argv: List[str], prompt: str
-    ) -> tuple[Optional[WakeTarget], List[str], Optional[str]]:
+    ) -> tuple[Optional[WakeTarget], List[str], Optional[str], Optional[str]]:
         """Decide whether this dispatch resumes the task's previous session.
 
-        Returns the target (``None`` for a cold start), the argv to run, and what to put
-        on the child's stdin. A cold start returns the argv untouched and ``None`` for
-        stdin, so nothing about the existing path moves.
+        Returns the target (``None`` for a cold start), the argv to run, what to put on
+        the child's stdin, and -- when a resumable session was found and deliberately not
+        resumed -- why. A cold start returns the argv untouched and ``None`` for stdin, so
+        nothing about the existing path moves.
+
+        **A posture change is the one deliberate refusal** (task-375): see
+        ``wake.resume_refusal``. Every other doubt is still a silent cold start.
 
         **Every failure here is a cold start, never an exception.** Reading the session
         ledger spawns a subprocess and parses its output; a runner that is not Claude
@@ -2039,20 +2171,25 @@ class DispatchRunner:
         why the `except` below is broad rather than precise.
         """
         if not self.resolution.settings.resume_sessions:
-            return None, argv, None
+            return None, argv, None, None
         try:
             rows = self.ledger(include_finished=True)
             target = find_wake_target(
                 self.home, task.id, project_id=self.resolution.project_id, rows=rows
             )
         except Exception:  # noqa: BLE001 - see the docstring; a cold start is the fallback
-            return None, argv, None
+            return None, argv, None, None
         if target is None:
-            return None, argv, None
+            return None, argv, None, None
+        refusal = resume_refusal(
+            self._previous_meta(target.previous_run_id), self.posture.posture.value
+        )
+        if refusal is not None:
+            return None, argv, None, f"Did not resume run `{target.previous_run_id}`: {refusal}."
         try:
             resumed = wake_argv(argv, prompt, target.session_uuid)
         except WakeError:
-            return None, argv, None
+            return None, argv, None, None
         return (
             target,
             resumed,
@@ -2063,7 +2200,9 @@ class DispatchRunner:
                 api_base=self.api_base,
                 run_id=run_id,
                 previous_run_id=target.previous_run_id,
+                policy=self.policy_clause_for(task.id),
             ),
+            None,
         )
 
     def _start_session(
@@ -2122,7 +2261,7 @@ class DispatchRunner:
             credential=credential,
         )
         argv = delivered.argv
-        wake, argv, stdin_text = self._plan_wake(task, run_id, argv, prompt)
+        wake, argv, stdin_text, resume_refused = self._plan_wake(task, run_id, argv, prompt)
         meta: Dict[str, object] = {
             "run_id": run_id,
             "task_id": task.id,
@@ -2158,6 +2297,10 @@ class DispatchRunner:
             meta["resumed"] = True
             meta["resumed_from"] = wake.previous_run_id
             meta["resumed_session"] = wake.session_uuid
+        if resume_refused is not None:
+            meta["resume_refused"] = resume_refused
+        if self.execution_id is not None:
+            meta["execution_id"] = self.execution_id
         directory = RunDirectory.create(self.home, run_id, meta)
 
         try:
@@ -2223,13 +2366,35 @@ class DispatchRunner:
                 mode=DispatchMode.SESSION,
                 session_id=session_id,
                 body=(
-                    None
+                    (
+                        None
+                        if resume_refused is None
+                        else f"Started a fresh session. {resume_refused}"
+                    )
                     if wake is None
                     else (
                         f"Resumed the session from run `{wake.previous_run_id}` rather "
                         "than starting a cold one, so this agent still has the worktree, "
                         "the branch and the verification it established there. The ball "
-                        "prompt was delivered to it as its next turn."
+                        "prompt and this run's posture clause were delivered to it as its "
+                        "next turn."
+                    )
+                ),
+                delivery=(
+                    self.delivery_data(
+                        task.id,
+                        channel="stdin",
+                        payload=stdin_text,
+                        acknowledged_by=session_id,
+                        resume_refused=resume_refused,
+                    )
+                    if stdin_text is not None
+                    else self.argv_delivery(
+                        task.id,
+                        argv,
+                        prompt,
+                        acknowledged_by=session_id,
+                        resume_refused=resume_refused,
                     )
                 ),
             )
@@ -3117,7 +3282,7 @@ class DispatchRunner:
     ) -> RunHandle:
         """Spawn a batch run and supervise it from a dedicated blocking thread."""
         run_id = run_id or new_run_id()
-        argv = self.build_argv(task.id, run_id)
+        argv, prompt = self.build_argv_and_prompt(task.id, run_id)
         directory = RunDirectory.create(
             self.home,
             run_id,
@@ -3125,6 +3290,7 @@ class DispatchRunner:
                 "run_id": run_id,
                 "task_id": task.id,
                 "project_id": self.resolution.project_id,
+                **({"execution_id": self.execution_id} if self.execution_id else {}),
                 "mode": DispatchMode.BATCH.value,
                 "driver": self.runner.driver.value,
                 "posture": self.posture.posture.value,
@@ -3145,6 +3311,7 @@ class DispatchRunner:
             trigger=trigger,
             mode=DispatchMode.BATCH,
             session_id=None,
+            delivery=self.argv_delivery(task.id, argv, prompt, acknowledged_by=None),
         )
 
         # A batch run's worker is the process started here, so it inherits the
