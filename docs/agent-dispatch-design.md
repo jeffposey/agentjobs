@@ -3374,9 +3374,11 @@ legacy import shipped in task-264** -- see
 history-based continuation in task-375** -- see
 [What task-375 built](#what-task-375-built-2026-09-13), **durable approval, feedback
 and Stop signals with the finisher's ownership transfer in task-312** -- see
-[What task-312 built](#what-task-312-built-2026-09-13) -- and **the replay controller,
+[What task-312 built](#what-task-312-built-2026-09-13), **the replay controller,
 bounded recovery and durable epic supervision in task-416** -- see
-[What task-416 built](#what-task-416-built-2026-09-13); everything else here is still
+[What task-416 built](#what-task-416-built-2026-09-13), and **the durable finish and its
+one gate retry in task-322** -- see
+[What task-322 built](#what-task-322-built-2026-09-13); everything else here is still
 design.
 
 An accepted dispatch is an obligation with a durable identity. AgentJobs keeps advancing
@@ -3992,6 +3994,38 @@ durable finish (task-322). A detached walk's backpressure deadline is not persis
 it waits on a full machine rather than stopping after the per-child ceiling. The walk still
 derives each child's authorisation from the parent's newest human entry rather than from
 its recorded authority.
+
+### What task-322 built (2026-09-13)
+
+The durable finish: a finish that died, stopped or went red once is resumed or retried
+from what it recorded, never re-derived from scratch. Absorbs task-348's gate recovery.
+Authoritative from this build:
+
+| Fact | Where it is decided |
+| --- | --- |
+| What a finish intended and proved, across attempts | `dispatch.finish_receipts`: an append-only, fsynced JSONL per task at `finishes/receipts/<project>~<task>.jsonl`. Intent before, result after, for rebase, each gate attempt, merge, rebuild, restart, verify, close, worktree and branch. Delivery activities are keyed on the merge SHA |
+| Why a file and not the execution store | A finish can run for a task that was never dispatched and has no execution row. Creating one would put finishing inside admission and the one-open-execution invariant, which task-416 owns. The run lock and the runway already make the finisher the only writer (task-322 decision entry) |
+| That a merge happened, when the process died right after `git merge` | The merge intent names branch, base, `base_before` and the reviewed head. `reconcile_merge_intents` looks for a merge on the base whose parents are exactly those two: found is `applied` with the SHA recovered; reviewed head absent from the base is `not_applied`; reviewed head present by another route is `unknown` and escalates `merge_unreconciled`. A merge intent that cannot be written stops the finish before `git merge` |
+| Where a retry starts once merged | Under the runway and before preflight: an applied merge receipt, or the task log's merge entry, for the task's active branch goes to `_resume_delivery`. Preflight, rebase, gate and merge are skipped. The merge is recorded if the log lacks it, with `recovered_from`. A base without the merge, or a branch carrying commits since, escalates with the merge stated |
+| What delivery repeats | Rebuild unless its receipt for that SHA is applied. Restart unless `/api/version` already serves a commit containing the merge from this checkout (checked only on resume, once, without waiting). Verify always, and its receipt names `deployed_commit` and `source_root`. Close only if open. Cleanup is idempotent: an absent worktree or branch is done |
+| What cleanup may touch | Only the task's own worktree, only when the base contains its head, and only without `--force`, so uncommitted or untracked work is left in place. A closed task whose receipts show an applied close and a leftover worktree or branch gets cleanup only (`cleanup_resumed`) |
+| Whether authority still stands at the merge | `AuthorityGuard.before_merge`, called inside `merge` after its own checks and before the intent. A Stop requested since the finish began, an approval no longer standing with the same entry, or a posture release no longer permitted merges nothing. It raises `Withdrawn`: no ball move, no dispatch, because a newer human act already owns the ball |
+| What a Stop after the merge does | `AuthorityGuard.after_merge` before rebuild, restart, verify and close. Delivery stops, the record says the merge is done, the ball goes to human/decision naming the resume command, and nothing is dispatched. The Stop's own "nothing merged" prompt is superseded rather than left standing |
+| When a red gate is retried | Once, when the red names a stage (owner decision, task-322 entry 15). No stage named (timeout, crash) is not retried. A second red escalates `gate_failed` |
+| What the retry runs | `retry_selection`. Base unmoved: `--from <stage>`, since the earlier stages ran on the identical tree. Base moved and every path classified: rebase, then `--only` the stages the move reaches before the red one plus the red one onward. Unclassified move, or no announced stage list: the full gate |
+| What a retried green is called | `explain_red`. `inputs_changed` when a classified move reaches the red stage, or when the task corpus revision changed, the stage reads it and every failing test is in `gate_scope.MUTABLE_INPUTS["task_corpus"].readers`. Otherwise `flaky_test`, written as its own log entry (tests, stage, finish id, commit), even when an unclassified move might be the cause, which the explanation names |
+| What the corpus revision is | `corpus_revision`: task count, summed record revisions and newest `log_feed` position for the project, read-only. The feed alone missed a created task in testing |
+| What the merge says about the gate | The merge commit message, the merge entry and the close all carry `GateVerdict.sentence()`. The merge entry's `data.gate` holds both attempts' head, base, corpus revision, command and result, plus the per-stage receipt vector saying which attempt verified each stage |
+| What the panel says | `FinishStatus.merge_commit` also reads a killed attempt's `finish_merged` phase. `earlier_merge_commit` is a second fact from receipts or older directories for the same branch, and `state` is unchanged. `next_action` is one sentence. The headline for a retry that merged nothing reads "Already merged as ... — this attempt stopped", never "nothing was merged". The gate line says a green came on the one retry |
+
+**Not built here.** No automatic respawn of an interrupted finish: a killed finish is
+resumed by re-running `agentjobs finish`, and the panel's next action says so. The
+catch-up's reduced gate keeps its single attempt. The approval's reviewed head is still
+recorded but not enforced, as task-312 left it: a branch that moved after approval still
+finishes, on a full gate, because approval notes ask for follow-up commits (task-228).
+Re-review is task-343's note semantics. Automatic resumption of a killed finish is
+task-443. Receipts live beside finish records rather than in the execution store; the
+controller task-416 built drives runs, not finishes.
 
 ### Implementation ownership and order
 
