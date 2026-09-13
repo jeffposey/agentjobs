@@ -137,13 +137,17 @@ function withFold(exceptions: Set<string>, taskId: string, folded: boolean): Set
 }
 
 /**
- * The paragraph above the table describing the reorder keys.
+ * The text describing the reorder keys, behind the `?` button beside the filters.
  *
  * Every handle points at it with `aria-describedby` rather than carrying the
- * instructions in its own name. It is rendered exactly when reordering is available,
- * which is also exactly when a handle exists, so the reference never dangles.
+ * instructions in its own name. It is rendered whenever reordering is available, which
+ * is also exactly when a handle exists, so the reference never dangles -- and it stays
+ * in the document while the popover is closed, visually hidden rather than unmounted,
+ * so the description a screen reader gets does not depend on whether somebody hovered.
  */
 const REORDER_HELP_ID = "queue-reorder-help";
+/** The `?` button, so Escape can put focus back on it. */
+const HELP_BUTTON_ID = "task-help-button";
 
 /** The filter button, so Escape can put focus back where the popover was opened from. */
 const FILTER_BUTTON_ID = "task-filter-button";
@@ -320,6 +324,14 @@ export function TaskList({
   // and immediately reopen.
   const filtersRef = useRef<HTMLDivElement>(null);
   const firstFilterRef = useRef<HTMLSelectElement>(null);
+  // The keyboard help behind the `?` button (task-385). Two sources, because a tooltip
+  // and a tap are different gestures: `helpPeek` is a mouse resting on the button, and
+  // closes when it leaves; `helpPinned` is a click or a tap, and stays until dismissed.
+  // A touch screen has no hover, so only the pin ever opens it there.
+  const [helpPinned, setHelpPinned] = useState(false);
+  const [helpPeek, setHelpPeek] = useState(false);
+  const helpShown = helpPinned || helpPeek;
+  const helpRef = useRef<HTMLDivElement>(null);
 
   // Folds belong to a project, so switching project loads that project's own. Reading
   // during render rather than in an effect: an effect would paint one frame of the
@@ -493,6 +505,30 @@ export function TaskList({
       document.removeEventListener("mousedown", onPointerDown);
     };
   }, [filtersOpen]);
+
+  // The same two dismissals for the help. Escape returns focus to the button only when
+  // focus was inside, since a peek never took it anywhere.
+  useEffect(() => {
+    if (!helpShown) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const hadFocus = helpRef.current?.contains(document.activeElement) ?? false;
+      setHelpPinned(false);
+      setHelpPeek(false);
+      if (hadFocus) document.getElementById(HELP_BUTTON_ID)?.focus();
+    };
+    const onPointerDown = (event: MouseEvent) => {
+      if (helpRef.current?.contains(event.target as Node)) return;
+      setHelpPinned(false);
+      setHelpPeek(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onPointerDown);
+    };
+  }, [helpShown]);
 
   const toggle = (id: string) => {
     setExpanded((current) => {
@@ -936,15 +972,24 @@ export function TaskList({
                   ? "Filters, none set"
                   : `Filters, ${activeFilters.length} set: ${activeFilters.join(", ")}`
               }
+              title="Filters"
               onClick={() => setFiltersOpen((open) => !open)}
-              className={`touch-target flex items-center gap-1.5 rounded-lg border px-3 text-sm ${
+              className={`touch-target flex min-w-[44px] items-center justify-center gap-1.5 rounded-lg border px-2.5 text-sm ${
                 activeFilters.length > 0
                   ? "border-blue-500 bg-blue-950/40 text-blue-200"
                   : "border-dark-border bg-dark-bg text-dark-text hover:bg-dark-border"
               }`}
             >
-              <span aria-hidden="true">⌄</span>
-              <span>Filters</span>
+              {/* An icon rather than the word (task-385): the sidebar is 320px, and the
+                  word cost a third of the search box. The name above still says it. */}
+              <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false" data-testid="filter-icon">
+                <g stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" fill="none">
+                  <path d="M2.5 5h7.5M14 5h3.5M2.5 10h2.5M9 10h8.5M2.5 15h8.5M15 15h2.5" />
+                  <circle cx="12" cy="5" r="2" />
+                  <circle cx="7" cy="10" r="2" />
+                  <circle cx="13" cy="15" r="2" />
+                </g>
+              </svg>
               {activeFilters.length > 0 && (
                 <span
                   data-testid="active-filter-count"
@@ -989,33 +1034,76 @@ export function TaskList({
               </div>
             )}
           </div>
+          {/* The keyboard help, behind a `?` rather than on screen (task-385). It was
+              two lines above the first row of a 320px sidebar, read once and then paid
+              for on every visit. Hover shows it as a tooltip; a click or a tap pins it,
+              which is the only way in on a touch screen and from the keyboard. */}
+          {(tree || handlers) && (
+            <div
+              className="relative shrink-0"
+              ref={helpRef}
+              onPointerEnter={(event) => {
+                if (event.pointerType === "mouse") setHelpPeek(true);
+              }}
+              onPointerLeave={(event) => {
+                if (event.pointerType === "mouse") setHelpPeek(false);
+              }}
+            >
+              <button
+                type="button"
+                id={HELP_BUTTON_ID}
+                aria-label="Keyboard shortcuts"
+                aria-expanded={helpShown}
+                aria-controls={REORDER_HELP_ID}
+                onClick={() => {
+                  // Closing clears the peek too, so a click closes it under a mouse
+                  // that is still resting on the button.
+                  if (helpPinned) {
+                    setHelpPinned(false);
+                    setHelpPeek(false);
+                  } else {
+                    setHelpPinned(true);
+                  }
+                }}
+                className="touch-target flex min-w-[44px] items-center justify-center rounded-lg border border-dark-border bg-dark-bg px-2.5 text-sm font-semibold text-dark-muted hover:bg-dark-border hover:text-dark-text"
+              >
+                <span aria-hidden="true">?</span>
+              </button>
+              <div
+                id={REORDER_HELP_ID}
+                data-testid="keyboard-help"
+                data-open={helpShown}
+                className={
+                  helpShown
+                    ? "absolute right-0 top-full z-20 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-dark-border bg-dark-surface p-3 text-xs leading-5 text-dark-muted shadow-xl"
+                    : "sr-only"
+                }
+              >
+                {tree ? (
+                  <>
+                    <kbd>↑</kbd><kbd>↓</kbd> select · <kbd>←</kbd><kbd>→</kbd> fold,
+                    remembered for this project
+                    {handlers && (
+                      <>
+                        {" · "}
+                        <kbd>Alt</kbd>+<kbd>↑</kbd><kbd>↓</kbd> step a task through its priority
+                        band, <kbd>Alt</kbd>+<kbd>Home</kbd>/<kbd>End</kbd> for the ends. Dragging a grip
+                        does the same thing.
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    Rows are in queue order. Focus a task and press <kbd>Alt</kbd>+<kbd>↑</kbd> or{" "}
+                    <kbd>Alt</kbd>+<kbd>↓</kbd> to step it through its priority band, or{" "}
+                    <kbd>Alt</kbd>+<kbd>Home</kbd> and <kbd>Alt</kbd>+<kbd>End</kbd> for the ends.
+                    Dragging a grip does the same thing.
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-        {/* One paragraph in the sidebar, not two. Every vertical pixel above the first
-            row is a row a reader cannot see, and the four filter controls already
-            take most of a phone's worth of them -- which is what task-356 is for. */}
-        {tree ? (
-          <p id={REORDER_HELP_ID} className="text-xs leading-5 text-dark-muted">
-            <kbd>↑</kbd><kbd>↓</kbd> select · <kbd>←</kbd><kbd>→</kbd> fold,
-            remembered for this project
-            {handlers && (
-              <>
-                {" · "}
-                <kbd>Alt</kbd>+<kbd>↑</kbd><kbd>↓</kbd> step a task through its priority
-                band, <kbd>Alt</kbd>+<kbd>Home</kbd>/<kbd>End</kbd> for the ends. Dragging a grip
-                does the same thing.
-              </>
-            )}
-          </p>
-        ) : (
-          handlers && (
-            <p id={REORDER_HELP_ID} className="text-xs text-dark-muted">
-              Rows are in queue order. Focus a task and press <kbd>Alt</kbd>+<kbd>↑</kbd> or{" "}
-              <kbd>Alt</kbd>+<kbd>↓</kbd> to step it through its priority band, or{" "}
-              <kbd>Alt</kbd>+<kbd>Home</kbd> and <kbd>Alt</kbd>+<kbd>End</kbd> for the ends.
-              Dragging a grip does the same thing.
-            </p>
-          )
-        )}
         {!handlers && unavailableReason && (
           <p className="text-xs text-dark-muted">{unavailableReason}</p>
         )}

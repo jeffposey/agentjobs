@@ -1320,3 +1320,92 @@ describe("TaskList selection keeps the filters", () => {
     expect(url).toContain("status=all");
   });
 });
+
+// ---------------------------------------------------------------------------
+// task-385 -- the filter button is an icon, and the keyboard help is behind a `?`
+// ---------------------------------------------------------------------------
+
+function helpButton() {
+  return screen.getByRole("button", { name: "Keyboard shortcuts" });
+}
+
+function keyboardHelp() {
+  return screen.getByTestId("keyboard-help");
+}
+
+/**
+ * Hover is not asserted here: jsdom has no pointer to rest on a button, and a
+ * synthesised `pointerenter` would test the synthesis. `e2e/filter-popover.spec.ts`
+ * hovers for real. What jsdom can settle is the click, the dismissals and the wiring.
+ */
+describe("TaskList keyboard help and filter icon", () => {
+  it("draws the filter button as an icon while its name still says Filters", () => {
+    renderTree(epic());
+
+    const button = filterButton();
+    expect(button).toHaveAccessibleName("Filters, none set");
+    expect(within(button).getByTestId("filter-icon")).toBeInTheDocument();
+    // The word is gone from the drawing: the space it took is the point of the task.
+    expect(button.textContent).toBe("");
+  });
+
+  it("keeps the help off screen until the button is pressed", () => {
+    renderTree(epic(), { reorder: accepting() });
+
+    expect(helpButton()).toHaveAttribute("aria-expanded", "false");
+    expect(keyboardHelp()).toHaveClass("sr-only");
+    expect(keyboardHelp()).toHaveAttribute("data-open", "false");
+
+    fireEvent.click(helpButton());
+
+    expect(helpButton()).toHaveAttribute("aria-expanded", "true");
+    expect(keyboardHelp()).not.toHaveClass("sr-only");
+    expect(keyboardHelp()).toHaveTextContent(/fold, remembered for this project/);
+
+    fireEvent.click(helpButton());
+
+    expect(keyboardHelp()).toHaveClass("sr-only");
+  });
+
+  it("still describes every grip while it is closed", () => {
+    // Hiding the words from sight must not take them from a screen reader: the
+    // description a grip announces cannot depend on whether somebody hovered first.
+    renderTree(epic(), { reorder: accepting() });
+
+    const described = grip("task-after").getAttribute("aria-describedby") ?? "";
+    expect(described).toBe(keyboardHelp().id);
+    expect(keyboardHelp()).toHaveTextContent(/step a task through its priority band/);
+  });
+
+  it("closes on Escape, returning focus only if focus was inside", () => {
+    renderTree(epic());
+    helpButton().focus();
+    fireEvent.click(helpButton());
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(keyboardHelp()).toHaveClass("sr-only");
+    expect(document.activeElement).toBe(helpButton());
+  });
+
+  it("closes on a click outside it and stays open for a click inside it", () => {
+    renderTree(epic());
+    fireEvent.click(helpButton());
+
+    fireEvent.mouseDown(keyboardHelp());
+    expect(keyboardHelp()).not.toHaveClass("sr-only");
+
+    fireEvent.mouseDown(rowLink("task-after"));
+    expect(keyboardHelp()).toHaveClass("sr-only");
+  });
+
+  it("offers the queue-order help on the wide list, and no button where there is none", () => {
+    renderQueue([queued("task-a", 100)], { reorder: accepting() });
+    expect(keyboardHelp()).toHaveTextContent(/Rows are in queue order/);
+    cleanup();
+
+    // The wide list without reordering has no keys to explain.
+    renderList([task("task-open")]);
+    expect(screen.queryByRole("button", { name: "Keyboard shortcuts" })).not.toBeInTheDocument();
+  });
+});
