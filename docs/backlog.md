@@ -23,7 +23,7 @@ A task shows its id, its title, its one-sentence summary, what it is still waiti
 and the umbrella it belongs to. Everything else a record carries — the working spec, the
 decision log, branches, verification evidence — stays in the store.
 
-## Critical (14)
+## Critical (13)
 
 - **task-414** — Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do
 
@@ -94,12 +94,6 @@ decision log, branches, verification evidence — stays in the store.
   Exercise production replay and adapters against the recorded failure timelines, using crashes across every commit/effect boundary. Assert completion, justified waits, human actions and duplicate effects separately.
 
   *needs task-264 · needs task-375 · needs task-312 · needs task-322 · needs task-348 · needs task-415 · needs task-416 · needs task-417 · needs task-418 · part of task-414 (Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do)*
-
-- **task-424** — Let a human choose a specific runner, including Codex, for one dispatch
-
-  Add a per-dispatch runner override so the human can explicitly choose a configured Codex runner rather than relying on group order. Persist the authorized choice so retries and resumes cannot silently substitute a different runner.
-
-  *in progress*
 
 - **task-425** — `agentjobs redact` on a log entry body records a redaction the SQLite store never performs
 

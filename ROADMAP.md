@@ -51,7 +51,6 @@ are symptoms of not having it.
 - `task-417` — a run parked on an expired login is probed and woken, and the human is told once
 - `task-418` — an epic's waits persist, so a dead supervisor costs no child a restart
 - `task-419` — prove it with crash injection and a count of human touches per incident
-- `task-424` — a human can pick one specific runner for one dispatch, and the choice sticks
 - `task-389` — a run whose meta lacks a dispatch entry id is invisible to the poller for ever
 - `task-197` — the poller resolves the project's default runner, not the group's
 - `task-310` — a machine-wide default group makes `dispatch enable --runner` a silent no-op
