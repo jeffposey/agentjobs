@@ -29,9 +29,35 @@ def test_intents_are_stable_proposals_named_by_the_history() -> None:
     state = replay("exe", HISTORY)
     assert [(i.kind, i.activity_id) for i in next_intents(state)] == [
         ("observe", "exe:observe:run_a"),
-        ("deliver_signal", "exe:signal:task-001#9@t"),
+        ("deliver_signal", "exe:signal:run_a:task-001#9@t"),
     ]
     assert next_intents(state) == next_intents(replay("exe", HISTORY))
+
+
+def test_a_signal_pending_across_a_retry_is_a_new_proposal_not_a_conflicting_one() -> None:
+    """task-419: the same id with a new run in its input wedged every later replay."""
+    retried = replay(
+        "exe",
+        HISTORY
+        + [
+            Event(
+                5,
+                "concluded",
+                {
+                    "run_id": "run_a",
+                    "outcome": "interrupted",
+                    "retry_owed": True,
+                    "failure_class": "worker_gone",
+                },
+            ),
+            Event(6, "admitted", {"run_id": "run_b", "attempt_no": 2}),
+            Event(7, "launched", {"run_id": "run_b", "session_id": "s-2"}),
+        ],
+    )
+    first = {i.activity_id: i.input for i in next_intents(replay("exe", HISTORY))}
+    second = {i.activity_id: i.input for i in next_intents(retried)}
+    for activity_id, payload in second.items():
+        assert activity_id not in first or first[activity_id] == payload
 
 
 def test_a_stop_supersedes_every_other_proposal() -> None:
