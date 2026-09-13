@@ -61,6 +61,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -480,15 +481,25 @@ def failing_stage(output: str) -> Optional[str]:
     return None
 
 
+_COLOUR = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]")
+"""CSI escape sequences, which pytest writes around ``FAILED`` when it believes it has a
+terminal. ``dispatch.runner`` has the same pattern; it is not imported, because finish loads
+the runner lazily to keep the two modules from importing each other."""
+
+
 def failing_tests(output: str, limit: int = SALIENT_LIMIT) -> List[str]:
     """pytest's short-summary lines, in order, without repeats.
 
     Deduplicated because a rerun or a second reporting section prints the same line
     again, and a list that names one test twice reads as two failures.
+
+    Colour is removed first. A real gate log on 2026-09-13 (fin_fe726017) printed
+    ``<red>FAILED<reset> tests/...::<bold>test<reset>``, nothing matched the prefix, and the
+    recorded ``flaky_test`` named no test at all (task-419).
     """
     seen: List[str] = []
     for raw in (output or "").splitlines():
-        line = raw.strip()
+        line = _COLOUR.sub("", raw).strip()
         if not line.startswith(FAILURE_PREFIXES):
             continue
         if line not in seen:

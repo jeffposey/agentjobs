@@ -2598,6 +2598,11 @@ class TestLeadingWithTheCause:
             "ERROR c",
         ]
         assert failing_tests("the word FAILED in the middle of a line") == []
+        # The shape fin_fe726017's gate log really had: pytest colouring the summary line.
+        coloured = (
+            "\x1b[31mFAILED\x1b[0m tests/test_x.py::\x1b[1mTestY::test_z\x1b[0m - AssertionError"
+        )
+        assert failing_tests(coloured) == ["FAILED tests/test_x.py::TestY::test_z - AssertionError"]
 
     def test_a_flood_of_failures_is_capped_and_says_it_was(self, tmp_path: Path) -> None:
         output = "\n".join(f"FAILED tests/t.py::test_{i}" for i in range(40))
