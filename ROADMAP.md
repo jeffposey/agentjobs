@@ -90,15 +90,17 @@ decision log, branches, verification evidence — stays in the store.
 
   *needs task-264 · needs task-375 · needs task-312 · needs task-322 · needs task-348 · needs task-415 · needs task-416 · needs task-417 · needs task-418 · part of task-414 (Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do)*
 
-- **task-424** — Let a human choose a specific runner, including Codex, for one dispatch
-
-  Add a per-dispatch runner override so the human can explicitly choose a configured Codex runner rather than relying on group order. Persist the authorized choice so retries and resumes cannot silently substitute a different runner.
-
-  *in progress*
-
 - **task-425** — `agentjobs redact` on a log entry body records a redaction the SQLite store never performs
 
   Redacting a log entry's body appends a note saying the words were removed and leaves the original words in the stored row, on every surface. Title and spec redactions work; log bodies never reach the store.
+
+  *in progress*
+
+- **task-426** — Every task-332 authorization refusal reaches an MCP agent as `internal_error`, and an answered 5xx as `invalid_transition`
+
+  The REST layer answers a dispatched run's out-of-scope write with `{"code": "wrong_task"}` or `capability_denied`, but the MCP client's `ErrorCode` enum has no member for any principal or authorization code, so the classifier rewrites all eight of them to `internal_error` with no `suggested_action`. ALLAGENTS.md tells the run to branch on a code it can never see.
+
+  *in progress*
 
 ## High (67)
 
@@ -672,4 +674,4 @@ decision log, branches, verification evidence — stays in the store.
 
 ---
 
-30 further open tasks are drafts, not listed here. A draft is an idea that has not been specified yet: no agent can claim one and the queue does not hand one out.
+29 further open tasks are drafts, not listed here. A draft is an idea that has not been specified yet: no agent can claim one and the queue does not hand one out.
