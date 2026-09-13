@@ -1712,8 +1712,10 @@ class TaskManager:
             character count rather than the text or a hash of it: a hash of a short
             phrase is not one-way in any useful sense, and the point is that the words
             stop existing here.
-        *   The file is re-serialised canonically, because it goes out through the same
-            storage path as every other verb.
+        *   The stored text is really gone. Spec fields and the title are columns the
+            ordinary write upserts; a log body is not, because the store will not rewrite
+            an existing entry for anyone, so this verb alone asks for that row by name
+            through ``redact_log_body`` in the same transaction (task-425).
 
         ``field`` is addressed the way :mod:`agentjobs.quotation` addresses it:
         ``title``, ``ball_prompt``, ``spec.<name>`` for the prose spec fields, or
@@ -1743,6 +1745,11 @@ class TaskManager:
             removed = field_text(task, target)
             if removed is None:
                 raise ValueError(f"Task '{task_id}' has no region '{target}'.")
+            record: Dict[str, Any] = {
+                "field": target,
+                "reason": reason,
+                "removed_chars": len(removed),
+            }
             entry_match = _LOG_BODY_FIELD.fullmatch(target)
             if entry_match is not None:
                 wanted = int(entry_match.group(1))
@@ -1750,6 +1757,12 @@ class TaskManager:
                     if entry.id == wanted:
                         entry.body = replacement
                         break
+                # The store keeps the log append-only and will not persist a body edited
+                # on this object, so the rewrite is asked for by name -- inside this same
+                # transaction, which commits it with the note below or not at all.
+                # Without it the note recorded a removal the row never saw (task-425).
+                self.storage.redact_log_body(task.id, wanted, replacement)
+                record["stored_row_rewritten"] = True
             elif target.startswith("spec."):
                 setattr(task.spec, target[len("spec.") :], replacement)
             else:
@@ -1763,13 +1776,7 @@ class TaskManager:
                 # after the fact; reproducing the removed words to explain that would
                 # undo the redaction in the same entry that recorded it.
                 body=f"Redacted {target}: {reason}",
-                data={
-                    "redaction": {
-                        "field": target,
-                        "reason": reason,
-                        "removed_chars": len(removed),
-                    }
-                },
+                data={"redaction": record},
                 operation=operation,
             )
             return task

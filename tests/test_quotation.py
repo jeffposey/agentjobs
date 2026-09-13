@@ -329,6 +329,83 @@ class TestRedactionVerb:
         assert next(entry for entry in task.log if entry.id == entry_id).body == PARAPHRASE
         assert scan_task(task) == []
 
+    def test_a_redacted_log_body_is_gone_from_the_store_not_just_the_answer(self, manager):
+        """task-425: the returned object was right while the row kept the original words.
+
+        So this reloads, and reads the raw row as well: a load that happened to be served
+        from something other than ``log_entry`` would pass the first assertion alone.
+        """
+        task = task_with(manager)
+        task = manager.add_log_entry(
+            task.id, actor="bot", type=LogEntryType.PROGRESS, body=ATTRIBUTED_REMARK
+        )
+        entry_id = task.log[-1].id
+
+        manager.redact(
+            task.id,
+            field=f"log[{entry_id}].body",
+            replacement=PARAPHRASE,
+            reason="verbatim quotation of a person",
+            actor="claude",
+        )
+
+        reloaded = manager.get_task(task.id)
+        assert next(entry for entry in reloaded.log if entry.id == entry_id).body == PARAPHRASE
+        assert scan_task(reloaded) == []
+        row = manager.storage.database.writer.execute(
+            "SELECT body FROM log_entry WHERE task_id = ? AND entry_id = ?",
+            (task.id, entry_id),
+        ).fetchone()
+        assert row["body"] == PARAPHRASE
+
+        note = reloaded.log[-1]
+        assert note.data["redaction"]["stored_row_rewritten"] is True
+        assert "garbage" not in (note.body or "")
+
+    def test_a_replayed_log_redaction_rewrites_nothing_twice(self, manager):
+        task = task_with(manager)
+        task = manager.add_log_entry(
+            task.id, actor="bot", type=LogEntryType.PROGRESS, body=ATTRIBUTED_REMARK
+        )
+        kwargs = dict(
+            field=f"log[{task.log[-1].id}].body",
+            replacement=PARAPHRASE,
+            reason="verbatim quotation of a person",
+            actor="claude",
+            operation_id="11111111-2222-3333-4444-666666666666",
+        )
+
+        first = manager.redact(task.id, **kwargs)
+        second = manager.redact(task.id, **kwargs)
+
+        assert len(first.log) == len(second.log) == len(manager.get_task(task.id).log)
+
+    def test_save_task_cannot_rewrite_a_stored_log_body(self, manager):
+        """The log stays append-only for every other caller: only the verb rewrites."""
+        task = task_with(manager)
+        task = manager.add_log_entry(
+            task.id, actor="bot", type=LogEntryType.PROGRESS, body="What really happened."
+        )
+        entry_id = task.log[-1].id
+
+        edited = manager.get_task(task.id)
+        next(entry for entry in edited.log if entry.id == entry_id).body = "A rewritten past."
+        manager.storage.save_task(edited)
+
+        reloaded = manager.get_task(task.id)
+        assert (
+            next(entry for entry in reloaded.log if entry.id == entry_id).body
+            == "What really happened."
+        )
+
+    def test_the_rewrite_is_refused_for_an_entry_the_store_does_not_hold(self, manager):
+        from agentjobs.sqlstore.connection import SqlStoreError
+
+        task = task_with(manager)
+
+        with pytest.raises(SqlStoreError, match="nothing was redacted"):
+            manager.storage.redact_log_body(task.id, 999, PARAPHRASE)
+
     def test_the_record_is_left_in_canonical_form(self, manager, tmp_path):
         """The hand-splice's other cost: a record AgentJobs would have written differently.
 
@@ -484,6 +561,38 @@ class TestTheCommands:
 
         assert redacted.exit_code == 0
         assert runner.invoke(app, ["quotations"], catch_exceptions=False).exit_code == 0
+
+    def test_redacting_a_log_body_quiets_the_scan_in_a_fresh_process(self, project):
+        """task-425: the scan re-reads the store, so a redaction only in memory shows."""
+        task_id = self._seed(project, "Nothing quoted here.")
+        manager = TaskManager(task_store(project / "tasks"))
+        entry_id = (
+            manager.add_log_entry(
+                task_id, actor="bot", type=LogEntryType.PROGRESS, body=ATTRIBUTED_REMARK
+            )
+            .log[-1]
+            .id
+        )
+        assert runner.invoke(app, ["quotations"], catch_exceptions=False).exit_code == 1
+
+        redacted = runner.invoke(
+            app,
+            [
+                "redact",
+                task_id,
+                "--field",
+                f"log[{entry_id}].body",
+                "--replacement",
+                PARAPHRASE,
+                "--reason",
+                "verbatim quotation of a person",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert redacted.exit_code == 0
+        scan = runner.invoke(app, ["quotations"], catch_exceptions=False)
+        assert scan.exit_code == 0, scan.stdout
 
     def test_a_replacement_file_carries_multi_line_prose(self, project, tmp_path):
         task_id = self._seed(project, ATTRIBUTED_REMARK)

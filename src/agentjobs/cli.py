@@ -3452,7 +3452,11 @@ def quotations(
     storage_dir: Optional[str] = typer.Option(
         None,
         "--storage-dir",
-        help="Directory of task YAML. Defaults to the project's configured tasks_directory.",
+        help=(
+            "Scan a directory of task YAML -- an export, or a corpus about to be "
+            "imported -- instead of the project's live records. Omit it to scan the "
+            "database this project is served from."
+        ),
     ),
 ) -> None:
     """List record regions that quote a person verbatim instead of paraphrasing them.

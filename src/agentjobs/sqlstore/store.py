@@ -532,6 +532,35 @@ class SqlTaskStore:
             )
             return self._persist(updated)
 
+    def redact_log_body(self, task_id: str, entry_id: int, body: str) -> None:
+        """Overwrite one stored log entry's body. The redact verb's primitive, and its only.
+
+        The log is append-only, and :meth:`_replace_log` keeps it that way by never
+        touching a row that already exists -- so a body changed on the task object and
+        handed to :meth:`save_task` is not persisted. That is right for every caller but
+        one: a redaction exists precisely to make stored words stop existing (task-376).
+        Until task-425 the manager changed the entry in memory, recorded the redaction,
+        and the row kept the original text on every surface.
+
+        So the one legitimate rewrite is its own method rather than an exception inside
+        the append path, where it would be invisible and available to any caller. It
+        joins the caller's transaction, which is how the rewrite and the note recording
+        it commit or fail together. No prior revision is kept anywhere in the schema.
+        """
+        task_id = self._normalised_id(task_id)
+        with self.database.write() as connection:
+            cursor = connection.execute(
+                "UPDATE log_entry SET body = ? WHERE project_id = ? AND task_id = ? "
+                "AND entry_id = ?",
+                (body, self.project_id, task_id, entry_id),
+            )
+            if cursor.rowcount != 1:
+                # Refused rather than reported as done: a redaction whose row was not
+                # found has removed nothing, and the note would say otherwise.
+                raise SqlStoreError(
+                    f"{task_id} has no stored log entry {entry_id}; nothing was redacted."
+                )
+
     def _persist(self, task: Task, *, record_history: bool = True) -> Task:
         """Write the whole aggregate, emit history, and refresh the search index.
 
@@ -727,9 +756,11 @@ class SqlTaskStore:
     def _replace_log(self, connection: sqlite3.Connection, task: Task) -> None:
         """Insert log entries this task has and the database does not.
 
-        Append-only in both directions: entries are never updated or deleted here, so a
-        caller that hands back a task with an entry removed cannot erase it. The
-        exception is an entry whose body changed, which the manager never does.
+        Append-only in both directions, with no exceptions: a row that already exists is
+        never updated or deleted here, so a caller that hands back a task with an entry
+        removed cannot erase it, and one with an entry's body edited cannot rewrite it.
+        The edit is silently not persisted. The one sanctioned rewrite of a stored body
+        is a redaction, and it goes through :meth:`redact_log_body` (task-425).
         """
         existing = {
             row["entry_id"]

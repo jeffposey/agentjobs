@@ -29,7 +29,7 @@ What a SQL backend is not asked for, and why:
     the SQL one to be able to return an invalid task.
 
 What every backend must do is below. It is deliberately small: eight reads, five
-writes, and a transaction.
+writes, the redaction primitive, and a transaction.
 """
 
 from __future__ import annotations
@@ -92,6 +92,15 @@ class TaskStore(Protocol):
 
         The mutator may return ``None`` to decline, which is how a caller checks a
         precondition against state it knows cannot change under it.
+        """
+
+    def redact_log_body(self, task_id: str, entry_id: int, body: str) -> None:
+        """Rewrite one stored log entry's body, joining the caller's transaction.
+
+        The one exception to an append-only log, and only the redact verb calls it.
+        :meth:`save_task` must not persist a changed body on an existing entry, so
+        without this a redaction records itself and removes nothing (task-425). Raises
+        when there is no such stored entry rather than reporting a removal.
         """
 
     def delete_task(self, task_id: str) -> bool:
