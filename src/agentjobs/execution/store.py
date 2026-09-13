@@ -447,7 +447,9 @@ def process_created_after(pid: int, moment: datetime) -> bool:
             )
         else:
             stat = Path(f"/proc/{pid}/stat").read_text(encoding="ascii")
-            since_boot = int(stat.rsplit(")", 1)[1].split()[19]) / getattr(os, "sysconf")("SC_CLK_TCK")
+            since_boot = int(stat.rsplit(")", 1)[1].split()[19]) / getattr(os, "sysconf")(
+                "SC_CLK_TCK"
+            )
             boot = next(
                 int(line.split()[1])
                 for line in Path("/proc/stat").read_text(encoding="ascii").splitlines()
