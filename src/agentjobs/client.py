@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from .models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome, Priority, Task
 from .principals import RUN_CREDENTIAL_HEADER
-from .schema_tolerance import tolerant_enum_values
+from .schema_tolerance import tolerant_schema_reader
 from .session_identity import SessionIdentity
 
 logger = logging.getLogger(__name__)
@@ -812,23 +812,42 @@ class TaskClient:
         ``retryable: false`` against a service that was serving the same task over
         ``curl`` without complaint (task-024).
 
-        Tolerance is scoped to this call and covers unknown *members of known enums*
-        only; a payload that is genuinely malformed still raises here exactly as it did
-        before. Skew is reported rather than swallowed -- one warning per unknown value,
-        naming the enum, the value and the task -- because a client that quietly
-        interprets nothing is its own kind of failure.
+        A field added below the top level does it too: task-375's ``envelope`` and
+        ``delivery`` on dispatch entries turned a supervisor's successful
+        ``task_log_append`` into ``internal_error``, and the retry that invited wrote
+        the entry twice (task-445).
+
+        Tolerance is scoped to this call and covers unknown *members of known enums* and
+        *keys a nested model does not declare*; a payload that is genuinely malformed --
+        a missing field, a wrong type -- still raises here exactly as it did before.
+        Nothing parsed here is written back, and a log entry's ``data`` keeps its raw
+        mapping, so a newer writer's fields are never dropped from the record. Skew is
+        reported rather than swallowed -- one warning per unknown value or field,
+        naming where it was and the task -- because a client that quietly interprets
+        nothing is its own kind of failure.
         """
         declared = {key: value for key, value in data.items() if key in Task.model_fields}
-        with tolerant_enum_values() as unknown:
+        with tolerant_schema_reader() as unknown:
             task = Task.model_validate(declared)
-        for enum_name, value in unknown:
+        for item in unknown:
+            if item.kind == "field":
+                logger.warning(
+                    "Task %s carries field %r on %s, which this copy of the AgentJobs "
+                    "schema does not declare; leaving it out of the parse. The service at "
+                    "%s is newer than this process -- restart it to interpret the field.",
+                    task.id,
+                    item.name,
+                    item.owner,
+                    self._base_url,
+                )
+                continue
             logger.warning(
                 "Task %s carries %s value %r, which this copy of the AgentJobs schema "
                 "does not know; keeping it verbatim. The service at %s is newer than "
                 "this process -- restart it to interpret the value.",
                 task.id,
-                enum_name,
-                value,
+                item.owner,
+                item.name,
                 self._base_url,
             )
         return task
