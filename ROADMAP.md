@@ -293,7 +293,6 @@ fire on events, or the queue Phase 6 feeds stops being one anybody trusts.
 - `task-299` — run a playbook from where the work is, and stop the guard refusing its own targets
 - `task-405` — groom the backlog
 - `task-412` — the roadmap playbook never says how its branch reaches main or comes down
-- `task-413` — this page: the published roadmap was a flat printout of the queue
 
 ---
 
