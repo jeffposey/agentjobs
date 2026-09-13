@@ -18,7 +18,7 @@ A task shows its id, its title, its one-sentence summary, what it is still waiti
 and the umbrella it belongs to. Everything else a record carries — the working spec, the
 decision log, branches, verification evidence — stays in the store.
 
-## Critical (14)
+## Critical (13)
 
 - **task-414** — Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do
 
@@ -89,12 +89,6 @@ decision log, branches, verification evidence — stays in the store.
   Exercise production replay and adapters against the recorded failure timelines, using crashes across every commit/effect boundary. Assert completion, justified waits, human actions and duplicate effects separately.
 
   *needs task-264 · needs task-375 · needs task-312 · needs task-322 · needs task-348 · needs task-415 · needs task-416 · needs task-417 · needs task-418 · part of task-414 (Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do)*
-
-- **task-425** — `agentjobs redact` on a log entry body records a redaction the SQLite store never performs
-
-  Redacting a log entry's body appends a note saying the words were removed and leaves the original words in the stored row, on every surface. Title and spec redactions work; log bodies never reach the store.
-
-  *in progress*
 
 - **task-426** — Every task-332 authorization refusal reaches an MCP agent as `internal_error`, and an answered 5xx as `invalid_transition`
 
