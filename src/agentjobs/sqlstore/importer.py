@@ -77,7 +77,7 @@ class QuotationPolicyError(Exception):
     So the scan runs over every readable document **before** the write transaction
     opens, and a hit raises this with nothing written. The cost is the one the task
     named: a false positive stops a cutover. Three things bound it. The same detector
-    fails the gate over ``tasks/``, so a record reaching an import has already passed
+    fails the gate over the store's records, so a record reaching an import has already passed
     the check on its way into ``main``; ``agentjobs redact`` makes a real hit a
     one-command fix; and ``enforce_quotation_policy=False`` lets an operator who has
     read the hits and judged them proceed, with the report saying the policy was off.

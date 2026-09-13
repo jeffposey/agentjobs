@@ -436,7 +436,7 @@ rather than as engineering.
     the substance: "rejected the section outright" carries everything a reader needs.
 -   Already written one? `agentjobs redact` replaces a field **or a log entry body** —
     the only verb that reaches the append-only log — and records that it did.
-    `agentjobs quotations` finds them; the gate over `tasks/` and the SQLite importer
+    `agentjobs quotations` finds them; the gate's corpus checks and the SQLite importer
     both refuse a record carrying one.
 
 ### Agent Handoffs

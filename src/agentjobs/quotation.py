@@ -46,7 +46,7 @@ reproduced here or in the tests.
 
 **Where it runs.** Three tiers, escalating with how durable the damage would be:
 :mod:`agentjobs.record_check` warns the author at the moment of the write,
-``tests/test_task_corpus.py`` fails the gate over ``tasks/``, and
+``tests/test_task_corpus.py`` fails the gate over the store's records, and
 :mod:`agentjobs.sqlstore.importer` refuses an import outright. The fix at any tier is
 ``agentjobs redact``.
 """

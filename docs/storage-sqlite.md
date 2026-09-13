@@ -333,7 +333,7 @@ record for its content would put the content in the database in the same act tha
 claimed to keep it out.
 
 The cost is that a false positive stops an import. Three things bound it: the same
-detector fails the gate over `tasks/`, so a record reaching an import has already passed
+detector fails the gate's corpus checks, which read the store, so a record reaching an import has already passed
 the check on its way into `main`; `agentjobs redact` makes a real hit a one-command fix;
 and `run(enforce_quotation_policy=False)` lets an operator who has read the hits proceed
 anyway, with `ImportReport.render()` saying the policy was off and naming every region it

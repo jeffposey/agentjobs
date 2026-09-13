@@ -3462,7 +3462,7 @@ def quotations(
     """List record regions that quote a person verbatim instead of paraphrasing them.
 
     The operator-facing half of the check that warns an author at the write, fails the
-    gate over `tasks/`, and refuses an import -- see `agentjobs.quotation` for what the
+    gate over the store's records, and refuses an import -- see `agentjobs.quotation` for what the
     detector can and cannot see. Fix each region it names with `agentjobs redact`.
 
     Exits 1 when anything is found, so it can be used as a check of its own. It prints

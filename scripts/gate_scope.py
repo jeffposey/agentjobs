@@ -70,7 +70,8 @@ against the store and turned every open branch red whenever a task the page rost
 closed anywhere -- including the task that merged the page. The owner had it removed:
 the page may run behind the store until the ``roadmap`` playbook's next pass, and
 ``export_roadmap.py --audit`` stays as a command that pass runs. Whether ``pytest``
-belongs here -- its corpus checks read the same store -- is task-409's question.
+belongs here is task-409's question, and it is no longer academic: its corpus checks read
+the same store, and since task-411 they run -- and fail -- rather than skipping.
 """
 
 
