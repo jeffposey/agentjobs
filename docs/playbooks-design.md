@@ -609,8 +609,15 @@ What actually holds the line, in order of when it acts:
    playbook and pins its hash. A run that acted outside its contract has documented
    itself doing so, in git, and the finding is grounds to fix the brief.
 
-Mechanical per-run enforcement (per-run tokens the API checks verbs against) is
-possible future work. **Reopen when a playbook run is first observed acting outside
+Per-run identity does exist now (task-331), and the API checks it by capability rather
+than against `verbs:`. Until task-411 that check scoped a run to its own task, which made
+`groom` and `reorder` refuse `wrong_task` at their first write (task-406). The owner
+lifted the task scope on 2026-09-13, so a playbook run can execute its declared verbs on
+the tasks it exists to act on; [authorization](authorization.md) states what still bounds
+it. The contract above is still audited from the record, not enforced.
+
+Mechanical per-run enforcement of `verbs:` (the API checking verbs against a playbook's
+declaration) is possible future work. **Reopen when a playbook run is first observed acting outside
 its declared contract** — build it on evidence of the failure, not in anticipation.
 
 ### 6.3 A playbook cannot widen what executes
