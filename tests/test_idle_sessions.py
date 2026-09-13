@@ -210,7 +210,9 @@ class TestNeverStopped:
     """One test per protected class in the spec (a3)."""
 
     def test_remote_control_host(self) -> None:
-        assert verdicts(evidence())[20].verdict == VERDICT_PROTECTED
+        view = verdicts(evidence())[20]
+        assert view.verdict == VERDICT_PROTECTED
+        assert view.name == "Remote Control: agentjobs"
 
     def test_remote_control_child_is_reported_never_a_candidate(self) -> None:
         view = verdicts(evidence())[21]

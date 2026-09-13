@@ -41,7 +41,7 @@ human is asking, this stops being a table and becomes a role system.
 | `task.queue` | queue-move, queue-keep, reprioritize | ✓ | ✓ | ✓ |
 | `task.review` | approve, request-changes, answer, redirect, hold, resume, reject | ✓ | ✓ | — |
 | `dispatch.start` | task dispatch, playbook run, run cancel | ✓ | ✓ | — |
-| `dispatch.admin` | dispatch enable / disable | ✓ | ✓ | — |
+| `dispatch.admin` | dispatch enable / disable, idle-session settings | ✓ | ✓ | — |
 | `project.admin` | project register / init / inspect | ✓ | ✓ | — |
 | `queue.admin` | queue repair / compact | ✓ | ✓ | — |
 | `webhook.admin` | webhook create / delete / test | ✓ | ✓ | — |

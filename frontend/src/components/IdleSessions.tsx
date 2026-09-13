@@ -58,9 +58,14 @@ export function verdictLabel(verdict: string): string {
   return VERDICT_LABELS[verdict] ?? verdict;
 }
 
-/** Desktop helper processes are many and never touched; they are counted, not listed. */
+/**
+ * Desktop helper processes are many and never touched, so they are counted, not listed.
+ * A terminal host is its background session's other half and would only repeat its row.
+ */
 export function listedSessions(body: IdleSessionsView): IdleSessionView[] {
-  return body.sessions.filter((session) => session.kind !== "desktop");
+  return body.sessions.filter(
+    (session) => session.kind !== "desktop" && session.kind !== "pty_host",
+  );
 }
 
 export function stopEvents(body: IdleSessionsView): IdleSessionEventView[] {
@@ -126,7 +131,7 @@ export function IdleSessionsPanel({
   }
 
   const listed = listedSessions(body);
-  const desktop = body.sessions.length - listed.length;
+  const desktop = body.sessions.filter((session) => session.kind === "desktop").length;
   const stops = stopEvents(body);
   const modes = body.events.filter((event) => event.kind === "mode");
   const enforce = body.settings.enforce;

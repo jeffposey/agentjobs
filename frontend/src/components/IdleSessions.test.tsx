@@ -75,6 +75,7 @@ function body(overrides: Partial<IdleSessionsView> = {}): IdleSessionsView {
         idle_seconds: null,
       }),
       session({ pid: 30, kind: "desktop", verdict: "protected", name: "" }),
+      session({ pid: 11, kind: "pty_host", verdict: "protected" }),
     ],
     errors: [],
     events: [],
@@ -94,7 +95,7 @@ describe("IdleSessionsPanel", () => {
     expect(within(table).getByText(/owner relies on Remote Control/)).toBeTruthy();
   });
 
-  it("counts desktop processes instead of listing them", () => {
+  it("counts desktop processes and folds terminal hosts into their session", () => {
     expect(listedSessions(body()).map((s) => s.pid)).toEqual([12, 20]);
     render(<IdleSessionsPanel body={body()} />);
     expect(screen.getByTestId("desktop-count").textContent).toContain("1 Claude desktop");

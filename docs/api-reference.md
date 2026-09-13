@@ -265,15 +265,17 @@ the second switch and can never define what runs. See
 `transcript.log` is a raw TTY capture, so a line appears in it once per terminal
 repaint. Link to it and read it; never compute a count from it.
 
-### The one route that is not project-scoped
+### The routes that are not project-scoped
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/runs/live` | Every run happening on this **machine**, in every project, with its remaining capacity |
+| `GET` | `/api/sessions/idle` | Every Claude Code process on this machine, the idle sweep's verdict on each and why, and its record of stops and switch-overs (task-447) |
+| `PUT` | `/api/sessions/idle/settings` | Turn idle-session enforcement on or off, or change `idle_minutes`. Needs `dispatch.admin` |
 
 Every other route on this page is mounted twice -- once at `/api/...` for the default
 project and once at `/api/projects/{project_id}/...` -- and answers about that one
-project. This one is mounted once and has no project-scoped spelling, because the
+project. These are mounted once and have no project-scoped spelling. For runs, because the
 resource it describes is not a project's: `limits.max_concurrent_runs` is machine-level,
 the run ledger under `~/.agentjobs/runs/` is machine-level, and the run occupying the
 last slot is usually on some other project's task. Serving the same body under every

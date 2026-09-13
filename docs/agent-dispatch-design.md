@@ -4146,6 +4146,104 @@ fell in the last 8 days. task-440's review owns the after count.
 which would justify reaping those sessions. Also reopen if batch runs become routine, or
 if a Claude Code release newer than 2.1.270 names this race in its changelog.
 
+### What task-447 built: the idle-session sweep (2026-09-13)
+
+task-442 left the other seven refreshers to the owner. The owner stopped the idle ones by
+hand, taking the machine from 11 processes to 4, and then asked for that to stay true
+without the hand. They also said they were worried about stopping something they still
+needed. So the design question was never *how to stop* a session. It was **what has to
+be proven first**, and how to undo a stop.
+
+`dispatch/idle_sessions.py` has three parts:
+
+1. **An inventory.** It reads every process (`Win32_Process` on Windows, `ps` elsewhere,
+   command lines only, never environments) and classifies each Claude Code process from
+   its command line and parent. It joins that with `claude agents --json` and the run
+   records. **A background session's idle time is its transcript's mtime, gated on the
+   ledger saying `idle`.** Process age is never used.
+2. **A verdict per process, default-deny.** A process is a *candidate* only when every
+   one of these holds:
+   - it is a background session (its parent is a `--bg-pty-host`)
+   - the ledger says `idle`
+   - no `claude attach <id>` process names it
+   - no AgentJobs run record names its session, whatever that run's status
+   - it is not named like a dispatch
+   - it is not an ancestor of the sweeping process
+   - it has a transcript, so it is resumable
+   - the transcript has been quiet past the threshold
+
+   Any other process is protected, and its row states why.
+3. **The sweep.** It runs on the poller's tick, at most once per five minutes, and **stops
+   nothing unless `idle_sessions.enforce` is true**, which is off by default. It stops at
+   most `max_stops_per_sweep` (3) per sweep. Immediately before each stop it re-checks:
+   - the pid's creation time (`process_identity`; the pid-reuse hazard of task-419 and task-444)
+   - its command line
+   - the ledger status
+   - the transcript mtime
+
+   Any change declines the stop, and the decline is recorded too. The stop itself is
+   `claude stop <id>`, which keeps the conversation.
+
+| Class | Verdict | Why |
+| --- | --- | --- |
+| `claude rc` host | never stopped | the owner relies on Remote Control |
+| `--print --sdk-url` child | **reported, never stopped** | see below |
+| `claude daemon run`, `--bg-pty-host` | never stopped | infrastructure; a pty host goes with its session |
+| desktop app and its bundled `claude-code` | never stopped | its own login; out of scope |
+| interactive CLI, short-lived commands | never stopped | someone's terminal, or not a session |
+| bg session with any AgentJobs run record | never stopped | `runner._finish_session` owns it; `finished_without_handoff` stays attachable on purpose (task-442) |
+| bg session busy / waiting / attached | in use | |
+| bg session idle under threshold | idle | |
+| bg session idle past threshold, resumable | **candidate** | |
+
+**The threshold is 240 minutes.** Every session the owner stopped on 2026-09-13 had been
+quiet for at least 7h29m: the Remote Control children 7h29m to 9h47m, the orphans two
+days. 240 minutes is also eight times `session_stall_seconds`, the longest a healthy
+working session goes silent. A stop can be undone, so the threshold only needs to be long
+enough that nobody is mid-thought.
+
+**The record.** `idle_session_event` in `execution.db` (schema revision 4) has two kinds of
+row:
+- one per stop, whether stopped, failed or declined. It holds the name, cwd, pid, last
+  activity, idle seconds, the reason and **the two resume commands**: `claude attach <id>`
+  and `claude --bg --resume <uuid>`.
+- one per change of enforcement mode, **with the `auth_incident` count at that moment**.
+  That count is task-440's switch-over point. No mode row is written while enforcement has
+  never been on, because a record of the default says nothing.
+
+The React "Idle Claude sessions" section on *Running now* reads
+`GET /api/sessions/idle`. Its two-click switch is `PUT /api/sessions/idle/settings`, which
+needs `dispatch.admin`, so a dispatched run is refused it. On the CLI:
+`agentjobs sessions idle` shows the report, and `agentjobs sessions stop-idle <id>` stops
+one named session through the same guards.
+
+**Verified by stopping a real session and resuming it**, 2026-09-13 23:48-23:52Z. The probe
+`fc7dcc92` was a Haiku bg session in a scratch directory, given the code word `PELICAN-47`.
+1. The report judged it the one candidate at a 1-minute threshold, 89s quiet. Every other
+   process stayed protected, including the task-385 run and this run.
+2. `stop-idle` stopped it, and both its pids were gone.
+3. The record came back with both resume commands.
+4. `claude --bg --resume <uuid>`, with a question on stdin, woke it **in place under the
+   same id**, and it answered `PELICAN-47`.
+
+The record rendered in the section at 1280px and 400px, served from a sandbox home.
+
+**Remote Control children stay report-only.** Killing one does not end quietly. The host
+logs `Bridge session failed` and calls `POST .../work/<cse_id>/stop` on that conversation's
+work item, then returns to idle. That is the `agentjobs` rc log for the three children the
+owner stopped at 2026-09-13T23:04:57Z. The host's own debug log has nothing after that
+showing the phone resuming the conversation, and whether it can was not tested: it needs a
+person on the phone, and the constraints rule out degrading Remote Control to find out. So
+the spec's condition, *enforced only if nothing is lost*, is not met, and they are never
+candidates.
+
+**Reopen when:**
+- the owner verifies on the phone that a stopped child's conversation continues; then
+  children can become candidates
+- a stop is ever recorded `failed`
+- an auth incident opens while a candidate was left running under report mode; that is
+  the argument for switching enforcement on
+
 ### What task-443 built (2026-09-13)
 
 A finish whose process died is started again by the poller, once. Authoritative from

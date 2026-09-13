@@ -396,6 +396,8 @@ def judge(evidence: Evidence, *, idle_minutes: int) -> List[SessionView]:
             view.reason = "The background-session daemon every bg session runs under."
             continue
         if kind == KIND_RC_HOST:
+            prefix = _flag_value(arguments, "--remote-control-session-name-prefix")
+            view.name = view.name or (f"Remote Control: {prefix}" if prefix else "")
             view.reason = "A Remote Control host. The owner relies on Remote Control."
             continue
         if kind == KIND_PTY_HOST:
