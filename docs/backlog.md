@@ -99,6 +99,8 @@ decision log, branches, verification evidence — stays in the store.
 
   Redacting a log entry's body appends a note saying the words were removed and leaves the original words in the stored row, on every surface. Title and spec redactions work; log bodies never reach the store.
 
+  *in progress*
+
 ## High (67)
 
 - **task-421** — Notify the human when AgentJobs is waiting on them
