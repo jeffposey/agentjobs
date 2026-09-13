@@ -1000,7 +1000,7 @@ say what was meant. "Rejected the section outright" carries everything.
 | Where | What it does | What you see |
 |---|---|---|
 | `agentjobs.record_check` | Warns the author, on the write that added the text | A `quoted_remark` warning in the tool result |
-| `tests/test_task_corpus.py` | Fails the gate over `tasks/` | The failure names the regions |
+| `tests/test_task_corpus.py` | Fails the gate, reading the store | The failure names the regions |
 | `agentjobs.sqlstore.importer` | Refuses the import, having written nothing | `QuotationPolicyError`, naming the regions |
 
 Each names a region -- `task-286: log[5].body at offset 218 (informality)` -- and never

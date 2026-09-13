@@ -24,10 +24,9 @@ identity was established, not what they are allowed to do, and narrowing ``tailn
 would be an access policy rather than an authorization model. The proxy is where an
 access policy belongs (task-244).
 
-**A run's set is scoped, not merely small.** Membership in the set is only half of an
-answer for a ``run``: a run that may close *any* task can still close somebody else's,
-so the verbs that name a task are additionally required to name **its own**. See
-:data:`OWN_TASK_ONLY`.
+**A run's set is small, and since task-411 it is not scoped to one task.** A run may
+edit, move and reorder any task in the backlog; what it may not do is any act a human
+signs for. See :data:`OWN_TASK_ONLY` for why the scope was lifted and what it cost.
 
 Nothing here raises or knows about HTTP. It answers with a :class:`Denial` carrying a
 code and a sentence, and :mod:`agentjobs.api.authorization` decides what status that is
@@ -121,23 +120,30 @@ GRANTS: Dict[PrincipalKind, FrozenSet[Capability]] = {
 """The capability table. Every kind appears; a kind added without a row fails
 ``tests/test_capabilities.py`` rather than silently holding nothing or everything."""
 
-OWN_TASK_ONLY: FrozenSet[Capability] = frozenset(
-    {
-        Capability.TASK_EDIT,
-        Capability.TASK_VERB,
-        Capability.TASK_QUEUE,
-    }
-)
-"""Capabilities a ``run`` holds only against the task it was dispatched to work.
+OWN_TASK_ONLY: FrozenSet[Capability] = frozenset()
+"""Capabilities a ``run`` holds only against the task it was dispatched to work. None.
 
-``TASK_QUEUE`` is in here, which is the one entry worth defending. ALLAGENTS.md tells an
-agent that disagrees with the backlog's order to move the task it thinks should be first
--- but that instruction addresses a session *choosing* what to work on next, and a
-dispatched run is given its task rather than choosing it. A run reordering other people's
-work is the same class of act as closing it.
+task-332 put ``TASK_EDIT``, ``TASK_VERB`` and ``TASK_QUEUE`` here, on the argument that a
+run reordering or closing other people's work is not what it was dispatched for. **The
+owner lifted it on 2026-09-13 (task-411)**, because in practice it stopped the work
+rather than protecting it. The ``groom`` and ``reorder`` playbooks exist to close and
+move *other* tasks and refused ``wrong_task`` at their first write (task-406). An
+ordinary run could not fix the record turning its own gate red: task-411 found a dead
+context pointer on task-105 and needed human round trips to get it closed.
 
-Not applied to humans: an owner reorders the backlog, which is the whole point of the
-queue controls on the dashboard.
+**What still bounds a run** is everything outside this set. It holds no ``TASK_REVIEW``,
+so it cannot approve, and approval is the only thing that starts a scripted finish or an
+auto-dispatch. It holds no ``DISPATCH`` and no admin capability. It writes only as the
+agent it was dispatched as, so everything it does to another task is attributed to it in
+an append-only log.
+
+**What it cost:** a run can close, rewrite or reorder any task, including one another run
+is working or a person is reviewing. Every such write is a logged verb and recoverable,
+and nothing in AgentJobs pushes. Nor is the scope narrowed to the run's *project*: the
+credential does not carry one today, and adding it is its own change.
+
+The mechanism is kept rather than deleted, so re-scoping a capability is a one-line
+decision rather than a rebuild.
 """
 
 
@@ -241,7 +247,7 @@ def _why_not(principal: Principal, capability: Capability) -> str:
     if principal.is_run:
         return (
             "A dispatched run holds a deliberately smaller set than the person who "
-            "dispatched it: it may work its own task and file new ones, and it may not "
+            "dispatched it: it may edit, move and file tasks, and it may not "
             "approve a review, start or cancel a run, change dispatch configuration, "
             "register a project, or repair the queue. Those are acts a human signs for."
         )

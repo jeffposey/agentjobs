@@ -20,7 +20,6 @@ from agentjobs.capabilities import (
     IDENTITY_UNRESOLVED,
     OWN_TASK_ONLY,
     WRONG_RUN,
-    WRONG_TASK,
     actor_disagreement,
     authorize,
     granted,
@@ -149,16 +148,20 @@ class TestAuthorize:
         for capability in Capability:
             assert authorize(owner(), capability, task_id="task-999") is None
 
+    TASK_WRITES = (Capability.TASK_EDIT, Capability.TASK_VERB, Capability.TASK_QUEUE)
+
     def test_a_run_may_work_its_own_task(self) -> None:
-        for capability in sorted(OWN_TASK_ONLY, key=lambda item: item.value):
+        for capability in self.TASK_WRITES:
             assert authorize(run(), capability, task_id="task-001") is None
 
-    def test_a_run_may_not_touch_another_task(self) -> None:
-        """The clause that matters as much as the list: scoped, not merely small."""
-        denial = authorize(run(), Capability.TASK_VERB, task_id="task-002")
-        assert denial is not None
-        assert denial.code == WRONG_TASK
-        assert "task-001" in denial.detail and "task-002" in denial.detail
+    def test_a_run_may_act_on_another_task(self) -> None:
+        """Lifted by the owner in task-411: groom, reorder and corpus repair all need it.
+
+        The bound is the human acts, asserted above, not the task a run was given.
+        """
+        assert OWN_TASK_ONLY == frozenset()
+        for capability in self.TASK_WRITES:
+            assert authorize(run(), capability, task_id="task-002") is None
 
     def test_a_run_may_not_approve_a_review(self) -> None:
         denial = authorize(run(), Capability.TASK_REVIEW, task_id="task-001")

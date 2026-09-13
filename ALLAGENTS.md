@@ -229,14 +229,14 @@ recoverability is the whole reason an unreviewed merge is acceptable here.
 If you are supervising a parent task, the clause is phrased for you instead: it tells you
 what the children you start will do, and you approve nothing yourself either way.
 
-### Your API and MCP writes are scoped to your own task
+### What your API and MCP writes may touch
 
 Every request you make over HTTP carries your run's credential, so the server knows you
-are a run rather than the person at the keyboard (task-332). You may work **your own**
-task -- log, hand off, close, reorder it -- and file new tasks. You may not approve a
-review, dispatch anything, change dispatch configuration, register a project, repair the
-queue, or act on a task that is not yours. A 403 naming `wrong_task` or
-`capability_denied` is that rule and not a bug; ask the human, or say so on the record.
+are a run rather than the person at the keyboard (task-332). You may log, edit, hand off,
+close and reorder **any** task, and file new ones (task-411). You may not approve a
+review, dispatch anything, change dispatch configuration, register a project, or repair
+the queue. A 403 naming `capability_denied` is that rule and not a bug; ask the human,
+or say so on the record.
 The CLI speaks no HTTP and is unaffected, which is how the epic walk still starts
 children. The table is in [docs/authorization.md](docs/authorization.md).
 
@@ -436,7 +436,7 @@ rather than as engineering.
     the substance: "rejected the section outright" carries everything a reader needs.
 -   Already written one? `agentjobs redact` replaces a field **or a log entry body** —
     the only verb that reaches the append-only log — and records that it did.
-    `agentjobs quotations` finds them; the gate over `tasks/` and the SQLite importer
+    `agentjobs quotations` finds them; the gate's corpus checks and the SQLite importer
     both refuse a record carrying one.
 
 ### Agent Handoffs

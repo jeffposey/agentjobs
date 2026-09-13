@@ -186,39 +186,6 @@ class TestARunIsRefused:
 
         assert body["code"] == "capability_denied"
 
-    def test_it_cannot_act_on_a_task_that_is_not_its_own(self, sandbox: Path) -> None:
-        """The clause that matters as much as the list. Every verb, not a sample: a
-        scope check applied to four of five verbs is the same defect as none."""
-        mine = a_task(owner(), "Mine")
-        yours = a_task(owner(), "Yours")
-        client, _ = dispatched(sandbox, mine)
-
-        attempts = {
-            f"/api/tasks/{yours}/claim": {"agent": "claude"},
-            f"/api/tasks/{yours}/log": {"actor": "claude", "type": "progress", "body": "hi"},
-            f"/api/tasks/{yours}/close": {"actor": "claude", "outcome": "completed"},
-            f"/api/tasks/{yours}/handoff": {
-                "actor": "claude",
-                "ball": "human",
-                "ball_reason": "review",
-                "ball_prompt": "look",
-            },
-            f"/api/tasks/{yours}/queue-move": {"actor": "claude", "top": True},
-        }
-        for path, payload in attempts.items():
-            body = refusal(client.post(path, json=payload))
-            assert body["code"] == "wrong_task", path
-            assert yours in body["detail"] and mine in body["detail"], path
-
-    def test_it_cannot_edit_another_task(self, sandbox: Path) -> None:
-        mine = a_task(owner(), "Mine")
-        yours = a_task(owner(), "Yours")
-        client, _ = dispatched(sandbox, mine)
-
-        body = refusal(client.patch(f"/api/tasks/{yours}", json={"title": "Rewritten"}))
-
-        assert body["code"] == "wrong_task"
-
     def test_it_cannot_touch_webhooks(self, sandbox: Path) -> None:
         """Whoever can read a webhook back holds the HMAC every receiver trusts."""
         task_id = a_task(owner())
@@ -328,6 +295,52 @@ class TestARunCanStillWork:
             ).status_code
             == 200
         )
+
+    def test_it_can_act_on_a_task_that_is_not_its_own(self, sandbox: Path) -> None:
+        """Lifted by the owner in task-411. Every verb, not a sample, and none of them
+        reaches a merge: approval is the only route that starts a finish, and a run holds
+        no review capability (``test_it_cannot_approve_a_review``)."""
+        mine = a_task(owner(), "Mine")
+        yours = a_task(owner(), "Yours")
+        client, _ = dispatched(sandbox, mine)
+
+        attempts = [
+            (
+                f"/api/tasks/{yours}/queue-move",
+                {
+                    "actor": "claude",
+                    "top": True,
+                    "operation_id": "44444444-4444-4444-4444-444444444444",
+                },
+            ),
+            (f"/api/tasks/{yours}/log", {"actor": "claude", "type": "progress", "body": "hi"}),
+            (f"/api/tasks/{yours}/claim", {"agent": "claude"}),
+            (
+                f"/api/tasks/{yours}/handoff",
+                {
+                    "actor": "claude",
+                    "ball": "human",
+                    "ball_reason": "review",
+                    "ball_prompt": "look",
+                },
+            ),
+            (f"/api/tasks/{yours}/close", {"actor": "claude", "outcome": "superseded"}),
+        ]
+        for path, payload in attempts:
+            response = client.post(path, json=payload)
+            assert response.status_code == 200, f"{path}: {response.text}"
+
+        assert owner().get(f"/api/tasks/{yours}").json()["outcome"] == "superseded"
+
+    def test_it_can_edit_another_task(self, sandbox: Path) -> None:
+        mine = a_task(owner(), "Mine")
+        yours = a_task(owner(), "Yours")
+        client, _ = dispatched(sandbox, mine)
+
+        response = client.patch(f"/api/tasks/{yours}", json={"title": "Rewritten"})
+
+        assert response.status_code == 200, response.text
+        assert response.json()["title"] == "Rewritten"
 
     def test_it_can_file_a_new_task(self, sandbox: Path) -> None:
         """Deliberately unscoped: agents file follow-ups, and a new task is nobody's."""

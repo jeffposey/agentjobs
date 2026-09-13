@@ -36,9 +36,9 @@ human is asking, this stops being a table and becomes a role system.
 | Capability | Routes | `owner` | `tailnet` | `run` |
 | --- | --- | :-: | :-: | :-: |
 | `task.create` | `POST /tasks` | ✓ | ✓ | ✓ |
-| `task.edit` | `PATCH`/`DELETE /tasks/{id}`, deliverables | ✓ | ✓ | own task |
-| `task.verb` | promote, claim, handoff, release, close, log, progress | ✓ | ✓ | own task |
-| `task.queue` | queue-move, queue-keep, reprioritize | ✓ | ✓ | own task |
+| `task.edit` | `PATCH`/`DELETE /tasks/{id}`, deliverables | ✓ | ✓ | ✓ |
+| `task.verb` | promote, claim, handoff, release, close, log, progress | ✓ | ✓ | ✓ |
+| `task.queue` | queue-move, queue-keep, reprioritize | ✓ | ✓ | ✓ |
 | `task.review` | approve, request-changes, answer, redirect, hold, resume, reject | ✓ | ✓ | — |
 | `dispatch.start` | task dispatch, playbook run, run cancel | ✓ | ✓ | — |
 | `dispatch.admin` | dispatch enable / disable | ✓ | ✓ | — |
@@ -52,19 +52,23 @@ identity was established, not in what they may do. Narrowing `tailnet` would be 
 *access policy*, and an access policy belongs at the proxy (task-244) where it can be
 stated once for every route rather than restated per capability.
 
-**A run's set is scoped, not merely small.** Membership is only half the answer: a run
-that may close *any* task can still close somebody else's. The task-scoped capabilities
-additionally require the run to name the task it was dispatched to work.
+**A run may write any task, and none of the acts a human signs for** (task-411,
+2026-09-13). task-332 shipped the three task capabilities scoped to the run's own task.
+The owner lifted that scope because it stopped the work instead of protecting it: the
+`groom` and `reorder` playbooks exist to close and move *other* tasks and refused
+`wrong_task` at their first write (task-406), and a run that found a bad record turning
+its own gate red could not correct it.
 
-Two judgement calls inside that, since the spec settles neither:
+What still bounds a run is the rest of the table. It cannot approve, and approval is the
+only route that starts a scripted finish or an auto-dispatch, so no write a run makes to
+another task reaches a merge or spends money. It writes only as the agent it was
+dispatched as, so every such write is attributed to it in an append-only log.
 
-- **Queue moves are scoped.** [ALLAGENTS.md](https://github.com/jeffposey/agentjobs/blob/main/ALLAGENTS.md) tells an agent that
-  disagrees with the backlog's order to move the task it thinks should be first, which
-  argued for leaving moves unscoped. That instruction addresses a session *choosing*
-  what to work on next; a dispatched run is given its task rather than choosing it, and
-  a run reordering other people's work is the same class of act as closing it.
-- **Creating a task is not scoped.** It is on neither of the spec's lists, agents file
-  follow-ups as a matter of course, and a new task is not "a task other than its own".
+The cost, stated: a run can close, rewrite or reorder a task another run is working or a
+person is reviewing. Those writes are logged verbs and recoverable, and nothing pushes.
+The scope is not narrowed to the run's own *project* either, because the run credential
+does not carry one; that is the change to make if a project ever has a different owner.
+`OWN_TASK_ONLY` in `capabilities.py` is kept, empty, so re-scoping is one line.
 
 ## The body field must agree
 
@@ -101,7 +105,7 @@ says only "forbidden" turns a five-second config fix into a debugging session.
 | Code | Status | Means |
 | --- | --- | --- |
 | `capability_denied` | 403 | no row of the table grants this to your kind |
-| `wrong_task` | 403 | a run addressing a task other than its own |
+| `wrong_task` | 403 | a run addressing a task other than its own; unused since task-411, kept for re-scoping |
 | `wrong_run` | 403 | a run reading another run's output |
 | `actor_mismatch` | 403 | the body named somebody you are not |
 | `identity_unresolved` | 400 | who you are cannot be worked out; the fix is a config file |

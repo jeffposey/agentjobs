@@ -909,8 +909,11 @@ class TestAuthorizationRefusalsReachTheAgent:
         http = TestClient(app, client=("127.0.0.1", 51000), headers={RUN_CREDENTIAL_HEADER: token})
         return build_registry(TaskClient("http://testserver", client=http))
 
-    def test_a_run_writing_to_another_task_hears_wrong_task(self, service, tmp_path):
-        """End to end: a real minted credential, over the real application."""
+    def test_a_run_may_write_to_another_task(self, service, tmp_path):
+        """End to end: a real minted credential, over the real application.
+
+        Until task-411 this refused ``wrong_task``; the owner lifted the scope.
+        """
         _, manager, _ = service
         mine = ready_task(manager, "task-001-work")
         yours = ready_task(manager, "task-002-other")
@@ -930,12 +933,9 @@ class TestAuthorizationRefusalsReachTheAgent:
         token = mint_run_credential(directory.path, run_id)
         assert token, "the credential must mint, or this test proves nothing"
 
-        error = refuse(self._credentialed(token), "task_claim", base(task_id=yours.id))
+        call(self._credentialed(token), "task_claim", base(task_id=yours.id))
 
-        assert error.code is ErrorCode.WRONG_TASK
-        assert yours.id in error.message
-        assert error.suggested_action
-        assert manager.get_task(yours.id).lifecycle is Lifecycle.READY
+        assert manager.get_task(yours.id).lifecycle is Lifecycle.ACTIVE
 
     def test_a_run_whose_credential_does_not_verify_hears_so(self, service):
         """The audit's reproduction: an ended run's credential, every write refused."""

@@ -273,9 +273,9 @@ def dispatch_manager_for(
     three separate tasks built deliberately:
 
     1.  **The run-credential scope.** A client built inside a dispatched run presents
-        its credential, and the capability gate then scopes it to that run's own task
+        its credential, and the capability gate then refuses it ``dispatch.start``
         (task-332). ``agentjobs dispatch walk`` is run *by* a supervisor session and
-        starts *other* tasks' runs; over HTTP every one of those is ``wrong_task``, and
+        starts *other* tasks' runs; over HTTP every one of those is refused, and
         the epic walk stops working. `docs/authorization.md` states the CLI is outside
         that gate "by construction", and this migration is not the change that should
         alter who is trusted.

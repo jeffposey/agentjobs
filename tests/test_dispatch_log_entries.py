@@ -416,11 +416,7 @@ class TestNothingElseChanged:
         """
         import corpus_source
 
-        loaded = corpus_source.product_tasks()
-        if loaded is None:
-            pytest.skip("this repository's own backlog could not be read from either backend")
-
-        assert len(loaded) > 100
+        assert len(corpus_source.backlog()) > 100
 
     def test_the_authored_type_list_the_mcp_offers_excludes_both(self) -> None:
         from agentjobs.mcp.mutation_tools import AUTHORED_LOG_TYPES
