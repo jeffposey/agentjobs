@@ -1119,6 +1119,28 @@ export type FeedbackActionRequest = {
 };
 
 /**
+ * FinishGateRetryView
+ *
+ * The one retry a red gate stage gets (task-322), as the page renders it.
+ */
+export type FinishGateRetryView = {
+    /**
+     * Classification
+     *
+     * 'inputs_changed' (a proven change explains the red) or 'flaky_test'.
+     */
+    classification?: string;
+    /**
+     * Explanation
+     */
+    explanation?: string;
+    /**
+     * Failed Stage
+     */
+    failed_stage?: string;
+};
+
+/**
  * FinishGateView
  *
  * How far into the gate a finish is, when the gate is what it is doing.
@@ -3483,6 +3505,16 @@ export type TaskFinishView = {
      */
     current_step?: string;
     /**
+     * Earlier Merge Commit
+     *
+     * A merge an earlier attempt made of this branch, when this attempt made none (task-322). A separate fact: state and merge_commit still describe this attempt.
+     */
+    earlier_merge_commit?: string;
+    /**
+     * Earlier Merge Finish Id
+     */
+    earlier_merge_finish_id?: string;
+    /**
      * Elapsed Seconds
      *
      * Seconds since it started while live; the total it took once it ended. Computed on the server, because started_at is this machine's clock and the phone reading the page is not on it.
@@ -3498,6 +3530,10 @@ export type TaskFinishView = {
     finished_at?: string;
     gate?: FinishGateView | null;
     /**
+     * The one gate retry this attempt made, when it made one.
+     */
+    gate_retry?: FinishGateRetryView | null;
+    /**
      * Live
      *
      * Something is working on this task's branch now.
@@ -3505,8 +3541,16 @@ export type TaskFinishView = {
     live: boolean;
     /**
      * Merge Commit
+     *
+     * The merge this attempt made, if any.
      */
     merge_commit?: string;
+    /**
+     * Next Action
+     *
+     * What a person should do about this finish now; empty when nothing.
+     */
+    next_action?: string;
     /**
      * Output Source
      *

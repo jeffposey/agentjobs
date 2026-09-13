@@ -1526,6 +1526,29 @@
         "title": "FeedbackActionRequest",
         "type": "object"
       },
+      "FinishGateRetryView": {
+        "description": "The one retry a red gate stage gets (task-322), as the page renders it.",
+        "properties": {
+          "classification": {
+            "default": "",
+            "description": "'inputs_changed' (a proven change explains the red) or 'flaky_test'.",
+            "title": "Classification",
+            "type": "string"
+          },
+          "explanation": {
+            "default": "",
+            "title": "Explanation",
+            "type": "string"
+          },
+          "failed_stage": {
+            "default": "",
+            "title": "Failed Stage",
+            "type": "string"
+          }
+        },
+        "title": "FinishGateRetryView",
+        "type": "object"
+      },
       "FinishGateView": {
         "description": "How far into the gate a finish is, when the gate is what it is doing.",
         "properties": {
@@ -4830,6 +4853,17 @@
             "title": "Current Step",
             "type": "string"
           },
+          "earlier_merge_commit": {
+            "default": "",
+            "description": "A merge an earlier attempt made of this branch, when this attempt made none (task-322). A separate fact: state and merge_commit still describe this attempt.",
+            "title": "Earlier Merge Commit",
+            "type": "string"
+          },
+          "earlier_merge_finish_id": {
+            "default": "",
+            "title": "Earlier Merge Finish Id",
+            "type": "string"
+          },
           "elapsed_seconds": {
             "anyOf": [
               {
@@ -4862,6 +4896,17 @@
               }
             ]
           },
+          "gate_retry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FinishGateRetryView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The one gate retry this attempt made, when it made one."
+          },
           "live": {
             "description": "Something is working on this task's branch now.",
             "title": "Live",
@@ -4869,7 +4914,14 @@
           },
           "merge_commit": {
             "default": "",
+            "description": "The merge this attempt made, if any.",
             "title": "Merge Commit",
+            "type": "string"
+          },
+          "next_action": {
+            "default": "",
+            "description": "What a person should do about this finish now; empty when nothing.",
+            "title": "Next Action",
             "type": "string"
           },
           "output_source": {

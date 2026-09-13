@@ -104,6 +104,48 @@ say in the docstring what reads the paths.
 """
 
 
+@dataclass(frozen=True)
+class MutableInput:
+    """Something a stage reads that is not in the working tree, and who reads it.
+
+    A diff says nothing about these, which is why they are declared separately from
+    ``CLASSES`` rather than as a pattern. The scripted finish uses the declaration for one
+    question only (task-322): when a stage went red and its retry went green, *could a
+    change to this input explain it?* Only if the input changed between the two attempts,
+    the red stage is one of ``stages``, and every failing test lives in one of
+    ``readers``. Anything short of all three is not proof, and the green is recorded as a
+    flaky test instead.
+    """
+
+    stages: Tuple[str, ...]
+    readers: Tuple[str, ...]
+    why: str
+
+
+MUTABLE_INPUTS: Dict[str, MutableInput] = {
+    "task_corpus": MutableInput(
+        stages=("pytest",),
+        readers=(
+            "tests/test_task_corpus.py",
+            "tests/test_dispatch_log_entries.py",
+            "tests/test_corpus_source.py",
+        ),
+        why=(
+            "this repository's backlog, read from the machine's task database through "
+            "tests/corpus_source.py (task-411); the rows change whenever anybody writes a task"
+        ),
+    ),
+}
+"""Default-deny like ``CLASSES``: an input nobody declares explains nothing.
+
+Readers are files, not test ids, because ``tests/corpus_source.py`` is imported per
+module and a new check in one of these files reads the backlog without anybody editing
+this table. A reader added in a *new* file has to be added here, and until it is, a red
+it causes is reported as a flake rather than as a proved correction -- which costs a
+label, never a merge.
+"""
+
+
 def classify(path: str) -> Optional[Class]:
     """The class a path belongs to, or None when nothing claims it.
 

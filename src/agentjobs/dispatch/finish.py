@@ -13,8 +13,10 @@ The fallback exists. This is option B.
 
 **The whole design is one sentence: do the determined part, and hand the undetermined
 part to somebody who can think.** Every step below either succeeds on evidence or stops.
-Nothing here resolves a conflict, retries a failed check, forces anything, or decides
-that a difference is probably fine. When it stops it writes down exactly how far it got
+Nothing here resolves a conflict, forces anything, or decides that a difference is
+probably fine. The one retry it makes is bounded at one and recorded either way: a red
+gate stage is run once more, and a green on that retry is written down as a flaky test
+or as a proven input change, never as a clean pass (task-322). When it stops it writes down exactly how far it got
 and hands the ball back to the agent, which is the state a dispatch turns into a woken
 session with its own memory of the branch.
 
@@ -60,6 +62,7 @@ import importlib.util
 import json
 import os
 import shutil
+import sqlite3
 import subprocess
 import sys
 import time
@@ -70,7 +73,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from agentjobs.actors import FINISHER
 from agentjobs.dispatch.atomic_yaml import write_yaml_atomically
@@ -98,7 +101,14 @@ from agentjobs.dispatch.ledger import (
     live_runs,
     read_task_lock_holder,
 )
-from agentjobs.dispatch.phases import RUN_ID_ENV, record_phase
+from agentjobs.dispatch.finish_receipts import (
+    APPLIED,
+    NOT_APPLIED,
+    UNKNOWN,
+    FinishReceipts,
+    MergeEvidence,
+)
+from agentjobs.dispatch.phases import RUN_ID_ENV, read_phases, record_phase
 from agentjobs.dispatch.record_commit import commit_task_record
 from agentjobs.models_v2 import (
     Ball,
@@ -317,6 +327,23 @@ class Escalate(Exception):
         self.reason = reason
         self.detail = detail
         self.frames = frames
+
+
+class Withdrawn(Escalate):
+    """What authorised this finish no longer does: a Stop, a newer human act, a revoked
+    posture. Nothing further is done on the strength of it (task-322).
+
+    An escalation of its own kind because it must not do what an escalation does. An
+    ordinary stop hands the ball to an agent and starts a repair session; here a person
+    has made a newer decision, and dispatching somebody to "fix" it would overrule them.
+    So nothing is dispatched. Before the merge the ball is left exactly where that newer
+    act put it. After the merge it is handed to a person, because the one thing a Stop
+    cannot do is make a merge that happened read as one that did not.
+    """
+
+    def __init__(self, step: str, reason: str, detail: str, *, after_merge: bool) -> None:
+        super().__init__(step, reason, detail)
+        self.after_merge = after_merge
 
 
 # ----- subprocess plumbing ----------------------------------------------------
@@ -790,6 +817,8 @@ class Plan:
     base: str
     branch_head_before: str
     base_head_before: str
+    has_worktree: bool = True
+    """False only on a recovery that found the branch's worktree already gone."""
 
 
 def preflight(task: Task, root: Path, settings: FinishSettings) -> Plan:
@@ -921,37 +950,496 @@ def rebase(plan: Plan) -> str:
     )
 
 
-def run_gate(plan: Plan, directory: FinishDirectory, settings: FinishSettings) -> float:
-    """Run the full gate on the rebased branch, with that worktree's own interpreter.
+GATE_RETRIES = 1
+"""How many times a red gate is run again before the finish stops. One, and not a policy.
 
-    The unqualified command, never ``--only`` or ``--from`` or ``--since-gate``. The
-    partial forms exist for a person iterating on a late failure and print ``PARTIAL
-    RUN`` precisely so their green cannot be reported as the gate's; a merge made on one
-    would be doing exactly that.
+The owner's decision on task-322 (entry 15): a stage that goes red with nothing changed
+to explain it is retried once and the flake is recorded, because stopping every finish on
+every flake is how finishes stop finishing. A second red is a red. There is no loop here
+to bound, which is the whole difference from "retry until green".
+"""
+
+FIRST_PASS = "first_pass"
+INPUTS_CHANGED = "inputs_changed"
+FLAKY_TEST = "flaky_test"
+"""What a retried green is recorded as, when nothing proven to have changed explains it."""
+
+CORPUS_INPUT = "task_corpus"
+"""The one mutable input this module knows how to read a revision of. See ``gate_scope``."""
+
+
+def corpus_revision(home: Path, project_id: str) -> Optional[str]:
+    """This project's task rows, as a revision string: count, summed revisions, feed position.
+
+    The corpus checks in the gate read the machine's task database, which no diff can
+    describe (task-411). Three numbers, because no one of them moves on every write: a
+    record's ``revision`` is bumped by every update, the count moves on a create or a
+    delete, and ``log_feed`` (task-264) is the append-only sequence of log entries -- and
+    a task created through ``TaskManager`` in a test store left no feed row at all, so the
+    feed alone would have missed exactly the task-340 incident. Two different strings mean
+    the rows a check reads may differ. Equal strings are
+    not claimed to mean anything stronger than that.
+
+    Read-only and never raising: an unreadable database is "no revision", which proves
+    nothing and so can only make a retried green read as a flake.
     """
+    try:
+        from agentjobs.storage_config import load_storage_settings
+
+        database = load_storage_settings(home=home).database_for(project_id)
+    except Exception:  # noqa: BLE001 - no resolvable database is no revision
+        return None
+    if not database.is_file():
+        return None
+    try:
+        connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True, timeout=5)
+        try:
+            tasks = connection.execute(
+                "SELECT COUNT(*), COALESCE(SUM(revision), 0) FROM task WHERE project_id = ?",
+                (project_id,),
+            ).fetchone()
+            feed = connection.execute(
+                "SELECT COALESCE(MAX(feed_id), 0) FROM log_feed WHERE project_id = ?",
+                (project_id,),
+            ).fetchone()
+        finally:
+            connection.close()
+    except sqlite3.Error:
+        return None
+    if tasks is None or feed is None:
+        return None
+    return f"tasks:{tasks[0]}:revisions:{tasks[1]}:feed:{feed[0]}"
+
+
+@dataclass
+class GateAttempt:
+    """One run of ``scripts/check.py`` on this finish, and exactly what it ran against."""
+
+    number: int
+    selection: List[str]
+    head: str
+    base: str
+    corpus: Optional[str]
+    ok: bool = False
+    code: int = 0
+    seconds: float = 0.0
+    output: str = ""
+    log: Optional[Path] = None
+    stage: Optional[str] = None
+    tests: List[str] = field(default_factory=list)
+    stages: List[str] = field(default_factory=list)
+    tree: str = ""
+
+    @property
+    def command(self) -> str:
+        return " ".join(["scripts/check.py", *self.selection])
+
+    def evidence(self) -> Dict[str, Any]:
+        return {
+            "attempt": self.number,
+            "command": self.command,
+            "head": self.head,
+            "base": self.base,
+            "corpus": self.corpus,
+            "tree": self.tree,
+            "passed": self.ok,
+            "exit": self.code,
+            "seconds": round(self.seconds, 1),
+            "failed_stage": self.stage,
+            "failing_tests": list(self.tests),
+            "log": str(self.log) if self.log else "",
+        }
+
+
+@dataclass
+class GateVerdict:
+    """A green gate, and whether it took the one retry to get there."""
+
+    attempts: List[GateAttempt]
+    classification: str = FIRST_PASS
+    explanation: str = ""
+    selection_reason: str = ""
+    moved_paths: List[str] = field(default_factory=list)
+    receipt: Dict[str, str] = field(default_factory=dict)
+
+    @property
+    def retried(self) -> bool:
+        return len(self.attempts) > 1
+
+    @property
+    def seconds(self) -> float:
+        return sum(attempt.seconds for attempt in self.attempts)
+
+    @property
+    def first(self) -> GateAttempt:
+        return self.attempts[0]
+
+    @property
+    def last(self) -> GateAttempt:
+        return self.attempts[-1]
+
+    def step_detail(self) -> str:
+        if not self.retried:
+            return "scripts/check.py green"
+        return (
+            f"scripts/check.py red at {self.first.stage}, then green on its one retry "
+            f"(`{self.last.command}`); recorded as {self.classification}"
+        )
+
+    def sentence(self) -> str:
+        """What the merge message and the merge entry say about the gate. Never softened."""
+        if not self.retried:
+            return "`scripts/check.py` ran green"
+        tests = ", ".join(_test_ids(self.first.tests)[:3]) or "no test named"
+        return (
+            f"`scripts/check.py` went red at stage `{self.first.stage}` on its first "
+            f"attempt ({tests}) and **green on its one retry** (`{self.last.command}`), "
+            f"recorded as `{self.classification}`: {self.explanation}"
+        )
+
+    def data(self) -> Dict[str, Any]:
+        return {
+            "classification": self.classification,
+            "explanation": self.explanation,
+            "selection_reason": self.selection_reason,
+            "moved_paths": list(self.moved_paths),
+            "attempts": [attempt.evidence() for attempt in self.attempts],
+            "receipt": dict(self.receipt),
+        }
+
+
+def _test_ids(lines: Sequence[str]) -> List[str]:
+    """``tests/x.py::T::t`` out of pytest's ``FAILED tests/x.py::T::t - message`` lines."""
+    found: List[str] = []
+    for line in lines:
+        text = line
+        for prefix in FAILURE_PREFIXES:
+            if text.startswith(prefix):
+                text = text[len(prefix) :]
+                break
+        identity = text.split(" - ", 1)[0].strip()
+        if identity and identity not in found:
+            found.append(identity)
+    return found
+
+
+def _test_file(identity: str) -> str:
+    return identity.split("::", 1)[0].strip()
+
+
+def attempt_gate(
+    plan: Plan,
+    directory: FinishDirectory,
+    settings: FinishSettings,
+    receipts: Any,
+    *,
+    number: int,
+    selection: Sequence[str],
+    home: Path,
+    project_id: str,
+) -> GateAttempt:
+    """Run the gate once, with that worktree's own interpreter, and write down its inputs.
+
+    Never raises for a red gate; the policy is in :func:`gate_the_branch`. What this
+    records is the evidence a retry is judged on -- the exact head, base and corpus
+    revision each attempt ran against -- because a claim that "the inputs changed" is only
+    as good as a record of what they were.
+    """
+    attempt = GateAttempt(
+        number=number,
+        selection=list(selection),
+        head=git_out(plan.root, ["rev-parse", plan.branch]),
+        base=git_out(plan.root, ["rev-parse", plan.base]),
+        corpus=corpus_revision(home, project_id),
+    )
+    key = f"{directory.finish_id}#{number}"
+    try:
+        receipts.intend(
+            directory.finish_id,
+            "gate",
+            key,
+            head=attempt.head,
+            base=attempt.base,
+            corpus=attempt.corpus,
+            command=attempt.command,
+        )
+    except OSError:  # a gate is re-runnable; its receipt is evidence, not a precondition
+        pass
     started = time.monotonic()
-    log = directory.path / "gate.log"
+    attempt.log = directory.path / ("gate.log" if number == 1 else f"gate-retry-{number - 1}.log")
     result = run_command(
-        [str(plan.interpreter), "scripts/check.py"],
+        [str(plan.interpreter), "scripts/check.py", *selection],
         cwd=plan.worktree,
         timeout=settings.gate_timeout_seconds,
         env=detached_environment(
             {"AGENTJOBS_RUN_ID": directory.finish_id, "AGENTJOBS_RUN_DIR": str(directory.path)}
         ),
-        log=log,
+        log=attempt.log,
     )
-    seconds = time.monotonic() - started
-    if result.returncode != 0:
+    attempt.seconds = time.monotonic() - started
+    attempt.code = result.returncode
+    attempt.ok = result.returncode == 0
+    attempt.output = (result.stdout or "") + (result.stderr or "")
+    if not attempt.ok:
+        attempt.stage = failing_stage(attempt.output)
+        # Every failing line, not the salient dozen: a classification that holds for the
+        # first twelve failures and not the thirteenth is not proof.
+        attempt.tests = failing_tests(attempt.output, limit=10_000)
+    started_records = [
+        record for record in read_phases(directory.path) if record.get("kind") == "gate_started"
+    ]
+    if started_records:
+        announced = started_records[-1]
+        attempt.stages = [str(name) for name in announced.get("stages") or []]
+        attempt.tree = str(announced.get("tree") or "")
+    receipts.settle(
+        directory.finish_id,
+        "gate",
+        key,
+        APPLIED,
+        passed=attempt.ok,
+        exit=attempt.code,
+        failed_stage=attempt.stage,
+        tree=attempt.tree,
+    )
+    directory.record("finish_gate_attempt", **attempt.evidence())
+    return attempt
+
+
+def retry_selection(
+    first: GateAttempt, moved: bool, moved_stages: Optional[List[str]]
+) -> Tuple[List[str], str]:
+    """What the one retry runs, and the sentence justifying why that is enough.
+
+    **The merged receipt has to cover every stage on the final tree** (gate-3), so the
+    retry is never "the stage that failed" alone: the stages after it never ran at all.
+
+    - Base unmoved: ``--from <stage>``. The tree is the tree the first attempt verified,
+      so the stages before the red one keep their green.
+    - Base moved, every path classified, stage list known: ``--only`` the stages the move
+      can reach before the red one, plus the red one onward. The stages left out ran green
+      on the older tree and the move demonstrably cannot reach them -- the same argument,
+      from the same table, that ``catch_up`` has always made.
+    - Anything else -- an unclassified path, or a gate that did not announce its stages --
+      is incomplete proof, and incomplete proof runs the full gate.
+    """
+    stage = first.stage or ""
+    if not moved:
+        return (
+            ["--from", stage],
+            f"`--from {stage}` on the unchanged tree: the stages before it were green on "
+            "this exact commit",
+        )
+    if moved_stages is None:
+        return (
+            [],
+            "the full gate: the base moved in a path nothing classifies, so no earlier "
+            "green can be kept",
+        )
+    if not first.stages or stage not in first.stages:
+        return (
+            [],
+            "the full gate: the first attempt did not announce its stages, so none of its "
+            "greens can be kept",
+        )
+    index = first.stages.index(stage)
+    kept = [name for name in first.stages[:index] if name in moved_stages]
+    wanted = kept + first.stages[index:]
+    return (
+        ["--only", ",".join(wanted)],
+        f"`--only {','.join(wanted)}` on the rebased tree: the stages it leaves out were "
+        "green on the first attempt and the move cannot reach them",
+    )
+
+
+def receipt_vector(first: GateAttempt, second: Optional[GateAttempt]) -> Dict[str, str]:
+    """Which attempt verified each stage of the merged tree, by name."""
+    if second is None:
+        if not first.stages:
+            return {"(every stage)": f"attempt 1 on {first.head[:8]}"}
+        return {name: f"attempt 1 on {first.head[:8]}" for name in first.stages}
+    rerun: List[str]
+    if not second.selection:
+        rerun = list(second.stages or first.stages)
+        if not rerun:
+            return {"(every stage)": f"attempt 2 on {second.head[:8]}"}
+    elif second.selection[0] == "--from":
+        stage = second.selection[1]
+        if stage not in first.stages:
+            return {
+                f"before {stage}": f"attempt 1 on {first.head[:8]}",
+                f"{stage} onward": f"attempt 2 on {second.head[:8]}",
+            }
+        rerun = first.stages[first.stages.index(stage) :]
+    else:
+        rerun = second.selection[1].split(",")
+    vector: Dict[str, str] = {}
+    for name in first.stages or rerun:
+        if name in rerun:
+            vector[name] = f"attempt 2 on {second.head[:8]}"
+        elif first.head == second.head:
+            vector[name] = f"attempt 1 on {first.head[:8]}"
+        else:
+            vector[name] = f"attempt 1 on {first.head[:8]}; the base's move cannot reach it"
+    return vector
+
+
+def explain_red(
+    module: Optional[Any],
+    first: GateAttempt,
+    *,
+    moved_paths: Sequence[str],
+    moved_stages: Optional[List[str]],
+    corpus_after: Optional[str],
+    base_after: str,
+) -> Tuple[str, str]:
+    """Whether a proven change explains the red stage: ``(classification, why)``.
+
+    Proof has to name the stage, and for the corpus the tests too. A git move is proof
+    only when every moved path is classified and the classes reach the red stage. The
+    task corpus is proof only when its revision changed between the attempts, the red
+    stage reads it, and **every** failing test lives in a declared reader. Everything
+    else is ``flaky_test`` if the retry is green, including an unclassified move, which is
+    named in the explanation because it may be the real cause and nothing can show it.
+    """
+    stage = first.stage or ""
+    if moved_paths and moved_stages is not None and stage in moved_stages:
+        return (
+            INPUTS_CHANGED,
+            f"the base moved {first.base[:8]}..{base_after[:8]} in {len(moved_paths)} "
+            f"classified path(s) that reach `{stage}`",
+        )
+    declared = (getattr(module, "MUTABLE_INPUTS", None) or {}).get(CORPUS_INPUT)
+    ids = _test_ids(first.tests)
+    if (
+        declared is not None
+        and first.corpus
+        and corpus_after
+        and first.corpus != corpus_after
+        and stage in tuple(declared.stages)
+        and ids
+        and all(_test_file(identity) in tuple(declared.readers) for identity in ids)
+    ):
+        return (
+            INPUTS_CHANGED,
+            f"the task corpus changed ({first.corpus} -> {corpus_after}) and every failing "
+            f"test reads it",
+        )
+    unclassified = (
+        f" The base also moved {first.base[:8]}..{base_after[:8]} in a path nothing "
+        "classifies, which may be the real cause and cannot be shown to be."
+        if moved_paths and moved_stages is None
+        else ""
+    )
+    return FLAKY_TEST, "nothing proven to have changed explains the first red." + unclassified
+
+
+def gate_the_branch(
+    plan: Plan,
+    directory: FinishDirectory,
+    settings: FinishSettings,
+    receipts: Any,
+    *,
+    home: Path,
+    project_id: str,
+) -> GateVerdict:
+    """The full gate on the rebased branch, with at most one retry of a red stage.
+
+    The first attempt is the unqualified command, never ``--only`` or ``--from`` or
+    ``--since-gate``: nothing else has verified this branch. The retry may be partial
+    only where the first attempt's greens provably still stand -- see
+    :func:`retry_selection` -- and the record then says, stage by stage, which attempt
+    verified what (task-322, absorbing task-348).
+
+    **No retry for a red with no stage named** -- a crash, a timeout, a gate too old to
+    say. There is nothing to target and nothing to prove, and that red escalates exactly
+    as every red did before.
+    """
+    module = gate_scope_module(plan.root)
+    first = attempt_gate(
+        plan,
+        directory,
+        settings,
+        receipts,
+        number=1,
+        selection=[],
+        home=home,
+        project_id=project_id,
+    )
+    if first.ok:
+        return GateVerdict([first], receipt=receipt_vector(first, None))
+
+    assert first.log is not None
+    if first.stage is None:
         raise Escalate(
             "gate",
             "gate_failed",
             f"`scripts/check.py` went red on {plan.branch}. "
-            f"{lead_with_the_cause(result.stdout + result.stderr, log=log)}\n\n"
-            f"That took {seconds:.0f}s and exited {result.returncode}. A red gate never "
+            f"{lead_with_the_cause(first.output, log=first.log)}\n\n"
+            f"That took {first.seconds:.0f}s and exited {first.code}. It named no stage, so "
+            "there is nothing a retry could target and it was not retried. A red gate never "
             f"merges. The branch is rebased onto {plan.base} and is otherwise untouched; "
             "nothing was merged.",
         )
-    return seconds
+
+    base_after = git_out(plan.root, ["rev-parse", plan.base])
+    moved = bool(base_after) and base_after != first.base
+    moved_paths = changed_between(plan.root, first.base, base_after) if moved else []
+    moved_stages = reachable_stages(plan.root, moved_paths) if moved else []
+    if moved:
+        plan.base_head_before = base_after
+        plan.branch_head_before = git_out(plan.root, ["rev-parse", plan.branch])
+        rebase(plan)
+    corpus_after = corpus_revision(home, project_id)
+    classification, explanation = explain_red(
+        module,
+        first,
+        moved_paths=moved_paths,
+        moved_stages=moved_stages,
+        corpus_after=corpus_after,
+        base_after=base_after,
+    )
+    selection, selection_reason = retry_selection(first, moved, moved_stages)
+    directory.record(
+        "finish_gate_retry",
+        failed_stage=first.stage,
+        classification=classification,
+        explanation=explanation,
+        selection=selection,
+        selection_reason=selection_reason,
+        moved_paths=moved_paths,
+    )
+    second = attempt_gate(
+        plan,
+        directory,
+        settings,
+        receipts,
+        number=1 + GATE_RETRIES,
+        selection=selection,
+        home=home,
+        project_id=project_id,
+    )
+    if not second.ok:
+        assert second.log is not None
+        raise Escalate(
+            "gate",
+            "gate_failed",
+            f"`scripts/check.py` went red on {plan.branch} twice. "
+            f"{lead_with_the_cause(second.output, log=second.log)}\n\n"
+            f"The first attempt was red at `{first.stage}` ({first.log}); its one retry, "
+            f"{selection_reason}, was red too"
+            f"{' at `' + second.stage + '`' if second.stage else ''} and exited "
+            f"{second.code}. A red gate never merges, and a second red is a red: nothing is "
+            "retried again, and nothing was merged.",
+        )
+    return GateVerdict(
+        [first, second],
+        classification=classification,
+        explanation=explanation,
+        selection_reason=selection_reason,
+        moved_paths=moved_paths,
+        receipt=receipt_vector(first, second),
+    )
 
 
 def run_reduced_gate(
@@ -1111,7 +1599,7 @@ def catch_up(plan: Plan, directory: FinishDirectory, settings: FinishSettings) -
     return steps
 
 
-def previous_merge_commit(task: Task) -> Optional[str]:
+def previous_merge_commit(task: Task, branch: Optional[str] = None) -> Optional[str]:
     """The merge this task's own record says a finish already made, if any.
 
     Read so that ``merge`` can tell its two "nothing to merge" cases apart. They look
@@ -1119,15 +1607,34 @@ def previous_merge_commit(task: Task) -> Optional[str]:
     then stopped at the restart is finishing its own work, and a branch somebody else
     merged by hand is a fact about the world that nothing here should quietly close a
     task over.
+
+    ``branch`` narrows it to a merge of that branch. A task can be merged, reopened and
+    given a new branch, and the old merge says nothing about the new one.
     """
     for entry in reversed(task.log):
         if entry.data.get("finish_step") == "merge":
+            if branch is not None and str(entry.data.get("branch") or branch) != branch:
+                continue
             commit = entry.data.get("merge_commit")
             return str(commit) if commit else None
     return None
 
 
-def merge(plan: Plan, task: Task, authorisation: str) -> str:
+def merge_key(branch: str, reviewed_head: str) -> str:
+    """The stable identity of one merge: this branch, at the head the gate verified."""
+    return f"{branch}@{reviewed_head}"
+
+
+def merge(
+    plan: Plan,
+    task: Task,
+    authorisation: str,
+    *,
+    gate_sentence: str = "`scripts/check.py` ran green",
+    receipts: Optional[FinishReceipts] = None,
+    finish_id: str = "",
+    before_merge: Optional[Callable[[], None]] = None,
+) -> str:
     """``git merge --no-ff`` into the base, in the shared clone. The irreversible step.
 
     Two things are checked first that git would otherwise turn into a mess rather than a
@@ -1180,14 +1687,42 @@ def merge(plan: Plan, task: Task, authorisation: str) -> str:
     message = (
         f"Merge branch '{plan.branch}' ({task.id})\n\n"
         f"{task.title}\n\n"
-        f"Merged by the AgentJobs finisher after rebasing onto {plan.base} and running "
-        f"scripts/check.py green in that branch's worktree (task-241).\n\n"
+        f"Merged by the AgentJobs finisher after rebasing onto {plan.base}; "
+        f"{gate_sentence} in that branch's worktree (task-241).\n\n"
         f"{authorisation}"
     )
+    # The last look at authority, as close to the irreversible act as it can be put: a
+    # Stop or a newer human decision that arrived during the gate wins (task-322).
+    if before_merge is not None:
+        before_merge()
+    reviewed_head = git_out(plan.root, ["rev-parse", plan.branch])
+    key = merge_key(plan.branch, reviewed_head)
+    if receipts is not None:
+        try:
+            receipts.intend(
+                finish_id,
+                "merge",
+                key,
+                branch=plan.branch,
+                base=plan.base,
+                base_before=plan.base_head_before,
+                reviewed_head=reviewed_head,
+                provenance=f"Merge branch '{plan.branch}' ({task.id})",
+            )
+        except OSError as exc:
+            raise Escalate(
+                "merge",
+                "receipt_unwritable",
+                f"The merge intent could not be written to {receipts.path} ({exc}), so a "
+                "crash during the merge would leave a merge nothing could account for. "
+                "Nothing was merged.",
+            ) from exc
     result = git(plan.root, ["merge", "--no-ff", "--no-edit", "-m", message, plan.branch])
     if result.returncode != 0:
         git(plan.root, ["merge", "--abort"])
         head_now = git_out(plan.root, ["rev-parse", "HEAD"])
+        if receipts is not None:
+            receipts.settle(finish_id, "merge", key, NOT_APPLIED, exit=result.returncode)
         raise Escalate(
             "merge",
             "merge_failed",
@@ -1197,8 +1732,12 @@ def merge(plan: Plan, task: Task, authorisation: str) -> str:
         )
 
     head_after = git_out(plan.root, ["rev-parse", "HEAD"])
+    if head_after != plan.base_head_before and receipts is not None:
+        receipts.settle(finish_id, "merge", key, APPLIED, merge_commit=head_after)
     if head_after == plan.base_head_before:
-        already = previous_merge_commit(task)
+        if receipts is not None:
+            receipts.settle(finish_id, "merge", key, NOT_APPLIED, moved_nothing=True)
+        already = previous_merge_commit(task, plan.branch)
         if already:
             # This finish's own earlier attempt merged and then stopped after it. Picking
             # up where it left off is the whole reason `agentjobs finish` can be re-run.
@@ -1352,6 +1891,7 @@ def verify_live(
     *,
     timeout: float = VERIFY_TIMEOUT_SECONDS,
     sleep: float = VERIFY_POLL_SECONDS,
+    observed: Optional[Dict[str, Any]] = None,
 ) -> StepResult:
     """Prove the running process is the merged code. Not that the port answers.
 
@@ -1423,6 +1963,13 @@ def verify_live(
             )
             time.sleep(sleep)
             continue
+        if observed is not None:
+            observed.update(
+                deployed_commit=str(commit),
+                source_root=root or str(plan.root),
+                started_at=str(payload.get("started_at") or ""),
+                base_url=base_url,
+            )
         return StepResult(
             "verify",
             True,
@@ -1447,7 +1994,24 @@ def remove_worktree(plan: Plan) -> StepResult:
     Deliberately not an escalation. The merge is in, the delivery is verified and the
     task is closed; waking a session to delete a directory would cost more than the
     directory does. It is written down instead, which is what makes it findable.
+
+    **Safe to repeat, and never forced** (task-322). A worktree already gone is done, not
+    a failure, so a resumed cleanup does not stumble over its own earlier half. And it
+    removes only a worktree whose head the base contains: ``git worktree remove`` without
+    ``--force`` already refuses uncommitted or untracked work, and this refuses unmerged
+    commits on top of that, so recovery can never be what discards somebody's work.
     """
+    if not plan.has_worktree or not plan.worktree.exists():
+        return StepResult("worktree", True, f"{plan.worktree} is already gone", 0.0, skipped=True)
+    worktree_head = git_out(plan.worktree, ["rev-parse", "HEAD"])
+    if worktree_head and not contains_commit(plan.root, worktree_head, plan.base):
+        return StepResult(
+            "worktree",
+            True,
+            f"{plan.worktree} is at {worktree_head[:8]}, which {plan.base} does not contain "
+            "-- left in place",
+            0.0,
+        )
     result = git(plan.root, ["worktree", "remove", str(plan.worktree)])
     if result.returncode != 0:
         return StepResult(
@@ -1486,6 +2050,8 @@ def delete_branch(plan: Plan) -> StepResult:
     would cost more than the ref does. It is written into the step table instead, which
     is what makes it findable.
     """
+    if not git_out(plan.root, ["rev-parse", "--verify", f"refs/heads/{plan.branch}"]):
+        return StepResult("branch", True, f"{plan.branch} is already deleted", 0.0, skipped=True)
     holder = worktree_paths(plan.root).get(plan.branch)
     if holder is not None:
         return StepResult(
@@ -1653,7 +2219,14 @@ def announce_start(
 
 
 def record_merge(
-    manager: TaskManagerLike, task_id: str, plan: Plan, merge_commit: str, authorisation: str
+    manager: TaskManagerLike,
+    task_id: str,
+    plan: Plan,
+    merge_commit: str,
+    authorisation: str,
+    *,
+    gate: Optional[GateVerdict] = None,
+    recovered: Optional[MergeEvidence] = None,
 ) -> None:
     """Write the merge onto the record immediately, before anything that can fail.
 
@@ -1661,15 +2234,28 @@ def record_merge(
     and this write there is nothing but a function call; every later failure escalates
     with the merge already stated, so no reader of the task ever has to work out from a
     prompt whether ``main`` moved.
+
+    ``recovered`` is the one case where that window was lost: an earlier attempt merged
+    and died before this write, and a later one proved the merge from its intent and git
+    (task-322). The entry then says so rather than reading like a fresh merge.
     """
+    if recovered is not None:
+        how = (
+            f"An earlier attempt (`{recovered.finish_id or 'unknown'}`) made this merge and "
+            "stopped before writing it down; this attempt proved it from that attempt's "
+            f"merge intent and {recovered.source}, and did not merge again or re-run the "
+            "gate on it."
+        )
+    else:
+        gate_text = gate.sentence() if gate is not None else "`scripts/check.py` ran green"
+        how = f"Rebased onto {plan.base}; {gate_text} in {plan.worktree} before the merge."
     manager.add_log_entry(
         task_id,
         actor=FINISHER,
         type=LogEntryType.PROGRESS,
         body=(
             f"Merged `{plan.branch}` into `{plan.base}` as `{merge_commit[:8]}`.\n\n"
-            f"Rebased onto {plan.base} and `scripts/check.py` ran green in "
-            f"{plan.worktree} before the merge. {authorisation} Delivery -- rebuild, "
+            f"{how} {authorisation} Delivery -- rebuild, "
             "restart, verification -- comes next, and this task stays open until it is "
             "verified."
         ),
@@ -1678,6 +2264,59 @@ def record_merge(
             "merge_commit": merge_commit,
             "branch": plan.branch,
             "base": plan.base,
+            **({"gate": gate.data()} if gate is not None else {}),
+            **({"recovered_from": recovered.finish_id} if recovered is not None else {}),
+        },
+    )
+
+
+def record_gate_retry(
+    manager: TaskManagerLike, task_id: str, verdict: GateVerdict, finish_id: str
+) -> None:
+    """Put a retried green on the record the moment it happens, flake or proved correction.
+
+    Never silent (gate-5). A flake is written as its own entry, with the test ids, the
+    finish that saw it and the commit it ran on, so that nobody has to read a merge
+    entry to learn a test is unreliable -- and the merge entry says the same thing again.
+    """
+    first = verdict.first
+    tests = _test_ids(first.tests)
+    listed = chr(10).join(f"- `{identity}`" for identity in tests) or "- (no test named)"
+    why = verdict.explanation.rstrip(".")
+    if verdict.classification == FLAKY_TEST:
+        headline = (
+            f"Flaky test: the gate went red at `{first.stage}` on `{first.head[:8]}` and "
+            f"green on its one retry, and {why}"
+        )
+    else:
+        headline = (
+            f"The gate went red at `{first.stage}` on `{first.head[:8]}` and green on its one "
+            f"retry, because {why}"
+        )
+    manager.add_log_entry(
+        task_id,
+        actor=FINISHER,
+        type=LogEntryType.PROGRESS,
+        body=(
+            f"{headline}.\n\nFailing on the first attempt:\n\n{listed}\n\n"
+            f"Retried with {verdict.selection_reason}. Finish `{finish_id}`; a merge made on "
+            "this green says in its own record that it came on a retry."
+        ),
+        data={
+            "finish_id": finish_id,
+            "gate_retry": verdict.data(),
+            **(
+                {
+                    "flaky_test": {
+                        "tests": tests,
+                        "stage": first.stage,
+                        "finish_id": finish_id,
+                        "commit": first.head,
+                    }
+                }
+                if verdict.classification == FLAKY_TEST
+                else {}
+            ),
         },
     )
 
@@ -1775,6 +2414,392 @@ def escalate_on_record(
     )
 
 
+def record_withdrawal(
+    manager: TaskManagerLike,
+    task_id: str,
+    failure: Withdrawn,
+    steps: Sequence[StepResult],
+    merge_commit: Optional[str],
+    project_id: str,
+) -> None:
+    """Write down that authority was withdrawn, and move the ball only if a merge happened.
+
+    Before a merge the newer act -- a Stop, a Request Changes, a lowered posture -- has
+    already put the ball where its author wanted it, and this does not overrule them.
+    After a merge the ball goes to a person, because the Stop's own prompt was written
+    believing nothing had merged and the task must not keep saying so.
+    """
+    account = "\n".join(step.render() for step in steps)
+    merged = (
+        f"**The merge is done: `{merge_commit[:8]}`.**"
+        if merge_commit
+        else "**Nothing was merged.**"
+    )
+    manager.add_log_entry(
+        task_id,
+        actor=FINISHER,
+        type=LogEntryType.PROGRESS,
+        body=(
+            f"The scripted finish stopped at `{failure.step}` ({failure.reason}). {merged}\n\n"
+            f"{failure.detail}\n\nEverything it did get through:\n\n```\n{account}\n```"
+        ),
+        data={
+            "finish_step": failure.step,
+            "finish_reason": failure.reason,
+            "merge_commit": merge_commit,
+            "merged": merge_commit is not None,
+            "withdrawn": True,
+        },
+    )
+    if not failure.after_merge or not merge_commit:
+        return
+    task = manager.get_task(task_id)
+    if task is None or not task.is_open:
+        return
+    manager.handoff(
+        task_id,
+        actor=FINISHER,
+        ball=Ball.HUMAN,
+        ball_reason=BallReason.DECISION,
+        ball_prompt=(
+            f"{merged} A Stop ended the scripted finish before `{failure.step}`, so the "
+            "delivery after the merge -- rebuild, restart, verification, close, cleanup -- "
+            "is not complete. Nothing will un-merge it.\n\n"
+            "To finish delivery, re-run the finish; it resumes from the merge without "
+            f"gating or merging again:\n\n```\nagentjobs finish {task_id} --project "
+            f"{project_id}\n```"
+        ),
+    )
+
+
+def _outstanding_cleanup(
+    root: Path, task: Task, receipts: FinishReceipts, settings: Optional[FinishSettings]
+) -> Optional[MergeEvidence]:
+    """The merge whose cleanup a closed task still owes, if its receipts say one is owed.
+
+    Only for a task this finisher closed as completed, after a merge the base contains,
+    whose worktree or branch is still there. Anything less is no business of a finish.
+    """
+    if task.outcome is not Outcome.COMPLETED or settings is None:
+        return None
+    evidence = receipts.applied_merge()
+    if evidence is None or not evidence.branch or not receipts.applied("close", evidence.commit):
+        return None
+    if not contains_commit(root, evidence.commit, settings.base_branch):
+        return None
+    branch_left = bool(git_out(root, ["rev-parse", "--verify", f"refs/heads/{evidence.branch}"]))
+    worktree_left = evidence.branch in worktree_paths(root)
+    return evidence if (branch_left or worktree_left) else None
+
+
+def _resume_cleanup(
+    home: Path,
+    project: Project,
+    task: Task,
+    receipts: FinishReceipts,
+    evidence: MergeEvidence,
+) -> FinishResult:
+    """Retire what a closed task's finish left behind, and nothing else (task-322)."""
+    settings = FinishSettings(enabled=True, base_branch=evidence.base or "main")
+    try:
+        lock = acquire_run_lock(home, task.id, project_id=project.id, kind=KIND_FINISH)
+    except RunLockTimeout as exc:
+        return FinishResult(task_id=task.id, outcome=DECLINED, reason="locked", detail=str(exc))
+    try:
+        directory = FinishDirectory.create(home, task.id, project.id)
+        lock.adopt_finish(directory.finish_id)
+        steps: List[StepResult] = StepLog(directory)
+        plan = recovery_plan(project.root, evidence, settings)
+        steps.append(
+            StepResult(
+                "close",
+                True,
+                f"already closed after merging {evidence.commit}; resuming cleanup only",
+                0.0,
+                skipped=True,
+            )
+        )
+        steps.extend(_clean_up(plan, receipts, directory.finish_id, evidence.commit))
+        directory.write_meta(
+            outcome=FINISHED,
+            reason="cleanup_resumed",
+            merge_commit=evidence.commit,
+            finished_at=datetime.now(timezone.utc).isoformat(),
+        )
+        return FinishResult(
+            task_id=task.id,
+            outcome=FINISHED,
+            reason="cleanup_resumed",
+            detail=f"{task.id} was already closed; retired what its finish left behind.",
+            steps=steps,
+            finish_id=directory.finish_id,
+            directory=directory.path,
+            merge_commit=evidence.commit,
+        )
+    except Escalate as exc:
+        return FinishResult(task_id=task.id, outcome=DECLINED, reason=exc.reason, detail=exc.detail)
+    finally:
+        lock.release()
+
+
+# ----- recovering an earlier attempt's merge (task-322) ------------------------
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def find_finisher_merge(
+    root: Path, base: str, base_before: str, reviewed_head: str
+) -> Optional[str]:
+    """The merge on ``base`` whose parents are exactly ``base_before`` and ``reviewed_head``.
+
+    What a merge intent predicts, checked as git records it. Parents rather than a message
+    match, because the parents are what the intent fixed before the merge ran and a
+    message is text anybody can write.
+    """
+    listing = git_out(root, ["rev-list", "--merges", "--parents", f"{base_before}..{base}"])
+    for line in listing.splitlines():
+        parts = line.split()
+        if len(parts) == 3 and parts[1] == base_before and parts[2] == reviewed_head:
+            return parts[0]
+    return None
+
+
+def _log_merge_entry(task: Task) -> Optional[Dict[str, Any]]:
+    for entry in reversed(task.log):
+        if entry.data.get("finish_step") == "merge" and entry.data.get("merge_commit"):
+            return dict(entry.data)
+    return None
+
+
+def has_merge_evidence(receipts: FinishReceipts, task: Task) -> bool:
+    """Whether anything claims a merge for this task. Cheap; proves nothing by itself."""
+    return bool(receipts.unsettled("merge") or receipts.applied_merge() or _log_merge_entry(task))
+
+
+def reconcile_merge_intents(root: Path, base: str, receipts: FinishReceipts) -> None:
+    """Settle every merge intent that has no result, from git, under the runway.
+
+    Three answers, and only the first two are safe to act on. The merge the intent
+    predicted is on the base: ``applied``, with its SHA recovered. The reviewed head is
+    not in the base at all: ``not_applied``, and a fresh attempt may merge. The reviewed
+    head is in the base but not through that merge: ``unknown``, which stops -- something
+    merged it, and it was not the attempt that intended to.
+    """
+    for intent in receipts.unsettled("merge"):
+        data = intent.get("input") or {}
+        finish_id = str(intent.get("finish_id") or "")
+        key = str(intent.get("key") or "")
+        before = str(data.get("base_before") or "")
+        reviewed = str(data.get("reviewed_head") or "")
+        branch = str(data.get("branch") or "")
+        found = find_finisher_merge(root, base, before, reviewed) if before and reviewed else None
+        if found:
+            receipts.settle(
+                finish_id, "merge", key, APPLIED, merge_commit=found, reconciled_from="git"
+            )
+            continue
+        if reviewed and contains_commit(root, reviewed, base):
+            receipts.settle(finish_id, "merge", key, UNKNOWN, reconciled_from="git")
+            raise Escalate(
+                "recover",
+                "merge_unreconciled",
+                f"An earlier attempt (`{finish_id}`) recorded that it was about to merge "
+                f"`{branch}` at `{reviewed[:8]}` onto `{before[:8]}` and never recorded what "
+                f"happened. {base} contains that commit, but not through the merge the "
+                "intent predicted, so this attempt cannot tell who merged it. It merged "
+                "nothing and delivered nothing; check the base's history before finishing.",
+            )
+        receipts.settle(finish_id, "merge", key, NOT_APPLIED, reconciled_from="git")
+
+
+def merge_evidence_for(task: Task, receipts: FinishReceipts, base: str) -> Optional[MergeEvidence]:
+    """The earlier merge a resumed delivery would be for, or ``None`` to finish normally.
+
+    A merge of a branch the task no longer has active is not this finish's business: a
+    task merged, reopened and given a new branch needs a new merge, not a replay of the
+    old delivery.
+    """
+    evidence = receipts.applied_merge()
+    if evidence is None:
+        logged = _log_merge_entry(task)
+        if logged is not None:
+            evidence = MergeEvidence(
+                commit=str(logged.get("merge_commit")),
+                branch=str(logged.get("branch") or ""),
+                base=str(logged.get("base") or base),
+                base_before="",
+                reviewed_head="",
+                finish_id="",
+                source="log",
+            )
+    if evidence is None or not evidence.branch:
+        return None
+    active = active_branches(task)
+    if active:
+        return evidence if evidence.branch in active else None
+    listed = {branch.name for branch in task.branches}
+    return evidence if evidence.branch in listed else None
+
+
+def recovery_plan(root: Path, evidence: MergeEvidence, settings: FinishSettings) -> Plan:
+    """A plan for delivering an existing merge, read from the merge commit itself."""
+    base = settings.base_branch
+    if not contains_commit(root, evidence.commit, base):
+        raise Escalate(
+            "recover",
+            "merge_evidence_contradicted",
+            f"This task's {evidence.source} says `{evidence.commit[:8]}` merged "
+            f"`{evidence.branch}`, but {base} does not contain that commit. Either the base "
+            "was rewritten or the record is wrong, and delivering on either would be "
+            "guessing. Nothing was merged or delivered by this attempt.",
+        )
+    parents = git_out(root, ["rev-list", "--parents", "-n", "1", evidence.commit]).split()[1:]
+    if len(parents) != 2:
+        raise Escalate(
+            "recover",
+            "merge_evidence_contradicted",
+            f"`{evidence.commit[:8]}` is recorded as this task's merge but is not a two-parent "
+            "merge commit, so it is not one the finisher made. Nothing was delivered.",
+        )
+    worktree = worktree_paths(root).get(evidence.branch)
+    return Plan(
+        root=root,
+        branch=evidence.branch,
+        worktree=worktree if worktree is not None else root,
+        interpreter=Path(sys.executable),
+        base=base,
+        branch_head_before=parents[1],
+        base_head_before=parents[0],
+        has_worktree=worktree is not None and worktree.is_dir(),
+    )
+
+
+def assert_branch_not_moved(root: Path, plan: Plan, evidence: MergeEvidence) -> None:
+    """Refuse to deliver as if finished when the branch carries commits the merge did not."""
+    head = git_out(root, ["rev-parse", "--verify", f"refs/heads/{plan.branch}"])
+    if head and not contains_commit(root, head, plan.base):
+        raise Escalate(
+            "recover",
+            "branch_moved_after_merge",
+            f"`{plan.branch}` is at `{head[:8]}`, which {plan.base} does not contain, after "
+            f"`{evidence.commit[:8]}` merged it. The merge is done; the commits made since "
+            "are not, and whether they belong in a second merge is a judgement. Nothing "
+            "further was merged or delivered.",
+        )
+
+
+def already_serving(plan: Plan, merge_commit: str, base_url: str) -> Optional[str]:
+    """A sentence when the server already runs this merge from this clone, else ``None``.
+
+    Asked only by a resumed delivery, before repeating a restart an earlier attempt may
+    already have made. Both facts ``verify_live`` checks, once, with no waiting: a server
+    that does not prove it holds the merge is restarted as usual.
+    """
+    payload = fetch_version(base_url, timeout=2.0)
+    if payload is None:
+        return None
+    root = str(payload.get("source_root") or "")
+    commit = str(payload.get("source_commit") or "")
+    if not commit or (root and not _same_checkout(Path(root), plan.root)):
+        return None
+    if not contains_commit(plan.root, merge_commit, commit):
+        return None
+    return (
+        f"{base_url} already serves {commit[:8]}, which contains the merge, from "
+        f"{root or plan.root}; not restarted again"
+    )
+
+
+def nothing_withdrawn() -> Optional[Tuple[str, str]]:
+    """The authority check for a caller that has none to re-read."""
+    return None
+
+
+@dataclass
+class AuthorityGuard:
+    """Whether what authorised this finish still does, asked at the moments it matters.
+
+    Before the merge: a Stop requested since the finish began, or ``check`` naming a
+    withdrawn authority -- an approval no longer standing, a posture no longer releasing
+    the gate -- merges nothing. After it: a Stop ends delivery with the merge stated.
+    ``check`` runs only before the merge; once merged, an approval being superseded does
+    not un-merge anything, and delivery of a done merge is not a new authorisation.
+    """
+
+    home: Path
+    project_id: str
+    task_id: str
+    started_at: datetime
+    check: Callable[[], Optional[Tuple[str, str]]] = nothing_withdrawn
+
+    def stop_since_start(self) -> Optional[Mapping[str, Any]]:
+        from agentjobs.dispatch.approval import stop_requests
+
+        try:
+            stops = stop_requests(self.home, self.project_id, self.task_id)
+        except Exception:  # noqa: BLE001 - an unreadable journal is not a Stop
+            return None
+        for stop in stops:
+            raw = stop.get("requested_at")
+            if not isinstance(raw, str):
+                continue
+            try:
+                moment = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if moment.tzinfo is None:
+                moment = moment.replace(tzinfo=timezone.utc)
+            if moment > self.started_at:
+                return stop
+        return None
+
+    @staticmethod
+    def _who(stop: Mapping[str, Any]) -> str:
+        requester = stop.get("requester") or "someone"
+        source = stop.get("source")
+        return (
+            f"{requester}{' from ' + str(source) if source else ''} at {stop.get('requested_at')}"
+        )
+
+    def before_merge(self) -> None:
+        stop = self.stop_since_start()
+        if stop is not None:
+            raise Withdrawn(
+                "merge",
+                "stopped",
+                f"A Stop was requested by {self._who(stop)}, after this finish began. A Stop "
+                "is a newer decision than whatever authorised the merge, so nothing was "
+                "merged and no session was started to take it further.",
+                after_merge=False,
+            )
+        problem = self.check()
+        if problem is not None:
+            reason, detail = problem
+            raise Withdrawn(
+                "merge",
+                reason,
+                f"{detail} It was checked immediately before `git merge`, so nothing was "
+                "merged, and no session was started to take it further.",
+                after_merge=False,
+            )
+
+    def after_merge(self, step: str, merge_commit: str) -> None:
+        stop = self.stop_since_start()
+        if stop is None:
+            return
+        raise Withdrawn(
+            step,
+            "stopped_after_merge",
+            f"**The merge is done: `{merge_commit[:8]}`.** A Stop was requested by "
+            f"{self._who(stop)}, and delivery stopped before `{step}`. A Stop cannot "
+            "un-merge anything, and it does not: what remains is delivery only. Re-running "
+            "the finish resumes it from here without gating or merging again.",
+            after_merge=True,
+        )
+
+
 # ----- the orchestrator -------------------------------------------------------
 
 
@@ -1853,6 +2878,60 @@ def released_posture(
     return resolve_posture(settings, task=task_posture)
 
 
+def _posture_release(
+    manager: TaskManagerLike, project: Project, task_id: str, home: Path
+) -> Tuple[Optional[Any], Optional[ResolvedPosture], Optional[Tuple[str, str]]]:
+    """Whether a posture releases this merge: ``(resolution, posture, refusal)``.
+
+    Asked twice by a posture finish (task-322): once before anything is touched, and again
+    immediately before ``git merge``, so a kill switch thrown or a ceiling lowered during
+    a four-minute gate is honoured rather than merged past.
+    """
+    try:
+        released = assert_dispatch_permitted(project.id, home)
+    except DispatchError as exc:
+        return None, None, (getattr(exc, "reason", "dispatch_error"), str(exc))
+    # The posture *this run* was authorised at, not the project's default. See
+    # `released_posture`; before task-315 this line read `released.settings.posture`
+    # and a dispatch-time choice never reached the merge.
+    candidate = manager.get_task(task_id)
+    merge_posture = released_posture(
+        settings=released.settings,
+        task_id=task_id,
+        task_posture=(
+            Posture(candidate.posture.value)
+            if candidate is not None and candidate.posture is not None
+            else None
+        ),
+        home=home,
+        # Not `os.environ[RUN_ID_ENV]` directly: a `--bg` session can come up holding
+        # another run's identity, and that stripped task-316 of the posture a human
+        # had granted it. See `own_run_id` (task-249).
+        run_id=own_run_id(home, task_id, project_id=project.id),
+    )
+    posture = merge_posture.posture
+    if posture.merge_policy is not MergePolicy.AUTOMATIC:
+        clamped = (
+            f" It asked for `{merge_posture.requested.value}` and this machine caps "
+            f"{project.id} at `{merge_posture.ceiling.value}` "
+            f"(`projects.{project.id}.max_posture`)."
+            if merge_posture.requested is not None
+            else ""
+        )
+        return (
+            released,
+            merge_posture,
+            (
+                "posture_requires_review",
+                f"This finish runs at {merge_posture.describe()}, whose merge policy is "
+                f"`{posture.merge_policy.value}`. Only `autonomous` releases the merge "
+                f"gate.{clamped} Hand the ball to human/review and stop; nothing was "
+                "touched.",
+            ),
+        )
+    return released, merge_posture, None
+
+
 def finish_task(
     *,
     manager: TaskManagerLike,
@@ -1876,58 +2955,20 @@ def finish_task(
     has to actually release the merge gate, or this declines without touching anything.
     """
     resolved_home = home or default_home()
+    began_at = _now()
     posture_name = ""
     posture_source = ""
     if authority == POSTURE:
-        try:
-            released = assert_dispatch_permitted(project.id, resolved_home)
-        except DispatchError as exc:
-            return FinishResult(
-                task_id=task_id,
-                outcome=DECLINED,
-                reason=getattr(exc, "reason", "dispatch_error"),
-                detail=str(exc),
-            )
-        # The posture *this run* was authorised at, not the project's default. See
-        # `released_posture`; before task-315 this line read `released.settings.posture`
-        # and a dispatch-time choice never reached the merge.
-        candidate = manager.get_task(task_id)
-        merge_posture = released_posture(
-            settings=released.settings,
-            task_id=task_id,
-            task_posture=(
-                Posture(candidate.posture.value)
-                if candidate is not None and candidate.posture is not None
-                else None
-            ),
-            home=resolved_home,
-            # Not `os.environ[RUN_ID_ENV]` directly: a `--bg` session can come up holding
-            # another run's identity, and that stripped task-316 of the posture a human
-            # had granted it. See `own_run_id` (task-249).
-            run_id=own_run_id(resolved_home, task_id, project_id=project.id),
+        released, merge_posture, refusal = _posture_release(
+            manager, project, task_id, resolved_home
         )
-        posture = merge_posture.posture
-        posture_name = posture.value
-        posture_source = merge_posture.source.value
-        if posture.merge_policy is not MergePolicy.AUTOMATIC:
-            clamped = (
-                f" It asked for `{merge_posture.requested.value}` and this machine caps "
-                f"{project.id} at `{merge_posture.ceiling.value}` "
-                f"(`projects.{project.id}.max_posture`)."
-                if merge_posture.requested is not None
-                else ""
-            )
+        if refusal is not None:
             return FinishResult(
-                task_id=task_id,
-                outcome=DECLINED,
-                reason="posture_requires_review",
-                detail=(
-                    f"This finish runs at {merge_posture.describe()}, whose merge policy is "
-                    f"`{posture.merge_policy.value}`. Only `autonomous` releases the merge "
-                    f"gate.{clamped} Hand the ball to human/review and stop; nothing was "
-                    "touched."
-                ),
+                task_id=task_id, outcome=DECLINED, reason=refusal[0], detail=refusal[1]
             )
+        assert released is not None and merge_posture is not None
+        posture_name = merge_posture.posture.value
+        posture_source = merge_posture.source.value
         if settings is None:
             settings = released.settings.finish
             api_base = api_base or released.config.api_base
@@ -1954,6 +2995,11 @@ def finish_task(
         )
 
     task = manager.get_task(task_id)
+    receipts = FinishReceipts(resolved_home, project.id, task_id)
+    if task is not None and not task.is_open:
+        cleanup = _outstanding_cleanup(project.root, task, receipts, settings)
+        if cleanup is not None:
+            return _resume_cleanup(resolved_home, project, task, receipts, cleanup)
     if task is None or not task.is_open:
         return FinishResult(
             task_id=task_id,
@@ -1963,6 +3009,38 @@ def finish_task(
         )
 
     receipt = _standing_approval(resolved_home, project, task) if authority == APPROVAL else None
+
+    def authority_withdrawn() -> Optional[Tuple[str, str]]:
+        """The authority re-read immediately before ``git merge`` (task-322)."""
+        if authority == POSTURE:
+            _, _, refusal = _posture_release(manager, project, task_id, resolved_home)
+            if refusal is None:
+                return None
+            return (
+                "posture_withdrawn",
+                f"The posture that released this merge no longer does: {refusal[1]}",
+            )
+        if receipt is None:
+            # Nothing stood at the start either -- a person running the finish by hand
+            # with no approval on the record -- so there is nothing to have withdrawn.
+            return None
+        latest = manager.get_task(task_id)
+        current = _standing_approval(resolved_home, project, latest) if latest else None
+        if current is not None and current.entry_id == receipt.entry_id:
+            return None
+        return (
+            "approval_withdrawn",
+            f"The approval in entry {receipt.entry_id} no longer stands: a newer human "
+            "handoff or a Stop superseded it while this finish was running.",
+        )
+
+    guard = AuthorityGuard(
+        home=resolved_home,
+        project_id=project.id,
+        task_id=task_id,
+        started_at=began_at,
+        check=authority_withdrawn,
+    )
     lock: Optional[RunLock] = None
     if not _own_run_holds_lock(resolved_home, task_id, project_id=project.id):
         try:
@@ -2011,6 +3089,9 @@ def finish_task(
             directory=directory,
             steps=steps,
             runway=runway,
+            home=resolved_home,
+            receipts=receipts,
+            guard=guard,
         )
         directory.write_meta(
             outcome=FINISHED,
@@ -2036,6 +3117,30 @@ def finish_task(
             steps=steps,
             finish_id=directory.finish_id,
             directory=directory.path,
+        )
+    except Withdrawn as exc:
+        merge_commit = _merge_commit_of(steps)
+        steps.append(StepResult(exc.step, False, exc.detail.splitlines()[0], 0.0))
+        directory.write_meta(
+            outcome=ESCALATED,
+            reason=exc.reason,
+            stopped_at=exc.step,
+            merged=merge_commit is not None,
+            merge_commit=merge_commit,
+            finished_at=datetime.now(timezone.utc).isoformat(),
+            seconds=round(time.monotonic() - started, 2),
+        )
+        record_withdrawal(manager, task_id, exc, steps, merge_commit, project.id)
+        return FinishResult(
+            task_id=task_id,
+            outcome=ESCALATED,
+            reason=exc.reason,
+            detail=exc.detail,
+            steps=steps,
+            finish_id=directory.finish_id,
+            directory=directory.path,
+            merge_commit=merge_commit,
+            escalation_dispatch="withdrawn",
         )
     except Escalate as exc:
         merge_commit = _merge_commit_of(steps)
@@ -2412,13 +3517,51 @@ def _sequence(
     directory: FinishDirectory,
     steps: List[StepResult],
     runway: Runway,
+    home: Optional[Path] = None,
+    receipts: Optional[FinishReceipts] = None,
+    guard: Optional["AuthorityGuard"] = None,
 ) -> FinishResult:
     """The sequence itself, with every stop expressed as an exception.
 
     Written as one straight line on purpose. The ordering *is* the safety argument -- see
     the module docstring -- and a version of this with early returns hides it.
+
+    **The one early return is recovery** (task-322). When this task's receipts or its
+    record say an earlier attempt merged, the runway is taken first and the merge is
+    proved against git; a proved merge goes straight to delivery. Preflight, rebase and
+    gate exist to earn a merge, and re-running them on a branch already in the base
+    rediscovers nothing and can go red on a flake -- which is what task-321's own retry
+    did.
     """
     root = project.root
+    resolved_home = home or default_home()
+    receipts = receipts or FinishReceipts(resolved_home, project.id, task.id)
+    guard = guard or AuthorityGuard(
+        home=resolved_home, project_id=project.id, task_id=task.id, started_at=_now()
+    )
+
+    runway_taken = False
+    if has_merge_evidence(receipts, task):
+        steps.append(runway.take(manager, task.id))
+        directory.record("finish_runway", seconds=round(runway.waited_seconds, 2))
+        runway_taken = True
+        reconcile_merge_intents(root, settings.base_branch, receipts)
+        evidence = merge_evidence_for(task, receipts, settings.base_branch)
+        if evidence is not None:
+            return _resume_delivery(
+                manager=manager,
+                task=task,
+                evidence=evidence,
+                authorisation=authorisation,
+                settings=settings,
+                api_base=api_base,
+                directory=directory,
+                steps=steps,
+                receipts=receipts,
+                guard=guard,
+                root=root,
+            )
+
     began = time.monotonic()
     plan = preflight(task, root, settings)
     steps.append(
@@ -2434,8 +3577,9 @@ def _sequence(
     # base this rebases onto, gates against and merges into is one that cannot move
     # underneath it (task-223). Everything from here to the end of the finish is inside
     # the runway.
-    steps.append(runway.take(manager, task.id))
-    directory.record("finish_runway", seconds=round(runway.waited_seconds, 2))
+    if not runway_taken:
+        steps.append(runway.take(manager, task.id))
+        directory.record("finish_runway", seconds=round(runway.waited_seconds, 2))
     announce_start(manager, task.id, plan, directory)
 
     # Re-read the base *after* the announcement, because the announcement commits a task
@@ -2446,7 +3590,17 @@ def _sequence(
     plan.base_head_before = git_out(plan.root, ["rev-parse", plan.base])
 
     began = time.monotonic()
+    rebase_key = f"{directory.finish_id}:{plan.branch}"
+    _intend_quietly(
+        receipts,
+        directory.finish_id,
+        "rebase",
+        rebase_key,
+        head_before=plan.branch_head_before,
+        base=plan.base_head_before,
+    )
     rebased = rebase(plan)
+    receipts.settle(directory.finish_id, "rebase", rebase_key, APPLIED, head_after=rebased)
     steps.append(
         StepResult(
             "rebase",
@@ -2456,8 +3610,13 @@ def _sequence(
         )
     )
 
-    gate_seconds = run_gate(plan, directory, settings)
-    steps.append(StepResult("gate", True, "scripts/check.py green", gate_seconds))
+    verdict = gate_the_branch(
+        plan, directory, settings, receipts, home=resolved_home, project_id=project.id
+    )
+    steps.append(StepResult("gate", True, verdict.step_detail(), verdict.seconds))
+    directory.record("finish_gate_receipt", **verdict.data())
+    if verdict.retried:
+        record_gate_retry(manager, task.id, verdict, directory.finish_id)
 
     # The gate takes minutes and the base moves every couple of them, so by here it very
     # often has. This absorbs the moves it can re-verify and leaves the rest to `merge`,
@@ -2465,57 +3624,235 @@ def _sequence(
     steps.extend(catch_up(plan, directory, settings))
 
     began = time.monotonic()
-    merge_commit = merge(plan, task, authorisation)
+    merge_commit = merge(
+        plan,
+        task,
+        authorisation,
+        gate_sentence=verdict.sentence(),
+        receipts=receipts,
+        finish_id=directory.finish_id,
+        before_merge=guard.before_merge,
+    )
     steps.append(
         StepResult(
             "merge", True, f"--no-ff into {plan.base} as {merge_commit}", time.monotonic() - began
         )
     )
-    # Immediately, before anything that can fail. See `record_merge`.
-    record_merge(manager, task.id, plan, merge_commit, authorisation)
+    # Before anything that can fail, and twice: the meta and phase record so a reader of
+    # this attempt's directory can see the merge even if the process dies on the next line
+    # (task-322), and the task record, which is the account every reader trusts.
+    directory.write_meta(merge_commit=merge_commit)
+    directory.record("finish_merged", merge_commit=merge_commit, branch=plan.branch)
+    record_merge(manager, task.id, plan, merge_commit, authorisation, gate=verdict)
     commit_task_record(
         manager, task.id, subject=f"record the merge of {plan.branch}", actor=FINISHER
     )
 
-    merged_paths = changed_between(plan.root, plan.base_head_before, merge_commit)
-    steps.append(rebuild_frontend(plan, merged_paths, directory))
-    restart = restart_server(plan, merged_paths, settings, directory)
-    steps.append(restart)
-    steps.append(
-        verify_live(
-            plan,
-            merge_commit,
-            (settings.verify_base or api_base or "http://127.0.0.1:8765"),
-            restarted=not restart.skipped,
-            timeout=settings.verify_timeout_seconds,
-        )
+    return _deliver(
+        manager=manager,
+        task=task,
+        plan=plan,
+        merge_commit=merge_commit,
+        authorisation=authorisation,
+        settings=settings,
+        api_base=api_base,
+        directory=directory,
+        steps=steps,
+        receipts=receipts,
+        guard=guard,
+        gate=verdict,
+        recovering=False,
     )
 
-    mark_branch_merged(manager, task.id, plan.branch)
-    manager.close_task(
-        task.id,
-        actor=FINISHER,
-        outcome=Outcome.COMPLETED,
-        body=(
-            f"Merged `{plan.branch}` into `{plan.base}` as `{merge_commit[:8]}` and "
-            f"verified live. Finished by the scripted path with no agent session "
-            f"(task-241). {authorisation}\n\n"
-            # The step table, on the successful path as well as the escalating one. An
-            # escalation has to say how far it got or the record is ambiguous; a success
-            # has to say the same thing for a different reason -- "verified live" is a
-            # claim, and this is the evidence for it, including what verification
-            # actually asked and what answered. It stops at verification because this
-            # entry *is* the close; the worktree and the branch are retired
-            # immediately after it.
-            "Everything up to and including verification:\n\n"
-            "```\n" + "\n".join(step.render() for step in steps) + "\n```"
-        ),
+
+def _intend_quietly(
+    receipts: FinishReceipts, finish_id: str, activity: str, key: str, **fields: Any
+) -> None:
+    """An intent whose loss costs only a re-run of a step that is safe to re-run."""
+    try:
+        receipts.intend(finish_id, activity, key, **fields)
+    except OSError:
+        pass
+
+
+def _resume_delivery(
+    *,
+    manager: TaskManagerLike,
+    task: Task,
+    evidence: MergeEvidence,
+    authorisation: str,
+    settings: FinishSettings,
+    api_base: Optional[str],
+    directory: FinishDirectory,
+    steps: List[StepResult],
+    receipts: FinishReceipts,
+    guard: "AuthorityGuard",
+    root: Path,
+) -> FinishResult:
+    """Pick delivery up from a merge an earlier attempt made. Nothing is merged or gated.
+
+    The merge is stated on the step table first, so every stop after this -- including
+    the branch having moved on since -- says the merge is done rather than implying it
+    is not.
+    """
+    plan = recovery_plan(root, evidence, settings)
+    steps.append(
+        StepResult(
+            "merge",
+            True,
+            f"already merged by an earlier attempt ({evidence.finish_id or evidence.source}, "
+            f"proved from {evidence.source}); not gated or merged again, as {evidence.commit}",
+            0.0,
+            skipped=True,
+        )
     )
-    steps.append(StepResult("close", True, "closed completed", 0.0))
-    # In this order because a branch checked out in a worktree cannot be deleted. See
-    # `delete_branch`, which re-reads git rather than trusting the step above it.
-    steps.append(remove_worktree(plan))
-    steps.append(delete_branch(plan))
+    directory.write_meta(merge_commit=evidence.commit)
+    directory.record(
+        "finish_merged",
+        merge_commit=evidence.commit,
+        branch=evidence.branch,
+        recovered_from=evidence.finish_id,
+        proved_from=evidence.source,
+    )
+    directory.record("finish_preflight", branch=plan.branch, worktree=str(plan.worktree))
+    assert_branch_not_moved(root, plan, evidence)
+    if previous_merge_commit(task, plan.branch) != evidence.commit:
+        record_merge(manager, task.id, plan, evidence.commit, authorisation, recovered=evidence)
+    return _deliver(
+        manager=manager,
+        task=task,
+        plan=plan,
+        merge_commit=evidence.commit,
+        authorisation=authorisation,
+        settings=settings,
+        api_base=api_base,
+        directory=directory,
+        steps=steps,
+        receipts=receipts,
+        guard=guard,
+        gate=None,
+        recovering=True,
+    )
+
+
+def _deliver(
+    *,
+    manager: TaskManagerLike,
+    task: Task,
+    plan: Plan,
+    merge_commit: str,
+    authorisation: str,
+    settings: FinishSettings,
+    api_base: Optional[str],
+    directory: FinishDirectory,
+    steps: List[StepResult],
+    receipts: FinishReceipts,
+    guard: "AuthorityGuard",
+    gate: Optional[GateVerdict],
+    recovering: bool,
+) -> FinishResult:
+    """Rebuild, restart, verify, close and clean up after ``merge_commit``, from receipts.
+
+    Every step is keyed on the merge commit, so a later attempt resumes what this one did
+    not finish. Rebuild is repeated unless a receipt proves it ran for this merge; restart
+    is skipped only when the serving process already proves it holds the merge; verify is
+    a read and always runs; close and cleanup are idempotent. A Stop between any two of
+    them stops delivery with the merge stated.
+    """
+    key = merge_commit
+    finish_id = directory.finish_id
+    merged_paths = changed_between(plan.root, plan.base_head_before, merge_commit)
+    base_url = settings.verify_base or api_base or "http://127.0.0.1:8765"
+
+    guard.after_merge("rebuild", merge_commit)
+    rebuilt_now = False
+    if receipts.applied("rebuild", key):
+        steps.append(
+            StepResult(
+                "rebuild",
+                True,
+                f"already done for {key[:8]} by an earlier attempt",
+                0.0,
+                skipped=True,
+            )
+        )
+    else:
+        _intend_quietly(receipts, finish_id, "rebuild", key)
+        rebuilt = rebuild_frontend(plan, merged_paths, directory)
+        rebuilt_now = not rebuilt.skipped
+        receipts.settle(finish_id, "rebuild", key, APPLIED, built=rebuilt_now)
+        steps.append(rebuilt)
+
+    guard.after_merge("restart", merge_commit)
+    serving = (
+        already_serving(plan, merge_commit, base_url)
+        if recovering and settings.restart and not rebuilt_now
+        else None
+    )
+    if serving is not None:
+        restart = StepResult("restart", True, serving, 0.0, skipped=True)
+        must_verify = True
+    else:
+        _intend_quietly(receipts, finish_id, "restart", key, command=list(settings.restart))
+        restart = restart_server(plan, merged_paths, settings, directory)
+        receipts.settle(finish_id, "restart", key, APPLIED, ran=not restart.skipped)
+        must_verify = not restart.skipped
+    steps.append(restart)
+
+    guard.after_merge("verify", merge_commit)
+    observed: Dict[str, Any] = {}
+    _intend_quietly(receipts, finish_id, "verify", key, base_url=base_url)
+    verified = verify_live(
+        plan,
+        merge_commit,
+        base_url,
+        restarted=must_verify,
+        timeout=settings.verify_timeout_seconds,
+        observed=observed,
+    )
+    receipts.settle(finish_id, "verify", key, APPLIED, skipped=verified.skipped, **observed)
+    steps.append(verified)
+
+    guard.after_merge("close", merge_commit)
+    current = manager.get_task(task.id)
+    if current is not None and current.is_open:
+        _intend_quietly(receipts, finish_id, "close", key)
+        if plan.branch in active_branches(current):
+            mark_branch_merged(manager, task.id, plan.branch)
+        retry_note = (
+            f"\n\nThe gate: {gate.sentence()}." if gate is not None and gate.retried else ""
+        )
+        recovered_note = (
+            "\n\nThe merge was made by an earlier attempt and proved from its receipts; "
+            "this attempt resumed delivery without gating or merging again."
+            if recovering
+            else ""
+        )
+        manager.close_task(
+            task.id,
+            actor=FINISHER,
+            outcome=Outcome.COMPLETED,
+            body=(
+                f"Merged `{plan.branch}` into `{plan.base}` as `{merge_commit[:8]}` and "
+                f"verified live. Finished by the scripted path with no agent session "
+                f"(task-241). {authorisation}{retry_note}{recovered_note}\n\n"
+                # The step table, on the successful path as well as the escalating one. An
+                # escalation has to say how far it got or the record is ambiguous; a
+                # success has to say the same thing for a different reason -- "verified
+                # live" is a claim, and this is the evidence for it, including what
+                # verification actually asked and what answered. It stops at verification
+                # because this entry *is* the close; the worktree and the branch are
+                # retired immediately after it.
+                "Everything up to and including verification:\n\n"
+                "```\n" + "\n".join(step.render() for step in steps) + "\n```"
+            ),
+        )
+        receipts.settle(finish_id, "close", key, APPLIED)
+        steps.append(StepResult("close", True, "closed completed", 0.0))
+    else:
+        steps.append(StepResult("close", True, "already closed", 0.0, skipped=True))
+
+    steps.extend(_clean_up(plan, receipts, finish_id, key))
     commit_task_record(
         manager, task.id, subject=f"close after merging {plan.branch}", actor=FINISHER
     )
@@ -2526,10 +3863,21 @@ def _sequence(
         reason="finished",
         detail=f"Merged {plan.branch} as {merge_commit[:8]} and verified it live.",
         steps=steps,
-        finish_id=directory.finish_id,
+        finish_id=finish_id,
         directory=directory.path,
         merge_commit=merge_commit,
     )
+
+
+def _clean_up(plan: Plan, receipts: FinishReceipts, finish_id: str, key: str) -> List[StepResult]:
+    """Retire the worktree, then the branch. In that order: see ``delete_branch``."""
+    _intend_quietly(receipts, finish_id, "worktree", key, path=str(plan.worktree))
+    worktree = remove_worktree(plan)
+    receipts.settle(finish_id, "worktree", key, APPLIED, detail=worktree.detail)
+    _intend_quietly(receipts, finish_id, "branch", key, branch=plan.branch)
+    branch = delete_branch(plan)
+    receipts.settle(finish_id, "branch", key, APPLIED, detail=branch.detail)
+    return [worktree, branch]
 
 
 # ----- escalating into a dispatched (and therefore woken) session --------------
@@ -2882,13 +4230,29 @@ def park_for_human(
     extra entry is not noise: it is the record of an attempt that failed, which is the
     thing that was missing.
     """
+    # Whether the merge happened leads the prompt, read from the escalation this follows
+    # (task-322). The prompt is what the dashboard shows first, and a person deciding what
+    # to do next must not have to open a log entry to learn whether `main` moved.
+    task = manager.get_task(task_id)
+    merge_commit = None
+    if task is not None:
+        stopped = next(
+            (entry for entry in reversed(task.log) if "finish_reason" in entry.data), None
+        )
+        if stopped is not None and stopped.data.get("merge_commit"):
+            merge_commit = str(stopped.data["merge_commit"])
+    merged = (
+        f"**The merge is done: `{merge_commit[:8]}`**; what stopped is delivery. "
+        if merge_commit
+        else "**Nothing was merged.** "
+    )
     manager.handoff(
         task_id,
         actor=FINISHER,
         ball=Ball.HUMAN,
         ball_reason=BallReason.DECISION,
         ball_prompt=(
-            "The approval ran the scripted finish, it stopped, and **no agent was "
+            f"{merged}The approval ran the scripted finish, it stopped, and **no agent was "
             f"started to take it from there**: {outcome.detail}\n\n"
             "The finisher's newest progress entry says what stopped it and how far it "
             "got. Nothing further will happen to this task until somebody acts, so this "

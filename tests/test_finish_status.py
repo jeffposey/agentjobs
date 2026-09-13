@@ -490,6 +490,102 @@ class TestOverHttp:
         assert body["elapsed_seconds"] >= 89
 
 
+class TestAnEarlierMergeIsNeverHidden:
+    """task-322. The newest attempt is still the one reported; an earlier merge is a
+    second fact beside it, never folded into its state."""
+
+    def _merged_then_stopped(self, home: Path) -> None:
+        old = datetime.now(timezone.utc) - timedelta(hours=1)
+        merged = write_finish(
+            home,
+            "fin_merged",
+            outcome="escalated",
+            started_at=old.isoformat(),
+            finished_at=old.isoformat(),
+            reason="restart_failed",
+            stopped_at="restart",
+            merge_commit="95bebc1" + "0" * 33,
+        )
+        record(merged, "finish_preflight", branch="feat/x", worktree="w")
+        newer = write_finish(
+            home,
+            "fin_retry",
+            outcome="escalated",
+            finished_at=datetime.now(timezone.utc).isoformat(),
+            reason="gate_failed",
+            stopped_at="gate",
+        )
+        record(newer, "finish_preflight", branch="feat/x", worktree="w")
+
+    def test_a_retry_that_merged_nothing_still_reports_the_earlier_merge(
+        self, tmp_path: Path
+    ) -> None:
+        self._merged_then_stopped(tmp_path)
+
+        status = read_finish_status(tmp_path, "task-001", "sandbox")
+
+        assert status is not None
+        assert status.finish_id == "fin_retry"
+        assert status.state == "escalated"
+        assert status.merge_commit == ""
+        assert status.earlier_merge_commit.startswith("95bebc1")
+        assert status.earlier_merge_finish_id == "fin_merged"
+        assert "The merge is done" in status.next_action
+        assert "Nothing was merged" not in status.next_action
+
+    def test_a_killed_attempt_reports_the_merge_it_recorded_the_moment_it_made_it(
+        self, tmp_path: Path
+    ) -> None:
+        """task-321's `fin_d11a8f5e`: merged, killed mid-delivery, no ending written."""
+        directory = write_finish(tmp_path, "fin_killed")
+        record(directory, "finish_merged", merge_commit="95bebc1" + "0" * 33, branch="feat/x")
+
+        status = read_finish_status(tmp_path, "task-001", "sandbox")
+
+        assert status is not None
+        assert status.state == INTERRUPTED
+        assert status.merge_commit.startswith("95bebc1")
+        assert "resume" in status.next_action
+
+    def test_a_merge_of_a_different_branch_is_not_this_branchs_merge(self, tmp_path: Path) -> None:
+        old = datetime.now(timezone.utc) - timedelta(hours=1)
+        merged = write_finish(
+            tmp_path,
+            "fin_old_branch",
+            outcome="finished",
+            started_at=old.isoformat(),
+            finished_at=old.isoformat(),
+            merge_commit="abc" + "0" * 37,
+        )
+        record(merged, "finish_preflight", branch="feat/first-branch", worktree="w")
+        newer = write_finish(
+            tmp_path,
+            "fin_new_branch",
+            outcome="escalated",
+            finished_at=datetime.now(timezone.utc).isoformat(),
+            reason="gate_failed",
+            stopped_at="gate",
+        )
+        record(newer, "finish_preflight", branch="feat/second-branch", worktree="w")
+
+        status = read_finish_status(tmp_path, "task-001", "sandbox")
+
+        assert status is not None
+        assert status.earlier_merge_commit == ""
+        assert status.next_action.startswith("Nothing was merged")
+
+    def test_the_http_view_carries_both_facts(self, served) -> None:
+        client, _, home = served
+        self._merged_then_stopped(home)
+
+        body = client.get("/api/projects/sandbox/dispatch/finishes/task-001").json()
+
+        assert body["state"] == "escalated"
+        assert body["merge_commit"] == ""
+        assert body["earlier_merge_commit"].startswith("95bebc1")
+        assert "The merge is done" in body["next_action"]
+
+
 def test_the_status_dataclass_is_read_only() -> None:
     """It describes what is on disk; nothing that reads it may change what it says."""
     status = FinishStatus(task_id="task-001", project_id="sandbox", state="running", live=True)
