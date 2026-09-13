@@ -1404,7 +1404,12 @@ class DispatchLedger:
     # ----- cancellation ------------------------------------------------------
 
     def cancel(
-        self, run_id: str, *, actor: str = "dispatcher", source: str = "ledger"
+        self,
+        run_id: str,
+        *,
+        actor: str = "dispatcher",
+        source: str = "ledger",
+        requester: Optional[str] = None,
     ) -> StopResult:
         """Stop one run, by whichever means its mode calls for.
 
@@ -1430,7 +1435,7 @@ class DispatchLedger:
             )
         try:
             journal.request_cancel(
-                self.home, record, requester=actor, source=source, reason="cancel"
+                self.home, record, requester=requester or actor, source=source, reason="cancel"
             )
         except ExecutionStoreError as exc:
             raise LedgerError(

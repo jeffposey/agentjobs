@@ -1305,7 +1305,6 @@ class ExecutionStore:
             ).fetchone()
             if row is not None:
                 return Attempt.from_row(row)
-            state = ATTEMPT_LIVE if live else ATTEMPT_TERMINAL
             if live:
                 clash = connection.execute(
                     "SELECT run_id FROM run_attempt WHERE project_id = ? AND task_id = ? "
@@ -1317,33 +1316,180 @@ class ExecutionStore:
                         f"{project_id}/{task_id} is owned by {clash['run_id']}; legacy run "
                         f"{run_id} cannot also be live"
                     )
-            holder = "legacy"
-            connection.execute(
-                "INSERT INTO run_attempt(run_id, project_id, task_id, mode, takes_slot, holder, "
-                "owner_mode, provenance, state, session_id, status, outcome, admitted_at, "
-                "launched_at, concluded_at, concluded_by) VALUES "
-                "(?,?,?,?,?,?,'legacy','legacy_import',?,?,?,?,?,?,?,?)",
-                (
-                    run_id,
-                    project_id,
-                    task_id,
-                    mode,
-                    1 if takes_slot else 0,
-                    holder,
-                    state,
-                    session_id,
-                    None if live else status,
-                    None if live else outcome,
-                    admitted_at or _iso(self.now()),
-                    admitted_at,
-                    None if live else _iso(self.now()),
-                    None if live else "legacy_import",
-                ),
+            self._insert_legacy_attempt(
+                connection,
+                run_id=run_id,
+                project_id=project_id,
+                task_id=task_id,
+                mode=mode,
+                takes_slot=takes_slot,
+                live=live,
+                session_id=session_id,
+                admitted_at=admitted_at,
+                status=status,
+                outcome=outcome,
+                execution_id=None,
             )
             found = connection.execute(
                 "SELECT * FROM run_attempt WHERE run_id = ?", (run_id,)
             ).fetchone()
             return Attempt.from_row(found)
+
+    def _insert_legacy_attempt(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        run_id: str,
+        project_id: str,
+        task_id: str,
+        mode: str,
+        takes_slot: bool,
+        live: bool,
+        session_id: Optional[str],
+        admitted_at: Optional[str],
+        status: Optional[str],
+        outcome: Optional[str],
+        execution_id: Optional[str],
+    ) -> None:
+        state = ATTEMPT_LIVE if live else ATTEMPT_TERMINAL
+        connection.execute(
+            "INSERT INTO run_attempt(run_id, execution_id, project_id, task_id, mode, takes_slot, "
+            "holder, owner_mode, provenance, state, session_id, status, outcome, admitted_at, "
+            "launched_at, concluded_at, concluded_by) VALUES "
+            "(?,?,?,?,?,?,'legacy','legacy','legacy_import',?,?,?,?,?,?,?,?)",
+            (
+                run_id,
+                execution_id,
+                project_id,
+                task_id,
+                mode,
+                1 if takes_slot else 0,
+                state,
+                session_id,
+                None if live else status,
+                None if live else outcome,
+                admitted_at or _iso(self.now()),
+                admitted_at,
+                None if live else _iso(self.now()),
+                None if live else "legacy_import",
+            ),
+        )
+
+    def import_legacy_run(
+        self,
+        *,
+        run_id: str,
+        project_id: str,
+        task_id: str,
+        mode: str,
+        takes_slot: bool,
+        live: bool,
+        session_id: Optional[str],
+        admitted_at: Optional[str],
+        status: Optional[str],
+        outcome: Optional[str],
+        envelope: Mapping[str, Any],
+        unknown_fields: Sequence[str],
+        workflow_version: int,
+    ) -> Tuple[str, Optional[Attempt]]:
+        """Import one pre-journal run as a legacy execution. One transaction; repeatable.
+
+        Returns ``(disposition, attempt)``: ``imported``; ``already`` when a previous
+        import (or a native admission) owns the run; or ``conflict`` when the run's
+        directory says live but another open execution already owns its task -- two live
+        owners of one task is exactly what migration must never create, so it reports
+        rather than chooses.
+
+        The execution is ``legacy_import`` provenance and ``legacy`` owner mode, and every
+        envelope field the run directory did not record is listed as unknown rather than
+        filled in from today's defaults.
+        """
+        source_id = f"legacy-run:{run_id}"
+        with self.transaction("legacy-import") as connection:
+            row = connection.execute(
+                "SELECT * FROM run_attempt WHERE run_id = ?", (run_id,)
+            ).fetchone()
+            if row is not None and row["execution_id"]:
+                return "already", Attempt.from_row(row)
+            if row is not None and row["provenance"] != PROVENANCE_LEGACY:
+                return "already", Attempt.from_row(row)
+            if live:
+                clash = connection.execute(
+                    "SELECT execution_id FROM execution WHERE project_id = ? AND task_id = ? "
+                    "AND terminal = 0 AND (source_id IS NULL OR source_id <> ?)",
+                    (project_id, task_id, source_id),
+                ).fetchone()
+                if clash is not None:
+                    return "conflict", Attempt.from_row(row) if row is not None else None
+            execution = self._accept(
+                connection,
+                project_id,
+                task_id,
+                envelope=envelope,
+                workflow_version=workflow_version,
+                operation_id=None,
+                execution_id=None,
+                provenance=PROVENANCE_LEGACY,
+                owner_mode=OWNER_LEGACY,
+                unknown_fields=unknown_fields,
+                source_id=source_id,
+                terminal=not live,
+                state="working"
+                if live
+                else ("cancelled" if outcome == "cancelled" else "concluded"),
+            )
+            if row is None:
+                self._insert_legacy_attempt(
+                    connection,
+                    run_id=run_id,
+                    project_id=project_id,
+                    task_id=task_id,
+                    mode=mode,
+                    takes_slot=takes_slot,
+                    live=live,
+                    session_id=session_id,
+                    admitted_at=admitted_at,
+                    status=status,
+                    outcome=outcome,
+                    execution_id=execution.execution_id,
+                )
+            else:
+                connection.execute(
+                    "UPDATE run_attempt SET execution_id = ? WHERE run_id = ?",
+                    (execution.execution_id, run_id),
+                )
+            self._append(
+                connection,
+                execution.execution_id,
+                "admitted",
+                {"run_id": run_id, "attempt_no": 1, "takes_slot": takes_slot},
+                source_id=f"admitted:{run_id}",
+            )
+            if session_id:
+                self._append(
+                    connection,
+                    execution.execution_id,
+                    "launched",
+                    {"run_id": run_id, "session_id": session_id},
+                    source_id=f"launched:{run_id}:{session_id}",
+                )
+            if not live:
+                self._append(
+                    connection,
+                    execution.execution_id,
+                    "concluded",
+                    {
+                        "run_id": run_id,
+                        "outcome": outcome or "",
+                        "status": status or "",
+                        "by": "legacy_import",
+                    },
+                    source_id=f"concluded:{run_id}",
+                )
+            found = connection.execute(
+                "SELECT * FROM run_attempt WHERE run_id = ?", (run_id,)
+            ).fetchone()
+            return "imported", Attempt.from_row(found)
 
     def request_cancel(
         self,

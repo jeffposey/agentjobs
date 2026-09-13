@@ -204,7 +204,35 @@ def poll_live_sessions(
         if phase in TERMINAL_PHASES:
             results.extend(_deliver_pending_handback(home, project, manager, record, handle))
 
+    results.extend(_shadow_journal(home, registry, managers))
     return results
+
+
+def _shadow_journal(
+    home: Path, registry: ProjectRegistry, managers: Dict[str, TaskManagerLike]
+) -> List[PollResult]:
+    """Keep the execution journal's inbox current and replay open executions, in shadow.
+
+    Once per tick and after every session has been polled, so nothing here can delay a
+    settle. It performs no activity (task-264); it reports only when it imported something
+    or could not.
+    """
+    from agentjobs.dispatch.journal import shadow_tick  # local: journal imports runner
+
+    def resolve(project_id: str) -> Optional[TaskManagerLike]:
+        supplied = managers.get(project_id)
+        if supplied is not None:
+            return supplied
+        try:
+            return dispatch_manager_for(registry.get(project_id))
+        except Exception:  # noqa: BLE001 - an unresolvable project imports nothing
+            return None
+
+    report = shadow_tick(home, resolve)
+    lines: List[PollResult] = [PollResult("journal", None, error) for error in report.errors]
+    if report.imported:
+        lines.append(PollResult("journal", None, f"imported {report.imported} task-log entries"))
+    return lines
 
 
 def _deliver_pending_handback(

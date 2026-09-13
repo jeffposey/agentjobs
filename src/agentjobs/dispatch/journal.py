@@ -39,6 +39,7 @@ from agentjobs.execution.store import (
     Conclusion,
     ExecutionStore,
     OutboxItem,
+    SourceEvent,
 )
 from agentjobs.models_v2 import DispatchOutcome
 
@@ -226,19 +227,27 @@ def apply_projection(manager: "TaskManagerLike", item: OutboxItem) -> Dict[str, 
     """Perform one owed task write. Idempotent on the item's operation id."""
     if item.kind != "dispatch_result":
         raise ValueError(f"no applier for outbox kind {item.kind!r}")
+    from agentjobs.manager import DuplicateDispatchResultError
+
     payload = item.payload
-    task = manager.record_dispatch_result(
-        item.task_id,
-        actor=str(payload["actor"]),
-        run_id=str(payload["run_id"]),
-        outcome=DispatchOutcome(str(payload["outcome"])),
-        re=payload.get("re"),
-        exit_code=payload.get("exit_code"),
-        duration_seconds=payload.get("duration_seconds"),
-        log_path=payload.get("log_path"),
-        body=payload.get("body"),
-        operation_id=item.operation_id,
-    )
+    try:
+        task = manager.record_dispatch_result(
+            item.task_id,
+            actor=str(payload["actor"]),
+            run_id=str(payload["run_id"]),
+            outcome=DispatchOutcome(str(payload["outcome"])),
+            re=payload.get("re"),
+            exit_code=payload.get("exit_code"),
+            duration_seconds=payload.get("duration_seconds"),
+            log_path=payload.get("log_path"),
+            body=payload.get("body"),
+            operation_id=item.operation_id,
+        )
+    except DuplicateDispatchResultError as exc:
+        # The task already records this run's ending, written by a path that did not carry
+        # this operation id. That is the fact the item owed, so it is acknowledged rather
+        # than retried against a refusal that will never change.
+        return {"already_recorded": str(exc)}
     entry_id = next(
         (
             entry.id
@@ -522,8 +531,173 @@ def effective_live(home: Path, records: Sequence["RunRecord"]) -> List["RunRecor
     return kept
 
 
+# ----- the source feed and the shadow controller ------------------------------------
+
+
+def task_feed(manager: "TaskManagerLike") -> Callable[[int, int], Sequence[SourceEvent]]:
+    """A project's task-log feed, in the shape the coordinator imports."""
+
+    def read(after: int, limit: int) -> Sequence[SourceEvent]:
+        rows = manager.source_events(after, limit)
+        return [
+            SourceEvent(
+                position=int(row["position"]),
+                project_id=str(row["project_id"]),
+                task_id=str(row["task_id"]),
+                entry_id=int(row["entry_id"]),
+                ts=str(row["ts"]),
+                type=str(row["type"]),
+                actor=str(row["actor"]),
+                data=dict(row.get("data") or {}),
+            )
+            for row in rows
+        ]
+
+    return read
+
+
+@dataclass(frozen=True)
+class ShadowReport:
+    """What one shadow pass did, for the poller's report line."""
+
+    imported: int
+    advanced: Tuple[str, ...]
+    errors: Tuple[str, ...]
+
+
+def shadow_tick(
+    home: Path, resolve_manager: Callable[[str], Optional["TaskManagerLike"]]
+) -> ShadowReport:
+    """Import every project's unseen task-log entries, then replay each open execution.
+
+    Shadow mode (task-264): the replay records its proposals and performs none of them.
+    What this pass does do for real is keep the inbox current, so a handoff a process
+    committed and died before announcing is in the journal within one poll. Never raises;
+    a failure becomes a line in the report.
+    """
+    from agentjobs.execution.coordinator import (
+        MODE_SHADOW,
+        advance_execution,
+        import_source_events,
+    )
+
+    errors: List[str] = []
+    imported = 0
+    advanced: List[str] = []
+    try:
+        store = journal(home)
+        open_executions = store.executions(open_only=True)
+    except ExecutionStoreError as exc:
+        return ShadowReport(0, (), (f"journal unreadable: {exc}",))
+    for project_id in sorted({execution.project_id for execution in open_executions}):
+        manager = resolve_manager(project_id)
+        if manager is None or not hasattr(manager, "source_events"):
+            continue
+        try:
+            imported += import_source_events(store, project_id, task_feed(manager))
+        except Exception as exc:  # noqa: BLE001 - reported, and the next tick retries
+            errors.append(f"{project_id}: feed import failed: {exc}")
+    for execution in open_executions:
+        try:
+            result = advance_execution(store, execution.execution_id, mode=MODE_SHADOW)
+        except ExecutionStoreError as exc:
+            errors.append(f"{execution.execution_id}: {exc}")
+            continue
+        if result.recorded:
+            advanced.append(execution.execution_id)
+    return ShadowReport(imported, tuple(advanced), tuple(errors))
+
+
+# ----- legacy migration --------------------------------------------------------------
+
+LEGACY_ENVELOPE_FIELDS = (
+    "runner",
+    "driver",
+    "mode",
+    "group",
+    "selection_source",
+    "posture",
+    "posture_source",
+    "posture_ceiling",
+    "posture_requested",
+    "agent",
+    "trigger",
+)
+"""The envelope fields a legacy import looks for in a run's meta.
+
+Only what the directory recorded is carried. Anything absent is listed as unknown and
+stays unknown -- never reconstructed from the project's defaults of today, which is the
+silent-downgrade failure task-410's resume already demonstrated."""
+
+
+@dataclass(frozen=True)
+class LegacyImport:
+    run_id: str
+    disposition: str
+    unknown_fields: Tuple[str, ...]
+
+
+def migrate_legacy_runs(home: Path, *, dry_run: bool = False) -> List[LegacyImport]:
+    """Import every run directory the journal does not know yet, explicitly and repeatably.
+
+    Run it once after upgrading, or again whenever; a second run imports nothing new. A
+    live legacy run is imported under the ``legacy`` controller, so no durable controller
+    can claim it while the code that started it still follows it. ``dry_run`` reports what
+    would be imported and writes nothing.
+    """
+    from agentjobs.dispatch.ledger import list_runs
+
+    store = journal(home)
+    results: List[LegacyImport] = []
+    for record in reversed(list_runs(home)):
+        meta = _read_meta(record)
+        envelope = {key: meta[key] for key in LEGACY_ENVELOPE_FIELDS if meta.get(key)}
+        unknown = tuple(key for key in LEGACY_ENVELOPE_FIELDS if not meta.get(key))
+        if not record.project_id or not record.task_id:
+            results.append(LegacyImport(record.run_id, "unattributable", unknown))
+            continue
+        existing = store.attempt(record.run_id)
+        if existing is not None and existing.execution_id:
+            results.append(LegacyImport(record.run_id, "already", unknown))
+            continue
+        if dry_run:
+            results.append(LegacyImport(record.run_id, "would_import", unknown))
+            continue
+        disposition, _ = store.import_legacy_run(
+            run_id=record.run_id,
+            project_id=record.project_id,
+            task_id=record.task_id,
+            mode=record.mode,
+            takes_slot=record.takes_slot,
+            live=record.is_live,
+            session_id=record.session_id,
+            admitted_at=record.started_at.isoformat() if record.started_at else None,
+            status=record.status,
+            outcome=record.outcome,
+            envelope={"legacy_meta": envelope},
+            unknown_fields=unknown,
+            workflow_version=WORKFLOW_VERSION,
+        )
+        results.append(LegacyImport(record.run_id, disposition, unknown))
+    return results
+
+
+def _read_meta(record: "RunRecord") -> Dict[str, object]:
+    from agentjobs.dispatch.atomic_yaml import read_yaml_resiliently
+    from agentjobs.dispatch.runner import META_FILENAME
+
+    loaded = read_yaml_resiliently(record.path / META_FILENAME)
+    return dict(loaded) if isinstance(loaded, dict) else {}
+
+
 __all__ = [
+    "LEGACY_ENVELOPE_FIELDS",
+    "LegacyImport",
     "LegacyView",
+    "ShadowReport",
+    "migrate_legacy_runs",
+    "shadow_tick",
+    "task_feed",
     "OPERATION_NAMESPACE",
     "abandon_admission",
     "admit_dispatch",
