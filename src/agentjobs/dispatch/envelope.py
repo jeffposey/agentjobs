@@ -15,7 +15,7 @@ a record say ``autonomous`` about a resumed session that had only ever been told
 **Continuation versus new grant.** The line is who acted, not which code path ran:
 
 - A dispatch the *machine* starts on a human's handback -- trigger ``auto``, naming no
-  runner, group, posture, playbook, authoriser or epic -- continues the newest execution
+  runner, group, posture, authoriser or epic -- continues the newest execution
   for that task. It reuses the recorded runner, group and posture, and says so with
   source ``history``.
 - A person's click or command, and an epic child started on its parent's authorisation,
@@ -93,13 +93,16 @@ class History:
 
 
 def is_continuation(request: "DispatchRequest") -> bool:
-    """Whether this dispatch carries on an earlier grant instead of making a new one."""
+    """Whether this dispatch carries on an earlier grant instead of making a new one.
+
+    The playbook pointer is deliberately not consulted: no gate reads one (playbooks
+    design section 6.3), and a playbook run is a person's ``manual`` dispatch anyway.
+    """
     return (
         request.trigger is DispatchTrigger.AUTO
         and not request.runner
         and not request.group
         and request.posture is None
-        and request.playbook is None
         and not (request.authorized_by or "").strip()
         and not request.on_behalf_of_parent
     )
