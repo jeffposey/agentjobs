@@ -455,6 +455,14 @@ rather than as engineering.
     receiver as part of an ordinary handoff. The extension point is schema v2's
     HMAC-signed `task.handoff` webhook — see [docs/webhooks.md](docs/webhooks.md).
 
+### The owner's decision in the conversation is binding
+
+-   **Act on it.** A rule here he overruled in chat is overruled; log his decision on
+    the task. Disagree once, with the reason, then do what he decided.
+-   **If a guard blocks what he asked for while he is present, tell him in chat and
+    wait.** Never hand him the ball over it.
+-   **Never leave the ball with him while you still hold work** (task-439).
+
 ## Reporting Standards
 -   **Conciseness**: Be brief. Use bullet points.
 -   **Evidence**: Link to artifacts, screenshots, or log files that prove success.
