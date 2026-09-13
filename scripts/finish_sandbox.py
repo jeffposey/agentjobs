@@ -650,6 +650,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     remove_tree(base)
 
     box = Sandbox(base)
+    # Every agentjobs process this starts is also given the home explicitly; this is the
+    # net under any that is not, so a slip seeds scratch rather than ~/.agentjobs.
+    os.environ["AGENTJOBS_HOME"] = str(box.home)
     results: Dict[str, bool] = {}
     try:
         box.build(branch)

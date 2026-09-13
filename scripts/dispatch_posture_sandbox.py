@@ -165,7 +165,8 @@ def build(root: Path, *, project_id: str) -> tuple[Path, str]:
     # click, and a clean-tree gate that shuts the moment you press a button is not one.
     (project_root / ".gitignore").write_text(".agentjobs/\ntasks/\n", encoding="utf-8")
     task_id = seed(
-        TaskManager(sandbox_store(project_root / "tasks")), title=f"Dispatch me ({name})"
+        TaskManager(sandbox_store(project_root / "tasks", project_id=project_id)),
+        title=f"Dispatch me ({name})",
     )
 
     for command in (
