@@ -252,8 +252,92 @@ CREATE TABLE child_wait (
 );
 """
 
+SCHEMA_REVISION = 2
+"""Additive revisions applied on top of physical schema version 1 (task-416).
+
+**Deliberately not a ``user_version`` bump.** Processes running the previous build share
+this file with the new one -- an epic walk started before an upgrade keeps dispatching
+its children from the old code for hours -- and a bumped version makes every one of
+those refuse every mutation (``compatible`` is false), which grounds the walk on the
+upgrade itself. Revision 2 only adds tables and nullable columns the old build never
+reads, so the old build stays correct beside it. A change an old build could misread
+still bumps ``SCHEMA_VERSION`` and fails closed, as before."""
+
+_ADDITIONS = """
+CREATE TABLE IF NOT EXISTS timer (
+  timer_id      TEXT PRIMARY KEY,
+  owner         TEXT NOT NULL,
+  execution_id  TEXT,
+  kind          TEXT NOT NULL,
+  due_at        TEXT NOT NULL,
+  payload_json  TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(payload_json)),
+  created_at    TEXT NOT NULL,
+  fired_at      TEXT,
+  cancelled_at  TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_timer_due ON timer(due_at)
+  WHERE fired_at IS NULL AND cancelled_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS supervision (
+  walk_id          TEXT PRIMARY KEY,
+  project_id       TEXT NOT NULL,
+  parent_task_id   TEXT NOT NULL,
+  authority_entry  INTEGER NOT NULL,
+  authority_actor  TEXT NOT NULL,
+  settings_json    TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(settings_json)),
+  state            TEXT NOT NULL CHECK (state IN ('walking', 'done', 'stopped')),
+  grounding_json   TEXT CHECK (grounding_json IS NULL OR json_valid(grounding_json)),
+  stop             TEXT,
+  detail           TEXT,
+  host             TEXT NOT NULL DEFAULT 'process',
+  holder           TEXT,
+  holder_pid       INTEGER,
+  epoch            INTEGER NOT NULL DEFAULT 0,
+  started          INTEGER NOT NULL DEFAULT 0,
+  peak_in_flight   INTEGER NOT NULL DEFAULT 0,
+  created_at       TEXT NOT NULL,
+  updated_at       TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_supervision_open
+  ON supervision(project_id, parent_task_id) WHERE state = 'walking';
+
+CREATE TABLE IF NOT EXISTS supervision_child (
+  walk_id            TEXT NOT NULL REFERENCES supervision(walk_id),
+  child_task_id      TEXT NOT NULL,
+  seq                INTEGER NOT NULL,
+  status             TEXT NOT NULL CHECK (status IN (
+                       'admitting', 'flying', 'landed', 'retry_owed', 'grounded')),
+  attempts_reserved  INTEGER NOT NULL DEFAULT 0,
+  operation_id       TEXT,
+  run_id             TEXT,
+  execution_id       TEXT,
+  history_json       TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(history_json)),
+  deadline_at        TEXT,
+  updated_at         TEXT NOT NULL,
+  PRIMARY KEY (walk_id, child_task_id)
+);
+"""
+
+_ADDED_COLUMNS = (
+    ("run_attempt", "operation_id", "TEXT"),
+    ("execution", "controlled_by", "TEXT"),
+)
+"""``run_attempt.operation_id`` is the admission's stable operation id, so a supervisor
+that died between a child's admission and its own bookkeeping finds the same attempt
+rather than admitting a second one. ``execution.controlled_by`` is ``controller`` for an
+execution the durable controller drives and ``NULL`` for everything else -- including
+every row the previous build writes, which is what keeps the legacy poller in charge of
+them."""
+
+CONTROLLED_BY_CONTROLLER = "controller"
+
 
 # ----- values handed back -----------------------------------------------------
+
+
+def _column(row: sqlite3.Row, name: str) -> Any:
+    """A column that revision 2 added, read as ``None`` from a row that predates it."""
+    return row[name] if name in row.keys() else None
 
 
 def _loads(text: Optional[str], default: Any) -> Any:
@@ -305,6 +389,7 @@ class Attempt:
     admitted_at: str
     launched_at: Optional[str]
     concluded_at: Optional[str]
+    operation_id: Optional[str] = None
 
     @property
     def is_live(self) -> bool:
@@ -337,6 +422,7 @@ class Attempt:
             admitted_at=row["admitted_at"],
             launched_at=row["launched_at"],
             concluded_at=row["concluded_at"],
+            operation_id=_column(row, "operation_id"),
         )
 
 
@@ -375,6 +461,13 @@ class Execution:
     snapshot: Optional[Dict[str, Any]]
     snapshot_sequence: Optional[int]
     created_at: str = ""
+    controlled_by: Optional[str] = None
+    next_due_at: Optional[str] = None
+
+    @property
+    def controller_driven(self) -> bool:
+        """Whether the durable controller, rather than the legacy poller, drives it."""
+        return self.controlled_by == CONTROLLED_BY_CONTROLLER
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Execution":
@@ -398,6 +491,8 @@ class Execution:
             snapshot=_loads(row["snapshot_json"], None),
             snapshot_sequence=row["snapshot_sequence"],
             created_at=row["created_at"],
+            controlled_by=_column(row, "controlled_by"),
+            next_due_at=row["next_due_at"],
         )
 
 
@@ -563,6 +658,111 @@ class ChildWait:
         )
 
 
+@dataclass(frozen=True)
+class Timer:
+    """One persisted due time."""
+
+    timer_id: str
+    owner: str
+    execution_id: Optional[str]
+    kind: str
+    due_at: str
+    payload: Dict[str, Any]
+    fired_at: Optional[str]
+    cancelled_at: Optional[str]
+
+    @property
+    def pending(self) -> bool:
+        return self.fired_at is None and self.cancelled_at is None
+
+    @classmethod
+    def from_row(cls, row: sqlite3.Row) -> "Timer":
+        return cls(
+            timer_id=row["timer_id"],
+            owner=row["owner"],
+            execution_id=row["execution_id"],
+            kind=row["kind"],
+            due_at=row["due_at"],
+            payload=_loads(row["payload_json"], {}),
+            fired_at=row["fired_at"],
+            cancelled_at=row["cancelled_at"],
+        )
+
+
+@dataclass(frozen=True)
+class Supervision:
+    """One durable epic walk: the authority it runs on and where it has got to."""
+
+    walk_id: str
+    project_id: str
+    parent_task_id: str
+    authority_entry: int
+    authority_actor: str
+    settings: Dict[str, Any]
+    state: str
+    grounding: Optional[Dict[str, Any]]
+    stop: Optional[str]
+    detail: Optional[str]
+    host: str
+    holder: Optional[str]
+    holder_pid: Optional[int]
+    epoch: int
+    started: int
+    peak_in_flight: int
+
+    @classmethod
+    def from_row(cls, row: sqlite3.Row) -> "Supervision":
+        return cls(
+            walk_id=row["walk_id"],
+            project_id=row["project_id"],
+            parent_task_id=row["parent_task_id"],
+            authority_entry=int(row["authority_entry"]),
+            authority_actor=row["authority_actor"],
+            settings=_loads(row["settings_json"], {}),
+            state=row["state"],
+            grounding=_loads(row["grounding_json"], None),
+            stop=row["stop"],
+            detail=row["detail"],
+            host=row["host"],
+            holder=row["holder"],
+            holder_pid=row["holder_pid"],
+            epoch=int(row["epoch"]),
+            started=int(row["started"]),
+            peak_in_flight=int(row["peak_in_flight"]),
+        )
+
+
+@dataclass(frozen=True)
+class SupervisedChild:
+    """One child of a durable walk: its admissions, attempts and what became of them."""
+
+    walk_id: str
+    child_task_id: str
+    seq: int
+    status: str
+    attempts_reserved: int
+    operation_id: Optional[str]
+    run_id: Optional[str]
+    execution_id: Optional[str]
+    history: List[Dict[str, Any]]
+    deadline_at: Optional[str]
+
+    @classmethod
+    def from_row(cls, row: sqlite3.Row) -> "SupervisedChild":
+        return cls(
+            walk_id=row["walk_id"],
+            child_task_id=row["child_task_id"],
+            seq=int(row["seq"]),
+            status=row["status"],
+            attempts_reserved=int(row["attempts_reserved"]),
+            operation_id=row["operation_id"],
+            run_id=row["run_id"],
+            execution_id=row["execution_id"],
+            history=list(_loads(row["history_json"], [])),
+            deadline_at=row["deadline_at"],
+        )
+
+
 # ----- error classification ---------------------------------------------------
 
 
@@ -683,6 +883,8 @@ class ExecutionStore:
             except sqlite3.Error as exc:
                 raise classify(exc) from exc
             if have != 0:
+                if have == SCHEMA_VERSION:
+                    self._ensure_additions()
                 return have
             try:
                 self._conn.execute("BEGIN IMMEDIATE")
@@ -709,7 +911,56 @@ class ExecutionStore:
                 if isinstance(exc, sqlite3.Error):
                     raise classify(exc) from exc
                 raise
+            self._ensure_additions()
             return have
+
+    def _ensure_additions(self) -> None:
+        """Apply ``SCHEMA_REVISION``'s additive tables and columns, once per file.
+
+        Checked with a read first, so a store opened on an up-to-date file takes no write
+        lock at all; applied under ``BEGIN IMMEDIATE`` with a re-read, so two processes
+        upgrading the same file at once apply it once.
+        """
+
+        def revision() -> int:
+            row = self._conn.execute(
+                "SELECT value FROM store_meta WHERE key = 'schema_revision'"
+            ).fetchone()
+            return int(row[0]) if row is not None else 1
+
+        try:
+            if revision() >= SCHEMA_REVISION:
+                return
+            self._conn.execute("BEGIN IMMEDIATE")
+        except sqlite3.Error as exc:
+            raise classify(exc) from exc
+        try:
+            if revision() < SCHEMA_REVISION:
+                for statement in _ADDITIONS.split(";"):
+                    if statement.strip():
+                        self._conn.execute(statement)
+                for table, column, kind in _ADDED_COLUMNS:
+                    present = {
+                        row[1] for row in self._conn.execute(f"PRAGMA table_info({table})")
+                    }
+                    if column not in present:
+                        self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+                self._conn.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ux_attempt_operation "
+                    "ON run_attempt(operation_id) WHERE operation_id IS NOT NULL"
+                )
+                self._conn.execute(
+                    "INSERT INTO store_meta(key, value) VALUES ('schema_revision', ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    (str(SCHEMA_REVISION),),
+                )
+            self._conn.execute("COMMIT")
+        except BaseException as exc:
+            with suppress(sqlite3.Error):
+                self._conn.execute("ROLLBACK")
+            if isinstance(exc, sqlite3.Error):
+                raise classify(exc) from exc
+            raise
 
     @contextmanager
     def transaction(self, label: str = "write") -> Iterator[sqlite3.Connection]:
@@ -763,6 +1014,7 @@ class ExecutionStore:
         source_id: Optional[str] = None,
         terminal: bool = False,
         state: str = "accepted",
+        controlled_by: Optional[str] = None,
     ) -> Execution:
         """Commit one accepted intent, or return the one this operation already accepted.
 
@@ -785,6 +1037,7 @@ class ExecutionStore:
                 source_id=source_id,
                 terminal=terminal,
                 state=state,
+                controlled_by=controlled_by,
             )
         return found
 
@@ -804,6 +1057,7 @@ class ExecutionStore:
         source_id: Optional[str],
         terminal: bool,
         state: str,
+        controlled_by: Optional[str] = None,
     ) -> Execution:
         for column, value in (("operation_id", operation_id), ("source_id", source_id)):
             if value is None:
@@ -834,8 +1088,8 @@ class ExecutionStore:
         connection.execute(
             "INSERT INTO execution(execution_id, project_id, task_id, operation_id, "
             "workflow_version, envelope_json, unknown_fields_json, provenance, source_id, "
-            "owner_mode, state, terminal, created_at, updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "owner_mode, state, terminal, created_at, updated_at, controlled_by) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 identifier,
                 project_id,
@@ -851,6 +1105,7 @@ class ExecutionStore:
                 1 if terminal else 0,
                 now,
                 now,
+                controlled_by,
             ),
         )
         self._append(
@@ -863,6 +1118,7 @@ class ExecutionStore:
                 "provenance": provenance,
                 "owner_mode": owner_mode,
                 "unknown_fields": sorted(set(unknown_fields)),
+                "controlled_by": controlled_by,
             },
             source_id=f"accepted:{operation_id or source_id or identifier}",
         )
@@ -1087,6 +1343,9 @@ class ExecutionStore:
         legacy_recent_starts: Iterable[str] = (),
         hourly_limit: Optional[int] = None,
         reservation: Optional[Mapping[str, Any]] = None,
+        attempt_operation_id: Optional[str] = None,
+        continues_execution_id: Optional[str] = None,
+        controlled_by: Optional[str] = None,
     ) -> Attempt:
         """Allocate task ownership, a machine slot and a paid-attempt reservation, together.
 
@@ -1106,6 +1365,17 @@ class ExecutionStore:
         ``envelope`` accepts the execution in the same transaction (reusing an open one
         for this task); without it the attempt stands alone, which is what an interactive
         or registered session is.
+
+        **An open execution is continued only when this admission names it**
+        (``continues_execution_id``, task-416). An execution stays open after a retryable
+        attempt ends so its controller can run the next attempt under the same grant; any
+        other admission for the task -- a person's new dispatch, an interactive claim, a
+        registered session -- is a new act, and it supersedes that execution in this same
+        transaction rather than quietly joining a grant it never made.
+
+        ``attempt_operation_id`` makes the admission itself idempotent: a caller that died
+        between committing it and recording the run id it got retries with the same id and
+        is handed the attempt it already has, whatever state that attempt is in now.
         """
         who, pid = this_holder()
         who = holder or who
@@ -1116,6 +1386,17 @@ class ExecutionStore:
         legacy_owners = set(legacy_owners)
         legacy_recent = set(legacy_recent_starts)
         with self.transaction("admit") as connection:
+            if attempt_operation_id is not None:
+                already = connection.execute(
+                    "SELECT * FROM run_attempt WHERE operation_id = ?", (attempt_operation_id,)
+                ).fetchone()
+                if already is not None:
+                    if (already["project_id"], already["task_id"]) != (project_id, task_id):
+                        raise OwnershipConflict(
+                            f"admission {attempt_operation_id} already admitted "
+                            f"{already['project_id']}/{already['task_id']}"
+                        )
+                    return Attempt.from_row(already)
             owner = connection.execute(
                 "SELECT * FROM run_attempt WHERE project_id = ? AND task_id = ? "
                 "AND state <> 'terminal'",
@@ -1167,37 +1448,52 @@ class ExecutionStore:
                         limit="hourly",
                     )
             execution_id: Optional[str] = None
-            if envelope is not None:
-                open_row = connection.execute(
-                    "SELECT execution_id FROM execution WHERE project_id = ? AND task_id = ? "
-                    "AND terminal = 0",
-                    (project_id, task_id),
-                ).fetchone()
-                if open_row is not None:
-                    execution_id = open_row["execution_id"]
-                else:
-                    if workflow_version is None:
-                        raise ValueError("admitting with an envelope needs a workflow_version")
-                    execution_id = self._accept(
-                        connection,
-                        project_id,
-                        task_id,
-                        envelope=envelope,
-                        workflow_version=workflow_version,
-                        operation_id=operation_id,
-                        execution_id=None,
-                        provenance=PROVENANCE_NATIVE,
-                        owner_mode=OWNER_DURABLE,
-                        unknown_fields=(),
-                        source_id=None,
-                        terminal=False,
-                        state="accepted",
-                    ).execution_id
+            open_row = connection.execute(
+                "SELECT execution_id FROM execution WHERE project_id = ? AND task_id = ? "
+                "AND terminal = 0",
+                (project_id, task_id),
+            ).fetchone()
+            if open_row is not None and open_row["execution_id"] != continues_execution_id:
+                # Nothing live owns the task (checked above), so this execution is waiting
+                # between attempts -- and this admission is not its next one.
+                self._close(
+                    connection,
+                    open_row["execution_id"],
+                    outcome="superseded",
+                    reason=f"a new admission ({run_id}) for {project_id}/{task_id} replaced it",
+                )
+                open_row = None
+            if continues_execution_id is not None and open_row is None:
+                raise OwnershipConflict(
+                    f"execution {continues_execution_id} is not open for {project_id}/{task_id}, "
+                    f"so admission {run_id} cannot continue it"
+                )
+            if open_row is not None:
+                execution_id = open_row["execution_id"]
+            elif envelope is not None:
+                if workflow_version is None:
+                    raise ValueError("admitting with an envelope needs a workflow_version")
+                execution_id = self._accept(
+                    connection,
+                    project_id,
+                    task_id,
+                    envelope=envelope,
+                    workflow_version=workflow_version,
+                    operation_id=operation_id,
+                    execution_id=None,
+                    provenance=PROVENANCE_NATIVE,
+                    owner_mode=OWNER_DURABLE,
+                    unknown_fields=(),
+                    source_id=None,
+                    terminal=False,
+                    state="accepted",
+                    controlled_by=controlled_by,
+                ).execution_id
             try:
                 connection.execute(
                     "INSERT INTO run_attempt(run_id, execution_id, project_id, task_id, mode, "
-                    "takes_slot, holder, holder_pid, state, reservation_json, admitted_at) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    "takes_slot, holder, holder_pid, state, reservation_json, admitted_at, "
+                    "operation_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         run_id,
                         execution_id,
@@ -1210,6 +1506,7 @@ class ExecutionStore:
                         ATTEMPT_ADMITTED,
                         _dumps(dict(reservation or {})),
                         now,
+                        attempt_operation_id,
                     ),
                 )
             except sqlite3.IntegrityError as exc:
@@ -1226,7 +1523,8 @@ class ExecutionStore:
                     source_id=f"admitted:{run_id}",
                 )
                 connection.execute(
-                    "UPDATE execution SET state = 'launching' WHERE execution_id = ?",
+                    "UPDATE execution SET state = 'launching', next_due_at = NULL "
+                    "WHERE execution_id = ?",
                     (execution_id,),
                 )
             row = connection.execute(
@@ -1669,6 +1967,8 @@ class ExecutionStore:
         expected_generation: Optional[int] = None,
         refund: bool = False,
         projection: Optional[OutboxItem] = None,
+        retry_owed: bool = False,
+        failure_class: Optional[str] = None,
     ) -> Conclusion:
         """The one compare-and-set terminal transition for a run.
 
@@ -1685,6 +1985,13 @@ class ExecutionStore:
 
         Ownership and the slot are released by this same transaction, because they are
         the same fact: an attempt that is over holds nothing.
+
+        ``retry_owed`` (task-416) ends the attempt without ending its execution -- but only
+        for an execution the durable controller drives, and never for a cancellation. The
+        controller then decides from the recorded ``failure_class`` and the envelope's
+        retry policy whether a next attempt is permitted. An execution the legacy poller
+        follows closes with its attempt exactly as before, because nothing would ever come
+        back for it.
         """
         with self.transaction("conclude") as connection:
             row = self._attempt_for_update(connection, run_id, epoch=epoch)
@@ -1704,19 +2011,46 @@ class ExecutionStore:
             )
             won = cursor.rowcount == 1
             if won and row["execution_id"]:
+                driven = connection.execute(
+                    "SELECT controlled_by FROM execution WHERE execution_id = ?",
+                    (row["execution_id"],),
+                ).fetchone()
+                keep_open = bool(
+                    retry_owed
+                    and outcome != "cancelled"
+                    and not int(row["cancel_requested"])
+                    and driven is not None
+                    and driven["controlled_by"] == CONTROLLED_BY_CONTROLLER
+                )
+                payload: Dict[str, Any] = {
+                    "run_id": run_id,
+                    "outcome": outcome,
+                    "status": status,
+                    "by": concluded_by,
+                }
+                if keep_open:
+                    payload.update(retry_owed=True, failure_class=failure_class)
                 self._append(
                     connection,
                     row["execution_id"],
                     "concluded",
-                    {"run_id": run_id, "outcome": outcome, "status": status, "by": concluded_by},
+                    payload,
                     source_id=f"concluded:{run_id}",
                 )
-                final = "cancelled" if outcome == "cancelled" else "concluded"
-                connection.execute(
-                    "UPDATE execution SET state = ?, terminal = 1, updated_at = ? "
-                    "WHERE execution_id = ?",
-                    (final, now, row["execution_id"]),
-                )
+                if keep_open:
+                    connection.execute(
+                        "UPDATE execution SET state = 'retry_wait', updated_at = ? "
+                        "WHERE execution_id = ?",
+                        (now, row["execution_id"]),
+                    )
+                else:
+                    final = "cancelled" if outcome == "cancelled" else "concluded"
+                    connection.execute(
+                        "UPDATE execution SET state = ?, terminal = 1, updated_at = ? "
+                        "WHERE execution_id = ?",
+                        (final, now, row["execution_id"]),
+                    )
+                    self._cancel_timers(connection, row["execution_id"])
             if won and projection is not None:
                 self._enqueue(connection, projection)
             found = connection.execute(
@@ -1746,6 +2080,251 @@ class ExecutionStore:
                 "SELECT * FROM run_attempt WHERE run_id = ?", (run_id,)
             ).fetchone()
             return Attempt.from_row(found)
+
+    def attempt_by_operation(self, operation_id: str) -> Optional[Attempt]:
+        """The attempt an admission with this stable operation id created, if any."""
+        rows = self._read("SELECT * FROM run_attempt WHERE operation_id = ?", (operation_id,))
+        return Attempt.from_row(rows[0]) if rows else None
+
+    def attempts_for(self, execution_id: str) -> List[Attempt]:
+        """Every attempt an execution has had, oldest first."""
+        rows = self._read(
+            "SELECT * FROM run_attempt WHERE execution_id = ? ORDER BY admitted_at, rowid",
+            (execution_id,),
+        )
+        return [Attempt.from_row(row) for row in rows]
+
+    # ----- closing an execution between attempts (task-416) ---------------------
+
+    def _close(
+        self,
+        connection: sqlite3.Connection,
+        execution_id: str,
+        *,
+        outcome: str,
+        reason: str,
+        failure_class: Optional[str] = None,
+    ) -> None:
+        live = connection.execute(
+            "SELECT run_id FROM run_attempt WHERE execution_id = ? AND state <> 'terminal'",
+            (execution_id,),
+        ).fetchone()
+        if live is not None:
+            raise OwnershipConflict(
+                f"execution {execution_id} still has live attempt {live['run_id']}; an "
+                "execution closes only between attempts"
+            )
+        self._append(
+            connection,
+            execution_id,
+            "closed",
+            {"outcome": outcome, "reason": reason, "failure_class": failure_class},
+            source_id=f"closed:{execution_id}",
+        )
+        final = "cancelled" if outcome == "cancelled" else "concluded"
+        connection.execute(
+            "UPDATE execution SET state = ?, terminal = 1, next_due_at = NULL, updated_at = ? "
+            "WHERE execution_id = ? AND terminal = 0",
+            (final, _iso(self.now()), execution_id),
+        )
+        self._cancel_timers(connection, execution_id)
+
+    def close_execution(
+        self,
+        execution_id: str,
+        *,
+        outcome: str,
+        reason: str,
+        failure_class: Optional[str] = None,
+        epoch: Optional[int] = None,
+    ) -> Execution:
+        """End an execution that has no live attempt: exhausted, escalated or superseded.
+
+        Idempotent -- a closed execution is returned as it is. ``epoch`` fences a
+        controller that lost ownership of the execution in the meantime.
+        """
+        with self.transaction("close") as connection:
+            row = connection.execute(
+                "SELECT * FROM execution WHERE execution_id = ?", (execution_id,)
+            ).fetchone()
+            if row is None:
+                raise ExecutionStoreError(f"no execution {execution_id!r}")
+            if not int(row["terminal"]):
+                if epoch is not None and int(row["controller_epoch"]) != int(epoch):
+                    raise StaleOwner(
+                        f"execution {execution_id} is at controller epoch "
+                        f"{row['controller_epoch']}, not {epoch}"
+                    )
+                self._close(
+                    connection,
+                    execution_id,
+                    outcome=outcome,
+                    reason=reason,
+                    failure_class=failure_class,
+                )
+            found = connection.execute(
+                "SELECT * FROM execution WHERE execution_id = ?", (execution_id,)
+            ).fetchone()
+            return Execution.from_row(found)
+
+    # ----- timers (task-416) ------------------------------------------------------
+
+    def _cancel_timers(self, connection: sqlite3.Connection, execution_id: str) -> None:
+        connection.execute(
+            "UPDATE timer SET cancelled_at = ? WHERE execution_id = ? AND fired_at IS NULL "
+            "AND cancelled_at IS NULL",
+            (_iso(self.now()), execution_id),
+        )
+
+    def _refresh_due(self, connection: sqlite3.Connection, execution_id: Optional[str]) -> None:
+        if execution_id is None:
+            return
+        row = connection.execute(
+            "SELECT MIN(due_at) AS due FROM timer WHERE execution_id = ? AND fired_at IS NULL "
+            "AND cancelled_at IS NULL",
+            (execution_id,),
+        ).fetchone()
+        connection.execute(
+            "UPDATE execution SET next_due_at = ? WHERE execution_id = ?",
+            (row["due"] if row is not None else None, execution_id),
+        )
+
+    def set_timer(
+        self,
+        timer_id: str,
+        *,
+        owner: str,
+        kind: str,
+        due_at: datetime,
+        execution_id: Optional[str] = None,
+        payload: Optional[Mapping[str, Any]] = None,
+    ) -> "Timer":
+        """Persist a due time under a stable id. A repeated set returns the existing timer.
+
+        The deadline is a UTC moment on disk, never a sleeping thread: a process that dies
+        with a timer outstanding leaves it for whichever process next asks what is due.
+        An execution's timer also appends ``timer_set`` to its history in the same commit,
+        so a replay knows what it is waiting for.
+        """
+        with self.transaction("timer-set") as connection:
+            row = connection.execute(
+                "SELECT * FROM timer WHERE timer_id = ?", (timer_id,)
+            ).fetchone()
+            if row is None:
+                now = _iso(self.now())
+                connection.execute(
+                    "INSERT INTO timer(timer_id, owner, execution_id, kind, due_at, payload_json, "
+                    "created_at) VALUES (?,?,?,?,?,?,?)",
+                    (
+                        timer_id,
+                        owner,
+                        execution_id,
+                        kind,
+                        _iso(due_at),
+                        _dumps(dict(payload or {})),
+                        now,
+                    ),
+                )
+                if execution_id is not None:
+                    self._append(
+                        connection,
+                        execution_id,
+                        "timer_set",
+                        {"timer_id": timer_id, "kind": kind, "due_at": _iso(due_at),
+                         **dict(payload or {})},
+                        source_id=f"timer_set:{timer_id}",
+                    )
+                    self._refresh_due(connection, execution_id)
+                row = connection.execute(
+                    "SELECT * FROM timer WHERE timer_id = ?", (timer_id,)
+                ).fetchone()
+            return Timer.from_row(row)
+
+    def timer(self, timer_id: str) -> Optional["Timer"]:
+        rows = self._read("SELECT * FROM timer WHERE timer_id = ?", (timer_id,))
+        return Timer.from_row(rows[0]) if rows else None
+
+    def due_timers(self, *, now: Optional[datetime] = None, owner_prefix: str = "") -> List["Timer"]:
+        """Timers whose due time has passed and which have neither fired nor been cancelled."""
+        moment = _iso(now or self.now())
+        rows = self._read(
+            "SELECT * FROM timer WHERE fired_at IS NULL AND cancelled_at IS NULL AND due_at <= ? "
+            "AND owner LIKE ? ORDER BY due_at, timer_id",
+            (moment, owner_prefix + "%"),
+        )
+        return [Timer.from_row(row) for row in rows]
+
+    def fire_timer(self, timer_id: str) -> bool:
+        """Mark a due timer fired. True for exactly one caller, ever, per timer.
+
+        The compare-and-set on ``fired_at`` is what makes a timer fire once however many
+        processes find it due -- and it is what stops a machine waking from sleep with
+        six overdue ticks from acting six times: each timer is one firing, and a periodic
+        wait sets its *next* timer from the moment it fired, never from its old due time.
+        """
+        with self.transaction("timer-fire") as connection:
+            row = connection.execute(
+                "SELECT * FROM timer WHERE timer_id = ?", (timer_id,)
+            ).fetchone()
+            if row is None or row["fired_at"] is not None or row["cancelled_at"] is not None:
+                return False
+            now = _iso(self.now())
+            cursor = connection.execute(
+                "UPDATE timer SET fired_at = ? WHERE timer_id = ? AND fired_at IS NULL "
+                "AND cancelled_at IS NULL",
+                (now, timer_id),
+            )
+            if cursor.rowcount != 1:  # pragma: no cover - guarded by the read above
+                return False
+            if row["execution_id"] is not None:
+                self._append(
+                    connection,
+                    row["execution_id"],
+                    "timer_fired",
+                    {"timer_id": timer_id, "kind": row["kind"], "fired_at": now},
+                    source_id=f"timer_fired:{timer_id}",
+                )
+                self._refresh_due(connection, row["execution_id"])
+            return True
+
+    def cancel_timer(self, timer_id: str) -> bool:
+        with self.transaction("timer-cancel") as connection:
+            row = connection.execute(
+                "SELECT execution_id FROM timer WHERE timer_id = ?", (timer_id,)
+            ).fetchone()
+            cursor = connection.execute(
+                "UPDATE timer SET cancelled_at = ? WHERE timer_id = ? AND fired_at IS NULL "
+                "AND cancelled_at IS NULL",
+                (_iso(self.now()), timer_id),
+            )
+            if row is not None:
+                self._refresh_due(connection, row["execution_id"])
+            return cursor.rowcount == 1
+
+    def mark_controlled(self, execution_id: str, *, controlled_by: Optional[str]) -> None:
+        """Hand an execution to the durable controller, or back. Quiescent boundary only."""
+        with self.transaction("controlled-by") as connection:
+            live = connection.execute(
+                "SELECT run_id FROM run_attempt WHERE execution_id = ? AND state <> 'terminal'",
+                (execution_id,),
+            ).fetchone()
+            if live is not None:
+                raise OwnerModeConflict(
+                    f"execution {execution_id} still has live attempt {live['run_id']}; drain "
+                    "it before changing which controller drives the execution"
+                )
+            connection.execute(
+                "UPDATE execution SET controlled_by = ?, controller_epoch = controller_epoch + 1 "
+                "WHERE execution_id = ?",
+                (controlled_by, execution_id),
+            )
+            self._append(
+                connection,
+                execution_id,
+                "migrated",
+                {"controlled_by": controlled_by, "reason": "controller routing changed"},
+                source_id=f"controlled:{controlled_by}:{os.urandom(4).hex()}",
+            )
 
     # ----- activities -----------------------------------------------------------
 
@@ -1837,6 +2416,23 @@ class ExecutionStore:
                     activity_id,
                 ),
             )
+            if not int(row["shadow"]):
+                # The result is history the reducer decides from (task-416), so it is an
+                # event of the execution, committed with the activity row it describes.
+                # Shadow proposals record nothing a replay would read.
+                self._append(
+                    connection,
+                    row["execution_id"],
+                    "activity_result",
+                    {
+                        "activity_id": activity_id,
+                        "kind": row["kind"],
+                        "state": state,
+                        "error_class": error_class,
+                        "result": dict(result) if result is not None else None,
+                    },
+                    source_id=f"result:{activity_id}:{int(row['attempt_count']) + 1}",
+                )
             found = connection.execute(
                 "SELECT * FROM activity WHERE activity_id = ?", (activity_id,)
             ).fetchone()
@@ -2233,6 +2829,302 @@ class ExecutionStore:
         )
         return [ChildWait.from_row(row) for row in rows]
 
+    # ----- durable supervision (task-416 part 2, from task-418) --------------------
+
+    def open_walk(
+        self,
+        *,
+        project_id: str,
+        parent_task_id: str,
+        authority_entry: int,
+        authority_actor: str,
+        settings: Mapping[str, Any],
+        host: str = "process",
+        holder: Optional[str] = None,
+        holder_pid: Optional[int] = None,
+        holder_alive: Callable[[int], bool] = lambda _pid: True,
+    ) -> Tuple[Supervision, bool]:
+        """Start supervising an epic on one authorisation, or resume the walk that already is.
+
+        Returns ``(walk, resumed)``. A walk is keyed by the parent and the human entry that
+        authorised it, so a supervisor that died and is started again on the same
+        authorisation resumes *that* walk -- its admitted children, reserved attempts and
+        grounding -- rather than beginning a new one that has forgotten them. A walk whose
+        holder process is still alive is never taken over: two supervisors of one epic is
+        the duplicate-launch the record exists to prevent.
+
+        A fresh authorisation of the epic supersedes the old walk, which is the existing
+        escape hatch for a child that burned its attempts: the new walk's budget is new.
+        """
+        who, pid = this_holder()
+        who = holder or who
+        pid = holder_pid if holder_pid is not None else pid
+        with self.transaction("walk-open") as connection:
+            row = connection.execute(
+                "SELECT * FROM supervision WHERE project_id = ? AND parent_task_id = ? "
+                "AND state = 'walking'",
+                (project_id, parent_task_id),
+            ).fetchone()
+            now = _iso(self.now())
+            if row is not None:
+                current = Supervision.from_row(row)
+                other = current.holder is not None and current.holder != who
+                if (
+                    other
+                    and current.holder_pid is not None
+                    and current.host == "process"
+                    and holder_alive(int(current.holder_pid))
+                ):
+                    raise OwnershipConflict(
+                        f"{project_id}/{parent_task_id} is already being walked by "
+                        f"{current.holder} (walk {current.walk_id}); one supervisor per epic"
+                    )
+                if current.authority_entry == int(authority_entry):
+                    connection.execute(
+                        "UPDATE supervision SET holder = ?, holder_pid = ?, host = ?, "
+                        "epoch = epoch + 1, updated_at = ? WHERE walk_id = ?",
+                        (who, pid, host, now, current.walk_id),
+                    )
+                    found = connection.execute(
+                        "SELECT * FROM supervision WHERE walk_id = ?", (current.walk_id,)
+                    ).fetchone()
+                    return Supervision.from_row(found), True
+                connection.execute(
+                    "UPDATE supervision SET state = 'stopped', stop = 'superseded', detail = ?, "
+                    "updated_at = ? WHERE walk_id = ?",
+                    (
+                        f"superseded by a fresh authorisation (entry {authority_entry})",
+                        now,
+                        current.walk_id,
+                    ),
+                )
+            walk_id = f"walk_{os.urandom(6).hex()}"
+            connection.execute(
+                "INSERT INTO supervision(walk_id, project_id, parent_task_id, authority_entry, "
+                "authority_actor, settings_json, state, host, holder, holder_pid, epoch, "
+                "created_at, updated_at) VALUES (?,?,?,?,?,?,'walking',?,?,?,1,?,?)",
+                (
+                    walk_id,
+                    project_id,
+                    parent_task_id,
+                    int(authority_entry),
+                    authority_actor,
+                    _dumps(dict(settings)),
+                    host,
+                    who,
+                    pid,
+                    now,
+                    now,
+                ),
+            )
+            found = connection.execute(
+                "SELECT * FROM supervision WHERE walk_id = ?", (walk_id,)
+            ).fetchone()
+            return Supervision.from_row(found), False
+
+    def walk(self, walk_id: str) -> Optional[Supervision]:
+        rows = self._read("SELECT * FROM supervision WHERE walk_id = ?", (walk_id,))
+        return Supervision.from_row(rows[0]) if rows else None
+
+    def open_walks(self, *, project_id: Optional[str] = None) -> List[Supervision]:
+        if project_id is None:
+            rows = self._read("SELECT * FROM supervision WHERE state = 'walking' ORDER BY created_at")
+        else:
+            rows = self._read(
+                "SELECT * FROM supervision WHERE state = 'walking' AND project_id = ? "
+                "ORDER BY created_at",
+                (project_id,),
+            )
+        return [Supervision.from_row(row) for row in rows]
+
+    def _walk_for_update(
+        self, connection: sqlite3.Connection, walk_id: str, epoch: int
+    ) -> sqlite3.Row:
+        row: Optional[sqlite3.Row] = connection.execute(
+            "SELECT * FROM supervision WHERE walk_id = ?", (walk_id,)
+        ).fetchone()
+        if row is None:
+            raise ExecutionStoreError(f"no walk {walk_id!r}")
+        if int(row["epoch"]) != int(epoch):
+            raise StaleOwner(
+                f"walk {walk_id} is at epoch {row['epoch']}, not {epoch}; another supervisor "
+                "took it over and this write was refused"
+            )
+        return row
+
+    def update_walk(
+        self,
+        walk_id: str,
+        *,
+        epoch: int,
+        grounding: Optional[Mapping[str, Any]] = None,
+        state: Optional[str] = None,
+        stop: Optional[str] = None,
+        detail: Optional[str] = None,
+        started: Optional[int] = None,
+        peak_in_flight: Optional[int] = None,
+        host: Optional[str] = None,
+    ) -> Supervision:
+        """Record what a walk decided. Grounding is sticky: the first cause is kept."""
+        with self.transaction("walk-update") as connection:
+            self._walk_for_update(connection, walk_id, epoch)
+            connection.execute(
+                "UPDATE supervision SET "
+                "grounding_json = COALESCE(grounding_json, ?), "
+                "state = COALESCE(?, state), stop = COALESCE(?, stop), "
+                "detail = COALESCE(?, detail), "
+                "started = MAX(started, COALESCE(?, 0)), "
+                "peak_in_flight = MAX(peak_in_flight, COALESCE(?, 0)), "
+                "host = COALESCE(?, host), updated_at = ? WHERE walk_id = ?",
+                (
+                    _dumps(dict(grounding)) if grounding is not None else None,
+                    state,
+                    stop,
+                    detail,
+                    started,
+                    peak_in_flight,
+                    host,
+                    _iso(self.now()),
+                    walk_id,
+                ),
+            )
+            found = connection.execute(
+                "SELECT * FROM supervision WHERE walk_id = ?", (walk_id,)
+            ).fetchone()
+            return Supervision.from_row(found)
+
+    def supervised_children(self, walk_id: str) -> List[SupervisedChild]:
+        rows = self._read(
+            "SELECT * FROM supervision_child WHERE walk_id = ? ORDER BY seq", (walk_id,)
+        )
+        return [SupervisedChild.from_row(row) for row in rows]
+
+    def supervised_child(self, walk_id: str, child_task_id: str) -> Optional[SupervisedChild]:
+        rows = self._read(
+            "SELECT * FROM supervision_child WHERE walk_id = ? AND child_task_id = ?",
+            (walk_id, child_task_id),
+        )
+        return SupervisedChild.from_row(rows[0]) if rows else None
+
+    def reserve_child_attempt(
+        self,
+        walk_id: str,
+        *,
+        epoch: int,
+        child_task_id: str,
+        operation_id: str,
+        limit: int,
+        used_on_record: int,
+    ) -> Optional[SupervisedChild]:
+        """Reserve one of a child's attempts before its dispatch, with the admission id.
+
+        ``None`` when the attempts are spent. The number used is the larger of what this
+        walk reserved and what the child's own log records, so neither a supervisor that
+        died after reserving nor one that died after the child's authorising entry landed
+        can be tricked into a third run. Refused outright on a grounded walk: grounding
+        stops every further takeoff, including one a resumed supervisor was about to make.
+        """
+        with self.transaction("walk-reserve") as connection:
+            walk = self._walk_for_update(connection, walk_id, epoch)
+            if walk["grounding_json"] is not None or walk["state"] != "walking":
+                raise OwnershipConflict(
+                    f"walk {walk_id} is grounded or finished; no child may take off"
+                )
+            row = connection.execute(
+                "SELECT * FROM supervision_child WHERE walk_id = ? AND child_task_id = ?",
+                (walk_id, child_task_id),
+            ).fetchone()
+            now = _iso(self.now())
+            if row is None:
+                seq = connection.execute(
+                    "SELECT COALESCE(MAX(seq), 0) + 1 FROM supervision_child WHERE walk_id = ?",
+                    (walk_id,),
+                ).fetchone()[0]
+                if int(used_on_record) >= int(limit):
+                    return None
+                connection.execute(
+                    "INSERT INTO supervision_child(walk_id, child_task_id, seq, status, "
+                    "attempts_reserved, operation_id, updated_at) VALUES (?,?,?,'admitting',?,?,?)",
+                    (walk_id, child_task_id, int(seq), int(used_on_record) + 1, operation_id, now),
+                )
+            else:
+                if row["status"] in ("admitting", "flying"):
+                    raise OwnershipConflict(
+                        f"{child_task_id} is already {row['status']} under walk {walk_id} "
+                        f"({row['operation_id']}); reconcile it before another takeoff"
+                    )
+                reserved = int(row["attempts_reserved"])
+                used = max(reserved, int(used_on_record))
+                if used >= int(limit):
+                    return None
+                connection.execute(
+                    "UPDATE supervision_child SET status = 'admitting', attempts_reserved = ?, "
+                    "operation_id = ?, run_id = NULL, execution_id = NULL, deadline_at = NULL, "
+                    "updated_at = ? WHERE walk_id = ? AND child_task_id = ?",
+                    (used + 1, operation_id, now, walk_id, child_task_id),
+                )
+            found = connection.execute(
+                "SELECT * FROM supervision_child WHERE walk_id = ? AND child_task_id = ?",
+                (walk_id, child_task_id),
+            ).fetchone()
+            return SupervisedChild.from_row(found)
+
+    def record_child(
+        self,
+        walk_id: str,
+        *,
+        epoch: int,
+        child_task_id: str,
+        status: str,
+        run_id: Optional[str] = None,
+        execution_id: Optional[str] = None,
+        deadline_at: Optional[datetime] = None,
+        landed: Optional[Mapping[str, Any]] = None,
+        refund: bool = False,
+    ) -> SupervisedChild:
+        """Move one child: admitted into flight, landed, owed a retry, or refunded.
+
+        ``refund`` returns the reservation an admission provably never used -- the
+        admitting operation id has no attempt in the journal and the process that held it
+        is gone -- so a crash before admission costs the child nothing.
+        """
+        if status not in ("admitting", "flying", "landed", "retry_owed", "grounded"):
+            raise ValueError(f"unknown child status {status!r}")
+        with self.transaction("walk-child") as connection:
+            self._walk_for_update(connection, walk_id, epoch)
+            row = connection.execute(
+                "SELECT * FROM supervision_child WHERE walk_id = ? AND child_task_id = ?",
+                (walk_id, child_task_id),
+            ).fetchone()
+            if row is None:
+                raise ExecutionStoreError(f"walk {walk_id} has no child {child_task_id}")
+            history = list(_loads(row["history_json"], []))
+            if landed is not None:
+                history.append(dict(landed))
+            connection.execute(
+                "UPDATE supervision_child SET status = ?, "
+                "run_id = COALESCE(?, run_id), execution_id = COALESCE(?, execution_id), "
+                "deadline_at = COALESCE(?, deadline_at), history_json = ?, "
+                "attempts_reserved = attempts_reserved - ?, updated_at = ? "
+                "WHERE walk_id = ? AND child_task_id = ?",
+                (
+                    status,
+                    run_id,
+                    execution_id,
+                    _iso(deadline_at) if deadline_at is not None else None,
+                    _dumps(history),
+                    1 if refund and int(row["attempts_reserved"]) > 0 else 0,
+                    _iso(self.now()),
+                    walk_id,
+                    child_task_id,
+                ),
+            )
+            found = connection.execute(
+                "SELECT * FROM supervision_child WHERE walk_id = ? AND child_task_id = ?",
+                (walk_id, child_task_id),
+            ).fetchone()
+            return SupervisedChild.from_row(found)
+
     # ----- backup and restore ---------------------------------------------------
 
     def backup(self, destination: Path) -> Path:
@@ -2284,6 +3176,7 @@ __all__ = [
     "Activity",
     "Attempt",
     "ChildWait",
+    "CONTROLLED_BY_CONTROLLER",
     "Conclusion",
     "Cursor",
     "EXECUTION_DB_FILENAME",
@@ -2295,8 +3188,12 @@ __all__ = [
     "OutboxItem",
     "PROVENANCE_LEGACY",
     "PROVENANCE_NATIVE",
+    "SCHEMA_REVISION",
     "SCHEMA_VERSION",
     "SourceEvent",
+    "SupervisedChild",
+    "Supervision",
+    "Timer",
     "StoredEvent",
     "classify",
     "digest",
