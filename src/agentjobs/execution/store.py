@@ -252,8 +252,11 @@ CREATE TABLE child_wait (
 );
 """
 
-SCHEMA_REVISION = 2
+SCHEMA_REVISION = 3
 """Additive revisions applied on top of physical schema version 1 (task-416).
+
+Revision 3 (task-417) adds the auth-recovery incident, waiter and probe tables, which no
+earlier build reads.
 
 **Deliberately not a ``user_version`` bump.** Processes running the previous build share
 this file with the new one -- an epic walk started before an upgrade keeps dispatching
@@ -316,6 +319,52 @@ CREATE TABLE IF NOT EXISTS supervision_child (
   updated_at         TEXT NOT NULL,
   PRIMARY KEY (walk_id, child_task_id)
 );
+
+CREATE TABLE IF NOT EXISTS auth_incident (
+  incident_id    TEXT PRIMARY KEY,
+  kind           TEXT NOT NULL,
+  profile_key    TEXT NOT NULL,
+  profile_json   TEXT NOT NULL CHECK (json_valid(profile_json)),
+  state          TEXT NOT NULL CHECK (state IN ('open', 'recovered', 'closed')),
+  opened_at      TEXT NOT NULL,
+  notify_at      TEXT,
+  notified_at    TEXT,
+  next_probe_at  TEXT NOT NULL,
+  resets_at      TEXT,
+  last_result_json TEXT CHECK (last_result_json IS NULL OR json_valid(last_result_json)),
+  closed_reason  TEXT,
+  updated_at     TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_auth_incident_open
+  ON auth_incident(kind, profile_key) WHERE state = 'open';
+
+CREATE TABLE IF NOT EXISTS auth_waiter (
+  incident_id    TEXT NOT NULL REFERENCES auth_incident(incident_id),
+  run_id         TEXT NOT NULL,
+  project_id     TEXT NOT NULL,
+  task_id        TEXT NOT NULL,
+  session_id     TEXT NOT NULL,
+  stall_at       TEXT NOT NULL,
+  status         TEXT NOT NULL CHECK (status IN (
+                   'waiting', 'nudging', 'nudged', 'recovered', 'removed', 'uncertain', 'escalated')),
+  nudges         INTEGER NOT NULL DEFAULT 0,
+  detail_json    TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(detail_json)),
+  joined_at      TEXT NOT NULL,
+  updated_at     TEXT NOT NULL,
+  PRIMARY KEY (incident_id, run_id)
+);
+CREATE INDEX IF NOT EXISTS ix_auth_waiter_run ON auth_waiter(run_id);
+
+CREATE TABLE IF NOT EXISTS auth_probe (
+  probe_id       TEXT PRIMARY KEY,
+  incident_id    TEXT NOT NULL REFERENCES auth_incident(incident_id),
+  profile_key    TEXT NOT NULL,
+  holder         TEXT NOT NULL,
+  started_at     TEXT NOT NULL,
+  finished_at    TEXT,
+  result_json    TEXT CHECK (result_json IS NULL OR json_valid(result_json))
+);
+CREATE INDEX IF NOT EXISTS ix_auth_probe_profile ON auth_probe(profile_key, started_at);
 """
 
 _ADDED_COLUMNS = (
@@ -994,6 +1043,15 @@ class ExecutionStore:
                 return list(self._conn.execute(sql, parameters))
             except sqlite3.Error as exc:
                 raise classify(exc) from exc
+
+    def read(self, sql: str, parameters: Sequence[Any] = ()) -> List[sqlite3.Row]:
+        """A read outside any transaction, for a module that owns its own tables here.
+
+        ``dispatch.auth_recovery`` (task-417) is the one caller. Its tables live in this
+        file so its transitions share the journal's WAL and busy contract, but its logic is
+        not the journal's and does not belong in this class.
+        """
+        return self._read(sql, parameters)
 
     # ----- executions and history ---------------------------------------------
 

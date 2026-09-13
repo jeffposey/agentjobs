@@ -162,7 +162,29 @@ def poll_live_sessions(
 
     results.extend(_shadow_journal(home, registry, managers))
     results.extend(_drive_controller(home, registry, managers))
+    results.extend(_recover_parked(home, registry, managers))
     return results
+
+
+def _recover_parked(
+    home: Path, registry: ProjectRegistry, managers: Dict[str, TaskManagerLike]
+) -> List[PollResult]:
+    """Probe, wake and confirm runs parked on a login or quota refusal (task-417).
+
+    After every session has been polled, so a stall found this tick has already joined its
+    incident and an immediate probe can run in the same tick. A probe blocks for at most
+    its 30-second timeout, and only while an incident is open and due.
+    """
+    from agentjobs.dispatch.auth_recovery import tick
+
+    try:
+        lines = tick(home, registry=registry, managers=managers)
+    except Exception as exc:  # noqa: BLE001 - recovery must never take the poller down
+        return [PollResult("auth-recovery", None, f"failed: {exc}")]
+    return [
+        PollResult(subject, None, detail)
+        for subject, _, detail in (line.partition(": ") for line in lines)
+    ]
 
 
 def _drive_controller(
@@ -340,7 +362,13 @@ def _deliver_pending_handback(
         config = project.load_config()
     except ProjectError:  # pragma: no cover - a project whose config cannot be read
         return []
-    entry = pending_handback(task, config, after_entry=handle.dispatch_entry_id)
+    # A recovery resume already carried every human message up to this entry (task-417),
+    # so settling the run must not deliver them a second time.
+    delivered = handle.directory.read_meta().get("delivered_through_entry")
+    after = handle.dispatch_entry_id
+    if isinstance(delivered, int) and (after is None or delivered > after):
+        after = delivered
+    entry = pending_handback(task, config, after_entry=after)
     if entry is None:
         return []
     finishing = _finish_an_approval(home, project, task, config, record, entry.id)

@@ -2184,6 +2184,33 @@ def execution_status() -> None:
             f"  {walk.walk_id} {walk.project_id}/{walk.parent_task_id} on entry "
             f"{walk.authority_entry} [{walk.host}] started {walk.started}{grounded}"
         )
+    _echo_auth_incidents(home)
+
+
+def _echo_auth_incidents(home: Path) -> None:
+    """Open login and quota incidents (task-417): what is waiting, and when it is next probed."""
+    from agentjobs.dispatch.auth_recovery import incident_summary
+    from agentjobs.execution.errors import ExecutionStoreError
+
+    try:
+        incidents = [row for row in incident_summary(home) if row["state"] == "open"]
+    except ExecutionStoreError:
+        incidents = []
+    typer.echo(f"Auth incidents: {len(incidents)}")
+    for row in incidents:
+        last = row["last_probe"] or {}
+        notified = f"; notified {row['notified_at']}" if row["notified_at"] else ""
+        reset = f"; resets {row['resets_at']}" if row["resets_at"] else ""
+        typer.echo(
+            f"  {row['incident']} {row['kind']} ({row['model'] or 'default model'}) "
+            f"last probe {last.get('class') or 'none'}; next {row['next_probe_at']}"
+            f"{reset}{notified}"
+        )
+        for waiter in row["waiters"]:
+            typer.echo(
+                f"    {waiter['run_id']} {waiter['task']} {waiter['status']} "
+                f"({waiter['nudges']} resumes)"
+            )
 
 
 @execution_app.command("tick")

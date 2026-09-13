@@ -1444,6 +1444,26 @@ def walk_epic(**kwargs: Any) -> WalkResult:
     return result
 
 
+RECOVERING_ACTIONS = frozenset({"park", "notify"})
+"""Auth-recovery handoffs that mean "this resumes without a person deciding anything".
+An ``escalate`` is not one of them: it is recovery saying it cannot proceed."""
+
+
+def _recovering(child: object, status: Optional[str]) -> bool:
+    """Whether the child's newest handoff is an auth-recovery park its run is still under."""
+    from agentjobs.dispatch.auth_recovery import MARKER
+    from agentjobs.dispatch.guards import TERMINAL_RUN_STATUSES
+
+    if status is not None and status in TERMINAL_RUN_STATUSES:
+        return False
+    log = getattr(child, "log", None) or []
+    newest = next((entry for entry in reversed(log) if entry.type is LogEntryType.HANDOFF), None)
+    if newest is None:
+        return False
+    marker = (newest.data or {}).get(MARKER)
+    return isinstance(marker, dict) and marker.get("action") in RECOVERING_ACTIONS
+
+
 def _poll_child(
     *,
     manager: TaskManagerLike,
@@ -1502,6 +1522,19 @@ def _poll_child(
             f"closed with outcome {outcome.value if outcome else 'none'}, which is a "
             "deliberate act by whoever closed it and not something to walk past",
         )
+
+    if child.ball is not Ball.AGENT and _recovering(child, status):
+        # Parked on a login or quota refusal that auth recovery resumes by itself
+        # (task-417). Grounding the epic here is what made one expired login stop a whole
+        # walk until somebody restarted it (task-417 entry 7). The flight's deadline
+        # still bounds the wait.
+        if now() >= flight.deadline:
+            return verdict(
+                ChildVerdict.TIMED_OUT,
+                "still parked on a recoverable login or quota refusal when the child's "
+                "ceiling ran out",
+            )
+        return None
 
     if child.ball is not Ball.AGENT:
         reason = child.ball_reason.value if child.ball_reason else "unstated"

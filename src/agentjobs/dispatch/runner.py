@@ -117,6 +117,7 @@ from agentjobs.execution.errors import ExecutionStoreError
 from agentjobs.store_factory import TaskManagerLike
 
 if TYPE_CHECKING:  # pragma: no cover - ledger imports this module
+    from agentjobs.dispatch.auth_recovery import Stall
     from agentjobs.dispatch.envelope import History
     from agentjobs.dispatch.ledger import RunRecord
 
@@ -2743,10 +2744,17 @@ class DispatchRunner:
         if self.runner.driver is RunnerDriver.CODEX:
             return self._poll_codex_app_server(handle)
 
+        from agentjobs.dispatch import auth_recovery  # local: it imports this module
+
         row = self._ledger_row(handle.session_id)
         settled = self._settle_requested_ending(handle, row)
         if settled is not None:
             return settled
+        if auth_recovery.holds_run(self.home, handle.run_id):
+            # A recovery stopped this session on purpose to resume it (task-417), or cannot
+            # tell whether its resume landed. Settling now is exactly how run_eff69f71 was
+            # concluded `interrupted` while its session carried on untracked (entry 8).
+            return SessionPhase.AUTH_STALLED
         if row is None:
             self._finish_session(
                 handle,
@@ -2772,9 +2780,9 @@ class DispatchRunner:
         # a terminal entry for a run that did not finish -- `completed` when the ball had
         # moved earlier in the run, which is precisely how run_a1e35ca5 came to be
         # recorded as a success after dying (task-224).
-        stall = self.auth_stall(handle)
+        stall = self.recoverable_stall(handle)
         if stall is not None and not self._standing_down(handle):
-            self._park_auth_stall(handle, stall)
+            auth_recovery.park(self, handle, stall)
             return SessionPhase.AUTH_STALLED
 
         if phase is SessionPhase.PARKED:
@@ -2988,65 +2996,24 @@ class DispatchRunner:
         except OSError:  # pragma: no cover - the Claude home went away underneath us
             return None
 
-    def _park_auth_stall(self, handle: RunHandle, stall: AuthStall) -> None:
-        """Turn a dead credential into the one instruction that fixes it.
+    def recoverable_stall(self, handle: RunHandle) -> Optional["Stall"]:
+        """The auth or quota refusal this run's session last stopped on, if any (task-417).
 
-        The run is **parked, not finished**. Recovery is in place and verified: after a
-        re-auth the already-running session picks up where it stopped, with no restart
-        and no re-dispatch, so reaping it here would destroy the cheap recovery and turn
-        six lost minutes into a lost night. Parking also keeps the run's lock, which is
-        the correct posture while auth is down -- a fresh dispatch at the same task would
-        die exactly as this one did.
-
-        Keyed on the failure's own timestamp rather than on a flag, so a session that
-        recovers and later stalls again is reported again rather than silently the once.
+        ``None`` for every ordinary state and every runner that is not Claude Code. A
+        refusal already nudged is still returned until the session writes a real reply
+        past it, and parking it again is a no-op: until that reply, an idle session is a
+        resume in progress rather than a finished one.
         """
-        if handle.directory.read_meta().get("auth_stalled_at") == stall.at.isoformat():
-            return
-        if self.manager.get_task(handle.task_id) is None:  # pragma: no cover - deleted
-            return
-        said = f' It said: "{stall.message}".' if stall.message else ""
-        self.manager.handoff(
-            handle.task_id,
-            actor="dispatcher",
-            ball=Ball.HUMAN,
-            ball_reason=BallReason.INPUT,
-            ball_prompt=(
-                f"{self.session_noun(handle)} session `{handle.session_id}` stopped on an "
-                f"authentication "
-                f"failure at {stall.at.isoformat()} and will not resume by itself."
-                f"{said}\n\n"
-                "**Find out which failure this is before doing anything — there are two "
-                "and they look identical from here.** Either the credential store "
-                "genuinely cannot authenticate, or it can and this session is stuck on "
-                "a refresh that already failed. Nothing you can see distinguishes them: "
-                "not this task, not the run ledger, and not `agents --json`. One "
-                "command does, run as a **fresh process** rather than inside the "
-                "stalled session:\n\n"
-                '```\nclaude -p "Reply with exactly: AUTH_OK"\n```\n\n'
-                "**If it answers**, the credential is fine and only the session is "
-                "stuck. Send it a message to wake it, or attach with "
-                f"`{self.display_command()} attach {handle.session_id}`. Logging in "
-                "again changes nothing.\n\n"
-                "**If it fails to authenticate**, the store is genuinely dead and no "
-                "restart will clear it. Run `claude auth login` in a terminal on that "
-                "machine, then wake the session the same way. Answering inside the "
-                "session cannot work while this is true: the credential is already "
-                "gone, so anything sent is retried against nothing and fails "
-                "instantly.\n\n"
-                "Either way the session resumes in place -- nothing is lost and this "
-                "task does not need re-dispatching."
-            ),
-        )
-        handle.directory.update_meta(status="parked", auth_stalled_at=stall.at.isoformat())
-        # The session is dead until someone logs in, so it will not be committing this
-        # handoff on its way past -- and a handoff nobody commits is a handoff the
-        # dashboard never shows.
-        self._commit_record(
-            handle.task_id,
-            f"park run {handle.run_id} on an expired login",
-            directory=handle.directory,
-        )
+        from agentjobs.dispatch.auth_recovery import read_stall
+
+        if not handle.session_id:
+            return None
+        try:
+            return read_stall(
+                handle.session_id, home=self.claude_home, since=self._started_at(handle)
+            )
+        except OSError:  # pragma: no cover - the Claude home went away underneath us
+            return None
 
     def session_noun(self, handle: RunHandle, *, capitalised: bool = True) -> str:
         """ "Dispatched session" or "Registered session", from what the run says it is.
