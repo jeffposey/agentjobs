@@ -3305,6 +3305,11 @@ class DispatchRunner:
         if reap and handle.session_id:
             self.stop_session(handle.session_id)
 
+        if hand_to_human and self._resume_own_finish(handle):
+            # The run died inside its own posture finish, and that finish has been started
+            # again to carry on (task-443). It is what acts next, not a person.
+            hand_to_human = None
+
         if hand_to_human:
             task = self.manager.get_task(handle.task_id)
             if task is not None and task.is_open and task.ball is not Ball.HUMAN:
@@ -3324,6 +3329,21 @@ class DispatchRunner:
             handle.task_id,
             f"record run {handle.run_id} as {outcome.value}",
             directory=handle.directory,
+        )
+
+    def _resume_own_finish(self, handle: RunHandle) -> bool:
+        """Whether a posture finish this run was inside was started again (task-443).
+
+        After the lock release, because the resumed finish takes the same lock.
+        """
+        from agentjobs.dispatch.finish_resume import resume_finish_of_settled_run
+
+        return resume_finish_of_settled_run(
+            self.home,
+            project_id=self.resolution.project_id,
+            task_id=handle.task_id,
+            run_id=handle.run_id,
+            manager=self.manager,
         )
 
     def _resolve_deferred_escalation(self, handle: RunHandle) -> None:

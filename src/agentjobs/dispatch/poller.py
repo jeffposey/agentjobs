@@ -163,6 +163,7 @@ def poll_live_sessions(
     results.extend(_shadow_journal(home, registry, managers))
     results.extend(_drive_controller(home, registry, managers))
     results.extend(_recover_parked(home, registry, managers))
+    results.extend(_resume_interrupted_finishes(home, registry, managers))
     return results
 
 
@@ -185,6 +186,23 @@ def _recover_parked(
         PollResult(subject, None, detail)
         for subject, _, detail in (line.partition(": ") for line in lines)
     ]
+
+
+def _resume_interrupted_finishes(
+    home: Path, registry: ProjectRegistry, managers: Dict[str, TaskManagerLike]
+) -> List[PollResult]:
+    """Start the finish a dead finish process still owes its task (task-443).
+
+    Last in the tick, so every run above has been settled first: a posture finish's run
+    that ended this tick has released its lock, and the settle has had its say about it.
+    """
+    from agentjobs.dispatch.finish_resume import resume_interrupted_finishes
+
+    try:
+        decisions = resume_interrupted_finishes(home, registry=registry, managers=managers)
+    except Exception as exc:  # noqa: BLE001 - it never raises; this is the belt to that
+        return [PollResult("finish-resume", None, f"failed: {exc}")]
+    return [PollResult(item.subject, None, item.detail) for item in decisions]
 
 
 def _drive_controller(

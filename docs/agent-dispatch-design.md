@@ -4025,7 +4025,8 @@ Authoritative from this build:
 | What the panel says | `FinishStatus.merge_commit` also reads a killed attempt's `finish_merged` phase. `earlier_merge_commit` is a second fact from receipts or older directories for the same branch, and `state` is unchanged. `next_action` is one sentence. The headline for a retry that merged nothing reads "Already merged as ... — this attempt stopped", never "nothing was merged". The gate line says a green came on the one retry |
 
 **Not built here.** No automatic respawn of an interrupted finish: a killed finish is
-resumed by re-running `agentjobs finish`, and the panel's next action says so. The
+resumed by re-running `agentjobs finish`, and the panel's next action says so (task-443,
+below, built the respawn). The
 catch-up's reduced gate keeps its single attempt. The approval's reviewed head is still
 recorded but not enforced, as task-312 left it: a branch that moved after approval still
 finishes, on a full gate, because approval notes ask for follow-up commits (task-228).
@@ -4070,6 +4071,27 @@ store.
 reads, so they never join. Batch runs are not recovered. A probe blocks the poll thread
 for up to its timeout, and only while an incident is due. The probe does not use
 `setup-token`, which task-442 may evaluate.
+
+### What task-443 built (2026-09-13)
+
+A finish whose process died is started again by the poller, once. Authoritative from
+this build:
+
+| Fact | Where it is decided |
+| --- | --- |
+| What an attempt says authorised it | `FinishDirectory.create` writes `authority` (`approval` or `posture`), `run_id` for a posture finish, `pid`, and `resumed_from` for a resume. An attempt with no `authority` -- every one from before this build -- is never resumed automatically |
+| When an attempt is interrupted | `finish_status` says `interrupted` about the task's newest attempt, and its recorded `pid` is not a running process. The pid is the second half because a posture finish's lock names its run, and a run settled as gone can leave its `agentjobs finish` child running. A live pid waits |
+| Who decides | `finish_resume.decide_attempt`, from the poll tick (`resume_interrupted_finishes`, last in the tick) and from a posture run's settle (`runner._finish_session`, ledger `_conclusion_prompt`), where a started resume replaces the "nobody was told" handoff |
+| What stops a resume | A closed task, an approval that no longer stands, a cancelled run, or a Stop since the attempt began. Recorded once as `auto_resume_skipped` on the attempt's meta. No park: whatever withdrew the authority wrote the task's next step |
+| How the one resume is spent | `auto-resume.json`, created exclusively in the attempt's directory before `spawn_finish` runs, so the tick and a settle cannot both start one. A posture resume carries the run's id in `AGENTJOBS_RUN_ID`; `released_posture` reads that run's grant and re-applies today's ceiling |
+| When a task is parked | The resumed attempt is interrupted too (`interrupted_again`), declines (`resume_declined`), never produces a directory (`resume_never_started`), or cannot be spawned (`resume_not_started`). `auto-park.json` is claimed exclusively; the task goes to human/decision, led by whether the merge is done, naming the re-run command |
+
+**Proof.** `tests/test_finish_resume.py` kills real finishes against real repositories,
+leaves a dead pid holding the lock, and lets the resume conclude the rest.
+
+**Not built here.** A closed task whose cleanup died is not resumed automatically: nothing
+is stranded, and `agentjobs branches` reports the litter. An epic walk that retries a child
+while that child's resumed finish holds the lock is refused `locked` like any other dispatch.
 
 ### Implementation ownership and order
 

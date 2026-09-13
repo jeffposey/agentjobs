@@ -2001,6 +2001,19 @@ class DispatchLedger:
                 home=self.home,
             )
             return None
+        from agentjobs.dispatch.finish_resume import resume_finish_of_settled_run
+
+        manager = self.manager_for(record)
+        if manager is not None and resume_finish_of_settled_run(
+            self.home,
+            project_id=record.project_id,
+            task_id=record.task_id,
+            run_id=record.run_id,
+            manager=manager,
+        ):
+            # The run died inside its own posture finish, which has been started again
+            # to carry on (task-443). That finish is what acts next.
+            return None
         return (
             f"Run {record.run_id} ended `{outcome.value}` and nobody was told "
             "what this task needs. Read the dispatch_result entry, then either "
