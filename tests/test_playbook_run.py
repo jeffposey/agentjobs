@@ -25,6 +25,7 @@ from typing import Dict, Optional
 import pytest
 import yaml
 
+from agentjobs.execution.factory import execution_store_for
 from agentjobs.dispatch.config import DispatchDisabledError
 from agentjobs.dispatch.guards import (
     AuthorizerNotHumanError,
@@ -484,7 +485,14 @@ class TestGatesStillBind:
         write_dispatch_config(home, fake_runner, limits={"max_concurrent_runs": 1})
         first = go(manager, project, home, "groom")
         settle(first.handle)
-        first.handle.directory.update_meta(status="running")
+        # Frozen live as a run the execution journal has never heard of (task-264): the
+        # run really concluded, so its meta status is sticky and its attempt is released
+        # by its own dispatch_result. A pre-journal live run holds a slot by the same rule.
+        meta = first.handle.directory.read_meta()
+        meta.update(status="running", outcome=None, finished_at=None)
+        first.handle.directory.write_meta(meta)
+        with execution_store_for(home).transaction("test: hold live") as connection:
+            connection.execute("DELETE FROM run_attempt WHERE run_id = ?", (first.handle.run_id,))
 
         before = task_count(manager)
         with pytest.raises(PlaybookDispatchRefused) as refused:

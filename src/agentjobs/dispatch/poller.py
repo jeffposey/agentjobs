@@ -103,8 +103,9 @@ def handle_from_record(home: Path, record: RunRecord) -> Optional[RunHandle]:
         dispatch_entry_id=entry_id,
         lock=RunLock(
             task_id=record.task_id,
-            path=run_lock_path(home, record.task_id),
+            path=run_lock_path(home, record.task_id, project_id=record.project_id),
             run_id=record.run_id,
+            project_id=record.project_id,
         ),
     )
 

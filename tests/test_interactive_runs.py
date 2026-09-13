@@ -269,7 +269,10 @@ class TestItEndsWhenTheWorkDoes:
         )
 
         settle_for_task(
-            bench["home"], bench["manager"].get_task(bench["task_id"]), bench["task_id"]
+            bench["home"],
+            bench["manager"].get_task(bench["task_id"]),
+            bench["task_id"],
+            project_id="sandbox",
         )
 
         ended = read_run(record.path)
@@ -283,7 +286,10 @@ class TestItEndsWhenTheWorkDoes:
         )
 
         settle_for_task(
-            bench["home"], bench["manager"].get_task(bench["task_id"]), bench["task_id"]
+            bench["home"],
+            bench["manager"].get_task(bench["task_id"]),
+            bench["task_id"],
+            project_id="sandbox",
         )
 
         assert not read_run(record.path).is_live

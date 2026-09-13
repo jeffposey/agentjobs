@@ -263,7 +263,7 @@ class TestStatus:
         assert record.run_id == "run_broken"
 
     def test_the_lock_directory_is_not_mistaken_for_a_run(self, home: Path, task) -> None:
-        acquire_run_lock(home, task.id).release()
+        acquire_run_lock(home, task.id, project_id="sandbox").release()
         seed_run(home, task.id)
 
         assert [r.run_id for r in list_runs(home)] == ["run_test0001"]
@@ -362,24 +362,24 @@ class TestDuration:
 
 class TestRunLock:
     def test_two_runs_cannot_both_hold_one_task(self, home: Path) -> None:
-        first = acquire_run_lock(home, "task-001", run_id="run_a")
+        first = acquire_run_lock(home, "task-001", project_id="sandbox", run_id="run_a")
 
         with pytest.raises(RunLockTimeout):
-            acquire_run_lock(home, "task-001", run_id="run_b", timeout=0.2)
+            acquire_run_lock(home, "task-001", project_id="sandbox", run_id="run_b", timeout=0.2)
 
         first.release()
 
     def test_releasing_lets_the_next_run_take_it(self, home: Path) -> None:
-        acquire_run_lock(home, "task-001").release()
+        acquire_run_lock(home, "task-001", project_id="sandbox").release()
 
-        second = acquire_run_lock(home, "task-001", timeout=0.2)
+        second = acquire_run_lock(home, "task-001", project_id="sandbox", timeout=0.2)
 
         assert second.path.exists()
         second.release()
 
     def test_different_tasks_never_contend(self, home: Path) -> None:
-        first = acquire_run_lock(home, "task-001")
-        second = acquire_run_lock(home, "task-002", timeout=0.2)
+        first = acquire_run_lock(home, "task-001", project_id="sandbox")
+        second = acquire_run_lock(home, "task-002", project_id="sandbox", timeout=0.2)
 
         first.release()
         second.release()
@@ -392,14 +392,14 @@ class TestRunLock:
         leaked it lived -- and turned the old "delete the file to clear it" advice into
         "restart the thing you are trying to use" (task-190).
         """
-        lock = acquire_run_lock(home, "task-001", run_id="run_a")
+        lock = acquire_run_lock(home, "task-001", project_id="sandbox", run_id="run_a")
 
         lock.path.unlink()  # would raise PermissionError with the descriptor still open
 
         assert not lock.path.exists()
 
     def test_a_lock_records_the_run_it_is_held_for(self, home: Path) -> None:
-        lock = acquire_run_lock(home, "task-001")
+        lock = acquire_run_lock(home, "task-001", project_id="sandbox")
         assert "run=" in lock.path.read_text(encoding="utf-8")
 
         lock.adopt("run_named")
@@ -413,10 +413,12 @@ class TestRunLock:
     def test_a_lock_whose_run_has_ended_is_reclaimed(self, home: Path) -> None:
         """ac-1: a task whose runs are all terminal is dispatchable, lock file or not."""
         seed_run(home, "task-001", run_id="run_over", status="finished")
-        leaked = acquire_run_lock(home, "task-001")
+        leaked = acquire_run_lock(home, "task-001", project_id="sandbox")
         leaked.adopt("run_over")
 
-        taken = acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.5)
+        taken = acquire_run_lock(
+            home, "task-001", project_id="sandbox", run_id="run_next", timeout=0.5
+        )
 
         holder = read_lock_holder(taken.path)
         assert holder is not None and holder.run_id == "run_next"
@@ -429,11 +431,11 @@ class TestRunLock:
         a change that started clearing live locks fails here rather than in production.
         """
         seed_run(home, "task-001", run_id="run_going", status="running")
-        held = acquire_run_lock(home, "task-001")
+        held = acquire_run_lock(home, "task-001", project_id="sandbox")
         held.adopt("run_going")
 
         with pytest.raises(RunLockTimeout) as caught:
-            acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.3)
+            acquire_run_lock(home, "task-001", project_id="sandbox", run_id="run_next", timeout=0.3)
 
         assert "run_going" in str(caught.value)
         held.release()
@@ -447,11 +449,11 @@ class TestRunLock:
         one -- worse than the leak this fix is for.
         """
         seed_run(home, "task-001", run_id="run_session", mode="session", status="running")
-        lock = acquire_run_lock(home, "task-001")
+        lock = acquire_run_lock(home, "task-001", project_id="sandbox")
         lock.path.write_text("pid=999999999 run=run_session", encoding="ascii")
 
         with pytest.raises(RunLockTimeout):
-            acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.3)
+            acquire_run_lock(home, "task-001", project_id="sandbox", run_id="run_next", timeout=0.3)
 
     def test_a_lock_naming_no_run_is_reclaimed_only_when_its_process_is_gone(
         self, home: Path
@@ -461,16 +463,20 @@ class TestRunLock:
         path.mkdir(parents=True, exist_ok=True)
         (path / "task-001.lock").write_text("pid=999999999 run=", encoding="ascii")
 
-        taken = acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.5)
+        taken = acquire_run_lock(
+            home, "task-001", project_id="sandbox", run_id="run_next", timeout=0.5
+        )
 
         assert taken.run_id == "run_next"
         taken.release()
 
     def test_a_lock_naming_no_run_and_a_living_process_still_refuses(self, home: Path) -> None:
-        held = acquire_run_lock(home, "task-001")  # this process, no run adopted
+        held = acquire_run_lock(
+            home, "task-001", project_id="sandbox"
+        )  # this process, no run adopted
 
         with pytest.raises(RunLockTimeout):
-            acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.3)
+            acquire_run_lock(home, "task-001", project_id="sandbox", run_id="run_next", timeout=0.3)
 
         held.release()
 
@@ -483,14 +489,16 @@ class TestRunLock:
         So the weaker evidence is consulted -- and it is still evidence: a living holder
         keeps the lock either way.
         """
-        held = acquire_run_lock(home, "task-001")
+        held = acquire_run_lock(home, "task-001", project_id="sandbox")
         held.adopt("run_unknown")
 
         with pytest.raises(RunLockTimeout):
-            acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.3)
+            acquire_run_lock(home, "task-001", project_id="sandbox", run_id="run_next", timeout=0.3)
 
         held.path.write_text("pid=999999999 run=run_unknown", encoding="ascii")
-        taken = acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.5)
+        taken = acquire_run_lock(
+            home, "task-001", project_id="sandbox", run_id="run_next", timeout=0.5
+        )
         taken.release()
 
     # ----- what the refusal says about who is holding it (task-298) -----------
@@ -502,14 +510,14 @@ class TestRunLock:
         finish never becomes a run and *is* its process -- so one message cannot serve
         both. This is the test that fails if the field stops being written.
         """
-        finish = acquire_run_lock(home, "task-224", kind=KIND_FINISH)
+        finish = acquire_run_lock(home, "task-224", project_id="sandbox", kind=KIND_FINISH)
         finish.adopt_finish("fin_689a7558")
-        dispatch = acquire_run_lock(home, "task-225")
+        dispatch = acquire_run_lock(home, "task-225", project_id="sandbox")
 
         with pytest.raises(RunLockTimeout) as refused_finish:
-            acquire_run_lock(home, "task-224", timeout=0.2)
+            acquire_run_lock(home, "task-224", project_id="sandbox", timeout=0.2)
         with pytest.raises(RunLockTimeout) as refused_dispatch:
-            acquire_run_lock(home, "task-225", timeout=0.2)
+            acquire_run_lock(home, "task-225", project_id="sandbox", timeout=0.2)
 
         finish_text = str(refused_finish.value)
         dispatch_text = str(refused_dispatch.value)
@@ -523,11 +531,11 @@ class TestRunLock:
     def test_a_live_finish_is_never_called_a_dispatch(self, home: Path) -> None:
         """sc-1. The old text said "a dispatch that ... has not yet said which run it
         became" -- three claims, all false of a finish, one of them permanently."""
-        lock = acquire_run_lock(home, "task-224", kind=KIND_FINISH)
+        lock = acquire_run_lock(home, "task-224", project_id="sandbox", kind=KIND_FINISH)
         lock.adopt_finish("fin_689a7558")
 
         with pytest.raises(RunLockTimeout) as caught:
-            acquire_run_lock(home, "task-224", timeout=0.2)
+            acquire_run_lock(home, "task-224", project_id="sandbox", timeout=0.2)
 
         message = str(caught.value)
         assert "a dispatch" not in message
@@ -542,11 +550,11 @@ class TestRunLock:
         Setting ``finish.enabled`` changes the workflow from approve-then-dispatch to
         approve-and-you-are-done. This refusal is where most people meet that change.
         """
-        lock = acquire_run_lock(home, "task-224", kind=KIND_FINISH)
+        lock = acquire_run_lock(home, "task-224", project_id="sandbox", kind=KIND_FINISH)
         lock.adopt_finish("fin_689a7558")
 
         with pytest.raises(RunLockTimeout) as caught:
-            acquire_run_lock(home, "task-224", timeout=0.2)
+            acquire_run_lock(home, "task-224", project_id="sandbox", timeout=0.2)
 
         message = str(caught.value)
         assert "merging it now" in message
@@ -557,11 +565,11 @@ class TestRunLock:
     def test_a_live_finish_is_never_offered_a_restart(self, home: Path) -> None:
         """sc-3, first half. Restarting AgentJobs mid-gate or mid-merge is the single
         most harmful thing that was on offer here, and it was offered by default."""
-        lock = acquire_run_lock(home, "task-224", kind=KIND_FINISH)
+        lock = acquire_run_lock(home, "task-224", project_id="sandbox", kind=KIND_FINISH)
         lock.adopt_finish("fin_689a7558")
 
         with pytest.raises(RunLockTimeout) as caught:
-            acquire_run_lock(home, "task-224", timeout=0.2)
+            acquire_run_lock(home, "task-224", project_id="sandbox", timeout=0.2)
 
         assert "restart" not in str(caught.value).lower()
         lock.release()
@@ -574,11 +582,11 @@ class TestRunLock:
         why the advice is attached to the branch that names a run.
         """
         seed_run(home, "task-001", run_id="run_going", status="running")
-        held = acquire_run_lock(home, "task-001")
+        held = acquire_run_lock(home, "task-001", project_id="sandbox")
         held.adopt("run_going")
 
         with pytest.raises(RunLockTimeout) as caught:
-            acquire_run_lock(home, "task-001", timeout=0.2)
+            acquire_run_lock(home, "task-001", project_id="sandbox", timeout=0.2)
 
         message = str(caught.value)
         assert "restarting AgentJobs" in message
@@ -608,7 +616,7 @@ class TestRunLock:
         assert "nothing is merging" in message
         assert "Restarting AgentJobs" in message
         assert stale_lock_reason(home, holder) is not None, "and so it is reclaimed, not refused"
-        taken = acquire_run_lock(home, "task-224", timeout=0.5)
+        taken = acquire_run_lock(home, "task-224", project_id="sandbox", timeout=0.5)
         taken.release()
 
     def test_a_dispatch_that_has_not_named_its_run_yet_is_not_called_stuck(
@@ -617,10 +625,12 @@ class TestRunLock:
         """The fourth complaint in task-298: "has not reported yet" and "cannot be shown
         to be over" are different situations that used to read identically. A live pid
         that has not adopted a run id is the first, and it lasts a moment."""
-        held = acquire_run_lock(home, "task-001")  # this process, no run adopted
+        held = acquire_run_lock(
+            home, "task-001", project_id="sandbox"
+        )  # this process, no run adopted
 
         with pytest.raises(RunLockTimeout) as caught:
-            acquire_run_lock(home, "task-001", timeout=0.2)
+            acquire_run_lock(home, "task-001", project_id="sandbox", timeout=0.2)
 
         message = str(caught.value)
         assert "try again shortly" in message
@@ -648,11 +658,11 @@ class TestRunLock:
         holding a file that could not be deleted anyway.
         """
         seed_run(home, "task-001", run_id="run_going", status="running")
-        held = acquire_run_lock(home, "task-001")
+        held = acquire_run_lock(home, "task-001", project_id="sandbox")
         held.adopt("run_going")
 
         with pytest.raises(RunLockTimeout) as caught:
-            acquire_run_lock(home, "task-001", timeout=0.2)
+            acquire_run_lock(home, "task-001", project_id="sandbox", timeout=0.2)
 
         message = str(caught.value)
         assert "delete the file" not in message.lower()
@@ -663,11 +673,11 @@ class TestRunLock:
 
     def test_a_stale_lock_times_out_rather_than_hanging(self, home: Path) -> None:
         """A hang tells you nothing. Unjudgeable is still refused, but never by blocking."""
-        held = acquire_run_lock(home, "task-001", run_id="run_dead")
+        held = acquire_run_lock(home, "task-001", project_id="sandbox", run_id="run_dead")
 
         started = time.monotonic()
         with pytest.raises(RunLockTimeout) as caught:
-            acquire_run_lock(home, "task-001", timeout=0.3)
+            acquire_run_lock(home, "task-001", project_id="sandbox", timeout=0.3)
         elapsed = time.monotonic() - started
 
         assert elapsed < 5, "a stale lock must time out, not block"
@@ -675,7 +685,7 @@ class TestRunLock:
         held.release()
 
     def test_releasing_twice_is_safe(self, home: Path) -> None:
-        lock = acquire_run_lock(home, "task-001")
+        lock = acquire_run_lock(home, "task-001", project_id="sandbox")
         lock.release()
         lock.release()
 
@@ -686,9 +696,11 @@ class TestRunLock:
         would then delete the *new* run's lock and let a third dispatch in beside it.
         """
         seed_run(home, "task-001", run_id="run_first", status="finished")
-        first = acquire_run_lock(home, "task-001")
+        first = acquire_run_lock(home, "task-001", project_id="sandbox")
         first.adopt("run_first")
-        second = acquire_run_lock(home, "task-001", run_id="run_second", timeout=0.5)
+        second = acquire_run_lock(
+            home, "task-001", project_id="sandbox", run_id="run_second", timeout=0.5
+        )
 
         first.release()
 
@@ -701,7 +713,9 @@ class TestRunLock:
 
         def attempt() -> None:
             try:
-                winners.append(acquire_run_lock(home, "task-001", timeout=0.2))
+                winners.append(
+                    acquire_run_lock(home, "task-001", project_id="sandbox", timeout=0.2)
+                )
             except RunLockTimeout:
                 pass
 
@@ -717,7 +731,7 @@ class TestStaleLockSweep:
 
     def test_it_releases_locks_whose_runs_have_ended(self, home: Path) -> None:
         seed_run(home, "task-001", run_id="run_over", status="finished")
-        lock = acquire_run_lock(home, "task-001")
+        lock = acquire_run_lock(home, "task-001", project_id="sandbox")
         lock.adopt("run_over")
 
         released = release_stale_locks(home)
@@ -727,7 +741,7 @@ class TestStaleLockSweep:
 
     def test_it_leaves_a_live_runs_lock_alone(self, home: Path) -> None:
         seed_run(home, "task-001", run_id="run_going", status="running")
-        lock = acquire_run_lock(home, "task-001")
+        lock = acquire_run_lock(home, "task-001", project_id="sandbox")
         lock.adopt("run_going")
 
         assert release_stale_locks(home) == []
@@ -748,7 +762,7 @@ class TestStaleLockSweep:
         """
         record = seed_run(home, task.id, run_id="run_orphan", mode="batch", status="running")
         dispatch_entry(manager, task.id, "run_orphan")
-        lock = acquire_run_lock(home, task.id)
+        lock = acquire_run_lock(home, task.id, project_id="sandbox")
         lock.adopt("run_orphan")
 
         ledger = DispatchLedger(home, registry=ProjectRegistry(home=home))
@@ -759,7 +773,9 @@ class TestStaleLockSweep:
         assert read_run(record.path).outcome == "interrupted"
 
         # And the point of all of it: the task can be dispatched again.
-        again = acquire_run_lock(home, task.id, run_id="run_next", timeout=0.5)
+        again = acquire_run_lock(
+            home, task.id, project_id="sandbox", run_id="run_next", timeout=0.5
+        )
         again.release()
 
 

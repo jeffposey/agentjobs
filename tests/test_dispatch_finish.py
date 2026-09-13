@@ -1861,7 +1861,10 @@ class TestWhichRunIsCalling:
         write_run_record(tmp_path, "run_3f8ec46f", task_id="task-249")
 
         assert (
-            own_run_id(tmp_path, "task-249", environ={RUN_ID_ENV: "run_3f8ec46f"}) == "run_3f8ec46f"
+            own_run_id(
+                tmp_path, "task-249", project_id="demo", environ={RUN_ID_ENV: "run_3f8ec46f"}
+            )
+            == "run_3f8ec46f"
         )
 
     def test_a_stale_id_is_replaced_by_the_run_holding_this_tasks_lock(
@@ -1875,7 +1878,10 @@ class TestWhichRunIsCalling:
         hold_lock(tmp_path, "task-316", "run_68ea396e")
 
         assert (
-            own_run_id(tmp_path, "task-316", environ={RUN_ID_ENV: "run_12b2675c"}) == "run_68ea396e"
+            own_run_id(
+                tmp_path, "task-316", project_id="demo", environ={RUN_ID_ENV: "run_12b2675c"}
+            )
+            == "run_68ea396e"
         )
 
     def test_a_person_at_a_shell_is_not_treated_as_a_run(self, tmp_path: Path) -> None:
@@ -1886,7 +1892,7 @@ class TestWhichRunIsCalling:
         write_run_record(tmp_path, "run_68ea396e", task_id="task-316")
         hold_lock(tmp_path, "task-316", "run_68ea396e")
 
-        assert own_run_id(tmp_path, "task-316", environ={}) == ""
+        assert own_run_id(tmp_path, "task-316", project_id="demo", environ={}) == ""
 
     def test_a_lock_held_by_a_finished_run_is_not_adopted(self, tmp_path: Path) -> None:
         from agentjobs.dispatch.finish import own_run_id
@@ -1896,7 +1902,10 @@ class TestWhichRunIsCalling:
         hold_lock(tmp_path, "task-316", "run_old")
 
         assert (
-            own_run_id(tmp_path, "task-316", environ={RUN_ID_ENV: "run_12b2675c"}) == "run_12b2675c"
+            own_run_id(
+                tmp_path, "task-316", project_id="demo", environ={RUN_ID_ENV: "run_12b2675c"}
+            )
+            == "run_12b2675c"
         )
 
     def test_a_lock_held_for_another_task_is_not_adopted(self, tmp_path: Path) -> None:
@@ -1909,14 +1918,20 @@ class TestWhichRunIsCalling:
         hold_lock(tmp_path, "task-316", "run_elsewhere")
 
         assert (
-            own_run_id(tmp_path, "task-316", environ={RUN_ID_ENV: "run_12b2675c"}) == "run_12b2675c"
+            own_run_id(
+                tmp_path, "task-316", project_id="demo", environ={RUN_ID_ENV: "run_12b2675c"}
+            )
+            == "run_12b2675c"
         )
 
     def test_with_no_lock_at_all_the_declared_id_stands(self, tmp_path: Path) -> None:
         from agentjobs.dispatch.finish import own_run_id
 
         assert (
-            own_run_id(tmp_path, "task-316", environ={RUN_ID_ENV: "run_12b2675c"}) == "run_12b2675c"
+            own_run_id(
+                tmp_path, "task-316", project_id="demo", environ={RUN_ID_ENV: "run_12b2675c"}
+            )
+            == "run_12b2675c"
         )
 
 
@@ -1949,7 +1964,10 @@ class TestTheLeakedRunIsTheOneRunningOneLevelUp:
         hold_lock(tmp_path, "task-318", "run_74dfbc1c")
 
         assert (
-            own_run_id(tmp_path, "task-318", environ={RUN_ID_ENV: "run_1132ebf8"}) == "run_74dfbc1c"
+            own_run_id(
+                tmp_path, "task-318", project_id="demo", environ={RUN_ID_ENV: "run_1132ebf8"}
+            )
+            == "run_74dfbc1c"
         )
 
     def test_the_child_is_recognised_as_holding_its_own_lock(
@@ -1967,7 +1985,7 @@ class TestTheLeakedRunIsTheOneRunningOneLevelUp:
         hold_lock(tmp_path, "task-318", "run_74dfbc1c")
         monkeypatch.setenv(RUN_ID_ENV, "run_1132ebf8")
 
-        assert _own_run_holds_lock(tmp_path, "task-318") is True
+        assert _own_run_holds_lock(tmp_path, "task-318", project_id="demo") is True
 
     def test_a_supervisor_holding_its_own_lock_is_not_adopted_by_a_child(
         self, tmp_path: Path
@@ -1985,7 +2003,10 @@ class TestTheLeakedRunIsTheOneRunningOneLevelUp:
         # No lock on task-318 at all, and no run dispatched against it.
 
         assert (
-            own_run_id(tmp_path, "task-318", environ={RUN_ID_ENV: "run_1132ebf8"}) == "run_1132ebf8"
+            own_run_id(
+                tmp_path, "task-318", project_id="demo", environ={RUN_ID_ENV: "run_1132ebf8"}
+            )
+            == "run_1132ebf8"
         )
 
     def test_an_invented_identity_is_not_a_way_into_the_lock_holders_authority(
@@ -2007,9 +2028,9 @@ class TestTheLeakedRunIsTheOneRunningOneLevelUp:
         write_run_record(tmp_path, "run_74dfbc1c", task_id="task-318", live=True)
         hold_lock(tmp_path, "task-318", "run_74dfbc1c")
 
-        assert own_run_id(tmp_path, "task-318", environ={RUN_ID_ENV: "run_nonsense"}) == (
-            "run_nonsense"
-        )
+        assert own_run_id(
+            tmp_path, "task-318", project_id="demo", environ={RUN_ID_ENV: "run_nonsense"}
+        ) == ("run_nonsense")
 
 
 class TestAStaleIdentityDoesNotStripAuthority:
@@ -2039,7 +2060,9 @@ class TestAStaleIdentityDoesNotStripAuthority:
             task_id="task-316",
             task_posture=None,
             home=tmp_path,
-            run_id=own_run_id(tmp_path, "task-316", environ={RUN_ID_ENV: "run_12b2675c"}),
+            run_id=own_run_id(
+                tmp_path, "task-316", project_id="demo", environ={RUN_ID_ENV: "run_12b2675c"}
+            ),
         )
 
         assert resolved.posture is Posture.AUTONOMOUS
@@ -2096,7 +2119,9 @@ class TestAStaleIdentityDoesNotStripAuthority:
             task_id="task-316",
             task_posture=None,
             home=tmp_path,
-            run_id=own_run_id(tmp_path, "task-316", environ={RUN_ID_ENV: "run_stale"}),
+            run_id=own_run_id(
+                tmp_path, "task-316", project_id="demo", environ={RUN_ID_ENV: "run_stale"}
+            ),
         )
 
         assert resolved.posture is Posture.SUPERVISED

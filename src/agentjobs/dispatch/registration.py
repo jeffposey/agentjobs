@@ -57,6 +57,7 @@ from agentjobs.dispatch.guards import (
     live_runs,
     resolve_machine_home,
 )
+from agentjobs.dispatch.journal import same_task
 from agentjobs.dispatch.ledger import RunLockTimeout, acquire_run_lock
 from agentjobs.dispatch.runner import (
     DispatchRunError,
@@ -244,7 +245,7 @@ def register_session(
     resolution = assert_dispatch_permitted(project.id, home)
     machine_home = resolve_machine_home(home, resolution)
 
-    already = _already_dispatched(machine_home, task.id, values)
+    already = _already_dispatched(machine_home, task.id, values, project_id=project.id)
     if already is not None:
         return already
 
@@ -283,7 +284,7 @@ def register_session(
 
     running = live_runs(machine_home)
     for run in running:
-        if run.task_id == task.id:
+        if same_task(run, project.id, task.id):
             raise RegistrationRunExistsError(
                 f"{task.id} already has run {run.run_id} in state {run.status!r}, so it "
                 "is already being followed. One live run per task, always. If that run "
@@ -340,7 +341,9 @@ def register_session(
     run_id = new_run_id()
     started = _row_started_at(row)
     try:
-        lock = acquire_run_lock(machine_home, task.id, run_id=run_id, timeout=1.0)
+        lock = acquire_run_lock(
+            machine_home, task.id, project_id=project.id, run_id=run_id, timeout=1.0
+        )
     except RunLockTimeout as exc:
         raise RegistrationRunExistsError(str(exc)) from exc
 
@@ -405,7 +408,7 @@ def register_session(
 
 
 def _already_dispatched(
-    home: Path, task_id: str, values: Mapping[str, str]
+    home: Path, task_id: str, values: Mapping[str, str], *, project_id: str
 ) -> Optional[Registration]:
     """The no-op result when this process already *is* a run, or ``None``.
 
@@ -422,7 +425,7 @@ def _already_dispatched(
     for run in live_runs(home):
         if run.run_id != run_id:
             continue
-        if run.task_id == task_id:
+        if same_task(run, project_id, task_id):
             return Registration(
                 task_id=task_id,
                 run_id=run_id,

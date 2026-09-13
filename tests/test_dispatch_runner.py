@@ -273,6 +273,7 @@ def test_codex_session_wake_target_uses_newest_completed_thread(
         {
             "run_id": "run_previous",
             "task_id": task.id,
+            "project_id": "sandbox",
             "mode": "session",
             "driver": "codex",
             "status": "finished",
@@ -1181,6 +1182,7 @@ class TestCodexBatchRunner:
             {
                 "run_id": "run_previous",
                 "task_id": task.id,
+                "project_id": "sandbox",
                 "mode": "session",
                 "driver": "codex",
                 "status": "finished",
@@ -1238,6 +1240,7 @@ class TestCodexBatchRunner:
             {
                 "run_id": "run_previous",
                 "task_id": task.id,
+                "project_id": "sandbox",
                 "mode": "session",
                 "driver": "codex",
                 "status": "finished",
@@ -1309,6 +1312,7 @@ class TestCodexBatchRunner:
             {
                 "run_id": "run_previous",
                 "task_id": task.id,
+                "project_id": "sandbox",
                 "mode": "session",
                 "driver": "codex",
                 "status": "finished",

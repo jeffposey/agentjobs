@@ -134,8 +134,13 @@ def session_uuids(rows: Sequence[Mapping[str, object]]) -> Dict[str, str]:
     return mapping
 
 
-def newest_session_run(home: Path, task_id: str) -> Optional["RunRecord"]:
-    """The most recent session run recorded for ``task_id``, live or not.
+def newest_session_run(home: Path, task_id: str, *, project_id: str) -> Optional["RunRecord"]:
+    """The most recent session run recorded for this project's ``task_id``, live or not.
+
+    **The project is part of the match** (task-264, P2-5), and strictly: a run whose
+    record names another project -- or none -- is never this task's conversation. Task
+    ids are per-project, and matching on the id alone would ``--resume`` another project's
+    session with a wake prompt telling it that it is the same agent on the same task.
 
     ``list_runs`` is already newest-first. A run with no start time sorts to the bottom
     there, which is the right place for it: a run nothing timestamped cannot be shown to
@@ -150,7 +155,7 @@ def newest_session_run(home: Path, task_id: str) -> Optional["RunRecord"]:
     from agentjobs.dispatch.ledger import list_runs
 
     for record in list_runs(home):
-        if record.is_session and record.task_id == task_id:
+        if record.is_session and record.task_id == task_id and record.project_id == project_id:
             return record
     return None
 
@@ -159,6 +164,7 @@ def find_wake_target(
     home: Path,
     task_id: str,
     *,
+    project_id: str,
     rows: Sequence[Mapping[str, object]],
 ) -> Optional[WakeTarget]:
     """The conversation a dispatch of ``task_id`` should resume, or ``None``.
@@ -178,7 +184,7 @@ def find_wake_target(
     Only the newest session run is ever considered. If it is disqualified, this returns
     ``None`` rather than falling back to the one before it -- see the module docstring.
     """
-    record = newest_session_run(home, task_id)
+    record = newest_session_run(home, task_id, project_id=project_id)
     if record is None or record.is_live or not record.session_id:
         return None
     if _was_reaped(record):

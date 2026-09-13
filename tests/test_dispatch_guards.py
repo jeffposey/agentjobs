@@ -58,6 +58,7 @@ from agentjobs.dispatch.guards import (
     resolve_causing_entry,
 )
 from agentjobs.dispatch.runner import DispatchRunner
+from agentjobs.execution.factory import execution_store_for
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
     Ball,
@@ -244,7 +245,17 @@ def hold_live(handle) -> None:
     Joining the supervisor before freezing removes the writer instead of outrunning it.
     """
     settle(handle)
-    handle.directory.update_meta(status="running")
+    # The run really did conclude, and since task-264 the journal and a sticky terminal
+    # meta both say so -- with its dispatch_result on the task, which is the evidence that
+    # releases a journal attempt. So the frozen run is rebuilt as what these tests need: a
+    # live run the journal has never heard of, which is exactly a run started before the
+    # journal existed, and is counted by the same slot and ownership rules.
+    meta = handle.directory.read_meta()
+    meta.update(status="running", outcome=None, finished_at=None)
+    handle.directory.write_meta(meta)
+    store = execution_store_for(handle.directory.path.parent.parent)
+    with store.transaction("test: hold live") as connection:
+        connection.execute("DELETE FROM run_attempt WHERE run_id = ?", (handle.run_id,))
 
 
 # ----- the rule ---------------------------------------------------------------

@@ -292,7 +292,7 @@ class TestTheLockIsReleasedByWhateverConcludesTheRun:
 
     def _lock_for(self, home: Path, run_id: str):
         task_id = _run_meta(home, run_id)["task_id"]
-        lock = acquire_run_lock(home, task_id)
+        lock = acquire_run_lock(home, task_id, project_id="sandbox")
         lock.adopt(run_id)
         return lock
 
@@ -438,11 +438,11 @@ class TestAResumedRunIsFollowedLikeAnyOther:
         """A wake changes which conversation runs, never who may hold the task."""
         home, _, _, _ = machine
         _, task_id = _resume_session(machine)
-        held = acquire_run_lock(home, task_id)
+        held = acquire_run_lock(home, task_id, project_id="sandbox")
         held.adopt("run_resumed")
 
         with pytest.raises(RunLockTimeout):
-            acquire_run_lock(home, task_id, timeout=0.2)
+            acquire_run_lock(home, task_id, project_id="sandbox", timeout=0.2)
 
         held.release()
 
