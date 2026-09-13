@@ -1744,6 +1744,352 @@
         "title": "HumanActionResponse",
         "type": "object"
       },
+      "IdleSessionEventView": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "auth_incidents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On a mode event: the auth incident count at the switch-over.",
+            "title": "Auth Incidents"
+          },
+          "cwd": {
+            "default": "",
+            "title": "Cwd",
+            "type": "string"
+          },
+          "detail": {
+            "default": "",
+            "title": "Detail",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "string"
+          },
+          "idle_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idle Seconds"
+          },
+          "kind": {
+            "description": "stop, or mode for a change of enforcement.",
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_activity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Activity"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "outcome": {
+            "description": "stopped, failed or declined; enforce or report.",
+            "title": "Outcome",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "resume_commands": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Resume Commands",
+            "type": "array"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "short_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Short Id"
+          },
+          "trigger": {
+            "default": "",
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "kind",
+          "at",
+          "outcome"
+        ],
+        "title": "IdleSessionEventView",
+        "type": "object"
+      },
+      "IdleSessionSettingsUpdate": {
+        "properties": {
+          "enforce": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enforce"
+          },
+          "idle_minutes": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idle Minutes"
+          }
+        },
+        "title": "IdleSessionSettingsUpdate",
+        "type": "object"
+      },
+      "IdleSessionSettingsView": {
+        "properties": {
+          "configured": {
+            "description": "This machine has a dispatch config to hold them.",
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "enforce": {
+            "description": "Idle, resumable sessions are stopped automatically.",
+            "title": "Enforce",
+            "type": "boolean"
+          },
+          "idle_minutes": {
+            "title": "Idle Minutes",
+            "type": "integer"
+          },
+          "max_stops_per_sweep": {
+            "title": "Max Stops Per Sweep",
+            "type": "integer"
+          },
+          "sweep_interval_seconds": {
+            "title": "Sweep Interval Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "configured",
+          "enforce",
+          "idle_minutes",
+          "max_stops_per_sweep",
+          "sweep_interval_seconds"
+        ],
+        "title": "IdleSessionSettingsView",
+        "type": "object"
+      },
+      "IdleSessionView": {
+        "properties": {
+          "cwd": {
+            "default": "",
+            "title": "Cwd",
+            "type": "string"
+          },
+          "idle_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idle Seconds"
+          },
+          "kind": {
+            "description": "daemon, background, remote_control_host, ...",
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_activity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Activity"
+          },
+          "ledger_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ledger Status"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "pid": {
+            "title": "Pid",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "resume_commands": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Resume Commands",
+            "type": "array"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "short_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Short Id"
+          },
+          "verdict": {
+            "description": "protected, in_use, idle, report_only or candidate.",
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pid",
+          "kind",
+          "verdict",
+          "reason"
+        ],
+        "title": "IdleSessionView",
+        "type": "object"
+      },
+      "IdleSessionsView": {
+        "properties": {
+          "auth_incidents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Incidents"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/IdleSessionEventView"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/IdleSessionView"
+            },
+            "title": "Sessions",
+            "type": "array"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/IdleSessionSettingsView"
+          }
+        },
+        "required": [
+          "settings",
+          "generated_at",
+          "sessions",
+          "events"
+        ],
+        "title": "IdleSessionsView",
+        "type": "object"
+      },
       "Lifecycle": {
         "description": "Where a task is in its life (design doc section 3).",
         "enum": [
@@ -10730,6 +11076,70 @@
         "summary": "Search Tasks",
         "tags": [
           "search"
+        ]
+      }
+    },
+    "/api/sessions/idle": {
+      "get": {
+        "description": "Every Claude Code process on this machine, what the sweep makes of it, and its record.",
+        "operationId": "list_idle_sessions_api_sessions_idle_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdleSessionsView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Idle Sessions",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/sessions/idle/settings": {
+      "put": {
+        "description": "Switch enforcement on or off, or change the threshold. Stops nothing by itself.",
+        "operationId": "update_idle_session_settings_api_sessions_idle_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdleSessionSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdleSessionSettingsView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Idle Session Settings",
+        "tags": [
+          "dispatch"
         ]
       }
     },
