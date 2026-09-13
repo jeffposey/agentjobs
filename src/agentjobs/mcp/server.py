@@ -12,7 +12,7 @@ import contextlib
 import logging
 import sys
 from io import TextIOWrapper
-from typing import Any, Iterator, Mapping, Optional, TextIO, Union
+from typing import Any, Iterator, List, Mapping, Optional, TextIO, Union
 
 import anyio
 import jsonschema
@@ -87,19 +87,26 @@ def validate_arguments(definition: ToolDefinition, arguments: Mapping[str, Any])
     which is exactly the case an agent most needs to branch on, because it is the one
     it can fix without asking anybody.
     """
-    validator = jsonschema.Draft202012Validator(definition.input_schema)
+    # The format checker is what makes `operation_id`'s published `format: uuid` a rule
+    # rather than a suggestion: without it Draft 2020-12 treats `format` as an annotation,
+    # and `"op-1"` was accepted while the instruction text said UUID (task-426).
+    validator = jsonschema.Draft202012Validator(
+        definition.input_schema,
+        format_checker=jsonschema.Draft202012Validator.FORMAT_CHECKER,
+    )
     problems = sorted(validator.iter_errors(dict(arguments)), key=lambda item: list(item.path))
     if not problems:
         return
     raise ToolError(
         code=ErrorCode.INVALID_INPUT,
         message=(
-            f"Arguments for {definition.name!r} do not match its schema: " f"{problems[0].message}"
+            f"Arguments for {definition.name!r} do not match its schema: "
+            f"{_problem_message(problems[0])}"
         ),
         field_errors=[
             FieldError(
                 path=".".join(str(part) for part in problem.path) or "(root)",
-                message=problem.message,
+                message=_problem_message(problem),
             )
             for problem in problems[:5]
         ],
@@ -108,6 +115,28 @@ def validate_arguments(definition: ToolDefinition, arguments: Mapping[str, Any])
             "the fields it declares."
         ),
     )
+
+
+def _problem_message(problem: jsonschema.ValidationError) -> str:
+    """One schema failure as a sentence, naming the valid choices where a union hides them.
+
+    A ``oneOf`` failure reads "... is not valid under any of the given schemas", which
+    tells an agent nothing it can act on short of re-reading a multi-kilobyte schema. The
+    one union an agent routinely gets wrong is the handoff target's holder/reason pair, so
+    where every branch is shaped ``{ball: const, reason: enum}`` the pairs are spelled out.
+    """
+    message = str(problem.message)
+    if problem.validator != "oneOf" or not isinstance(problem.validator_value, list):
+        return message
+    pairs: List[str] = []
+    for branch in problem.validator_value:
+        properties = branch.get("properties", {}) if isinstance(branch, dict) else {}
+        ball = properties.get("ball", {}).get("const")
+        reasons = properties.get("reason", {}).get("enum")
+        if not isinstance(ball, str) or not isinstance(reasons, list):
+            return message
+        pairs.extend(f"{ball}/{reason}" for reason in reasons)
+    return f"{message}. The valid ball/reason pairs are: {', '.join(pairs)}."
 
 
 def build_server(registry: ToolRegistry) -> Server[Any, Any]:

@@ -30,6 +30,7 @@ from agentjobs.manager import TaskManager
 from agentjobs.mcp import mutation_tools
 from agentjobs.mcp.errors import AUTHORIZATION_CODES, ERROR_SCHEMA, ErrorCode, ToolError
 from agentjobs.mcp.inventory import build_registry
+from agentjobs.mcp.server import validate_arguments
 from agentjobs.mcp.tools import ToolRegistry
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle
 from agentjobs.principals import RUN_CREDENTIAL_HEADER, Problem
@@ -969,6 +970,40 @@ class TestAuthorizationRefusalsReachTheAgent:
         assert result.structuredContent["code"] == "unverified_run_credential"
         assert result.structuredContent["retryable"] is False
         assert result.structuredContent["suggested_action"]
+
+
+class TestSchemaRefusalsSayWhatIsValid:
+    def test_an_operation_id_that_is_not_a_uuid_is_refused(self, service):
+        registry, _, _ = service
+
+        with pytest.raises(ToolError) as caught:
+            validate_arguments(registry.get("task_claim"), base(operation_id="op-1"))
+
+        assert caught.value.code is ErrorCode.INVALID_INPUT
+        assert [item.path for item in caught.value.field_errors] == ["operation_id"]
+
+    def test_a_uuid_operation_id_still_validates(self, service):
+        registry, _, _ = service
+
+        validate_arguments(registry.get("task_claim"), base())
+
+    def test_an_invalid_handoff_pair_names_the_valid_pairs(self, service):
+        registry, _, _ = service
+
+        with pytest.raises(ToolError) as caught:
+            validate_arguments(
+                registry.get("task_handoff"),
+                base(
+                    expected_revision="2026-08-10T00:00:00Z",
+                    target={"ball": "human", "reason": "work", "prompt": "x"},
+                ),
+            )
+
+        message = caught.value.message
+        for pair in ("agent/work", "human/review", "external/dependency", "external/service"):
+            assert pair in message
+        assert "agent/available" not in message
+        assert "human/review" in caught.value.field_errors[0].message
 
 
 # ---------------------------------------------------------------------------
