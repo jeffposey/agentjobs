@@ -236,6 +236,51 @@ class SqlTaskStore:
             raise sqlite3.OperationalError("no searchable tokens")
         return " AND ".join(f'"{token}"*' for token in tokens)
 
+    FEED_SIGNAL_TYPES = frozenset({"handoff", "transition", "answer", "instruction"})
+    """Entry types whose ``data`` travels with the feed. Every other entry is reported by
+    identity alone: nothing waits on a progress note's payload, and a ``dispatch`` entry's
+    argv has no business being copied into another database."""
+
+    def log_feed(self, after: int, limit: int) -> List[Dict[str, Any]]:
+        """Log entries committed after feed position ``after``, oldest first, at most ``limit``.
+
+        The execution journal's source feed (task-264). Positions come from ``log_feed``,
+        an AUTOINCREMENT table filled by trigger in the same transaction as the entry, so a
+        position is never reused and a cursor held at one never skips a later entry.
+        Bounded so no reader ever pulls an unbounded history in one call.
+        """
+        bounded = max(1, min(int(limit), 1000))
+        rows = (
+            self._connection()
+            .execute(
+                "SELECT f.feed_id, f.task_id, f.entry_id, l.ts, l.type, l.actor, l.data_json "
+                "FROM log_feed f JOIN log_entry l ON l.project_id = f.project_id "
+                "AND l.task_id = f.task_id AND l.entry_id = f.entry_id "
+                "WHERE f.project_id = ? AND f.feed_id > ? ORDER BY f.feed_id LIMIT ?",
+                (self.project_id, int(after), bounded),
+            )
+            .fetchall()
+        )
+        feed: List[Dict[str, Any]] = []
+        for row in rows:
+            data: Dict[str, Any] = {}
+            if row["type"] in self.FEED_SIGNAL_TYPES:
+                loaded = json.loads(row["data_json"] or "{}")
+                data = loaded if isinstance(loaded, dict) else {}
+            feed.append(
+                {
+                    "position": int(row["feed_id"]),
+                    "project_id": self.project_id,
+                    "task_id": row["task_id"],
+                    "entry_id": int(row["entry_id"]),
+                    "ts": row["ts"],
+                    "type": row["type"],
+                    "actor": row["actor"],
+                    "data": data,
+                }
+            )
+        return feed
+
     def project_revision(self) -> Tuple[str, int]:
         """A cheap signal that changes whenever this project's tasks change.
 

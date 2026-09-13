@@ -67,6 +67,13 @@ from .store_factory import open_database, server_process
 #: has to remember is in force.
 PARENTS_FIRST = ("project", "task", "log_entry", "attachment")
 
+#: Tables whose rows a trigger derives from another table's, and which the copy therefore
+#: must not copy: inserting ``log_entry`` into the destination fires its trigger there, and
+#: copying the source's ``log_feed`` rows on top would collide with the positions it just
+#: assigned (task-264). The destination's feed is rebuilt by that trigger, entry for entry;
+#: its positions are new, which the execution journal detects and re-imports from safely.
+DERIVED_BY_TRIGGER = frozenset({"log_feed"})
+
 #: The attached schema name. Local to one transaction, so it cannot collide.
 ATTACHED = "split"
 
@@ -101,7 +108,11 @@ def project_tables(connection: sqlite3.Connection) -> List[str]:
             "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
         )
     ]
-    scoped = [name for name in names if "project_id" in _columns(connection, name)]
+    scoped = [
+        name
+        for name in names
+        if name not in DERIVED_BY_TRIGGER and "project_id" in _columns(connection, name)
+    ]
 
     def rank(name: str) -> Tuple[int, str]:
         return (PARENTS_FIRST.index(name) if name in PARENTS_FIRST else len(PARENTS_FIRST), name)
