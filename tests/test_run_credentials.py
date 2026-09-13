@@ -467,7 +467,11 @@ from agentjobs.client import TaskClient
 
 base, out = sys.argv[1], sys.argv[2]
 answer = TaskClient(base).service_whoami()
-with open(out, "w", encoding="utf-8") as handle:
+# Written beside and renamed into place: the test polls for the file's existence, and
+# `open(out, "w")` creates it empty before the dump fills it, which a loaded gate read as
+# a JSONDecodeError (task-312, fin_90d13a61).
+partial = out + ".partial"
+with open(partial, "w", encoding="utf-8") as handle:
     json.dump(
         {
             "whoami": answer,
@@ -477,6 +481,7 @@ with open(out, "w", encoding="utf-8") as handle:
         },
         handle,
     )
+os.replace(partial, out)
 print("done", flush=True)
 """
 """A runner that asks the service who it is, over the ordinary client."""
