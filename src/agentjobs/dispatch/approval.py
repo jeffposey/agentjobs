@@ -151,7 +151,9 @@ def approval_data(
 # ----- reading one --------------------------------------------------------------
 
 
-def approval_in(entry: Optional[LogEntry], *, project_id: str, task_id: str) -> Optional[ApprovalReceipt]:
+def approval_in(
+    entry: Optional[LogEntry], *, project_id: str, task_id: str
+) -> Optional[ApprovalReceipt]:
     """The approval this entry records, or ``None`` when it records none."""
     if entry is None or entry.type is not LogEntryType.HANDOFF:
         return None
@@ -197,6 +199,27 @@ def newest_human_handoff(task: Task, project_config: Mapping[str, object]) -> Op
         if kind is not None and kind.is_human:
             return entry
     return None
+
+
+def human_handoffs_since(
+    task: Task, project_config: Mapping[str, object], *, after_entry: Optional[int]
+) -> List[LogEntry]:
+    """Every handoff a person wrote after ``after_entry``, oldest first (durable-1).
+
+    What a woken session is owed. Two Request Changes clicks while a session was busy are
+    two messages, and delivering only the newest ball prompt silently dropped the first --
+    the newest-only loss the design forbids.
+    """
+    owed: List[LogEntry] = []
+    for entry in task.log:
+        if after_entry is not None and entry.id <= after_entry:
+            continue
+        if entry.type is not LogEntryType.HANDOFF:
+            continue
+        kind = actor_kind(dict(project_config), entry.actor)
+        if kind is not None and kind.is_human:
+            owed.append(entry)
+    return owed
 
 
 def withdrawing_stop(
@@ -300,6 +323,34 @@ def standing_approval_for(
         project_id=project_id,
         stops=stop_requests(home, project_id, task.id),
     )
+
+
+def project_config_for(home: Path, project_id: str) -> Dict[str, object]:
+    """A registered project's config, or an empty one when it cannot be resolved."""
+    from agentjobs.projects import ProjectError, ProjectRegistry
+
+    try:
+        return dict(ProjectRegistry(home=home).get(project_id).load_config())
+    except (ProjectError, OSError, ValueError, TypeError):
+        return {}
+
+
+def approval_standing_on(
+    home: Path, project_id: str, task: Optional[Task]
+) -> Optional[ApprovalReceipt]:
+    """``standing_approval_for``, resolving the project's config from the registry.
+
+    For the conclusion paths, which hold a run record and a manager but no config. Never
+    raises: those paths must still write the run's terminal result whatever this says.
+    """
+    if task is None or not project_id:
+        return None
+    try:
+        return standing_approval_for(
+            home, task, project_config_for(home, project_id), project_id=project_id
+        )
+    except Exception:  # noqa: BLE001 - see the docstring
+        return None
 
 
 def accept_signals(home: Path, project_id: str, task: Task, entries: Sequence[LogEntry]) -> None:
@@ -430,9 +481,12 @@ __all__ = [
     "ReviewedBranch",
     "accept_signals",
     "approval_data",
+    "approval_standing_on",
+    "project_config_for",
     "approval_in",
     "dispose",
     "feed_timestamp",
+    "human_handoffs_since",
     "newest_human_handoff",
     "reviewed_branches",
     "source_event",

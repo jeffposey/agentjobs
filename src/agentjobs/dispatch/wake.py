@@ -283,8 +283,14 @@ def build_wake_prompt(
     run_id: str,
     previous_run_id: str,
     policy: str = "",
+    earlier: Sequence[str] = (),
 ) -> str:
     """Render ``WAKE_STUB``. A blank ball prompt still produces a usable instruction.
+
+    ``earlier`` is every other human message sent since the session last ran, oldest
+    first (task-312, durable-1). The ball prompt is only the newest of them; two Request
+    Changes clicks while a session was busy are two messages, and the first is delivered
+    here rather than silently replaced by the second.
 
     ``policy`` is the run's posture and push clause, appended verbatim (task-375). A
     resumed session is only ever resumed at the posture it last ran under, but it is told
@@ -300,6 +306,23 @@ def build_wake_prompt(
     elif len(stated) > BALL_PROMPT_LIMIT:
         stated = stated[:BALL_PROMPT_LIMIT].rstrip() + (
             "\n\n(truncated -- the whole entry is on the task record)"
+        )
+    previous = [message.strip() for message in earlier if message and message.strip()]
+    if previous:
+        budget = BALL_PROMPT_LIMIT
+        rendered_earlier: List[str] = []
+        for message in previous:
+            if budget <= 0:
+                rendered_earlier.append("(more earlier messages -- read them on the task record)")
+                break
+            clipped = message if len(message) <= budget else message[:budget].rstrip() + " ..."
+            budget -= len(clipped)
+            rendered_earlier.append(clipped)
+        stated = (
+            "Earlier messages since you last ran, oldest first -- all of them still apply:\n\n"
+            + "\n\n---\n\n".join(rendered_earlier)
+            + "\n\n---\n\nAnd the newest:\n\n"
+            + stated
         )
     rendered = WAKE_STUB.format(
         agent=agent,

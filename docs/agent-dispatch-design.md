@@ -3372,7 +3372,9 @@ on task-414. **The journal, admission, the terminal transition, the source feed 
 legacy import shipped in task-264** -- see
 [What task-264 built](#what-task-264-built-2026-09-13) -- and **the frozen envelope and
 history-based continuation in task-375** -- see
-[What task-375 built](#what-task-375-built-2026-09-13); everything else here is still
+[What task-375 built](#what-task-375-built-2026-09-13), and **durable approval, feedback
+and Stop signals with the finisher's ownership transfer in task-312** -- see
+[What task-312 built](#what-task-312-built-2026-09-13); everything else here is still
 design.
 
 An accepted dispatch is an obligation with a durable identity. AgentJobs keeps advancing
@@ -3907,7 +3909,7 @@ places named:
 | Whether a dispatch continues one | `envelope.is_continuation`: trigger `auto` naming no runner, group, posture, playbook, authoriser or epic. A person's click, a CLI dispatch and an epic child are new grants and resolve from configuration as it stands |
 | What a continuation runs | The newest native execution for the project/task (`ExecutionStore.latest_execution`). `config.resolve_recorded_runner` skips the precedence ladder; the recorded member disabled in its group, removed, or not installed is `recorded_runner_unavailable`, never another member |
 | What posture it gets | `resolve_posture(history=...)`: below a dispatch-time or inherited choice, above the task field and project default; clamped by a lowered ceiling, never widened by a raised one. Push narrows the same way |
-| Whether a Stop defeats it | A `stop_requested` event on the execution being continued refuses an automatic continuation (`grant_stopped`). Every Stop today is a person's (API, CLI, panic); task-312 owns telling a stand-down apart |
+| Whether a Stop defeats it | A `stop_requested` event on the execution being continued refuses an automatic continuation (`grant_stopped`). Every Stop is a person's (API, CLI, panic); an administrative transfer is a separate `stand_down_requested` event and never trips this (task-312) |
 | Whether a session is resumed | `wake.resume_refusal`: never across a posture change, and never when the previous run recorded none. Claude and Codex both start a fresh session instead; for Codex this is not a resume failure, so the explicit-fresh-start policy is not engaged |
 | What the agent was told | The dispatch entry's `delivery`: channel, payload sha256, `posture_delivered` computed from the delivered text, the launcher's returned id as the only acknowledgement, and `resume_refused`. A same-posture wake carries the full policy clause on stdin |
 | Which group members could run | `config.select_runner` judges every member, including those after the winner; `selected` marks the one that ran (task-415) |
@@ -3918,6 +3920,35 @@ observation events for policy checks: revocation is enforced at the dispatch gat
 yet recorded as a journal observation. Legacy-import and pre-envelope executions give no
 history and resolve as before; nothing reconstructs a missing runner or posture from
 today's defaults.
+
+### What task-312 built (2026-09-13)
+
+Approval, feedback and Stop as durable signals, and the transfer of a live reviewing
+session to the scripted finish. **The cause it fixes was established from the run records
+first** (task-312 entry 14): every approval finish that declined `locked` -- task-021,
+task-022, task-292, task-294 -- landed while the reviewing session was still attached,
+whether busy, parked, stuck on an expired login or idle but not yet polled. Every one that
+succeeded started after its run had concluded. It was a race with the poller plus two
+states that never settle, not a universal block.
+
+| Fact | Where it is decided |
+| --- | --- |
+| What an approval authorised | `data.approval` on the approve handoff: approver, the note verbatim, and every active branch with its head at the click (`dispatch.approval`). `standing_approval` says whether it still authorises anything: it must be the newest human handoff on an open task with no Stop requested after it. A pre-receipt approval is recognised by the route's own body and marked `legacy` |
+| That it was accepted | The route writes the inbox row synchronously (`ExecutionStore.accept_signal`), identical in source id and payload to the feed import's and without moving the cursor, so the two land on one row |
+| What became of a message | `ExecutionStore.dispose_signal`: `consumed` (by a finish or the run a wake started), `superseded` (by a later human handoff or a Stop, naming it) or `stale`. Final, never deleted, and replayed as `signal_disposed` |
+| Whether a finish may take a task from its reviewing session | `dispatch.standdown`: on lock contention with a standing approval and a dispatched session holding the lock, a `stand_down_requested` event (requester, `internal_transfer`, reason, generation, requesting pid), then one poll, then the driver's `stop`, then polls until the journal shows the run concluded. Only then is the lock taken. Interactive, batch and pre-journal runs are never displaced |
+| How a stood-down run ends | `poll_session` settles a stood-down session that is stopped, idle or gone **before** the auth-stall check, as `completed` with a body saying it stood down. It is never `cancelled` and never parked on auth |
+| What happens when quiescence is not confirmed | The finish declines `stand_down_unconfirmed`, merges nothing and leaves the run holding the lock, with `finish_pending` on the run. When the poller settles that run it spawns the finish instead of waking the session (`poller._finish_an_approval`), unless the requesting finish is still alive |
+| What a Stop does to an approval | Withdraws it: the inbox row is superseded by `stop:<run>`, and the human prompt names the requester and source and says nothing merged. Any other ending while an approval stands leaves the ball alone and spawns the owed finish, but only for a run the approval arrived during, so a repair run cannot loop |
+| When a Stop is complete | `DispatchLedger.cancel` concludes only on a confirmed stop. An unconfirmed one leaves the run `stopping`, holding the lock, with `stop_unconfirmed` on the run and a note naming the requester; `poll_session` concludes it `cancelled` once the session reads stopped or gone |
+| What a wake carries | Every human handoff since the previous dispatch, oldest first, before the newest ball prompt (`build_wake_prompt(earlier=...)`) |
+| Whether a message may be sent again | A `deliver:<project>:<source event>` activity: intent before `maybe_auto_dispatch`, result after. An intent with no result is reconciled against the task log (a dispatch entry `caused_by` that handoff means `applied`); otherwise it becomes `unknown` / `effect_unknown`, the send is refused `delivery_uncertain` and the ball goes to a human |
+
+**Not built here.** The reviewed head is recorded but not enforced: a branch that moved
+after approval still finishes, because approval notes ask for exactly such follow-up
+commits (task-228). Whether to refuse or re-review belongs with the durable finish
+(task-322). Auth recovery delivering buffered messages is task-417; the note's meaning is
+task-343. Batch runs are not stood down.
 
 ### Implementation ownership and order
 

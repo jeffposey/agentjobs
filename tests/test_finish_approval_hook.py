@@ -149,6 +149,33 @@ class TestWhichClickFinishes:
         approvals = [entry for entry in task["log"] if entry["actor"] == "jeff"]
         assert any("Approved by jeff" in (entry["body"] or "") for entry in approvals)
 
+    def test_the_approval_carries_its_receipt_into_the_journal_before_answering(
+        self, client: TestClient, spawned: List[Dict[str, Any]]
+    ) -> None:
+        """task-312, durable-4 and durable-5: accepted synchronously, note verbatim."""
+        from agentjobs.dispatch.journal import journal
+        from agentjobs.projects import default_home
+
+        task_id = task_awaiting_review(client)
+        response = client.post(
+            f"/api/tasks/{task_id}/approve",
+            json={"user": "jeff", "note": "Fold the naming nit in before you merge."},
+        )
+        assert response.status_code == 200, response.text
+
+        entry = [e for e in response.json()["task"]["log"] if e["type"] == "handoff"][-1]
+        assert entry["data"]["approval"]["approver"] == "jeff"
+        assert entry["data"]["approval"]["note"] == "Fold the naming nit in before you merge."
+        rows = [
+            row
+            for row in journal(default_home()).inbox()
+            if row.task_id == task_id and row.payload["entry_id"] == entry["id"]
+        ]
+        assert len(rows) == 1 and rows[0].status == "pending"
+        assert rows[0].payload["data"]["approval"]["note"] == (
+            "Fold the naming nit in before you merge."
+        )
+
     def test_nothing_merges_without_a_click(
         self, client: TestClient, spawned: List[Dict[str, Any]]
     ) -> None:

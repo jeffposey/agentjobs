@@ -33,6 +33,7 @@ from agentjobs.models_v2 import (
     BallReason,
     DependencyType,
     Lifecycle,
+    LogEntryType,
     Outcome,
     Priority,
     Task,
@@ -721,7 +722,15 @@ def after_human_handoff(
     reproduce by accident. Requesting changes and approving both hand to the agent; only
     one of them means the work is finished, and the route that received the click is the
     only thing that knows which. See ``spawn_finish`` (task-241).
+
+    **The human act is accepted into the execution journal first** (task-312). The
+    handoff has committed in the task store; this puts the same entry in the inbox before
+    the response leaves, so a server that dies in the next second leaves the message owed
+    rather than only written. A human handback that is not an approval also supersedes
+    the approvals before it: a person who approved and then asked for changes has made
+    the newer decision, and the finish must not act on the older one.
     """
+    _accept_human_handoff(project, task)
     if finishable and finish_is_offered(project.id):
         # A finish and an auto-dispatch are alternatives, never both: they would race
         # for the same branch and the same per-task lock. The finish is preferred when

@@ -1572,6 +1572,7 @@ class ExecutionStore:
         source: str,
         reason: str,
         transfer_to: str,
+        holder_pid: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Record that a live attempt is being asked to hand its task to someone else.
 
@@ -1602,6 +1603,7 @@ class ExecutionStore:
                 "source": source,
                 "reason": reason,
                 "transfer_to": transfer_to,
+                "holder_pid": holder_pid,
                 "generation": int(row["control_generation"]),
                 "requested_at": _iso(self.now()),
             }

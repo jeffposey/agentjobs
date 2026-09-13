@@ -1535,6 +1535,7 @@ class DispatchRunner:
                 run_id=run_id,
                 previous_run_id=wake.previous_run_id,
                 policy=self.policy_clause_for(task.id),
+                earlier=self._earlier_messages(task, wake.previous_run_id),
             )
         settings = parse_session_settings(
             argv, posture=self.posture.posture.value, project_root=self.project_root
@@ -2149,6 +2150,30 @@ class DispatchRunner:
         except Exception:  # noqa: BLE001 - an unreadable meta proves nothing either way
             return {}
 
+    def _earlier_messages(self, task: Task, previous_run_id: str) -> List[str]:
+        """Human messages since the previous run was dispatched, except the newest.
+
+        The newest is the ball prompt, which the wake carries already. Empty whenever the
+        previous run's dispatch entry is unknown: guessing a starting point could deliver
+        messages the session already acted on as though they were new.
+        """
+        from agentjobs.dispatch.approval import human_handoffs_since, project_config_for
+
+        after = self._previous_meta(previous_run_id).get("dispatch_entry_id")
+        if not isinstance(after, int):
+            return []
+        try:
+            owed = human_handoffs_since(
+                task,
+                project_config_for(self.home, self.resolution.project_id),
+                after_entry=after,
+            )
+        except Exception:  # noqa: BLE001 - the newest message is still delivered
+            return []
+        return [
+            f"From {entry.actor} (entry {entry.id}):\n\n{entry.body or ''}" for entry in owed[:-1]
+        ]
+
     def _plan_wake(
         self, task: Task, run_id: str, argv: List[str], prompt: str
     ) -> tuple[Optional[WakeTarget], List[str], Optional[str], Optional[str]]:
@@ -2201,6 +2226,7 @@ class DispatchRunner:
                 run_id=run_id,
                 previous_run_id=target.previous_run_id,
                 policy=self.policy_clause_for(task.id),
+                earlier=self._earlier_messages(task, target.previous_run_id),
             ),
             None,
         )
@@ -2699,6 +2725,9 @@ class DispatchRunner:
             return self._poll_codex_app_server(handle)
 
         row = self._ledger_row(handle.session_id)
+        settled = self._settle_requested_ending(handle, row)
+        if settled is not None:
+            return settled
         if row is None:
             self._finish_session(
                 handle,
@@ -2725,7 +2754,7 @@ class DispatchRunner:
         # moved earlier in the run, which is precisely how run_a1e35ca5 came to be
         # recorded as a success after dying (task-224).
         stall = self.auth_stall(handle)
-        if stall is not None:
+        if stall is not None and not self._standing_down(handle):
             self._park_auth_stall(handle, stall)
             return SessionPhase.AUTH_STALLED
 
@@ -2738,6 +2767,74 @@ class DispatchRunner:
         elif phase is SessionPhase.RUNNING:
             self._check_running_stall(handle, transcript)
         return phase
+
+    def _standing_down(self, handle: RunHandle) -> bool:
+        """Whether this run is being stood down, so an auth park would write over the
+        approval that transferred it (task-312). It is being stopped either way."""
+        from agentjobs.dispatch import journal  # local: journal imports this module lazily
+
+        return journal.stand_down(self.home, handle.run_id) is not None
+
+    def _settle_requested_ending(
+        self, handle: RunHandle, row: Optional[Dict[str, object]]
+    ) -> Optional[SessionPhase]:
+        """End a run somebody already asked to end, once its session has quiesced (task-312).
+
+        Two requests are answered here, and both **before** the auth-stall check, because
+        that check contradicts the phase and a run someone has asked to end must not be
+        held open by a login failure still sitting in its transcript -- which is what kept
+        task-022's run live after its approval.
+
+        - **A stand-down** transfers the task to the scripted finish. The session's work
+          was approved, so a session that has stopped, gone idle or left the ledger is
+          concluded ``completed``, saying it stood down. Never ``cancelled``: nobody
+          cancelled anything, and a cancellation is what writes a request to decide.
+        - **A Stop whose ``stop`` could not be confirmed** left the run ``stopping``
+          (from-264-stop). It is concluded ``cancelled`` only now that the session reads
+          stopped or gone -- quiescence observed, not assumed.
+
+        Returns ``None`` when neither applies, or the session is still running.
+        """
+        from agentjobs.dispatch import journal  # local: journal imports this module lazily
+
+        phase = (
+            SessionPhase.GONE
+            if row is None
+            else classify_session(
+                str(row.get("status")) if row.get("status") is not None else None,
+                str(row.get("state")) if row.get("state") is not None else None,
+            )
+        )
+        if phase not in {SessionPhase.GONE, SessionPhase.STOPPED, SessionPhase.FINISHED}:
+            return None
+        observed = SessionPhase.STOPPED if phase is SessionPhase.FINISHED else phase
+        meta = handle.directory.read_meta()
+        if journal.cancel_requested(self.home, handle.run_id, meta=meta):
+            # Idle is not stopped: a session that finished a turn after a failed `stop`
+            # may still be resumed by anyone holding it, so only stopped or gone counts.
+            if not meta.get("stop_unconfirmed") or phase is SessionPhase.FINISHED:
+                return None
+            from agentjobs.dispatch.ledger import DispatchLedger
+
+            DispatchLedger(
+                self.home,
+                managers={self.resolution.project_id: self.manager},  # type: ignore[dict-item]
+            ).conclude_confirmed_stop(self._record_for(handle))
+            return observed
+        request = journal.stand_down(self.home, handle.run_id)
+        if request is None:
+            return None
+        self._finish_session(
+            handle,
+            DispatchOutcome.COMPLETED,
+            body=(
+                f"Stood down so the scripted finish could take the task: "
+                f"{request.get('reason') or 'an approval transferred it'}. Not a "
+                "cancellation -- the work this run did was approved, and nothing it built "
+                "was discarded."
+            ),
+        )
+        return observed
 
     def _poll_codex_app_server(self, handle: RunHandle) -> SessionPhase:
         """Poll the App Server supervisor state without pretending ``codex agents`` exists."""

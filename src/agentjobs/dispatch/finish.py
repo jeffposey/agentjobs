@@ -1962,12 +1962,28 @@ def finish_task(
             detail=f"{task_id} is closed or missing; there is nothing to finish.",
         )
 
+    receipt = _standing_approval(resolved_home, project, task) if authority == APPROVAL else None
     lock: Optional[RunLock] = None
     if not _own_run_holds_lock(resolved_home, task_id, project_id=project.id):
         try:
             lock = acquire_run_lock(resolved_home, task_id, project_id=project.id, kind=KIND_FINISH)
         except RunLockTimeout as exc:
-            return FinishResult(task_id=task_id, outcome=DECLINED, reason="locked", detail=str(exc))
+            if receipt is None:
+                return FinishResult(
+                    task_id=task_id, outcome=DECLINED, reason="locked", detail=str(exc)
+                )
+            # An approved task held by the session that asked for its review (task-312).
+            # Take it over rather than declining; see `dispatch.standdown`.
+            taken = _take_over_approved_task(
+                manager=manager,
+                project=project,
+                task_id=task_id,
+                receipt=receipt,
+                home=resolved_home,
+            )
+            if isinstance(taken, FinishResult):
+                return taken
+            lock = taken
 
     directory = FinishDirectory.create(resolved_home, task_id, project.id)
     if lock is not None:
@@ -2002,6 +2018,8 @@ def finish_task(
             seconds=round(time.monotonic() - started, 2),
             merge_commit=result.merge_commit,
         )
+        if receipt is not None:
+            _consume_approval(resolved_home, project.id, task, receipt, directory.finish_id)
         return result
     except Declined as exc:
         directory.write_meta(
@@ -2021,6 +2039,10 @@ def finish_task(
         )
     except Escalate as exc:
         merge_commit = _merge_commit_of(steps)
+        if receipt is not None:
+            # Acted on: the finish ran on this approval and stopped somewhere, which the
+            # escalation records. A later retry acts on the same standing approval.
+            _consume_approval(resolved_home, project.id, task, receipt, directory.finish_id)
         steps.append(StepResult(exc.step, False, exc.detail.splitlines()[0], 0.0))
         directory.write_meta(
             outcome=ESCALATED,
@@ -2106,6 +2128,84 @@ def finish_task(
         runway.release()
         if lock is not None:
             lock.release()
+
+
+def _standing_approval(home: Path, project: Project, task: Task) -> Optional[Any]:
+    """The approval that authorises this finish, if one stands. Never raises."""
+    from agentjobs.dispatch.approval import standing_approval_for
+
+    try:
+        config = project.load_config()
+    except Exception:  # noqa: BLE001 - an unreadable config is no approval to act on
+        return None
+    try:
+        return standing_approval_for(home, task, config, project_id=project.id)
+    except Exception:  # noqa: BLE001 - reading the journal must not break a finish
+        return None
+
+
+def _take_over_approved_task(
+    *,
+    manager: TaskManagerLike,
+    project: Project,
+    task_id: str,
+    receipt: Any,
+    home: Path,
+) -> "RunLock | FinishResult":
+    """Stand the holding session down and take the lock, or the refusal saying why not."""
+    from agentjobs.dispatch.standdown import stand_down_for_finish
+
+    transfer = stand_down_for_finish(
+        manager=manager, project=project, task_id=task_id, receipt=receipt, home=home
+    )
+    if not transfer.released:
+        return FinishResult(
+            task_id=task_id, outcome=DECLINED, reason=transfer.reason, detail=transfer.detail
+        )
+    try:
+        return acquire_run_lock(home, task_id, project_id=project.id, kind=KIND_FINISH)
+    except RunLockTimeout as exc:
+        return FinishResult(task_id=task_id, outcome=DECLINED, reason="locked", detail=str(exc))
+
+
+def _consume_approval(
+    home: Path, project_id: str, task: Task, receipt: Any, finish_id: str
+) -> None:
+    """Mark the approval this finish is acting on as consumed, naming the finish."""
+    from agentjobs.dispatch.approval import dispose
+
+    entry = next((item for item in task.log if item.id == receipt.entry_id), None)
+    if entry is None:
+        return
+    dispose(
+        home,
+        project_id,
+        task,
+        entry,
+        status="consumed",
+        disposition={"by": f"finish:{finish_id}", "approver": receipt.approver},
+    )
+
+
+def resume_approved_finish(
+    *, project_id: str, task_id: str, approver: str, home: Optional[Path] = None
+) -> Optional[str]:
+    """Spawn the finish an approval is still owed, when this machine offers one (task-312).
+
+    Called when the run that stood between an approval and its finish has ended: by the
+    poller as a session settles, and by a ledger conclusion that found the approval still
+    standing. A duplicate is harmless -- the second finish meets the first one's lock and
+    declines -- so the caller need not prove none is running. Never raises.
+    """
+    from agentjobs.projects import ProjectRegistry
+
+    try:
+        if not finish_is_offered(project_id, home):
+            return None
+        project = ProjectRegistry(home=home).get(project_id)
+        return spawn_finish(project=project, task_id=task_id, approver=approver, home=home)
+    except Exception:  # noqa: BLE001 - see the docstring
+        return None
 
 
 def _run_vouching_for(home: Path, run_id: str, task_id: str) -> bool:
