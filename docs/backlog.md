@@ -103,7 +103,7 @@ decision log, branches, verification evidence — stays in the store.
 
   One e2e test failed with `browser.newContext: Target page, context or browser has been closed` -- the browser process died during launch, before the test ran. The stage went red, so the gate went red, and the only way to learn it was infrastructure was to re-run and watch it pass.
 
-## High (67)
+## High (69)
 
 - **task-421** — Notify the human when AgentJobs is waiting on them
 
@@ -438,6 +438,14 @@ decision log, branches, verification evidence — stays in the store.
 - **task-408** — scripts/bench.py measures an empty backlog: it seeds a directory of YAML nothing serves
 
   The benchmark builds its corpus by writing task YAML into a throwaway project root, which stopped being a backlog when task-402 deleted the file backend. Every run since has timed an empty store, and the detail endpoint 404s.
+
+- **task-432** — The scripted finish stops on a rebase conflict in a generated file it could simply regenerate, so any branch that commits the roadmap listing loses a race to every other merge
+
+  Nearly every branch commits a regenerated roadmap listing before merging, so two approved branches conflict on that file and the finish stops. Let the finish regenerate known generated files on conflict instead of stopping.
+
+- **task-433** — The per-task daily dispatch cap counts runs that finished their work and handed off, so a normal review loop trips it and then refuses the owner's own answer
+
+  task-413 hit the per-task daily cap after three runs, each of which completed and handed off to review. The cap then refused the dispatches caused by the owner's redirect and answer, and its message blamed the task.
 
 ## Medium (38)
 
