@@ -940,9 +940,7 @@ class ExecutionStore:
                     if statement.strip():
                         self._conn.execute(statement)
                 for table, column, kind in _ADDED_COLUMNS:
-                    present = {
-                        row[1] for row in self._conn.execute(f"PRAGMA table_info({table})")
-                    }
+                    present = {row[1] for row in self._conn.execute(f"PRAGMA table_info({table})")}
                     if column not in present:
                         self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
                 self._conn.execute(
@@ -2284,8 +2282,12 @@ class ExecutionStore:
                         connection,
                         execution_id,
                         "timer_set",
-                        {"timer_id": timer_id, "kind": kind, "due_at": _iso(due_at),
-                         **dict(payload or {})},
+                        {
+                            "timer_id": timer_id,
+                            "kind": kind,
+                            "due_at": _iso(due_at),
+                            **dict(payload or {}),
+                        },
                         source_id=f"timer_set:{timer_id}",
                     )
                     self._refresh_due(connection, execution_id)
@@ -2298,7 +2300,9 @@ class ExecutionStore:
         rows = self._read("SELECT * FROM timer WHERE timer_id = ?", (timer_id,))
         return Timer.from_row(rows[0]) if rows else None
 
-    def due_timers(self, *, now: Optional[datetime] = None, owner_prefix: str = "") -> List["Timer"]:
+    def due_timers(
+        self, *, now: Optional[datetime] = None, owner_prefix: str = ""
+    ) -> List["Timer"]:
         """Timers whose due time has passed and which have neither fired nor been cancelled."""
         moment = _iso(now or self.now())
         rows = self._read(
@@ -2982,7 +2986,9 @@ class ExecutionStore:
 
     def open_walks(self, *, project_id: Optional[str] = None) -> List[Supervision]:
         if project_id is None:
-            rows = self._read("SELECT * FROM supervision WHERE state = 'walking' ORDER BY created_at")
+            rows = self._read(
+                "SELECT * FROM supervision WHERE state = 'walking' ORDER BY created_at"
+            )
         else:
             rows = self._read(
                 "SELECT * FROM supervision WHERE state = 'walking' AND project_id = ? "

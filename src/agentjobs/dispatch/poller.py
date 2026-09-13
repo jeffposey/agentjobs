@@ -175,11 +175,32 @@ def _drive_controller(
     """
     from agentjobs.dispatch.controller import controller_tick  # local: controller imports poller
 
+    from agentjobs.dispatch.epic import advance_hosted_walks
+
     report = controller_tick(home, registry=registry, managers=managers)
+    lines = list(report.lines)
+
+    def resolve(project_id: str) -> Optional[tuple]:
+        project = _project_for_id(registry, project_id)
+        if project is None:
+            return None
+        manager = managers.get(project_id) or dispatch_manager_for(project)
+        return manager, project
+
+    # Walks detached to the server (task-416, epic-5): one step each, rebuilt from their
+    # record, so no session has to stay alive to wait on an epic's children.
+    lines.extend(advance_hosted_walks(home, resolve=resolve))
     return [
         PollResult(subject, None, detail)
-        for subject, _, detail in (line.partition(": ") for line in report.lines)
+        for subject, _, detail in (line.partition(": ") for line in lines)
     ]
+
+
+def _project_for_id(registry: ProjectRegistry, project_id: str) -> Optional[Project]:
+    try:
+        return registry.get(project_id)
+    except ProjectError:
+        return None
 
 
 def follow_session(

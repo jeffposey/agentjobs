@@ -1134,7 +1134,9 @@ def _parse(raw: dict, path: Path) -> DispatchConfig:
     limits_raw = _mapping(raw.get("limits"), "limits", path)
     execution_raw = _mapping(raw.get("execution"), "execution", path)
     explicit = {f"limits.{key}" for key in limits_raw}
-    explicit |= {f"limits.auto.{key}" for key in _mapping(limits_raw.get("auto"), "limits.auto", path)}
+    explicit |= {
+        f"limits.auto.{key}" for key in _mapping(limits_raw.get("auto"), "limits.auto", path)
+    }
     explicit |= {f"execution.{key}" for key in execution_raw}
     return DispatchConfig(
         version=version,

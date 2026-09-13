@@ -490,7 +490,10 @@ class TestRunsThatCannotBeFollowed:
         run_id = _start_session(machine)
         task_id = _run_meta(home, run_id)["task_id"]
         manager.handoff(
-            task_id, actor="claude", ball=Ball.HUMAN, ball_reason=BallReason.REVIEW,
+            task_id,
+            actor="claude",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
             ball_prompt="Done; please review.",
         )
         (home / "DISPATCH_DISABLED").write_text("", encoding="utf-8")

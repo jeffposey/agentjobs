@@ -65,7 +65,7 @@ from agentjobs.execution.coordinator import MODE_ACTIVE, advance_execution
 from agentjobs.execution.errors import ExecutionStoreError, StaleOwner
 from agentjobs.execution.reducer import Intent
 from agentjobs.execution.store import Attempt, Execution, ExecutionStore
-from agentjobs.models_v2 import Ball, BallReason, DispatchOutcome, LogEntryType, Task
+from agentjobs.models_v2 import Ball, BallReason, DispatchOutcome, LogEntryType
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
 from agentjobs.store_factory import TaskManagerLike, dispatch_manager_for
 
@@ -250,9 +250,7 @@ class Controller:
         held = self._epochs.get(execution.execution_id)
         if held is not None and held == execution.controller_epoch:
             return held
-        epoch = self.store.claim_controller(
-            execution.execution_id, owner_mode=execution.owner_mode
-        )
+        epoch = self.store.claim_controller(execution.execution_id, owner_mode=execution.owner_mode)
         self._epochs[execution.execution_id] = epoch
         return epoch
 
@@ -355,7 +353,9 @@ class Controller:
         mode = record.mode if record is not None else ""
         capability = capabilities_for(driver, mode)
         if capability.correlation == "session_name" and record is not None:
-            return self._correlate_session(execution, intent, attempt, record, meta, age, holder_alive)
+            return self._correlate_session(
+                execution, intent, attempt, record, meta, age, holder_alive
+            )
         if age < settings.reconcile_deadline_seconds:
             return None
         return self._unknown(
@@ -378,7 +378,10 @@ class Controller:
         from agentjobs.dispatch.runner import DispatchRunError, session_name
 
         deadline = self.settings().execution.reconcile_deadline_seconds
-        name = str(meta.get("session_name") or session_name(record.project_id, record.task_id, record.run_id))
+        name = str(
+            meta.get("session_name")
+            or session_name(record.project_id, record.task_id, record.run_id)
+        )
         runner = self._runner_for(execution, record)
         if runner is None:
             return None
@@ -389,7 +392,9 @@ class Controller:
             self._observer_failure(execution, record.run_id, str(exc))
             if age >= deadline:
                 return self._unknown(
-                    execution, intent, f"the session listing could not be read: {exc}",
+                    execution,
+                    intent,
+                    f"the session listing could not be read: {exc}",
                     error_class="observer_unavailable",
                 )
             return None
@@ -430,7 +435,9 @@ class Controller:
         if isinstance(meta.get("dispatch_entry_id"), int):
             write_status(record, session_id=session_id, status="running")
             self.store.mark_launched(record.run_id, session_id=session_id)
-            self.result(intent, execution, "applied", result={"session_id": session_id, "reattached": True})
+            self.result(
+                intent, execution, "applied", result={"session_id": session_id, "reattached": True}
+            )
             return f"reattached session {session_id}"
         runner = self._runner_for(execution, record)
         stopped = False
@@ -448,7 +455,12 @@ class Controller:
                 f"session {session_id} exists for {record.run_id} with no dispatch entry, and "
                 "stopping it could not be confirmed",
             )
-        write_status(record, session_id=session_id, abandoned_session=session_id, abandoned_session_stopped=True)
+        write_status(
+            record,
+            session_id=session_id,
+            abandoned_session=session_id,
+            abandoned_session_stopped=True,
+        )
         self.store.mark_launched(record.run_id, session_id=session_id)
         self.conclude(
             record,
@@ -459,7 +471,9 @@ class Controller:
                 "attempt was concluded."
             ),
         )
-        self.result(intent, execution, "applied", result={"session_id": session_id, "stopped": True})
+        self.result(
+            intent, execution, "applied", result={"session_id": session_id, "stopped": True}
+        )
         return f"stopped unfollowable session {session_id}"
 
     def _adopt_batch(
@@ -500,7 +514,9 @@ class Controller:
         *,
         error_class: str = reducer.EFFECT_UNKNOWN,
     ) -> str:
-        self.result(intent, execution, "unknown", result={"detail": detail}, error_class=error_class)
+        self.result(
+            intent, execution, "unknown", result={"detail": detail}, error_class=error_class
+        )
         return f"unknown ({error_class}): {detail}"
 
     def _observer_failure(self, execution: Execution, run_id: str, detail: str) -> None:
@@ -559,7 +575,9 @@ class Controller:
             return "; ".join(r.detail for r in results if r.detail) or None
         return self._observe_batch(execution, attempt, record)
 
-    def _observe_batch(self, execution: Execution, attempt: Attempt, record: RunRecord) -> Optional[str]:
+    def _observe_batch(
+        self, execution: Execution, attempt: Attempt, record: RunRecord
+    ) -> Optional[str]:
         """A batch attempt: leave it to its supervisor while that lives, else prove the worker.
 
         The worker is identified by its pid *and* its creation time. Only a match is the
@@ -577,7 +595,12 @@ class Controller:
         pid = record.pid
         receipt = meta.get("pid_identity")
         running = pid is not None and self.alive(pid)
-        same = pid is not None and running and isinstance(receipt, str) and self.identity(pid) == receipt
+        same = (
+            pid is not None
+            and running
+            and isinstance(receipt, str)
+            and self.identity(pid) == receipt
+        )
         limits = self.settings().limits
         started = record.started_at or _parse(attempt.admitted_at)
         elapsed = (self.clock() - started).total_seconds() if started else 0.0
@@ -607,8 +630,10 @@ class Controller:
         manager = self.manager(record.project_id)
         task = manager.get_task(record.task_id) if manager is not None else None
         entry = meta.get("dispatch_entry_id")
-        moved = task is not None and isinstance(entry, int) and any(
-            e.id > entry and e.type.value in {"handoff", "transition"} for e in task.log
+        moved = (
+            task is not None
+            and isinstance(entry, int)
+            and any(e.id > entry and e.type.value in {"handoff", "transition"} for e in task.log)
         )
         preserved = (
             f" Uncommitted work was left exactly as found: {', '.join(sorted(dirty)[:10])}."
@@ -674,7 +699,9 @@ class Controller:
         )
         if manager is not None and projection is not None:
             journal_adapter.deliver_projection(self.home, manager, projection)
-            commit_task_record(manager, record.task_id, subject=f"record run {record.run_id} as {outcome.value}")
+            commit_task_record(
+                manager, record.task_id, subject=f"record run {record.run_id} as {outcome.value}"
+            )
         return True
 
     # ----- Stop ---------------------------------------------------------------
@@ -692,7 +719,9 @@ class Controller:
             return f"stop not confirmed: {stopped.detail}"
         if not record.is_session and record.pid is not None and self.alive(record.pid):
             return f"stop not confirmed: pid {record.pid} is still alive"
-        ledger._conclude(record, DispatchOutcome.CANCELLED, actor=CONTROLLER_ACTOR, body=stopped.detail)
+        ledger._conclude(
+            record, DispatchOutcome.CANCELLED, actor=CONTROLLER_ACTOR, body=stopped.detail
+        )
         return f"stopped: {stopped.detail}"
 
     # ----- between attempts -----------------------------------------------------
@@ -708,10 +737,15 @@ class Controller:
             kind="retry",
             execution_id=execution.execution_id,
             due_at=self.clock() + timedelta(seconds=delay),
-            payload={"round": intent.input["round"], "attempt_no": intent.input["attempt_no"],
-                     "delay_seconds": delay},
+            payload={
+                "round": intent.input["round"],
+                "attempt_no": intent.input["attempt_no"],
+                "delay_seconds": delay,
+            },
         )
-        self.result(intent, execution, "applied", result={"timer_id": timer_id, "delay_seconds": delay})
+        self.result(
+            intent, execution, "applied", result={"timer_id": timer_id, "delay_seconds": delay}
+        )
         return f"attempt {intent.input['attempt_no']} due in {delay}s"
 
     def perform_observe_policy(self, execution: Execution, intent: Intent) -> str:
@@ -720,7 +754,11 @@ class Controller:
         self.store.append_event(
             execution.execution_id,
             "policy_observed",
-            {**observation, "round": intent.input["round"], "attempt_no": intent.input["attempt_no"]},
+            {
+                **observation,
+                "round": intent.input["round"],
+                "attempt_no": intent.input["attempt_no"],
+            },
             source_id=f"policy:{intent.activity_id}",
         )
         self.result(intent, execution, "applied", result=observation)
@@ -741,18 +779,28 @@ class Controller:
         task = manager.get_task(execution.task_id) if manager is not None else None
         if task is None or not task.is_open:
             return verdict(False, HANDED_OFF, f"{execution.task_id} is closed or missing")
-        observed["ball"] = f"{task.ball.value if task.ball else None}/{task.ball_reason.value if task.ball_reason else None}"
+        observed[
+            "ball"
+        ] = f"{task.ball.value if task.ball else None}/{task.ball_reason.value if task.ball_reason else None}"
         if task.ball is not Ball.AGENT:
-            return verdict(False, HANDED_OFF, f"{task.id}'s ball is with {task.ball.value if task.ball else 'nobody'}")
+            return verdict(
+                False,
+                HANDED_OFF,
+                f"{task.id}'s ball is with {task.ball.value if task.ball else 'nobody'}",
+            )
         if task.ball_reason is BallReason.HOLD:
             return verdict(False, reducer.POLICY_WAIT, f"{task.id} is on hold")
         runner = execution.envelope.get("runner")
         group = execution.envelope.get("group")
         if not isinstance(runner, str) or not runner:
-            return verdict(False, reducer.POLICY_REVOKED, "the envelope recorded no runner to continue")
+            return verdict(
+                False, reducer.POLICY_REVOKED, "the envelope recorded no runner to continue"
+            )
         try:
             resolution = assert_dispatch_permitted(
-                execution.project_id, self.home, recorded=(runner, group if isinstance(group, str) else None)
+                execution.project_id,
+                self.home,
+                recorded=(runner, group if isinstance(group, str) else None),
             )
         except RecordedRunnerUnavailableError as exc:
             return verdict(False, reducer.POLICY_REVOKED, str(exc))
@@ -785,12 +833,20 @@ class Controller:
                 "machine_per_hour": reducer.CAPACITY_WAIT,
             }.get(refusal.limit, reducer.BUDGET_EXHAUSTED)
             return verdict(False, klass, refusal.message)
-        holding = [run for run in effective_live_runs(self.home, live_runs(self.home)) if run.takes_slot]
+        holding = [
+            run for run in effective_live_runs(self.home, live_runs(self.home)) if run.takes_slot
+        ]
         observed["slots"] = f"{len(holding)}/{resolution.limits.max_concurrent_runs}"
         if len(holding) >= resolution.limits.max_concurrent_runs:
-            return verdict(False, reducer.CAPACITY_WAIT, f"all {resolution.limits.max_concurrent_runs} slot(s) are taken")
+            return verdict(
+                False,
+                reducer.CAPACITY_WAIT,
+                f"all {resolution.limits.max_concurrent_runs} slot(s) are taken",
+            )
         observed["dispatches_before"] = task.dispatch_count
-        return verdict(True, None, f"runner {resolution.runner.name}, ceiling {ceiling.value}, caps have room")
+        return verdict(
+            True, None, f"runner {resolution.runner.name}, ceiling {ceiling.value}, caps have room"
+        )
 
     def perform_relaunch(self, execution: Execution, intent: Intent) -> str:
         """The next paid attempt, through ``dispatch_task`` and every gate it runs."""
@@ -835,7 +891,9 @@ class Controller:
                 now=self.clock(),
             )
         except AlreadyAdmittedError as exc:
-            self.result(intent, execution, "applied", result={"run_id": exc.attempt.run_id, "already": True})
+            self.result(
+                intent, execution, "applied", result={"run_id": exc.attempt.run_id, "already": True}
+            )
             return f"attempt {attempt_no} was already admitted as {exc.attempt.run_id}"
         except ConcurrencyLimitError as exc:
             return self._refused(execution, intent, reducer.CAPACITY_WAIT, exc)
@@ -848,7 +906,12 @@ class Controller:
             return self._refused(execution, intent, HANDED_OFF, exc)
         except TaskOnHoldError as exc:
             return self._refused(execution, intent, reducer.POLICY_WAIT, exc)
-        except (DispatchSentinelError, DispatchDisabledError, ProjectNotEnabledError, DispatchNotConfiguredError) as exc:
+        except (
+            DispatchSentinelError,
+            DispatchDisabledError,
+            ProjectNotEnabledError,
+            DispatchNotConfiguredError,
+        ) as exc:
             return self._refused(execution, intent, reducer.POLICY_WAIT, exc)
         except (GrantStoppedError, RecordedRunnerUnavailableError) as exc:
             return self._refused(execution, intent, reducer.POLICY_REVOKED, exc)
@@ -864,7 +927,9 @@ class Controller:
         return f"attempt {attempt_no} started as {run_id}"
 
     def _refused(self, execution: Execution, intent: Intent, klass: str, exc: Exception) -> str:
-        self.result(intent, execution, "not_applied", result={"detail": str(exc)[:1000]}, error_class=klass)
+        self.result(
+            intent, execution, "not_applied", result={"detail": str(exc)[:1000]}, error_class=klass
+        )
         return f"refused ({klass}): {exc}"
 
     def _authorising_entry(self, execution: Execution, manager: TaskManagerLike) -> Optional[int]:
@@ -882,7 +947,9 @@ class Controller:
         runs = {attempt.run_id for attempt in self.store.attempts_for(execution.execution_id)}
         for entry in task.log:
             if entry.type is LogEntryType.DISPATCH and isinstance(entry.data, dict):
-                if entry.data.get("run_id") in runs and isinstance(entry.data.get("caused_by"), int):
+                if entry.data.get("run_id") in runs and isinstance(
+                    entry.data.get("caused_by"), int
+                ):
                     return int(entry.data["caused_by"])
         return None
 
@@ -902,13 +969,19 @@ class Controller:
                     actor=CONTROLLER_ACTOR,
                     ball=Ball.HUMAN,
                     ball_reason=BallReason.DECISION,
-                    ball_prompt=escalation_prompt(klass, execution, run_id, self._last_detail(execution)),
+                    ball_prompt=escalation_prompt(
+                        klass, execution, run_id, self._last_detail(execution)
+                    ),
                     operation_id=str(uuid.uuid5(OPERATION_NAMESPACE, intent.activity_id)),
                 )
                 wrote = True
                 from agentjobs.dispatch.record_commit import commit_task_record
 
-                commit_task_record(manager, execution.task_id, subject=f"escalate {execution.execution_id} ({klass})")
+                commit_task_record(
+                    manager,
+                    execution.task_id,
+                    subject=f"escalate {execution.execution_id} ({klass})",
+                )
         if close:
             self.store.close_execution(
                 execution.execution_id,
@@ -916,7 +989,13 @@ class Controller:
                 reason=klass,
                 failure_class=klass,
             )
-        self.result(intent, execution, "applied", result={"handoff": wrote, "closed": close}, error_class=klass)
+        self.result(
+            intent,
+            execution,
+            "applied",
+            result={"handoff": wrote, "closed": close},
+            error_class=klass,
+        )
         return f"{klass}: {'handed to a person' if wrote else 'nothing for a person to do'}"
 
     def _last_detail(self, execution: Execution) -> str:
@@ -955,7 +1034,9 @@ ESCALATION_ACTIONS: Mapping[str, str] = {
 
 
 def escalation_prompt(klass: str, execution: Execution, run_id: Any, detail: str) -> str:
-    action = ESCALATION_ACTIONS.get(klass, "Read the dispatch_result entries and decide what the task needs.")
+    action = ESCALATION_ACTIONS.get(
+        klass, "Read the dispatch_result entries and decide what the task needs."
+    )
     what = f" Detail: {detail}" if detail else ""
     return (
         f"Automatic recovery of execution {execution.execution_id} stopped (`{klass}`) at run "

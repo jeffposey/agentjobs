@@ -40,7 +40,11 @@ def must(value: Optional[_T]) -> _T:
     return value
 
 
-ENVELOPE = {"runner": "claude-opus-5", "posture": "auto", "retry_policy": dict(DEFAULT_RETRY_POLICY)}
+ENVELOPE = {
+    "runner": "claude-opus-5",
+    "posture": "auto",
+    "retry_policy": dict(DEFAULT_RETRY_POLICY),
+}
 
 
 class Clock:
@@ -222,7 +226,11 @@ class TestRetryOwed:
         )
         # A person claiming the task interactively: no envelope, no continuation.
         store.admit(
-            project_id="alpha", task_id="task-001", run_id="run_person", capacity=3, takes_slot=False
+            project_id="alpha",
+            task_id="task-001",
+            run_id="run_person",
+            capacity=3,
+            takes_slot=False,
         )
         old = must(store.execution(eid))
         assert old.terminal
@@ -252,7 +260,10 @@ class TestTimers:
             attempt = admit(one, "run_a", controlled_by=CONTROLLED_BY_CONTROLLER)
             eid = must(attempt.execution_id)
             one.set_timer(
-                "t1", owner=f"execution:{eid}", kind="retry", execution_id=eid,
+                "t1",
+                owner=f"execution:{eid}",
+                kind="retry",
+                execution_id=eid,
                 due_at=clock.now + timedelta(seconds=60),
             )
             assert one.due_timers() == [] and two.due_timers() == []
@@ -260,7 +271,9 @@ class TestTimers:
             clock.advance(61)
             assert [t.timer_id for t in two.due_timers()] == ["t1"]
             assert [one.fire_timer("t1"), two.fire_timer("t1"), one.fire_timer("t1")] == [
-                True, False, False
+                True,
+                False,
+                False,
             ]
             fired = [e for e in one.events(eid) if e.kind == "timer_fired"]
             assert len(fired) == 1
@@ -314,8 +327,12 @@ def history(*extra: Event) -> List[Event]:
         Event(
             4,
             "concluded",
-            {"run_id": "run_a", "outcome": "interrupted", "retry_owed": True,
-             "failure_class": "worker_gone"},
+            {
+                "run_id": "run_a",
+                "outcome": "interrupted",
+                "retry_owed": True,
+                "failure_class": "worker_gone",
+            },
         ),
     ]
     return base + [Event(5 + index, e.kind, e.payload) for index, e in enumerate(extra)]
@@ -357,21 +374,31 @@ class TestTheRecoveryReducer:
         revoked = history(
             Event(0, "timer_set", {"timer_id": timer}),
             Event(0, "timer_fired", {"timer_id": timer}),
-            Event(0, "policy_observed", {"round": 1, "permitted": False, "class": "budget_exhausted"}),
+            Event(
+                0, "policy_observed", {"round": 1, "permitted": False, "class": "budget_exhausted"}
+            ),
         )
         [intent] = next_intents(replay("exe", revoked))
         assert intent.kind == "escalate" and intent.input["failure_class"] == "budget_exhausted"
         done = revoked + [
-            Event(8, "activity_result", {"kind": "escalate", "state": "applied",
-                                         "activity_id": intent.activity_id})
+            Event(
+                8,
+                "activity_result",
+                {"kind": "escalate", "state": "applied", "activity_id": intent.activity_id},
+            )
         ]
         assert next_intents(replay("exe", done)) == ()
 
-    @pytest.mark.parametrize("cause", ["worker_failed", "timed_out", "spec_gap", "auth_unavailable"])
+    @pytest.mark.parametrize(
+        "cause", ["worker_failed", "timed_out", "spec_gap", "auth_unavailable"]
+    )
     def test_a_code_or_work_failure_is_never_retried(self, cause: str) -> None:
         events = history()
-        events[3] = Event(4, "concluded", {"run_id": "run_a", "outcome": "failed",
-                                           "retry_owed": True, "failure_class": cause})
+        events[3] = Event(
+            4,
+            "concluded",
+            {"run_id": "run_a", "outcome": "failed", "retry_owed": True, "failure_class": cause},
+        )
         assert kinds(events) == ["escalate"]
 
     def test_the_attempt_bound_is_read_off_the_envelope(self) -> None:
@@ -392,8 +419,11 @@ class TestTheRecoveryReducer:
         ]
         assert kinds(events) == ["launch_reconcile"]
         parked = events + [
-            Event(3, "activity_result", {"kind": "launch_reconcile", "state": "unknown",
-                                         "error_class": "effect_unknown"})
+            Event(
+                3,
+                "activity_result",
+                {"kind": "launch_reconcile", "state": "unknown", "error_class": "effect_unknown"},
+            )
         ]
         state = replay("exe", parked)
         assert state.state == reducer.S_PARKED and state.attempt_live
@@ -402,7 +432,9 @@ class TestTheRecoveryReducer:
 
     def test_delays_are_deterministic_bounded_and_grow_with_attempts(self) -> None:
         one = replay("exe", history())
-        assert reducer.retry_delay_seconds(one) == reducer.retry_delay_seconds(replay("exe", history()))
+        assert reducer.retry_delay_seconds(one) == reducer.retry_delay_seconds(
+            replay("exe", history())
+        )
         assert 60 <= reducer.retry_delay_seconds(one) <= 75
         later = history()
         later[1] = Event(2, "admitted", {"run_id": "run_a", "attempt_no": 2})
@@ -424,8 +456,12 @@ class TestSupervisionRecords:
         kwargs.setdefault("holder", "me")
         kwargs.setdefault("holder_pid", 1)
         return store.open_walk(
-            project_id="alpha", parent_task_id="task-100", authority_entry=25,
-            authority_actor="Jeff Posey", settings={"max_concurrent": 2}, **kwargs,
+            project_id="alpha",
+            parent_task_id="task-100",
+            authority_entry=25,
+            authority_actor="Jeff Posey",
+            settings={"max_concurrent": 2},
+            **kwargs,
         )
 
     def test_the_same_authority_resumes_the_same_walk_with_a_new_epoch(
@@ -447,31 +483,64 @@ class TestSupervisionRecords:
         self, store: ExecutionStore
     ) -> None:
         walk, _ = self.open(store)
-        child = must(store.reserve_child_attempt(
-            walk.walk_id, epoch=walk.epoch, child_task_id="task-101",
-            operation_id="op1", limit=2, used_on_record=0,
-        ))
+        child = must(
+            store.reserve_child_attempt(
+                walk.walk_id,
+                epoch=walk.epoch,
+                child_task_id="task-101",
+                operation_id="op1",
+                limit=2,
+                used_on_record=0,
+            )
+        )
         assert child.status == "admitting" and child.attempts_reserved == 1
         with pytest.raises(OwnershipConflict):
             store.reserve_child_attempt(
-                walk.walk_id, epoch=walk.epoch, child_task_id="task-101",
-                operation_id="op2", limit=2, used_on_record=0,
+                walk.walk_id,
+                epoch=walk.epoch,
+                child_task_id="task-101",
+                operation_id="op2",
+                limit=2,
+                used_on_record=0,
             )
-        store.record_child(walk.walk_id, epoch=walk.epoch, child_task_id="task-101",
-                           status="retry_owed", refund=True)
+        store.record_child(
+            walk.walk_id,
+            epoch=walk.epoch,
+            child_task_id="task-101",
+            status="retry_owed",
+            refund=True,
+        )
         assert must(store.supervised_child(walk.walk_id, "task-101")).attempts_reserved == 0
         # The log says one attempt happened even though the reservation was refunded.
-        second = must(store.reserve_child_attempt(
-            walk.walk_id, epoch=walk.epoch, child_task_id="task-101",
-            operation_id="op2", limit=2, used_on_record=1,
-        ))
+        second = must(
+            store.reserve_child_attempt(
+                walk.walk_id,
+                epoch=walk.epoch,
+                child_task_id="task-101",
+                operation_id="op2",
+                limit=2,
+                used_on_record=1,
+            )
+        )
         assert second.attempts_reserved == 2
-        store.record_child(walk.walk_id, epoch=walk.epoch, child_task_id="task-101",
-                           status="retry_owed", landed={"verdict": "died"})
-        assert store.reserve_child_attempt(
-            walk.walk_id, epoch=walk.epoch, child_task_id="task-101",
-            operation_id="op3", limit=2, used_on_record=0,
-        ) is None
+        store.record_child(
+            walk.walk_id,
+            epoch=walk.epoch,
+            child_task_id="task-101",
+            status="retry_owed",
+            landed={"verdict": "died"},
+        )
+        assert (
+            store.reserve_child_attempt(
+                walk.walk_id,
+                epoch=walk.epoch,
+                child_task_id="task-101",
+                operation_id="op3",
+                limit=2,
+                used_on_record=0,
+            )
+            is None
+        )
 
     def test_grounding_is_sticky_and_refuses_every_further_takeoff(
         self, store: ExecutionStore
@@ -482,6 +551,10 @@ class TestSupervisionRecords:
         assert must(store.walk(walk.walk_id)).grounding == {"stop": "first"}
         with pytest.raises(OwnershipConflict):
             store.reserve_child_attempt(
-                walk.walk_id, epoch=walk.epoch, child_task_id="task-102",
-                operation_id="op", limit=2, used_on_record=0,
+                walk.walk_id,
+                epoch=walk.epoch,
+                child_task_id="task-102",
+                operation_id="op",
+                limit=2,
+                used_on_record=0,
             )

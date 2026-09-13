@@ -129,9 +129,14 @@ def continuation_history(
     """
     if execution_id is not None:
         execution = store.execution(execution_id)
-        if execution is None or execution.terminal or (execution.project_id, execution.task_id) != (
-            project_id,
-            task_id,
+        if (
+            execution is None
+            or execution.terminal
+            or (execution.project_id, execution.task_id)
+            != (
+                project_id,
+                task_id,
+            )
         ):
             raise DispatchError(
                 f"execution {execution_id} is not an open execution of {project_id}/{task_id}, "

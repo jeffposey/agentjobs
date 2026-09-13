@@ -89,7 +89,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple
 
 from agentjobs.actors import Actor
 from agentjobs.dispatch.config import Posture, PostureSource
@@ -105,6 +105,9 @@ from agentjobs.models_v2 import (
     Task,
 )
 from agentjobs.store_factory import TaskManagerLike
+
+if TYPE_CHECKING:  # pragma: no cover - the journal is imported where it is used
+    from agentjobs.execution.store import ExecutionStore, Supervision
 
 CHILD_ATTEMPT_LIMIT = 2
 """Runs one child may be given per human authorisation of its epic: the first, and one
@@ -515,6 +518,8 @@ class WalkStop(Enum):
     CHILD_EXHAUSTED_ATTEMPTS = "child_exhausted_attempts"
     CHILD_TIMED_OUT = "child_timed_out"
     COULD_NOT_START_CHILD = "could_not_start_child"
+    ALREADY_SUPERVISED = "already_supervised"
+    """Another live supervisor holds this epic's walk. Two would launch every child twice."""
     NO_ELIGIBLE_CHILD = "no_eligible_child"
     """Open children remain and none of them is claimable -- every one is blocked,
     claimed elsewhere, or holding open children of its own. Not the same as being done,
@@ -664,6 +669,271 @@ class Flight:
     deadline: float
 
 
+SETTLE_GRACE_SECONDS = 120.0
+"""How long a landed child's still-live run is counted against the walk's slots.
+
+A child's record closes before its session settles -- task-375 closed at 18:01:17 UTC and
+its run settled at 18:01:46 -- and a child started into that gap is refused by the machine
+ceiling. Bounded, because a run that never settles is a poller problem and must not park
+the walk; after this the walk tries and treats a refusal as backpressure, as before."""
+
+
+def _revision(manager: TaskManagerLike, task_id: str) -> Optional[str]:
+    task = manager.get_task(task_id)
+    return task.updated.isoformat() if task is not None else None
+
+
+def _eligible(manager: TaskManagerLike, parent_id: str, in_flight: Dict[str, "Flight"]) -> bool:
+    return bool(frontier(manager, parent_id, exclude=tuple(in_flight)))
+
+
+@dataclass
+class _Restored:
+    in_flight: Dict[str, "Flight"] = field(default_factory=dict)
+    retries: List[str] = field(default_factory=list)
+    attempts: List["ChildAttempt"] = field(default_factory=list)
+    grounded: Optional[Tuple["WalkStop", str]] = None
+    started: int = 0
+    peak_in_flight: int = 0
+    notes: List[str] = field(default_factory=list)
+
+
+class _Supervision:
+    """The walk's durable record in the execution journal (task-416, from task-418).
+
+    Every method commits before the walk acts on what it recorded, and every one is
+    fenced by the walk's epoch: a supervisor that was taken over cannot write over the one
+    that took it.
+    """
+
+    def __init__(
+        self,
+        store: "ExecutionStore",
+        walk: "Supervision",
+        *,
+        timeout: float,
+        wall: Callable[[], datetime],
+    ) -> None:
+        self.store = store
+        self.walk = walk
+        self.timeout = timeout
+        self.wall = wall
+        self.refusal: Optional[str] = None
+
+    @classmethod
+    def open(
+        cls,
+        *,
+        manager: TaskManagerLike,
+        project: Project,
+        parent_id: str,
+        home: Optional[Path],
+        settings: "WalkSettings",
+        host: str,
+        wall: Optional[Callable[[], datetime]],
+    ) -> Optional["_Supervision"]:
+        if home is None:
+            return None
+        from agentjobs.dispatch.journal import journal
+        from agentjobs.dispatch.ledger import process_alive
+        from agentjobs.execution.errors import ExecutionStoreError, OwnershipConflict
+
+        parent = manager.get_task(parent_id)
+        entry = parent_authorizing_entry(parent) if parent is not None else None
+        if entry is None:
+            return None  # nothing authorises children; the walk refuses them as before
+        clock = wall or (lambda: datetime.now(timezone.utc))
+        try:
+            store = journal(home)
+            walk, _resumed = store.open_walk(
+                project_id=project.id,
+                parent_task_id=parent_id,
+                authority_entry=entry.id,
+                authority_actor=entry.actor,
+                settings={
+                    "max_concurrent": settings.max_concurrent,
+                    "max_children": settings.max_children,
+                    "child_timeout_seconds": settings.child_timeout_seconds,
+                },
+                host=host,
+                holder_alive=process_alive,
+            )
+        except OwnershipConflict as exc:
+            refused = cls.__new__(cls)
+            refused.refusal = str(exc)
+            return refused
+        except ExecutionStoreError:
+            return None  # an unwritable journal walks as the pre-durable build did
+        return cls(store, walk, timeout=settings.child_timeout_seconds, wall=clock)
+
+    def restore(self, *, now: Callable[[], float]) -> _Restored:
+        """Rebuild the walk from its record, reconciling every child before any takeoff."""
+        restored = _Restored(started=self.walk.started, peak_in_flight=self.walk.peak_in_flight)
+        grounding = self.walk.grounding
+        if grounding:
+            try:
+                restored.grounded = (
+                    WalkStop(grounding.get("stop")),
+                    str(grounding.get("detail") or ""),
+                )
+            except ValueError:
+                restored.grounded = (WalkStop.CHILD_NEEDS_A_HUMAN, str(grounding))
+        for child in self.store.supervised_children(self.walk.walk_id):
+            for landed in child.history:
+                try:
+                    verdict = ChildVerdict(landed.get("verdict"))
+                except ValueError:
+                    continue
+                restored.attempts.append(
+                    ChildAttempt(
+                        child_id=child.child_task_id,
+                        attempt=int(landed.get("attempt") or 0),
+                        run_id=landed.get("run_id"),
+                        verdict=verdict,
+                        detail=str(landed.get("detail") or ""),
+                    )
+                )
+            if child.status == "admitting":
+                admitted = (
+                    self.store.attempt_by_operation(child.operation_id)
+                    if child.operation_id
+                    else None
+                )
+                if admitted is None:
+                    # The admission never committed, and the process that reserved it is
+                    # gone (or this walk would not have been resumable): nothing was paid
+                    # for, so the reservation goes back.
+                    self.store.record_child(
+                        self.walk.walk_id,
+                        epoch=self.walk.epoch,
+                        child_task_id=child.child_task_id,
+                        status="retry_owed",
+                        refund=True,
+                    )
+                    restored.notes.append(
+                        f"Resumed: {child.child_task_id}'s admission never committed; its "
+                        "reserved attempt was returned."
+                    )
+                    if child.history:
+                        restored.retries.append(child.child_task_id)
+                    continue
+                self._fly(child.child_task_id, admitted.run_id, admitted.execution_id)
+                restored.notes.append(
+                    f"Resumed: {child.child_task_id} was already admitted as {admitted.run_id}; "
+                    "following it rather than starting it again."
+                )
+                restored.in_flight[child.child_task_id] = Flight(
+                    child_id=child.child_task_id,
+                    attempt=child.attempts_reserved,
+                    run_id=admitted.run_id,
+                    deadline=now() + self.timeout,
+                )
+            elif child.status == "flying":
+                restored.in_flight[child.child_task_id] = Flight(
+                    child_id=child.child_task_id,
+                    attempt=child.attempts_reserved,
+                    run_id=child.run_id,
+                    deadline=now() + self._remaining(child.deadline_at),
+                )
+                restored.notes.append(f"Resumed: watching {child.child_task_id} ({child.run_id}).")
+            elif child.status == "retry_owed" and child.history:
+                restored.retries.append(child.child_task_id)
+        return restored
+
+    def _remaining(self, deadline_at: Optional[str]) -> float:
+        if not deadline_at:
+            return self.timeout
+        try:
+            deadline = datetime.fromisoformat(deadline_at)
+        except ValueError:
+            return self.timeout
+        return (deadline - self.wall()).total_seconds()
+
+    def _fly(self, child_id: str, run_id: Optional[str], execution_id: Optional[str]) -> None:
+        from datetime import timedelta
+
+        self.store.record_child(
+            self.walk.walk_id,
+            epoch=self.walk.epoch,
+            child_task_id=child_id,
+            status="flying",
+            run_id=run_id,
+            execution_id=execution_id,
+            deadline_at=self.wall() + timedelta(seconds=self.timeout),
+        )
+
+    def reserve(self, child_id: str, used_on_record: int) -> Optional[Tuple[int, str]]:
+        child = self.store.supervised_child(self.walk.walk_id, child_id)
+        attempt = max(used_on_record, child.attempts_reserved if child else 0) + 1
+        operation_id = f"{self.walk.walk_id}:{child_id}:{attempt}"
+        reserved = self.store.reserve_child_attempt(
+            self.walk.walk_id,
+            epoch=self.walk.epoch,
+            child_task_id=child_id,
+            operation_id=operation_id,
+            limit=CHILD_ATTEMPT_LIMIT,
+            used_on_record=used_on_record,
+        )
+        if reserved is None:
+            return None
+        return reserved.attempts_reserved, operation_id
+
+    def refuse(self, child_id: str, operation_id: Optional[str], *, grounded: bool = False) -> None:
+        """A dispatch raised: keep the reservation only if the admission committed."""
+        spent = (
+            bool(operation_id) and self.store.attempt_by_operation(operation_id or "") is not None
+        )
+        self.store.record_child(
+            self.walk.walk_id,
+            epoch=self.walk.epoch,
+            child_task_id=child_id,
+            status="grounded" if grounded else "retry_owed",
+            refund=not spent,
+        )
+
+    def take_off(self, flight: "Flight", *, started: int, peak: int) -> None:
+        execution_id = None
+        if flight.run_id:
+            attempt = self.store.attempt(flight.run_id)
+            execution_id = attempt.execution_id if attempt is not None else None
+        self._fly(flight.child_id, flight.run_id, execution_id)
+        self.store.update_walk(
+            self.walk.walk_id, epoch=self.walk.epoch, started=started, peak_in_flight=peak
+        )
+
+    def land(self, attempt: "ChildAttempt", *, status: str, revision: Optional[str]) -> None:
+        self.store.record_child(
+            self.walk.walk_id,
+            epoch=self.walk.epoch,
+            child_task_id=attempt.child_id,
+            status=status,
+            landed={
+                "attempt": attempt.attempt,
+                "run_id": attempt.run_id,
+                "verdict": attempt.verdict.value,
+                "detail": attempt.detail,
+                "revision": revision,
+                "observed_at": self.wall().isoformat(),
+            },
+        )
+
+    def ground(self, stop: "WalkStop", detail: str) -> None:
+        self.store.update_walk(
+            self.walk.walk_id,
+            epoch=self.walk.epoch,
+            grounding={"stop": stop.value, "detail": detail},
+        )
+
+    def finish(self, result: "WalkResult") -> None:
+        self.store.update_walk(
+            self.walk.walk_id,
+            epoch=self.walk.epoch,
+            state="done" if result.stop.is_success else "stopped",
+            stop=result.stop.value,
+            detail=result.detail[:2000],
+        )
+
+
 def walk_epic(
     *,
     manager: TaskManagerLike,
@@ -679,7 +949,11 @@ def walk_epic(
     sleep: Callable[[float], None] = time.sleep,
     now: Callable[[], float] = time.monotonic,
     on_event: Optional[Callable[[str], None]] = None,
-) -> WalkResult:
+    durable: Optional[bool] = None,
+    once: bool = False,
+    host: str = "process",
+    wall: Optional[Callable[[], datetime]] = None,
+) -> Optional[WalkResult]:
     """Keep every eligible child flying, watch them all, and stop taking off on a bad one.
 
     **A rolling frontier, not waves** (task-223). At every moment, every child whose
@@ -726,8 +1000,18 @@ def walk_epic(
     own record, then the project default. Passing one refuses above the ceiling exactly
     as a dispatch-time choice does, because that is what it is.
 
+    **It is durable when it has a machine home** (task-416, absorbed from task-418): the
+    authority it walks on, each child's reserved attempts and admission id, what is in
+    flight and why the walk grounded are rows in the execution journal, committed before
+    the act they describe. A walk started again on the same authorisation -- after its
+    process died, or on the next server tick -- resumes that record instead of beginning
+    again: it finds an admitted child by its admission id rather than dispatching it twice,
+    returns a reservation a dispatch provably never used, and stays grounded. ``durable``
+    overrides the default; ``once`` runs a single step and returns ``None`` while the walk
+    is still going, which is how the server hosts a walk no session is waiting on.
+
     Injection points exist for the tests and for nothing else: ``dispatch``,
-    ``read_run_status``, ``sleep`` and ``now``. A walk is a loop over processes that cost
+    ``read_run_status``, ``sleep``, ``now`` and ``wall``. A walk is a loop over processes that cost
     money and take an hour, and the alternative to injecting them is a test suite that
     proves the stop rule by not testing it.
     """
@@ -753,12 +1037,13 @@ def walk_epic(
         except Exception:  # noqa: BLE001 - an unreadable run is "cannot tell", not fatal
             return None
 
-    def start_child(child: Task) -> object:
+    def start_child(child: Task, operation_id: Optional[str]) -> object:
         request = DispatchRequest(
             task_id=child.id,
             trigger=DispatchTrigger.CHILD,
             on_behalf_of_parent=True,
             posture=posture,
+            admission_operation_id=operation_id,
         )
         starter = dispatch or dispatch_task
         return starter(
@@ -770,12 +1055,16 @@ def walk_epic(
             api_base=api_base,
         )
 
-    from agentjobs.dispatch.guards import ConcurrencyLimitError
+    from agentjobs.dispatch.guards import AlreadyAdmittedError, ConcurrencyLimitError
 
     slots = max(1, settings.max_concurrent)
     started = 0
     in_flight: Dict[str, Flight] = {}
     retries: List[str] = []
+    # Children that landed while their run still holds a machine slot (task-416,
+    # from-walk-slots): a child's record closes before its session settles, and starting
+    # the next child into that gap is refused by the machine ceiling every time.
+    settling: Dict[str, Tuple[str, float]] = {}
     # Set the first time a child lands badly. From then on nothing further takes off, but
     # whatever is already in the air is watched down before the walk returns.
     grounded: Optional[Tuple[WalkStop, str]] = None
@@ -784,11 +1073,40 @@ def walk_epic(
     # "something upstream is not settling" that ceiling already exists for.
     blocked_since: Optional[float] = None
 
+    # ----- the durable record (task-416 part 2) ------------------------------
+    supervision = _Supervision.open(
+        manager=manager,
+        project=project,
+        parent_id=parent_id,
+        home=ledger_home if (durable if durable is not None else home is not None) else None,
+        settings=settings,
+        host=host,
+        wall=wall,
+    )
+    if supervision is not None and supervision.refusal is not None:
+        result.stop = WalkStop.ALREADY_SUPERVISED
+        result.detail = supervision.refusal
+        return result
+    if supervision is not None:
+        restored = supervision.restore(now=now)
+        in_flight.update(restored.in_flight)
+        retries.extend(restored.retries)
+        result.attempts.extend(restored.attempts)
+        grounded = restored.grounded
+        started = restored.started
+        result.peak_in_flight = restored.peak_in_flight
+        for line in restored.notes:
+            announce(line)
+
     def ground(stop: WalkStop, detail: str) -> None:
         nonlocal grounded
         if grounded is not None:
             return
         grounded = (stop, detail)
+        if supervision is not None:
+            # Committed before anything else happens, so a supervisor that dies in the
+            # next instant restarts grounded rather than taking off again.
+            supervision.ground(stop, detail)
         if in_flight:
             announce(
                 f"No further children will be started. {len(in_flight)} already in "
@@ -813,6 +1131,16 @@ def walk_epic(
             child_id: (status_of(flight.run_id) if flight.run_id else None)
             for child_id, flight in in_flight.items()
         }
+        from agentjobs.dispatch.guards import TERMINAL_RUN_STATUSES
+
+        for child_id, (run_id, since) in list(settling.items()):
+            settled = status_of(run_id)
+            if (
+                settled is None
+                or settled in TERMINAL_RUN_STATUSES
+                or now() - since >= SETTLE_GRACE_SECONDS
+            ):
+                del settling[child_id]
         # Every fact this loop turns on is written by another process, and the CLI holds
         # one corpus snapshot for a whole invocation. Dropping it here is what makes the
         # walk's reads reads.
@@ -833,9 +1161,21 @@ def walk_epic(
             del in_flight[child_id]
             result.attempts.append(attempt)
             announce(attempt.describe())
+            observed = statuses.get(child_id)
+            if flight.run_id and observed is not None and observed not in TERMINAL_RUN_STATUSES:
+                settling[child_id] = (flight.run_id, now())
+            retry = attempt.verdict.is_retryable and grounded is None
+            if supervision is not None:
+                supervision.land(
+                    attempt,
+                    status="landed"
+                    if attempt.verdict.is_clean
+                    else ("retry_owed" if retry else "grounded"),
+                    revision=_revision(manager, child_id),
+                )
             if attempt.verdict.is_clean:
                 continue
-            if attempt.verdict.is_retryable and grounded is None:
+            if retry:
                 # The retry re-reads the attempt count off the record, so the bound is
                 # enforced by the same code whether the retry happens here or in a walk
                 # somebody starts tomorrow. Nothing is counted in memory.
@@ -853,7 +1193,7 @@ def walk_epic(
 
         # ----- fill every free slot -------------------------------------------
         backpressure = False
-        while grounded is None and len(in_flight) < slots:
+        while grounded is None and len(in_flight) + len(settling) < slots:
             if settings.max_children is not None and started >= settings.max_children:
                 break
             # A retry goes back to the same child rather than back to the frontier. It
@@ -880,20 +1220,42 @@ def walk_epic(
                 break
 
             attempt_number = authorization.attempts_used + 1
+            operation_id: Optional[str] = None
+            if supervision is not None:
+                # Reserved, with the admission's stable id, before the dispatch: a
+                # supervisor that dies after the child's admission finds that attempt by
+                # this id instead of admitting a second one, and one that dies before it
+                # gets the reservation back (task-418's crash window).
+                reserved = supervision.reserve(candidate.id, authorization.attempts_used)
+                if reserved is None:
+                    ground(
+                        WalkStop.CHILD_EXHAUSTED_ATTEMPTS,
+                        f"{candidate.id} has used its {CHILD_ATTEMPT_LIMIT} attempts on this "
+                        "authorisation, counting attempts this walk reserved before a restart.",
+                    )
+                    break
+                attempt_number, operation_id = reserved
             announce(
                 f"Starting {candidate.id} (attempt {attempt_number} of "
-                f"{CHILD_ATTEMPT_LIMIT}); {len(in_flight) + 1} of {slots} slots in use."
+                f"{CHILD_ATTEMPT_LIMIT}); {len(in_flight) + len(settling) + 1} of {slots} "
+                "slots in use."
             )
             try:
-                handle = start_child(candidate)
+                handle = start_child(candidate, operation_id)
+            except AlreadyAdmittedError as exc:
+                handle = exc.attempt
             except ConcurrencyLimitError as exc:
                 # Backpressure, not a refusal about this child. Something else on the
                 # machine holds a slot; that is a normal condition and the walk waits for
                 # it exactly as it waits for a child.
+                if supervision is not None:
+                    supervision.refuse(candidate.id, operation_id)
                 backpressure = True
                 announce(f"Waiting for a run slot: {exc}")
                 break
             except DispatchRefused as exc:
+                if supervision is not None:
+                    supervision.refuse(candidate.id, operation_id, grounded=True)
                 ground(
                     WalkStop.COULD_NOT_START_CHILD,
                     f"{candidate.id} could not be started "
@@ -913,23 +1275,38 @@ def walk_epic(
             if retries:
                 retries.pop(0)
             started += 1
-            in_flight[candidate.id] = Flight(
+            flight = Flight(
                 child_id=candidate.id,
                 attempt=attempt_number,
                 run_id=getattr(handle, "run_id", None),
                 deadline=now() + settings.child_timeout_seconds,
             )
+            in_flight[candidate.id] = flight
             result.peak_in_flight = max(result.peak_in_flight, len(in_flight))
+            if supervision is not None:
+                supervision.take_off(flight, started=started, peak=result.peak_in_flight)
+
+        def finish() -> WalkResult:
+            if supervision is not None:
+                supervision.finish(result)
+            return result
 
         # ----- is there anything left to do? ----------------------------------
-        if in_flight:
+        if in_flight or (
+            settling
+            and grounded is None
+            and not backpressure
+            and _eligible(manager, parent_id, in_flight)
+        ):
             blocked_since = None
+            if once:
+                return None
             sleep(settings.poll_seconds)
             continue
 
         if grounded is not None:
             result.stop, result.detail = grounded
-            return result
+            return finish()
 
         remaining = open_children(manager, parent_id)
         if not remaining:
@@ -939,7 +1316,7 @@ def walk_epic(
                 "open: whether its own acceptance criteria are met is a judgement this "
                 "walk does not make."
             )
-            return result
+            return finish()
 
         if settings.max_children is not None and started >= settings.max_children:
             result.stop = WalkStop.NO_ELIGIBLE_CHILD
@@ -948,7 +1325,7 @@ def walk_epic(
                 f"{len(remaining)} open child/children remain: "
                 f"{', '.join(child.id for child in remaining)}."
             )
-            return result
+            return finish()
 
         if backpressure:
             if blocked_since is None:
@@ -963,7 +1340,9 @@ def walk_epic(
                     "`limits.max_concurrent_runs`, or cancel whatever is holding the "
                     "slots, and start the walk again."
                 )
-                return result
+                return finish()
+            if once:
+                return None
             sleep(settings.poll_seconds)
             continue
 
@@ -974,7 +1353,7 @@ def walk_epic(
             "unmet dependency, already claimed, or holding open children of its own. "
             "This is not a finished epic and is reported separately from one."
         )
-        return result
+        return finish()
 
 
 def _poll_child(
@@ -1150,3 +1529,184 @@ def describe_settings(
         f"children in flight: {slots}",
         f"posture children start at: {envelope}",
     )
+
+
+# ----- supervision without a waiting session (task-416, epic-5) -----------------
+
+
+def supervisor_slot_held(home: Path) -> bool:
+    """Whether the process asking is a dispatched run that holds one of the machine's slots.
+
+    Read from the journal, never from the run's own meta: the walk subtracts this slot from
+    the ceiling it fills, and a run that could write "I hold nothing" would buy its walk an
+    extra child the machine then refuses.
+    """
+    from agentjobs.dispatch.journal import journal
+    from agentjobs.dispatch.ledger import calling_run_id
+    from agentjobs.execution.errors import ExecutionStoreError
+
+    run_id = calling_run_id()
+    if not run_id:
+        return False
+    try:
+        attempt = journal(home).attempt(run_id)
+    except ExecutionStoreError:
+        return False
+    return attempt is not None and attempt.is_live and attempt.takes_slot
+
+
+def detach_walk(
+    *,
+    manager: TaskManagerLike,
+    project: Project,
+    parent_id: str,
+    home: Path,
+    settings: WalkSettings,
+    posture: Optional[Posture],
+    actor: str,
+) -> str:
+    """Record a walk for the server to advance, and return its id. Starts nothing itself.
+
+    The walk's settings, its posture choice and the actor its outcome is written as are
+    saved with it, because the process that will act on them is the server on its next
+    tick, not this one. The authorisation is checked now, so a walk nothing authorises is
+    refused to the person asking rather than failing silently on a later tick.
+    """
+    from agentjobs.dispatch.journal import journal
+    from agentjobs.dispatch.ledger import process_alive
+    from agentjobs.execution.errors import OwnershipConflict
+
+    parent = manager.get_task(parent_id)
+    entry = parent_authorizing_entry(parent) if parent is not None else None
+    if parent is None or entry is None:
+        raise ParentNotHumanClockedError(
+            f"{parent_id} has no entry a dispatch could be caused by, so there is nothing "
+            "for a detached walk to run on."
+        )
+    try:
+        walk, _ = journal(home).open_walk(
+            project_id=project.id,
+            parent_task_id=parent_id,
+            authority_entry=entry.id,
+            authority_actor=entry.actor,
+            settings={
+                "max_concurrent": settings.max_concurrent,
+                "max_children": settings.max_children,
+                "child_timeout_seconds": settings.child_timeout_seconds,
+                "posture": posture.value if posture is not None else None,
+                "actor": actor,
+            },
+            host="server",
+            holder="server",
+            holder_pid=None,
+            holder_alive=process_alive,
+        )
+    except OwnershipConflict as exc:
+        raise ParentNotSupervisedError(str(exc)) from exc
+    manager.add_log_entry(
+        parent_id,
+        actor=actor,
+        type=LogEntryType.NOTE,
+        body=(
+            f"Epic walk detached as `{walk.walk_id}` on the authorisation in entry {entry.id}. "
+            "The AgentJobs server advances it on every poll tick; no session waits on the "
+            "children, and the outcome is written here when the walk ends."
+        ),
+        data={"epic_walk": {"walk_id": walk.walk_id, "authority_entry": entry.id}},
+    )
+    return walk.walk_id
+
+
+def record_walk_outcome(
+    manager: TaskManagerLike, parent_id: str, *, actor: str, result: WalkResult
+) -> None:
+    """Write how a walk ended onto its parent, and hand the parent over if it stopped.
+
+    Shared by the blocking walk and a server-hosted one, so the parent reads the same
+    whichever process walked it. It never closes the parent: that stays a judgement about
+    the parent's own acceptance criteria.
+    """
+    from agentjobs.models_v2 import BallReason
+
+    manager.add_log_entry(
+        parent_id, actor=actor, type=LogEntryType.PROGRESS, body=walk_report(result)
+    )
+    if result.stop.is_success:
+        return
+    refreshed = manager.get_task(parent_id)
+    if refreshed is not None and refreshed.is_open and refreshed.ball is not Ball.HUMAN:
+        manager.handoff(
+            parent_id,
+            actor=actor,
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.DECISION,
+            ball_prompt=walk_handoff_prompt(result),
+        )
+
+
+def _reporter(lines: List[str], walk_id: str) -> Callable[[str], None]:
+    return lambda message: lines.append(f"{walk_id}: {message}")
+
+
+def advance_hosted_walks(
+    home: Path,
+    *,
+    resolve: Callable[[str], Optional[Tuple[TaskManagerLike, Project]]],
+    wall: Optional[Callable[[], datetime]] = None,
+) -> List[str]:
+    """One step of every walk the server hosts. Never raises; returns report lines.
+
+    Each step rebuilds the walk from its record -- the same restore a restarted supervisor
+    runs -- so a server restart between two ticks is indistinguishable from the ordinary
+    case. A walk whose project cannot be resolved this tick is left for the next.
+    """
+    from agentjobs.dispatch.journal import journal
+    from agentjobs.execution.errors import ExecutionStoreError
+
+    lines: List[str] = []
+    try:
+        walks = [w for w in journal(home).open_walks() if w.host == "server"]
+    except ExecutionStoreError as exc:
+        return [f"hosted walks unreadable: {exc}"]
+    for walk in walks:
+        resolved = resolve(walk.project_id)
+        if resolved is None:
+            continue
+        manager, project = resolved
+        saved = walk.settings
+        settings = WalkSettings(
+            poll_seconds=0.0,
+            child_timeout_seconds=float(
+                saved.get("child_timeout_seconds") or DEFAULT_CHILD_TIMEOUT_SECONDS
+            ),
+            max_children=saved.get("max_children"),
+            max_concurrent=int(saved.get("max_concurrent") or 1),
+        )
+        chosen = saved.get("posture")
+        try:
+            result = walk_epic(
+                manager=manager,
+                project=project,
+                project_config=project.load_config(),
+                parent_id=walk.parent_task_id,
+                home=home,
+                settings=settings,
+                posture=Posture(chosen) if chosen else None,
+                on_event=_reporter(lines, walk.walk_id),
+                durable=True,
+                once=True,
+                host="server",
+                wall=wall,
+            )
+        except Exception as exc:  # noqa: BLE001 - reported; the next tick resumes the record
+            lines.append(f"{walk.walk_id}: {type(exc).__name__}: {exc}")
+            continue
+        if result is not None:
+            record_walk_outcome(
+                manager,
+                walk.parent_task_id,
+                actor=str(saved.get("actor") or "dispatcher"),
+                result=result,
+            )
+            lines.append(f"{walk.walk_id}: {result.stop.value}")
+    return lines

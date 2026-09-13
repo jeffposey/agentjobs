@@ -39,7 +39,7 @@ from agentjobs.dispatch.runner import runs_root
 from agentjobs.execution import reducer
 from agentjobs.execution.store import CONTROLLED_BY_CONTROLLER
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType
+from agentjobs.models_v2 import Ball, Lifecycle, LogEntryType
 from agentjobs.projects import ProjectRegistry
 from support import task_store
 
@@ -56,7 +56,7 @@ PROJECT_CONFIG: Dict[str, object] = {
     "default_user": "Jeff Posey",
 }
 
-FAKE_CLAUDE = r'''
+FAKE_CLAUDE = r"""
 import json, pathlib, sys
 sys.stdout.reconfigure(encoding="utf-8")
 here = pathlib.Path(__file__).parent
@@ -92,17 +92,17 @@ rows.append({
 })
 ledger.write_text(json.dumps(rows))
 print("backgrounded \u00b7 " + short + " \u00b7 " + name)
-'''
+"""
 
-BATCH_WORKER = r'''
+BATCH_WORKER = r"""
 import pathlib, sys, time
 release = pathlib.Path(sys.argv[1])
 deadline = time.monotonic() + 120
 while not release.exists() and time.monotonic() < deadline:
     time.sleep(0.05)
-'''
+"""
 
-CRASHING_DISPATCH = r'''
+CRASHING_DISPATCH = r"""
 import os, pathlib, sys
 sys.path.insert(0, sys.argv[5])
 from support import task_store
@@ -145,7 +145,7 @@ handle = dispatch_task(
 if point == "batch_supervisor":
     handle.supervisor.join()
 print(handle.run_id)
-'''
+"""
 
 
 class Clock:
@@ -203,13 +203,24 @@ class Machine:
     def configure(self, *, mode: str = "session", controller: str = "active", **extra: Any) -> None:
         runner: Dict[str, object]
         if mode == "session":
-            runner = {"mode": "session", "actor": "claude",
-                      "argv": [sys.executable, str(self.fake_cli), "--bg", "{prompt}"]}
+            runner = {
+                "mode": "session",
+                "actor": "claude",
+                "argv": [sys.executable, str(self.fake_cli), "--bg", "{prompt}"],
+            }
         else:
-            runner = {"mode": "batch", "actor": "claude",
-                      "argv": [sys.executable, str(self.worker), str(self.release), "{prompt}"]}
-        project = {"enabled": True, "runner": "fake", "posture": extra.pop("posture", "auto"),
-                   "require_clean_tree": False, "resume_sessions": False}
+            runner = {
+                "mode": "batch",
+                "actor": "claude",
+                "argv": [sys.executable, str(self.worker), str(self.release), "{prompt}"],
+            }
+        project = {
+            "enabled": True,
+            "runner": "fake",
+            "posture": extra.pop("posture", "auto"),
+            "require_clean_tree": False,
+            "resume_sessions": False,
+        }
         project.update(extra.pop("project", {}))
         config = {
             "version": 1,
@@ -223,8 +234,12 @@ class Machine:
 
     def task(self) -> str:
         created = self.manager.create_task(
-            title="Recoverable", category="general", summary="A task to dispatch.",
-            description="Do the thing.", lifecycle=Lifecycle.READY, actor="Jeff Posey",
+            title="Recoverable",
+            category="general",
+            summary="A task to dispatch.",
+            description="Do the thing.",
+            lifecycle=Lifecycle.READY,
+            actor="Jeff Posey",
         )
         task = self.manager.add_log_entry(
             created.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go ahead."
@@ -235,16 +250,30 @@ class Machine:
     def dispatch(self, task_id: str) -> Any:
         project = ProjectRegistry(home=self.home).get("sandbox")
         return dispatch_task(
-            manager=self.manager, project=project, project_config=project.load_config(),
+            manager=self.manager,
+            project=project,
+            project_config=project.load_config(),
             request=DispatchRequest(task_id=task_id, caused_by=self.authorised_by),
-            home=self.home, api_base="http://127.0.0.1:9",
+            home=self.home,
+            api_base="http://127.0.0.1:9",
         )
 
     def crash(self, task_id: str, point: str) -> subprocess.CompletedProcess:
         return subprocess.run(
-            [sys.executable, "-c", CRASHING_DISPATCH, str(self.home), task_id, point,
-             str(self.authorised_by), str(TESTS)],
-            capture_output=True, text=True, env=environment(self.home), timeout=180,
+            [
+                sys.executable,
+                "-c",
+                CRASHING_DISPATCH,
+                str(self.home),
+                task_id,
+                point,
+                str(self.authorised_by),
+                str(TESTS),
+            ],
+            capture_output=True,
+            text=True,
+            env=environment(self.home),
+            timeout=180,
         )
 
     def controller(self) -> Controller:
@@ -435,7 +464,11 @@ class TestLaunchCrashWindows:
         still = journal(machine.home).attempt(attempt.run_id)
         assert still is not None and still.is_live, "ownership is kept while unknown"
         task = machine.manager.get_task(task_id)
-        assert task is not None and task.ball is Ball.HUMAN and "effect_unknown" in (task.ball_prompt or "")
+        assert (
+            task is not None
+            and task.ball is Ball.HUMAN
+            and "effect_unknown" in (task.ball_prompt or "")
+        )
         machine.fire_retry()
         assert machine.rows() == [] and len(machine.attempts(task_id)) == 1, "nothing relaunched"
 
@@ -459,7 +492,10 @@ class TestLaunchCrashWindows:
         )
         done = subprocess.run(
             [sys.executable, "-c", script, str(machine.home)],
-            capture_output=True, text=True, env=environment(machine.home), timeout=180,
+            capture_output=True,
+            text=True,
+            env=environment(machine.home),
+            timeout=180,
         )
         assert done.returncode == 0, done.stderr
         assert "never launched" in done.stdout
@@ -658,7 +694,9 @@ class TestSessionsAreAdmitted:
         machine.manager.claim_task(task_id, agent="claude")
         project = ProjectRegistry(home=machine.home).get("sandbox")
         record = start_interactive_run(
-            home=machine.home, project=project, task=machine.manager.get_task(task_id),
+            home=machine.home,
+            project=project,
+            task=machine.manager.get_task(task_id),
             identity=SessionIdentity(session_id="11112222", cwd=str(machine.root), driver="claude"),
             actor="claude",
         )
@@ -679,14 +717,26 @@ class TestSessionsAreAdmitted:
 
         task_id = machine.task()
         admit_session(
-            machine.home, project_id="sandbox", task_id=task_id, run_id="run_registered",
-            session_id="33334444", mode="session", takes_slot=True,
+            machine.home,
+            project_id="sandbox",
+            task_id=task_id,
+            run_id="run_registered",
+            session_id="33334444",
+            mode="session",
+            takes_slot=True,
         )
         RunDirectory.create(
-            machine.home, "run_registered",
-            {"run_id": "run_registered", "task_id": task_id, "project_id": "sandbox",
-             "mode": "session", "origin": "registered", "status": "finished",
-             "session_id": "33334444"},
+            machine.home,
+            "run_registered",
+            {
+                "run_id": "run_registered",
+                "task_id": task_id,
+                "project_id": "sandbox",
+                "mode": "session",
+                "origin": "registered",
+                "status": "finished",
+                "session_id": "33334444",
+            },
         )
         released = release_ended(machine.home, lambda _pid: machine.manager)
         assert released == []
