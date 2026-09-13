@@ -14,6 +14,7 @@ import os
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -32,6 +33,7 @@ from agentjobs.dispatch.epic import (
 from agentjobs.dispatch.journal import journal
 from agentjobs.dispatch.ledger import read_run
 from agentjobs.dispatch.runner import runs_root
+from agentjobs.execution import store as epic_store
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome
 from agentjobs.projects import ProjectRegistry
 from test_execution_controller import TESTS, Machine, environment
@@ -311,6 +313,41 @@ class TestSupervisorDeath:
         result = walk.walk()
         assert result is not None and result.stop is WalkStop.ALREADY_SUPERVISED
         assert walk.machine.rows() == []
+
+    def test_a_recycled_holder_pid_does_not_refuse_the_walk_forever(self, walk: Epic) -> None:
+        """task-444: the gate recycled a crashed walker's pid, and its resume was refused.
+
+        A process that started after the walk last wrote cannot be the walk's holder,
+        however alive it is. This test's own interpreter plays the newcomer.
+        """
+        only = walk.child("First")
+        store = journal(walk.machine.home)
+        parent = walk.machine.manager.get_task(walk.parent_id)
+        assert parent is not None
+        entry = epic.parent_authorizing_entry(parent)
+        assert entry is not None
+        opened, _ = store.open_walk(
+            project_id="sandbox",
+            parent_task_id=walk.parent_id,
+            authority_entry=entry.id,
+            authority_actor=entry.actor,
+            settings={},
+            holder="another-host:1",
+            holder_pid=os.getpid(),
+        )
+        with store.transaction("test: the holder last wrote long ago") as connection:
+            connection.execute(
+                "UPDATE supervision SET updated_at = ? WHERE walk_id = ?",
+                ("2000-01-01T00:00:00+00:00", opened.walk_id),
+            )
+        assert epic_store.process_created_after(
+            os.getpid(), datetime(2000, 1, 1, tzinfo=timezone.utc)
+        )
+        assert not epic_store.process_created_after(os.getpid(), datetime.now(timezone.utc))
+
+        result = walk.walk(on_sleep=lambda _n: walk.complete_active())
+        assert result is not None and result.stop is WalkStop.ALL_CHILDREN_DONE, result.detail
+        assert len(walk.sessions_named(only)) == 1
 
 
 # ----- epic-2: a child that lands while it is being registered ---------------------------
