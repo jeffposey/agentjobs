@@ -1,0 +1,39 @@
+# Sanitised timeline from task-410 (agentjobs backlog), for tests/dispatch/test_durable_replay.py.
+#
+# Times are seconds relative to the owner's dispatch, which is `at: 0`. Session ids, run ids
+# and the owner's words are removed; `entries` names the log entries each event comes from.
+fixture: task-410
+title: An expired login, a buffered answer, an unexplained cancellation and a downgraded resume
+provenance:
+  task: task-410
+  entries_read: [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+  checked: "2026-09-13 UTC, against the task record as served by the AgentJobs API"
+  not_established:
+    - >-
+      Who or what cancelled the run at +110 s. Entry 12 records the cancellation with no
+      requester, and handback.py contains no cancel call. The harness therefore plays two
+      branches -- an explicit Stop by a person, and an administrative stand-down -- and asserts
+      neither is what historically happened.
+    - >-
+      Whether the owner's refresh at about +76 s was a login. The answer says the login was
+      refreshed. The no-Stop branch takes the store as answering by then without a further
+      action, which is the self-heal case task-224 established can happen.
+
+dispatch:
+  group: big-dawg
+  runner_model: claude-fable-5-1
+  posture: autonomous
+  source: dispatch
+events:
+  - {at: 0, kind: dispatch, entries: [6, 8]}
+  - {at: 1, kind: stall, text: "Login expired · Please run /login", entries: [9]}
+  - {at: 5, kind: historical_page, note: "the dispatcher paged a person at once (entry 9)", entries: [9]}
+  - {at: 76, kind: answer, body: "An answer saying the login had been refreshed.", entries: [10]}
+  - {at: 77, kind: historical_buffered, note: "the answer was held for the parked run (entry 11)", entries: [11]}
+  - {at: 110, kind: cancellation, requester: null, entries: [12, 13]}
+  - {at: 146, kind: historical_answer, note: "a second answer, to dispatch again (entry 14)", entries: [14]}
+  - {at: 149, kind: historical_resume, group: default, runner_model: claude-opus-5, entries: [15, 17]}
+defects_recorded:
+  - "The resume ran on the default group's runner, not the recorded big-dawg one (entry 17)."
+  - "A person was paged at +5 s for a store that had to be probed first (entry 9)."
+  - "The cancellation wrote that nobody was told what the task needs, over a buffered answer (entry 13)."
