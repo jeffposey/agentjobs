@@ -840,6 +840,76 @@ class _Supervision:
                 restored.retries.append(child.child_task_id)
         return restored
 
+    def adopt_unrecorded(
+        self,
+        manager: TaskManagerLike,
+        parent_id: str,
+        home: Path,
+        *,
+        exclude: set,
+        now: Callable[[], float],
+    ) -> List[Tuple["Flight", str]]:
+        """Children already flying on this authorisation that the walk's record does not hold.
+
+        A walk started by a build before this record existed, or one whose record was
+        written by a supervisor on another host, leaves children `active` with a live run.
+        Claimability rightly never offers a claimed task, so a restarted walk that trusted
+        only the frontier saw nothing eligible and exited `no_eligible_child` -- leaving the
+        flying children unwatched and the ones waiting on them unstarted (task-416 entry 19).
+        They are adopted into the record here, before the frontier is asked anything.
+
+        Only a child with a live run *and* an attempt on this exact authorisation is
+        adopted; anything else is somebody else's work and is left alone.
+        """
+        from agentjobs.dispatch.journal import effective_live
+        from agentjobs.dispatch.ledger import live_runs
+
+        parent = manager.get_task(parent_id)
+        entry = parent_authorizing_entry(parent) if parent is not None else None
+        if entry is None:
+            return []
+        live = effective_live(home, live_runs(home))
+        adopted: List[Tuple[Flight, str]] = []
+        for child in open_children(manager, parent_id):
+            if child.id in exclude or child.lifecycle is not Lifecycle.ACTIVE:
+                continue
+            attempts = count_attempts(child, parent_id=parent_id, entry_id=entry.id)
+            if attempts == 0:
+                continue
+            runs = [
+                run
+                for run in live
+                if run.task_id == child.id and run.project_id == self.walk.project_id
+            ]
+            if not runs:
+                continue
+            run = runs[-1]
+            if self.store.supervised_child(self.walk.walk_id, child.id) is None:
+                reserved = self.store.reserve_child_attempt(
+                    self.walk.walk_id,
+                    epoch=self.walk.epoch,
+                    child_task_id=child.id,
+                    operation_id=f"{self.walk.walk_id}:{child.id}:adopted:{run.run_id}",
+                    limit=CHILD_ATTEMPT_LIMIT + 1,
+                    used_on_record=attempts - 1,
+                )
+                if reserved is None:
+                    continue
+            attempt = self.store.attempt(run.run_id)
+            self._fly(child.id, run.run_id, attempt.execution_id if attempt else None)
+            adopted.append(
+                (
+                    Flight(
+                        child_id=child.id,
+                        attempt=attempts,
+                        run_id=run.run_id,
+                        deadline=now() + self.timeout,
+                    ),
+                    f"Adopted {child.id}: already flying as {run.run_id} on this authorisation.",
+                )
+            )
+        return adopted
+
     def _remaining(self, deadline_at: Optional[str]) -> float:
         if not deadline_at:
             return self.timeout
@@ -1097,6 +1167,11 @@ def _walk_epic(
         result.peak_in_flight = restored.peak_in_flight
         for line in restored.notes:
             announce(line)
+        for flight, note in supervision.adopt_unrecorded(
+            manager, parent_id, ledger_home, exclude=set(in_flight), now=now
+        ):
+            in_flight[flight.child_id] = flight
+            announce(note)
 
     def ground(stop: WalkStop, detail: str) -> None:
         nonlocal grounded

@@ -419,3 +419,45 @@ def test_a_landed_child_whose_run_has_not_settled_holds_its_slot(walk: Epic) -> 
     assert result is not None and result.stop is WalkStop.ALL_CHILDREN_DONE
     assert started_while_settling == [False], "nothing took off into the unsettled slot"
     assert len(walk.sessions_named(second)) == 1
+
+
+# ----- a restarted walk with no record of its own (task-416 entry 19) --------------------
+
+
+def test_a_walk_with_no_record_adopts_children_already_flying_then_starts_what_waits_on_them(
+    walk: Epic,
+) -> None:
+    from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
+    from agentjobs.models_v2 import DispatchTrigger
+
+    first = walk.child("First")
+    second = walk.child("Second")
+    walk.machine.manager.update_task(
+        second, actor="claude", dependencies=[{"task": first, "type": "needs"}]
+    )
+    project = ProjectRegistry(home=walk.machine.home).get("sandbox")
+    # What a walk from before this build left behind: a child dispatched on the epic's
+    # authorisation, flying, with no supervision record anywhere.
+    dispatch_task(
+        manager=walk.machine.manager,
+        project=project,
+        project_config=project.load_config(),
+        request=DispatchRequest(
+            task_id=first, trigger=DispatchTrigger.CHILD, on_behalf_of_parent=True
+        ),
+        home=walk.machine.home,
+        api_base="http://127.0.0.1:9",
+    )
+    assert journal(walk.machine.home).open_walks() == []
+
+    def on_sleep(tick: int) -> None:
+        if tick == 1:
+            assert walk.sessions_named(second) == [], "the dependent child waits"
+        walk.complete_active()
+
+    result = walk.walk(on_sleep=on_sleep)
+    assert result is not None and result.stop is WalkStop.ALL_CHILDREN_DONE
+    assert len(walk.sessions_named(first)) == 1, "adopted, not dispatched again"
+    assert walk.epic_attempts(first) == 1
+    assert len(walk.sessions_named(second)) == 1
+    assert [a.child_id for a in result.attempts] == [first, second]
