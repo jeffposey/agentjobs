@@ -579,6 +579,31 @@ def abandon_admission(home: Path, run_id: str, *, launched: bool, reason: str) -
         return
 
 
+def record_authorisation(
+    home: Path, execution_id: str, run_id: str, *, entry_id: int, actor: str
+) -> None:
+    """Record which human entry authorised an attempt. Committed before its launch.
+
+    Raises on a journal failure, deliberately: an execution the controller may relaunch
+    without knowing its grant's authorising act is one it would have to refuse later,
+    so the dispatch is refused now instead, while nothing has been launched.
+    """
+    journal(home).append_event(
+        execution_id,
+        reducer.AUTHORISED,
+        {"entry_id": int(entry_id), "actor": actor, "run_id": run_id},
+        source_id=f"authorised:{run_id}",
+    )
+
+
+def authorising_entry(home: Path, execution_id: str) -> Optional[int]:
+    """The human entry the execution's first recorded attempt was authorised by."""
+    for event in journal(home).events(execution_id):
+        if event.kind == reducer.AUTHORISED and isinstance(event.payload.get("entry_id"), int):
+            return int(event.payload["entry_id"])
+    return None
+
+
 def mark_launched(home: Path, run_id: str, *, session_id: Optional[str] = None) -> Optional[str]:
     """Record that a run's worker exists. Returns an error string instead of raising.
 

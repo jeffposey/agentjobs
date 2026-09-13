@@ -1207,6 +1207,13 @@ def dispatch_task(
         # satisfies it -- which is why an agent still cannot cause a dispatch even
         # though the dispatcher now writes entries of its own.
         assert_human_clocked(project_config, causing)
+        if controlled and attempt.execution_id:
+            # The grant's authorising event, in the execution's own history (task-416). A
+            # relaunch after this process dies must cite the human act that authorised the
+            # execution, and the task's newest entry by then is the claim's transition.
+            journal.record_authorisation(
+                machine_home, attempt.execution_id, run_id, entry_id=causing.id, actor=causing.actor
+            )
 
         task = _claim_or_verify(manager, task, resolution.runner.actor_id)
 

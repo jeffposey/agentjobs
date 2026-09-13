@@ -831,6 +831,8 @@ class Controller:
                 request=request,
                 home=self.home,
                 api_base=self.api_base,
+                # The budget caps judge the same moment the policy observation did.
+                now=self.clock(),
             )
         except AlreadyAdmittedError as exc:
             self.result(intent, execution, "applied", result={"run_id": exc.attempt.run_id, "already": True})
@@ -866,7 +868,14 @@ class Controller:
         return f"refused ({klass}): {exc}"
 
     def _authorising_entry(self, execution: Execution, manager: TaskManagerLike) -> Optional[int]:
-        """The human entry the execution's first attempt was caused by -- its grant."""
+        """The human entry the execution's first attempt was caused by -- its grant.
+
+        The journal's ``authorised`` event is the record, written before the launch; the
+        task's dispatch entries are the fallback for an attempt that got that far.
+        """
+        recorded = journal_adapter.authorising_entry(self.home, execution.execution_id)
+        if recorded is not None:
+            return recorded
         task = manager.get_task(execution.task_id)
         if task is None:
             return None

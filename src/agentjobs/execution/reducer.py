@@ -60,6 +60,7 @@ TIMER_SET = "timer_set"
 TIMER_FIRED = "timer_fired"
 POLICY_OBSERVED = "policy_observed"
 ACTIVITY_RESULT = "activity_result"
+AUTHORISED = "authorised"
 
 EVENT_KINDS = frozenset(
     {
@@ -78,6 +79,7 @@ EVENT_KINDS = frozenset(
         TIMER_FIRED,
         POLICY_OBSERVED,
         ACTIVITY_RESULT,
+        AUTHORISED,
     }
 )
 
@@ -415,6 +417,8 @@ def reduce(state: ExecutionState, event: Event) -> ExecutionState:
         return replace(advanced, policy=dict(payload))
     if event.kind == ACTIVITY_RESULT:
         return _apply_result(advanced, payload)
+    if event.kind == AUTHORISED:
+        return advanced  # evidence for a relaunch, not a transition
     return advanced  # pragma: no cover - EVENT_KINDS is exhaustive above
 
 
@@ -610,6 +614,7 @@ __all__ = [
     "ACTIVITY_RESULT",
     "ADMITTED",
     "ATTEMPTS_EXHAUSTED",
+    "AUTHORISED",
     "BUDGET_EXHAUSTED",
     "CAPACITY_WAIT",
     "CLOSED",
