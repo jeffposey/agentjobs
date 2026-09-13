@@ -1,11 +1,12 @@
-"""Write the tracked ``docs/backlog.md`` from the task store, or say it is stale.
+"""Write the tracked ``docs/backlog.md`` from the task store, or say whether it is stale.
 
-The same contract ``scripts/export_openapi.py`` already satisfies for ``openapi.json``:
-one render, written on demand and compared against **the working tree** under
-``--check``, so a stale artefact fails the gate instead of rotting silently. The
-comparison is against the tree rather than ``HEAD`` for the reason task-189 gives --
-the question is whether the files a commit is about to carry match what the application
-produces, and half of them are usually not committed yet.
+One render, written on demand. ``--check`` compares it against **the working tree** and
+reports whether the committed copy has fallen behind the store, but **the gate does not
+run it**. It did until task-413: any task created, closed or reordered anywhere made
+every open branch's copy stale and turned every gate red, so each merge carried a
+regeneration commit and two approved branches conflicted on the file. The owner never
+agreed to that cost, and the listing is now regenerated when the ``roadmap`` playbook
+runs rather than on every task change. ``--check`` stays as a question a person can ask.
 
 One thing differs from the OpenAPI export and is worth stating plainly, because it is
 the only reason this script is not a straight copy of that one. ``openapi.json`` is
@@ -18,11 +19,10 @@ gate that went red for them would be asserting something the machine cannot know
 check prints what it could not reach and exits 0. On a machine that *is* serving the
 project, the check is real.
 
-**The file goes stale for reasons outside the branch.** Any task created, closed,
-reordered, retitled or re-summarised anywhere makes every open branch's copy stale. That
-is the cost of a live listing and it is deliberately cheap to pay: the failure names the
-one command that fixes it, and the projection carries nothing that churns for a reason a
-reader would not care about (no timestamps, no ball state, no run ids).
+**The file goes stale for reasons outside the branch**, and that is now accepted rather
+than gated. The projection still carries nothing that churns for a reason a reader would
+not care about (no timestamps, no ball state, no run ids), so a regeneration's diff is
+only the backlog moving.
 
 ``--audit`` is the other half, and it is a different kind of check on a different kind of
 file. ``ROADMAP.md`` is written by a person: the phases, the workstreams, and what each

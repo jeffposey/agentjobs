@@ -6,10 +6,10 @@ Every open AgentJobs task, in the order it will be worked. Bands run critical, h
 medium then low, and within a band the order is the queue's own — the same order
 `agentjobs next` hands work out in.
 
-This is the complete listing, and it is the one that is always current.
-[ROADMAP.md](../ROADMAP.md) is the same work read as a plan — phases, and the
-workstreams inside them — and it is written by a person rather than generated, so it
-runs behind this file between passes.
+This is the complete listing. It is regenerated when the roadmap playbook runs, not on
+every task change, so it can run behind the store between passes; `agentjobs next` is
+always current. [ROADMAP.md](../ROADMAP.md) is the same work read as a plan — phases,
+and the workstreams inside them — written by a person rather than generated.
 
 This file is generated from the task store, which lives in a database beside the server
 rather than in this repository. It is written one way and read by people: nothing here

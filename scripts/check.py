@@ -346,12 +346,9 @@ def stages(*, coverage: bool = False, parallel: bool = True) -> list[Stage]:
         ),
         Stage(
             "roadmap",
-            (
-                (PYTHON, "scripts/export_roadmap.py", "docs/backlog.md", "--check"),
-                (PYTHON, "scripts/export_roadmap.py", "docs/backlog.md", "--audit", "ROADMAP.md"),
-            ),
+            ((PYTHON, "scripts/export_roadmap.py", "docs/backlog.md", "--audit", "ROADMAP.md"),),
             ROOT,
-            "generated backlog listing, and what the roadmap page claims about it",
+            "the roadmap page rosters no closed task",
         ),
         Stage("oxlint", ((NPM, "run", "lint"),), FRONTEND, "frontend lint"),
         Stage("pytest", (tuple(pytest_args),), ROOT, "Python test suite"),

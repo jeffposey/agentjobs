@@ -372,8 +372,8 @@ class TestSinceGate:
 
         assert check.main(["--since-gate"]) == 0
         # pytest, because the documentation contract tests read prose, plus the roadmap
-        # stage, which no diff can ever clear. Counted as commands rather than stages:
-        # roadmap runs two, the listing's freshness and the roadmap page's claims.
+        # stage, which no diff can ever clear. Counted as commands rather than stages, so
+        # the count follows whatever a stage runs.
         selected = [stage for stage in check.stages() if stage.name in {"pytest", "roadmap"}]
         assert len(commands) == command_count(selected)
         out = capsys.readouterr().out
@@ -386,9 +386,9 @@ class TestSinceGate:
         """It ran nothing at all until a stage read a store outside the checkout.
 
         Everything the other nine stages read is in the tree, so an identical tree is
-        evidence about them. The roadmap is generated from a database anybody filing a
-        task moves, so it is evidence about nothing, and the run says so rather than
-        printing that it did no work.
+        evidence about them. The roadmap page is audited against a database anybody
+        closing a task moves, so it is evidence about nothing, and the run says so rather
+        than printing that it did no work.
         """
         commands = TestTheUnqualifiedGate.record_runs(monkeypatch)
         monkeypatch.setattr(check.gate_scope, "read_receipt", lambda root: {"commit": "a" * 40})

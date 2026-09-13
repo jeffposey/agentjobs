@@ -40,8 +40,9 @@ copy something may write back to, or read as truth, or point `storage restore` a
 listing is a one-way projection: `scripts/export_roadmap.py` renders open work into
 markdown, nothing in this repository reads it back, and no code path treats it as a source
 of truth. That makes it a build artefact that happens to be tracked, which the repository
-already does for `openapi.json` and the generated API client, and it is held to the same
-freshness gate they are. It also pays back a cost §9 named and left standing: `origin` is
+already does for `openapi.json` and the generated API client. Unlike them, the gate does
+not hold it to the store: it moves whenever any task does, and failing every branch for
+that was a cost nobody had agreed to. It also pays back a cost §9 named and left standing: `origin` is
 public, the only server is on a private tailnet, and without it a reader who clones this
 repository can see no plan at all.
 

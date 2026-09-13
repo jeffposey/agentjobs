@@ -58,25 +58,23 @@ docs edit can fail the suite. Nothing else reads them.
 """
 
 ROADMAP_STAGES = ("roadmap", "pytest")
-"""What editing either published roadmap file can move.
+"""What editing the roadmap page can move.
 
-``roadmap`` for both, for opposite reasons. ``docs/backlog.md`` is generated, and a
-hand-edit to a generated file is precisely what that stage exists to catch --
-``docs/*`` below would otherwise route it to the docs class and skip it. ``ROADMAP.md``
-is hand-written, and the same stage audits what it rosters against the store, so an
-edit to it is the one change that can turn that audit red. ``pytest`` on the same terms
-as any other prose.
+``ROADMAP.md`` is hand-written, and the roadmap stage audits what it rosters against the
+store, so an edit to it is the one change that can turn that audit red. ``pytest`` on the
+same terms as any other prose. ``docs/backlog.md`` is not here: no stage compares it with
+the store, so it is prose to the gate.
 """
 
 UNBOUNDED_STAGES: Tuple[str, ...] = ("roadmap",)
 """Stages whose input is not in the working tree at all, so a diff cannot clear them.
 
 Every other stage reads files a diff can be taken over, which is what lets a path that
-changed nothing they read stand as evidence they need not run. The roadmap is generated
-from a database **outside every checkout**, and that database moves whenever anybody
-anywhere files, closes or reorders a task. An unchanged tree is therefore no evidence at
-all about it -- ``NOTHING CHANGED`` would otherwise issue a receipt attesting to a
-roadmap that had gone stale since breakfast.
+changed nothing they read stand as evidence they need not run. The roadmap page is
+audited against a database **outside every checkout**, and that database moves whenever
+anybody anywhere closes a task. An unchanged tree is therefore no evidence at all about
+it -- ``NOTHING CHANGED`` would otherwise issue a receipt attesting to a page that had
+started rostering a closed task since breakfast.
 
 There used to be a second answer to the same problem, and it worked only because the
 corpus was in the tree: ``tasks/ -> pytest`` let a record correction select the one stage
@@ -99,17 +97,16 @@ class Class:
 
 CLASSES: Tuple[Class, ...] = (
     Class("ROADMAP.md", ROADMAP_STAGES, "the roadmap page; the roadmap stage audits it"),
-    Class("docs/backlog.md", ROADMAP_STAGES, "the generated listing; the roadmap stage reads it"),
     Class("docs/*", DOCS_STAGES, "prose; the documentation contract tests read it"),
     Class("*.md", DOCS_STAGES, "prose; the documentation contract tests read it"),
 )
 """Deliberately short, and ordered: the first pattern that matches wins.
 
-Both roadmap entries sit above the prose patterns that would otherwise swallow them.
-``docs/backlog.md`` is a generated artefact that happens to end in ``.md``, and routing
-it to the docs class would skip the one stage that can tell a hand-edit from a
-regeneration. ``ROADMAP.md`` genuinely is prose, but it is the only prose in the
-repository whose claims the roadmap stage checks against a store.
+The roadmap entry sits above the prose patterns that would otherwise swallow it.
+``ROADMAP.md`` genuinely is prose, but it is the only prose in the repository whose
+claims the roadmap stage checks against a store. ``docs/backlog.md`` falls through to
+``docs/*``: it is generated, but no stage checks it against the store any more, because
+failing every branch whenever any task changed was a cost nobody had agreed to pay.
 
 Every candidate entry beyond these was measured against what it would save and dropped.
 ``frontend/*`` would spare Black, Ruff and MyPy -- 2.1 seconds. ``assets/*`` would spare

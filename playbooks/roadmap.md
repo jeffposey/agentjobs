@@ -30,8 +30,8 @@ run_task:
         re-banded, promoted, or had its description, constraints or acceptance changed.
     - text: ROADMAP.md was read end to end as a stranger would read it, and this task
         says what that reading found.
-    - text: The listing was regenerated, both files committed, and the roadmap stage of
-        scripts/check.py passes against the working tree.
+    - text: The listing was regenerated, both files committed, and the ROADMAP.md audit
+        passes.
 ---
 
 # Roadmap
@@ -241,17 +241,17 @@ either — a fact smuggled into the page is one the listing still cannot show.
 
 ## 9. Finish by regenerating, and prove it
 
-The last act of the run is the generator, then the gate stage that covers both files:
+The last act of the run is the generator, then the stage that audits the page:
 
 ```bash
 poetry run python scripts/export_roadmap.py docs/backlog.md
 poetry run python scripts/check.py --only roadmap
 ```
 
-Commit both. A run that edited records and did not regenerate has left the listing
-disagreeing with the store it is a projection of, which is the one failure this whole
-arrangement exists to prevent. A run that rewrote summaries and did not revisit the page
-has left the two halves describing different backlogs, which is the newer way to fail.
+Commit both. **This run is when the listing gets regenerated.** No gate checks it against
+the store and no other branch regenerates it, so a run that edited records and skipped
+this step leaves the listing behind until the next pass. A run that rewrote summaries and
+did not revisit the page has left the two halves describing different backlogs.
 
 Close your run task with the tally: the workstreams and phases you settled on and why,
 records read, records edited (each named), questions raised, and what you deliberately

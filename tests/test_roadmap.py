@@ -253,7 +253,7 @@ class TestProjectionBoundary:
         """No generated-at stamp, and no record timestamp either.
 
         A stamp would make the file differ from its own regeneration the instant it was
-        written, so the freshness check could never pass and would be switched off.
+        written, so every regeneration would be a diff and ``--check`` could never pass.
         """
         first = render([make_task("task-001")])
         later = make_task("task-001").model_copy(

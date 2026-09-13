@@ -19,7 +19,7 @@ pointed at it -- it is a build artefact that happens to be tracked, exactly like
 
 **It is a pure function of the store, with no clock in it.** A "generated at"
 stamp would make the file differ from its own regeneration the moment it was written,
-so the freshness check could never pass and would be switched off inside a week. The
+so every regeneration would be a diff and ``--check`` could never answer yes. The
 only inputs are the task records.
 
 **It publishes the narrow half of a record.** A task carries branch names, run ids,
@@ -256,10 +256,10 @@ Every open AgentJobs task, in the order it will be worked. Bands run critical, h
 medium then low, and within a band the order is the queue's own — the same order
 `agentjobs next` hands work out in.
 
-This is the complete listing, and it is the one that is always current.
-[ROADMAP.md](../ROADMAP.md) is the same work read as a plan — phases, and the
-workstreams inside them — and it is written by a person rather than generated, so it
-runs behind this file between passes.
+This is the complete listing. It is regenerated when the roadmap playbook runs, not on
+every task change, so it can run behind the store between passes; `agentjobs next` is
+always current. [ROADMAP.md](../ROADMAP.md) is the same work read as a plan — phases,
+and the workstreams inside them — written by a person rather than generated.
 
 This file is generated from the task store, which lives in a database beside the server
 rather than in this repository. It is written one way and read by people: nothing here
