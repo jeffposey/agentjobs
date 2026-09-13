@@ -298,7 +298,7 @@ class Machine:
     def live_sessions(self) -> List[Dict[str, Any]]:
         return [row for row in self.rows() if row.get("state") != "stopped"]
 
-    def execution(self, task_id: str):  # type: ignore[no-untyped-def]
+    def execution(self, task_id: str) -> Any:
         store = journal(self.home)
         found = store.latest_execution("sandbox", task_id)
         assert found is not None
@@ -317,6 +317,11 @@ class Machine:
 @pytest.fixture
 def machine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Machine:
     return Machine(tmp_path, monkeypatch)
+
+
+def must_task(task: Optional[Any]) -> Any:
+    assert task is not None
+    return task
 
 
 def _last_dispatch_result(manager: TaskManager, task_id: str) -> Optional[str]:
@@ -696,7 +701,7 @@ class TestSessionsAreAdmitted:
         record = start_interactive_run(
             home=machine.home,
             project=project,
-            task=machine.manager.get_task(task_id),
+            task=must_task(machine.manager.get_task(task_id)),
             identity=SessionIdentity(session_id="11112222", cwd=str(machine.root), driver="claude"),
             actor="claude",
         )

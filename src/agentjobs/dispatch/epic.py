@@ -89,7 +89,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from agentjobs.actors import Actor
 from agentjobs.dispatch.config import Posture, PostureSource
@@ -934,7 +934,7 @@ class _Supervision:
         )
 
 
-def walk_epic(
+def _walk_epic(
     *,
     manager: TaskManagerLike,
     project: Project,
@@ -1356,6 +1356,19 @@ def walk_epic(
         return finish()
 
 
+def walk_epic(**kwargs: Any) -> WalkResult:
+    """Walk an epic to its end. See :func:`_walk_epic` for everything it does.
+
+    A single step (``once``) is :func:`advance_hosted_walks`' business and is not offered
+    here, which is what lets every caller of this function rely on getting a result.
+    """
+    if kwargs.pop("once", False):
+        raise TypeError("walk_epic runs a walk to its end; a single step is advance_hosted_walks")
+    result = _walk_epic(**kwargs)
+    assert result is not None  # only a single step returns before the walk ends
+    return result
+
+
 def _poll_child(
     *,
     manager: TaskManagerLike,
@@ -1603,17 +1616,10 @@ def detach_walk(
         )
     except OwnershipConflict as exc:
         raise ParentNotSupervisedError(str(exc)) from exc
-    manager.add_log_entry(
-        parent_id,
-        actor=actor,
-        type=LogEntryType.NOTE,
-        body=(
-            f"Epic walk detached as `{walk.walk_id}` on the authorisation in entry {entry.id}. "
-            "The AgentJobs server advances it on every poll tick; no session waits on the "
-            "children, and the outcome is written here when the walk ends."
-        ),
-        data={"epic_walk": {"walk_id": walk.walk_id, "authority_entry": entry.id}},
-    )
+    # Deliberately nothing written to the parent here. The walk re-derives each child's
+    # authorisation from the parent's newest entry, so an agent's note announcing the
+    # detach would shadow the human act it is walking on and every child would be refused.
+    # The journal row is the record; the outcome lands on the parent when the walk ends.
     return walk.walk_id
 
 
@@ -1684,7 +1690,7 @@ def advance_hosted_walks(
         )
         chosen = saved.get("posture")
         try:
-            result = walk_epic(
+            result = _walk_epic(
                 manager=manager,
                 project=project,
                 project_config=project.load_config(),

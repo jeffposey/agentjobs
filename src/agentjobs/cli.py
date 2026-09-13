@@ -1744,7 +1744,6 @@ def dispatch_walk(
             posture=chosen_posture,
             on_event=lambda message: typer.echo(f"  {message}"),
         )
-        assert result is not None  # only a single-step walk returns before it ends
     except EpicError as exc:
         typer.secho(f"Refused ({exc.reason}): {exc}", fg=typer.colors.RED)
         raise typer.Exit(code=2) from exc
