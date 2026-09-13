@@ -4070,7 +4070,52 @@ store.
 **Not built here.** Codex has no nudge adapter; its runs never write the transcripts this
 reads, so they never join. Batch runs are not recovered. A probe blocks the poll thread
 for up to its timeout, and only while an incident is due. The probe does not use
-`setup-token`, which task-442 may evaluate.
+`setup-token`, which task-442 evaluated and rejected for it (below).
+
+### What task-442 found about how often a login is lost (2026-09-13)
+
+task-417 recovers after the shared store is blanked. task-442 asked how to make that rarer.
+**It changed no code.** Every lever that would reduce the number of refreshers sits outside
+what AgentJobs starts. The full evidence is on task-442.
+
+**Who shares the npm CLI store** (`~/.claude/.credentials.json`), counted at 21:15 UTC.
+The desktop app's bundled sessions are not counted: they run on host-injected auth, which
+is a separate profile (task-417 entry 5).
+
+| Class | Live | Started by |
+| --- | --- | --- |
+| `claude daemon run` | 1 | Claude Code, on the first `--bg` |
+| `--bg` sessions, working | 3 | AgentJobs dispatch: an epic supervisor and two children |
+| `--bg` sessions, idle since 2026-09-11 | 2 | an interactive session's spawn and an audit. Their PTY host outlived its daemon |
+| `rc --spawn` hosts | 2 | the owner's Remote Control launcher, up since 2026-09-09. One has spawned nothing in its whole log |
+| `--print --sdk-url` | 3 | Remote Control sessions under the `agentjobs` host, idle for 11 to 13 hours |
+
+**AgentJobs leaves no stale refresher behind.** A completed, cancelled or abandoned run
+stops its session (`runner._finish_session`, `reap=True`). Only `finished_without_handoff`
+leaves the process running, on purpose, so it can be attached to. That was 7 of 239 session
+runs, and none of them was alive at the count.
+
+| Candidate | Verdict | Evidence from this machine |
+| --- | --- | --- |
+| 1. Fewer long-lived processes | **Adopted for what AgentJobs starts, which is already live. Deferred to the owner for the other 7 of 11** | The count above. Stopping someone's Remote Control host or idle sessions is not a dispatcher's decision |
+| 2. `setup-token` / `CLAUDE_CODE_OAUTH_TOKEN` | **Rejected for the probe, deferred for batch runs** | A probe exists to test the store the waiting sessions use. An env token changes `Profile.auth_env`, so by construction it could not speak for them. Batch mode has run twice, the last on 2026-08-22, so it removes no refresher. It was not tried live: nothing was adopted, and creating the token needs the owner's browser login |
+| 3. A separate `CLAUDE_CONFIG_DIR` login | **Deferred to the owner** | The mechanism does work on Windows, although it was reported to work only on macOS. With an empty config dir, `claude auth status` on 2.1.270 reports `loggedIn: false`, while the default dir is logged in. Whether two logins on one account refresh independently is unverified. Trying it needs a second owner login and a separate settings, plugins and memory tree for whatever moves |
+
+**The rc host's log places the loss before it.** At 2026-09-06 19:39:28Z the `job-hunting`
+host got a 401 and tried to refresh, and the attempt failed 6 ms later. That is too fast to
+be a network call, so the store was already empty when it looked. A dispatched run stalled
+20 seconds after. On 2026-08-30 06:23Z the `agentjobs` host found no token to refresh while
+no dispatched run was in flight. **Run records therefore undercount losses.**
+
+**Before count.** `auth_incident` had 0 rows at 21:22Z. It has recorded since task-417's
+merge at 20:24Z. Before that the only counter is `auth_stalled_at` on run records, which
+has meant `authentication_failed` since 2026-08-21. It holds 11 stalls in 8 distinct loss
+events: 08-21, 08-24, 08-27, 09-06 (twice), 09-09, 09-12 and 09-13. Five of those events
+fell in the last 8 days. task-440's review owns the after count.
+
+**Reopen when:** an incident opens while a `finished_without_handoff` session is alive,
+which would justify reaping those sessions. Also reopen if batch runs become routine, or
+if a Claude Code release newer than 2.1.270 names this race in its changelog.
 
 ### What task-443 built (2026-09-13)
 
