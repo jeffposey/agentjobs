@@ -2158,9 +2158,11 @@ def execution_status() -> None:
             summary = f"{state.state}; next: {proposed}"
         except ExecutionStoreError as exc:
             summary = f"not replayable: {exc}"
+        follower = "controller" if execution.controller_driven else "poller"
+        due = f"; due {execution.next_due_at}" if execution.next_due_at else ""
         typer.echo(
             f"  {execution.execution_id} {execution.project_id}/{execution.task_id} "
-            f"[{execution.owner_mode}, {execution.provenance}] {summary}"
+            f"[{follower}, {execution.owner_mode}, {execution.provenance}] {summary}{due}"
         )
     typer.echo(f"Live attempts: {len(attempts)}")
     for attempt in attempts:
@@ -2171,6 +2173,35 @@ def execution_status() -> None:
             f"({slot}, epoch {attempt.epoch}){flag}"
         )
     typer.echo(f"Owed task writes: {len(owed)}")
+    try:
+        walks = store.open_walks()
+    except ExecutionStoreError:
+        walks = []
+    typer.echo(f"Epic walks: {len(walks)}")
+    for walk in walks:
+        grounded = f" grounded ({walk.grounding.get('stop')})" if walk.grounding else ""
+        typer.echo(
+            f"  {walk.walk_id} {walk.project_id}/{walk.parent_task_id} on entry "
+            f"{walk.authority_entry} [{walk.host}] started {walk.started}{grounded}"
+        )
+
+
+@execution_app.command("tick")
+def execution_tick() -> None:
+    """Run one pass of the durable controller and of every server-hosted walk, now.
+
+    The server does this on every poll tick. This is for a machine with no server running,
+    and for watching one pass happen: it acts only on executions the controller drives and
+    on walks detached to the server.
+    """
+    from agentjobs.dispatch.poller import _drive_controller
+
+    home = default_home()
+    lines = _drive_controller(home, ProjectRegistry(home=home), {})
+    for line in lines:
+        typer.echo(f"{line.run_id}: {line.detail}")
+    if not lines:
+        typer.echo("Nothing to do.")
 
 
 @execution_app.command("migrate")
