@@ -1587,6 +1587,51 @@ class TestRegressions:
         assert len(world.calls("launches.log")) == 2, "one relaunch, however many controllers"
         assert len(world.live_sessions(task_id)) == 1
 
+    def test_a_dead_supervisors_reused_pid_does_not_keep_its_walk_refused(
+        self, world: World
+    ) -> None:
+        """A supervisor died and Windows gave its pid to an unrelated process. Judged by pid
+        alone, the walk was refused as already supervised with nobody supervising it --
+        the likeliest cause of this file's one red under a contended gate (task-419)."""
+        from agentjobs.dispatch.ledger import process_identity
+        from agentjobs.execution.errors import OwnershipConflict
+
+        store = journal(world.home)
+        reused = os.getpid()  # alive, and not the supervisor that recorded it
+        real = process_identity(reused)
+        assert real is not None
+        opened = dict(
+            project_id="sandbox",
+            parent_task_id="task-900",
+            authority_entry=7,
+            authority_actor=PERSON,
+            settings={},
+        )
+        store.open_walk(
+            **opened,  # type: ignore[arg-type]
+            holder="dead-host:1",
+            holder_pid=reused,
+            identity_of=lambda pid: f"{real.split(':')[0]}:{pid}:1",
+        )
+        walk, resumed = store.open_walk(
+            **opened,  # type: ignore[arg-type]
+            holder="fresh-host:2",
+            holder_pid=reused,
+            holder_alive=lambda _pid: True,
+            identity_of=process_identity,
+        )
+        assert resumed and walk.holder == "fresh-host:2", "a reused pid is not the holder"
+        assert walk.holder_identity == real
+
+        # The genuine holder, still running, is never joined.
+        with pytest.raises(OwnershipConflict):
+            store.open_walk(
+                **opened,  # type: ignore[arg-type]
+                holder="third-host:3",
+                holder_alive=lambda _pid: True,
+                identity_of=process_identity,
+            )
+
     def test_grounding_outlives_two_real_supervisor_deaths(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -1600,8 +1645,11 @@ class TestRegressions:
         machine.configure(controller="shadow")
         walk = Epic(machine)
         first, second, third = walk.child("First"), walk.child("Second"), walk.child("Third")
-        two_at_once = WALK_CHILD.replace("max_concurrent=1", "max_concurrent=2")
-        assert two_at_once != WALK_CHILD
+        two_at_once = WALK_CHILD.replace("max_concurrent=1", "max_concurrent=2").replace(
+            "epic.walk_epic(", "result = epic.walk_epic("
+        )
+        two_at_once += "\nprint('walk ended:', result and result.stop, result and result.detail)\n"
+        assert two_at_once.count("max_concurrent=2") == 1
 
         def supervisor_dies() -> "subprocess.CompletedProcess[str]":
             return subprocess.run(
@@ -1631,7 +1679,7 @@ class TestRegressions:
             ball_prompt="Look at this.",
         )
         died = supervisor_dies()  # a fresh supervisor reconciles, grounds, and dies again
-        assert died.returncode == 9, died.stderr
+        assert died.returncode == 9, (died.stdout, died.stderr)
         [record] = journal(machine.home).open_walks()
         assert record.grounding and record.grounding["stop"] == "child_needs_a_human"
 
