@@ -92,7 +92,7 @@ def build_project(root: Path, *, alarm: bool, claimed: Tuple[str, ...]) -> Path:
         ),
         encoding="utf-8",
     )
-    manager = TaskManager(sandbox_store(project_root / "tasks"))
+    manager = TaskManager(sandbox_store(project_root / "tasks", project_id="sandbox-crowded"))
 
     bands = [Priority.CRITICAL, Priority.HIGH, Priority.MEDIUM, Priority.LOW]
     for index in range(CROWD):

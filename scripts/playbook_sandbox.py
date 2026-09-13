@@ -99,7 +99,7 @@ def build(root: Path, *, project_id: str, name: str, thin_task: bool) -> Path:
     if thin_task:
         # Something for `flesh-out` to be aimed at. Its newest entry is a human's,
         # which is what the human-clocked rule reads on a task-target run.
-        TaskManager(sandbox_store(project_root / "tasks")).create_task(
+        TaskManager(sandbox_store(project_root / "tasks", project_id=project_id)).create_task(
             id="task-101",
             title="Thin: the notification service",
             summary="A title and a sentence, which is not enough to work from.",

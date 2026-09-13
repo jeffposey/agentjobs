@@ -18,6 +18,7 @@ Run it with a *different* checkout's interpreter to see what that checkout says 
 same situation -- which is how the before/after on task-298 was taken.
 """
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -26,12 +27,9 @@ from pathlib import Path
 
 import yaml
 
-from agentjobs.dispatch.guards import DispatchRefused, DispatchRequest, dispatch_task
-from agentjobs.dispatch.ledger import locks_root
-from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Lifecycle
-from agentjobs.projects import Project
-from sandbox_store import sandbox_store  # type: ignore[import-not-found]
+# agentjobs is imported inside main(), after AGENTJOBS_HOME points at the temp home: a
+# module-level import here would run before the redirect, which is the order task-427
+# forbids for every sandbox.
 
 SLOW_GATE = "import time\nprint('gate running')\ntime.sleep(180)\n"
 
@@ -49,7 +47,7 @@ root = Path(sys.argv[1]); home = Path(sys.argv[2]); task_id = sys.argv[3]
 # same substitution tests/test_dispatch_finish.py makes, and for the same reason.
 F.worktree_interpreter = lambda path: Path(sys.executable)
 result = F.finish_task(
-    manager=TaskManager(sandbox_store(root / "tasks")),
+    manager=TaskManager(sandbox_store(root / "tasks", project_id="sandbox")),
     project=Project(id="sandbox", name="Sandbox", root=root),
     task_id=task_id,
     approver="Jeff Posey",
@@ -70,6 +68,18 @@ def git(root: Path, *args: str) -> "subprocess.CompletedProcess[str]":
 
 def main() -> int:
     tmp = Path(tempfile.mkdtemp(prefix="task298-"))
+    home = tmp / "home"
+    home.mkdir()
+    # Inherited by the child finish too, so both processes open the same sandbox file.
+    os.environ["AGENTJOBS_HOME"] = str(home)
+
+    from agentjobs.dispatch.guards import DispatchRefused, DispatchRequest, dispatch_task
+    from agentjobs.dispatch.ledger import locks_root
+    from agentjobs.manager import TaskManager
+    from agentjobs.models_v2 import Lifecycle
+    from agentjobs.projects import Project
+    from sandbox_store import sandbox_store  # type: ignore[import-not-found]
+
     root = tmp / "clone"
     (root / "tasks").mkdir(parents=True)
     (root / "scripts").mkdir(parents=True)
@@ -104,7 +114,7 @@ def main() -> int:
         encoding="utf-8",
     )
 
-    manager = TaskManager(sandbox_store(root / "tasks"))
+    manager = TaskManager(sandbox_store(root / "tasks", project_id="sandbox"))
     task = manager.create_task(
         title="The deliverable",
         category="infrastructure",
@@ -115,11 +125,9 @@ def main() -> int:
     )
     manager.claim_task(task.id, agent="claude")
     manager.update_task(task.id, actor="claude", branches=[{"name": branch, "status": "active"}])
-    git(root, "add", "--", "tasks")
-    git(root, "commit", "-m", "chore(tasks): the record")
+    # The record is a row in the sandbox home's database, not a file, so there is nothing
+    # to commit; the clone stays clean for the finish (task-427).
 
-    home = tmp / "home"
-    home.mkdir()
     runner = tmp / "runner.py"
     runner.write_text("print('started')\n", encoding="utf-8")
     (home / "dispatch.yaml").write_text(
@@ -149,6 +157,8 @@ def main() -> int:
     script.write_text(CHILD, encoding="utf-8")
     child = subprocess.Popen(
         [sys.executable, str(script), str(root), str(home), task.id],
+        # The child script lives in the temp dir, so sandbox_store is not beside it.
+        env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parent)},
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,

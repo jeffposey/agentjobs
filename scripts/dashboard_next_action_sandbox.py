@@ -224,7 +224,7 @@ def build(root: Path, *, project_id: str) -> Path:
     # click, and a clean-tree gate that shuts the moment you press a button is not one.
     (project_root / ".gitignore").write_text(".agentjobs/\ntasks/\n", encoding="utf-8")
     seed(
-        TaskManager(sandbox_store(project_root / "tasks")),
+        TaskManager(sandbox_store(project_root / "tasks", project_id=project_id)),
         drafts=True,
         ready=project_id != DRAFTS_ONLY,
         blocked=project_id == BLOCKED,

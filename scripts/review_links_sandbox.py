@@ -296,7 +296,7 @@ def build(root: Path, *, project_id: str, name: str, base: str) -> Path:
         yaml.safe_dump(build_project_config(project_name=name, user="Jeff Posey"), sort_keys=False),
         encoding="utf-8",
     )
-    seed(TaskManager(sandbox_store(project_root / "tasks")), base=base)
+    seed(TaskManager(sandbox_store(project_root / "tasks", project_id=project_id)), base=base)
     return project_root
 
 

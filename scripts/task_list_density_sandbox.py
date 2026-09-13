@@ -200,7 +200,7 @@ def build(root: Path, *, project_id: str, name: str, pathological: bool | None) 
         yaml.safe_dump(build_project_config(project_name=name, user="Jeff Posey"), sort_keys=False),
         encoding="utf-8",
     )
-    manager = TaskManager(sandbox_store(project_root / "tasks"))
+    manager = TaskManager(sandbox_store(project_root / "tasks", project_id=project_id))
     if pathological is None:
         seed_drafts(manager)
     else:

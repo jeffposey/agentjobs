@@ -343,7 +343,7 @@ def build(root: Path) -> Path:
         encoding="utf-8",
     )
     tasks_dir = project_root / "tasks"
-    seed(TaskManager(sandbox_store(tasks_dir)))
+    seed(TaskManager(sandbox_store(tasks_dir, project_id=PROJECT_ID)))
     break_a_file(tasks_dir)
     return project_root
 

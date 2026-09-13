@@ -371,36 +371,42 @@ class TestSinceGate:
         )
 
         assert check.main(["--since-gate"]) == 0
-        # pytest, because the documentation contract tests read prose, plus the roadmap
-        # stage, which no diff can ever clear. Counted as commands rather than stages, so
-        # the count follows whatever a stage runs.
-        selected = [stage for stage in check.stages() if stage.name in {"pytest", "roadmap"}]
+        # pytest, because the documentation contract tests read prose. Counted as commands
+        # rather than stages, so the count follows whatever the stage runs.
+        selected = [stage for stage in check.stages() if stage.name == "pytest"]
         assert len(commands) == command_count(selected)
         out = capsys.readouterr().out
         assert "NECESSITY RUN" in out
         assert "Ran every stage" not in out
 
-    def test_an_unchanged_tree_runs_only_what_no_diff_can_clear(
+    def test_an_unchanged_tree_runs_nothing_and_claims_nothing(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """It ran nothing at all until a stage read a store outside the checkout.
+        """Every stage reads the tree, so an identical tree is evidence about all of them.
 
-        Everything the other nine stages read is in the tree, so an identical tree is
-        evidence about them. The roadmap page is audited against a database anybody
-        closing a task moves, so it is evidence about nothing, and the run says so rather
-        than printing that it did no work.
+        While the roadmap stage audited a page against the store this ran that stage
+        anyway; task-427 removed it, and with it the only reason to run anything here.
         """
         commands = TestTheUnqualifiedGate.record_runs(monkeypatch)
         monkeypatch.setattr(check.gate_scope, "read_receipt", lambda root: {"commit": "a" * 40})
         monkeypatch.setattr(check.gate_scope, "changed_since", lambda root, commit: [])
 
         assert check.main(["--since-gate"]) == 0
-        roadmap = [stage for stage in check.stages() if stage.name == "roadmap"]
-        assert len(commands) == command_count(roadmap)
-        assert all("export_roadmap.py" in " ".join(command) for command in commands)
+        assert commands == []
         out = capsys.readouterr().out
         assert "NOTHING CHANGED" in out
-        assert "Running roadmap anyway" in out
+        assert "anyway" not in out
+
+    def test_the_gate_has_no_stage_that_reads_the_roadmap(self) -> None:
+        """task-427: a task closing elsewhere must never turn a branch's gate red.
+
+        The roadmap page may run behind the store until the roadmap playbook's next
+        pass. A stage that audited it failed every open branch the moment a rostered
+        task closed, including on the merge of the task that wrote the page.
+        """
+        assert "roadmap" not in [stage.name for stage in check.stages()]
+        commands = [" ".join(argv) for stage in check.stages() for argv in stage.steps]
+        assert not [command for command in commands if "export_roadmap" in command]
 
 
 # --- receipts -----------------------------------------------------------------------
@@ -656,7 +662,7 @@ class TestReporting:
         assert check.main(["--from", "e2e"]) == 0
 
         printed = capsys.readouterr().out
-        assert "PARTIAL RUN: 1 of 11" in printed
+        assert "PARTIAL RUN: 1 of 10" in printed
         assert "pytest" in printed  # named among the stages it skipped
         assert "not the gate" in printed
         assert printed.count("PARTIAL RUN") == 2

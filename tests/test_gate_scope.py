@@ -39,7 +39,6 @@ EVERY = [
     "mypy",
     "api",
     "icons",
-    "roadmap",
     "oxlint",
     "pytest",
     "vitest",
@@ -127,15 +126,10 @@ class TestClassification:
     """What each family of paths can reach, and what happens to a path nobody claimed."""
 
     def test_a_classified_path_reaches_one_stage_and_nothing_else(self) -> None:
-        """The worked example. One prose file, and only the suite that reads it.
-
-        ``roadmap`` is in every answer and is subtracted here rather than asserted
-        against, because it is not something the *path* selected -- see
-        :class:`TestUnboundedStages`.
-        """
+        """The worked example. One prose file, and only the suite that reads it."""
         stages, _ = gate_scope.stages_for([PROSE], EVERY)
 
-        assert [name for name in stages if name not in gate_scope.UNBOUNDED_STAGES] == ["pytest"]
+        assert stages == ["pytest"]
 
     def test_a_task_path_is_no_longer_claimed_by_the_table(self) -> None:
         """task-380's acceptance, asserted rather than left to the absence of a row.
@@ -155,7 +149,7 @@ class TestClassification:
     def test_prose_reaches_pytest_because_the_documentation_contract_reads_it(self) -> None:
         stages, _ = gate_scope.stages_for(["docs/agent-workflow.md", "ENGINEERING.md"], EVERY)
 
-        assert [name for name in stages if name not in gate_scope.UNBOUNDED_STAGES] == ["pytest"]
+        assert stages == ["pytest"]
 
     def test_source_is_unclassified_and_therefore_runs_everything(self) -> None:
         """The default-deny property. An incomplete table costs a minute, not a check."""
@@ -188,39 +182,28 @@ class TestClassification:
         """
         stages, _ = gate_scope.stages_for(["docs/backlog.md"], EVERY)
 
-        assert set(stages) == set(gate_scope.DOCS_STAGES) | set(gate_scope.UNBOUNDED_STAGES)
+        assert stages == list(gate_scope.DOCS_STAGES)
         assert gate_scope.classify("docs/backlog.md").pattern == "docs/*"
 
-    def test_the_roadmap_page_selects_the_stage_that_audits_it(self) -> None:
-        """It is prose, but it is the only prose whose claims a stage checks.
+    def test_the_roadmap_page_is_prose_to_the_gate(self) -> None:
+        """task-427: no stage audits the page, so it is classified like any Markdown.
 
-        Routed to the docs class it would reach main rostering a closed task, which is
-        the one thing the audit exists to stop.
+        It used to have an entry of its own selecting a roadmap stage, which failed
+        every branch whenever a task the page rostered closed anywhere.
         """
         stages, _ = gate_scope.stages_for(["ROADMAP.md"], EVERY)
 
-        assert "roadmap" in stages
-        assert gate_scope.classify("ROADMAP.md").pattern == "ROADMAP.md"
+        assert stages == list(gate_scope.DOCS_STAGES)
+        assert gate_scope.classify("ROADMAP.md").pattern == "*.md"
 
 
 class TestUnboundedStages:
     """Stages a diff cannot clear, because their input is not in the working tree."""
 
-    def test_the_roadmap_stage_is_selected_with_no_paths_at_all(self) -> None:
-        """An unchanged tree is no evidence about a database outside the checkout."""
+    def test_no_stage_reads_outside_the_working_tree(self) -> None:
+        """task-427 removed the only one, so an empty diff selects nothing."""
+        assert gate_scope.UNBOUNDED_STAGES == ()
         stages, _ = gate_scope.stages_for([], EVERY)
-
-        assert stages == ["roadmap"]
-
-    def test_it_is_not_attributed_to_any_path(self) -> None:
-        """The report must not claim a path selected it; nothing did."""
-        _, reasons = gate_scope.stages_for([PROSE], EVERY)
-
-        assert "roadmap" not in reasons[PROSE]
-
-    def test_a_gate_without_that_stage_does_not_gain_one(self) -> None:
-        """``--only`` narrows the names; an unbounded stage cannot smuggle itself back."""
-        stages, _ = gate_scope.stages_for([], ["black", "pytest"])
 
         assert stages == []
 
@@ -337,21 +320,15 @@ class TestResolve:
 
         scope = gate_scope.resolve(repository, EVERY)
 
-        assert scope.stages == ["roadmap", "pytest"]
+        assert scope.stages == ["pytest"]
 
-    def test_an_unchanged_tree_selects_only_the_unbounded_stages(self, repository: Path) -> None:
-        """It used to select nothing, and that was a hole once a stage read the store.
-
-        The tree being identical to the verified commit says everything about the code
-        and nothing about a database outside the checkout, which anybody filing a task
-        moves. A receipt issued on that basis would attest to a roadmap that had gone
-        stale without a single file changing.
-        """
+    def test_an_unchanged_tree_selects_nothing(self, repository: Path) -> None:
+        """Every stage reads the tree, so an identical tree is evidence about all of them."""
         gate_scope.write_receipt(repository, gate_scope.head_commit(repository), basis=None)
 
         scope = gate_scope.resolve(repository, EVERY)
 
-        assert scope.reduced and scope.stages == ["roadmap"] and scope.paths == []
+        assert scope.reduced and scope.stages == [] and scope.paths == []
 
     def test_a_receipt_for_a_commit_git_has_never_heard_of_narrows_nothing(
         self, repository: Path
@@ -411,16 +388,16 @@ class TestRendering:
         assert "NOTHING CHANGED" in text
         assert "Ran every stage" not in text
 
-    def test_an_unchanged_tree_says_which_stage_it_is_running_anyway(
+    def test_an_unchanged_tree_says_nothing_changed_and_runs_nothing(
         self, repository: Path
     ) -> None:
-        """A run that executes a stage must not print that it executed nothing."""
+        """With no stage reading outside the tree there is nothing to run anyway."""
         gate_scope.write_receipt(repository, gate_scope.head_commit(repository), basis=None)
 
         text = gate_scope.render(gate_scope.resolve(repository, EVERY), EVERY)
 
-        assert "Running roadmap anyway" in text
-        assert "outside this checkout" in text
+        assert "NOTHING CHANGED" in text
+        assert "anyway" not in text
 
     def test_a_refusal_says_it_is_running_everything(self, repository: Path) -> None:
         text = gate_scope.render(gate_scope.resolve(repository, EVERY), EVERY)

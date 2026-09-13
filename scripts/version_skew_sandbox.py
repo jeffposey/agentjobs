@@ -210,7 +210,7 @@ def main() -> None:
         yaml.safe_dump(build_project_config(project_name=name, user="Jeff Posey"), sort_keys=False),
         encoding="utf-8",
     )
-    seed(TaskManager(sandbox_store(project_root / "tasks")))
+    seed(TaskManager(sandbox_store(project_root / "tasks", project_id=PROJECT_ID)))
     ProjectRegistry(home).add(project_root, project_id=PROJECT_ID, name=name)
 
     import uvicorn

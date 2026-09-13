@@ -57,32 +57,20 @@ DOCS_STAGES = ("pytest",)
 docs edit can fail the suite. Nothing else reads them.
 """
 
-ROADMAP_STAGES = ("roadmap", "pytest")
-"""What editing the roadmap page can move.
-
-``ROADMAP.md`` is hand-written, and the roadmap stage audits what it rosters against the
-store, so an edit to it is the one change that can turn that audit red. ``pytest`` on the
-same terms as any other prose. ``docs/backlog.md`` is not here: no stage compares it with
-the store, so it is prose to the gate.
-"""
-
-UNBOUNDED_STAGES: Tuple[str, ...] = ("roadmap",)
+UNBOUNDED_STAGES: Tuple[str, ...] = ()
 """Stages whose input is not in the working tree at all, so a diff cannot clear them.
 
-Every other stage reads files a diff can be taken over, which is what lets a path that
-changed nothing they read stand as evidence they need not run. The roadmap page is
-audited against a database **outside every checkout**, and that database moves whenever
-anybody anywhere closes a task. An unchanged tree is therefore no evidence at all about
-it -- ``NOTHING CHANGED`` would otherwise issue a receipt attesting to a page that had
-started rostering a closed task since breakfast.
+Every stage in the gate reads files a diff can be taken over, which is what lets a path
+that changed nothing they read stand as evidence they need not run. A stage that read a
+database **outside every checkout** would be different: an unchanged tree is no evidence
+about it, so it would belong here and ``--since-gate`` would run it on every pass.
 
-There used to be a second answer to the same problem, and it worked only because the
-corpus was in the tree: ``tasks/ -> pytest`` let a record correction select the one stage
-that read it. Since task-380 no corpus is in any checkout, so no path can carry such a
-change and naming a stage is the only mechanism left. Whether ``pytest`` should be named
-here for the same reason as ``roadmap`` -- its corpus checks read the same store -- is a
-question this deliberately did not settle; it costs the expensive stage on every reduced
-run, and task-409 weighs that.
+Empty since task-427. The only such stage was ``roadmap``, which audited ``ROADMAP.md``
+against the store and turned every open branch red whenever a task the page rostered
+closed anywhere -- including the task that merged the page. The owner had it removed:
+the page may run behind the store until the ``roadmap`` playbook's next pass, and
+``export_roadmap.py --audit`` stays as a command that pass runs. Whether ``pytest``
+belongs here -- its corpus checks read the same store -- is task-409's question.
 """
 
 
@@ -96,17 +84,15 @@ class Class:
 
 
 CLASSES: Tuple[Class, ...] = (
-    Class("ROADMAP.md", ROADMAP_STAGES, "the roadmap page; the roadmap stage audits it"),
     Class("docs/*", DOCS_STAGES, "prose; the documentation contract tests read it"),
     Class("*.md", DOCS_STAGES, "prose; the documentation contract tests read it"),
 )
 """Deliberately short, and ordered: the first pattern that matches wins.
 
-The roadmap entry sits above the prose patterns that would otherwise swallow it.
-``ROADMAP.md`` genuinely is prose, but it is the only prose in the repository whose
-claims the roadmap stage checks against a store. ``docs/backlog.md`` falls through to
-``docs/*``: it is generated, but no stage checks it against the store any more, because
-failing every branch whenever any task changed was a cost nobody had agreed to pay.
+``ROADMAP.md`` and ``docs/backlog.md`` are prose to the gate like any other Markdown: no
+stage checks either against the store, because failing every branch whenever a task
+changed anywhere was a cost the owner declined (task-413 for the listing, task-427 for
+the page).
 
 Every candidate entry beyond these was measured against what it would save and dropped.
 ``frontend/*`` would spare Black, Ruff and MyPy -- 2.1 seconds. ``assets/*`` would spare

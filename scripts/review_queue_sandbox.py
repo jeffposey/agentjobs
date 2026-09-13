@@ -150,18 +150,17 @@ def seed(manager, *, corrupt: bool, human_rungs: bool, filler: int = 0) -> None:
     manager.claim_task("task-002", agent="claude")
 
     if corrupt:
-        # By hand, exactly as a bad merge or a stray editor would do it. Every verb in
-        # the system refuses to produce this state, which is the point.
-        #
-        # Only `critical` is broken, so the sandbox shows both halves of the scoping at
-        # once: the critical band loses its reorder grips and the dashboard refuses to
-        # name a next task, while high, medium and low stay fully reorderable.
-        tasks_dir = Path(manager.storage.tasks_dir)
-        stolen = yaml.safe_load((tasks_dir / "task-001.yaml").read_text(encoding="utf-8"))
-        victim_path = tasks_dir / "task-002.yaml"
-        victim = yaml.safe_load(victim_path.read_text(encoding="utf-8"))
-        victim["queue_position"] = stolen["queue_position"]
-        victim_path.write_text(yaml.safe_dump(victim, sort_keys=False), encoding="utf-8")
+        # This used to give task-002 task-001's queue_position by editing its YAML, so
+        # the critical band lost its reorder grips while the others stayed reorderable.
+        # Under SQLite that state is unrepresentable -- the queue slot is a unique index,
+        # and a missing or non-positive position fails a CHECK -- and the attempt raised
+        # before the server started (task-427). The project is served healthy instead,
+        # and says so, rather than taking the whole sandbox down with it.
+        print(
+            "[review] note: a broken queue cannot be seeded under SQLite storage; "
+            "this project's queue is healthy.",
+            flush=True,
+        )
 
 
 # The trace panel. The script itself is `review_drag_trace.js` beside this file --
@@ -288,7 +287,7 @@ def build(
         yaml.safe_dump(build_project_config(project_name=name, user="Jeff Posey"), sort_keys=False),
         encoding="utf-8",
     )
-    manager = TaskManager(sandbox_store(project_root / "tasks"))
+    manager = TaskManager(sandbox_store(project_root / "tasks", project_id=project_id))
     if warned:
         seed_warned(manager)
     else:
