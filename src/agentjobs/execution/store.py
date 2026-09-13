@@ -374,6 +374,7 @@ class Execution:
     last_sequence: int
     snapshot: Optional[Dict[str, Any]]
     snapshot_sequence: Optional[int]
+    created_at: str = ""
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Execution":
@@ -396,6 +397,7 @@ class Execution:
             last_sequence=int(row["last_sequence"]),
             snapshot=_loads(row["snapshot_json"], None),
             snapshot_sequence=row["snapshot_sequence"],
+            created_at=row["created_at"],
         )
 
 
@@ -586,6 +588,14 @@ def classify(exc: sqlite3.Error) -> ExecutionStoreError:
             f"the execution journal could not be written ({exc}); nothing was committed"
         )
     return ExecutionStoreError(f"execution journal error ({exc}); nothing was committed")
+
+
+def _event_moment(text: str) -> datetime:
+    """A feed timestamp as an aware moment; an unreadable one sorts as the newest."""
+    try:
+        return _utc(datetime.fromisoformat(text.replace("Z", "+00:00")))
+    except ValueError:
+        return datetime.max.replace(tzinfo=timezone.utc)
 
 
 def _utc(moment: Optional[datetime]) -> datetime:
@@ -1756,12 +1766,23 @@ class ExecutionStore:
         with self.transaction("cursor-reset") as connection:
             connection.execute("DELETE FROM source_cursor WHERE source = ?", (source,))
 
-    def import_source_events(self, source: str, events: Sequence[SourceEvent]) -> int:
+    def import_source_events(
+        self,
+        source: str,
+        events: Sequence[SourceEvent],
+        *,
+        not_before: Optional[datetime] = None,
+    ) -> int:
         """Insert a batch into the inbox and advance the cursor, in one transaction.
 
         The cursor moves only here, and only together with the rows it moved past, so a
         crash between reading the feed and this commit re-reads the same batch next time
         and a crash after it has nothing left to lose. Returns how many were new.
+
+        ``not_before`` skips entries older than a moment while still moving the cursor
+        past them: history from before any execution this journal holds is owed to
+        nobody, and copying a project's whole log into the inbox on first contact would
+        be volume without a reader.
         """
         if not events:
             return 0
@@ -1770,6 +1791,8 @@ class ExecutionStore:
         with self.transaction("import") as connection:
             now = _iso(self.now())
             for event in ordered:
+                if not_before is not None and _event_moment(event.ts) < not_before:
+                    continue
                 payload = {
                     "entry_id": event.entry_id,
                     "type": event.type,

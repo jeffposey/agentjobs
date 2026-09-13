@@ -554,3 +554,47 @@ class TestLegacyMigration:
         with pytest.raises(OwnerModeConflict):
             store.claim_controller(live.execution_id, owner_mode=OWNER_DURABLE)
         assert store.attempt("run_live").is_live
+
+
+# ----- the shadow controller ----------------------------------------------------------
+
+
+class TestTheShadowTick:
+    def test_it_imports_signals_for_open_executions_and_performs_nothing(self, sandbox) -> None:
+        home, _, manager, _ = sandbox
+        old_task = _dispatched_task(manager)  # history from before any execution
+        run_id, task_id = start_admitted_session(sandbox)
+        manager.handoff(
+            task_id,
+            actor="Jeff Posey",
+            ball=Ball.AGENT,
+            ball_reason=BallReason.REVISE,
+            ball_prompt="Once more.",
+        )
+
+        report = journal.shadow_tick(home, lambda project: manager)
+
+        assert report.errors == ()
+        store = journal.journal(home)
+        pending = store.inbox(status="pending")
+        assert task_id in {item.task_id for item in pending}
+        execution = store.open_execution("sandbox", task_id)
+        kinds = [event.kind for event in store.events(execution.execution_id)]
+        assert "signal" in kinds and "launched" in kinds
+        assert all(activity.shadow for activity in store.activities())
+        assert store.attempt(run_id).is_live, "a shadow pass concludes nothing"
+        again = journal.shadow_tick(home, lambda project: manager)
+        assert again.imported == 0 and again.advanced == ()
+        assert old_task  # created before, and not a reason to fail the import
+
+    def test_history_older_than_every_open_execution_is_passed_over(self, sandbox) -> None:
+        from datetime import datetime, timedelta, timezone
+
+        home, _, manager, _ = sandbox
+        run_id, task_id = start_admitted_session(sandbox)
+        store = journal.journal(home)
+        feed = journal.task_feed(manager)
+        future = datetime.now(timezone.utc) + timedelta(days=1)
+        assert import_source_events(store, "sandbox", feed, not_before=future) == 0
+        assert store.inbox() == []
+        assert store.cursor("task-log:sandbox").position > 0, "the cursor still moved past it"

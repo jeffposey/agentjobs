@@ -11,6 +11,7 @@ tests drive the real functions against a real journal and a real task store.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Callable, List, Mapping, Optional, Sequence, Tuple
 
 from agentjobs.execution.errors import ExecutionStoreError, HistoryIncompatible
@@ -162,6 +163,7 @@ def import_source_events(
     *,
     limit: int = 200,
     max_batches: int = 50,
+    not_before: Optional[datetime] = None,
 ) -> int:
     """Import every unconsumed task-log entry into the inbox. Returns how many were new.
 
@@ -185,7 +187,7 @@ def import_source_events(
         batch = list(feed(position, limit))
         if not batch:
             break
-        total += store.import_source_events(source, batch)
+        total += store.import_source_events(source, batch, not_before=not_before)
         position = max(event.position for event in batch)
         if len(batch) < limit:
             break

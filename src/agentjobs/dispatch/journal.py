@@ -593,8 +593,21 @@ def shadow_tick(
         manager = resolve_manager(project_id)
         if manager is None or not hasattr(manager, "source_events"):
             continue
+        # Nothing before this project's oldest open execution is owed to anyone. The
+        # margin covers the authorising entry a dispatch writes just after admission and
+        # any clock skew between the two stores' timestamps.
+        oldest = min(
+            datetime.fromisoformat(execution.created_at)
+            for execution in open_executions
+            if execution.project_id == project_id
+        )
         try:
-            imported += import_source_events(store, project_id, task_feed(manager))
+            imported += import_source_events(
+                store,
+                project_id,
+                task_feed(manager),
+                not_before=oldest - timedelta(minutes=5),
+            )
         except Exception as exc:  # noqa: BLE001 - reported, and the next tick retries
             errors.append(f"{project_id}: feed import failed: {exc}")
     for execution in open_executions:
