@@ -4093,6 +4093,32 @@ leaves a dead pid holding the lock, and lets the resume conclude the rest.
 is stranded, and `agentjobs branches` reports the litter. An epic walk that retries a child
 while that child's resumed finish holds the lock is refused `locked` like any other dispatch.
 
+### What task-444 built (2026-09-13)
+
+On 2026-09-13 two walks of task-414 ran at once. The first had started before task-416's
+durable supervision merged, so the second found no walk on record to refuse it. When the
+first then met a child the second had launched, it recorded the child as dead and grounded
+the epic. From this build:
+
+| Fact | Where it is decided |
+| --- | --- |
+| One live walk per epic | `ExecutionStore.open_walk` refuses while the walk's recorded holder pid is alive. The refusal names the pid, the walk id, and when the walk opened and last wrote. `agentjobs dispatch walk` exits 2 on it, and `record_walk_outcome` writes nothing for `already_supervised`, so the refused walk cannot hand the parent to a human while the live walk is running |
+| A child refused `live_run_exists` | Recorded as contended, never as dead. Its reservation is refunded. On the next tick, `epic.contention` reads the child's log: a `dispatch` entry for the live run, caused by a note carrying this epic's marker, is **ours**, and the walk adopts and watches it. A closed child is judged the same way from its newest dispatch, so the other run's verdict still lands. Only a run dispatched on another authorisation grounds at once |
+| How long an unattributed holder is waited on | `CONTENTION_GRACE_SECONDS` (5 minutes) from the first refusal, kept even if the holder lets go and grabs the child again. After that, the walk grounds `could_not_start_child` as before |
+| When a lock names its run | As soon as the journal admits the run, before the claim and the spawn, not after the launch. A dispatch refused during the spawn is told the run id |
+| Walk output | Every event line from `agentjobs dispatch walk` starts with a UTC timestamp (`epic.utc_stamp`) |
+
+**Proof.** `tests/test_epic_supervision.py::TestTwoWalkersOfOneEpic` holds a live walk in a
+separate interpreter and runs a second walk against it. The second refuses, launches
+nothing and writes nothing. Another test races a real dispatch from a second interpreter
+against the walk's own. The walk adopts that run whether it is still flying or already
+closed, and grounds when the run belongs to a different authorisation.
+
+**Not built here.** A walk still running code from before task-416 writes no supervision
+row, so it cannot be refused. The adoption above is what keeps it from grounding the epic.
+The underlying cause, a supervisor watcher that `TaskStop` left running, is a harness
+problem and is not fixed here.
+
 ### Implementation ownership and order
 
 The task records carry the full specifications and remain the source of queue order.

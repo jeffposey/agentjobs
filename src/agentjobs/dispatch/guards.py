@@ -1178,6 +1178,12 @@ def dispatch_task(
         lock.release()
         raise AlreadyAdmittedError(attempt)
     runner.execution_id = attempt.execution_id
+    # Named the moment the journal holds it rather than after the spawn (task-444). The
+    # spawn takes seconds, and a second dispatch refused inside that window was told the
+    # lock "has not named its run yet" -- true of the file, false of the machine -- so an
+    # epic walk meeting it could not tell a sibling's live child from nothing. The run is
+    # admitted, so the stale-lock rule reads the journal for it exactly as it will later.
+    lock.adopt(run_id)
 
     try:
         if authorizer is not None:
@@ -1244,12 +1250,12 @@ def dispatch_task(
         lock.release()
         raise
 
-    # Only now does a run id exist to write into the lock. Until this line the lock says
-    # `run=` empty, and a lock that names no run can only be judged by the pid that took
-    # it -- which is the weaker of the two rules in `stale_lock_reason` and the one that
-    # cannot answer "has this run ended?". Naming it is what makes the lock reclaimable
-    # against the ledger, and therefore what stops a leaked one being permanent
-    # (task-190).
+    # Named again from the handle, which is the run that actually launched. Before the
+    # admission above the lock says `run=` empty, and a lock that names no run can only be
+    # judged by the pid that took it -- the weaker of the two rules in `stale_lock_reason`
+    # and the one that cannot answer "has this run ended?". Naming it is what makes the
+    # lock reclaimable against the ledger, and therefore what stops a leaked one being
+    # permanent (task-190).
     lock.adopt(handle.run_id)
     handle.lock = lock
     return handle
