@@ -73,6 +73,62 @@ epic.walk_epic(
 """
 
 
+SIBLING_DISPATCH = r"""
+import pathlib, sys
+sys.path.insert(0, sys.argv[4])
+from support import task_store
+from agentjobs.manager import TaskManager
+from agentjobs.models_v2 import DispatchTrigger
+from agentjobs.projects import ProjectRegistry
+from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
+
+home, child_id, epic = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3] == "epic"
+project = ProjectRegistry(home=home).get("sandbox")
+manager = TaskManager(task_store(project.root / "tasks", project_id="sandbox"))
+if epic:
+    request = DispatchRequest(
+        task_id=child_id, trigger=DispatchTrigger.CHILD, on_behalf_of_parent=True
+    )
+else:
+    request = DispatchRequest(
+        task_id=child_id, authorized_by="Jeff Posey", authorization_note="Mine."
+    )
+handle = dispatch_task(
+    manager=manager, project=project, project_config=project.load_config(),
+    request=request, home=home, api_base="http://127.0.0.1:9",
+)
+print(handle.run_id)
+"""
+
+LIVE_WALKER = r"""
+import os, pathlib, sys, time
+sys.path.insert(0, sys.argv[4])
+from support import task_store
+from agentjobs.manager import TaskManager
+from agentjobs.projects import ProjectRegistry
+from agentjobs.dispatch import epic
+
+home, parent_id, signals = pathlib.Path(sys.argv[1]), sys.argv[2], pathlib.Path(sys.argv[3])
+project = ProjectRegistry(home=home).get("sandbox")
+manager = TaskManager(task_store(project.root / "tasks", project_id="sandbox"))
+
+def sleep(_seconds):
+    (signals / "walking").write_text(str(os.getpid()))
+    deadline = time.monotonic() + 120
+    while not (signals / "go").exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    sys.stdout.flush()
+    os._exit(0)
+
+epic.walk_epic(
+    manager=manager, project=project, project_config=project.load_config(),
+    parent_id=parent_id, home=home, api_base="http://127.0.0.1:9",
+    settings=epic.WalkSettings(poll_seconds=0.0, child_timeout_seconds=600.0, max_concurrent=1),
+    sleep=sleep,
+)
+"""
+
+
 class Died(BaseException):
     """Escapes the walk the way a death would: nothing in the loop catches it."""
 
@@ -121,6 +177,7 @@ class Epic:
         on_sleep: Callable[[int], None] = lambda _tick: None,
         max_concurrent: int = 1,
         once: bool = False,
+        dispatch: Optional[Callable[..., Any]] = None,
     ):
         ticks = {"n": 0}
 
@@ -144,6 +201,7 @@ class Epic:
             read_run_status=self.status_of,
             sleep=sleep,
             once=once,
+            dispatch=dispatch,
         )
 
     def complete_active(self) -> None:
@@ -461,3 +519,140 @@ def test_a_walk_with_no_record_adopts_children_already_flying_then_starts_what_w
     assert walk.epic_attempts(first) == 1
     assert len(walk.sessions_named(second)) == 1
     assert [a.child_id for a in result.attempts] == [first, second]
+
+
+# ----- task-444: two walkers of one epic ---------------------------------------------
+
+
+class TestTwoWalkersOfOneEpic:
+    """On 2026-09-13 a second walk of one epic ran beside the first, and the first counted
+    the second's healthy child dead and grounded the epic on it."""
+
+    def sibling(self, walk: Epic, child_id: str, *, epic_authority: bool) -> str:
+        """Dispatch ``child_id`` from another interpreter, as a second walk would."""
+        done = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                SIBLING_DISPATCH,
+                str(walk.machine.home),
+                child_id,
+                "epic" if epic_authority else "own",
+                str(TESTS),
+            ],
+            capture_output=True,
+            text=True,
+            env=environment(walk.machine.home),
+            timeout=180,
+        )
+        assert done.returncode == 0, done.stderr
+        return done.stdout.strip().splitlines()[-1]
+
+    def racing(self, walk: Epic, child_id: str, *, epic_authority: bool) -> Callable[..., Any]:
+        """The walk's own dispatch, beaten to ``child_id`` by another process's."""
+        sibling_runs: List[str] = []
+
+        def dispatch(**kwargs: Any) -> Any:
+            if kwargs["request"].task_id == child_id and not sibling_runs:
+                # The frontier was read before the other process claimed the child, which
+                # is exactly the window the double walk was refused in.
+                sibling_runs.append(self.sibling(walk, child_id, epic_authority=epic_authority))
+            from agentjobs.dispatch.guards import dispatch_task
+
+            return dispatch_task(**kwargs)
+
+        dispatch.sibling_runs = sibling_runs  # type: ignore[attr-defined]
+        return dispatch
+
+    @pytest.mark.parametrize("lands_on_tick", [2, 1], ids=["while-flying", "already-closed"])
+    def test_a_childs_run_started_by_another_process_on_this_authorisation_is_adopted(
+        self, walk: Epic, lands_on_tick: int
+    ) -> None:
+        first = walk.child("First")
+        second = walk.child("Second")
+        dispatch = self.racing(walk, first, epic_authority=True)
+
+        def on_sleep(tick: int) -> None:
+            # Tick 1 closes the child before the walk has looked at the refusal again:
+            # the other run finished first, and its verdict must still land here.
+            if tick >= lands_on_tick:
+                walk.complete_active()
+
+        result = walk.walk(on_sleep=on_sleep, dispatch=dispatch)
+        [sibling_run] = dispatch.sibling_runs  # type: ignore[attr-defined]
+        assert result is not None and result.stop is WalkStop.ALL_CHILDREN_DONE, result.detail
+        assert len(walk.sessions_named(first)) == 1, "followed, never started a second time"
+        assert walk.epic_attempts(first) == 1, "the refused attempt spent nothing"
+        landed = {a.child_id: a for a in result.attempts}
+        assert landed[first].run_id == sibling_run
+        assert landed[first].verdict.value == "completed"
+        assert all(a.verdict.value == "completed" for a in result.attempts)
+        assert len(walk.sessions_named(second)) == 1
+        parent = walk.machine.manager.get_task(walk.parent_id)
+        assert parent is not None and parent.ball is not Ball.HUMAN
+
+    def test_a_childs_run_on_somebody_elses_authorisation_still_grounds(self, walk: Epic) -> None:
+        only = walk.child("First")
+        walk.machine.manager.add_log_entry(
+            only, actor="Jeff Posey", type=LogEntryType.NOTE, body="I will run this one."
+        )
+        dispatch = self.racing(walk, only, epic_authority=False)
+        result = walk.walk(on_sleep=lambda _tick: None, dispatch=dispatch)
+        [sibling_run] = dispatch.sibling_runs  # type: ignore[attr-defined]
+        assert result is not None and result.stop is WalkStop.COULD_NOT_START_CHILD
+        assert sibling_run in result.detail and "not dispatched on this epic" in result.detail
+        assert walk.epic_attempts(only) == 0
+        assert len(walk.sessions_named(only)) == 1
+
+    def test_a_second_walk_of_a_live_walk_refuses_and_only_one_fill_loop_acts(
+        self, walk: Epic, tmp_path: Path
+    ) -> None:
+        first = walk.child("First")
+        second = walk.child("Second")
+        signals = tmp_path / "signals"
+        signals.mkdir()
+        walker = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                LIVE_WALKER,
+                str(walk.machine.home),
+                walk.parent_id,
+                str(signals),
+                str(TESTS),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=environment(walk.machine.home),
+        )
+        try:
+            deadline = time.monotonic() + 120
+            while not (signals / "walking").exists():
+                assert walker.poll() is None, walker.communicate()
+                assert time.monotonic() < deadline, "the first walk never took off"
+                time.sleep(0.05)
+            before = walk.machine.rows()
+            parent_before = walk.machine.manager.get_task(walk.parent_id)
+            assert parent_before is not None
+
+            result = walk.walk()
+
+            assert result is not None and result.stop is WalkStop.ALREADY_SUPERVISED
+            # The interpreter's own pid, which on Windows is not the launcher Popen names.
+            walker_pid = (signals / "walking").read_text()
+            assert f"pid {walker_pid} " in result.detail and "opened " in result.detail
+            assert walk.machine.rows() == before, "the second walk launched nothing"
+            assert len(walk.sessions_named(first)) == 1 and walk.sessions_named(second) == []
+
+            epic.record_walk_outcome(
+                walk.machine.manager, walk.parent_id, actor="claude", result=result
+            )
+            walk.machine.manager.storage.refresh()
+            parent_after = walk.machine.manager.get_task(walk.parent_id)
+            assert parent_after is not None
+            assert parent_after.ball is parent_before.ball, "the refused walk handed nothing"
+            assert len(parent_after.log) == len(parent_before.log), "and wrote nothing"
+        finally:
+            (signals / "go").write_text("")
+            walker.communicate(timeout=120)

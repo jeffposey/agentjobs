@@ -2991,9 +2991,14 @@ class ExecutionStore:
                     and current.host == "process"
                     and holder_alive(int(current.holder_pid))
                 ):
+                    # Named by pid and time, because the reader of this is deciding which
+                    # of two processes to stop (task-444): a walker they believed was gone
+                    # is the usual cause, and a pid is what finds it.
                     raise OwnershipConflict(
-                        f"{project_id}/{parent_task_id} is already being walked by "
-                        f"{current.holder} (walk {current.walk_id}); one supervisor per epic"
+                        f"{project_id}/{parent_task_id} is already being walked by pid "
+                        f"{current.holder_pid} ({current.holder}), walk {current.walk_id} "
+                        f"opened {row['created_at']} and last recorded {row['updated_at']}; "
+                        "one supervisor per epic, so this walk started nothing"
                     )
                 if current.authority_entry == int(authority_entry):
                     connection.execute(

@@ -58,6 +58,7 @@ from agentjobs.dispatch.guards import (
     BudgetCapError,
     ConflictingAuthorizationError,
     DispatchRequest,
+    LiveRunExistsError,
     dispatch_task,
 )
 from agentjobs.manager import TaskManager
@@ -628,6 +629,61 @@ class TestWalkStops:
         assert [a.verdict for a in result.attempts] == [ChildVerdict.DIED, ChildVerdict.DIED]
         # The sibling was never touched. That is the property, not the count above.
         assert second not in dispatcher.started
+
+    def test_a_child_held_by_an_unattributable_dispatch_is_neither_dead_nor_waited_on_forever(
+        self, manager: TaskManager, project: Project, tmp_path: Path, monkeypatch
+    ) -> None:
+        """task-444: `live_run_exists` is not a death, and the wait on it is bounded.
+
+        Nothing in this machine home is live, so the holder never becomes attributable --
+        the case the grace exists for. Meanwhile the sibling the refusal says nothing
+        about is started and lands.
+        """
+        from agentjobs.dispatch import epic as epic_module
+
+        monkeypatch.setattr(epic_module, "CONTENTION_GRACE_SECONDS", 5.0)
+        parent_id = make_parent(manager)
+        held = make_child(manager, parent_id, "Held")
+        free = make_child(manager, parent_id, "Free")
+
+        class Refusing(Dispatcher):
+            def __call__(self, **kwargs):
+                if kwargs["request"].task_id == held:
+                    self.started.append(held)
+                    raise LiveRunExistsError(f"{held} is held by run run_elsewhere")
+                return super().__call__(**kwargs)
+
+        dispatcher = Refusing(manager)
+        clock = {"now": 0.0}
+
+        def tick(_seconds: float) -> None:
+            clock["now"] += 1.0
+            task = manager.get_task(free)
+            if task is not None and task.lifecycle is Lifecycle.ACTIVE:
+                manager.close_task(free, actor="claude", outcome=Outcome.COMPLETED)
+            assert clock["now"] < 100, "the wait on a held child was not bounded"
+
+        events: List[str] = []
+        result = walk_epic(
+            manager=manager,
+            project=project,
+            project_config=PROJECT_CONFIG,
+            parent_id=parent_id,
+            home=tmp_path / "machine",
+            durable=False,
+            settings=WalkSettings(poll_seconds=0.0, child_timeout_seconds=1000.0),
+            dispatch=dispatcher,
+            read_run_status=lambda _run: None,
+            sleep=tick,
+            now=lambda: clock["now"],
+            on_event=events.append,
+        )
+        assert result.stop is WalkStop.COULD_NOT_START_CHILD
+        assert "without its record saying whose authorisation" in result.detail
+        assert ChildVerdict.DIED not in [a.verdict for a in result.attempts]
+        assert [a.child_id for a in result.attempts] == [free]
+        assert dispatcher.started.count(held) >= 2, "a holder that let go was tried again"
+        assert any("already held by another dispatch" in line for line in events)
 
     def test_a_child_that_never_settles_times_out_rather_than_waiting_for_morning(
         self, manager: TaskManager, project: Project

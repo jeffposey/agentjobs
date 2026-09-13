@@ -1619,11 +1619,13 @@ def dispatch_walk(
     """
     from agentjobs.dispatch.epic import (
         WalkSettings,
+        WalkStop,
         EpicError,
         describe_settings,
         frontier,
         inherited_posture,
         open_children,
+        utc_stamp,
         walk_epic,
     )
 
@@ -1742,7 +1744,7 @@ def dispatch_walk(
             home=home,
             settings=settings,
             posture=chosen_posture,
-            on_event=lambda message: typer.echo(f"  {message}"),
+            on_event=lambda message: typer.echo(f"  {utc_stamp()} {message}"),
         )
     except EpicError as exc:
         typer.secho(f"Refused ({exc.reason}): {exc}", fg=typer.colors.RED)
@@ -1752,6 +1754,14 @@ def dispatch_walk(
             f"Refused ({getattr(exc, 'reason', 'dispatch_failed')}): {exc}", fg=typer.colors.RED
         )
         raise typer.Exit(code=2) from exc
+
+    if result.stop is WalkStop.ALREADY_SUPERVISED:
+        # A refusal like the two above, not a walk that stopped: the live walker owns the
+        # parent's record, so nothing is written to it (task-444).
+        typer.secho(
+            f"{utc_stamp()} Refused ({result.stop.value}): {result.detail}", fg=typer.colors.RED
+        )
+        raise typer.Exit(code=2)
 
     # Written whichever way it ended, and written before anything is printed: if this
     # process dies in the next second the record still says what the walk did.

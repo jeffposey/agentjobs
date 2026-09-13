@@ -380,6 +380,99 @@ def count_attempts(child: Task, *, parent_id: str, entry_id: int) -> int:
     return total
 
 
+class Contention(Enum):
+    """What a walk refused ``live_run_exists`` on a child can see of the run in its way."""
+
+    OURS = "ours"
+    """A live run the child's log says was dispatched on this epic's authorisation."""
+    FOREIGN = "foreign"
+    """A live run the child's log says was dispatched on something else."""
+    PENDING = "pending"
+    """Something holds the child and the record does not yet say what: a dispatch between
+    its lock and its dispatch entry, which is seconds wide and says nothing either way."""
+    CLEAR = "clear"
+    """Nothing is live on the child any more."""
+
+
+def _dispatched_on_this_epic(
+    child: Task, run_id: str, *, parent_id: str, entry_id: int
+) -> Optional[bool]:
+    """Whether the child's log dispatched ``run_id`` on this epic's authorisation.
+
+    ``None`` when no ``dispatch`` entry names the run yet -- a spawn still in progress.
+    """
+    by_id = {entry.id: entry for entry in child.log}
+    for entry in child.log:
+        data = entry.data if isinstance(entry.data, dict) else {}
+        if entry.type is not LogEntryType.DISPATCH or data.get("run_id") != run_id:
+            continue
+        caused_by = data.get("caused_by")
+        cause = by_id.get(caused_by) if isinstance(caused_by, int) else None
+        marker = (cause.data or {}).get(EPIC_DATA_KEY) if cause is not None else None
+        return (
+            isinstance(marker, dict)
+            and marker.get("parent") == parent_id
+            and marker.get("entry") == entry_id
+        )
+    return None
+
+
+def contention(
+    child: Task,
+    *,
+    home: Path,
+    project_id: str,
+    parent_id: str,
+    entry_id: int,
+    known_runs: Sequence[str] = (),
+) -> Tuple[Contention, Optional[str]]:
+    """Whose run a child's ``live_run_exists`` refusal was about, and its id when known.
+
+    Decided by the child's own log, not by which process launched the run (task-444): the
+    authorisation is the fact that makes a run this epic's, and a sibling walk, a restarted
+    one or a person at a shell dispatching on the same entry all leave the same trail -- a
+    ``dispatch`` entry naming the run, caused by a note carrying this epic's marker.
+
+    A child that has already **closed** is asked the same question of its log alone: the
+    run that closed it may be over by now, and its verdict is still this epic's to land.
+    ``known_runs`` are runs this walk has already landed, so an old attempt of its own is
+    never mistaken for the one in its way.
+    """
+    from agentjobs.dispatch.journal import effective_live
+    from agentjobs.dispatch.ledger import live_runs
+
+    known = set(known_runs)
+    if not child.is_open:
+        for entry in reversed(child.log):
+            data = entry.data if isinstance(entry.data, dict) else {}
+            run_id = data.get("run_id")
+            if entry.type is not LogEntryType.DISPATCH or not isinstance(run_id, str):
+                continue
+            if run_id in known:
+                break
+            if _dispatched_on_this_epic(child, run_id, parent_id=parent_id, entry_id=entry_id):
+                return Contention.OURS, run_id
+            break
+        return Contention.CLEAR, None
+
+    runs = [
+        run
+        for run in effective_live(home, live_runs(home))
+        if run.task_id == child.id and run.project_id in (project_id, "")
+    ]
+    if not runs:
+        return Contention.CLEAR, None
+    for run in reversed(runs):
+        verdict = _dispatched_on_this_epic(
+            child, run.run_id, parent_id=parent_id, entry_id=entry_id
+        )
+        if verdict is True:
+            return Contention.OURS, run.run_id
+        if verdict is False:
+            return Contention.FOREIGN, run.run_id
+    return Contention.PENDING, runs[-1].run_id
+
+
 def resolve_epic_authorization(
     manager: TaskManagerLike,
     project_config: Dict[str, object],
@@ -677,6 +770,14 @@ its run settled at 18:01:46 -- and a child started into that gap is refused by t
 ceiling. Bounded, because a run that never settles is a poller problem and must not park
 the walk; after this the walk tries and treats a refusal as backpressure, as before."""
 
+CONTENTION_GRACE_SECONDS = 300.0
+"""How long a child refused ``live_run_exists`` may stay unattributable before it grounds.
+
+Somebody else's dispatch of the child is between its lock and the dispatch entry that
+names its run -- a spawn, seconds to a minute. Longer than that with no record saying
+whose run it is means nothing is going to say, and the walk stops as it always did rather
+than waiting on a holder it cannot identify (task-444)."""
+
 
 def _revision(manager: TaskManagerLike, task_id: str) -> Optional[str]:
     task = manager.get_task(task_id)
@@ -932,6 +1033,16 @@ class _Supervision:
             deadline_at=self.wall() + timedelta(seconds=self.timeout),
         )
 
+    def adopt(self, child_id: str, run_id: str) -> None:
+        """Follow a child another dispatch started on this authorisation (task-444).
+
+        The walk reserved and refunded an attempt for it on the way to being refused, so
+        the child already has a row; recording it flying is all adoption needs. Its attempt
+        count is the child's log, which already holds the other dispatch's entry.
+        """
+        attempt = self.store.attempt(run_id)
+        self._fly(child_id, run_id, attempt.execution_id if attempt else None)
+
     def reserve(self, child_id: str, used_on_record: int) -> Optional[Tuple[int, str]]:
         child = self.store.supervised_child(self.walk.walk_id, child_id)
         attempt = max(used_on_record, child.attempts_reserved if child else 0) + 1
@@ -1125,12 +1236,23 @@ def _walk_epic(
             api_base=api_base,
         )
 
-    from agentjobs.dispatch.guards import AlreadyAdmittedError, ConcurrencyLimitError
+    from agentjobs.dispatch.guards import (
+        AlreadyAdmittedError,
+        ConcurrencyLimitError,
+        LiveRunExistsError,
+    )
 
     slots = max(1, settings.max_concurrent)
     started = 0
     in_flight: Dict[str, Flight] = {}
     retries: List[str] = []
+    # Children refused `live_run_exists` whose run the record does not yet attribute, and
+    # when that was first seen (task-444). Neither started nor dead: something else holds
+    # them, and whether it is this epic's run decides between following it and grounding.
+    contended: Dict[str, float] = {}
+    # When each child was first refused that way. Kept across a holder letting go and
+    # grabbing again, so the grace below bounds the whole episode rather than restarting.
+    first_contended: Dict[str, float] = {}
     # Children that landed while their run still holds a machine slot (task-416,
     # from-walk-slots): a child's record closes before its session settles, and starting
     # the next child into that gap is refused by the machine ceiling every time.
@@ -1266,6 +1388,67 @@ def _walk_epic(
                 attempt.detail,
             )
 
+        # ----- follow whatever another dispatch started for us ----------------
+        for child_id, since in list(contended.items()):
+            if grounded is not None:
+                del contended[child_id]
+                continue
+            held = manager.get_task(child_id)
+            epic_parent = manager.get_task(parent_id)
+            authority = parent_authorizing_entry(epic_parent) if epic_parent else None
+            if held is None or authority is None:
+                # Gone, or the epic lost its authorisation: nothing to follow, and the
+                # frontier and the refusals below say what comes next.
+                del contended[child_id]
+                continue
+            whose, holder_run = contention(
+                held,
+                home=ledger_home,
+                project_id=project.id,
+                parent_id=parent_id,
+                entry_id=authority.id,
+                known_runs=[a.run_id for a in result.attempts if a.run_id],
+            )
+            if whose is Contention.OURS and holder_run:
+                del contended[child_id]
+                flight = Flight(
+                    child_id=child_id,
+                    attempt=count_attempts(held, parent_id=parent_id, entry_id=authority.id),
+                    run_id=holder_run,
+                    deadline=now() + settings.child_timeout_seconds,
+                )
+                in_flight[child_id] = flight
+                result.peak_in_flight = max(result.peak_in_flight, len(in_flight))
+                if supervision is not None:
+                    supervision.adopt(child_id, holder_run)
+                announce(
+                    f"Adopted {child_id}: already flying as {holder_run} on this epic's "
+                    "authorisation, started by another dispatch. Watching it rather than "
+                    "starting a second."
+                )
+            elif whose is Contention.CLEAR and now() - since < CONTENTION_GRACE_SECONDS:
+                # The holder let go, or has not yet got as far as a run: the child is the
+                # frontier's again. Its first refusal's time is kept, so a lock that keeps
+                # refusing with nothing behind it still grounds once the grace is spent.
+                del contended[child_id]
+            elif whose is Contention.FOREIGN:
+                del contended[child_id]
+                ground(
+                    WalkStop.COULD_NOT_START_CHILD,
+                    f"{child_id} is being worked by run {holder_run}, which was not dispatched "
+                    "on this epic's authorisation. It is somebody else's run, so the walk "
+                    "neither follows it nor starts a second.",
+                )
+            elif now() - since >= CONTENTION_GRACE_SECONDS:
+                del contended[child_id]
+                ground(
+                    WalkStop.COULD_NOT_START_CHILD,
+                    f"{child_id} has been held by another dispatch"
+                    + (f" (run {holder_run})" if holder_run else "")
+                    + f" for {CONTENTION_GRACE_SECONDS / 60:.0f} minutes without its "
+                    "record saying whose authorisation it runs on.",
+                )
+
         # ----- fill every free slot -------------------------------------------
         backpressure = False
         while grounded is None and len(in_flight) + len(settling) < slots:
@@ -1282,7 +1465,9 @@ def _walk_epic(
                     retries.pop(0)
                     continue
             else:
-                available = frontier(manager, parent_id, exclude=tuple(in_flight))
+                available = frontier(
+                    manager, parent_id, exclude=tuple(in_flight) + tuple(contended)
+                )
                 if not available:
                     break
                 candidate = available[0]
@@ -1328,6 +1513,21 @@ def _walk_epic(
                 backpressure = True
                 announce(f"Waiting for a run slot: {exc}")
                 break
+            except LiveRunExistsError as exc:
+                # Not a death and not yet a grounding (task-444). Something already holds
+                # this child -- on 2026-09-13 a second walk of the same epic, whose healthy
+                # child this walk recorded as dead and grounded the epic on. Whose run it
+                # is decides, and the next pass asks the child's record.
+                if supervision is not None:
+                    supervision.refuse(candidate.id, operation_id)
+                if retries and retries[0] == candidate.id:
+                    retries.pop(0)
+                contended[candidate.id] = first_contended.setdefault(candidate.id, now())
+                announce(
+                    f"{candidate.id} is already held by another dispatch; following its "
+                    f"record to see whose run it is. ({exc})"
+                )
+                continue
             except DispatchRefused as exc:
                 if supervision is not None:
                     supervision.refuse(candidate.id, operation_id, grounded=True)
@@ -1367,11 +1567,15 @@ def _walk_epic(
             return result
 
         # ----- is there anything left to do? ----------------------------------
-        if in_flight or (
-            settling
-            and grounded is None
-            and not backpressure
-            and _eligible(manager, parent_id, in_flight)
+        if (
+            in_flight
+            or (contended and grounded is None)
+            or (
+                settling
+                and grounded is None
+                and not backpressure
+                and _eligible(manager, parent_id, in_flight)
+            )
         ):
             blocked_since = None
             if once:
@@ -1565,6 +1769,16 @@ def _poll_child(
 # ----- what the walk writes onto the parent -----------------------------------
 
 
+def utc_stamp(moment: Optional[datetime] = None) -> str:
+    """The UTC time a walk's output line is printed at, to the second (task-444).
+
+    Every walk event is written by one of several processes that do not share a clock
+    view, and reconstructing the 2026-09-13 double walk meant ordering its lines by lock
+    files and run meta because the lines themselves carried no time.
+    """
+    return (moment or datetime.now(timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def walk_report(result: WalkResult, *, started_at: Optional[datetime] = None) -> str:
     """The body of the ``progress`` entry a walk appends to the parent.
 
@@ -1742,6 +1956,11 @@ def record_walk_outcome(
     """
     from agentjobs.models_v2 import BallReason
 
+    if result.stop is WalkStop.ALREADY_SUPERVISED:
+        # This walk did nothing, and the one that refused it owns the parent's record. A
+        # report here would hand the parent to a human mid-walk (task-444): the refused
+        # walk says so to whoever started it, and writes nothing.
+        return
     manager.add_log_entry(
         parent_id, actor=actor, type=LogEntryType.PROGRESS, body=walk_report(result)
     )

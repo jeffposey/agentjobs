@@ -421,6 +421,51 @@ class TestDispatchWalkPosture:
         assert result.exit_code == 0, result.output
         assert "posture children start at: the project default" in result.output
 
+    def test_a_walk_refused_for_a_live_walker_says_so_stamped_and_writes_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """task-444: a second walk is a refusal, not a stopped walk, and every line is timed.
+
+        Recording it as a stopped walk would hand the parent to a human while the first
+        walk is still flying its children.
+        """
+        import re
+
+        from agentjobs.dispatch import epic as epic_module
+
+        root = TestDispatchRun().make_project(tmp_path, "alpha")
+        parent_id = self.seed_epic(root)
+        write_config(
+            runners={
+                "fake": {
+                    "argv": [sys.executable, "-c", "print(1)", "{prompt}"],
+                    "actor": "claude",
+                }
+            },
+            projects={"alpha": {"enabled": True, "runner": "fake"}},
+        )
+        before = TaskManager(task_store(root / "tasks")).get_task(parent_id)
+        assert before is not None
+
+        def refused(**kwargs):
+            kwargs["on_event"]("Resumed: nothing to follow.")
+            return epic_module.WalkResult(
+                parent_id=parent_id,
+                stop=epic_module.WalkStop.ALREADY_SUPERVISED,
+                detail="alpha/task-001 is already being walked by pid 683848",
+            )
+
+        monkeypatch.setattr(epic_module, "walk_epic", refused)
+        result = runner.invoke(app, ["dispatch", "walk", parent_id, "--project", "alpha"])
+
+        assert result.exit_code == 2, result.output
+        stamp = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"
+        assert re.search(rf"{stamp} Resumed: nothing to follow\.", result.output)
+        assert re.search(rf"{stamp} Refused \(already_supervised\): .*pid 683848", result.output)
+        after = TaskManager(task_store(root / "tasks")).get_task(parent_id)
+        assert after is not None
+        assert len(after.log) == len(before.log) and after.ball is before.ball
+
     # ----- helpers -----
 
     def seed_epic(self, root: Path, *, posture_source: str | None = None) -> str:
