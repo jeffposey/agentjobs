@@ -107,12 +107,12 @@ which, once the finish runs the gate unattended, is a merge declined for nothing
 - `task-396` — `corpus_stats.py` measures the frozen YAML copy the migration retired
 - `task-408` — `bench.py` seeds a directory of YAML nothing serves, and so measures an empty backlog
 - `task-323` — the context budget measures only the repository half of the always-loaded bundle
+- `task-427` — every review sandbox seeds a database the server never serves, so a UI review opens an empty project
 
 ### The record, the store and the CLI
 
 The record is the product, and a few things still let it say something false.
 
-- `task-425` — `agentjobs redact` on a log entry records a redaction the SQLite store never performs
 - `task-018` — a parent can close while its children are open, and nothing can reopen it
 - `task-247` — atomic writes for the machine-level YAML, above all the storage config
 - `task-387` — `visibility: local` hides a project from its owner, whose surfaces all arrive over a tailnet

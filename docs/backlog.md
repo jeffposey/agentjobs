@@ -23,7 +23,7 @@ A task shows its id, its title, its one-sentence summary, what it is still waiti
 and the umbrella it belongs to. Everything else a record carries — the working spec, the
 decision log, branches, verification evidence — stays in the store.
 
-## Critical (13)
+## Critical (14)
 
 - **task-414** — Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do
 
@@ -95,11 +95,13 @@ decision log, branches, verification evidence — stays in the store.
 
   *needs task-264 · needs task-375 · needs task-312 · needs task-322 · needs task-348 · needs task-415 · needs task-416 · needs task-417 · needs task-418 · part of task-414 (Durable execution: a dispatch runs to completion, retries what is retryable, keeps its identity across resumes, and wakes a human only for what only a human can do)*
 
-- **task-425** — `agentjobs redact` on a log entry body records a redaction the SQLite store never performs
+- **task-427** — Every `scripts/*_sandbox.py` review harness seeds a database the server never serves, so every UI review since 2026-09-10 stood up an empty project
 
-  Redacting a log entry's body appends a note saying the words were removed and leaves the original words in the stored row, on every surface. Title and spec redactions work; log bodies never reach the store.
+  The sandbox scripts call `sandbox_store(project_root / "tasks")` with no `project_id` before registering the project, so the seed lands in a directory-hashed `local-tasks-<hash>.db`; the server then registers the id and opens `databases/<project_id>.db`, which is empty. The React page shows "No tasks yet" and every seeded task URL sits on "Opening task..." forever.
 
-  *in progress*
+- **task-404** — A Playwright browser that dies at launch turns the whole gate red, and nothing distinguishes it from a real failure
+
+  One e2e test failed with `browser.newContext: Target page, context or browser has been closed` -- the browser process died during launch, before the test ran. The stage went red, so the gate went red, and the only way to learn it was infrastructure was to re-run and watch it pass.
 
 ## High (67)
 
@@ -437,7 +439,7 @@ decision log, branches, verification evidence — stays in the store.
 
   The benchmark builds its corpus by writing task YAML into a throwaway project root, which stopped being a backlog when task-402 deleted the file backend. Every run since has timed an empty store, and the detail endpoint 404s.
 
-## Medium (39)
+## Medium (38)
 
 - **task-243** — The grandchild-kill test asserts on a moment, and loses the race under load
 
@@ -603,10 +605,6 @@ decision log, branches, verification evidence — stays in the store.
 
   The task panel's verbs render only when the ball is with the human, or on a held task. So a human looking at a task stuck with an agent has no way to release it, and one looking at a ready task has no way to park it - both are entitlements a person holds, reachable today only from the CLI.
 
-- **task-404** — A Playwright browser that dies at launch turns the whole gate red, and nothing distinguishes it from a real failure
-
-  One e2e test failed with `browser.newContext: Target page, context or browser has been closed` -- the browser process died during launch, before the test ran. The stage went red, so the gate went red, and the only way to learn it was infrastructure was to re-run and watch it pass.
-
 - **task-405** — Groom the agentjobs backlog
 
   A run of the `groom` playbook over the 136 open tasks: find duplicates and superseded work, propose a closure list, and close only what the owner approves.
@@ -673,4 +671,4 @@ decision log, branches, verification evidence — stays in the store.
 
 ---
 
-30 further open tasks are drafts, not listed here. A draft is an idea that has not been specified yet: no agent can claim one and the queue does not hand one out.
+28 further open tasks are drafts, not listed here. A draft is an idea that has not been specified yet: no agent can claim one and the queue does not hand one out.
