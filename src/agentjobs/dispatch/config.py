@@ -1827,6 +1827,46 @@ def _why_skipped(candidates: Sequence[RunnerCandidate]) -> str:
     )
 
 
+def resolve_for_observation(
+    project_id: str,
+    home: Optional[Path] = None,
+    *,
+    runner: Optional[str] = None,
+) -> DispatchResolution:
+    """A resolution for **following** a run that already exists, with no launch gate.
+
+    The four gates answer "may a run start", and a run already going is not answered by
+    them (design section 9a: continue read-only health and stop processing even when
+    launching is disabled). Until task-416 the session poller asked
+    ``assert_dispatch_permitted`` anyway, so the kill switch or a disabled project also
+    stopped every finished session being settled, every stall being reported and every
+    Stop being confirmed -- the opposite of what a person reaching for the switch wants.
+
+    Nothing that *starts* work accepts this resolution as permission: a handback delivered
+    from a settle goes through ``dispatch_task``, which runs every gate itself. ``runner``
+    is the run's recorded runner when the journal knows it; otherwise the project's
+    configured one, as the poller always used.
+    """
+    config = load_dispatch_config(home)
+    if config is None:
+        raise DispatchNotConfiguredError(
+            f"Dispatch is not configured on this machine: {dispatch_config_path(home)} "
+            "does not exist, so no runner is known to follow this run with."
+        )
+    settings = config.project(project_id)
+    definition = config.runners.get(runner) if runner else None
+    if definition is None:
+        definition = resolve_runner(config, settings).runner
+    return DispatchResolution(
+        project_id=project_id,
+        runner=definition,
+        settings=settings,
+        limits=config.limits,
+        config=config,
+        selection=None,
+    )
+
+
 def resolve_runner(
     config: DispatchConfig,
     settings: ProjectDispatchSettings,

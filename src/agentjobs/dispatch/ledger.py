@@ -331,6 +331,47 @@ def process_alive(pid: int) -> bool:
         kernel32.CloseHandle(handle)
 
 
+def process_identity(pid: int) -> Optional[str]:
+    """A string naming *this* process rather than whichever one holds its pid next.
+
+    The process's creation time, which a reused pid does not share: ``GetProcessTimes``
+    on Windows, ``/proc/<pid>/stat``'s start time elsewhere. ``None`` when the process is
+    gone or the platform offers neither -- and a caller treats ``None`` as "cannot prove
+    it is the same process", never as "it is" (task-416: no PID-only adoption).
+    """
+    if pid <= 0:
+        return None
+    if os.name == "nt":
+        import ctypes
+
+        query_limited_information = 0x1000
+        kernel32 = getattr(ctypes, "windll").kernel32
+        handle = kernel32.OpenProcess(query_limited_information, False, pid)
+        if not handle:
+            return None
+        try:
+            created = ctypes.c_ulonglong()
+            ignored = [ctypes.c_ulonglong() for _ in range(3)]
+            if not kernel32.GetProcessTimes(
+                handle,
+                ctypes.byref(created),
+                ctypes.byref(ignored[0]),
+                ctypes.byref(ignored[1]),
+                ctypes.byref(ignored[2]),
+            ):
+                return None
+            return f"win:{pid}:{created.value}"
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    # The command name is parenthesised and may contain spaces; fields follow its close.
+    fields = stat.rsplit(")", 1)[-1].split()
+    return f"proc:{pid}:{fields[19]}" if len(fields) > 19 else None
+
+
 def stale_lock_reason(home: Path, holder: LockHolder) -> Optional[str]:
     """Why this holder is not holding anything any more, or ``None`` if it may be.
 
@@ -1429,6 +1470,24 @@ class DispatchLedger:
         record = find_run(self.home, run_id)
         liveness = journal.journal_liveness(self.home, run_id)
         if liveness is False or (liveness is None and not record.is_live):
+            waiting = journal.controlled_execution(self.home, run_id)
+            if waiting is not None and not waiting.terminal:
+                # The run is over but its execution is waiting to try again (task-416). A
+                # Stop cancels that intent, so no retry follows it, now or after a restart.
+                try:
+                    journal.journal(self.home).stop_execution(
+                        waiting.execution_id,
+                        requester=requester or actor,
+                        source=source,
+                        reason="cancel",
+                    )
+                except ExecutionStoreError as exc:
+                    raise LedgerError(
+                        f"Could not record the Stop of {waiting.execution_id}: {exc}"
+                    ) from exc
+                return StopResult(
+                    run_id, True, f"stopped execution {waiting.execution_id}; no retry follows"
+                )
             return StopResult(run_id, False, f"already {record.outcome or record.status}")
         if record.is_interactive:
             # The session belongs to a person, and cancelling the *record* must not reach
@@ -1660,6 +1719,16 @@ class DispatchLedger:
                 )
                 results.append(
                     StopResult(record.run_id, True, "projected its journal conclusion onto meta")
+                )
+                continue
+
+            if journal.controller_driven(self.home, record.run_id):
+                # Recovered by the durable controller, which reattaches a surviving session
+                # and proves a batch worker gone before it concludes anything (task-416).
+                # This sweep's verdicts -- a session missing from one listing, a batch run
+                # whose supervisor died -- are exactly the guesses it replaces.
+                results.append(
+                    StopResult(record.run_id, False, "recovered by the durable controller")
                 )
                 continue
 

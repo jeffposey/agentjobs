@@ -105,6 +105,8 @@ from agentjobs.dispatch.record_commit import task_file_exclusions
 from agentjobs.dispatch import journal
 from agentjobs.dispatch.ledger import RunLockTimeout, acquire_run_lock
 from agentjobs.execution.errors import CapacityExhausted, ExecutionStoreError, OwnershipConflict
+from agentjobs.execution.reducer import DEFAULT_RETRY_POLICY
+from agentjobs.execution.store import CONTROLLED_BY_CONTROLLER, Attempt
 from agentjobs.dispatch.runner import (
     META_FILENAME,
     DispatchRunner,
@@ -227,6 +229,23 @@ class LiveRunExistsError(DispatchRefused):
     """This task already has a run that has not reached a terminal state."""
 
     reason = "live_run_exists"
+
+
+class AlreadyAdmittedError(DispatchRefused):
+    """An admission with this operation id already exists; nothing new was started.
+
+    ``attempt`` is the journal's row for it, so the caller can follow the run it already
+    has -- including one that has since ended -- instead of starting a second.
+    """
+
+    reason = "already_admitted"
+
+    def __init__(self, attempt: "Attempt") -> None:
+        super().__init__(
+            f"admission {attempt.operation_id} already admitted run {attempt.run_id} "
+            f"({attempt.state}); no second run was started"
+        )
+        self.attempt = attempt
 
 
 class ConcurrencyLimitError(DispatchRefused):
@@ -787,6 +806,22 @@ class DispatchRequest:
     person crosses -- see ``epic.INHERITABLE_POSTURE_SOURCES``.
     """
 
+    continues_execution_id: Optional[str] = None
+    """The open execution this dispatch is the next attempt of (task-416).
+
+    Set only by the durable controller's relaunch. It narrows a continuation: the frozen
+    envelope read is *this* execution's, and the admission joins it rather than
+    superseding it. It widens nothing -- every gate below still runs, observed now, so a
+    Stop, the kill switch, a hold, a lowered ceiling and every budget cap bind a retry
+    exactly as they bind a click. Only meaningful on an ``auto`` continuation; anything
+    else naming it is refused.
+    """
+
+    admission_operation_id: Optional[str] = None
+    """A stable id for this admission, so a caller that died after the journal committed
+    it and before it learned the run id finds the same attempt rather than a second one
+    (task-416). The epic walk and the controller's relaunch pass one."""
+
 
 def dispatch_task(
     *,
@@ -861,9 +896,20 @@ def dispatch_task(
     # gates resolve *is* the recorded one; the gates themselves still run in full, which
     # is how a kill switch or a disabled runner defeats a historical grant.
     history: Optional[History] = None
+    if request.continues_execution_id is not None and not is_continuation(request):
+        raise ConflictingAuthorizationError(
+            f"This dispatch names execution {request.continues_execution_id} to continue and "
+            "also makes choices of its own (a trigger, runner, group, posture, authoriser or "
+            "epic). A retry within an execution reuses what that execution was granted."
+        )
     if is_continuation(request):
         try:
-            history = continuation_history(journal.journal(_config_home(home)), project.id, task.id)
+            history = continuation_history(
+                journal.journal(_config_home(home)),
+                project.id,
+                task.id,
+                execution_id=request.continues_execution_id,
+            )
         except ExecutionStoreError as exc:
             # Unreadable history is not "no history": resolving from today's defaults
             # here would be the silent substitution this read exists to prevent.
@@ -1061,6 +1107,9 @@ def dispatch_task(
     # its row. The run id is minted here, before any worker exists, as the attempt token
     # the journal names.
     run_id = new_run_id()
+    # Which follower this execution gets is decided once, at acceptance (task-416). A
+    # continuation joins its execution and keeps whatever it was accepted with.
+    controlled = resolution.config.execution.active
     try:
         attempt = journal.admit_dispatch(
             machine_home,
@@ -1076,10 +1125,14 @@ def dispatch_task(
                 push=push,
                 policy_clause=runner.policy_clause_for(task.id),
                 history=history,
+                retry_policy=DEFAULT_RETRY_POLICY if controlled else None,
             ),
             mode=resolution.runner.mode.value,
             resolve_manager=_manager_resolver(machine_home, project.id, manager),
             reservation={"trigger": request.trigger.value},
+            attempt_operation_id=request.admission_operation_id,
+            continues_execution_id=request.continues_execution_id,
+            controlled_by=CONTROLLED_BY_CONTROLLER if controlled else None,
         )
     except OwnershipConflict as exc:
         lock.release()
@@ -1118,6 +1171,12 @@ def dispatch_task(
             f"journal refused ({exc}). Try again; if it persists, the journal's disk needs "
             "attention."
         ) from exc
+    if attempt.run_id != run_id:
+        # This admission's operation id already admitted an attempt: the caller died, or
+        # lost the answer, between that commit and learning its run id (task-416). That
+        # attempt is the dispatch; launching another would be the duplicate writer.
+        lock.release()
+        raise AlreadyAdmittedError(attempt)
     runner.execution_id = attempt.execution_id
 
     try:

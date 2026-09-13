@@ -277,12 +277,12 @@ def retry_delay_seconds(state: ExecutionState) -> int:
     factor = max(1, int(policy.get("factor", 2)))
     cap = int(policy.get("cap_seconds", 600))
     exponent = max(0, state.attempt_no - 1) if state.failure_class in RETRYABLE_CLASSES else 0
-    base = min(cap, initial_seconds * factor**exponent)
+    base = int(min(cap, initial_seconds * factor**exponent))
     spread = max(0, int(policy.get("jitter_seconds", 0)))
     if not spread:
         return base
     seed = hashlib.sha256(f"{state.execution_id}:{state.wait_round}".encode()).digest()
-    return base + seed[0] % (spread + 1)
+    return int(base + seed[0] % (spread + 1))
 
 
 def reduce(state: ExecutionState, event: Event) -> ExecutionState:
@@ -549,7 +549,7 @@ def _retry_intents(state: ExecutionState) -> Tuple[Intent, ...]:
     if state.attempt_no >= int(policy.get("max_attempts", 1)):
         return _escalation(state, ATTEMPTS_EXHAUSTED)
     if state.wait_round >= int(policy.get("max_wait_rounds", 30)) and state.timer_id is None:
-        return _escalation(state, state.policy.get("class") if state.policy else POLICY_WAIT)
+        return _escalation(state, str((state.policy or {}).get("class") or POLICY_WAIT))
     next_attempt = state.attempt_no + 1
     if state.timer_id is None:
         return (

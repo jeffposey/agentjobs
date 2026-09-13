@@ -477,18 +477,31 @@ class TestRunsThatCannotBeFollowed:
         assert result.phase is None
         assert "_local" in result.detail and "registry" in result.detail
 
-    def test_dispatch_being_switched_off_leaves_a_started_run_alone(self, machine) -> None:
-        """The gate answers "may a run start", which says nothing about one already going."""
-        home, _, _, fake_cli = machine
+    def test_dispatch_being_switched_off_still_follows_a_started_run(self, machine) -> None:
+        """The gate answers "may a run start", which says nothing about one already going.
+
+        Until task-416 that sentence was honoured by leaving the run alone -- which also
+        stopped it ever being settled, so the kill switch kept every finished session
+        reading `running` and holding its slot. Design section 9a: health and stop
+        processing continue while launching is refused. What must still not happen is a
+        start, and none is possible here: the sentinel refuses every dispatch.
+        """
+        home, _, manager, fake_cli = machine
         run_id = _start_session(machine)
+        task_id = _run_meta(home, run_id)["task_id"]
+        manager.handoff(
+            task_id, actor="claude", ball=Ball.HUMAN, ball_reason=BallReason.REVIEW,
+            ball_prompt="Done; please review.",
+        )
         (home / "DISPATCH_DISABLED").write_text("", encoding="utf-8")
         _set_ledger(fake_cli, [{"id": "b55b35ad", "status": "idle", "state": "done"}])
 
-        result = _results(home, run_id)
+        results = [r for r in poll_live_sessions(home) if r.run_id == run_id]
 
-        assert result.phase is None
-        assert "no longer permitted" in result.detail
-        assert _run_meta(home, run_id)["status"] == "running"
+        assert any("launching is refused" in r.detail for r in results)
+        assert results[-1].phase is SessionPhase.FINISHED
+        assert _run_meta(home, run_id)["status"] == "finished"
+        assert len(list((home / "runs").iterdir())) == 1, "and nothing new was started"
 
 
 class TestTranscriptCapture:

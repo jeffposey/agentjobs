@@ -32,11 +32,13 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Mapping, Optional, Proto
 from agentjobs.execution.coordinator import release_ended_attempts
 from agentjobs.execution.errors import ExecutionStoreError, OwnershipConflict
 from agentjobs.execution.factory import execution_store_for
+from agentjobs.execution import reducer
 from agentjobs.execution.reducer import WORKFLOW_VERSION
 from agentjobs.execution.store import (
     PROVENANCE_LEGACY,
     Attempt,
     Conclusion,
+    Execution,
     ExecutionStore,
     OutboxItem,
     SourceEvent,
@@ -204,6 +206,51 @@ def cancel_requested(
     return bool(meta is not None and meta.get("cancel_requested"))
 
 
+FAILURE_CLASS_BY_OUTCOME: Dict[str, str] = {
+    DispatchOutcome.INTERRUPTED.value: reducer.WORKER_GONE,
+    DispatchOutcome.CRASHED.value: reducer.WORKER_GONE,
+    DispatchOutcome.FAILED.value: reducer.WORKER_FAILED,
+    DispatchOutcome.TIMEOUT.value: reducer.TIMED_OUT,
+    DispatchOutcome.FINISHED_WITHOUT_HANDOFF.value: reducer.SPEC_GAP,
+}
+"""How an attempt's ending is classified for recovery (design section 9a's table).
+
+Only an attempt whose worker vanished is ``worker_gone`` and retryable: the session left
+the ledger, the batch supervisor died, the process is gone. A worker that *exited* --
+non-zero, on its wall clock, or cleanly without saying what it needs -- has told us
+something about the work, and a second identical run would not change it. Outcomes not
+named here (completed, cancelled, a session that ended with its ball moved) owe nothing.
+"""
+
+
+def failure_class_for(outcome: DispatchOutcome) -> Optional[str]:
+    return FAILURE_CLASS_BY_OUTCOME.get(outcome.value)
+
+
+def controlled_execution(home: Path, run_id: str) -> Optional[Execution]:
+    """The execution a run serves, when the durable controller drives it; else ``None``."""
+    try:
+        store = journal(home)
+        attempt = store.attempt(run_id)
+        if attempt is None or not attempt.execution_id:
+            return None
+        execution = store.execution(attempt.execution_id)
+    except ExecutionStoreError:
+        return None
+    if execution is None or not execution.controller_driven:
+        return None
+    return execution
+
+
+def controller_driven(home: Path, run_id: str) -> bool:
+    """Whether the durable controller, not the legacy poller or sweep, follows this run.
+
+    An unreadable journal answers ``False``: the legacy follower then keeps doing what it
+    did before this build, which is the direction that cannot orphan a run.
+    """
+    return controlled_execution(home, run_id) is not None
+
+
 def claim_conclusion(
     home: Path,
     record: "RunRecord",
@@ -218,14 +265,21 @@ def claim_conclusion(
     A journal that cannot be written raises: a conclusion that did not commit must not be
     acted on as though it had. Callers on a supervision path catch ``ExecutionStoreError``
     and leave the run live for the next pass, which is the recoverable direction.
+
+    The recovery classification rides along (task-416). The store keeps the execution
+    open only when the durable controller drives it; for every other run the class is
+    ignored and the execution closes with its attempt, as it always has.
     """
     ensure_attempt(home, record)
+    failure_class = failure_class_for(outcome)
     return journal(home).conclude(
         record.run_id,
         outcome=outcome.value,
         status=status or status_for(outcome),
         concluded_by=concluded_by,
         projection=projection,
+        retry_owed=failure_class is not None,
+        failure_class=failure_class,
     )
 
 
@@ -467,6 +521,9 @@ def admit_dispatch(
     mode: str,
     resolve_manager: Callable[[str], Optional["TaskManagerLike"]],
     reservation: Optional[Mapping[str, object]] = None,
+    attempt_operation_id: Optional[str] = None,
+    continues_execution_id: Optional[str] = None,
+    controlled_by: Optional[str] = None,
 ) -> Attempt:
     """Admit one dispatch: ownership, slot and reservation in one transaction.
 
@@ -491,6 +548,9 @@ def admit_dispatch(
         legacy_owners=legacy.owners,
         legacy_recent_starts=legacy.recent_starts,
         reservation=reservation,
+        attempt_operation_id=attempt_operation_id,
+        continues_execution_id=continues_execution_id,
+        controlled_by=controlled_by,
     )
 
 
@@ -500,6 +560,10 @@ def abandon_admission(home: Path, run_id: str, *, launched: bool, reason: str) -
     ``launched`` decides the reservation. Nothing started means nothing was paid for, so
     the reservation is refunded; a run directory on disk means a launch was at least
     attempted and may have spent money, and an ambiguous launch never refunds.
+
+    It decides the recovery class too (task-416), for an execution the controller drives.
+    Nothing launched is ``launch_not_applied`` and may be tried again under the envelope;
+    a launch that ran and failed is ``worker_failed`` and is escalated, not repeated.
     """
     try:
         journal(home).conclude(
@@ -508,6 +572,8 @@ def abandon_admission(home: Path, run_id: str, *, launched: bool, reason: str) -
             status="failed",
             concluded_by=f"dispatch raised before handing back a run: {reason}"[:300],
             refund=not launched,
+            retry_owed=True,
+            failure_class=reducer.WORKER_FAILED if launched else reducer.LAUNCH_NOT_APPLIED,
         )
     except ExecutionStoreError:
         return
@@ -648,6 +714,8 @@ def shadow_tick(
         except Exception as exc:  # noqa: BLE001 - reported, and the next tick retries
             errors.append(f"{project_id}: feed import failed: {exc}")
     for execution in open_executions:
+        if execution.controller_driven:
+            continue  # the controller replays these for real (task-416)
         try:
             result = advance_execution(store, execution.execution_id, mode=MODE_SHADOW)
         except ExecutionStoreError as exc:

@@ -2329,6 +2329,15 @@ class DispatchRunner:
             meta["execution_id"] = self.execution_id
         directory = RunDirectory.create(self.home, run_id, meta)
 
+        # The launcher receipt's first half (task-416). Written before the launcher runs,
+        # so a coordinator that finds an admitted attempt with no session id can tell "the
+        # launcher never ran" -- no marker, nothing was started, safe to try again -- from
+        # "the launcher ran and nobody recorded what it printed", which only the driver's
+        # own listing can answer. The run's session name is the attempt token it searches.
+        directory.update_meta(
+            launch_attempted_at=self.clock().isoformat(),
+            session_name=session_name(self.resolution.project_id, task.id, run_id),
+        )
         try:
             completed = subprocess.run(
                 argv,
@@ -3427,6 +3436,9 @@ class DispatchRunner:
 
         stdout_file = (directory.path / STDOUT_FILENAME).open("w", encoding="utf-8")
         stderr_file = (directory.path / STDERR_FILENAME).open("w", encoding="utf-8")
+        # See `_start_session`: the marker that separates "never spawned" from "spawned and
+        # unrecorded" for a coordinator reconciling after this process died (task-416).
+        directory.update_meta(launch_attempted_at=self.clock().isoformat())
         try:
             # argv is a list and there is no shell. The two branches are written out
             # rather than unpacked from a dict so the platform difference stays legible.
@@ -3472,7 +3484,18 @@ class DispatchRunner:
             )
             raise DispatchRunError(f"Could not start a batch run for {task.id}: {exc}") from exc
 
-        directory.update_meta(status="running", pid=process.pid, dispatch_entry_id=entry_id)
+        # The worker receipt (task-416): a pid alone can be reused by an unrelated process,
+        # so its creation time goes down with it. A coordinator recovering this run after
+        # the supervisor's process died adopts nothing on a pid that does not match both.
+        from agentjobs.dispatch.ledger import process_identity  # local: ledger imports this module
+
+        directory.update_meta(
+            status="running",
+            pid=process.pid,
+            pid_identity=process_identity(process.pid),
+            supervisor_pid=os.getpid(),
+            dispatch_entry_id=entry_id,
+        )
         self._mark_launched(directory, run_id, None)
         handle = RunHandle(
             run_id=run_id,

@@ -22,7 +22,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
-from agentjobs.dispatch.config import DispatchError, assert_dispatch_permitted
+from agentjobs.dispatch.config import (
+    DispatchError,
+    assert_dispatch_permitted,
+    resolve_for_observation,
+)
 from agentjobs.dispatch.ledger import RunLock, RunRecord, live_runs, run_lock_path
 from agentjobs.dispatch.runner import (
     DispatchRunError,
@@ -144,67 +148,112 @@ def poll_live_sessions(
     for swept in sweep_interactive_runs(home, registry=registry, managers=managers):
         results.append(PollResult(swept.run_id, None, swept.detail))
 
+    from agentjobs.dispatch.journal import controller_driven  # local: journal imports runner
+
     for record in live_runs(home):
         if not record.is_session:
             continue
-
-        handle = handle_from_record(home, record)
-        if handle is None:
-            results.append(
-                PollResult(record.run_id, None, "no session id or dispatch entry recorded")
-            )
+        if controller_driven(home, record.run_id):
+            # The durable controller follows this run (task-416). Two followers of one run
+            # is the double-settle the journal's compare-and-set exists to lose, and the
+            # controller is the one that can also recover it.
             continue
-
-        manager = managers.get(record.project_id)
-        project = _project_for(registry, record)
-        if manager is None:
-            if project is None:
-                # Not silent on purpose. `manager_for` in the ledger drops this case,
-                # and a run stamped with an id the registry does not hold -- the
-                # implicit `_local` project, most often -- would then never be concluded
-                # by anything.
-                results.append(
-                    PollResult(
-                        record.run_id,
-                        None,
-                        f"project {record.project_id!r} is not in the registry, so this "
-                        "run cannot be followed",
-                    )
-                )
-                continue
-            manager = dispatch_manager_for(project)
-
-        if project is None:
-            results.append(
-                PollResult(record.run_id, None, f"no root for project {record.project_id!r}")
-            )
-            continue
-
-        try:
-            resolution = assert_dispatch_permitted(record.project_id, home)
-        except DispatchError as exc:
-            # Dispatch being switched off must not orphan runs it already started.
-            # Following a live run is not starting one, so this is reported and the run
-            # is left live rather than concluded on a gate that says nothing about it.
-            results.append(PollResult(record.run_id, None, f"dispatch no longer permitted: {exc}"))
-            continue
-
-        runner = DispatchRunner(
-            manager=manager,
-            resolution=resolution,
-            project_root=project.root,
-            home=home,
-        )
-        try:
-            phase = runner.poll_session(handle)
-        except (DispatchRunError, OSError) as exc:
-            results.append(PollResult(record.run_id, None, f"poll failed: {exc}"))
-            continue
-        results.append(PollResult(record.run_id, phase, phase.value))
-        if phase in TERMINAL_PHASES:
-            results.extend(_deliver_pending_handback(home, project, manager, record, handle))
+        results.extend(follow_session(home, record, registry=registry, managers=managers))
 
     results.extend(_shadow_journal(home, registry, managers))
+    results.extend(_drive_controller(home, registry, managers))
+    return results
+
+
+def _drive_controller(
+    home: Path, registry: ProjectRegistry, managers: Dict[str, TaskManagerLike]
+) -> List[PollResult]:
+    """One pass of the durable controller (task-416), after the legacy work of the tick.
+
+    It acts only on executions it drives, so on a machine whose controller has never been
+    switched on it reads the open executions and does nothing else.
+    """
+    from agentjobs.dispatch.controller import controller_tick  # local: controller imports poller
+
+    report = controller_tick(home, registry=registry, managers=managers)
+    return [
+        PollResult(subject, None, detail)
+        for subject, _, detail in (line.partition(": ") for line in report.lines)
+    ]
+
+
+def follow_session(
+    home: Path,
+    record: RunRecord,
+    *,
+    registry: ProjectRegistry,
+    managers: Dict[str, TaskManagerLike],
+    runner_name: Optional[str] = None,
+) -> List[PollResult]:
+    """Poll one live session run and act on what it says. Never raises.
+
+    The one implementation of "follow a session", shared by the legacy poller and the
+    durable controller's observe activity, so the judgement in ``poll_session`` still has
+    no second copy to drift from.
+    """
+    handle = handle_from_record(home, record)
+    if handle is None:
+        return [PollResult(record.run_id, None, "no session id or dispatch entry recorded")]
+
+    manager = managers.get(record.project_id)
+    project = _project_for(registry, record)
+    if manager is None:
+        if project is None:
+            # Not silent on purpose. `manager_for` in the ledger drops this case, and a run
+            # stamped with an id the registry does not hold -- the implicit `_local`
+            # project, most often -- would then never be concluded by anything.
+            return [
+                PollResult(
+                    record.run_id,
+                    None,
+                    f"project {record.project_id!r} is not in the registry, so this "
+                    "run cannot be followed",
+                )
+            ]
+        manager = dispatch_manager_for(project)
+
+    if project is None:
+        return [PollResult(record.run_id, None, f"no root for project {record.project_id!r}")]
+
+    results: List[PollResult] = []
+    try:
+        resolution = assert_dispatch_permitted(record.project_id, home)
+    except DispatchError as refused:
+        # Launching being switched off must not stop runs already going from being
+        # followed (task-416, design section 9a). The gate answers "may a run start";
+        # settling, stall reports and Stop confirmation are not starts, and a handback
+        # a settle delivers goes back through every gate on its own.
+        try:
+            resolution = resolve_for_observation(record.project_id, home, runner=runner_name)
+        except DispatchError as exc:
+            return [PollResult(record.run_id, None, f"cannot be followed: {exc}")]
+        results.append(
+            PollResult(
+                record.run_id,
+                None,
+                f"launching is refused ({refused}); following the run anyway",
+            )
+        )
+
+    runner = DispatchRunner(
+        manager=manager,
+        resolution=resolution,
+        project_root=project.root,
+        home=home,
+    )
+    try:
+        phase = runner.poll_session(handle)
+    except (DispatchRunError, OSError) as exc:
+        results.append(PollResult(record.run_id, None, f"poll failed: {exc}"))
+        return results
+    results.append(PollResult(record.run_id, phase, phase.value))
+    if phase in TERMINAL_PHASES:
+        results.extend(_deliver_pending_handback(home, project, manager, record, handle))
     return results
 
 

@@ -2167,6 +2167,60 @@ class ExecutionStore:
             ).fetchone()
             return Execution.from_row(found)
 
+    def stop_execution(
+        self, execution_id: str, *, requester: str, source: str, reason: str = ""
+    ) -> Optional[Execution]:
+        """A Stop that lands between attempts: record who asked, then cancel the intent.
+
+        With no live attempt there is no process to signal, so the Stop is complete once
+        committed -- which is what keeps a restart from finding a retry to perform. With a
+        live attempt this does nothing and returns ``None``: that Stop goes through
+        ``request_cancel`` on the attempt, which confirms the process first.
+        """
+        with self.transaction("stop-execution") as connection:
+            row = connection.execute(
+                "SELECT * FROM execution WHERE execution_id = ?", (execution_id,)
+            ).fetchone()
+            if row is None:
+                raise ExecutionStoreError(f"no execution {execution_id!r}")
+            if int(row["terminal"]):
+                return Execution.from_row(row)
+            live = connection.execute(
+                "SELECT run_id FROM run_attempt WHERE execution_id = ? AND state <> 'terminal'",
+                (execution_id,),
+            ).fetchone()
+            if live is not None:
+                return None
+            generation = int(row["control_generation"]) + 1
+            self._append(
+                connection,
+                execution_id,
+                "stop_requested",
+                {
+                    "generation": generation,
+                    "requester": requester,
+                    "source": source,
+                    "reason": reason,
+                    "requested_at": _iso(self.now()),
+                },
+                source_id=f"stop-execution:{execution_id}:{generation}",
+            )
+            connection.execute(
+                "UPDATE execution SET control_generation = ? WHERE execution_id = ?",
+                (generation, execution_id),
+            )
+            self._close(
+                connection,
+                execution_id,
+                outcome="cancelled",
+                reason=f"stopped by {requester} from {source}",
+                failure_class="cancelled_by_user",
+            )
+            found = connection.execute(
+                "SELECT * FROM execution WHERE execution_id = ?", (execution_id,)
+            ).fetchone()
+            return Execution.from_row(found)
+
     # ----- timers (task-416) ------------------------------------------------------
 
     def _cancel_timers(self, connection: sqlite3.Connection, execution_id: str) -> None:
