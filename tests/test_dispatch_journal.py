@@ -11,7 +11,7 @@ from __future__ import annotations
 import sys
 import threading
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, TypeVar
 
 import pytest
 import yaml
@@ -37,12 +37,27 @@ from agentjobs.execution.errors import OwnerModeConflict, OwnershipConflict
 from agentjobs.execution.coordinator import import_source_events
 from agentjobs.execution.store import OWNER_DURABLE
 from agentjobs.manager import DuplicateDispatchResultError, TaskManager
-from agentjobs.models_v2 import Ball, BallReason, DispatchOutcome, Lifecycle, LogEntryType
+from agentjobs.models_v2 import (
+    Ball,
+    BallReason,
+    DispatchOutcome,
+    Lifecycle,
+    LogEntry,
+    LogEntryType,
+)
 from agentjobs.projects import ProjectRegistry
 from support import task_store
 
 from test_dispatch_poller import _dispatch_yaml, _dispatched_task, _run_meta, _set_ledger
 from test_dispatch_runner import FAKE_CLI, write_script
+
+_T = TypeVar("_T")
+
+
+def must(value: Optional[_T]) -> _T:
+    """The value, asserted present -- a lookup the test has just made true."""
+    assert value is not None
+    return value
 
 
 @pytest.fixture
@@ -64,8 +79,8 @@ def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return home, root, manager, fake_cli
 
 
-def results_for(manager: TaskManager, task_id: str, run_id: str) -> List[object]:
-    task = manager.get_task(task_id)
+def results_for(manager: TaskManager, task_id: str, run_id: str) -> List[LogEntry]:
+    task = must(manager.get_task(task_id))
     return [
         entry
         for entry in task.log
@@ -92,7 +107,7 @@ def start_admitted_session(sandbox) -> tuple[str, str]:
         project_root=root,
         home=home,
     )
-    runner.start(manager.get_task(task_id), actor="Jeff Posey", caused_by=1, run_id=run_id)
+    runner.start(must(manager.get_task(task_id)), actor="Jeff Posey", caused_by=1, run_id=run_id)
     return run_id, task_id
 
 
@@ -165,10 +180,11 @@ class TestACancelLandingMidPoll:
         assert attempts_to_write == ["cancelled"], "the poll lost the set and wrote nothing"
         meta = _run_meta(home, run_id)
         assert meta["outcome"] == "cancelled" and meta["status"] == "cancelled"
-        attempt = journal.journal(home).attempt(run_id)
+        attempt = must(journal.journal(home).attempt(run_id))
         assert attempt.outcome == "cancelled"
-        assert attempt.cancel["requester"] == "Jeff Posey"
-        assert attempt.cancel["source"] == "test"
+        request = must(attempt.cancel)
+        assert request["requester"] == "Jeff Posey"
+        assert request["source"] == "test"
 
     def test_a_poll_that_sees_the_requested_cancel_defers_to_it(self, sandbox) -> None:
         """The guard ``_finish_batch`` always had, now on the session path too."""
@@ -188,7 +204,7 @@ class TestACancelLandingMidPoll:
         poll_live_sessions(home)
 
         assert results_for(manager, task_id, run_id) == [], "the cancellation owns the ending"
-        assert journal.journal(home).attempt(run_id).is_live
+        assert must(journal.journal(home).attempt(run_id)).is_live
 
     def test_the_poll_wins_and_the_cancel_finds_it_already_over(self, sandbox) -> None:
         home, _, manager, fake_cli = sandbox
@@ -264,7 +280,7 @@ class TestAWorkerCannotDeclareItselfOver:
         directory.write_meta(forged)  # what an agent in the run directory can do
 
         holder = read_lock_holder(lock.path)
-        assert stale_lock_reason(home, holder) is None, "the lock is still held"
+        assert stale_lock_reason(home, must(holder)) is None, "the lock is still held"
         released = journal.release_ended(home, lambda project: manager)
         assert released == []
         with pytest.raises(OwnershipConflict):
@@ -553,7 +569,7 @@ class TestLegacyMigration:
         assert live.owner_mode == "legacy" and not live.terminal
         with pytest.raises(OwnerModeConflict):
             store.claim_controller(live.execution_id, owner_mode=OWNER_DURABLE)
-        assert store.attempt("run_live").is_live
+        assert must(store.attempt("run_live")).is_live
 
 
 # ----- the shadow controller ----------------------------------------------------------
@@ -578,11 +594,11 @@ class TestTheShadowTick:
         store = journal.journal(home)
         pending = store.inbox(status="pending")
         assert task_id in {item.task_id for item in pending}
-        execution = store.open_execution("sandbox", task_id)
+        execution = must(store.open_execution("sandbox", task_id))
         kinds = [event.kind for event in store.events(execution.execution_id)]
         assert "signal" in kinds and "launched" in kinds
         assert all(activity.shadow for activity in store.activities())
-        assert store.attempt(run_id).is_live, "a shadow pass concludes nothing"
+        assert must(store.attempt(run_id)).is_live, "a shadow pass concludes nothing"
         again = journal.shadow_tick(home, lambda project: manager)
         assert again.imported == 0 and again.advanced == ()
         assert old_task  # created before, and not a reason to fail the import

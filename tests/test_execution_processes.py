@@ -19,7 +19,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import List
+from typing import List, Optional, TypeVar
 
 from agentjobs.execution.coordinator import advance_execution, inspect_execution
 from agentjobs.execution.reducer import WORKFLOW_VERSION
@@ -90,6 +90,14 @@ store = ExecutionStore(pathlib.Path(sys.argv[1]))
 store.before_commit = lambda label: os._exit(9)
 store.conclude("run_a", outcome="completed", status="finished", concluded_by="doomed")
 """
+
+_T = TypeVar("_T")
+
+
+def must(value: Optional[_T]) -> _T:
+    """The value, asserted present -- a lookup the test has just made true."""
+    assert value is not None
+    return value
 
 
 def environment() -> dict:
@@ -208,7 +216,7 @@ class TestTheTerminalTransitionAcrossProcesses:
         assert doomed.returncode == 9, doomed.stderr
         survivor = ExecutionStore(db)
         try:
-            attempt = survivor.attempt("run_a")
+            attempt = must(survivor.attempt("run_a"))
             assert attempt.is_live and attempt.outcome is None
             assert survivor.conclude(
                 "run_a", outcome="completed", status="finished", concluded_by="next process"
@@ -229,7 +237,7 @@ class TestReplayInAFreshProcess:
             workflow_version=WORKFLOW_VERSION,
         )
         store.mark_launched("run_a", session_id="s-1")
-        execution = store.open_execution("alpha", "task-001")
+        execution = must(store.open_execution("alpha", "task-001"))
         store.close()
         return execution.execution_id
 
@@ -242,7 +250,8 @@ class TestReplayInAFreshProcess:
             timeout=120,
         )
         assert completed.returncode == 0, completed.stderr
-        return json.loads(completed.stdout.strip().splitlines()[-1])
+        answer: dict = json.loads(completed.stdout.strip().splitlines()[-1])
+        return answer
 
     def test_identical_state_and_intents_and_no_effect_from_replaying(self, tmp_path: Path) -> None:
         """durable-1: two fresh processes, one history, one answer."""
@@ -269,7 +278,7 @@ class TestReplayInAFreshProcess:
         check = ExecutionStore(db)
         try:
             assert all(activity.shadow for activity in check.activities())
-            assert check.attempt("run_a").is_live, "replay concluded nothing"
+            assert must(check.attempt("run_a")).is_live, "replay concluded nothing"
             assert not list(tmp_path.glob("runs/*")), "and launched nothing"
         finally:
             check.close()

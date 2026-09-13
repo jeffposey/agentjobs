@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, Iterator, List, Optional, TypeVar
 
 import pytest
 
@@ -34,6 +34,7 @@ from agentjobs.execution.errors import (
 )
 from agentjobs.execution.reducer import WORKFLOW_VERSION
 from agentjobs.execution.store import (
+    Attempt,
     OWNER_DURABLE,
     OWNER_LEGACY,
     SCHEMA_VERSION,
@@ -43,17 +44,26 @@ from agentjobs.execution.store import (
     restore_snapshot,
 )
 
+_T = TypeVar("_T")
+
+
+def must(value: Optional[_T]) -> _T:
+    """The value, asserted present -- a lookup the test has just made true."""
+    assert value is not None
+    return value
+
+
 ENVELOPE = {"runner": "claude-opus-5", "posture": "auto"}
 
 
 @pytest.fixture
-def store(tmp_path: Path) -> ExecutionStore:
+def store(tmp_path: Path) -> Iterator[ExecutionStore]:
     journal = ExecutionStore(tmp_path / "execution.db")
     yield journal
     journal.close()
 
 
-def admit(store: ExecutionStore, project: str, task: str, run: str, **kwargs) -> object:
+def admit(store: ExecutionStore, project: str, task: str, run: str, **kwargs: Any) -> Attempt:
     kwargs.setdefault("capacity", 3)
     return store.admit(
         project_id=project,
@@ -109,7 +119,7 @@ class TestAdmission:
     ) -> None:
         attempt = admit(store, "alpha", "task-001", "run_a")
         assert attempt.state == "admitted" and attempt.takes_slot
-        execution = store.open_execution("alpha", "task-001")
+        execution = must(store.open_execution("alpha", "task-001"))
         assert execution is not None and execution.envelope == ENVELOPE
         assert [event.kind for event in store.events(execution.execution_id)] == [
             "accepted",
@@ -201,7 +211,7 @@ class TestTheTerminalCompareAndSet:
             expected_generation=read_generation,
         )
         assert not stale.won
-        assert store.attempt("run_a").is_live
+        assert must(store.attempt("run_a")).is_live
 
     def test_a_stale_epoch_cannot_conclude_after_a_takeover(self, store: ExecutionStore) -> None:
         admitted = admit(store, "alpha", "task-001", "run_a")
@@ -216,7 +226,7 @@ class TestTheTerminalCompareAndSet:
                 concluded_by="old",
                 epoch=admitted.epoch,
             )
-        assert store.attempt("run_a").is_live, "the live writer's ownership is not freed"
+        assert must(store.attempt("run_a")).is_live, "the live writer's ownership is not freed"
 
     def test_the_winners_projection_is_enqueued_in_the_same_commit(
         self, store: ExecutionStore
@@ -248,7 +258,7 @@ class TestNothingCommittedIsNeverAcknowledged:
         with pytest.raises(RuntimeError):
             store.conclude("run_a", outcome="completed", status="finished", concluded_by="t")
         store.before_commit = None
-        attempt = store.attempt("run_a")
+        attempt = must(store.attempt("run_a"))
         assert attempt.is_live and attempt.outcome is None, "rolled back, not concluded"
         assert store.pending_outbox() == []
 
@@ -273,7 +283,7 @@ class TestNothingCommittedIsNeverAcknowledged:
             finally:
                 blocker.execute("ROLLBACK")
                 blocker.close()
-            assert store.attempt("run_a").is_live
+            assert must(store.attempt("run_a")).is_live
         finally:
             store.close()
 
@@ -298,7 +308,7 @@ class TestNothingCommittedIsNeverAcknowledged:
                 "run_a", outcome="completed", status="finished", concluded_by="t", projection=huge
             )
         store._conn.execute("PRAGMA max_page_count = 1073741823")
-        assert store.attempt("run_a").is_live
+        assert must(store.attempt("run_a")).is_live
         assert store.pending_outbox() == []
 
 
@@ -307,7 +317,7 @@ class TestActivities:
         self, store: ExecutionStore
     ) -> None:
         admit(store, "alpha", "task-001", "run_a")
-        execution = store.open_execution("alpha", "task-001")
+        execution = must(store.open_execution("alpha", "task-001"))
         _, created = store.record_intent(
             "act-1",
             execution_id=execution.execution_id,
@@ -334,7 +344,7 @@ class TestActivities:
 
     def test_a_result_from_a_superseded_controller_is_refused(self, store: ExecutionStore) -> None:
         admit(store, "alpha", "task-001", "run_a")
-        execution = store.open_execution("alpha", "task-001")
+        execution = must(store.open_execution("alpha", "task-001"))
         old = store.claim_controller(execution.execution_id, owner_mode=OWNER_DURABLE)
         store.record_intent(
             "act-1", execution_id=execution.execution_id, kind="launch", input={}, owner_epoch=old
@@ -399,7 +409,7 @@ class TestInboxAndOutbox:
     def test_a_signal_for_an_open_execution_joins_its_history(self, store: ExecutionStore) -> None:
         admit(store, "alpha", "task-001", "run_a")
         import_source_events(store, "alpha", self.feed([self.event(1, 7)]))
-        execution = store.open_execution("alpha", "task-001")
+        execution = must(store.open_execution("alpha", "task-001"))
         assert "signal" in [event.kind for event in store.events(execution.execution_id)]
 
     def test_an_acknowledgement_lost_after_delivery_redelivers_the_same_operation(
@@ -473,7 +483,7 @@ class TestOwnerModes:
             workflow_version=WORKFLOW_VERSION,
         )
         assert disposition == "imported"
-        execution = store.open_execution("alpha", "task-001")
+        execution = must(store.open_execution("alpha", "task-001"))
         assert execution.owner_mode == OWNER_LEGACY
         with pytest.raises(OwnerModeConflict):
             store.claim_controller(execution.execution_id, owner_mode=OWNER_DURABLE)
@@ -485,12 +495,12 @@ class TestOwnerModes:
             "run_old", outcome="completed", status="finished", concluded_by="legacy poller"
         )
         admit(store, "alpha", "task-001", "run_new")
-        assert store.open_execution("alpha", "task-001").owner_mode == OWNER_DURABLE
+        assert must(store.open_execution("alpha", "task-001")).owner_mode == OWNER_DURABLE
 
     def test_importing_twice_imports_once_and_keeps_unknown_fields_unknown(
         self, store: ExecutionStore
     ) -> None:
-        kwargs = dict(
+        kwargs: Dict[str, Any] = dict(
             run_id="run_old",
             project_id="alpha",
             task_id="task-001",
@@ -545,7 +555,7 @@ class TestBackupAndRestore:
         self, store: ExecutionStore, tmp_path: Path
     ) -> None:
         admit(store, "alpha", "task-001", "run_a")
-        execution = store.open_execution("alpha", "task-001")
+        execution = must(store.open_execution("alpha", "task-001"))
         store.record_intent(
             "launch:run_a",
             execution_id=execution.execution_id,
@@ -566,7 +576,7 @@ class TestBackupAndRestore:
 
         restored = restore_snapshot(snapshot, tmp_path / "restored.db")
         try:
-            assert restored.attempt("run_a").is_live, "the snapshot believes the run is live"
+            assert must(restored.attempt("run_a")).is_live, "the snapshot believes the run is live"
             answers = {"launch": "applied", "merge": "unknown"}
             report = reconcile_after_restore(
                 restored,
@@ -589,7 +599,7 @@ class TestBackupAndRestore:
         self, store: ExecutionStore, tmp_path: Path
     ) -> None:
         admit(store, "alpha", "task-001", "run_a")
-        execution = store.open_execution("alpha", "task-001")
+        execution = must(store.open_execution("alpha", "task-001"))
         before = advance_execution(store, execution.execution_id)
         snapshot = store.backup(tmp_path / "snap.db")
         restored = restore_snapshot(snapshot, tmp_path / "restored.db")

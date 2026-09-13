@@ -58,7 +58,7 @@ from agentjobs.dispatch.guards import (
     resolve_causing_entry,
 )
 from agentjobs.dispatch import journal as guards_journal
-from agentjobs.dispatch.runner import DispatchRunner
+from agentjobs.dispatch.runner import DispatchRunner, RunHandle
 from agentjobs.execution.factory import execution_store_for
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
@@ -798,9 +798,13 @@ class TestConcurrency:
         assert len(handles) == 1, f"expected exactly one admission, got {results}"
         assert len(refusals) == 1 and isinstance(refusals[0], ConcurrencyLimitError), refusals
         assert holder.run_id in str(refusals[0])
-        loser = [task_id for task_id in others if task_id != handles[0].task_id][0]
+        winner = handles[0]
+        assert isinstance(winner, RunHandle)
+        loser = [task_id for task_id in others if task_id != winner.task_id][0]
+        loser_task = manager.get_task(loser)
+        assert loser_task is not None
         assert not [
-            entry for entry in manager.get_task(loser).log if entry.type is LogEntryType.DISPATCH
+            entry for entry in loser_task.log if entry.type is LogEntryType.DISPATCH
         ], "the refused dispatch started nothing"
         for handle in handles:
             settle(handle)
