@@ -96,34 +96,62 @@ def start_interactive_run(
 
     run_id = new_run_id()
     try:
-        acquire_run_lock(home, task.id, project_id=project.id, run_id=run_id, timeout=1.0)
+        lock = acquire_run_lock(home, task.id, project_id=project.id, run_id=run_id, timeout=1.0)
     except RunLockTimeout:
         # Something else holds the task -- a finish, a dispatch in its first second.
         # Whatever it is, it is what the record would have said, so nothing is lost.
         return None
 
-    directory = RunDirectory.create(
-        home,
-        run_id,
-        {
-            "run_id": run_id,
-            "task_id": task.id,
-            "project_id": project.id,
-            "mode": DispatchMode.INTERACTIVE.value,
-            "driver": identity.driver,
-            "agent": actor,
-            # No posture: AgentJobs did not choose this session's permission envelope
-            # and cannot read it. `origin` is what a reader should key on instead.
-            "origin": origin,
-            "status": "running",
-            "started_at": datetime.now(timezone.utc).isoformat(),
-            "session_id": identity.session_id,
-            "cwd": identity.cwd,
-            "git_head": git_head(project.root),
-            "caused_by": caused_by,
-            "argv": [],
-        },
-    )
+    # Admitted through the journal like a dispatch (task-416), so this run's ownership is
+    # never judged from a meta file. No slot: a person's session is not the machine's.
+    from agentjobs.dispatch.journal import admit_session  # local: journal imports runner
+    from agentjobs.execution.errors import ExecutionStoreError
+
+    try:
+        admit_session(
+            home,
+            project_id=project.id,
+            task_id=task.id,
+            run_id=run_id,
+            session_id=identity.session_id,
+            mode=DispatchMode.INTERACTIVE.value,
+            takes_slot=False,
+        )
+    except ExecutionStoreError:
+        # Something live owns the task, or the journal refused: either way this claim
+        # gets no record rather than a second owner.
+        lock.release()
+        return None
+
+    try:
+        directory = RunDirectory.create(
+            home,
+            run_id,
+            {
+                "run_id": run_id,
+                "task_id": task.id,
+                "project_id": project.id,
+                "mode": DispatchMode.INTERACTIVE.value,
+                "driver": identity.driver,
+                "agent": actor,
+                # No posture: AgentJobs did not choose this session's permission envelope
+                # and cannot read it. `origin` is what a reader should key on instead.
+                "origin": origin,
+                "status": "running",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "session_id": identity.session_id,
+                "cwd": identity.cwd,
+                "git_head": git_head(project.root),
+                "caused_by": caused_by,
+                "argv": [],
+            },
+        )
+    except BaseException as exc:
+        from agentjobs.dispatch.journal import abandon_admission
+
+        abandon_admission(home, run_id, launched=False, reason=f"{type(exc).__name__}: {exc}")
+        lock.release()
+        raise
     return read_run(directory.path)
 
 

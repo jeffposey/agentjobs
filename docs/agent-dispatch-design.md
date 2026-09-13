@@ -3372,9 +3372,11 @@ on task-414. **The journal, admission, the terminal transition, the source feed 
 legacy import shipped in task-264** -- see
 [What task-264 built](#what-task-264-built-2026-09-13) -- and **the frozen envelope and
 history-based continuation in task-375** -- see
-[What task-375 built](#what-task-375-built-2026-09-13), and **durable approval, feedback
+[What task-375 built](#what-task-375-built-2026-09-13), **durable approval, feedback
 and Stop signals with the finisher's ownership transfer in task-312** -- see
-[What task-312 built](#what-task-312-built-2026-09-13); everything else here is still
+[What task-312 built](#what-task-312-built-2026-09-13) -- and **the replay controller,
+bounded recovery and durable epic supervision in task-416** -- see
+[What task-416 built](#what-task-416-built-2026-09-13); everything else here is still
 design.
 
 An accepted dispatch is an obligation with a durable identity. AgentJobs keeps advancing
@@ -3879,10 +3881,10 @@ whose marker no longer matches -- a restored or split task database -- is re-imp
 from the start and deduplicated by `task#entry@ts`. `storage split` excludes the derived
 feed and lets the trigger rebuild it.
 
-**Shadow only.** `advance_execution` replays every open execution each poll and records
-its proposals as shadow activities. Nothing performs them; `active` mode refuses until the
-activity adapters exist (task-416). One execution currently ends with its one attempt;
-retries within an execution are task-416's.
+**Shadow only** as task-264 shipped it: `advance_execution` replayed every open execution
+each poll and recorded its proposals as shadow activities that nothing performed. Task-416
+added the controller that performs them for executions it drives; see
+[What task-416 built](#what-task-416-built-2026-09-13).
 
 **Operations.** `agentjobs execution status` shows open executions with their replayed
 state and next proposal, live attempts and owed writes. `agentjobs execution migrate
@@ -3950,6 +3952,47 @@ commits (task-228). Whether to refuse or re-review belongs with the durable fini
 (task-322). Auth recovery delivering buffered messages is task-417; the note's meaning is
 task-343. Batch runs are not stood down.
 
+### What task-416 built (2026-09-13)
+
+The replay engine and durable epic supervision (task-418 absorbed). **The controller is
+opt-in**: `execution.controller` in `~/.agentjobs/dispatch.yaml` is `shadow` by default,
+which is exactly the behaviour before this build. `active` stamps each *new* admission
+`controlled_by: controller`. Routing is decided once, at acceptance, so switching the key
+moves nothing already flying: legacy runs drain under the poller that started them, and
+controller-driven runs stay with the controller if the key is switched back. The legacy
+session poller, the startup reconcile and the shadow tick all skip controller-driven runs,
+so the two followers never act on one run. `agentjobs execution status` names each
+execution's follower.
+
+| Fact | Where it is decided |
+| --- | --- |
+| Journal schema | Revision 2 is **additive** (timer, supervision and supervision_child tables; `run_attempt.operation_id`; `execution.controlled_by`) and leaves `user_version` at 1. A process still running the previous build shares the file for hours (an epic walk started before the upgrade), and a version bump would make it refuse every mutation. A change an old build could misread still bumps the version and fails closed |
+| An execution between attempts | `conclude(retry_owed=, failure_class=)` keeps a controller-driven execution open in `retry_wait`, never for a cancellation. An admission continues it only when it names it (`continues_execution_id`); any other admission for the task supersedes it in the same transaction. Admission is idempotent on `attempt_operation_id` |
+| What happens next | Reducer workflow version 2 (version 1 still replays), fed only by recorded events: `timer_set`/`timer_fired`, `policy_observed`, `activity_result`, `authorised`, `closed`. From `retry_wait` it proposes, in order: schedule a timer, observe policy when it fires, relaunch on a permitting observation, or escalate once |
+| Failure classes | `dispatch.journal.FAILURE_CLASS_BY_OUTCOME`: `interrupted`/`crashed` are `worker_gone` (retryable); `failed` is `worker_failed`, `timeout` is `timed_out`, `finished_without_handoff` is `spec_gap`, none retried. A pre-launch death is `launch_not_applied`. Waits (`capacity_wait`, `cooldown`, `policy_wait`) spend no attempt and schedule another round |
+| The bound | The envelope's frozen `retry_policy` (3 paid attempts; 60s initial, 2x, 600s cap, deterministic jitter recorded on the timer; 30 wait rounds). An envelope without one, including everything admitted before task-416, gets no automatic retry |
+| Revocation before a side effect | `Controller.observe_policy` appends a `policy_observed` event before each relaunch: task state and hold, the four gates with the recorded runner, the ceiling in force (and whether the grant is clamped by it), per-task and machine caps, slots. The relaunch is then `dispatch_task` continuing the open execution with a stable admission id, so every gate runs again at the moment of the effect |
+| Timers | `timer` rows with a compare-and-set fire that appends `timer_fired` in the same commit. One firing per timer however many processes find it due; a machine waking from sleep fires each overdue timer once, and the next round is scheduled from the moment of firing, not the old due time |
+| Launch reconciliation | `Controller.perform_launch_reconcile`, keyed on a launch marker the runner writes before the launcher runs. No marker and a dead admitting process means `not_applied` (reservation refunded). A recorded session with a dispatch entry reattaches. A session found by name without a dispatch entry is stopped, the stop confirmed by the listing, and only then concluded. A marker with no match is `effect_unknown` after `execution.reconcile_deadline_seconds`, with one escalation and ownership kept |
+| Driver capabilities | `dispatch.controller.CAPABILITIES`. Claude correlates by `name` (verified on 2.1.270); absence is authoritative for no driver. Codex has no correlation, and its persisted-thread policy is unchanged. A batch worker has a pid plus creation-time receipt (`ledger.process_identity`): a surviving worker is left alone until its wall clock, a reused pid is not the worker, and a vanished worker is concluded with dirty paths named and left in place |
+| Observing while launch is refused | `config.resolve_for_observation`: the poller and the controller keep following, settling and confirming Stops with the kill switch on, and a handback from a settle still goes through every gate |
+| Unreadable versus empty | A session listing that prints nothing raises (a real empty listing prints `[]`), in the runner and in the startup sweep |
+| Stop between attempts | `ExecutionStore.stop_execution`, reached by `DispatchLedger.cancel` on a run whose execution is waiting: requester recorded, execution cancelled, no retry after a restart |
+| Sessions AgentJobs did not start | `journal.admit_session`: interactive claims (no slot) and registered sessions (a slot) are admitted like a dispatch. Only a person's interactive record is still accepted as its own evidence of ending |
+| Timeout roles | `config.timeout_roles`, printed by `dispatch config` beside the unrenamed keys and their source |
+| Durable supervision | `epic._Supervision`: authority, reserved attempts with admission ids, flights, landings with the child's revision, and sticky grounding, each committed before the act. A walk resumed on the same authorisation reconciles every child first. `dispatch walk --detach` leaves the walk to the server's poll tick (`advance_hosted_walks`), so no session holds a slot while it waits. The supervisor's own run and a landed child's unsettled run count against the walk's slots |
+
+**Proof.** `tests/test_execution_controller.py` runs production `dispatch_task` in a
+child interpreter that dies at each launch boundary, then drives a fresh `Controller`.
+`tests/test_epic_supervision.py` does the same for a walk around a child's admission.
+`tests/test_execution_recovery.py` covers the store and reducer.
+
+**Not built here.** Auth recovery (task-417);
+durable finish (task-322). A detached walk's backpressure deadline is not persisted, so
+it waits on a full machine rather than stopping after the per-child ceiling. The walk still
+derives each child's authorisation from the parent's newest human entry rather than from
+its recorded authority.
+
 ### Implementation ownership and order
 
 The task records carry the full specifications and remain the source of queue order.
@@ -3965,7 +4008,7 @@ The task records carry the full specifications and remain the source of queue or
 | task-348 | Evidence for one red-stage retry and a complete final gate receipt | task-264 |
 | task-322 | Durable finish, post-merge recovery, truthful finish projection | task-264, task-312, task-348 |
 | task-417 | Shared auth probe, incident notification and acknowledged continuation | task-264, task-375, task-312, task-416 |
-| task-418 | Persistent epic frontier, waits, admissions and grounding | task-264, task-416 |
+| task-418 | Persistent epic frontier, waits, admissions and grounding -- **absorbed into task-416 on 2026-09-13** | task-264, task-416 |
 | task-419 | Cross-component incident/crash harness and final guarantee evidence | All preceding children |
 
 Task-314 stays separate: Kiro-specific comparison and new event triggers are not proved

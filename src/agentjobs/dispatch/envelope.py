@@ -108,15 +108,42 @@ def is_continuation(request: "DispatchRequest") -> bool:
     )
 
 
-def continuation_history(store: ExecutionStore, project_id: str, task_id: str) -> Optional[History]:
-    """The newest execution's envelope for this project/task, when it can be continued.
+def continuation_history(
+    store: ExecutionStore,
+    project_id: str,
+    task_id: str,
+    *,
+    execution_id: Optional[str] = None,
+) -> Optional[History]:
+    """The envelope a continuation reuses, when there is one to continue.
+
+    ``execution_id`` names the execution outright -- a retry *within* an execution the
+    durable controller is recovering (task-416) reads that execution's frozen envelope
+    and no other, even if something newer exists. Without it, the newest execution for
+    this project/task, as task-375 built it for a handback.
 
     ``None`` when there is nothing to continue: no execution at all, a legacy import, or
     an envelope that never recorded a runner and a valid posture. Those resolve as a new
     dispatch did before this module; a missing field is never filled in from today's
     configuration, because that is exactly the silent substitution this exists to stop.
     """
-    execution = store.latest_execution(project_id, task_id)
+    if execution_id is not None:
+        execution = store.execution(execution_id)
+        if (
+            execution is None
+            or execution.terminal
+            or (execution.project_id, execution.task_id)
+            != (
+                project_id,
+                task_id,
+            )
+        ):
+            raise DispatchError(
+                f"execution {execution_id} is not an open execution of {project_id}/{task_id}, "
+                "so nothing can be retried within it"
+            )
+    else:
+        execution = store.latest_execution(project_id, task_id)
     if execution is None or execution.provenance != PROVENANCE_NATIVE:
         return None
     envelope = execution.envelope
@@ -176,6 +203,7 @@ def build_envelope(
     push: bool,
     policy_clause: str,
     history: Optional[History],
+    retry_policy: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
     """The non-secret, versioned envelope an execution is accepted with.
 
@@ -229,6 +257,10 @@ def build_envelope(
             if history is not None
             else {"kind": GRANT}
         ),
+        # Frozen with everything else (task-416): an execution's recovery bound is part of
+        # its grant, so a later change to the default cannot give a running execution
+        # more attempts than it was accepted with. Absent means no automatic retry.
+        **({"retry_policy": dict(retry_policy)} if retry_policy is not None else {}),
     }
 
 

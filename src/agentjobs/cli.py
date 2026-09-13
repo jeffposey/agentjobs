@@ -1576,6 +1576,14 @@ def dispatch_walk(
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Say what would be walked and in what order; start nothing."
     ),
+    detach: bool = typer.Option(
+        False,
+        "--detach",
+        help=(
+            "Hand the walk to the server, which advances it on every poll tick, and return "
+            "at once. Nothing has to stay running to wait on the children."
+        ),
+    ),
 ) -> None:
     """Fly an epic's independent children in parallel, grounding the fleet on a bad one.
 
@@ -1617,10 +1625,7 @@ def dispatch_walk(
         inherited_posture,
         open_children,
         walk_epic,
-        walk_handoff_prompt,
-        walk_report,
     )
-    from agentjobs.models_v2 import Ball, BallReason, LogEntryType
 
     registry = ProjectRegistry()
     try:
@@ -1673,6 +1678,16 @@ def dispatch_walk(
     # waits on, but which would still mean this flag promised something the machine had
     # already decided against. `--max-concurrent` narrows it and cannot widen it.
     ceiling = resolution.limits.max_concurrent_runs
+    # **The supervisor's own run is one of those slots** (task-416, from-walk-slots). A walk
+    # run by a dispatched session competes with that session for the machine's ceiling, so
+    # "3 at once" was really two children and every third takeoff was refused. A detached
+    # walk is advanced by the server and holds no session, so it keeps the whole ceiling.
+    from agentjobs.dispatch.epic import supervisor_slot_held
+
+    if not detach and supervisor_slot_held(
+        resolution.config.path.parent if resolution.config.path else default_home()
+    ):
+        ceiling = max(1, ceiling - 1)
     settings.max_concurrent = min(max_concurrent, ceiling) if max_concurrent else ceiling
 
     remaining = open_children(manager, parent.id)
@@ -1693,6 +1708,29 @@ def dispatch_walk(
             f"  starting now: {', '.join(child.id for child in upcoming) or 'nothing claimable'}"
         )
         typer.secho("Dry run: nothing was started.", fg=typer.colors.YELLOW)
+        return
+
+    if detach:
+        from agentjobs.dispatch.epic import detach_walk
+
+        try:
+            walk_id = detach_walk(
+                manager=manager,
+                project=project,
+                parent_id=parent.id,
+                home=home,
+                settings=settings,
+                posture=chosen_posture,
+                actor=actor,
+            )
+        except EpicError as exc:
+            typer.secho(f"Refused ({exc.reason}): {exc}", fg=typer.colors.RED)
+            raise typer.Exit(code=2) from exc
+        typer.secho(
+            f"Detached as {walk_id}. The server advances it on every poll tick and records the "
+            "outcome on the parent; nothing needs to keep running to wait for the children.",
+            fg=typer.colors.GREEN,
+        )
         return
 
     try:
@@ -1717,12 +1755,9 @@ def dispatch_walk(
 
     # Written whichever way it ended, and written before anything is printed: if this
     # process dies in the next second the record still says what the walk did.
-    manager.add_log_entry(
-        parent.id,
-        actor=actor,
-        type=LogEntryType.PROGRESS,
-        body=walk_report(result),
-    )
+    from agentjobs.dispatch.epic import record_walk_outcome
+
+    record_walk_outcome(manager, parent.id, actor=actor, result=result)
     typer.echo("")
     typer.echo(result.summary())
 
@@ -1735,15 +1770,6 @@ def dispatch_walk(
         )
         return
 
-    refreshed = manager.get_task(parent.id)
-    if refreshed is not None and refreshed.is_open and refreshed.ball is not Ball.HUMAN:
-        manager.handoff(
-            parent.id,
-            actor=actor,
-            ball=Ball.HUMAN,
-            ball_reason=BallReason.DECISION,
-            ball_prompt=walk_handoff_prompt(result),
-        )
     typer.secho(
         f"Stopped: {result.stop.value}. The parent holds the reason and its ball is with "
         "a human.",
@@ -2051,6 +2077,21 @@ def dispatch_show_config(
         f"per_task_lifetime={limits.auto.per_task_lifetime}  "
         f"cooldown_seconds={limits.auto.cooldown_seconds}"
     )
+    typer.echo(
+        f"Controller:     {config.execution.controller}"
+        + (
+            "  (new admissions are driven, recovered and retried by the durable controller)"
+            if config.execution.active
+            else "  (the session poller follows runs; the journal replays in shadow)"
+        )
+    )
+    from agentjobs.dispatch.config import timeout_roles
+
+    typer.echo("\nTimeouts by role (task-414 section 9a):")
+    for role in timeout_roles(config):
+        typer.echo(
+            f"  {role.role:22} {role.key:40} {role.value:>6}s  [{role.source}]  {role.meaning}"
+        )
 
     if project_id:
         # Reported whether or not dispatch is permitted right now: an agent woken after
@@ -2117,9 +2158,11 @@ def execution_status() -> None:
             summary = f"{state.state}; next: {proposed}"
         except ExecutionStoreError as exc:
             summary = f"not replayable: {exc}"
+        follower = "controller" if execution.controller_driven else "poller"
+        due = f"; due {execution.next_due_at}" if execution.next_due_at else ""
         typer.echo(
             f"  {execution.execution_id} {execution.project_id}/{execution.task_id} "
-            f"[{execution.owner_mode}, {execution.provenance}] {summary}"
+            f"[{follower}, {execution.owner_mode}, {execution.provenance}] {summary}{due}"
         )
     typer.echo(f"Live attempts: {len(attempts)}")
     for attempt in attempts:
@@ -2130,6 +2173,35 @@ def execution_status() -> None:
             f"({slot}, epoch {attempt.epoch}){flag}"
         )
     typer.echo(f"Owed task writes: {len(owed)}")
+    try:
+        walks = store.open_walks()
+    except ExecutionStoreError:
+        walks = []
+    typer.echo(f"Epic walks: {len(walks)}")
+    for walk in walks:
+        grounded = f" grounded ({walk.grounding.get('stop')})" if walk.grounding else ""
+        typer.echo(
+            f"  {walk.walk_id} {walk.project_id}/{walk.parent_task_id} on entry "
+            f"{walk.authority_entry} [{walk.host}] started {walk.started}{grounded}"
+        )
+
+
+@execution_app.command("tick")
+def execution_tick() -> None:
+    """Run one pass of the durable controller and of every server-hosted walk, now.
+
+    The server does this on every poll tick. This is for a machine with no server running,
+    and for watching one pass happen: it acts only on executions the controller drives and
+    on walks detached to the server.
+    """
+    from agentjobs.dispatch.poller import _drive_controller
+
+    home = default_home()
+    lines = _drive_controller(home, ProjectRegistry(home=home), {})
+    for line in lines:
+        typer.echo(f"{line.run_id}: {line.detail}")
+    if not lines:
+        typer.echo("Nothing to do.")
 
 
 @execution_app.command("migrate")

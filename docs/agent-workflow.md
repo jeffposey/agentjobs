@@ -390,6 +390,16 @@ either topping the fleet back up or grounding it. It **blocks** until it is done
 deliberate: a supervisor that ends its turn saying it will check back periodically is not
 supervising, and that is not a hypothetical (see below).
 
+**A walk survives its own process** (task-416). Its authority, each child's reserved
+attempts, what is flying and why it grounded are rows in the execution journal. If the
+walk dies, run the same command again on the same authorisation. It resumes that walk,
+follows the children it already admitted rather than starting them twice, and stays
+grounded if it was. `--detach` hands the walk to the server, which advances it on every
+poll tick. Nothing then has to stay running to wait on the children, and the outcome is
+written to the parent when the walk ends. A detached walk writes nothing to the parent
+when it starts, because an agent's note there would shadow the human entry the children's
+authorisation comes from.
+
 `--dry-run` prints the bounds and which children would start now, and starts nothing.
 `--max-children N` stops after N, for a first run against a wide epic you want to watch;
 `--max-concurrent N` narrows the fleet without narrowing the epic.

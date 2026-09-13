@@ -347,6 +347,27 @@ def register_session(
     except RunLockTimeout as exc:
         raise RegistrationRunExistsError(str(exc)) from exc
 
+    # Admitted through the journal before anything is written (task-416): the session's
+    # ownership and its slot are the journal's facts from here, not its own meta's.
+    from agentjobs.dispatch.journal import admit_session  # local: journal imports runner
+    from agentjobs.execution.errors import ExecutionStoreError
+
+    try:
+        admit_session(
+            machine_home,
+            project_id=project.id,
+            task_id=task.id,
+            run_id=run_id,
+            session_id=claimed,
+            mode=DispatchMode.SESSION.value,
+            takes_slot=True,
+        )
+    except ExecutionStoreError as exc:
+        lock.release()
+        raise RegistrationRunExistsError(
+            f"{task.id} could not be admitted for session {claimed}: {exc}"
+        ) from exc
+
     try:
         updated = manager.add_log_entry(
             task.id,
@@ -388,8 +409,14 @@ def register_session(
                 "argv": [],
             },
         )
-    except BaseException:
-        # Nothing is following this run, so nothing will release the lock later.
+    except BaseException as exc:
+        # Nothing is following this run, so nothing will release the lock later -- nor the
+        # journal's ownership, which is concluded here for the same reason.
+        from agentjobs.dispatch.journal import abandon_admission
+
+        abandon_admission(
+            machine_home, run_id, launched=False, reason=f"{type(exc).__name__}: {exc}"
+        )
         lock.release()
         raise
 

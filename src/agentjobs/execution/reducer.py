@@ -4,10 +4,10 @@ Design section 9a asks for "a small explicit state machine", and this is it. Two
 make it replayable, and a test holds each one:
 
 * **It reads nothing but events.** No clock, no configuration, no roster, no filesystem.
-  A timer firing, a poll result, a Stop -- anything from the world arrives as an event an
-  adapter appended, and a fresh process replaying the same events reaches the same state
-  and proposes the same intents. That is what lets the server after a restart, a CLI
-  invocation or a new poller resume an execution none of them started.
+  A timer firing, a poll result, a Stop, a policy check -- anything from the world arrives
+  as an event an adapter appended, and a fresh process replaying the same events reaches
+  the same state and proposes the same intents. That is what lets the server after a
+  restart, a CLI invocation or a new poller resume an execution none of them started.
 * **It is versioned, and an unknown version is refused, never guessed.** Replaying old
   events through whichever control flow happens to be installed is the failure DBOS's
   upgrade guidance names; ``HistoryIncompatible`` is raised instead, and the store refuses
@@ -16,20 +16,28 @@ make it replayable, and a test holds each one:
 Intents are proposals with **stable activity ids**. Replaying a history twice names the
 same activities, so recording them is idempotent and a replay by itself performs nothing.
 Carrying them out is an adapter's job, outside any transaction (``coordinator``).
+
+**Version 2 (task-416)** adds bounded recovery between attempts. An attempt that ended
+retryably leaves its execution in ``retry_wait``; from there the proposals are, in order:
+schedule a durable timer, observe policy when it fires, relaunch when the recorded
+observation permits it -- or escalate once, naming the single action that clears the
+condition. Version 1 histories replay under the same rules: none of the events that drive
+the new states can appear in them.
 """
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 
 from agentjobs.execution.errors import HistoryIncompatible
 
-WORKFLOW_VERSION = 1
+WORKFLOW_VERSION = 2
 """The workflow definition this reducer implements. Independent of the package version:
 a release that changes no transition must not strand every history written before it."""
 
-SUPPORTED_VERSIONS = frozenset({WORKFLOW_VERSION})
+SUPPORTED_VERSIONS = frozenset({1, WORKFLOW_VERSION})
 
 # The event vocabulary. Typed as constants rather than an Enum so a persisted kind is a
 # plain string whose meaning is this table, and an unknown one is detectable.
@@ -46,6 +54,13 @@ STAND_DOWN_REQUESTED = "stand_down_requested"
 revokes no intent and must never be read as a cancellation."""
 SIGNAL_DISPOSED = "signal_disposed"
 """A pending signal reached its explicit disposition -- consumed, superseded or stale."""
+# Version 2.
+CLOSED = "closed"
+TIMER_SET = "timer_set"
+TIMER_FIRED = "timer_fired"
+POLICY_OBSERVED = "policy_observed"
+ACTIVITY_RESULT = "activity_result"
+AUTHORISED = "authorised"
 
 EVENT_KINDS = frozenset(
     {
@@ -59,6 +74,12 @@ EVENT_KINDS = frozenset(
         MIGRATED,
         STAND_DOWN_REQUESTED,
         SIGNAL_DISPOSED,
+        CLOSED,
+        TIMER_SET,
+        TIMER_FIRED,
+        POLICY_OBSERVED,
+        ACTIVITY_RESULT,
+        AUTHORISED,
     }
 )
 
@@ -67,12 +88,55 @@ S_NEW = "new"
 S_ACCEPTED = "accepted"
 S_LAUNCHING = "launching"
 S_WORKING = "working"
+S_RETRY_WAIT = "retry_wait"
+S_PARKED = "parked"
 S_STOPPING = "stopping"
 S_STANDING_DOWN = "standing_down"
 S_CANCELLED = "cancelled"
 S_CONCLUDED = "concluded"
 
 TERMINAL_STATES = frozenset({S_CANCELLED, S_CONCLUDED})
+
+# ----- failure classes (design section 9a's table) --------------------------------
+
+WORKER_GONE = "worker_gone"
+LAUNCH_NOT_APPLIED = "launch_not_applied"
+EFFECT_UNKNOWN = "effect_unknown"
+CAPACITY_WAIT = "capacity_wait"
+COOLDOWN = "cooldown"
+POLICY_WAIT = "policy_wait"
+POLICY_REVOKED = "policy_revoked"
+BUDGET_EXHAUSTED = "budget_exhausted"
+ATTEMPTS_EXHAUSTED = "attempts_exhausted"
+WORKER_FAILED = "worker_failed"
+TIMED_OUT = "timed_out"
+SPEC_GAP = "spec_gap"
+AUTH_UNAVAILABLE = "auth_unavailable"
+STORAGE_FAILURE = "storage_failure"
+CANCELLED_BY_USER = "cancelled_by_user"
+
+RETRYABLE_CLASSES = frozenset({WORKER_GONE, LAUNCH_NOT_APPLIED})
+"""Classes that may spend another paid attempt. Everything else is a fact about the work,
+the grant or the world, and a second identical attempt would not change it -- in
+particular a branch or code failure is never retried hoping for green."""
+
+WAIT_CLASSES = frozenset({CAPACITY_WAIT, COOLDOWN, POLICY_WAIT})
+"""Conditions that clear on their own. Waiting on them spends no attempt; another round
+of the same wait is scheduled."""
+
+DEFAULT_RETRY_POLICY: Mapping[str, Any] = {
+    "max_attempts": 3,
+    "initial_seconds": 60,
+    "factor": 2,
+    "cap_seconds": 600,
+    "jitter_seconds": 15,
+    "max_wait_rounds": 30,
+}
+"""What a new envelope is granted (``dispatch.envelope``). Three paid attempts per
+execution; the first delay equals the default per-task cooldown so a relaunch is not
+refused by it. Proposed policy, not a measurement of optimal latency (design section 9a).
+An envelope that recorded no policy -- everything admitted before task-416 -- gets no
+automatic retry at all rather than today's default."""
 
 
 @dataclass(frozen=True)
@@ -113,6 +177,14 @@ class ExecutionState:
     pending_signals: Tuple[str, ...] = ()
     observation: Optional[str] = None
     transfer_to: Optional[str] = None
+    # Version 2.
+    failure_class: Optional[str] = None
+    wait_round: int = 0
+    timer_id: Optional[str] = None
+    timer_fired: bool = False
+    policy: Optional[Mapping[str, Any]] = None
+    escalated: Optional[str] = None
+    attempt_live: bool = False
 
     @property
     def terminal(self) -> bool:
@@ -135,12 +207,20 @@ class ExecutionState:
             "pending_signals": list(self.pending_signals),
             "observation": self.observation,
             "transfer_to": self.transfer_to,
+            "failure_class": self.failure_class,
+            "wait_round": self.wait_round,
+            "timer_id": self.timer_id,
+            "timer_fired": self.timer_fired,
+            "policy": dict(self.policy) if self.policy is not None else None,
+            "escalated": self.escalated,
+            "attempt_live": self.attempt_live,
         }
 
     @classmethod
     def from_data(cls, data: Mapping[str, Any]) -> "ExecutionState":
         version = int(data.get("version", 0))
         _assert_supported(version)
+        policy = data.get("policy")
         return cls(
             execution_id=str(data["execution_id"]),
             version=version,
@@ -157,6 +237,13 @@ class ExecutionState:
             pending_signals=tuple(data.get("pending_signals") or ()),
             observation=data.get("observation"),
             transfer_to=data.get("transfer_to"),
+            failure_class=data.get("failure_class"),
+            wait_round=int(data.get("wait_round") or 0),
+            timer_id=data.get("timer_id"),
+            timer_fired=bool(data.get("timer_fired")),
+            policy=dict(policy) if isinstance(policy, Mapping) else None,
+            escalated=data.get("escalated"),
+            attempt_live=bool(data.get("attempt_live")),
         )
 
 
@@ -171,6 +258,33 @@ def _assert_supported(version: int) -> None:
 def initial(execution_id: str, version: int = WORKFLOW_VERSION) -> ExecutionState:
     _assert_supported(version)
     return ExecutionState(execution_id=execution_id, version=version)
+
+
+def retry_policy(state: ExecutionState) -> Optional[Mapping[str, Any]]:
+    """The envelope's recorded retry policy, or ``None`` when it granted no retries."""
+    policy = state.envelope.get("retry_policy")
+    return policy if isinstance(policy, Mapping) else None
+
+
+def retry_delay_seconds(state: ExecutionState) -> int:
+    """The delay before the next wait round fires. Pure: a function of recorded facts.
+
+    Exponential over paid attempts for a retry, the flat initial delay for a wait round,
+    capped, plus jitter derived from the execution id and round rather than from a random
+    source -- so every replay names the same delay, and the value that was used is
+    recorded on the timer it created.
+    """
+    policy = retry_policy(state) or DEFAULT_RETRY_POLICY
+    initial_seconds = int(policy.get("initial_seconds", 60))
+    factor = max(1, int(policy.get("factor", 2)))
+    cap = int(policy.get("cap_seconds", 600))
+    exponent = max(0, state.attempt_no - 1) if state.failure_class in RETRYABLE_CLASSES else 0
+    base = int(min(cap, initial_seconds * factor**exponent))
+    spread = max(0, int(policy.get("jitter_seconds", 0)))
+    if not spread:
+        return base
+    seed = hashlib.sha256(f"{state.execution_id}:{state.wait_round}".encode()).digest()
+    return int(base + seed[0] % (spread + 1))
 
 
 def reduce(state: ExecutionState, event: Event) -> ExecutionState:
@@ -208,8 +322,17 @@ def reduce(state: ExecutionState, event: Event) -> ExecutionState:
             attempt_no=int(payload.get("attempt_no") or state.attempt_no + 1),
             session_id=None,
             observation=None,
+            failure_class=None,
+            wait_round=0,
+            timer_id=None,
+            timer_fired=False,
+            policy=None,
+            escalated=None,
+            attempt_live=True,
         )
     if event.kind == LAUNCHED:
+        if not state.attempt_live or payload.get("run_id") not in (None, state.run_id):
+            return advanced
         return replace(
             advanced,
             state=S_STOPPING if state.stop_generation else S_WORKING,
@@ -231,10 +354,32 @@ def reduce(state: ExecutionState, event: Event) -> ExecutionState:
         )
     if event.kind == CONCLUDED:
         outcome = str(payload.get("outcome") or "")
+        if payload.get("retry_owed") and outcome != "cancelled":
+            return replace(
+                advanced,
+                state=S_RETRY_WAIT,
+                failure_class=str(payload.get("failure_class") or WORKER_GONE),
+                attempt_live=False,
+                session_id=None,
+                wait_round=0,
+                timer_id=None,
+                timer_fired=False,
+                policy=None,
+            )
         return replace(
             advanced,
             state=S_CANCELLED if outcome == "cancelled" else S_CONCLUDED,
             outcome=outcome,
+            attempt_live=False,
+        )
+    if event.kind == CLOSED:
+        outcome = str(payload.get("outcome") or "")
+        return replace(
+            advanced,
+            state=S_CANCELLED if outcome == "cancelled" else S_CONCLUDED,
+            outcome=outcome,
+            failure_class=payload.get("failure_class") or state.failure_class,
+            attempt_live=False,
         )
     if event.kind == MIGRATED:
         return replace(advanced, owner_mode=str(payload.get("to") or state.owner_mode))
@@ -254,7 +399,44 @@ def reduce(state: ExecutionState, event: Event) -> ExecutionState:
             advanced,
             pending_signals=tuple(item for item in state.pending_signals if item != signal),
         )
+    if event.kind == TIMER_SET:
+        return replace(
+            advanced,
+            timer_id=str(payload.get("timer_id") or ""),
+            timer_fired=False,
+            policy=None,
+            wait_round=state.wait_round + 1,
+        )
+    if event.kind == TIMER_FIRED:
+        if payload.get("timer_id") != state.timer_id:
+            return advanced
+        return replace(advanced, timer_fired=True)
+    if event.kind == POLICY_OBSERVED:
+        if payload.get("round") != state.wait_round:
+            return advanced  # an observation for a round this execution has moved past
+        return replace(advanced, policy=dict(payload))
+    if event.kind == ACTIVITY_RESULT:
+        return _apply_result(advanced, payload)
+    if event.kind == AUTHORISED:
+        return advanced  # evidence for a relaunch, not a transition
     return advanced  # pragma: no cover - EVENT_KINDS is exhaustive above
+
+
+def _apply_result(state: ExecutionState, payload: Mapping[str, Any]) -> ExecutionState:
+    kind = payload.get("kind")
+    result_state = payload.get("state")
+    error_class = payload.get("error_class")
+    if kind == "launch_reconcile" and result_state == "unknown":
+        return replace(state, state=S_PARKED, failure_class=str(error_class or EFFECT_UNKNOWN))
+    if kind == "escalate" and result_state == "applied":
+        return replace(state, escalated=str(error_class or state.failure_class or "escalated"))
+    if kind == "relaunch" and result_state == "not_applied":
+        cause = str(error_class or POLICY_WAIT)
+        if cause in WAIT_CLASSES:
+            # Another round of the same wait: a fresh timer, a fresh observation.
+            return replace(state, timer_id=None, timer_fired=False, policy=None)
+        return replace(state, failure_class=cause, timer_id=None, timer_fired=False)
+    return state
 
 
 def replay(
@@ -275,12 +457,30 @@ def replay(
     return state
 
 
+def _escalation(state: ExecutionState, cause: str) -> Tuple[Intent, ...]:
+    if state.escalated:
+        return ()
+    attempt = state.run_id or "none"
+    return (
+        Intent(
+            "escalate",
+            f"{state.execution_id}:escalate:{attempt}:{cause}",
+            {
+                "failure_class": cause,
+                "run_id": state.run_id,
+                "attempt_no": state.attempt_no,
+                "close": not state.attempt_live,
+            },
+        ),
+    )
+
+
 def next_intents(state: ExecutionState) -> Tuple[Intent, ...]:
     """What should happen next, as stable, idempotent proposals. Pure."""
     if state.terminal:
         return ()
     eid = state.execution_id
-    if state.stop_generation and state.run_id:
+    if state.stop_generation and state.run_id and state.attempt_live:
         return (
             Intent(
                 "stop",
@@ -307,6 +507,14 @@ def next_intents(state: ExecutionState) -> Tuple[Intent, ...]:
             ),
         )
     if state.state == S_LAUNCHING and state.run_id:
+        if state.version >= 2:
+            return (
+                Intent(
+                    "launch_reconcile",
+                    f"{eid}:launch_reconcile:{state.run_id}",
+                    {"run_id": state.run_id},
+                ),
+            )
         return (
             Intent(
                 "launch",
@@ -327,29 +535,121 @@ def next_intents(state: ExecutionState) -> Tuple[Intent, ...]:
             for signal in state.pending_signals
         )
         return tuple(intents)
+    if state.state == S_PARKED:
+        return _escalation(state, state.failure_class or EFFECT_UNKNOWN)
+    if state.state == S_RETRY_WAIT:
+        return _retry_intents(state)
     return ()
+
+
+def _retry_intents(state: ExecutionState) -> Tuple[Intent, ...]:
+    eid = state.execution_id
+    cause = state.failure_class or WORKER_GONE
+    policy = retry_policy(state)
+    if cause not in RETRYABLE_CLASSES:
+        return _escalation(state, cause)
+    if policy is None:
+        return _escalation(state, cause)
+    if state.attempt_no >= int(policy.get("max_attempts", 1)):
+        return _escalation(state, ATTEMPTS_EXHAUSTED)
+    if state.wait_round >= int(policy.get("max_wait_rounds", 30)) and state.timer_id is None:
+        return _escalation(state, str((state.policy or {}).get("class") or POLICY_WAIT))
+    next_attempt = state.attempt_no + 1
+    if state.timer_id is None:
+        return (
+            Intent(
+                "schedule_retry",
+                f"{eid}:schedule:{next_attempt}:{state.wait_round + 1}",
+                {
+                    "attempt_no": next_attempt,
+                    "round": state.wait_round + 1,
+                    "delay_seconds": retry_delay_seconds(state),
+                    "timer_id": f"{eid}:retry:{next_attempt}:{state.wait_round + 1}",
+                },
+            ),
+        )
+    if not state.timer_fired:
+        return ()
+    if state.policy is None:
+        return (
+            Intent(
+                "observe_policy",
+                f"{eid}:policy:{next_attempt}:{state.wait_round}",
+                {"attempt_no": next_attempt, "round": state.wait_round},
+            ),
+        )
+    if state.policy.get("permitted"):
+        return (
+            Intent(
+                "relaunch",
+                f"{eid}:relaunch:{next_attempt}:{state.wait_round}",
+                {
+                    "attempt_no": next_attempt,
+                    "round": state.wait_round,
+                    "continues_execution_id": eid,
+                },
+            ),
+        )
+    blocked = str(state.policy.get("class") or POLICY_REVOKED)
+    if blocked in WAIT_CLASSES:
+        # The observation said "not now", not "never": wait another round. The timer id
+        # names the round, so this is a new proposal rather than a repeat of the last.
+        return (
+            Intent(
+                "schedule_retry",
+                f"{eid}:schedule:{next_attempt}:{state.wait_round + 1}",
+                {
+                    "attempt_no": next_attempt,
+                    "round": state.wait_round + 1,
+                    "delay_seconds": retry_delay_seconds(state),
+                    "timer_id": f"{eid}:retry:{next_attempt}:{state.wait_round + 1}",
+                },
+            ),
+        )
+    return _escalation(state, blocked)
 
 
 __all__ = [
     "ACCEPTED",
+    "ACTIVITY_RESULT",
     "ADMITTED",
+    "ATTEMPTS_EXHAUSTED",
+    "AUTHORISED",
+    "BUDGET_EXHAUSTED",
+    "CAPACITY_WAIT",
+    "CLOSED",
     "CONCLUDED",
+    "COOLDOWN",
+    "DEFAULT_RETRY_POLICY",
+    "EFFECT_UNKNOWN",
     "EVENT_KINDS",
     "Event",
     "ExecutionState",
     "Intent",
     "LAUNCHED",
+    "LAUNCH_NOT_APPLIED",
     "MIGRATED",
     "OBSERVED",
+    "POLICY_OBSERVED",
+    "POLICY_REVOKED",
+    "POLICY_WAIT",
+    "RETRYABLE_CLASSES",
     "SIGNAL",
     "SIGNAL_DISPOSED",
     "STAND_DOWN_REQUESTED",
     "STOP_REQUESTED",
     "SUPPORTED_VERSIONS",
     "TERMINAL_STATES",
+    "TIMER_FIRED",
+    "TIMER_SET",
+    "WAIT_CLASSES",
+    "WORKER_FAILED",
+    "WORKER_GONE",
     "WORKFLOW_VERSION",
     "initial",
     "next_intents",
     "reduce",
     "replay",
+    "retry_delay_seconds",
+    "retry_policy",
 ]

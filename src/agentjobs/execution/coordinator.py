@@ -37,11 +37,11 @@ MODE_ACTIVE = "active"
 CONTROLLER_MODES = (MODE_DISABLED, MODE_SHADOW, MODE_ACTIVE)
 """How far the reducer is trusted to drive work.
 
-``shadow`` is this build's only enabled mode (task-264). Admission, ownership, the
-terminal compare-and-set and the outbox are authoritative regardless -- they are the race
-fixes -- but the reducer's proposals are recorded, never performed, until the activity
-adapters and their reconciliation contracts exist (task-416). ``active`` is named so the
-refusal below can say it exists and is not available yet."""
+Admission, ownership, the terminal compare-and-set and the outbox are authoritative in
+every mode -- they are the race fixes (task-264). ``shadow`` records the reducer's
+proposals as shadow activities that nothing performs; it is what the journal does for an
+execution the legacy poller follows. ``active`` records them for real, for
+``dispatch.controller`` to perform through its activity adapters (task-416)."""
 
 
 @dataclass(frozen=True)
@@ -92,11 +92,6 @@ def advance_execution(
     """
     if mode not in CONTROLLER_MODES:
         raise ValueError(f"unknown controller mode {mode!r}")
-    if mode == MODE_ACTIVE:
-        raise ExecutionStoreError(
-            "the active controller is not available in this build; the journal runs in "
-            "shadow mode until the activity adapters land (task-416)"
-        )
     execution = store.execution(execution_id)
     if execution is None:
         raise ExecutionStoreError(f"no execution {execution_id!r}")
@@ -134,7 +129,7 @@ def advance_execution(
             input=intent.input,
             owner_epoch=execution.controller_epoch,
             run_id=str(intent.input.get("run_id")) if intent.input.get("run_id") else None,
-            shadow=True,
+            shadow=mode == MODE_SHADOW,
         )
         if created:
             recorded.append(intent.activity_id)
