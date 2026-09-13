@@ -3364,10 +3364,14 @@ that the session is parked, stalled, expired or gone, and leave it attachable.
 
 ## 9a. Durable execution: an accepted dispatch survives its processes (task-414)
 
-**Design, 2026-09-11 Central / 2026-09-12 UTC; not implemented.** This section specifies
-the next increment of dispatch. Earlier sections describe shipped mechanisms and their
-history; where this section differs, it is a proposed replacement, not a claim that the
-runtime already works this way. Implementation is the child program on task-414.
+**Design, 2026-09-11 Central / 2026-09-12 UTC; foundation implemented 2026-09-13.** This
+section specifies the next increment of dispatch. Earlier sections describe shipped
+mechanisms and their history; where this section differs, it is a proposed replacement,
+not a claim that the runtime already works this way. Implementation is the child program
+on task-414. **The journal, admission, the terminal transition, the source feed and the
+legacy import shipped in task-264** -- see
+[What task-264 built](#what-task-264-built-2026-09-13); everything else here is still
+design.
 
 An accepted dispatch is an obligation with a durable identity. AgentJobs keeps advancing
 it until the authorised work is delivered, an explicit Stop cancels it, or a named
@@ -3830,6 +3834,64 @@ as well as touch count: doing nothing would otherwise score a perfect zero. Fixt
 times are relative and sanitised; no credentials, real session identifiers or user
 quotations enter committed test data. Live acceptance must use isolated projects and
 supported driver contracts; never fault-inject against the user's authentication store.
+
+### What task-264 built (2026-09-13)
+
+The foundation every later child builds on. What is authoritative now, what runs only in
+shadow, and where the implementation departs from the text above:
+
+**Authoritative from this build.** These are the race fixes, so they cannot wait for the
+controller:
+
+| Fact | Where it is decided | What it replaced |
+| --- | --- | --- |
+| Which attempt owns a project/task; which machine slots are taken; the hourly start reservation | `ExecutionStore.admit`, one `BEGIN IMMEDIATE` transaction, called by `dispatch_task` after the OS task lock and before the claim. The run id is minted first and is the attempt token | A directory count read seconds before the directories existed (P2-9) |
+| Who writes a run's terminal result | `ExecutionStore.conclude`, a compare-and-set used by the session settle, the batch supervisor, ledger cancel/reconcile/stop and the interactive close. The winner's `dispatch_result` is enqueued in the same commit under a stable operation id | Two unlocked meta read-modify-writes that both believed they concluded (P2-4, task-107) |
+| Whether a Stop was requested, by whom and from where | `ExecutionStore.request_cancel`, before anything is signalled; bumps the control generation | A meta flag only the batch path honoured |
+| Whether a run the journal knows is live | The journal, in `stale_lock_reason`, the guard's live-run scan and startup reconcile | `status:` in a meta the worker can write (auditor 12) |
+
+`meta.yaml` is still written and still read by every surface; it is a projection. Writes
+to it are merged under a short per-file lock, and a terminal status, outcome and finish
+time are written once. A run that predates the journal has no row and is judged by its
+meta exactly as before, and is counted by admission as a legacy slot holder or owner.
+
+**Identity.** Lock files are `<project>~<task>.lock`; live-run scans, wake targets, the
+reaper's keep-set and interactive settle all match the project as well as the task. An
+unscoped pre-upgrade lock is still honoured when it binds the same project, so a server
+that has not restarted cannot be bypassed.
+
+**Evidence that releases an attempt** (`dispatch.journal.attempt_evidence`): a
+`dispatch_result` for the run on its task (only the manager's dispatch verb writes that
+type); an attempt admitted but never launched whose admitting process is gone and whose
+directory names no session or pid; a person's interactive or a registered session's own
+terminal record; a legacy-imported run's terminal record. Never a dispatched run's own
+meta.
+
+**Source feed.** Task-store physical schema version 4 adds `log_feed`, an AUTOINCREMENT
+position per log entry written by trigger in the entry's transaction (`log_entry`'s rowid
+is reused after deletion and may be renumbered by `VACUUM`). The poller imports each
+project's unseen entries into the inbox, advancing the cursor in the same commit; a feed
+whose marker no longer matches -- a restored or split task database -- is re-imported
+from the start and deduplicated by `task#entry@ts`. `storage split` excludes the derived
+feed and lets the trigger rebuild it.
+
+**Shadow only.** `advance_execution` replays every open execution each poll and records
+its proposals as shadow activities. Nothing performs them; `active` mode refuses until the
+activity adapters exist (task-416). One execution currently ends with its one attempt;
+retries within an execution are task-416's.
+
+**Operations.** `agentjobs execution status` shows open executions with their replayed
+state and next proposal, live attempts and owed writes. `agentjobs execution migrate
+[--dry-run]` imports pre-journal runs repeatably, as `legacy_import` executions under the
+legacy controller, listing every envelope field the run never recorded as unknown.
+`agentjobs execution backup <file>` snapshots through SQLite's backup API;
+`execution.store.restore_snapshot` plus `coordinator.reconcile_after_restore` is the
+operator restore, with every dispatching process stopped.
+
+**Found while integrating.** The Codex App Server supervisor wrote meta `status: failed`
+on a failed turn, which took the run out of the poller's sight, so the poller's
+`crashed` settle for it was unreachable and its slot would never have been released under
+journal ownership. It now leaves the status live and the poller concludes the run.
 
 ### Implementation ownership and order
 

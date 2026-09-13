@@ -311,6 +311,17 @@ apply; **higher, refuse to start and say so**. An old binary meeting a newer dat
 the stale-server hazard this repository already documents, and declining is the same
 instinct as the source-root check in `agentjobs serve`.
 
+**Version 4 (task-264) adds `log_feed`**: one never-reused AUTOINCREMENT position per log
+entry, written by trigger in the same transaction as the entry. It is what the machine's
+execution journal imports handoffs and approvals from with a cursor; `log_entry`'s own
+rowid would not do, because SQLite reuses it after a delete and `VACUUM` may renumber it.
+The table is derived, so `storage split` does not copy it -- the destination's trigger
+rebuilds it -- and a short-lived CLI process meeting a database still at version 3 is
+refused until the server has opened it, exactly as for any other version. The execution
+journal itself is a separate machine-local file (`~/.agentjobs/execution.db`), opened by
+every dispatching process rather than by the server alone; see
+[the dispatch design](agent-dispatch-design.md#what-task-264-built-2026-09-13).
+
 ## 8a. The content the import will not accept
 
 The import is the last mechanical place a content rule can be enforced before a record
