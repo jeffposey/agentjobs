@@ -107,10 +107,12 @@ source rather than a neighbouring one's.
     A green `--since-gate` on a clean tree issues its own receipt, naming the receipt it
     derived from, so a chain of them is auditable. `--only` and `--from` never issue one —
     a partial green is not the gate's green, which is the same rule `PARTIAL RUN` states.
--   **`ROADMAP.md` is generated too, and goes stale for reasons outside your branch.**
-    Anybody filing or closing a task anywhere moves the store it is projected from, so
-    the `roadmap` stage goes red on work that never touched it. Never edit the file:
-    `poetry run python scripts/export_roadmap.py ROADMAP.md`, then commit it.
+-   **`docs/backlog.md` is generated, and a branch does not regenerate it.** The gate no
+    longer checks it against the store, so a task changing elsewhere never turns your
+    gate red and never needs a commit from you. Never hand-edit it either; the `roadmap`
+    playbook regenerates it. The `roadmap` stage audits hand-written `ROADMAP.md`
+    instead, and fails only when the page rosters a task that has since closed. An open
+    task it has not placed is reported and let through.
 -   **No stage of the gate may require a commit.** The two generated checks —
     `openapi.json` and `src/api/generated/` — compare against **the working tree**, never
     `HEAD`: they ask whether the files on disk match what the application produces

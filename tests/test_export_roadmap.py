@@ -103,7 +103,7 @@ class TestCannotVerify:
         """
         monkeypatch.setattr(export_roadmap, "resolve_project", lambda *a, **k: None)
 
-        assert export_roadmap.main([str(tmp_path / "ROADMAP.md"), "--check"]) == 0
+        assert export_roadmap.main([str(tmp_path / "backlog.md"), "--check"]) == 0
         assert "cannot be verified" in capsys.readouterr().out
 
     def test_but_writing_without_a_store_fails_rather_than_writing_nothing(
@@ -111,7 +111,7 @@ class TestCannotVerify:
     ) -> None:
         """An explicit request to generate has no honest silent outcome."""
         monkeypatch.setattr(export_roadmap, "resolve_project", lambda *a, **k: None)
-        target = tmp_path / "ROADMAP.md"
+        target = tmp_path / "backlog.md"
 
         assert export_roadmap.main([str(target)]) == 1
         assert not target.exists()
@@ -123,7 +123,7 @@ class TestCannotVerify:
         monkeypatch.setattr(export_roadmap, "resolve_project", lambda *a, **k: project)
         monkeypatch.setattr(export_roadmap, "database_for", lambda *a, **k: tmp_path / "none.db")
 
-        assert export_roadmap.main([str(tmp_path / "ROADMAP.md"), "--check"]) == 0
+        assert export_roadmap.main([str(tmp_path / "backlog.md"), "--check"]) == 0
         assert "has no database" in capsys.readouterr().out
 
 
@@ -140,7 +140,7 @@ class TestStaleness:
         monkeypatch.setattr(export_roadmap, "roadmap_for", lambda *a, **k: "the roadmap\n")
 
     def test_a_matching_file_passes(self, tmp_path: Path) -> None:
-        target = tmp_path / "ROADMAP.md"
+        target = tmp_path / "backlog.md"
         target.write_text("the roadmap\n", encoding="utf-8")
 
         assert export_roadmap.main([str(target), "--check"]) == 0
@@ -153,27 +153,27 @@ class TestStaleness:
         The repair is never "edit it back": it is one command, and printing it is what
         stops a red stage becoming a puzzle.
         """
-        target = tmp_path / "ROADMAP.md"
+        target = tmp_path / "backlog.md"
         target.write_text("the roadmap, but somebody tidied it\n", encoding="utf-8")
 
         assert export_roadmap.main([str(target), "--check"]) == 1
         out = capsys.readouterr().out
         assert "is stale" in out
-        assert "export_roadmap.py ROADMAP.md" in out
+        assert "export_roadmap.py docs/backlog.md" in out
 
     def test_a_missing_file_is_stale_rather_than_an_error(self, tmp_path: Path) -> None:
         assert export_roadmap.main([str(tmp_path / "absent.md"), "--check"]) == 1
 
     def test_writing_makes_the_check_pass(self, tmp_path: Path) -> None:
         """The loop the failure message promises actually closes."""
-        target = tmp_path / "ROADMAP.md"
+        target = tmp_path / "backlog.md"
 
         assert export_roadmap.main([str(target)]) == 0
         assert export_roadmap.main([str(target), "--check"]) == 0
 
     def test_it_is_written_with_unix_newlines_on_every_platform(self, tmp_path: Path) -> None:
         """Otherwise the file this machine writes is stale the moment Linux reads it."""
-        target = tmp_path / "ROADMAP.md"
+        target = tmp_path / "backlog.md"
 
         export_roadmap.main([str(target)])
 
@@ -199,10 +199,99 @@ class TestLeakRefusal:
             )
 
         monkeypatch.setattr(export_roadmap, "roadmap_for", _raise)
-        target = tmp_path / "ROADMAP.md"
+        target = tmp_path / "backlog.md"
 
         assert export_roadmap.main([str(target), "--check"]) == 1
         out = capsys.readouterr().out
         assert "task-007 title contains an email address" in out
         assert "Fix the task record" in out
         assert not target.exists()
+
+
+class TestAuditingTheRoadmapPage:
+    """``--audit`` checks a hand-written file, so its outcomes differ from ``--check``.
+
+    The same two-way split the listing has -- a red gate for a real disagreement, a
+    clean exit where the machine cannot know -- plus a third state the listing has no
+    equivalent for: a page that is merely behind, which reports and passes.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _a_store(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        project = type("P", (), {"id": "somewhere"})()
+        database = tmp_path / "store.db"
+        database.write_bytes(b"")
+        monkeypatch.setattr(export_roadmap, "resolve_project", lambda *a, **k: project)
+        monkeypatch.setattr(export_roadmap, "database_for", lambda *a, **k: database)
+
+    def _audit_returns(self, monkeypatch: pytest.MonkeyPatch, result: Any) -> None:
+        monkeypatch.setattr(export_roadmap, "audit_narrative_for", lambda *a, **k: result)
+
+    def test_a_page_rostering_only_open_work_passes(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from agentjobs.roadmap import NarrativeAudit
+
+        self._audit_returns(
+            monkeypatch, NarrativeAudit(placed=("task-001",), stale=(), unplaced=())
+        )
+        page = tmp_path / "ROADMAP.md"
+        page.write_text("- `task-001` - a thing\n", encoding="utf-8")
+
+        assert export_roadmap.main([str(tmp_path / "backlog.md"), "--audit", str(page)]) == 0
+        assert "every open task" in capsys.readouterr().out
+
+    def test_a_page_rostering_closed_work_fails_and_names_it(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The repair is to the page, so the message has to say which line is wrong."""
+        from agentjobs.roadmap import NarrativeAudit
+
+        self._audit_returns(
+            monkeypatch, NarrativeAudit(placed=("task-001",), stale=("task-001",), unplaced=())
+        )
+        page = tmp_path / "ROADMAP.md"
+        page.write_text("- `task-001` - a thing\n", encoding="utf-8")
+
+        assert export_roadmap.main([str(tmp_path / "backlog.md"), "--audit", str(page)]) == 1
+        out = capsys.readouterr().out
+        assert "task-001" in out
+        assert "no longer open" in out
+
+    def test_an_unplaced_task_is_reported_without_failing(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """This is the decision the whole arrangement rests on.
+
+        A gate that went red because somebody filed a task would be switched off within
+        a week, and would then guarantee nothing at all.
+        """
+        from agentjobs.roadmap import NarrativeAudit
+
+        self._audit_returns(
+            monkeypatch,
+            NarrativeAudit(placed=("task-001",), stale=(), unplaced=("task-002", "task-003")),
+        )
+        page = tmp_path / "ROADMAP.md"
+        page.write_text("- `task-001` - a thing\n", encoding="utf-8")
+
+        assert export_roadmap.main([str(tmp_path / "backlog.md"), "--audit", str(page)]) == 0
+        out = capsys.readouterr().out
+        assert "2 are not placed" in out
+        assert "task-002" in out
+
+    def test_a_missing_page_fails_rather_than_passing_vacuously(self, tmp_path: Path) -> None:
+        absent = tmp_path / "absent.md"
+
+        assert export_roadmap.main([str(tmp_path / "backlog.md"), "--audit", str(absent)]) == 1
+
+    def test_a_checkout_with_no_store_cannot_audit_and_says_so(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Same reasoning as ``--check``: a clone of the public repository has no store."""
+        monkeypatch.setattr(export_roadmap, "resolve_project", lambda *a, **k: None)
+        page = tmp_path / "ROADMAP.md"
+        page.write_text("- `task-001` - a thing\n", encoding="utf-8")
+
+        assert export_roadmap.main([str(tmp_path / "backlog.md"), "--audit", str(page)]) == 0
+        assert "cannot be verified" in capsys.readouterr().out

@@ -372,8 +372,10 @@ class TestSinceGate:
 
         assert check.main(["--since-gate"]) == 0
         # pytest, because the documentation contract tests read prose, plus the roadmap
-        # stage, which no diff can ever clear.
-        assert len(commands) == 2
+        # stage, which no diff can ever clear. Counted as commands rather than stages, so
+        # the count follows whatever a stage runs.
+        selected = [stage for stage in check.stages() if stage.name in {"pytest", "roadmap"}]
+        assert len(commands) == command_count(selected)
         out = capsys.readouterr().out
         assert "NECESSITY RUN" in out
         assert "Ran every stage" not in out
@@ -384,17 +386,18 @@ class TestSinceGate:
         """It ran nothing at all until a stage read a store outside the checkout.
 
         Everything the other nine stages read is in the tree, so an identical tree is
-        evidence about them. The roadmap is generated from a database anybody filing a
-        task moves, so it is evidence about nothing, and the run says so rather than
-        printing that it did no work.
+        evidence about them. The roadmap page is audited against a database anybody
+        closing a task moves, so it is evidence about nothing, and the run says so rather
+        than printing that it did no work.
         """
         commands = TestTheUnqualifiedGate.record_runs(monkeypatch)
         monkeypatch.setattr(check.gate_scope, "read_receipt", lambda root: {"commit": "a" * 40})
         monkeypatch.setattr(check.gate_scope, "changed_since", lambda root, commit: [])
 
         assert check.main(["--since-gate"]) == 0
-        assert len(commands) == 1
-        assert "export_roadmap.py" in " ".join(commands[0])
+        roadmap = [stage for stage in check.stages() if stage.name == "roadmap"]
+        assert len(commands) == command_count(roadmap)
+        assert all("export_roadmap.py" in " ".join(command) for command in commands)
         out = capsys.readouterr().out
         assert "NOTHING CHANGED" in out
         assert "Running roadmap anyway" in out

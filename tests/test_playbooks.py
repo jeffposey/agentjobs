@@ -403,14 +403,70 @@ class TestThisRepositorysOwnPlaybooks:
     def test_roadmap_forbids_hand_editing_the_generated_file(self) -> None:
         """The one instruction whose absence would silently lose a run's whole output.
 
-        An edit to ``ROADMAP.md`` survives exactly until the next regeneration. A brief
-        that did not say so would produce runs whose work vanished without a trace, and
-        no gate would notice -- the file would match the store again.
+        An edit to ``docs/backlog.md`` survives exactly until the next regeneration. A
+        brief that did not say so would produce runs whose work vanished without a trace,
+        and no gate would notice -- the file would match the store again.
         """
         body = read_playbook(self.directory, "roadmap").body
 
-        assert "Never edit `ROADMAP.md`" in body
+        assert "Never edit `docs/backlog.md`" in body
         assert "scripts/export_roadmap.py" in body
+
+    def test_roadmap_asks_for_the_analysis_pass_before_any_rewording(self) -> None:
+        """The reason this is a playbook and not the generator on a schedule.
+
+        Grouping a hundred tasks into the subjects they belong to is the only part no
+        projection can do, and a brief that opened on summary hygiene would produce runs
+        that tidied wording and left the page a sorted list.
+        """
+        body = read_playbook(self.directory, "roadmap").body
+        analysis = body.index("find the workstreams")
+        rewording = body.index("two fields, and nothing else")
+
+        assert analysis < rewording
+        assert "Do not group by category or by band" in body
+        assert "miscellaneous bucket" in body
+
+    def test_roadmap_keeps_the_phases_as_the_owner_wrote_them(self) -> None:
+        """The phases are a decision about the product, and a run never makes one.
+
+        The owner asked on 2026-09-12 for the roadmap to be human-driven, with agent
+        task management following it. A brief that let a run derive the phases from the
+        backlog would produce a page that restated the queue's shape in prose and
+        overwrote the plan every pass; a brief that let it drop an empty phase would
+        hide the one place the plan is visibly ahead of the backlog.
+        """
+        body = read_playbook(self.directory, "roadmap").body
+
+        assert body.index("The phases are the owner's") < body.index("find the workstreams")
+        assert "Never add, remove, rename or reorder a phase" in body
+        assert "An empty phase is a result, not an error" in body
+        assert "Do not file that work yourself" in body
+
+    def test_reorder_reads_the_roadmap_before_moving_anything(self) -> None:
+        """The queue follows the owner's phases, and this is where that becomes a rule.
+
+        Without it the roadmap and the queue would be two orderings with nothing saying
+        which yields, and a run's move bodies could argue from age or centrality while
+        ignoring the one statement of priority the owner actually wrote.
+        """
+        body = read_playbook(self.directory, "reorder").body
+
+        assert "`ROADMAP.md` is the owner's statement of priority" in body
+        assert body.index("Read it before moving anything") < body.index(
+            "### Read the warnings your own move returns"
+        )
+
+    def test_roadmap_states_that_the_page_is_hand_written_and_audited(self) -> None:
+        """Two files with opposite rules is the arrangement's one confusable part.
+
+        A run that treated ``ROADMAP.md`` as generated would refuse to write the only
+        thing it was called to produce.
+        """
+        body = read_playbook(self.directory, "roadmap").body
+
+        assert "--audit ROADMAP.md" in body
+        assert "prose you write" in body
 
     def test_roadmap_sends_the_reader_to_groom_and_reorder_first(self) -> None:
         """Publishing an unpruned, unordered backlog is the failure this sequencing avoids.
@@ -421,7 +477,7 @@ class TestThisRepositorysOwnPlaybooks:
         body = read_playbook(self.directory, "roadmap").body
 
         assert body.index("## 1. Run `groom` and `reorder` first") < body.index(
-            "## 2. What you may change"
+            "## 5. What you may change"
         )
 
     def test_the_shipped_reference_matches_this_project_s_copy(self) -> None:
