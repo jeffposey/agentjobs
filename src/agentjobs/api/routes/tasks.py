@@ -13,10 +13,17 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from agentjobs.actors import UnknownActorError, validate_actor
 from agentjobs.principals import Principal
 from agentjobs.attachments import AttachmentError, AttachmentPayload
+from agentjobs.dispatch.approval import (
+    accept_signals,
+    approval_data,
+    approval_in,
+    reviewed_branches,
+    supersede_earlier_approvals,
+)
 from agentjobs.dispatch.handback import deliver_handback, record_handback
 from agentjobs.dispatch.finish import finish_is_offered, spawn_finish
 from agentjobs.operations import OperationConflictError, RevisionConflictError
-from agentjobs.projects import Project
+from agentjobs.projects import Project, default_home
 from agentjobs.queue import QueueCorruptionError
 from agentjobs.manager import AnswerError, TaskManager, TaskNotFoundError
 from agentjobs.store_factory import TaskStoreBackend
@@ -26,6 +33,7 @@ from agentjobs.models_v2 import (
     BallReason,
     DependencyType,
     Lifecycle,
+    LogEntryType,
     Outcome,
     Priority,
     Task,
@@ -714,7 +722,15 @@ def after_human_handoff(
     reproduce by accident. Requesting changes and approving both hand to the agent; only
     one of them means the work is finished, and the route that received the click is the
     only thing that knows which. See ``spawn_finish`` (task-241).
+
+    **The human act is accepted into the execution journal first** (task-312). The
+    handoff has committed in the task store; this puts the same entry in the inbox before
+    the response leaves, so a server that dies in the next second leaves the message owed
+    rather than only written. A human handback that is not an approval also supersedes
+    the approvals before it: a person who approved and then asked for changes has made
+    the newer decision, and the finish must not act on the older one.
     """
+    _accept_human_handoff(project, task)
     if finishable and finish_is_offered(project.id):
         # A finish and an auto-dispatch are alternatives, never both: they would race
         # for the same branch and the same per-task lock. The finish is preferred when
@@ -735,6 +751,27 @@ def after_human_handoff(
     if not outcome.considered:
         return task
     return manager.get_task(task.id) or task
+
+
+def _accept_human_handoff(project: Project, task: Task) -> None:
+    """Record the human handoff just written in the inbox, and supersede what it replaces.
+
+    Never raises: the click has succeeded, and a journal that cannot be written costs only
+    the synchronous half -- the poller's feed import reads the same entry next tick.
+    """
+    handoff = next(
+        (entry for entry in reversed(task.log) if entry.type is LogEntryType.HANDOFF), None
+    )
+    project_id = getattr(project, "id", None)
+    if handoff is None or not project_id:
+        return
+    try:
+        home = default_home()
+        accept_signals(home, project_id, task, [handoff])
+        if approval_in(handoff, project_id=project_id, task_id=task.id) is None:
+            supersede_earlier_approvals(home, project_id, task, by=handoff)
+    except Exception:  # noqa: BLE001 - see the docstring; the approval already stands
+        return
 
 
 APPROVAL_CLEARANCE = (
@@ -777,6 +814,15 @@ async def approve_task(
     """
     user = acting_user(request, project, payload.user)
     note = (payload.note or "").strip()
+    current = manager.get_task(task_id)
+    root = getattr(project, "root", None)
+    # The receipt (task-312): who approved, the note verbatim, and the branch heads they
+    # were looking at, on the source event itself rather than inferred later from prose.
+    receipt = approval_data(
+        approver=user,
+        note=note,
+        reviewed=reviewed_branches(root, current) if current is not None and root else [],
+    )
     try:
         task = manager.handoff(
             task_id,
@@ -802,6 +848,7 @@ async def approve_task(
                 if note
                 else f"Approved by {user} through the web UI."
             ),
+            data=receipt,
         )
         return HumanActionResponse(
             task=after_human_handoff(

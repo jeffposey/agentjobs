@@ -149,6 +149,43 @@ def request_cancel(
     )
 
 
+def request_stand_down(
+    home: Path,
+    record: "RunRecord",
+    *,
+    requester: str,
+    source: str,
+    reason: str,
+    transfer_to: str,
+    holder_pid: Optional[int] = None,
+) -> Dict[str, object]:
+    """Record that this run is handing its task over, before anything is signalled.
+
+    See ``ExecutionStore.request_stand_down`` for why this is not a cancellation.
+    """
+    ensure_attempt(home, record)
+    return journal(home).request_stand_down(
+        record.run_id,
+        requester=requester,
+        source=source,
+        reason=reason,
+        transfer_to=transfer_to,
+        holder_pid=holder_pid,
+    )
+
+
+def stand_down(home: Path, run_id: str) -> Optional[Dict[str, object]]:
+    """The stand-down on record for this run, or ``None`` (including an unreadable journal).
+
+    Only the journal answers. A run directory's meta is writable by the worker inside it,
+    and a stand-down changes how the run's ending is written.
+    """
+    try:
+        return journal(home).stand_down_request(run_id)
+    except ExecutionStoreError:
+        return None
+
+
 def cancel_requested(
     home: Path, run_id: str, *, meta: Optional[Mapping[str, object]] = None
 ) -> bool:
@@ -729,6 +766,8 @@ __all__ = [
     "operation_id",
     "release_ended",
     "request_cancel",
+    "request_stand_down",
+    "stand_down",
     "result_operation_id",
     "result_projection",
     "same_task",

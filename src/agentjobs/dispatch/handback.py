@@ -48,7 +48,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from agentjobs.dispatch.auto import DISPATCHER_ACTOR, AutoDispatchOutcome, maybe_auto_dispatch
 from agentjobs.dispatch.config import (
@@ -318,7 +318,13 @@ def deliver_handback(
             run_id=running[0].run_id,
         )
 
-    return _from_auto(
+    receipt = _DeliveryReceipt.open(root, project.id, task, waiting)
+    if receipt is not None:
+        uncertain = receipt.refuse_if_uncertain()
+        if uncertain is not None:
+            return uncertain
+        receipt.intend()
+    outcome = _from_auto(
         maybe_auto_dispatch(
             manager=manager,
             project=project,
@@ -330,6 +336,199 @@ def deliver_handback(
             now=now,
         )
     )
+    if receipt is not None:
+        receipt.settle(outcome, manager)
+    return outcome
+
+
+# ----- whether a message reached anyone (task-312, durable-2) ---------------------
+
+AMBIGUOUS_REASONS = frozenset({"dispatch_failed"})
+"""Outcomes that do not say whether a work instruction was sent.
+
+``dispatch_failed`` is what ``maybe_auto_dispatch`` reports for a ``DispatchRunError``, and
+a runner can raise that *after* the agent was launched -- a session whose id could not be
+read back is a session that may be running the instruction. Every other refusal is raised
+before anything is launched."""
+
+
+@dataclass
+class _DeliveryReceipt:
+    """The journal's record of one handback's delivery: intent before, result after.
+
+    Persisted as an activity whose id is the handback's own source event, so the same
+    message is the same activity however many processes try to deliver it. An intent
+    with no result is **not** permission to send again: it is reconciled against the task
+    log, where a delivered wake always leaves a dispatch entry naming this handback as its
+    cause, and anything that cannot be reconciled stays ``unknown``.
+    """
+
+    home: Path
+    project_id: str
+    task: Task
+    entry: LogEntry
+    execution_id: str
+    epoch: int
+
+    @classmethod
+    def open(
+        cls, home: Path, project_id: str, task: Task, entry: LogEntry
+    ) -> Optional["_DeliveryReceipt"]:
+        """``None`` when there is no execution to record on, or the journal is unreadable."""
+        from agentjobs.dispatch.journal import journal
+        from agentjobs.execution.errors import ExecutionStoreError
+
+        try:
+            execution = journal(home).latest_execution(project_id, task.id)
+        except ExecutionStoreError:
+            return None
+        if execution is None:
+            return None
+        return cls(
+            home, project_id, task, entry, execution.execution_id, execution.controller_epoch
+        )
+
+    @property
+    def activity_id(self) -> str:
+        from agentjobs.dispatch.approval import source_event
+
+        event = source_event(self.project_id, self.task.id, self.entry)
+        return f"deliver:{self.project_id}:{event.source_event_id}"
+
+    def _store(self) -> Any:
+        from agentjobs.dispatch.journal import journal
+
+        return journal(self.home)
+
+    def _existing(self) -> Optional[Any]:
+        from agentjobs.execution.errors import ExecutionStoreError
+
+        try:
+            for activity in self._store().activities(self.execution_id):
+                if activity.activity_id == self.activity_id:
+                    return activity
+        except ExecutionStoreError:
+            return None
+        return None
+
+    def _reconciled_run(self) -> Optional[str]:
+        """The run a wake started for this handback, read from the task log, or ``None``."""
+        for item in self.task.log:
+            if item.type is LogEntryType.DISPATCH and item.data.get("caused_by") == self.entry.id:
+                return str(item.data.get("run_id") or "") or None
+        return None
+
+    def refuse_if_uncertain(self) -> Optional[HandbackOutcome]:
+        """Refuse a second send when an earlier one's result is not known."""
+        from agentjobs.execution.errors import ExecutionStoreError
+
+        prior = self._existing()
+        if prior is None or prior.state not in {"intended", "unknown", "still_running"}:
+            return None
+        run_id = self._reconciled_run()
+        try:
+            if run_id is not None:
+                self._store().record_result(
+                    self.activity_id,
+                    state="applied",
+                    owner_epoch=self.epoch,
+                    result={"run_id": run_id, "reconciled_from": "dispatch entry"},
+                )
+                return _outcome(
+                    "already_delivered",
+                    f"Entry {self.entry.id} was already delivered to run `{run_id}`; it was "
+                    "not sent again.",
+                    run_id=run_id,
+                )
+            if prior.state != "unknown":
+                self._store().record_result(
+                    self.activity_id,
+                    state="unknown",
+                    owner_epoch=self.epoch,
+                    result=prior.result,
+                    error_class="effect_unknown",
+                )
+        except ExecutionStoreError:
+            pass
+        return _outcome(
+            "delivery_uncertain",
+            f"An earlier attempt to deliver entry {self.entry.id} to an agent has no recorded "
+            "result, and nothing on this task shows that it arrived. It was **not sent "
+            "again**: a second work instruction to a session that already has the first "
+            "would be acted on twice.\n\n"
+            "Check the agent's own session for that message. If it never arrived, send it "
+            "again from the task page -- a new message is a new delivery.",
+        )
+
+    def intend(self) -> None:
+        from agentjobs.execution.errors import ExecutionStoreError
+
+        try:
+            activity, created = self._store().record_intent(
+                self.activity_id,
+                execution_id=self.execution_id,
+                kind="deliver_signal",
+                input={"entry_id": self.entry.id, "task_id": self.task.id},
+                owner_epoch=self.epoch,
+            )
+            if not created and activity.state != "intended":
+                self._store().record_result(
+                    self.activity_id, state="intended", owner_epoch=self.epoch
+                )
+        except ExecutionStoreError:
+            return
+
+    def settle(self, outcome: HandbackOutcome, manager: TaskManagerLike) -> None:
+        from agentjobs.dispatch.approval import dispose, human_handoffs_since, project_config_for
+        from agentjobs.execution.errors import ExecutionStoreError
+
+        if outcome.delivered:
+            state, error = "applied", None
+        elif outcome.reason in AMBIGUOUS_REASONS:
+            state, error = "unknown", "effect_unknown"
+        else:
+            state, error = "not_applied", None
+        try:
+            self._store().record_result(
+                self.activity_id,
+                state=state,
+                owner_epoch=self.epoch,
+                result={"reason": outcome.reason, "run_id": outcome.run_id},
+                error_class=error,
+            )
+        except ExecutionStoreError:
+            pass
+        if not outcome.delivered or outcome.run_id is None:
+            return
+        # Every human message the wake carried is consumed by the run it started, not
+        # only the newest (durable-1): each keeps its own row and its own disposition.
+        fresh = manager.get_task(self.task.id) or self.task
+        previous = _previous_dispatch_entry(fresh, outcome.run_id)
+        for message in human_handoffs_since(
+            fresh, project_config_for(self.home, self.project_id), after_entry=previous
+        ):
+            if message.id > self.entry.id:
+                continue
+            dispose(
+                self.home,
+                self.project_id,
+                fresh,
+                message,
+                status="consumed",
+                disposition={"by": f"run:{outcome.run_id}", "delivered_with": self.entry.id},
+            )
+
+
+def _previous_dispatch_entry(task: Task, run_id: str) -> Optional[int]:
+    """The newest dispatch entry before the one that started ``run_id``."""
+    previous: Optional[int] = None
+    for item in task.log:
+        if item.type is not LogEntryType.DISPATCH:
+            continue
+        if item.data.get("run_id") == run_id:
+            return previous
+        previous = item.id
+    return previous
 
 
 def record_handback(
@@ -346,6 +545,17 @@ def record_handback(
     if not outcome.considered or outcome.recorded:
         return
     if outcome.delivered:  # pragma: no cover - a delivery always records its dispatch
+        return
+    if outcome.reason == "delivery_uncertain":
+        # Nobody is working the task and nobody will be until a person looks, so the ball
+        # names a person rather than an agent that does not exist (task-340's invariant).
+        manager.handoff(
+            task.id,
+            actor=DISPATCHER_ACTOR,
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.DECISION,
+            ball_prompt=outcome.detail,
+        )
         return
     manager.add_log_entry(
         task.id,

@@ -53,7 +53,7 @@ from agentjobs.dispatch.phases import RUN_ID_ENV
 from agentjobs.execution.errors import ExecutionStoreError
 from agentjobs.execution.store import Attempt
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Ball, BallReason, DispatchMode, DispatchOutcome
+from agentjobs.models_v2 import Ball, BallReason, DispatchMode, DispatchOutcome, LogEntryType
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
 from agentjobs.taskfiles import load_yaml
 from agentjobs.store_factory import TaskManagerLike, dispatch_manager_for
@@ -1442,8 +1442,52 @@ class DispatchLedger:
                 f"Could not record the cancellation of {run_id}, so nothing was stopped: {exc}"
             ) from exc
         result = self._stop(record)
+        if not result.stopped:
+            # from-264-stop (task-312). A stop that could not be confirmed is still
+            # stopping: the process may be alive and writing, so the run is not concluded,
+            # its task lock is not released, and the Stop stays on record. The poller
+            # concludes it once the session is seen stopped or gone.
+            self._record_unconfirmed_stop(
+                record, result, requester=requester or actor, source=source
+            )
+            return result
         self._conclude(record, DispatchOutcome.CANCELLED, actor=actor, body=result.detail)
         return result
+
+    def _record_unconfirmed_stop(
+        self, record: RunRecord, result: StopResult, *, requester: str, source: str
+    ) -> None:
+        """Say on the run and on its task that a Stop is in force and not yet confirmed."""
+        write_status(record, stop_unconfirmed=result.detail or "stop was not confirmed")
+        manager = self.manager_for(record)
+        if manager is None or not record.task_id:
+            return
+        try:
+            manager.add_log_entry(
+                record.task_id,
+                actor="dispatcher",
+                type=LogEntryType.NOTE,
+                body=(
+                    f"{requester} asked run `{record.run_id}` to stop ({source}), and the "
+                    f"stop could not be confirmed: {result.detail}\n\n"
+                    "The run is **stopping**, not cancelled. It keeps this task, so nothing "
+                    "else can start on it, until its session is seen stopped or gone; the "
+                    "poller concludes it then. The Stop stays on record, so it will not be "
+                    "resumed or woken in the meantime."
+                ),
+                data={"stop_unconfirmed": record.run_id, "requester": requester, "source": source},
+            )
+        except Exception:  # noqa: BLE001 - the run's state is already on disk and in the journal
+            return
+
+    def conclude_confirmed_stop(self, record: RunRecord) -> None:
+        """Conclude a run left ``stopping`` now that its session has quiesced (task-312)."""
+        self._conclude(
+            record,
+            DispatchOutcome.CANCELLED,
+            actor="dispatcher",
+            body="The stop requested earlier is confirmed: the session is stopped or gone.",
+        )
 
     def _stop(self, record: RunRecord) -> StopResult:
         """Ask a run to stop. Session mode delegates; batch mode signals.
@@ -1529,7 +1573,12 @@ class DispatchLedger:
                 # a Stop that could not be journalled is still a Stop.
                 pass
             result = self._stop(record)
-            self._conclude(record, DispatchOutcome.CANCELLED, actor=actor, body=result.detail)
+            if result.stopped:
+                self._conclude(record, DispatchOutcome.CANCELLED, actor=actor, body=result.detail)
+            else:
+                self._record_unconfirmed_stop(
+                    record, result, requester=actor, source="stop_everything"
+                )
             results.append(result)
         return results
 
@@ -1818,6 +1867,82 @@ class DispatchLedger:
 
     # ----- writing the outcome back to the task ------------------------------
 
+    def _conclusion_prompt(
+        self, record: RunRecord, outcome: DispatchOutcome, task: object
+    ) -> Optional[str]:
+        """What a concluded run tells a human, or ``None`` when it must say nothing (task-312).
+
+        **A standing approval is a human decision already made, and a run's ending never
+        overwrites it with a request to make one.** That sentence -- *nobody was told what
+        this task needs* -- was written over an approval on task-021 and task-022, beside a
+        merge that was going ahead. So:
+
+        - **A Stop** is a newer decision than any approval before it. The approval is
+          marked superseded in the journal, and the prompt names who stopped the run and
+          says the approval it withdrew merged nothing.
+        - **Any other ending** while an approval stands leaves the ball alone. The approval
+          still says what the task needs, and whoever acts on it -- the scripted finish,
+          which this spawns when the machine offers one -- is not this run.
+        """
+        from agentjobs.dispatch.approval import approval_standing_on, project_config_for
+
+        if outcome is DispatchOutcome.CANCELLED:
+            requester, source = self._stop_provenance(record)
+            from agentjobs.dispatch.approval import withdraw_approval_on_stop
+
+            withdrawn = withdraw_approval_on_stop(
+                self.home,
+                record.project_id,
+                task,  # type: ignore[arg-type]
+                project_config_for(self.home, record.project_id),
+                run_id=record.run_id,
+                requester=requester,
+                source=source,
+            )
+            stopped_by = f"{requester} stopped run {record.run_id} ({source})"
+            if withdrawn is not None:
+                return (
+                    f"{stopped_by} after this task was approved by {withdrawn.approver} "
+                    f"(entry {withdrawn.entry_id}). The stop withdrew that approval and "
+                    "**nothing was merged**. Approve again to finish it, or say what should "
+                    "happen instead."
+                )
+            return (
+                f"{stopped_by}. Read the dispatch_result entry, then either dispatch again "
+                "or take it on yourself."
+            )
+        standing = approval_standing_on(self.home, record.project_id, task)  # type: ignore[arg-type]
+        dispatched_at = _dispatch_entry_id(task, record.run_id)
+        if standing is not None and (dispatched_at is None or standing.entry_id > dispatched_at):
+            # Only a run the approval *arrived during* is owed the finish on ending. A run
+            # dispatched after it -- a repair the finish itself escalated to -- ending is
+            # not a reason to run that finish again, and doing so would be a loop.
+            from agentjobs.dispatch.finish import resume_approved_finish
+
+            resume_approved_finish(
+                project_id=record.project_id,
+                task_id=record.task_id,
+                approver=standing.approver,
+                home=self.home,
+            )
+            return None
+        return (
+            f"Run {record.run_id} ended `{outcome.value}` and nobody was told "
+            "what this task needs. Read the dispatch_result entry, then either "
+            "dispatch again or take it on yourself."
+        )
+
+    def _stop_provenance(self, record: RunRecord) -> Tuple[str, str]:
+        """Who asked for this run to stop and from where, as the journal recorded it."""
+        from agentjobs.dispatch.journal import journal
+
+        try:
+            attempt = journal(self.home).attempt(record.run_id)
+        except ExecutionStoreError:
+            attempt = None
+        cancel = (attempt.cancel if attempt is not None else None) or {}
+        return str(cancel.get("requester") or "somebody"), str(cancel.get("source") or "unknown")
+
     def _conclude(
         self,
         record: RunRecord,
@@ -1892,17 +2017,15 @@ class DispatchLedger:
         journal.deliver_projection(self.home, manager, projection)
         task = manager.get_task(record.task_id)
         if task is not None and task.is_open and task.ball is not Ball.HUMAN:
-            manager.handoff(
-                record.task_id,
-                actor=actor,
-                ball=Ball.HUMAN,
-                ball_reason=BallReason.DECISION,
-                ball_prompt=(
-                    f"Run {record.run_id} ended `{outcome.value}` and nobody was told "
-                    "what this task needs. Read the dispatch_result entry, then either "
-                    "dispatch again or take it on yourself."
-                ),
-            )
+            prompt = self._conclusion_prompt(record, outcome, task)
+            if prompt is not None:
+                manager.handoff(
+                    record.task_id,
+                    actor=actor,
+                    ball=Ball.HUMAN,
+                    ball_reason=BallReason.DECISION,
+                    ball_prompt=prompt,
+                )
 
         # This sweep runs precisely because no session is left to speak for the run, so
         # there is certainly none left to commit what the sweep wrote (task-203).

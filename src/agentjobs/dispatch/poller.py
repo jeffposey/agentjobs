@@ -273,6 +273,9 @@ def _deliver_pending_handback(
     entry = pending_handback(task, config, after_entry=handle.dispatch_entry_id)
     if entry is None:
         return []
+    finishing = _finish_an_approval(home, project, task, config, record, entry.id)
+    if finishing is not None:
+        return [PollResult(record.run_id, None, finishing)]
     outcome = deliver_handback(
         manager=manager,
         project=project,
@@ -291,6 +294,49 @@ def _deliver_pending_handback(
             f"handback from entry {entry.id}: {outcome.reason}",
         )
     ]
+
+
+def _finish_an_approval(
+    home: Path,
+    project: Project,
+    task: object,
+    config: Dict[str, object],
+    record: RunRecord,
+    entry_id: int,
+) -> Optional[str]:
+    """Start the finish an approval is owed, instead of waking the session (task-312).
+
+    An approval that arrived while this run was live is the one handback that is not
+    addressed to the session: it is addressed to the scripted finish, which could not
+    start because this run held the task. Now the run has ended, that finish is started
+    -- and the session is not woken to merge by hand beside it.
+
+    ``None`` means this is not that case, and ordinary handback delivery proceeds: the
+    waiting handoff is not a standing approval, the machine offers no finish, or a finish
+    is alive and already taking the task over.
+    """
+    from agentjobs.dispatch.approval import standing_approval_for
+    from agentjobs.dispatch.finish import finish_is_offered, resume_approved_finish
+    from agentjobs.dispatch.standdown import transfer_in_progress
+
+    try:
+        receipt = standing_approval_for(home, task, config, project_id=project.id)  # type: ignore[arg-type]
+    except Exception:  # noqa: BLE001 - an unreadable approval is ordinary delivery's to handle
+        return None
+    if receipt is None or receipt.entry_id != entry_id:
+        return None
+    if not finish_is_offered(project.id, home):
+        return None
+    if transfer_in_progress(home, record.run_id):
+        return f"approval from entry {entry_id}: the finish taking it over is still running"
+    spawned = resume_approved_finish(
+        project_id=project.id, task_id=record.task_id, approver=receipt.approver, home=home
+    )
+    if spawned is None:
+        # Fall through to ordinary delivery: the session carrying the clearance is a
+        # worse merge than the scripted one, and a far better one than nobody at all.
+        return None
+    return f"approval from entry {entry_id}: started the scripted finish"
 
 
 def _print_report(line: str) -> None:
