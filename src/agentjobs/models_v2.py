@@ -29,7 +29,7 @@ from pydantic import (
     model_validator,
 )
 
-from .schema_tolerance import record_unknown_enum_value
+from .schema_tolerance import is_tolerant, record_unknown_enum_value, record_unknown_fields
 
 SCHEMA_VERSION = 2
 """The version stamp every v2 file carries (design doc D3, section 8)."""
@@ -81,7 +81,7 @@ class ValueEnum(str, Enum):
         made task-107 vanish from the dashboard and stopped an agent recording its own
         work (task-024).
 
-        So inside :func:`~agentjobs.schema_tolerance.tolerant_enum_values` -- which
+        So inside :func:`~agentjobs.schema_tolerance.tolerant_schema_reader` -- which
         only clients enter -- an unrecognised string becomes a pseudo-member carrying
         that string verbatim. It compares equal to the raw value, ``.value`` returns
         it, and Pydantic serialises it straight back out, so an old reader shows
@@ -376,6 +376,27 @@ class StrictModel(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _leave_out_fields_a_newer_writer_added(cls, data: Any) -> Any:
+        """Drop undeclared keys, but only for a tolerant reader (task-445).
+
+        A reader older than the service meets fields that were added after it started,
+        and rejecting them turned a successful write into ``internal_error``. Inside
+        :func:`~agentjobs.schema_tolerance.tolerant_schema_reader` -- which only clients
+        enter -- they are left out of the parsed model and reported instead. Everywhere
+        else this returns at the first line and ``extra="forbid"`` rejects them exactly
+        as the paragraph above says it must.
+        """
+        if not is_tolerant() or not isinstance(data, dict):
+            return data
+        declared = set(cls.model_fields)
+        declared.update(field.alias for field in cls.model_fields.values() if field.alias)
+        unknown = [key for key in data if key not in declared]
+        if not unknown or not record_unknown_fields(cls.__name__, unknown):
+            return data
+        return {key: value for key, value in data.items() if key in declared}
 
 
 class ContextPointer(StrictModel):
