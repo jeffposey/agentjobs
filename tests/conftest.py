@@ -16,6 +16,7 @@ from agentjobs.dispatch.credentials import verify_run_credential
 from agentjobs.front_door import SECRET_ENV
 from agentjobs.principals import set_run_credential_verifier
 from agentjobs.projects import HOME_ENV
+from agentjobs.execution.factory import close_execution_stores
 from agentjobs.store_factory import close_databases, reset_server_process
 
 # Imported for its side effect, and before any fixture below exists: it captures the
@@ -206,4 +207,5 @@ def no_database_survives_a_test() -> Iterator[None]:
     """
     yield
     close_databases()
+    close_execution_stores()
     reset_server_process()

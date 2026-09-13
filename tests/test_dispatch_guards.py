@@ -57,7 +57,9 @@ from agentjobs.dispatch.guards import (
     record_can_brief,
     resolve_causing_entry,
 )
-from agentjobs.dispatch.runner import DispatchRunner
+from agentjobs.dispatch import journal as guards_journal
+from agentjobs.dispatch.runner import DispatchRunner, RunHandle
+from agentjobs.execution.factory import execution_store_for
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
     Ball,
@@ -244,7 +246,17 @@ def hold_live(handle) -> None:
     Joining the supervisor before freezing removes the writer instead of outrunning it.
     """
     settle(handle)
-    handle.directory.update_meta(status="running")
+    # The run really did conclude, and since task-264 the journal and a sticky terminal
+    # meta both say so -- with its dispatch_result on the task, which is the evidence that
+    # releases a journal attempt. So the frozen run is rebuilt as what these tests need: a
+    # live run the journal has never heard of, which is exactly a run started before the
+    # journal existed, and is counted by the same slot and ownership rules.
+    meta = handle.directory.read_meta()
+    meta.update(status="running", outcome=None, finished_at=None)
+    handle.directory.write_meta(meta)
+    store = execution_store_for(handle.directory.path.parent.parent)
+    with store.transaction("test: hold live") as connection:
+        connection.execute("DELETE FROM run_attempt WHERE run_id = ?", (handle.run_id,))
 
 
 # ----- the rule ---------------------------------------------------------------
@@ -653,15 +665,16 @@ class TestConcurrency:
         self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
     ) -> None:
         write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        authorising = ready_task.log[-1].id
         first = run(manager, project, home, ready_task.id)
         # Freeze it as live rather than letting the supervisor finish, because what is
-        # under test is the guard, not the run.
-        first.directory.update_meta(status="running")
+        # under test is the guard, not the run. `hold_live`, not a bare status write: a
+        # concluded run's meta status is terminal and stays terminal (task-264).
+        hold_live(first)
 
         with pytest.raises(LiveRunExistsError) as caught:
-            run(manager, project, home, ready_task.id)
+            run(manager, project, home, ready_task.id, caused_by=authorising)
         assert caught.value.reason == "live_run_exists"
-        settle(first)
 
     def test_the_machine_limit_refuses_and_does_not_enqueue(
         self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
@@ -679,7 +692,7 @@ class TestConcurrency:
         manager.add_log_entry(other.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go.")
 
         first = run(manager, project, home, ready_task.id)
-        first.directory.update_meta(status="running")
+        hold_live(first)
 
         with pytest.raises(ConcurrencyLimitError) as caught:
             run(manager, project, home, other.id)
@@ -721,6 +734,78 @@ class TestConcurrency:
         assert len(handles) == 1, f"expected one run, got {results}"
         assert len(refusals) == 1
         assert isinstance(refusals[0], (ClaimLostError, LiveRunExistsError, ConcurrencyLimitError))
+        for handle in handles:
+            settle(handle)
+
+    def test_two_dispatches_of_different_tasks_at_ceiling_minus_one_admit_exactly_one(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        ready_task,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """P2-9, the race the directory count could not see (task-264 ac-2).
+
+        Both dispatches are held until each has passed every check that reads run
+        directories -- the slot count included -- and only then let into admission
+        together. Under the old scan both would have started a run on the last slot. The
+        journal's admission is one transaction, so exactly one commits.
+        """
+        write_dispatch_config(
+            home, fake_runner, require_clean_tree=False, limits={"max_concurrent_runs": 2}
+        )
+        others = []
+        for title in ("Second", "Third"):
+            task = manager.create_task(
+                title=title,
+                category="general",
+                summary="s",
+                description="d",
+                lifecycle=Lifecycle.READY,
+                actor="Jeff Posey",
+            )
+            manager.add_log_entry(task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go.")
+            others.append(task.id)
+        holder = run(manager, project, home, ready_task.id)
+        hold_live(holder)  # one of the two slots, so the ceiling is one away
+
+        both_checked = threading.Barrier(2, timeout=30)
+        original = guards_journal.admit_dispatch
+
+        def at_the_same_instant(*args, **kwargs):
+            both_checked.wait()
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(guards_journal, "admit_dispatch", at_the_same_instant)
+        results: List[object] = []
+
+        def attempt(task_id: str) -> None:
+            try:
+                results.append(run(manager, project, home, task_id))
+            except Exception as exc:  # noqa: BLE001 - the refusal is the result
+                results.append(exc)
+
+        threads = [threading.Thread(target=attempt, args=(task_id,)) for task_id in others]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=60)
+
+        handles = [r for r in results if not isinstance(r, Exception)]
+        refusals = [r for r in results if isinstance(r, Exception)]
+        assert len(handles) == 1, f"expected exactly one admission, got {results}"
+        assert len(refusals) == 1 and isinstance(refusals[0], ConcurrencyLimitError), refusals
+        assert holder.run_id in str(refusals[0])
+        winner = handles[0]
+        assert isinstance(winner, RunHandle)
+        loser = [task_id for task_id in others if task_id != winner.task_id][0]
+        loser_task = manager.get_task(loser)
+        assert loser_task is not None
+        assert not [
+            entry for entry in loser_task.log if entry.type is LogEntryType.DISPATCH
+        ], "the refused dispatch started nothing"
         for handle in handles:
             settle(handle)
 

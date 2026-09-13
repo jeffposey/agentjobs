@@ -420,6 +420,10 @@ def supervision_prompt(children: Sequence[str]) -> str:
     return SUPERVISION_PROMPT.format(children=listed)
 
 
+class DuplicateDispatchResultError(ValueError):
+    """A second ``dispatch_result`` for one run id. One run has one ending."""
+
+
 class TaskNotFoundError(ValueError):
     """The addressed task does not exist.
 
@@ -495,6 +499,17 @@ class TaskManager:
     def get_task(self, task_id: str) -> Optional[Task]:
         """Get task by ID."""
         return self.storage.load_task(task_id)
+
+    def source_events(self, after: int, limit: int = 200) -> List[Dict[str, Any]]:
+        """The project's log feed after a position: what the execution journal imports.
+
+        See ``SqlTaskStore.log_feed``. A store without a feed answers nothing rather than
+        pretending to be empty of history; callers treat a missing method the same way.
+        """
+        reader = getattr(self.storage, "log_feed", None)
+        if reader is None:
+            raise NotImplementedError("this task store has no log feed")
+        return list(reader(after, limit))
 
     def search_tasks(self, query: str) -> List[Task]:
         """Search tasks by query string."""
@@ -2802,6 +2817,23 @@ class TaskManager:
         def apply(task: Task) -> Optional[Task]:
             if replay_or_conflict(task, operation):
                 return None
+            # One terminal entry per run, refused inside the task's write transaction
+            # (task-264). task-107 carries two -- `cancelled` then `interrupted`, eleven
+            # seconds apart, both threaded to one dispatch -- and a reader of that record
+            # cannot tell which ending is true. The execution journal's compare-and-set
+            # stops the race upstream; this is the floor under it for any caller that
+            # does not go through the journal. A replay of the same operation is not a
+            # second entry, and returns above.
+            for existing in task.log:
+                if (
+                    existing.type is LogEntryType.DISPATCH_RESULT
+                    and existing.data.get("run_id") == run_id
+                ):
+                    raise DuplicateDispatchResultError(
+                        f"{task_id} already records how run {run_id} ended "
+                        f"(entry {existing.id}, {existing.data.get('outcome')!r}); a second "
+                        "terminal entry for one run was refused."
+                    )
             self._append_entry(
                 task,
                 actor=actor,

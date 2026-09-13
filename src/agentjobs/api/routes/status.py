@@ -357,7 +357,12 @@ def _settle_interactive(manager: TaskManager, task_id: str) -> None:
     The poller would catch it a tick later; doing it here is what makes the board drop
     the card the moment the session hands off, rather than ten seconds after.
     """
-    settle_for_task(default_home(), manager.get_task(task_id), task_id)
+    settle_for_task(
+        default_home(),
+        manager.get_task(task_id),
+        task_id,
+        project_id=str(getattr(manager.storage, "project_id", "")),
+    )
 
 
 @router.post("/{task_id}/handoff", response_model=MutationResponse, status_code=status.HTTP_200_OK)

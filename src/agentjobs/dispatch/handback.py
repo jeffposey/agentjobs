@@ -171,9 +171,11 @@ def pending_handback(
 # ----- the live run in the way ------------------------------------------------
 
 
-def _task_runs(home: Path, task_id: str) -> List[RunRecord]:
-    """Every live run recorded for this task. Normally none or one."""
-    return [record for record in live_runs(home) if record.task_id == task_id]
+def _task_runs(home: Path, task_id: str, *, project_id: str) -> List[RunRecord]:
+    """Every live run recorded for this project's task. Normally none or one."""
+    from agentjobs.dispatch.journal import same_task  # local: journal imports runner
+
+    return [record for record in live_runs(home) if same_task(record, project_id, task_id)]
 
 
 def _settle_if_idle(
@@ -300,13 +302,13 @@ def deliver_handback(
         return _outcome("not_enabled", f"{project.id} has auto_dispatch off")
 
     root = resolve_machine_home(home, resolution)
-    running = _task_runs(root, task.id)
+    running = _task_runs(root, task.id, project_id=project.id)
     for record in running:
         _settle_if_idle(manager, project, record, root, resolution)
     # Re-read rather than reason about what the poll did. `poll_session` returns a phase,
     # but the question here is the ledger's answer to "is anything still live", and that
     # is a directory scan whose result a phase only predicts.
-    running = _task_runs(root, task.id)
+    running = _task_runs(root, task.id, project_id=project.id)
     if running:
         for record in running:
             _mark_pending(record, waiting.id)

@@ -56,8 +56,7 @@ from agentjobs.dispatch.finish import (
 )
 from agentjobs.dispatch.ledger import (
     LockHolder,
-    read_lock_holder,
-    run_lock_path,
+    read_task_lock_holder,
     stale_lock_reason,
 )
 from agentjobs.dispatch.phases import read_phases
@@ -364,8 +363,9 @@ def _elapsed(started: Any, finished: Any) -> Optional[float]:
 # ----- liveness ---------------------------------------------------------------
 
 
-def finish_lock_holder(home: Path, task_id: str) -> Optional[LockHolder]:
-    return read_lock_holder(run_lock_path(home, task_id))
+def finish_lock_holder(home: Path, task_id: str, *, project_id: str) -> Optional[LockHolder]:
+    """The holder of this project's task lock, or of a pre-task-264 unscoped one."""
+    return read_task_lock_holder(home, task_id, project_id=project_id)
 
 
 def holder_is_working(home: Path, holder: Optional[LockHolder]) -> bool:
@@ -393,7 +393,7 @@ def read_finish_status(home: Path, task_id: str, project_id: str = "") -> Option
     """
     directory = newest_finish_directory(home, task_id, project_id)
     marker = read_spawn_marker(home, task_id)
-    holder = finish_lock_holder(home, task_id)
+    holder = finish_lock_holder(home, task_id, project_id=project_id)
     working = holder_is_working(home, holder)
 
     if directory is None:

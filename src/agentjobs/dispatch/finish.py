@@ -96,8 +96,7 @@ from agentjobs.dispatch.ledger import (
     acquire_runway_lock,
     find_run,
     live_runs,
-    read_lock_holder,
-    run_lock_path,
+    read_task_lock_holder,
 )
 from agentjobs.dispatch.phases import RUN_ID_ENV, record_phase
 from agentjobs.dispatch.record_commit import commit_task_record
@@ -1905,7 +1904,7 @@ def finish_task(
             # Not `os.environ[RUN_ID_ENV]` directly: a `--bg` session can come up holding
             # another run's identity, and that stripped task-316 of the posture a human
             # had granted it. See `own_run_id` (task-249).
-            run_id=own_run_id(resolved_home, task_id),
+            run_id=own_run_id(resolved_home, task_id, project_id=project.id),
         )
         posture = merge_posture.posture
         posture_name = posture.value
@@ -1964,9 +1963,9 @@ def finish_task(
         )
 
     lock: Optional[RunLock] = None
-    if not _own_run_holds_lock(resolved_home, task_id):
+    if not _own_run_holds_lock(resolved_home, task_id, project_id=project.id):
         try:
-            lock = acquire_run_lock(resolved_home, task_id, kind=KIND_FINISH)
+            lock = acquire_run_lock(resolved_home, task_id, project_id=project.id, kind=KIND_FINISH)
         except RunLockTimeout as exc:
             return FinishResult(task_id=task_id, outcome=DECLINED, reason="locked", detail=str(exc))
 
@@ -2140,7 +2139,13 @@ def _is_a_run_at_all(home: Path, run_id: str) -> bool:
     return True
 
 
-def own_run_id(home: Path, task_id: str, *, environ: Optional[Mapping[str, str]] = None) -> str:
+def own_run_id(
+    home: Path,
+    task_id: str,
+    *,
+    project_id: str,
+    environ: Optional[Mapping[str, str]] = None,
+) -> str:
     """Which run this process actually belongs to, when the environment may be lying.
 
     ``AGENTJOBS_RUN_ID`` is set on the launcher, and for a ``--bg`` run the launcher is
@@ -2190,13 +2195,13 @@ def own_run_id(home: Path, task_id: str, *, environ: Optional[Mapping[str, str]]
         return declared
     if not _is_a_run_at_all(home, declared):
         return declared
-    holder = read_lock_holder(run_lock_path(home, task_id))
+    holder = read_task_lock_holder(home, task_id, project_id=project_id)
     if holder is None or not _run_vouching_for(home, holder.run_id, task_id):
         return declared
     return holder.run_id
 
 
-def _own_run_holds_lock(home: Path, task_id: str) -> bool:
+def _own_run_holds_lock(home: Path, task_id: str, *, project_id: str) -> bool:
     """Whether the lock on this task is held by *the run calling this* (task-022).
 
     The autonomous merge path is a run being told, in its own prompt, to run
@@ -2219,10 +2224,10 @@ def _own_run_holds_lock(home: Path, task_id: str) -> bool:
     would free the task while its agent was still executing, which is the state the lock
     exists to make impossible.
     """
-    own_run = own_run_id(home, task_id)
+    own_run = own_run_id(home, task_id, project_id=project_id)
     if not own_run:
         return False
-    holder = read_lock_holder(run_lock_path(home, task_id))
+    holder = read_task_lock_holder(home, task_id, project_id=project_id)
     return holder is not None and holder.run_id == own_run
 
 
@@ -2611,7 +2616,7 @@ def _attempt_escalation_dispatch(
     # conclusion is no longer final. The run is marked, and `resolve_deferred_escalation`
     # asks again when it ends, which is the moment the answer is actually knowable.
     for run in live_runs(resolve_machine_home(home, resolution)):
-        if run.task_id == task_id:
+        if run.task_id == task_id and run.project_id in (project.id, ""):
             _mark_escalation_pending(run, finish_id or task_id)
             return EscalationDispatch(
                 run_id=run.run_id,

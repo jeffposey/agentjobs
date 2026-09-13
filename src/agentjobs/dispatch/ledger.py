@@ -48,8 +48,10 @@ from agentjobs.dispatch.runner import (
     resolve_executable,
     runs_root,
 )
-from agentjobs.dispatch.atomic_yaml import read_yaml_resiliently, write_yaml_atomically
+from agentjobs.dispatch.atomic_yaml import merge_yaml_atomically
 from agentjobs.dispatch.phases import RUN_ID_ENV
+from agentjobs.execution.errors import ExecutionStoreError
+from agentjobs.execution.store import Attempt
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BallReason, DispatchMode, DispatchOutcome
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
@@ -126,14 +128,60 @@ def locks_root(home: Path) -> Path:
     return runs_root(home) / LOCKS_DIRNAME
 
 
-def run_lock_path(home: Path, task_id: str) -> Path:
-    """The lock file for one task's run.
+PROJECT_SEPARATOR = "~"
+"""Joins a project id to a task id in a lock name. Neither id may contain it: both are
+validated slugs of ``[a-z0-9._-]``, so a lock name splits back into its two halves
+unambiguously."""
+
+
+def lock_name(project_id: Optional[str], task_id: str) -> str:
+    """The lock name for one project's task, or the bare name for an unscoped lock.
+
+    **The project is part of the key** (task-264, P2-5). Until then the name was the task
+    id alone, and task ids are per-project -- so ``task-001`` in two projects shared one
+    lock, and the second project's dispatch was refused for a run it did not have.
+    ``None`` is for the one lock that is not a task's: the repository runway, whose name
+    is already a digest of a path.
+    """
+    if project_id is None:
+        return task_id
+    return f"{project_id}{PROJECT_SEPARATOR}{task_id}"
+
+
+def split_lock_name(name: str) -> Tuple[str, str]:
+    """``(project_id, task_id)`` from a lock name; project is ``""`` for a legacy name."""
+    project, separator, task = name.partition(PROJECT_SEPARATOR)
+    if not separator:
+        return "", name
+    return project, task
+
+
+def run_lock_path(home: Path, task_id: str, *, project_id: Optional[str]) -> Path:
+    """The lock file for one project's task's run.
 
     Named rather than spelled out at each caller because five places had built this
     path from the same two pieces, and a reader of any one of them had no way to know
-    the convention was shared.
+    the convention was shared. ``project_id`` is required by keyword so a caller cannot
+    fall back to the unscoped name by forgetting it.
     """
+    return locks_root(home) / f"{lock_name(project_id, task_id)}.lock"
+
+
+def legacy_run_lock_path(home: Path, task_id: str) -> Path:
+    """Where a build before task-264 put this task's lock. Read, never created."""
     return locks_root(home) / f"{task_id}.lock"
+
+
+def read_task_lock_holder(home: Path, task_id: str, *, project_id: str) -> Optional["LockHolder"]:
+    """Who holds this project's task lock: the scoped file, else a pre-task-264 one.
+
+    The fallback is what keeps a run started by a server that has not restarted since
+    the upgrade recognisable as the holder of its own task.
+    """
+    holder = read_lock_holder(run_lock_path(home, task_id, project_id=project_id))
+    if holder is not None:
+        return holder
+    return read_lock_holder(legacy_run_lock_path(home, task_id))
 
 
 @dataclass(frozen=True)
@@ -316,6 +364,17 @@ def stale_lock_reason(home: Path, holder: LockHolder) -> Optional[str]:
     an absent process -- never against elapsed time.
     """
     if holder.run_id:
+        # The journal first, when it knows the run (task-264). A run directory's meta is
+        # writable by the agent working inside it, so a run that wrote `status: finished`
+        # into its own meta would otherwise release its own lock while it kept working --
+        # auditor 12's question, and the answer is now no.
+        from agentjobs.dispatch.journal import journal_liveness  # local: journal imports runner
+
+        liveness = journal_liveness(home, holder.run_id)
+        if liveness is True:
+            return None
+        if liveness is False:
+            return f"its run {holder.run_id} has concluded"
         directory = runs_root(home) / holder.run_id
         if directory.is_dir():
             record = read_run(directory)
@@ -364,6 +423,7 @@ class RunLock:
     kind: str = KIND_DISPATCH
     finish_id: str = ""
     started_at: str = ""
+    project_id: str = ""
 
     def adopt(self, run_id: str) -> None:
         """Name the run this lock is held for, once there is a run to name.
@@ -469,6 +529,7 @@ def acquire_run_lock(
     home: Path,
     task_id: str,
     *,
+    project_id: Optional[str],
     run_id: str = "",
     kind: str = KIND_DISPATCH,
     timeout: float = LOCK_TIMEOUT_SECONDS,
@@ -496,7 +557,8 @@ def acquire_run_lock(
     unable to tell refuses.
     """
     locks_root(home).mkdir(parents=True, exist_ok=True)
-    path = run_lock_path(home, task_id)
+    path = run_lock_path(home, task_id, project_id=project_id)
+    legacy = legacy_run_lock_path(home, task_id) if project_id is not None else None
     deadline = time.monotonic() + timeout
     started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     reclaimed = False
@@ -515,9 +577,25 @@ def acquire_run_lock(
                 os.write(handle, text.encode("ascii"))
             finally:
                 os.close(handle)
-            return RunLock(
-                task_id=task_id, path=path, run_id=run_id, kind=kind, started_at=started_at
+            acquired = RunLock(
+                task_id=task_id,
+                path=path,
+                run_id=run_id,
+                kind=kind,
+                started_at=started_at,
+                project_id=project_id or "",
             )
+            blocker = _live_legacy_holder(home, legacy, project_id)
+            if blocker is None:
+                return acquired
+            # A server that has not restarted since task-264 still writes the unscoped
+            # name. Its lock is honoured, so an upgrade under a live run cannot put a
+            # second run beside it; ours is given back and this counts as contention.
+            acquired.release()
+            if time.monotonic() >= deadline:
+                raise RunLockTimeout(_lock_refusal(home, task_id, legacy or path, blocker))
+            time.sleep(LOCK_POLL_SECONDS)
+            continue
 
         holder = read_lock_holder(path)
         if holder is not None and not reclaimed:
@@ -555,6 +633,28 @@ def runway_lock_name(root: Path) -> str:
     key = os.path.normcase(str(Path(root).resolve()))
     digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
     return f"{RUNWAY_PREFIX}{digest}"
+
+
+def _live_legacy_holder(
+    home: Path, legacy: Optional[Path], project_id: Optional[str]
+) -> Optional[LockHolder]:
+    """The holder of a pre-task-264 unscoped lock for this task, if it binds this project.
+
+    It binds when it is held (not provably stale) and its run is this project's, or its
+    run cannot be attributed to any project -- the direction that refuses.
+    """
+    if legacy is None or not legacy.exists():
+        return None
+    holder = read_lock_holder(legacy)
+    if holder is None or stale_lock_reason(home, holder) is not None:
+        return None
+    if holder.run_id:
+        directory = runs_root(home) / holder.run_id
+        if directory.is_dir():
+            owner = read_run(directory).project_id
+            if owner and project_id and owner != project_id:
+                return None
+    return holder
 
 
 def acquire_runway_lock(
@@ -600,6 +700,7 @@ def acquire_runway_lock(
             lock = acquire_run_lock(
                 home,
                 runway_lock_name(root),
+                project_id=None,
                 kind=KIND_RUNWAY,
                 timeout=0.0,
             )
@@ -720,6 +821,7 @@ class StaleLock:
     task_id: str
     run_id: str
     reason: str
+    project_id: str = ""
 
 
 def release_stale_locks(home: Path) -> List[StaleLock]:
@@ -745,8 +847,11 @@ def release_stale_locks(home: Path) -> List[StaleLock]:
         reason = stale_lock_reason(home, holder)
         if reason is None:
             continue
-        RunLock(task_id=path.stem, path=path, run_id=holder.run_id).release()
-        released.append(StaleLock(task_id=path.stem, run_id=holder.run_id, reason=reason))
+        project_id, task_id = split_lock_name(path.stem)
+        RunLock(task_id=task_id, path=path, run_id=holder.run_id, project_id=project_id).release()
+        released.append(
+            StaleLock(task_id=task_id, run_id=holder.run_id, reason=reason, project_id=project_id)
+        )
     return released
 
 
@@ -1020,7 +1125,22 @@ def conclude_interactive(
     run AgentJobs started and the wrong thing for a session a person was sitting in --
     the person's own verbs are already on the record. The lock the claim took is
     released here because nothing else ever will; it names a run that is now terminal.
+
+    Through the journal's terminal compare-and-set like every other ending (task-264), so
+    a sweep and a verb settling the same interactive run cannot both write its ending. A
+    journal that cannot be written does not stop the record closing: the session is a
+    person's, and ``journal.attempt_evidence`` accepts its own record as proof it ended.
     """
+    from agentjobs.dispatch import journal  # local: journal imports runner
+
+    try:
+        conclusion = journal.claim_conclusion(
+            home, record, outcome, concluded_by=f"interactive: {detail}"[:300], status="finished"
+        )
+        if not conclusion.won:
+            return
+    except ExecutionStoreError:
+        pass
     write_status(
         record,
         status="finished",
@@ -1146,10 +1266,7 @@ def write_status(record: RunRecord, **fields: object) -> None:
     cancellation. See ``dispatch.atomic_yaml``.
     """
     meta_path = record.path / META_FILENAME
-    loaded = read_yaml_resiliently(meta_path, loader=load_yaml)
-    meta: Dict[str, object] = loaded if isinstance(loaded, dict) else {}
-    merged = finish_stamped(meta, fields)
-    write_yaml_atomically(meta_path, merged)
+    merged = merge_yaml_atomically(meta_path, fields, merge=finish_stamped, loader=load_yaml)
     if str(merged.get("status") or "") in TERMINAL_STATUSES:
         # The write that ends a run destroys its credential digest -- see
         # `RunDirectory.update_meta`, which does the same for the other write path.
@@ -1210,6 +1327,20 @@ class DispatchLedger:
         except ProjectError:
             return None
         return dispatch_manager_for(project)
+
+    def _manager_for_project(self, project_id: str) -> Optional[TaskManagerLike]:
+        """The manager for a project id, or ``None`` -- the journal adapter's resolver."""
+        supplied = self.managers.get(project_id)
+        if supplied is not None:
+            return supplied
+        try:
+            project: Project = self.registry.get(project_id)
+        except ProjectError:
+            return None
+        try:
+            return dispatch_manager_for(project)
+        except Exception:  # noqa: BLE001 - an unopenable store resolves nothing
+            return None
 
     def _session(self, *args: str) -> subprocess.CompletedProcess:
         """Run a session-manager subcommand. argv is a list; there is no shell."""
@@ -1272,10 +1403,26 @@ class DispatchLedger:
 
     # ----- cancellation ------------------------------------------------------
 
-    def cancel(self, run_id: str, *, actor: str = "dispatcher") -> StopResult:
-        """Stop one run, by whichever means its mode calls for."""
+    def cancel(
+        self,
+        run_id: str,
+        *,
+        actor: str = "dispatcher",
+        source: str = "ledger",
+        requester: Optional[str] = None,
+    ) -> StopResult:
+        """Stop one run, by whichever means its mode calls for.
+
+        The request is recorded in the journal -- who asked, from where -- **before**
+        anything is signalled (task-264). That record is what makes a poll tick landing in
+        the same second defer to this cancellation instead of concluding the run itself,
+        and it survives the process: a restart finds the Stop, not a run to recover.
+        """
+        from agentjobs.dispatch import journal  # local: journal imports runner
+
         record = find_run(self.home, run_id)
-        if not record.is_live:
+        liveness = journal.journal_liveness(self.home, run_id)
+        if liveness is False or (liveness is None and not record.is_live):
             return StopResult(run_id, False, f"already {record.outcome or record.status}")
         if record.is_interactive:
             # The session belongs to a person, and cancelling the *record* must not reach
@@ -1286,6 +1433,14 @@ class DispatchLedger:
             return StopResult(
                 run_id, True, "interactive run closed; the session itself was left running"
             )
+        try:
+            journal.request_cancel(
+                self.home, record, requester=requester or actor, source=source, reason="cancel"
+            )
+        except ExecutionStoreError as exc:
+            raise LedgerError(
+                f"Could not record the cancellation of {run_id}, so nothing was stopped: {exc}"
+            ) from exc
         result = self._stop(record)
         self._conclude(record, DispatchOutcome.CANCELLED, actor=actor, body=result.detail)
         return result
@@ -1363,6 +1518,16 @@ class DispatchLedger:
                 )
                 results.append(StopResult(record.run_id, True, "interactive run closed"))
                 continue
+            from agentjobs.dispatch import journal  # local: journal imports runner
+
+            try:
+                journal.request_cancel(
+                    self.home, record, requester=actor, source="stop_everything", reason="panic"
+                )
+            except ExecutionStoreError:
+                # The panic button still stops things. The sentinel is already down, and
+                # a Stop that could not be journalled is still a Stop.
+                pass
             result = self._stop(record)
             self._conclude(record, DispatchOutcome.CANCELLED, actor=actor, body=result.detail)
             results.append(result)
@@ -1386,6 +1551,23 @@ class DispatchLedger:
         active: Optional[List[Dict[str, object]]] = None
         own = calling_run_id()
 
+        # Before the sweep (task-264): a terminal result a previous process concluded in
+        # the journal and died before writing to its task is delivered now, under the same
+        # operation id, so the task learns how its run ended and learns it once.
+        from agentjobs.dispatch import journal  # local: journal imports runner
+
+        try:
+            for operation in journal.flush_owed_results(self.home, self._manager_for_project):
+                results.append(StopResult(operation, True, "delivered an owed dispatch_result"))
+        except ExecutionStoreError as exc:
+            results.append(StopResult("journal", False, f"owed results not delivered: {exc}"))
+        for attempt in journal.release_ended(self.home, self._manager_for_project):
+            results.append(
+                StopResult(
+                    attempt.run_id, True, f"released its journal ownership: {attempt.concluded_by}"
+                )
+            )
+
         for record in live_runs(self.home):
             if own and record.run_id == own:
                 # A process cannot be evidence that it is itself gone (task-394). On
@@ -1407,6 +1589,22 @@ class DispatchLedger:
                         False,
                         "this is the run calling reconcile, which is not evidence it ended",
                     )
+                )
+                continue
+
+            concluded = _journal_conclusion(self.home, record.run_id)
+            if concluded is not None:
+                # The journal already decided how this run ended and the process that
+                # won died before projecting it onto the meta. Project it; concluding again
+                # would lose the compare-and-set and leave the meta reading live for ever.
+                write_status(
+                    record,
+                    status=concluded.status or "finished",
+                    outcome=concluded.outcome,
+                    finished_at=concluded.concluded_at,
+                )
+                results.append(
+                    StopResult(record.run_id, True, "projected its journal conclusion onto meta")
                 )
                 continue
 
@@ -1461,30 +1659,38 @@ class DispatchLedger:
                         StopResult(record.run_id, False, "session still running; re-attached")
                     )
                     continue
+                try:
+                    self._conclude(
+                        record,
+                        DispatchOutcome.INTERRUPTED,
+                        actor=actor,
+                        body=(
+                            "This session is no longer known to the session manager, so it "
+                            "cannot be followed or resumed. It was recorded as live when "
+                            "AgentJobs last stopped."
+                        ),
+                    )
+                except LedgerError as exc:
+                    results.append(StopResult(record.run_id, False, str(exc)))
+                    continue
+                results.append(StopResult(record.run_id, True, "session gone; marked interrupted"))
+                continue
+
+            # Batch: the supervisor died with the process that owned it.
+            try:
                 self._conclude(
                     record,
                     DispatchOutcome.INTERRUPTED,
                     actor=actor,
                     body=(
-                        "This session is no longer known to the session manager, so it "
-                        "cannot be followed or resumed. It was recorded as live when "
-                        "AgentJobs last stopped."
+                        "A batch run was still marked live when AgentJobs restarted. Batch "
+                        "runs do not outlive their supervisor, so whatever it was doing "
+                        "stopped without reporting. Its output is in the run directory."
                     ),
                 )
-                results.append(StopResult(record.run_id, True, "session gone; marked interrupted"))
+            except LedgerError as exc:
+                results.append(StopResult(record.run_id, False, str(exc)))
                 continue
-
-            # Batch: the supervisor died with the process that owned it.
-            self._conclude(
-                record,
-                DispatchOutcome.INTERRUPTED,
-                actor=actor,
-                body=(
-                    "A batch run was still marked live when AgentJobs restarted. Batch "
-                    "runs do not outlive their supervisor, so whatever it was doing "
-                    "stopped without reporting. Its output is in the run directory."
-                ),
-            )
             results.append(StopResult(record.run_id, True, "batch run marked interrupted"))
 
         # After the runs, never before: concluding an orphaned run is what turns its
@@ -1589,8 +1795,16 @@ class DispatchLedger:
         from agentjobs.dispatch.wake import newest_session_run
 
         keep: Set[str] = set()
-        for task_id in {r.task_id for r in list_runs(self.home) if r.is_session and r.task_id}:
-            newest = newest_session_run(self.home, task_id)
+        # Keyed on the project as well as the task (task-264, P2-5). Task ids are
+        # per-project, and keying on the id alone let one project's open task keep --
+        # or fail to keep -- another project's conversation.
+        pairs = {
+            (record.project_id, record.task_id)
+            for record in list_runs(self.home)
+            if record.is_session and record.task_id
+        }
+        for project_id, task_id in pairs:
+            newest = newest_session_run(self.home, task_id, project_id=project_id)
             if newest is None or newest.is_live:
                 continue
             try:
@@ -1619,39 +1833,63 @@ class DispatchLedger:
         resolved -- in which case the run's own meta records why, and the run at least
         stops counting as live.
         """
-        finished = datetime.now(timezone.utc)
-        write_status(
-            record,
-            status="cancelled",
-            outcome=outcome.value,
-            finished_at=finished.isoformat(),
-        )
-        manager = self.manager_for(record)
-        if manager is None or not record.task_id:
-            write_status(record, unattributed=f"no task record for {record.task_id!r}")
-            return
-        task = manager.get_task(record.task_id)
-        if task is None:
-            write_status(record, unattributed=f"task {record.task_id!r} not found")
-            return
+        from agentjobs.dispatch import journal  # local: journal imports runner
 
-        # From the instant just written to the run, not from the record in hand: that
+        finished = datetime.now(timezone.utc)
+        manager = self.manager_for(record)
+        task = manager.get_task(record.task_id) if manager is not None and record.task_id else None
+        # From the instant this conclusion is made, not from the record in hand: that
         # record was read before the status changed and still describes a live run.
         duration = (
             (finished - record.started_at).total_seconds()
             if record.started_at is not None
             else None
         )
-        manager.record_dispatch_result(
-            record.task_id,
-            actor=actor,
-            run_id=record.run_id,
-            outcome=outcome,
-            re=_dispatch_entry_id(task, record.run_id),
-            duration_seconds=duration,
-            log_path=str(record.path),
-            body=body,
+        projection = (
+            journal.result_projection(
+                record,
+                outcome,
+                actor=actor,
+                re=_dispatch_entry_id(task, record.run_id),
+                duration_seconds=duration,
+                body=body,
+            )
+            if task is not None
+            else None
         )
+        # The one terminal transition (task-264). A poll tick and this sweep -- or this
+        # cancellation -- can both reach here for one run; only one of them wins, and the
+        # other writes nothing, rather than a second, contradictory result.
+        try:
+            conclusion = journal.claim_conclusion(
+                self.home,
+                record,
+                outcome,
+                concluded_by=f"ledger: {actor}",
+                projection=projection,
+            )
+        except ExecutionStoreError as exc:
+            raise LedgerError(
+                f"Could not record how run {record.run_id} ended, so nothing was written: {exc}"
+            ) from exc
+        if not conclusion.won:
+            return
+        # The status that says how it ended. It used to be `cancelled` for every outcome
+        # this wrote, `interrupted` included, so a swept run read as cancelled by somebody.
+        write_status(
+            record,
+            status=journal.status_for(outcome),
+            outcome=outcome.value,
+            finished_at=finished.isoformat(),
+        )
+        if manager is None or not record.task_id:
+            write_status(record, unattributed=f"no task record for {record.task_id!r}")
+            return
+        if task is None or projection is None:
+            write_status(record, unattributed=f"task {record.task_id!r} not found")
+            return
+
+        journal.deliver_projection(self.home, manager, projection)
         task = manager.get_task(record.task_id)
         if task is not None and task.is_open and task.ball is not Ball.HUMAN:
             manager.handoff(
@@ -1676,6 +1914,19 @@ class DispatchLedger:
                 subject=f"record swept run {record.run_id} as {outcome.value}",
             ).detail,
         )
+
+
+def _journal_conclusion(home: Path, run_id: str) -> Optional["Attempt"]:
+    """The journal's terminal attempt for this run, or ``None`` if live, unknown or unreadable."""
+    from agentjobs.dispatch.journal import journal  # local: journal imports runner
+
+    try:
+        attempt = journal(home).attempt(run_id)
+    except ExecutionStoreError:
+        return None
+    if attempt is None or attempt.is_live:
+        return None
+    return attempt
 
 
 def _dispatch_entry_id(task: object, run_id: str) -> Optional[int]:

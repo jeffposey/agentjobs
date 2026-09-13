@@ -185,13 +185,17 @@ def ran_stdin(workspace: Path) -> str:
 
 class TestFindWakeTarget:
     def test_a_task_with_no_previous_session_has_nothing_to_wake(self, workspace: Path) -> None:
-        assert find_wake_target(workspace / "home", "task-001", rows=[]) is None
+        assert (
+            find_wake_target(workspace / "home", "task-001", project_id="sandbox", rows=[]) is None
+        )
 
     def test_a_finished_session_still_in_the_ledger_is_the_target(self, workspace: Path) -> None:
         home = workspace / "home"
         seed_finished_run(home, "task-001", session_id="aaaa1111")
 
-        target = find_wake_target(home, "task-001", rows=[stopped_row("aaaa1111", "aaaa1111-u")])
+        target = find_wake_target(
+            home, "task-001", project_id="sandbox", rows=[stopped_row("aaaa1111", "aaaa1111-u")]
+        )
 
         assert target is not None
         assert target.previous_run_id == "run_previous"
@@ -203,7 +207,10 @@ class TestFindWakeTarget:
         seed_finished_run(home, "task-001", session_id="aaaa1111")
 
         target = find_wake_target(
-            home, "task-001", rows=[stopped_row("aaaa1111", "aaaa1111-2222-3333-4444-555555555555")]
+            home,
+            "task-001",
+            project_id="sandbox",
+            rows=[stopped_row("aaaa1111", "aaaa1111-2222-3333-4444-555555555555")],
         )
 
         assert target is not None
@@ -215,20 +222,35 @@ class TestFindWakeTarget:
         home = workspace / "home"
         seed_finished_run(home, "task-001", status="running")
 
-        assert find_wake_target(home, "task-001", rows=[stopped_row("aaaa1111", "u")]) is None
+        assert (
+            find_wake_target(
+                home, "task-001", project_id="sandbox", rows=[stopped_row("aaaa1111", "u")]
+            )
+            is None
+        )
 
     def test_a_reaped_run_is_not_woken(self, workspace: Path) -> None:
         """``claude rm`` deleted the conversation; the run's own meta says so."""
         home = workspace / "home"
         seed_finished_run(home, "task-001", reaped=True)
 
-        assert find_wake_target(home, "task-001", rows=[stopped_row("aaaa1111", "u")]) is None
+        assert (
+            find_wake_target(
+                home, "task-001", project_id="sandbox", rows=[stopped_row("aaaa1111", "u")]
+            )
+            is None
+        )
 
     def test_a_session_the_manager_no_longer_lists_is_not_woken(self, workspace: Path) -> None:
         home = workspace / "home"
         seed_finished_run(home, "task-001", session_id="aaaa1111")
 
-        assert find_wake_target(home, "task-001", rows=[stopped_row("bbbb2222", "u")]) is None
+        assert (
+            find_wake_target(
+                home, "task-001", project_id="sandbox", rows=[stopped_row("bbbb2222", "u")]
+            )
+            is None
+        )
 
     def test_only_the_newest_run_is_ever_a_candidate(self, workspace: Path) -> None:
         """The rule that stops a stale conversation being resumed.
@@ -254,7 +276,9 @@ class TestFindWakeTarget:
             started_at="2026-08-21T08:00:00+00:00",
         )
 
-        target = find_wake_target(home, "task-001", rows=[stopped_row("old00001", "old-uuid")])
+        target = find_wake_target(
+            home, "task-001", project_id="sandbox", rows=[stopped_row("old00001", "old-uuid")]
+        )
 
         assert target is None
 
@@ -262,7 +286,12 @@ class TestFindWakeTarget:
         home = workspace / "home"
         seed_finished_run(home, "task-999", session_id="aaaa1111")
 
-        assert find_wake_target(home, "task-001", rows=[stopped_row("aaaa1111", "u")]) is None
+        assert (
+            find_wake_target(
+                home, "task-001", project_id="sandbox", rows=[stopped_row("aaaa1111", "u")]
+            )
+            is None
+        )
 
 
 class TestSessionUuids:

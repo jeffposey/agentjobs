@@ -815,7 +815,13 @@ async def cancel_dispatch_run(
     ledger = DispatchLedger(home, managers={project.id: manager})
     _owned_run(run_id, project, principal)
     try:
-        result = ledger.cancel(run_id)
+        result = ledger.cancel(
+            run_id,
+            source="api",
+            requester=(principal.actor_id or principal.login or principal.kind.value)
+            if principal is not None
+            else None,
+        )
     except LedgerError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return DispatchCancelResult(

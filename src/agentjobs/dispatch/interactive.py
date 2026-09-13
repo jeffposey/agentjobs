@@ -48,6 +48,7 @@ from agentjobs.dispatch.ledger import (
     live_runs,
     read_run,
 )
+from agentjobs.dispatch.journal import same_task, strictly_same_task
 from agentjobs.dispatch.runner import (
     DispatchRunError,
     DispatchRunner,
@@ -90,12 +91,12 @@ def start_interactive_run(
     if task.lifecycle is not Lifecycle.ACTIVE:
         return None
     for run in live_runs(home):
-        if run.task_id == task.id:
+        if same_task(run, project.id, task.id):
             return None
 
     run_id = new_run_id()
     try:
-        acquire_run_lock(home, task.id, run_id=run_id, timeout=1.0)
+        acquire_run_lock(home, task.id, project_id=project.id, run_id=run_id, timeout=1.0)
     except RunLockTimeout:
         # Something else holds the task -- a finish, a dispatch in its first second.
         # Whatever it is, it is what the record would have said, so nothing is lost.
@@ -135,7 +136,9 @@ class SweepResult:
     detail: str
 
 
-def settle_for_task(home: Path, task: Optional[Task], task_id: str) -> List[SweepResult]:
+def settle_for_task(
+    home: Path, task: Optional[Task], task_id: str, *, project_id: str
+) -> List[SweepResult]:
     """End this task's interactive runs if the task has moved on. Called after a verb.
 
     The rule, in one place: **an interactive run is live while its task is `active` with
@@ -152,7 +155,9 @@ def settle_for_task(home: Path, task: Optional[Task], task_id: str) -> List[Swee
     if task is not None and task.lifecycle is Lifecycle.ACTIVE and task.ball is Ball.AGENT:
         return results
     for record in live_runs(home):
-        if record.task_id != task_id or not record.is_interactive:
+        # Strictly this project's task (task-264): a verb on one project's task-001 must
+        # not close a person's session on another project's task-001.
+        if not strictly_same_task(record, project_id, task_id) or not record.is_interactive:
             continue
         conclude_interactive(home, record, DispatchOutcome.COMPLETED, detail=_why_over(task))
         results.append(SweepResult(record.run_id, True, _why_over(task)))
@@ -210,7 +215,12 @@ def sweep_interactive_runs(
         if manager is None and project is not None:
             manager = dispatch_manager_for(project)
         if manager is not None and record.task_id:
-            settled = settle_for_task(home, manager.get_task(record.task_id), record.task_id)
+            settled = settle_for_task(
+                home,
+                manager.get_task(record.task_id),
+                record.task_id,
+                project_id=record.project_id,
+            )
             if settled:
                 results.extend(settled)
                 continue

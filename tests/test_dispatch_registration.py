@@ -326,7 +326,7 @@ class TestAdoption:
         self, bench
     ) -> None:
         _register(bench)
-        lock = locks_root(bench["home"]) / f"{bench['task_id']}.lock"
+        lock = locks_root(bench["home"]) / f"sandbox~{bench['task_id']}.lock"
         assert lock.is_file()
         assert "run_" in lock.read_text(encoding="utf-8")
 

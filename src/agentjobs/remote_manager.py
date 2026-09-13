@@ -666,6 +666,15 @@ class RemoteTaskManager:
             "docstring for why that exception exists."
         )
 
+    def source_events(self, after: int, limit: int = 200) -> List[Dict[str, Any]]:
+        """Refused: the log feed is read by the process that coordinates execution, which
+        holds a local manager (``store_factory.dispatch_manager_for``)."""
+        del after, limit
+        raise RemoteStoreUnsupported(
+            "the log feed is read by the execution coordinator through a local manager, "
+            "not over the service"
+        )
+
     def record_dispatch_result(self, task_id: str, *, actor: str, **payload: Any) -> Task:
         """Refused, for the same reason as :meth:`record_dispatch`."""
         del task_id, actor, payload

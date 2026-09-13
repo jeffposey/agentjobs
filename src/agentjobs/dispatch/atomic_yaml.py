@@ -32,25 +32,35 @@ file beside the target and then moved onto it with :func:`os.replace`, which is 
 Windows and on POSIX: a reader opens either the whole old file or the whole new one,
 never a prefix of either.
 
-What this deliberately does **not** fix is a lost update. Two writers that each read,
+What replacement alone does **not** fix is a lost update. Two writers that each read,
 merge and replace can still have one merge win, because the read and the write are not
-one operation -- and closing that needs a lock per run directory, which is a larger change
-than the failure in evidence justifies. Nothing in the cancel path needs it: the writes
-there are sequential within one thread, and the supervisor writes only when the flag it
-reads is absent. Atomicity is what that guard was missing.
+one operation. Task-264 found the case that mattered: a poll tick writing ``status:
+stalled`` from a read taken before a cancellation's terminal write, and landing after it
+-- the run's meta then read live again while its task said cancelled.
+:func:`merge_yaml_atomically` closes it with a short lock per file around the
+read-merge-replace. That lock serialises writes to a *projection*; it decides nothing.
+Who may write a terminal status is the execution journal's compare-and-set
+(``dispatch.journal``), and the merge rule that keeps a terminal status terminal is the
+caller's (``runner.finish_stamped``).
 """
 
 from __future__ import annotations
 
+import errno
 import os
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Dict, Mapping
 
 import yaml
 
-__all__ = ["read_shared", "read_yaml_resiliently", "write_yaml_atomically"]
+__all__ = [
+    "merge_yaml_atomically",
+    "read_shared",
+    "read_yaml_resiliently",
+    "write_yaml_atomically",
+]
 
 
 # ----- reading without standing in the writer's way ---------------------------
@@ -261,3 +271,71 @@ def read_yaml_resiliently(path: Path, *, loader: Any = None) -> Any:
         except yaml.YAMLError:
             return None
     return None  # pragma: no cover - the loop returns on every path
+
+
+# ----- merging without losing a concurrent write -------------------------------
+
+MERGE_LOCK_SUFFIX = ".lock"
+MERGE_LOCK_BUDGET_SECONDS = 10.0
+MERGE_LOCK_STALE_SECONDS = 30.0
+"""A merge holds its lock for one read and one replace -- milliseconds. A lock older than
+this was left by a writer that died mid-merge, whatever its recorded pid now names (pids
+are reused), and is reclaimed. The budget bounds a wait behind a live one."""
+
+
+def _merge_lock_is_stale(lock: Path) -> bool:
+    try:
+        age = time.time() - lock.stat().st_mtime
+    except OSError:
+        return False
+    return age > MERGE_LOCK_STALE_SECONDS
+
+
+def merge_yaml_atomically(
+    path: Path,
+    fields: Mapping[str, Any],
+    *,
+    merge: Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]],
+    loader: Any = None,
+) -> Dict[str, Any]:
+    """Read *path*, merge *fields* into it with *merge*, and replace it -- as one step.
+
+    ``O_CREAT|O_EXCL`` on a sibling lock file, the primitive the run lock already uses, so
+    there is no second locking convention to learn. Returns the document written.
+
+    Exhausting the budget raises ``TimeoutError`` rather than merging unlocked: a merge
+    that silently skipped the lock would reintroduce the lost update under exactly the
+    contention that makes it likely.
+    """
+    lock = path.with_name(path.name + MERGE_LOCK_SUFFIX)
+    deadline = time.monotonic() + MERGE_LOCK_BUDGET_SECONDS
+    while True:
+        try:
+            handle = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except (FileExistsError, PermissionError):
+            if _merge_lock_is_stale(lock):
+                try:
+                    lock.unlink()
+                except OSError:
+                    pass
+                continue
+        except OSError as exc:  # pragma: no cover - unexpected filesystem failure
+            if exc.errno != errno.EEXIST:
+                raise
+        else:
+            os.close(handle)
+            break
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"could not take the merge lock on {path} within budget")
+        time.sleep(0)
+    try:
+        loaded = read_yaml_resiliently(path, loader=loader)
+        current: Dict[str, Any] = dict(loaded) if isinstance(loaded, dict) else {}
+        merged = merge(current, dict(fields))
+        write_yaml_atomically(path, merged)
+        return merged
+    finally:
+        try:
+            lock.unlink()
+        except OSError:  # pragma: no cover - reclaimed as stale underneath a slow writer
+            pass

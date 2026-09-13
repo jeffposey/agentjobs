@@ -45,11 +45,15 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
-from typing import IO, Callable, Dict, List, Optional, Sequence
+from typing import IO, Callable, Dict, List, Optional, Sequence, TYPE_CHECKING
 
 
 from agentjobs.dispatch.address import resolve_api_base
-from agentjobs.dispatch.atomic_yaml import read_yaml_resiliently, write_yaml_atomically
+from agentjobs.dispatch.atomic_yaml import (
+    merge_yaml_atomically,
+    read_yaml_resiliently,
+    write_yaml_atomically,
+)
 from agentjobs.dispatch.auth import AuthStall, read_auth_stall
 from agentjobs.dispatch.codex_app_server import (
     CodexAppServerError,
@@ -105,7 +109,11 @@ from agentjobs.dispatch.credentials import (
 )
 from agentjobs.dispatch.session_env import daemon_was_started, deliver_identity
 from agentjobs.project_setup import MCP_CONFIG_FILENAME
+from agentjobs.execution.errors import ExecutionStoreError
 from agentjobs.store_factory import TaskManagerLike
+
+if TYPE_CHECKING:  # pragma: no cover - ledger imports this module
+    from agentjobs.dispatch.ledger import RunRecord
 
 RUNS_DIRNAME = "runs"
 META_FILENAME = "meta.yaml"
@@ -1024,6 +1032,17 @@ def finish_stamped(meta: Dict[str, object], fields: Dict[str, object]) -> Dict[s
     computed the task log's ``duration_seconds`` from, and that agreement is worth more
     than the fraction of a second a meta write costs.
     """
+    current = meta.get("status")
+    if isinstance(current, str) and current in TERMINAL_STATUSES:
+        # **A terminal status is terminal** (task-264). The fields that say how a run
+        # ended are written once, by whoever won the journal's terminal compare-and-set;
+        # a later write -- a poll tick that read the meta before a cancellation landed --
+        # may add facts but cannot make the run live again or re-describe its ending.
+        fields = {
+            key: value
+            for key, value in fields.items()
+            if key not in {"status", "outcome", "finished_at"}
+        }
     merged = {**meta, **fields}
     status = merged.get("status")
     if isinstance(status, str) and status in TERMINAL_STATUSES and not merged.get("finished_at"):
@@ -1083,8 +1102,9 @@ class RunDirectory:
         whether or not the digest survived -- but a concluded run's directory sits on
         disk for months, and there is no reason for a verifiable secret to sit in it.
         """
-        merged = finish_stamped(self.read_meta(), fields)
-        self.write_meta(merged)
+        # Merged under the file's merge lock, so two writers cannot each read the same
+        # document and have one replace erase the other's fields (task-264).
+        merged = merge_yaml_atomically(self.path / META_FILENAME, fields, merge=finish_stamped)
         if str(merged.get("status") or "") in TERMINAL_STATUSES:
             revoke_run_credential(self.path)
 
@@ -1440,7 +1460,7 @@ class DispatchRunner:
         """
         if not self.resolution.settings.resume_sessions:
             return None
-        record = newest_session_run(self.home, task_id)
+        record = newest_session_run(self.home, task_id, project_id=self.resolution.project_id)
         if record is None or record.is_live or not record.session_id:
             return None
         meta = RunDirectory(record.path).read_meta()
@@ -1455,10 +1475,16 @@ class DispatchRunner:
         )
 
     def _start_codex_app_server_session(
-        self, task: Task, *, actor: str, caused_by: int, trigger: DispatchTrigger
+        self,
+        task: Task,
+        *,
+        actor: str,
+        caused_by: int,
+        trigger: DispatchTrigger,
+        run_id: Optional[str] = None,
     ) -> RunHandle:
         """Start a persisted Codex App Server thread and its first turn."""
-        run_id = new_run_id()
+        run_id = run_id or new_run_id()
         argv, prompt = self.build_argv_and_prompt(task.id, run_id)
         wake = self._codex_wake_target(task.id)
         if wake is not None:
@@ -1661,6 +1687,7 @@ class DispatchRunner:
             dispatch_entry_id=entry_id,
             resumed=resumed,
         )
+        self._mark_launched(directory, run_id, started.thread_id)
         handle = RunHandle(
             run_id=run_id,
             task_id=task.id,
@@ -1706,8 +1733,11 @@ class DispatchRunner:
             codex_status = "completed" if status == "completed" else "failed"
             turn_completed = codex_status == "completed"
             error = turn.get("error") if isinstance(turn, dict) else None
+            # `status` stays live on a failed turn. Settling is the poller's -- it reads
+            # `codex_status` and concludes the run through the journal's one terminal
+            # transition -- and a terminal status written here would take the run out of
+            # the poller's sight with its attempt still owning a slot (task-264).
             handle.directory.update_meta(
-                status="running" if codex_status == "completed" else "failed",
                 codex_status=codex_status,
                 codex_lifecycle="turn_completed"
                 if codex_status == "completed"
@@ -1717,7 +1747,6 @@ class DispatchRunner:
             )
         except BaseException as exc:  # noqa: BLE001 - total supervisor, like batch mode
             handle.directory.update_meta(
-                status="failed",
                 codex_status="failed",
                 codex_lifecycle="terminal_failure",
                 error=str(exc),
@@ -1875,6 +1904,39 @@ class DispatchRunner:
         """The commit the working tree is on, so a run's diff stays attributable."""
         return git_head(self.project_root)
 
+    def _record_for(self, handle: RunHandle) -> "RunRecord":
+        """The ledger's reading of this handle's run, with identity taken from the handle.
+
+        The handle knows which run and task it is; the directory knows everything else. A
+        meta caught mid-write must not turn a concluding run into an anonymous one.
+        """
+        from dataclasses import replace
+
+        from agentjobs.dispatch.ledger import read_run  # local: ledger imports this module
+
+        record = read_run(handle.directory.path)
+        return replace(
+            record,
+            run_id=handle.run_id,
+            task_id=record.task_id or handle.task_id,
+            project_id=record.project_id or self.resolution.project_id,
+        )
+
+    def _mark_launched(
+        self, directory: RunDirectory, run_id: str, session_id: Optional[str]
+    ) -> None:
+        """Tell the journal the attempt's worker exists; note on the run if it could not.
+
+        Never raises. A worker that exists and is recorded in its meta is followable, and
+        refusing to hand it back over a journal write would strand it -- see
+        ``journal.mark_launched`` for why the attempt stays safely owned meanwhile.
+        """
+        from agentjobs.dispatch import journal  # local: journal imports this module lazily
+
+        error = journal.mark_launched(self.home, run_id, session_id=session_id)
+        if error is not None:
+            directory.update_meta(journal_error=error)
+
     def _record_dispatch(
         self,
         task: Task,
@@ -1930,13 +1992,24 @@ class DispatchRunner:
         actor: str,
         caused_by: int,
         trigger: DispatchTrigger = DispatchTrigger.MANUAL,
+        run_id: Optional[str] = None,
     ) -> RunHandle:
-        """Start a run for ``task`` in whichever mode the runner declares."""
+        """Start a run for ``task`` in whichever mode the runner declares.
+
+        ``run_id`` is the attempt token an admission already committed to the execution
+        journal (task-264). It is minted *before* the launch so the journal names the
+        attempt before any worker exists; omitted, one is minted here, which is what every
+        caller outside ``dispatch_task`` has always had.
+        """
         self._assert_spawnable(task)
         if self.runner.mode is RunnerMode.SESSION:
-            handle = self._start_session(task, actor=actor, caused_by=caused_by, trigger=trigger)
+            handle = self._start_session(
+                task, actor=actor, caused_by=caused_by, trigger=trigger, run_id=run_id
+            )
         else:
-            handle = self._start_batch(task, actor=actor, caused_by=caused_by, trigger=trigger)
+            handle = self._start_batch(
+                task, actor=actor, caused_by=caused_by, trigger=trigger, run_id=run_id
+            )
         # Stamped once here rather than threaded through both mode paths and every
         # `RunHandle(...)` inside them. It is surfaced for the same reason `api_base` is:
         # it is otherwise buried in a run directory nobody opens, and a caller that just
@@ -1969,7 +2042,9 @@ class DispatchRunner:
             return None, argv, None
         try:
             rows = self.ledger(include_finished=True)
-            target = find_wake_target(self.home, task.id, rows=rows)
+            target = find_wake_target(
+                self.home, task.id, project_id=self.resolution.project_id, rows=rows
+            )
         except Exception:  # noqa: BLE001 - see the docstring; a cold start is the fallback
             return None, argv, None
         if target is None:
@@ -1992,7 +2067,13 @@ class DispatchRunner:
         )
 
     def _start_session(
-        self, task: Task, *, actor: str, caused_by: int, trigger: DispatchTrigger
+        self,
+        task: Task,
+        *,
+        actor: str,
+        caused_by: int,
+        trigger: DispatchTrigger,
+        run_id: Optional[str] = None,
     ) -> RunHandle:
         """Spawn a background session and capture the id the CLI assigned it.
 
@@ -2019,9 +2100,9 @@ class DispatchRunner:
         """
         if self.runner.driver is RunnerDriver.CODEX:
             return self._start_codex_app_server_session(
-                task, actor=actor, caused_by=caused_by, trigger=trigger
+                task, actor=actor, caused_by=caused_by, trigger=trigger, run_id=run_id
             )
-        run_id = new_run_id()
+        run_id = run_id or new_run_id()
         argv, prompt = self.build_argv_and_prompt(task.id, run_id)
         # Before `_plan_wake`, so a resumed session gets the flag too: `wake_argv`
         # rewrites only the element carrying the prompt and preserves everything else.
@@ -2163,6 +2244,7 @@ class DispatchRunner:
             ) from exc
 
         directory.update_meta(status="running", session_id=session_id, dispatch_entry_id=entry_id)
+        self._mark_launched(directory, run_id, session_id)
         return RunHandle(
             run_id=run_id,
             task_id=task.id,
@@ -2917,8 +2999,22 @@ class DispatchRunner:
         hand_to_human: Optional[str] = None,
         reap: bool = True,
     ) -> None:
-        """Write the terminal entry for a session, reap it, and move the ball if needed."""
-        if handle.directory.read_meta().get("status") in {"finished", "cancelled", "failed"}:
+        """Write the terminal entry for a session, reap it, and move the ball if needed.
+
+        **Two guards, and until task-264 only the second existed.** A cancellation that has
+        been requested owns this run's terminal entry, exactly as ``_finish_batch`` has
+        always said: a human pressing Cancel within a poll interval would otherwise see
+        the poll's ``interrupted`` land beside their ``cancelled`` (task-107, entries 9
+        and 11). And the right to conclude at all is the journal's compare-and-set, not a
+        re-read of ``status`` from meta -- two processes can both read ``running`` a
+        millisecond apart, and only one of them can win the set.
+        """
+        from agentjobs.dispatch import journal  # local: journal imports this module lazily
+
+        meta = handle.directory.read_meta()
+        if meta.get("status") in TERMINAL_STATUSES:
+            return
+        if journal.cancel_requested(self.home, handle.run_id, meta=meta):
             return
         finished = self.clock()
         duration = None
@@ -2926,19 +3022,36 @@ class DispatchRunner:
         if started is not None:
             duration = (finished - started).total_seconds()
 
-        self.manager.record_dispatch_result(
-            handle.task_id,
+        record = self._record_for(handle)
+        projection = journal.result_projection(
+            record,
+            outcome,
             actor="dispatcher",
-            run_id=handle.run_id,
-            outcome=outcome,
             re=handle.dispatch_entry_id,
             duration_seconds=duration,
-            log_path=str(handle.directory.path),
             body=body,
         )
+        try:
+            conclusion = journal.claim_conclusion(
+                self.home,
+                record,
+                outcome,
+                concluded_by="poller",
+                status="finished",
+                projection=projection,
+            )
+        except ExecutionStoreError:
+            # Not committed, so not concluded: the run stays live and the next poll asks
+            # again. Writing the result without the journal's say-so is the race this
+            # replaced.
+            return
+        if not conclusion.won:
+            return
+
         handle.directory.update_meta(
             status="finished", outcome=outcome.value, finished_at=finished.isoformat()
         )
+        journal.deliver_projection(self.home, self.manager, projection)
         handle.release_lock()
 
         if reap and handle.session_id:
@@ -2994,10 +3107,16 @@ class DispatchRunner:
     # ----- batch mode --------------------------------------------------------
 
     def _start_batch(
-        self, task: Task, *, actor: str, caused_by: int, trigger: DispatchTrigger
+        self,
+        task: Task,
+        *,
+        actor: str,
+        caused_by: int,
+        trigger: DispatchTrigger,
+        run_id: Optional[str] = None,
     ) -> RunHandle:
         """Spawn a batch run and supervise it from a dedicated blocking thread."""
-        run_id = new_run_id()
+        run_id = run_id or new_run_id()
         argv = self.build_argv(task.id, run_id)
         directory = RunDirectory.create(
             self.home,
@@ -3080,6 +3199,7 @@ class DispatchRunner:
             raise DispatchRunError(f"Could not start a batch run for {task.id}: {exc}") from exc
 
         directory.update_meta(status="running", pid=process.pid, dispatch_entry_id=entry_id)
+        self._mark_launched(directory, run_id, None)
         handle = RunHandle(
             run_id=run_id,
             task_id=task.id,
@@ -3193,14 +3313,16 @@ class DispatchRunner:
         The ledger sets the flag **before** it kills, and this supervisor is blocked in
         ``wait()`` until then, so the flag is always visible here by the time it matters.
         """
+        from agentjobs.dispatch import journal  # local: journal imports this module lazily
+
         meta = handle.directory.read_meta()
-        if meta.get("cancel_requested"):
+        if journal.cancel_requested(self.home, handle.run_id, meta=meta):
             # Someone asked for this to stop and owns the terminal entry. Release the
             # lock anyway: the run is over either way, and a lock left behind refuses
             # every future dispatch at this task with "a run is already live".
             handle.release_lock()
             return
-        if meta.get("status") in {"finished", "cancelled", "failed"}:
+        if meta.get("status") in TERMINAL_STATUSES:
             handle.release_lock()
             return
 
@@ -3215,6 +3337,35 @@ class DispatchRunner:
             if tail.strip():
                 body = f"{body or ''}\n\nLast output:\n\n```\n{tail}\n```".strip()
 
+        record = self._record_for(handle)
+        projection = journal.result_projection(
+            record,
+            outcome,
+            actor="dispatcher",
+            re=handle.dispatch_entry_id,
+            duration_seconds=duration,
+            body=body,
+            exit_code=exit_code,
+        )
+        try:
+            conclusion = journal.claim_conclusion(
+                self.home,
+                record,
+                outcome,
+                concluded_by="batch supervisor",
+                status="finished",
+                projection=projection,
+            )
+        except ExecutionStoreError:
+            # The journal could not record the ending, so nothing may claim it. The run is
+            # left live for startup reconciliation, which is wrong-but-recoverable; two
+            # writers publishing contradictory endings is not.
+            handle.release_lock()
+            return
+        if not conclusion.won:
+            handle.release_lock()
+            return
+
         handle.directory.update_meta(
             status="finished",
             outcome=outcome.value,
@@ -3222,17 +3373,7 @@ class DispatchRunner:
             finished_at=finished.isoformat(),
         )
         handle.release_lock()
-        self.manager.record_dispatch_result(
-            handle.task_id,
-            actor="dispatcher",
-            run_id=handle.run_id,
-            outcome=outcome,
-            re=handle.dispatch_entry_id,
-            exit_code=exit_code,
-            duration_seconds=duration,
-            log_path=str(handle.directory.path),
-            body=body,
-        )
+        journal.deliver_projection(self.home, self.manager, projection)
 
         if outcome is not DispatchOutcome.COMPLETED:
             task = self.manager.get_task(handle.task_id)

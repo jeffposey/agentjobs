@@ -36,6 +36,7 @@ from agentjobs.dispatch.ledger import (
     LockHolder,
     RunRecord,
     live_lock_holders,
+    split_lock_name,
     live_runs,
     run_health,
     runway_lock_name,
@@ -320,15 +321,15 @@ def _holder_view(
             detail="every other finish in this repository is queued behind it",
         )
 
-    task_id = lock_name
+    lock_project, task_id = split_lock_name(lock_name)
     try:
         # No project id: the finish's own meta records which project it belongs to, and
         # this lock does not say. Asking each registered project in turn would be the
         # same scan repeated once per project for one answer.
-        status = read_finish_status(_home(), task_id)
+        status = read_finish_status(_home(), task_id, lock_project)
     except Exception:  # pragma: no cover - a status page never fails over a detail
         status = None
-    project_id = status.project_id if status else ""
+    project_id = (status.project_id if status else "") or lock_project
     if not project_id:
         # No finish record to read the project off. That is an ordinary state rather
         # than a fault -- ``newest_finish_directory`` scans a bounded number of

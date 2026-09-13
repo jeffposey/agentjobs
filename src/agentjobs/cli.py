@@ -1872,7 +1872,7 @@ def dispatch_cancel(
     """Stop one run and record the outcome on its task."""
     ledger = DispatchLedger(default_home())
     try:
-        result = ledger.cancel(run_id)
+        result = ledger.cancel(run_id, source="cli")
     except LedgerError as exc:
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
@@ -2083,6 +2083,96 @@ def dispatch_show_config(
                             f"    skipped {candidate.runner}: "
                             f"{candidate.skipped_because.value}{detail}"
                         )
+
+
+execution_app = typer.Typer(
+    name="execution",
+    help="Inspect and maintain this machine's execution journal (durable dispatch).",
+)
+app.add_typer(execution_app)
+
+
+@execution_app.command("status")
+def execution_status() -> None:
+    """What the journal holds: open executions, live attempts, owed writes, and its file."""
+    from agentjobs.execution.coordinator import inspect_execution
+    from agentjobs.execution.errors import ExecutionStoreError
+    from agentjobs.execution.factory import execution_db_path, execution_store_for
+
+    home = default_home()
+    try:
+        store = execution_store_for(home)
+        executions = store.executions(open_only=True)
+        attempts = store.live_attempts()
+        owed = store.pending_outbox()
+    except ExecutionStoreError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"Journal: {execution_db_path(home)} (schema {store.schema_version})")
+    typer.echo(f"Open executions: {len(executions)}")
+    for execution in executions:
+        try:
+            state, intents = inspect_execution(store, execution.execution_id)
+            proposed = ", ".join(intent.kind for intent in intents) or "nothing"
+            summary = f"{state.state}; next: {proposed}"
+        except ExecutionStoreError as exc:
+            summary = f"not replayable: {exc}"
+        typer.echo(
+            f"  {execution.execution_id} {execution.project_id}/{execution.task_id} "
+            f"[{execution.owner_mode}, {execution.provenance}] {summary}"
+        )
+    typer.echo(f"Live attempts: {len(attempts)}")
+    for attempt in attempts:
+        flag = " cancel requested" if attempt.cancel_requested else ""
+        slot = "slot" if attempt.takes_slot else "no slot"
+        typer.echo(
+            f"  {attempt.run_id} {attempt.project_id}/{attempt.task_id} {attempt.state} "
+            f"({slot}, epoch {attempt.epoch}){flag}"
+        )
+    typer.echo(f"Owed task writes: {len(owed)}")
+
+
+@execution_app.command("migrate")
+def execution_migrate(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Report, and write nothing."),
+) -> None:
+    """Import run directories from before the journal, once or as often as you like.
+
+    Repeatable: a second run imports nothing new. Live legacy runs stay owned by the
+    controller that started them; fields a run never recorded are listed as unknown.
+    """
+    from agentjobs.dispatch.journal import migrate_legacy_runs
+    from agentjobs.execution.errors import ExecutionStoreError
+
+    try:
+        results = migrate_legacy_runs(default_home(), dry_run=dry_run)
+    except ExecutionStoreError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    counts: dict[str, int] = {}
+    for result in results:
+        counts[result.disposition] = counts.get(result.disposition, 0) + 1
+        if result.disposition in {"imported", "would_import", "conflict", "unattributable"}:
+            unknown = ", ".join(result.unknown_fields) or "none"
+            typer.echo(f"  {result.run_id}: {result.disposition} (unknown: {unknown})")
+    summary = ", ".join(f"{count} {name}" for name, count in sorted(counts.items())) or "no runs"
+    typer.echo(f"{'Would import' if dry_run else 'Migration'}: {summary}.")
+
+
+@execution_app.command("backup")
+def execution_backup(
+    destination: Path = typer.Argument(..., help="File to write the snapshot to."),
+) -> None:
+    """Write a consistent snapshot of the journal through SQLite's backup API."""
+    from agentjobs.execution.errors import ExecutionStoreError
+    from agentjobs.execution.factory import execution_store_for
+
+    try:
+        written = execution_store_for(default_home()).backup(destination)
+    except ExecutionStoreError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"Snapshot written to {written}.")
 
 
 run_app = typer.Typer(

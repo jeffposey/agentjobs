@@ -66,7 +66,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence
 
 import yaml
 
@@ -89,18 +89,22 @@ from agentjobs.dispatch.config import (
     DispatchResolution,
     Posture,
     PostureSource,
+    ResolvedPosture,
     assert_dispatch_permitted,
     dispatch_config_path,
     resolve_posture,
 )
 from agentjobs.dispatch.config import DispatchRunner as ConfigRunner
 from agentjobs.dispatch.record_commit import task_file_exclusions
+from agentjobs.dispatch import journal
 from agentjobs.dispatch.ledger import RunLockTimeout, acquire_run_lock
+from agentjobs.execution.errors import CapacityExhausted, ExecutionStoreError, OwnershipConflict
 from agentjobs.dispatch.runner import (
     META_FILENAME,
     DispatchRunner,
     RunHandle,
     git_head,
+    new_run_id,
     runs_root,
     uncommitted_paths,
 )
@@ -913,9 +917,12 @@ def dispatch_task(
             )
     assert_runner_actor_known(project_config, resolution.runner)
 
-    running = live_runs(machine_home)
+    running = effective_live_runs(machine_home, live_runs(machine_home))
     for run in running:
-        if run.task_id == task.id:
+        # This project's task, not any project's task of the same id (task-264, P2-5). A
+        # run whose record names no project still refuses: it cannot be shown to be
+        # somebody else's.
+        if run.task_id == task.id and run.project_id in (project.id, ""):
             raise LiveRunExistsError(
                 f"{task.id} already has run {run.run_id} in state {run.status!r}"
                 + (" -- an interactive session is working it" if run.is_interactive else "")
@@ -990,12 +997,72 @@ def dispatch_task(
     # claim uses protects a write lasting microseconds; this one protects a process
     # lasting half an hour, which is why it cannot be the same `with` block.
     try:
-        lock = acquire_run_lock(machine_home, task.id, timeout=1.0)
+        lock = acquire_run_lock(machine_home, task.id, project_id=project.id, timeout=1.0)
     except RunLockTimeout as exc:
         # The same fact the live-run scan reports, established by the primitive that is
         # actually atomic. The scan reads a directory and can lose a race with itself;
         # this cannot, which is why it gets the final say.
         raise LiveRunExistsError(str(exc)) from exc
+
+    # **Admission: task ownership, a machine slot and a paid-attempt reservation, in one
+    # transaction** (task-264, P2-9). The slot count above reads run directories, which
+    # this dispatch does not create until after the claim, the working-tree check and the
+    # launch itself -- so two dispatches of different tasks at ceiling-1, one from the
+    # server and one from a CLI, both passed it. The journal's admission cannot be passed
+    # twice: of two processes admitting for the last slot, one commits and the other reads
+    # its row. The run id is minted here, before any worker exists, as the attempt token
+    # the journal names.
+    run_id = new_run_id()
+    try:
+        journal.admit_dispatch(
+            machine_home,
+            project_id=project.id,
+            task_id=task.id,
+            run_id=run_id,
+            capacity=resolution.limits.max_concurrent_runs,
+            hourly_limit=resolution.limits.dispatches_per_hour,
+            envelope=_admission_envelope(resolution, posture, request),
+            mode=resolution.runner.mode.value,
+            resolve_manager=_manager_resolver(machine_home, project.id, manager),
+            reservation={"trigger": request.trigger.value},
+        )
+    except OwnershipConflict as exc:
+        lock.release()
+        raise LiveRunExistsError(
+            f"{task.id} already has a live run: {exc}. One live run per task, always -- a "
+            "second would have two agents editing the same repository with the same task "
+            "record."
+        ) from exc
+    except CapacityExhausted as exc:
+        lock.release()
+        if exc.limit == "hourly":
+            refusal = CapRefusal(
+                limit="machine_per_hour",
+                message=(
+                    f"This machine has started {len(exc.holders)} runs in the last hour and "
+                    f"the cap is {resolution.limits.dispatches_per_hour}. Raise "
+                    "limits.dispatches_per_hour in ~/.agentjobs/dispatch.yaml if this is "
+                    "genuinely the work you meant to start."
+                ),
+                parks_task=False,
+            )
+            record_cap_refusal(manager, task, refusal, trigger=request.trigger)
+            raise BudgetCapError(refusal) from exc
+        named = ", ".join(exc.holders[:SLOT_HOLDERS_NAMED])
+        raise ConcurrencyLimitError(
+            f"This machine allows {resolution.limits.max_concurrent_runs} concurrent "
+            f"run(s) and {len(exc.holders)} are active: {named}. Another dispatch took the "
+            "last slot a moment ago. Refused rather than queued: a queue turns this click "
+            "into a promise to spend money later, when nobody is watching. Cancel one of "
+            "those runs, or dispatch this again once one finishes."
+        ) from exc
+    except ExecutionStoreError as exc:
+        lock.release()
+        raise DispatchRefused(
+            f"{task.id} could not be admitted, so nothing was started: the execution "
+            f"journal refused ({exc}). Try again; if it persists, the journal's disk needs "
+            "attention."
+        ) from exc
 
     try:
         if authorizer is not None:
@@ -1042,8 +1109,18 @@ def dispatch_task(
             actor=causing.actor,
             caused_by=causing.id,
             trigger=request.trigger,
+            run_id=run_id,
         )
-    except BaseException:
+    except BaseException as exc:
+        # The attempt ends with the dispatch that raised. Its reservation is refunded only
+        # when no run directory exists, which is proof nothing was launched; a directory
+        # means a launch was at least attempted, and an ambiguous launch never refunds.
+        journal.abandon_admission(
+            machine_home,
+            run_id,
+            launched=(runs_root(machine_home) / run_id).is_dir(),
+            reason=f"{type(exc).__name__}: {exc}",
+        )
         # Nothing started, so nothing will release it later.
         #
         # That premise is a promise `runner.start` has to keep, and until task-394 it did
@@ -1063,6 +1140,58 @@ def dispatch_task(
     lock.adopt(handle.run_id)
     handle.lock = lock
     return handle
+
+
+def effective_live_runs(home: Path, runs: Sequence[LiveRun]) -> List[LiveRun]:
+    """The live runs, with the execution journal overruling a run directory it knows.
+
+    A directory the journal has no row for is a pre-journal run and is judged by its meta,
+    as before. A run the journal knows is live exactly when the journal says so -- which
+    is what stops a meta that a worker marked finished from freeing its task (auditor 12),
+    and what stops a run the journal concluded from blocking a dispatch because its meta
+    projection never landed.
+    """
+    kept: List[LiveRun] = []
+    for run in runs:
+        liveness = journal.journal_liveness(home, run.run_id)
+        if liveness is None or liveness:
+            kept.append(run)
+    return kept
+
+
+def _admission_envelope(
+    resolution: DispatchResolution, posture: ResolvedPosture, request: DispatchRequest
+) -> Dict[str, object]:
+    """The non-secret envelope an execution is accepted with.
+
+    What task-375 will make every retry and resume reuse. Recorded now so the history
+    exists from the first attempt; nothing here reads it back yet. The playbook pointer is
+    deliberately absent: no gate in this module reads one (playbooks design section 6.3),
+    and the ``dispatch`` entry already records it.
+    """
+    selection = resolution.selection
+    return {
+        "runner": resolution.runner.name,
+        "driver": resolution.runner.driver.value,
+        "mode": resolution.runner.mode.value,
+        "group": selection.group if selection is not None else None,
+        "selection_source": selection.source.value if selection is not None else None,
+        "posture": posture.posture.value,
+        **posture.as_data(),
+        "trigger": request.trigger.value,
+        "requested_runner": request.runner,
+        "requested_group": request.group,
+    }
+
+
+def _manager_resolver(
+    home: Path, project_id: str, manager: TaskManagerLike
+) -> Callable[[str], Optional[TaskManagerLike]]:
+    """Resolve a project's manager for journal evidence, preferring the one in hand."""
+    from agentjobs.dispatch.ledger import DispatchLedger
+
+    ledger = DispatchLedger(home, managers={project_id: manager})  # type: ignore[dict-item]
+    return ledger._manager_for_project
 
 
 def _write_authorizing_entry(
