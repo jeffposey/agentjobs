@@ -65,6 +65,17 @@ def ignored_by_git(paths: set[str]) -> set[str]:
     return {line.strip().replace("\\", "/") for line in lines if line.strip()}
 
 
+RETIRED_RECORDS = PurePosixPath("tasks") / corpus_source.PROJECT_ID
+
+
+def retired_record_id(path: str) -> str | None:
+    """The task id a pointer at one of this project's retired record files names, if any."""
+    candidate = PurePosixPath(path.replace("\\", "/"))
+    if candidate.parent != RETIRED_RECORDS or candidate.suffix != ".yaml":
+        return None
+    return candidate.stem
+
+
 def agentjobs_tasks() -> list[Task]:
     """The product backlog, from whichever backend holds it. Skips if unreadable."""
     tasks = corpus_source.product_tasks()
@@ -165,9 +176,24 @@ def test_agentjobs_context_paths_exist() -> None:
 
     Every bad pointer is reported at once. Stopping at the first turns corpus rot into
     one fix per full gate run, and the gate takes four and a half minutes.
+
+    **A closed record's pointers are history, not a promise** (task-411). A pointer exists
+    to orient somebody about to do the work, and once the work is done there is nobody
+    left to orient. Holding closed records to it would mean every file deletion edits the
+    closed tasks that once cited the file -- rewriting what their worker was actually told
+    -- and it would couple a branch's gate to records nobody is working.
+
+    **A pointer at a retired record file names a record, and is checked as one.** Before
+    task-380 a task was a file, so "read task-190 first" was spelled
+    `tasks/agentjobs/task-190.yaml`. The file is gone and the record is not: it is a row
+    `agentjobs show` reads. Such a pointer passes when the record it names is in the
+    backlog, and fails when it is not -- which is the dangling this check exists to catch.
     """
+    known = {task.id for task in agentjobs_tasks()}
     pointers: list[tuple[str, str]] = []
     for task in agentjobs_tasks():
+        if task.lifecycle is Lifecycle.CLOSED:
+            continue
         pending_deliverables = {
             deliverable.path.rstrip("/")
             for deliverable in task.deliverables
@@ -183,6 +209,11 @@ def test_agentjobs_context_paths_exist() -> None:
             # checking it here would ask whether one machine happens to have that
             # directory -- `REPO_ROOT / "C:/elsewhere"` resolves to `C:/elsewhere`.
             if is_absolute(path):
+                continue
+            record = retired_record_id(path)
+            if record is not None:
+                if record not in known:
+                    pointers.append((task.id, path))
                 continue
             pointers.append((task.id, path))
 
