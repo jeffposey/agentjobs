@@ -3384,8 +3384,10 @@ bounded recovery and durable epic supervision in task-416** -- see
 [What task-416 built](#what-task-416-built-2026-09-13), **the durable finish and its
 one gate retry in task-322** -- see
 [What task-322 built](#what-task-322-built-2026-09-13) -- and **auth and usage-limit
-recovery in task-417** -- see [What task-417 built](#what-task-417-built-2026-09-13);
-everything else here is still design.
+recovery in task-417** -- see [What task-417 built](#what-task-417-built-2026-09-13) --
+and **the end-to-end harness and failure rollup in task-419** -- see
+[What task-419 proved](#what-task-419-proved-2026-09-13); everything else here is still
+design.
 
 An accepted dispatch is an obligation with a durable identity. AgentJobs keeps advancing
 it until the authorised work is delivered, an explicit Stop cancels it, or a named
@@ -4163,6 +4165,46 @@ closed, and grounds when the run belongs to a different authorisation.
 row, so it cannot be refused. The adoption above is what keeps it from grounding the epic.
 The underlying cause, a supervisor watcher that `TaskStop` left running, is a harness
 problem and is not fixed here.
+
+### What task-419 proved (2026-09-13)
+
+The harness this section asks for is `tests/dispatch/test_durable_replay.py`. Its
+README, `tests/dispatch/README.md`, holds the fixture provenance, the capability matrix
+(which a test holds to `CAPABILITIES`) and the guarantee matrix mapping each row of the
+table above to its test.
+
+- **Production code and real deaths.** `dispatch_task`, `Controller`,
+  `poll_live_sessions`, `auth_recovery.tick`, `finish_task`, `walk_epic` and
+  `DispatchLedger` all run for real. Each crash is a child interpreter ending in
+  `os._exit` at a named line: before admission, around the launch marker, after the
+  launch with its id lost, before `launched`, around a resume, around the outbox write
+  and its acknowledgement, and after `git merge`. Every tick afterwards builds fresh
+  objects over the same stores.
+- **Simulated, and said so.** The Claude CLI, the credential store behind the probe, the
+  agent's own work and the clock (`FakeClock`, two hours ahead of the wall clock, moved
+  only by the test). The one real-driver check, `TestTheRealDriverContract`, is opt-in
+  and read-only. It passed against Claude Code 2.1.270 on 2026-09-13.
+- **Human actions are counted against delivery.** A `Person` acts only when the ball
+  prompt asks for that action. Every scenario also asserts its terminal state or its
+  justified wait.
+- **The rollup.** `agentjobs execution failures [--since DAYS | --from/--until] [--json]`
+  (`dispatch.failure_rollup`) lists each class with its count, how many were retried,
+  waited or stopped, the human actions it cost, and its runs and tasks. It reads the
+  journal, the auth incidents, finish gate verdicts and `gate_stage_browser_gone`
+  records. A test id that flaked or lost its browser more than once is flagged
+  `REPEATED`. The harness checks it against exactly what it injected.
+
+**Defects found and fixed by it.** Each fix has a test that fails with the fix reverted:
+
+| Defect | Consequence | Fix |
+| --- | --- | --- |
+| `attempt_evidence` released an admitted attempt as never launched while ignoring its launch marker | Any later admission on the machine freed an `effect_unknown` launch's ownership, so a second writer could start beside a possible orphan | A marked or unreadable run is not evidence of never launching |
+| The reducer's `deliver_signal` id named the signal but its input named the run | A signal still pending across a retry raised `ActivityConflict` on every replay before `observe` was recorded, so the retried attempt was never followed | The id names the attempt. Delivering a message at most once across attempts stays with task-312's `deliver:` activity |
+| `finish.failing_tests` matched `FAILED` on coloured output | A real `flaky_test` (fin_fe726017) was recorded with no test id | CSI colour is stripped first |
+
+The first rollup over this machine's real runs (2026-09-13, `--since 3`) found six browser
+deaths, all retried, two of them on repeated test ids, plus one flaky test and one
+`worker_gone` with no execution row.
 
 ### Implementation ownership and order
 

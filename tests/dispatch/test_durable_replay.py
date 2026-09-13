@@ -1696,8 +1696,12 @@ class TestTheRealDriverContract:
 
         executable = shutil.which("claude")
         assert executable, "the Claude CLI is not on PATH"
+        # The world points CLAUDE_CONFIG_DIR at an empty directory so that nothing else in
+        # this file can reach the real store. This one read-only listing needs the machine's.
+        real_env = {k: v for k, v in os.environ.items() if k != CLAUDE_HOME_ENV}
         done = subprocess.run(
             [executable, "agents", "--json", "--all"],
+            env=real_env,
             capture_output=True,
             text=True,
             encoding="utf-8",
