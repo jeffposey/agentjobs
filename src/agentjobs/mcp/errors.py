@@ -3,7 +3,9 @@
 Section 5 of ``docs/mcp-integration-design.md`` requires that a failing tool call
 returns a *structured* error rather than prose, so an agent can branch on a code
 instead of pattern-matching an English sentence. The codes are closed: a new failure
-mode gets a new member here, not an ad-hoc string at a call site.
+mode gets a new member here, not an ad-hoc string at a call site. A code the service sends
+that this module does not know is still reported as ``internal_error``, but the message
+names the code it replaced, so version skew between the MCP process and the service shows.
 
 Domain classification -- turning a specific REST/manager failure into one of these
 codes -- belongs to the mutation-safety work (task-113). This module owns the shape
@@ -34,6 +36,21 @@ class ErrorCode(str, Enum):
     SERVICE_UNAVAILABLE = "service_unavailable"
     INTERNAL_ERROR = "internal_error"
 
+    # The authorization family (task-426). The REST layer refuses with these since
+    # task-332, and they are passed through verbatim: ALLAGENTS.md tells a run to branch
+    # on `wrong_task` and `capability_denied`, which it cannot do if they arrive renamed.
+    # The spellings are the service's -- `agentjobs.capabilities` and
+    # `agentjobs.principals.Problem` -- and a test fails when the two sets disagree.
+    CAPABILITY_DENIED = "capability_denied"
+    WRONG_TASK = "wrong_task"
+    WRONG_RUN = "wrong_run"
+    ACTOR_MISMATCH = "actor_mismatch"
+    IDENTITY_UNRESOLVED = "identity_unresolved"
+    NO_PRINCIPAL = "no_principal"
+    NO_PROVEN_IDENTITY = "no_proven_identity"
+    UNVERIFIED_RUN_CREDENTIAL = "unverified_run_credential"
+    EXPIRED_RUN_CREDENTIAL = "expired_run_credential"
+
 
 # Retryability is a property of the code, not a judgement made per call site. Only
 # contention and transport faults are transient; every other code describes a state
@@ -44,6 +61,58 @@ RETRYABLE_CODES = frozenset(
         ErrorCode.SERVICE_UNAVAILABLE,
     }
 )
+
+#: What to do about each authorization refusal. Like retryability this is a property of
+#: the code rather than of the call: the service's body carries a code and a sentence
+#: saying what happened, and none of them is retryable, so without this an agent learns
+#: *that* it was refused and not what to do next. A service-supplied ``suggested_action``
+#: still wins where one is sent.
+AUTHORIZATION_ACTIONS: Dict[ErrorCode, str] = {
+    ErrorCode.WRONG_TASK: (
+        "This task is not the one your run was dispatched to work, and a run may act only "
+        "on its own. Work your own task; if this one needs attention, say so in a log "
+        "entry on your own task, or file a new task."
+    ),
+    ErrorCode.CAPABILITY_DENIED: (
+        "A run may not do this at all -- approving, dispatching, configuration and repairs "
+        "belong to a person. Do not retry. Ask the human: hand your own task off with the "
+        "request in the prompt."
+    ),
+    ErrorCode.WRONG_RUN: (
+        "A run may read only its own output. Do not retry; ask the human if you need "
+        "another run's transcript."
+    ),
+    ErrorCode.ACTOR_MISMATCH: (
+        "Write as the actor your run was dispatched as. The log is append-only, so an "
+        "attribution to anybody else is refused rather than recorded."
+    ),
+    ErrorCode.IDENTITY_UNRESOLVED: (
+        "The service cannot work out which person is at this machine. That is "
+        "configuration, not your request: tell the human, and see docs/authorization.md."
+    ),
+    ErrorCode.NO_PRINCIPAL: (
+        "The service could not tell who is asking, so it refused. A retry is refused the "
+        "same way; tell the human."
+    ),
+    ErrorCode.NO_PROVEN_IDENTITY: (
+        "This request carried no identity the service accepts, so it refused. A retry is "
+        "refused the same way; tell the human."
+    ),
+    ErrorCode.UNVERIFIED_RUN_CREDENTIAL: (
+        "The run credential this session presented did not verify -- usually because the "
+        "run has ended or was cancelled. Stop: a retry, and every other write from this "
+        "session, is refused the same way. Say so in your final reply so the human can "
+        "dispatch the task again."
+    ),
+    ErrorCode.EXPIRED_RUN_CREDENTIAL: (
+        "This run's credential has expired. Stop: a retry, and every other write from "
+        "this session, is refused the same way. Say so in your final reply so the human "
+        "can dispatch the task again."
+    ),
+}
+
+#: The authorization family, derived from the table so the two cannot drift.
+AUTHORIZATION_CODES = frozenset(AUTHORIZATION_ACTIONS)
 
 
 @dataclass(frozen=True)

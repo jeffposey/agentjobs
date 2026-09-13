@@ -257,7 +257,23 @@ Every failure carries a stable code:
 | `revision_conflict` | You decided against a stale read. Current task returned. | After re-reading |
 | `operation_conflict` | That operation id was used for a different request. | With a new id |
 | `lock_timeout` | Another writer holds the task. | Yes |
-| `service_unavailable` | The AgentJobs service did not answer. | Yes |
+| `service_unavailable` | The AgentJobs service did not answer, or answered a 5xx without saying why (it may be restarting). Retry with the same `operation_id`. | Yes |
+| `internal_error` | Genuinely unclassified. If the message names a code this MCP server does not know, the server is older than the service: restart the client. | No |
+
+A dispatched run's writes are scoped to its own task (task-332), and the service's
+refusal codes reach the tool unchanged, each with a `suggested_action`. None is
+retryable: an identical request is refused the same way. What each means is in
+[authorization.md](authorization.md#refusals).
+
+| Code | Meaning | What to do |
+| --- | --- | --- |
+| `wrong_task` | A run addressed a task other than its own. | Work your own task; raise the other one on your own record. |
+| `capability_denied` | No run may do this: approve, dispatch, configure, repair. | Hand your own task to the human with the request. |
+| `actor_mismatch` | The `actor` names somebody this caller is not. | Write as the actor the run was dispatched as. |
+| `wrong_run` | A run asked for another run's output. | Ask the human. |
+| `identity_unresolved` | The machine cannot work out who its person is. | Configuration; tell the human. |
+| `no_principal` / `no_proven_identity` | The request carried no identity the service accepts. | Tell the human. |
+| `unverified_run_credential` / `expired_run_credential` | The run's credential no longer verifies — usually the run has ended. | Stop writing; say so in the final reply. |
 
 ## What protects what
 

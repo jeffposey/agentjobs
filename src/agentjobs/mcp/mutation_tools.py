@@ -24,7 +24,7 @@ from ..models_v2 import MANAGER_WRITTEN_LOG_TYPES, LogEntryType, Task
 from ..queue_check import WARNING_KINDS
 from ..record_check import WARNING_KINDS as RECORD_WARNING_KINDS
 from ..record_check import check_record, warning_dicts
-from .errors import ErrorCode, FieldError, ToolError
+from .errors import AUTHORIZATION_ACTIONS, ErrorCode, FieldError, ToolError
 from .results import ToolOutput, mutation_annotations, success
 from .routing import (
     ACTOR_SCHEMA,
@@ -412,13 +412,29 @@ def _service_error(
     """
     code = exc.code
     if code is not None:
+        message = str(exc)
+        suggested_action = exc.suggested_action
         try:
             resolved = ErrorCode(code)
-        except ValueError:  # pragma: no cover - a code this build does not know
+        except ValueError:
+            # A code this build does not know, which in practice means the MCP process is
+            # older than the service it talks to. Still internal_error, because nothing
+            # here can say what the code means -- but the code is named, since rewriting
+            # it silently is how task-332's whole refusal family went missing (task-426).
             resolved = ErrorCode.INTERNAL_ERROR
+            message = (
+                f"The service refused with code {code!r}, which this MCP server does not "
+                f"know: {message}"
+            )
+            suggested_action = suggested_action or (
+                "Restart the MCP client so its server runs the same AgentJobs version as the "
+                "service, then read the code again."
+            )
+        if suggested_action is None:
+            suggested_action = AUTHORIZATION_ACTIONS.get(resolved)
         return ToolError(
             code=resolved,
-            message=str(exc),
+            message=message,
             project_id=project_id,
             task_id=task_id,
             current_task=exc.current_task,
@@ -426,7 +442,7 @@ def _service_error(
                 FieldError(path=str(item.get("path", "")), message=str(item.get("message", "")))
                 for item in exc.field_errors
             ],
-            suggested_action=exc.suggested_action,
+            suggested_action=suggested_action,
         )
     if exc.status_code is None:
         return ToolError(
@@ -449,6 +465,24 @@ def _service_error(
             message=str(exc),
             project_id=project_id,
             task_id=task_id,
+        )
+    if exc.status_code >= 500:
+        # The service answered but did not classify the failure: an unhandled exception,
+        # or a front door answering for a server that is restarting. Neither says the
+        # transition is invalid, and both can succeed on a retry -- which is safe, because
+        # every mutation tool carries an operation_id the ledger replays (task-426).
+        return ToolError(
+            code=ErrorCode.SERVICE_UNAVAILABLE,
+            message=(
+                f"The AgentJobs service answered HTTP {exc.status_code} without saying "
+                f"why: {exc}"
+            ),
+            project_id=project_id,
+            task_id=task_id,
+            suggested_action=(
+                "The service may be restarting. Retry with the same operation_id; a replay "
+                "cannot write twice."
+            ),
         )
     return ToolError(
         code=ErrorCode.INVALID_TRANSITION,

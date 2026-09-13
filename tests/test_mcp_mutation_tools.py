@@ -19,15 +19,21 @@ import yaml
 from fastapi.testclient import TestClient
 from mcp import types
 
+from agentjobs import capabilities
+from agentjobs.api.authorization import denial_status
 from agentjobs.api.dependencies import TASKS_DIR_ENV, reset_dependency_cache
 from agentjobs.api.main import app
-from agentjobs.client import TaskClient
+from agentjobs.client import TaskClient, TaskClientError
+from agentjobs.dispatch.credentials import mint_run_credential
+from agentjobs.dispatch.runner import RunDirectory, new_run_id
 from agentjobs.manager import TaskManager
 from agentjobs.mcp import mutation_tools
-from agentjobs.mcp.errors import ErrorCode, ToolError
+from agentjobs.mcp.errors import AUTHORIZATION_CODES, ERROR_SCHEMA, ErrorCode, ToolError
 from agentjobs.mcp.inventory import build_registry
+from agentjobs.mcp.server import validate_arguments
 from agentjobs.mcp.tools import ToolRegistry
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle
+from agentjobs.principals import RUN_CREDENTIAL_HEADER, Problem
 from agentjobs.projects import ProjectRegistry
 from agentjobs.record_check import DEFAULT_BALL_PROMPT, LONG_SUMMARY, SUMMARY_WORD_CEILING
 from support import task_store
@@ -817,6 +823,187 @@ class TestSchemaRefusalsReachTheAgent:
 
         assert result.isError is False
         assert result.structuredContent["task"]["lifecycle"] == "active"
+
+
+# ---------------------------------------------------------------------------
+# task-426: the service's authorization refusals reach the agent under their own names
+# ---------------------------------------------------------------------------
+def service_denial_codes() -> set[str]:
+    """Every refusal code the service can put in a 403/400 body, read from its source.
+
+    Derived rather than listed: a code added to ``capabilities`` or to
+    ``principals.Problem`` without a matching MCP member fails
+    ``test_the_family_is_exactly_what_the_service_emits`` instead of reaching an agent
+    as ``internal_error``, which is how task-332's codes went missing the first time.
+    """
+    exported = (getattr(capabilities, name) for name in capabilities.__all__)
+    constants = {value for value in exported if isinstance(value, str)}
+    return constants | {problem.value for problem in Problem}
+
+
+def service_error(code: Any = None, *, status: int, **body: Any) -> ToolError:
+    """Classify one client failure the way every mutation tool does."""
+    if code is not None:
+        body["code"] = code
+    exc = TaskClientError(
+        str(body.get("detail", f"HTTP {status}")), status_code=status, body=body or None
+    )
+    return mutation_tools._service_error(exc, project_id="solo", task_id="task-001-work")
+
+
+class TestAuthorizationRefusalsReachTheAgent:
+    def test_the_family_is_exactly_what_the_service_emits(self):
+        assert {code.value for code in AUTHORIZATION_CODES} == service_denial_codes()
+
+    @pytest.mark.parametrize("code", sorted(service_denial_codes()))
+    def test_each_code_arrives_unchanged_with_something_to_do(self, code):
+        """ac-1: the REST code is the MCP code, and it says what to do next."""
+        error = service_error(
+            code, status=denial_status(code), detail="Refused, with the service's reason."
+        )
+
+        payload = error.to_payload()
+        assert payload["code"] == code
+        assert payload["message"] == "Refused, with the service's reason."
+        assert payload["suggested_action"]
+        assert payload["retryable"] is False
+
+    def test_a_service_supplied_action_is_not_overwritten(self):
+        error = service_error("wrong_task", status=403, suggested_action="The service's own.")
+
+        assert error.suggested_action == "The service's own."
+
+    def test_a_code_this_build_does_not_know_is_internal_and_names_itself(self):
+        """ac-4: the branch that used to be ``pragma: no cover``."""
+        error = service_error("brand_new_refusal", status=403, detail="Something new.")
+
+        assert error.code is ErrorCode.INTERNAL_ERROR
+        assert "brand_new_refusal" in error.message
+        assert "Something new." in error.message
+        assert error.suggested_action
+
+    @pytest.mark.parametrize("status", [500, 502, 503, 504])
+    def test_an_answered_5xx_without_a_code_is_retryable_unavailability(self, status):
+        """ac-2: a restart that gets as far as answering is not an invalid transition."""
+        error = service_error(status=status)
+
+        assert error.code is ErrorCode.SERVICE_UNAVAILABLE
+        assert error.retryable is True
+        assert str(status) in error.message
+        assert error.suggested_action
+
+    def test_a_4xx_without_a_code_is_still_classified_as_before(self):
+        assert service_error(status=409).code is ErrorCode.INVALID_TRANSITION
+        assert service_error(status=404).code is ErrorCode.TASK_NOT_FOUND
+        assert service_error(status=400).code is ErrorCode.INVALID_INPUT
+
+    @pytest.mark.parametrize("code", sorted(service_denial_codes()))
+    def test_the_published_error_schema_admits_the_family(self, code):
+        """A strict client validating the refusal must not reject the refusal itself."""
+        payload = service_error(code, status=403, detail="x").to_payload()
+
+        jsonschema.validate(instance=payload, schema=ERROR_SCHEMA)
+
+    def _credentialed(self, token: str) -> ToolRegistry:
+        """The same app, reached by a client presenting this run credential."""
+        http = TestClient(app, client=("127.0.0.1", 51000), headers={RUN_CREDENTIAL_HEADER: token})
+        return build_registry(TaskClient("http://testserver", client=http))
+
+    def test_a_run_writing_to_another_task_hears_wrong_task(self, service, tmp_path):
+        """End to end: a real minted credential, over the real application."""
+        _, manager, _ = service
+        mine = ready_task(manager, "task-001-work")
+        yours = ready_task(manager, "task-002-other")
+        run_id = new_run_id()
+        directory = RunDirectory.create(
+            tmp_path / "home",
+            run_id,
+            {
+                "run_id": run_id,
+                "task_id": mine.id,
+                "project_id": "solo",
+                "mode": "session",
+                "agent": "bot",
+                "status": "running",
+            },
+        )
+        token = mint_run_credential(directory.path, run_id)
+        assert token, "the credential must mint, or this test proves nothing"
+
+        error = refuse(self._credentialed(token), "task_claim", base(task_id=yours.id))
+
+        assert error.code is ErrorCode.WRONG_TASK
+        assert yours.id in error.message
+        assert error.suggested_action
+        assert manager.get_task(yours.id).lifecycle is Lifecycle.READY
+
+    def test_a_run_whose_credential_does_not_verify_hears_so(self, service):
+        """The audit's reproduction: an ended run's credential, every write refused."""
+        _, manager, _ = service
+        task = ready_task(manager)
+
+        error = refuse(self._credentialed("not-a-real-credential"), "task_claim", base())
+
+        assert error.code is ErrorCode.UNVERIFIED_RUN_CREDENTIAL
+        assert error.suggested_action
+        assert manager.get_task(task.id).lifecycle is Lifecycle.READY
+
+    def test_the_refusal_is_what_an_mcp_client_receives(self, service):
+        """Over the protocol, because ``structuredContent`` is what an agent branches on."""
+        from mcp.shared.memory import create_connected_server_and_client_session
+
+        from agentjobs.mcp.server import build_server
+
+        _, manager, _ = service
+        ready_task(manager)
+        registry = self._credentialed("not-a-real-credential")
+
+        async def run():
+            async with create_connected_server_and_client_session(
+                build_server(registry), raise_exceptions=False
+            ) as session:
+                return await session.call_tool("task_claim", base())
+
+        result = anyio.run(run)
+
+        assert result.isError is True
+        assert result.structuredContent["code"] == "unverified_run_credential"
+        assert result.structuredContent["retryable"] is False
+        assert result.structuredContent["suggested_action"]
+
+
+class TestSchemaRefusalsSayWhatIsValid:
+    def test_an_operation_id_that_is_not_a_uuid_is_refused(self, service):
+        registry, _, _ = service
+
+        with pytest.raises(ToolError) as caught:
+            validate_arguments(registry.get("task_claim"), base(operation_id="op-1"))
+
+        assert caught.value.code is ErrorCode.INVALID_INPUT
+        assert [item.path for item in caught.value.field_errors] == ["operation_id"]
+
+    def test_a_uuid_operation_id_still_validates(self, service):
+        registry, _, _ = service
+
+        validate_arguments(registry.get("task_claim"), base())
+
+    def test_an_invalid_handoff_pair_names_the_valid_pairs(self, service):
+        registry, _, _ = service
+
+        with pytest.raises(ToolError) as caught:
+            validate_arguments(
+                registry.get("task_handoff"),
+                base(
+                    expected_revision="2026-08-10T00:00:00Z",
+                    target={"ball": "human", "reason": "work", "prompt": "x"},
+                ),
+            )
+
+        message = caught.value.message
+        for pair in ("agent/work", "human/review", "external/dependency", "external/service"):
+            assert pair in message
+        assert "agent/available" not in message
+        assert "human/review" in caught.value.field_errors[0].message
 
 
 # ---------------------------------------------------------------------------
