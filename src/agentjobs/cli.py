@@ -2223,6 +2223,50 @@ def _echo_auth_incidents(home: Path) -> None:
             )
 
 
+@execution_app.command("failures")
+def execution_failures(
+    since: Optional[float] = typer.Option(
+        None, "--since", metavar="DAYS", help="Only failures in the last N days."
+    ),
+    start: Optional[str] = typer.Option(
+        None, "--from", metavar="WHEN", help="Only failures at or after this ISO time (UTC)."
+    ),
+    end: Optional[str] = typer.Option(
+        None, "--until", metavar="WHEN", help="Only failures at or before this ISO time (UTC)."
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Print the rollup as JSON."),
+) -> None:
+    """Each failure class in a window: count, retried/waited/stopped, human actions, runs.
+
+    Read-only. Reads the execution journal, auth incidents, scripted-finish gate verdicts
+    and gate phase records; a test id that flaked or lost its browser more than once in the
+    window is flagged REPEATED.
+    """
+    import json as json_module
+    from datetime import datetime, timedelta, timezone
+
+    from agentjobs.dispatch.failure_rollup import rollup
+
+    def moment(raw: Optional[str], option: str) -> Optional[datetime]:
+        if raw is None:
+            return None
+        try:
+            value = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError as exc:
+            typer.secho(f"{option} is not an ISO date or time: {raw!r}", fg=typer.colors.RED)
+            raise typer.Exit(code=2) from exc
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+    lower = moment(start, "--from")
+    if since is not None:
+        lower = datetime.now(timezone.utc) - timedelta(days=since)
+    result = rollup(default_home(), since=lower, until=moment(end, "--until"))
+    if as_json:
+        typer.echo(json_module.dumps(result.as_data(), indent=2))
+    else:
+        typer.echo(result.render())
+
+
 @execution_app.command("tick")
 def execution_tick() -> None:
     """Run one pass of the durable controller and of every server-hosted walk, now.
