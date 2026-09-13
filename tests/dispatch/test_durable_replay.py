@@ -1252,19 +1252,26 @@ def test_a_handoff_the_api_never_imported_reaches_the_inbox_once(world: World) -
     assert_no_duplicate_effects(world, task_id)
 
 
-def test_a_death_after_git_merge_and_before_its_receipt_merges_once_and_delivers(
+def test_a_death_after_git_merge_is_resumed_by_the_poll_tick_and_merges_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """task-322's window, with the finisher's process really dying after ``git merge``."""
+    """task-322's window with the finisher's process really dying after ``git merge``, and
+    task-443's respawn finishing it: no person re-runs anything (o2)."""
     import test_dispatch_finish
     from agentjobs.dispatch.finish import FINISHED
+    from agentjobs.dispatch.finish_resume import RESUMED, resume_interrupted_finishes
     from agentjobs.dispatch.finish_status import read_finish_status
+    from test_approval_standdown import approve
+    from test_finish_resume import InProcessSpawn
 
     built = test_dispatch_finish.world.__pytest_wrapped__.obj(  # type: ignore[attr-defined]
         tmp_path, monkeypatch
     )
     world = World(tmp_path, monkeypatch, projects=())
     world.adopt("demo", built["root"], built["manager"])
+    monkeypatch.setattr(
+        "agentjobs.dispatch.finish_resume.finish_is_offered", lambda *args, **kwargs: True
+    )
 
     def merges() -> List[str]:
         return subprocess.run(
@@ -1274,19 +1281,52 @@ def test_a_death_after_git_merge_and_before_its_receipt_merges_once_and_delivers
             check=True,
         ).stdout.split()
 
-    die_in_child(world, "finish", "merge_before_receipt", built["task_id"])
+    manager, task_id = built["manager"], built["task_id"]
+    manager.handoff(
+        task_id,
+        actor=AGENT,
+        ball=Ball.HUMAN,
+        ball_reason=BallReason.REVIEW,
+        ball_prompt="Built and verified; please review.",
+    )
+    world.person.act("approve", world.get(task_id, "demo"), because="review")
+    approve(built)
+
+    die_in_child(world, "finish", "merge_before_receipt", task_id)
     assert len(merges()) == 1, "git committed the merge before the process died"
-    task = world.get(built["task_id"], "demo")
+    task = world.get(task_id, "demo")
     assert all(entry.data.get("finish_step") != "merge" for entry in task.log)
 
-    second = test_dispatch_finish.run(built)
-    assert second.outcome == FINISHED, second.render()
-    assert merges() == [second.merge_commit], "one merge, recovered rather than repeated"
-    task = world.get(built["task_id"], "demo")
+    # The server's poll tick, twice, each from fresh objects.
+    spawn = InProcessSpawn(built)
+    decisions = resume_interrupted_finishes(
+        world.home,
+        registry=ProjectRegistry(world.home),
+        managers={"demo": manager},
+        spawn=spawn,
+    )
+    assert [item.action for item in decisions] == [RESUMED]
+    [result] = spawn.results
+    assert result is not None and result.outcome == FINISHED, result and result.render()
+    assert merges() == [result.merge_commit], "one merge, recovered rather than repeated"
+    world.fresh_stores()
+    assert (
+        resume_interrupted_finishes(
+            world.home,
+            registry=ProjectRegistry(world.home),
+            managers={"demo": manager},
+            spawn=spawn,
+        )
+        == []
+    )
+
+    task = world.get(task_id, "demo")
     assert task.lifecycle is Lifecycle.CLOSED
-    status = read_finish_status(world.home, built["task_id"], project_id="demo")
-    assert status is not None and status.merge_commit == second.merge_commit
-    assert_no_duplicate_effects(world, built["task_id"], "demo")
+    status = read_finish_status(world.home, task_id, project_id="demo")
+    assert status is not None and status.merge_commit == result.merge_commit
+    assert [kind for kind, _ in world.person.actions] == ["approve"], "no re-run by a person"
+    assert pages(task) == []
+    assert_no_duplicate_effects(world, task_id, "demo")
 
 
 def test_the_invariants_would_catch_a_duplicate_write(world: World) -> None:

@@ -78,7 +78,7 @@ relaunches.
 | Resume message: dying between intent and effect, and after the effect (a2) | `TestNudgeBoundaries` | 1 escalation, only for the unprovable one |
 | Outbox: dying before the task write, and after the write but before the acknowledgement (a2) | `TestOutboxBoundaries` | — |
 | A handoff the API committed but never imported (a2) | `test_a_handoff_the_api_never_imported…` | — |
-| Dying after `git merge` and before its receipt (a2) | `test_a_death_after_git_merge…` | — |
+| Dying after `git merge` and before its receipt: the poll tick resumes it and it merges once (a2, o2) | `test_a_death_after_git_merge…` | 1 approval: the review `auto` requires |
 | A five-hour usage limit parks on the service and resumes once after the reset (o5) | `test_a_usage_limit_parks…` | 0 |
 | Envelope drift, budget reset, two-project collision, version mismatch, stale controller, parent grounding (a4) | `TestRegressions` | — |
 | A missing capability surfaces as `effect_unknown`, and unknown ownership survives later admissions (a5) | `TestCapabilities` | 1 escalation |
