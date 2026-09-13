@@ -527,6 +527,51 @@ gate over a tree this run already has a green gate for prints `ALREADY GREEN` wi
 moment it passed, and both the run that fails to earn a receipt and the `--since-gate`
 that goes looking for one name the paths that blocked it.
 
+### A browser that was gone before its test started (task-404)
+
+`e2e` runs every spec against one Chromium process, and on this machine that process is
+sometimes terminated between two tests. The next test then fails with
+`browser.newContext: Target page, context or browser has been closed` before any line of
+it runs. It was seen on at least thirteen gate runs between 2026-08-23 and 2026-09-13,
+always costing exactly one test. At least once it stopped a scripted finish, on a branch
+that could not have caused it.
+
+**What kills the process is not known.** Task-404's record has what was ruled out and the
+evidence for each: it is not a native crash (WER records those here and has none for
+Chromium), not a console control event, not memory, and not this repository's test suite.
+
+So the gate reads Playwright's JSON report before believing a red `e2e`:
+
+```
+BROWSER GONE, NOT A TEST FAILURE: 1 test never started.
+...
+Re-running only that test, once.
+> npm run test:e2e -- --last-failed
+RETRIED AND PASSED: the 1 test whose browser was gone passed on a second run, ...
+```
+
+- **It is not a retry of a failing test.** It is a retry of a test that never started. A
+  failure qualifies only if every error on it is that message with *no source location*:
+  Playwright's own `context` fixture raised it before the test body began. A browser that
+  dies while a test holds a page fails at `page.something` with a line of the spec on it,
+  and stays red. That is the case the application could have caused, and hiding it would
+  be worse than the flake.
+- **Nothing is retried beside a real failure**, beside an error outside any test, or when
+  more than two browsers died in one run, since that is a condition rather than a flake.
+  The banner still says which failures were which.
+- **The retry has to run exactly those tests and pass them.** A `--last-failed` that ran
+  nothing exits 0 and proves nothing, so it is refused.
+- Playwright's own `retries` stays `0`, because a blanket retry is precisely the case the
+  rule above excludes.
+
+Both directions were checked for real on 2026-09-13, with a throwaway spec that killed its
+own worker's browser from outside during the full suite: killed between tests, the gate
+printed the banner, re-ran one test in 4.8s and passed the stage; killed inside a test
+body, the stage failed with no banner and no retry. The rule is `scripts/e2e_failures.py`,
+and `tests/test_e2e_failures.py` holds it to both directions without a browser. A retry
+is recorded in a dispatched run's phases as `gate_stage_browser_gone`, so the rate stays
+measurable.
+
 ### `--since-gate` is kept for the reasoning, not the saving
 
 It was worth much more when task-221 wrote it: the full gate was six minutes then, and a
