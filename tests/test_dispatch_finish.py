@@ -1222,10 +1222,10 @@ class TestTheUnexpected:
 
         real_merge = finish_module.merge
 
-        def merge_then_explode(plan: Any, task: Any, approver: str) -> str:
+        def merge_then_explode(plan: Any, task: Any, approver: str, **kwargs: Any) -> str:
             # The merge really happens, and then something unmodelled goes wrong. That
             # ordering is the whole test: a failure *before* the merge is easy.
-            real_merge(plan, task, approver)
+            real_merge(plan, task, approver, **kwargs)
             raise RuntimeError("something nobody thought about")
 
         monkeypatch.setattr(finish_module, "merge", merge_then_explode)
