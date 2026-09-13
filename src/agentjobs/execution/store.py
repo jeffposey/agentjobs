@@ -1564,6 +1564,98 @@ class ExecutionStore:
             ).fetchone()
             return Attempt.from_row(found)
 
+    def request_stand_down(
+        self,
+        run_id: str,
+        *,
+        requester: str,
+        source: str,
+        reason: str,
+        transfer_to: str,
+    ) -> Dict[str, Any]:
+        """Record that a live attempt is being asked to hand its task to someone else.
+
+        **Not a cancellation, and the difference is the whole of task-312.** A Stop
+        revokes the execution's intent: it sets ``cancel_requested``, bumps the control
+        generation and refuses every later continuation. A stand-down does none of that.
+        The work it ends was finished and approved, and the task is being transferred --
+        to the scripted finish -- rather than abandoned, so nothing that reads a Stop may
+        read one here.
+
+        Recorded before anything is signalled, exactly as a Stop is, with the generation
+        it was decided against. One per attempt: a second request returns the first.
+        Raises ``ExecutionStoreError`` for an attempt with no execution to record it on --
+        a pre-journal run -- because a transfer nobody can audit is not one to perform.
+        """
+        with self.transaction("stand-down") as connection:
+            row = self._attempt_for_update(connection, run_id, epoch=None)
+            if not row["execution_id"]:
+                raise ExecutionStoreError(
+                    f"attempt {run_id} has no execution to record a stand-down on"
+                )
+            existing = self._stand_down_row(connection, row["execution_id"], run_id)
+            if existing is not None:
+                return existing
+            request = {
+                "run_id": run_id,
+                "requester": requester,
+                "source": source,
+                "reason": reason,
+                "transfer_to": transfer_to,
+                "generation": int(row["control_generation"]),
+                "requested_at": _iso(self.now()),
+            }
+            self._append(
+                connection,
+                row["execution_id"],
+                "stand_down_requested",
+                request,
+                source_id=f"stand_down:{run_id}",
+            )
+            if row["state"] != ATTEMPT_TERMINAL:
+                connection.execute(
+                    "UPDATE execution SET state = 'standing_down' "
+                    "WHERE execution_id = ? AND terminal = 0",
+                    (row["execution_id"],),
+                )
+            return request
+
+    def _stand_down_row(
+        self, connection: sqlite3.Connection, execution_id: str, run_id: str
+    ) -> Optional[Dict[str, Any]]:
+        found = connection.execute(
+            "SELECT payload_json FROM execution_event WHERE execution_id = ? AND source_id = ?",
+            (execution_id, f"stand_down:{run_id}"),
+        ).fetchone()
+        return _loads(found["payload_json"], None) if found is not None else None
+
+    def stand_down_request(self, run_id: str) -> Optional[Dict[str, Any]]:
+        """The stand-down recorded for this attempt, or ``None``."""
+        rows = self._read(
+            "SELECT e.payload_json FROM execution_event e JOIN run_attempt a "
+            "ON a.execution_id = e.execution_id WHERE a.run_id = ? AND e.source_id = ?",
+            (run_id, f"stand_down:{run_id}"),
+        )
+        return _loads(rows[0]["payload_json"], None) if rows else None
+
+    def stop_requests(self, project_id: str, task_id: str) -> List[Dict[str, Any]]:
+        """Every Stop ever requested against a run of this project/task, oldest first.
+
+        What invalidates an approval (task-312): a person who stopped the run after
+        approving it has made a newer decision than the approval, and the finish must not
+        act on the older one. Terminal attempts are included on purpose -- a Stop that has
+        already landed is still the newer decision.
+        """
+        rows = self._read(
+            "SELECT run_id, cancel_json FROM run_attempt WHERE project_id = ? AND task_id = ? "
+            "AND cancel_requested = 1",
+            (project_id, task_id),
+        )
+        requests = [
+            {"run_id": row["run_id"], **(_loads(row["cancel_json"], None) or {})} for row in rows
+        ]
+        return sorted(requests, key=lambda request: str(request.get("requested_at") or ""))
+
     def conclude(
         self,
         run_id: str,
@@ -1872,6 +1964,125 @@ class ExecutionStore:
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         rows = self._read(f"SELECT * FROM inbox{where} ORDER BY inbox_id", parameters)
         return [InboxItem.from_row(row) for row in rows]
+
+    def signal(self, source: str, source_event_id: str) -> Optional[InboxItem]:
+        rows = self._read(
+            "SELECT * FROM inbox WHERE source = ? AND source_event_id = ?",
+            (source, source_event_id),
+        )
+        return InboxItem.from_row(rows[0]) if rows else None
+
+    def signal_disposition(self, source: str, source_event_id: str) -> Optional[Dict[str, Any]]:
+        rows = self._read(
+            "SELECT disposition_json FROM inbox WHERE source = ? AND source_event_id = ?",
+            (source, source_event_id),
+        )
+        return _loads(rows[0]["disposition_json"], None) if rows else None
+
+    def accept_signal(self, source: str, event: SourceEvent) -> InboxItem:
+        """Put one source event in the inbox now, **without moving the source's cursor**.
+
+        The synchronous half of an accepted approval (task-312): the route that wrote the
+        handoff records it here before answering, so a server that dies in the next second
+        leaves the approval in the journal rather than only in a task log nobody has
+        imported yet. The row is exactly the one the feed import would write -- same
+        source, same id, same payload -- so whichever of the two lands first is kept and
+        the other is a no-op.
+
+        The cursor is left alone because this caller does not know the feed position of
+        everything *before* this entry, and advancing past it would lose those events.
+        """
+        payload = {
+            "entry_id": event.entry_id,
+            "type": event.type,
+            "actor": event.actor,
+            "ts": event.ts,
+            "data": event.data,
+        }
+        status = "pending" if event.type in SIGNAL_ENTRY_TYPES else "observed"
+        with self.transaction("accept-signal") as connection:
+            open_row = connection.execute(
+                "SELECT execution_id, control_generation FROM execution "
+                "WHERE project_id = ? AND task_id = ? AND terminal = 0",
+                (event.project_id, event.task_id),
+            ).fetchone()
+            cursor = connection.execute(
+                "INSERT OR IGNORE INTO inbox(source, source_event_id, project_id, task_id, "
+                "kind, payload_json, payload_hash, execution_id, generation, status, "
+                "accepted_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    source,
+                    event.source_event_id,
+                    event.project_id,
+                    event.task_id,
+                    event.type,
+                    _dumps(payload),
+                    digest(payload),
+                    open_row["execution_id"] if open_row else None,
+                    int(open_row["control_generation"]) if open_row else None,
+                    status,
+                    _iso(self.now()),
+                ),
+            )
+            if cursor.rowcount == 1 and open_row is not None and status == "pending":
+                self._append(
+                    connection,
+                    open_row["execution_id"],
+                    "signal",
+                    {"source_event_id": event.source_event_id, "kind": event.type},
+                    source_id=f"signal:{source}:{event.source_event_id}",
+                )
+            found = connection.execute(
+                "SELECT * FROM inbox WHERE source = ? AND source_event_id = ?",
+                (source, event.source_event_id),
+            ).fetchone()
+            return InboxItem.from_row(found)
+
+    def dispose_signal(
+        self,
+        source: str,
+        source_event_id: str,
+        *,
+        status: str,
+        disposition: Mapping[str, Any],
+    ) -> Optional[InboxItem]:
+        """Give one pending signal its explicit disposition. Nothing is ever deleted.
+
+        ``consumed`` means it reached the thing it was for; ``superseded`` means a newer
+        decision replaced it, and ``disposition`` names that decision; ``stale`` means its
+        target no longer exists. Only a ``pending`` row moves -- a disposition is a fact
+        about what happened to a message, and a second, contradictory one would be the
+        latest-wins overwrite §9a rules out. Returns the row as it stands, or ``None`` when
+        the signal was never imported.
+        """
+        if status not in {"consumed", "superseded", "stale"}:
+            raise ValueError(f"not a signal disposition: {status!r}")
+        with self.transaction("dispose-signal") as connection:
+            row = connection.execute(
+                "SELECT * FROM inbox WHERE source = ? AND source_event_id = ?",
+                (source, source_event_id),
+            ).fetchone()
+            if row is None:
+                return None
+            if row["status"] == "pending":
+                recorded = {**dict(disposition), "at": _iso(self.now())}
+                connection.execute(
+                    "UPDATE inbox SET status = ?, disposition_json = ?, acknowledged_at = ? "
+                    "WHERE inbox_id = ?",
+                    (status, _dumps(recorded), recorded["at"], row["inbox_id"]),
+                )
+                if row["execution_id"]:
+                    self._append(
+                        connection,
+                        row["execution_id"],
+                        "signal_disposed",
+                        {"source_event_id": source_event_id, "status": status, **recorded},
+                        source_id=f"disposed:{source}:{source_event_id}",
+                    )
+            found = connection.execute(
+                "SELECT * FROM inbox WHERE inbox_id = ?", (row["inbox_id"],)
+            ).fetchone()
+            return InboxItem.from_row(found)
 
     # ----- outbox ---------------------------------------------------------------
 

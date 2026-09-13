@@ -13,10 +13,17 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from agentjobs.actors import UnknownActorError, validate_actor
 from agentjobs.principals import Principal
 from agentjobs.attachments import AttachmentError, AttachmentPayload
+from agentjobs.dispatch.approval import (
+    accept_signals,
+    approval_data,
+    approval_in,
+    reviewed_branches,
+    supersede_earlier_approvals,
+)
 from agentjobs.dispatch.handback import deliver_handback, record_handback
 from agentjobs.dispatch.finish import finish_is_offered, spawn_finish
 from agentjobs.operations import OperationConflictError, RevisionConflictError
-from agentjobs.projects import Project
+from agentjobs.projects import Project, default_home
 from agentjobs.queue import QueueCorruptionError
 from agentjobs.manager import AnswerError, TaskManager, TaskNotFoundError
 from agentjobs.store_factory import TaskStoreBackend
@@ -737,6 +744,27 @@ def after_human_handoff(
     return manager.get_task(task.id) or task
 
 
+def _accept_human_handoff(project: Project, task: Task) -> None:
+    """Record the human handoff just written in the inbox, and supersede what it replaces.
+
+    Never raises: the click has succeeded, and a journal that cannot be written costs only
+    the synchronous half -- the poller's feed import reads the same entry next tick.
+    """
+    handoff = next(
+        (entry for entry in reversed(task.log) if entry.type is LogEntryType.HANDOFF), None
+    )
+    project_id = getattr(project, "id", None)
+    if handoff is None or not project_id:
+        return
+    try:
+        home = default_home()
+        accept_signals(home, project_id, task, [handoff])
+        if approval_in(handoff, project_id=project_id, task_id=task.id) is None:
+            supersede_earlier_approvals(home, project_id, task, by=handoff)
+    except Exception:  # noqa: BLE001 - see the docstring; the approval already stands
+        return
+
+
 APPROVAL_CLEARANCE = (
     "Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark "
     "the branch merged in branches[], and close this task completed. "
@@ -777,6 +805,15 @@ async def approve_task(
     """
     user = acting_user(request, project, payload.user)
     note = (payload.note or "").strip()
+    current = manager.get_task(task_id)
+    root = getattr(project, "root", None)
+    # The receipt (task-312): who approved, the note verbatim, and the branch heads they
+    # were looking at, on the source event itself rather than inferred later from prose.
+    receipt = approval_data(
+        approver=user,
+        note=note,
+        reviewed=reviewed_branches(root, current) if current is not None and root else [],
+    )
     try:
         task = manager.handoff(
             task_id,
@@ -802,6 +839,7 @@ async def approve_task(
                 if note
                 else f"Approved by {user} through the web UI."
             ),
+            data=receipt,
         )
         return HumanActionResponse(
             task=after_human_handoff(

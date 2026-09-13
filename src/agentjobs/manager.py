@@ -1472,8 +1472,14 @@ class TaskManager:
         attachments: Optional[Sequence[AttachmentPayload]] = None,
         questions: Optional[Sequence[QuestionDraft]] = None,
         answers: Optional[Sequence[AnswerDraft]] = None,
+        data: Optional[Mapping[str, Any]] = None,
     ) -> Task:
         """Move the ball. The ask travels with it, by schema requirement.
+
+        ``data`` is structured fact that rides on the handoff entry beside the ball keys,
+        which it can never override. Its one caller is the approve route (task-312): an
+        approval's receipt -- approver, verbatim note, reviewed branch heads -- belongs to
+        the source event itself, so it cannot drift from the click that made it.
 
         ``attachments`` are images evidencing this handoff -- a screenshot of the thing
         being objected to. They are written inside the mutation, so a stored file
@@ -1502,6 +1508,8 @@ class TaskManager:
                 "body": body,
                 "questions": [q.model_dump(mode="json") for q in drafted],
                 "answers": [a.model_dump(mode="json") for a in replies],
+                # Only when given, so every existing operation keeps its fingerprint.
+                **({"data": dict(data)} if data else {}),
             },
         )
 
@@ -1523,7 +1531,11 @@ class TaskManager:
                 actor=actor,
                 type=LogEntryType.HANDOFF,
                 body=body or ball_prompt,
-                data={"ball": task.ball.value, "ball_reason": task.ball_reason.value},
+                data={
+                    **dict(data or {}),
+                    "ball": task.ball.value,
+                    "ball_reason": task.ball_reason.value,
+                },
                 operation=operation,
                 attachments=self._store_attachments(task.id, attachments),
             )

@@ -41,9 +41,25 @@ SIGNAL = "signal"
 STOP_REQUESTED = "stop_requested"
 CONCLUDED = "concluded"
 MIGRATED = "migrated"
+STAND_DOWN_REQUESTED = "stand_down_requested"
+"""An administrative transfer of the task to another owner (task-312). Not a Stop: it
+revokes no intent and must never be read as a cancellation."""
+SIGNAL_DISPOSED = "signal_disposed"
+"""A pending signal reached its explicit disposition -- consumed, superseded or stale."""
 
 EVENT_KINDS = frozenset(
-    {ACCEPTED, ADMITTED, LAUNCHED, OBSERVED, SIGNAL, STOP_REQUESTED, CONCLUDED, MIGRATED}
+    {
+        ACCEPTED,
+        ADMITTED,
+        LAUNCHED,
+        OBSERVED,
+        SIGNAL,
+        STOP_REQUESTED,
+        CONCLUDED,
+        MIGRATED,
+        STAND_DOWN_REQUESTED,
+        SIGNAL_DISPOSED,
+    }
 )
 
 # Execution states (design section 9a's diagram). Not task lifecycle values.
@@ -52,6 +68,7 @@ S_ACCEPTED = "accepted"
 S_LAUNCHING = "launching"
 S_WORKING = "working"
 S_STOPPING = "stopping"
+S_STANDING_DOWN = "standing_down"
 S_CANCELLED = "cancelled"
 S_CONCLUDED = "concluded"
 
@@ -95,6 +112,7 @@ class ExecutionState:
     outcome: Optional[str] = None
     pending_signals: Tuple[str, ...] = ()
     observation: Optional[str] = None
+    transfer_to: Optional[str] = None
 
     @property
     def terminal(self) -> bool:
@@ -116,6 +134,7 @@ class ExecutionState:
             "outcome": self.outcome,
             "pending_signals": list(self.pending_signals),
             "observation": self.observation,
+            "transfer_to": self.transfer_to,
         }
 
     @classmethod
@@ -137,6 +156,7 @@ class ExecutionState:
             outcome=data.get("outcome"),
             pending_signals=tuple(data.get("pending_signals") or ()),
             observation=data.get("observation"),
+            transfer_to=data.get("transfer_to"),
         )
 
 
@@ -218,6 +238,22 @@ def reduce(state: ExecutionState, event: Event) -> ExecutionState:
         )
     if event.kind == MIGRATED:
         return replace(advanced, owner_mode=str(payload.get("to") or state.owner_mode))
+    if event.kind == STAND_DOWN_REQUESTED:
+        # A Stop already on record outranks a transfer: the intent is revoked, and a
+        # stand-down arriving after it cannot un-revoke it.
+        if state.stop_generation:
+            return replace(advanced, transfer_to=str(payload.get("transfer_to") or ""))
+        return replace(
+            advanced,
+            state=S_STANDING_DOWN,
+            transfer_to=str(payload.get("transfer_to") or ""),
+        )
+    if event.kind == SIGNAL_DISPOSED:
+        signal = str(payload.get("source_event_id") or "")
+        return replace(
+            advanced,
+            pending_signals=tuple(item for item in state.pending_signals if item != signal),
+        )
     return advanced  # pragma: no cover - EVENT_KINDS is exhaustive above
 
 
@@ -250,6 +286,16 @@ def next_intents(state: ExecutionState) -> Tuple[Intent, ...]:
                 "stop",
                 f"{eid}:stop:{state.run_id}:{state.stop_generation}",
                 {"run_id": state.run_id, "generation": state.stop_generation},
+            ),
+        )
+    if state.state == S_STANDING_DOWN and state.run_id:
+        # Distinct from `stop` in its activity id and its kind, so an adapter can never
+        # perform a transfer through the cancellation path or the reverse.
+        return (
+            Intent(
+                "stand_down",
+                f"{eid}:stand_down:{state.run_id}",
+                {"run_id": state.run_id, "transfer_to": state.transfer_to or ""},
             ),
         )
     if state.state == S_ACCEPTED:
@@ -296,6 +342,8 @@ __all__ = [
     "MIGRATED",
     "OBSERVED",
     "SIGNAL",
+    "SIGNAL_DISPOSED",
+    "STAND_DOWN_REQUESTED",
     "STOP_REQUESTED",
     "SUPPORTED_VERSIONS",
     "TERMINAL_STATES",
