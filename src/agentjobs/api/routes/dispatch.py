@@ -376,6 +376,17 @@ class FinishGateView(BaseModel):
     failed_stage: str = ""
 
 
+class FinishGateRetryView(BaseModel):
+    """The one retry a red gate stage gets (task-322), as the page renders it."""
+
+    failed_stage: str = ""
+    classification: str = Field(
+        default="",
+        description="'inputs_changed' (a proven change explains the red) or 'flaky_test'.",
+    )
+    explanation: str = ""
+
+
 class TaskFinishView(BaseModel):
     """What is happening to this task's branch right now, or last happened to it.
 
@@ -415,7 +426,23 @@ class TaskFinishView(BaseModel):
     gate: Optional[FinishGateView] = None
     reason: str = ""
     stopped_at: str = Field(default="", description="Which step an escalation stopped at.")
-    merge_commit: str = ""
+    merge_commit: str = Field(default="", description="The merge this attempt made, if any.")
+    earlier_merge_commit: str = Field(
+        default="",
+        description=(
+            "A merge an earlier attempt made of this branch, when this attempt made none "
+            "(task-322). A separate fact: state and merge_commit still describe this attempt."
+        ),
+    )
+    earlier_merge_finish_id: str = ""
+    gate_retry: Optional[FinishGateRetryView] = Field(
+        default=None,
+        description="The one gate retry this attempt made, when it made one.",
+    )
+    next_action: str = Field(
+        default="",
+        description="What a person should do about this finish now; empty when nothing.",
+    )
     output_source: str = Field(
         default="none",
         description=(
@@ -624,6 +651,10 @@ def _finish_view(status: FinishStatus, project: Project) -> TaskFinishView:
         reason=status.reason,
         stopped_at=status.stopped_at,
         merge_commit=status.merge_commit,
+        earlier_merge_commit=status.earlier_merge_commit,
+        earlier_merge_finish_id=status.earlier_merge_finish_id,
+        gate_retry=FinishGateRetryView(**status.gate_retry) if status.gate_retry else None,
+        next_action=status.next_action,
         output_source=source,
         output_tail=readable_tail(text, OUTPUT_TAIL_LINES),
         output_url=(f"/api/projects/{project.id}/dispatch/finishes/{status.task_id}/output"),

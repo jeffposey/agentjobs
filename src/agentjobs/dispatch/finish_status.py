@@ -41,7 +41,7 @@ one that is in the middle of that step.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -180,6 +180,19 @@ class FinishStatus:
     stopped_at: str = ""
     merge_commit: str = ""
     directory: Optional[Path] = None
+    earlier_merge_commit: str = ""
+    """A merge an *earlier* attempt made of this branch, when this attempt made none.
+
+    A second, separately labelled fact (task-322). ``state`` and ``merge_commit`` still
+    describe the newest attempt alone -- an ``escalated`` retry that merged nothing is
+    exactly that -- and this is what stops the page saying "nothing was merged" about a
+    branch that is already in the base.
+    """
+    earlier_merge_finish_id: str = ""
+    gate_retry: Optional[Dict[str, Any]] = None
+    """The one gate retry this attempt made, if it made one: the red stage and the verdict."""
+    next_action: str = ""
+    """What a person should do now, in one sentence. Empty while nothing is theirs to do."""
 
     @property
     def merged(self) -> bool:
@@ -228,13 +241,7 @@ def newest_finish_directory(home: Path, task_id: str, project_id: str = "") -> O
         return None
     candidates = [entry for entry in candidates if entry.name != SPAWN_DIRNAME]
 
-    def written(path: Path) -> float:
-        try:
-            return path.stat().st_mtime
-        except OSError:  # pragma: no cover - removed mid-scan
-            return 0.0
-
-    candidates.sort(key=written, reverse=True)
+    candidates.sort(key=_written, reverse=True)
     best: Optional[Path] = None
     best_key = ""
     for entry in candidates[:SCAN_LIMIT]:
@@ -247,6 +254,13 @@ def newest_finish_directory(home: Path, task_id: str, project_id: str = "") -> O
         if best is None or key > best_key:
             best, best_key = entry, key
     return best
+
+
+def _written(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:  # pragma: no cover - removed mid-scan
+        return 0.0
 
 
 # ----- what the phase records say ---------------------------------------------
@@ -440,24 +454,158 @@ def read_finish_status(home: Path, task_id: str, project_id: str = "") -> Option
         ]
 
     preflight = next((record for record in records if record.get("kind") == "finish_preflight"), {})
-    return FinishStatus(
+    resolved_project = str(meta.get("project_id") or project_id)
+    branch = str(preflight.get("branch") or "")
+    merge_commit = merge_commit_of(meta, records)
+    earlier_commit, earlier_finish = ("", "")
+    if not merge_commit:
+        earlier_commit, earlier_finish = earlier_merge(
+            home, task_id, resolved_project, exclude=directory, branch=branch
+        )
+    retry = next(
+        (record for record in reversed(records) if record.get("kind") == "finish_gate_retry"),
+        None,
+    )
+    status = FinishStatus(
         task_id=task_id,
-        project_id=str(meta.get("project_id") or project_id),
+        project_id=resolved_project,
         state=state,
         live=live,
         finish_id=str(meta.get("finish_id") or directory.name),
         started_at=started_at,
         finished_at=finished_at,
         elapsed_seconds=_elapsed(started_at, finished_at),
-        branch=str(preflight.get("branch") or ""),
+        branch=branch,
         worktree=str(preflight.get("worktree") or ""),
         current_step=current,
         steps=steps,
         gate=gate,
         reason=str(meta.get("reason") or ""),
         stopped_at=str(meta.get("stopped_at") or ""),
-        merge_commit=str(meta.get("merge_commit") or ""),
+        merge_commit=merge_commit,
         directory=directory,
+        earlier_merge_commit=earlier_commit,
+        earlier_merge_finish_id=earlier_finish,
+        gate_retry=(
+            {
+                "failed_stage": str(retry.get("failed_stage") or ""),
+                "classification": str(retry.get("classification") or ""),
+                "explanation": str(retry.get("explanation") or ""),
+            }
+            if retry is not None
+            else None
+        ),
+    )
+    return replace(status, next_action=next_action(status, meta))
+
+
+def merge_commit_of(meta: Dict[str, Any], records: List[Dict[str, Any]]) -> str:
+    """The merge this attempt made: its meta, or the phase record written the moment it did.
+
+    The phase record is what makes a merge visible on an attempt that was *killed* after
+    merging (task-322): such an attempt never writes the ending its meta would carry, and
+    task-321's own ``fin_d11a8f5e`` was exactly that shape.
+    """
+    committed = str(meta.get("merge_commit") or "")
+    if committed:
+        return committed
+    for record in reversed(records):
+        if record.get("kind") == "finish_merged" and record.get("merge_commit"):
+            return str(record["merge_commit"])
+    return ""
+
+
+def earlier_merge(
+    home: Path, task_id: str, project_id: str, *, exclude: Path, branch: str
+) -> Tuple[str, str]:
+    """``(commit, finish_id)`` of a merge an earlier attempt made of this branch, or blanks.
+
+    Two sources, in order. The task's finish receipts, which survive every attempt and say
+    which branch each merge was of. Then the other finish directories within the scan
+    limit, which is what an attempt from before receipts existed left behind. A merge of a
+    *different* branch than the newest attempt's is not reported: a reopened task on a new
+    branch has not been merged just because its previous branch was.
+    """
+    from agentjobs.dispatch.finish_receipts import FinishReceipts
+
+    evidence = FinishReceipts(home, project_id, task_id).applied_merge() if project_id else None
+    if evidence is not None and (not branch or not evidence.branch or evidence.branch == branch):
+        return evidence.commit, evidence.finish_id
+    root = finishes_root(home)
+    try:
+        candidates = [
+            entry
+            for entry in root.iterdir()
+            if entry.is_dir() and entry.name != SPAWN_DIRNAME and entry != exclude
+        ]
+    except OSError:
+        return "", ""
+    candidates.sort(key=_written, reverse=True)
+    found: List[Tuple[str, str, str]] = []
+    for entry in candidates[:SCAN_LIMIT]:
+        meta = read_meta(entry)
+        if str(meta.get("task_id") or "") != task_id:
+            continue
+        if project_id and str(meta.get("project_id") or "") not in ("", project_id):
+            continue
+        records = read_phases(entry)
+        commit = merge_commit_of(meta, records)
+        if not commit:
+            continue
+        merged_branch = next(
+            (
+                str(record.get("branch") or "")
+                for record in records
+                if record.get("kind") in ("finish_preflight", "finish_merged")
+            ),
+            "",
+        )
+        if branch and merged_branch and merged_branch != branch:
+            continue
+        found.append((str(meta.get("started_at") or ""), commit, entry.name))
+    if not found:
+        return "", ""
+    _, commit, finish_id = max(found)
+    return commit, finish_id
+
+
+WITHDRAWN_REASONS = frozenset({"stopped", "approval_withdrawn", "posture_withdrawn"})
+
+
+def next_action(status: FinishStatus, meta: Dict[str, Any]) -> str:
+    """The one thing a person should do about this finish now, or nothing.
+
+    Written on the server so the page and any other reader say the same thing, and
+    derived only from what the attempt recorded. A command is named where one is the
+    action, because "re-run the finish" is not something a person can do without it.
+    """
+    command = f"agentjobs finish {status.task_id} --project {status.project_id}"
+    merged = status.merge_commit or status.earlier_merge_commit
+    if status.live or status.state in (FINISHED, DECLINED, STARTING, RUNNING):
+        return ""
+    dispatched = str(meta.get("dispatched_run_id") or "")
+    if status.state == ESCALATED and dispatched:
+        return (
+            f"A session ({dispatched}) was started to take it from here. Nothing is yours "
+            "to do unless it hands the task back."
+        )
+    if status.reason == "stopped_after_merge" or (
+        merged and status.state in (ESCALATED, INTERRUPTED)
+    ):
+        return (
+            f"The merge is done ({merged[:8]}); delivery is not. Re-run the finish to resume "
+            f"it from where it stopped -- it will not gate or merge again: `{command}`."
+        )
+    if status.reason in WITHDRAWN_REASONS:
+        return (
+            "Nothing was merged, because what authorised it was withdrawn. Nothing further "
+            "happens until the task is approved again."
+        )
+    if status.state == INTERRUPTED:
+        return f"Nothing was merged. Re-run the finish to start it again: `{command}`."
+    return (
+        f"Nothing was merged. Fix what stopped it at `{status.stopped_at or 'a step'}` -- the "
+        f"task record says what that was -- then re-run the finish: `{command}`."
     )
 
 
@@ -535,10 +683,13 @@ def finish_output(home: Path, status: FinishStatus) -> Tuple[str, str, Optional[
     if text.strip():
         return "finish-log", text, _mtime(spawn)
     if status.directory is not None:
-        gate = status.directory / "gate.log"
-        text = _read(gate)
-        if text.strip():
-            return "gate-log", text, _mtime(gate)
+        # The retry's log before the first attempt's: it is the newer answer, and the one
+        # a person reading a second red needs (task-322).
+        for name in ("gate-retry-1.log", "gate.log"):
+            gate = status.directory / name
+            text = _read(gate)
+            if text.strip():
+                return "gate-log", text, _mtime(gate)
     return "none", "", None
 
 

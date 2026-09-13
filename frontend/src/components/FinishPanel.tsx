@@ -36,12 +36,16 @@ export const FINISH_POLL_MS = 2_000;
  * no subprocess anywhere behind it, and its steps are seconds long -- a ten-second clock
  * would show a reader the rebase for the whole of the merge.
  */
-export function finishPollInterval(finish: TaskFinishView | null): number | false {
+export function finishPollInterval(
+  finish: TaskFinishView | null,
+): number | false {
   return finish?.live ? FINISH_POLL_MS : false;
 }
 
 /** Elapsed seconds as a human reads them. Server-computed; no client clock is involved. */
-export function formatFinishElapsed(seconds: number | null | undefined): string {
+export function formatFinishElapsed(
+  seconds: number | null | undefined,
+): string {
   if (seconds === null || seconds === undefined) return "";
   const whole = Math.max(0, Math.round(seconds));
   if (whole < 60) return `${whole}s`;
@@ -67,13 +71,20 @@ export function finishHeadline(finish: TaskFinishView): string {
         ? `Merged as ${finish.merge_commit.slice(0, 8)} and verified live`
         : "Finished";
     case "escalated":
-      return finish.merge_commit
-        ? `Merged as ${finish.merge_commit.slice(0, 8)}, then stopped before it was done`
+      if (finish.merge_commit) {
+        return `Merged as ${finish.merge_commit.slice(0, 8)}, then stopped before it was done`;
+      }
+      // task-322: a retry that merged nothing is not evidence that nothing is merged. An
+      // earlier attempt's merge is named instead, and this attempt is still called stopped.
+      return finish.earlier_merge_commit
+        ? `Already merged as ${finish.earlier_merge_commit.slice(0, 8)} — this attempt stopped`
         : "Stopped — nothing was merged";
     case "declined":
       return "Nothing to merge";
     case "interrupted":
-      return "The finish stopped without saying how it ended";
+      return finish.merge_commit
+        ? `Merged as ${finish.merge_commit.slice(0, 8)}, then the finish stopped without saying how it ended`
+        : "The finish stopped without saying how it ended";
     default:
       return "Finish";
   }
@@ -91,7 +102,11 @@ export function finishDetail(finish: TaskFinishView): string {
     case "escalated":
       return `It stopped at ${finish.stopped_at || "a step"}${
         finish.reason ? ` (${finish.reason})` : ""
-      }. The task record says what it got done and what is left.`;
+      }.${
+        !finish.merge_commit && finish.earlier_merge_commit
+          ? ` It merged nothing new: attempt ${finish.earlier_merge_finish_id || "before it"} already had.`
+          : ""
+      } The task record says what it got done and what is left.`;
     case "declined":
       return `This task was never a finish candidate${
         finish.reason ? ` (${finish.reason})` : ""
@@ -107,6 +122,14 @@ export function finishDetail(finish: TaskFinishView): string {
 export function gateNote(finish: TaskFinishView): string {
   const gate = finish.gate;
   if (!gate) return "";
+  const retry = finish.gate_retry;
+  if (retry && !gate.running) {
+    // The retry's own green or red, never the first attempt's: a merge on a retried green
+    // must not read like a clean first pass, and a second red must say it was a second.
+    return gate.passed
+      ? `Gate: green on its one retry after ${retry.failed_stage || "a stage"} went red (${retry.classification || "retried"})`
+      : `Gate: red again on its one retry after ${retry.failed_stage || "a stage"} — a second red never merges`;
+  }
   // Every counter defaults to zero rather than being trusted: a gate too old to write
   // per-stage records sends none of them, and "of undefined stages" is worse than no
   // counter at all.
@@ -176,14 +199,29 @@ function Step({ step, gate }: { step: FinishStepView; gate: string }) {
   // the table should not have to correlate two places to get it.
   const extra = step.name === "gate" && gate ? gate : "";
   return (
-    <li className="flex gap-3 py-1" data-finish-step={step.name} data-step-state={step.state}>
-      <span className={`w-4 shrink-0 text-center ${STEP_CLASSES[step.state] ?? ""}`} aria-hidden="true">
+    <li
+      className="flex gap-3 py-1"
+      data-finish-step={step.name}
+      data-step-state={step.state}
+    >
+      <span
+        className={`w-4 shrink-0 text-center ${STEP_CLASSES[step.state] ?? ""}`}
+        aria-hidden="true"
+      >
         {STEP_MARK[step.state] ?? "·"}
       </span>
-      <span className="w-20 shrink-0 font-mono text-xs leading-6">{step.name}</span>
+      <span className="w-20 shrink-0 font-mono text-xs leading-6">
+        {step.name}
+      </span>
       <span className="min-w-0 flex-1 text-sm">
-        <span className={step.state === "running" ? "text-sky-200" : "text-dark-text"}>
-          {step.state === "running" ? step.meaning || "Running" : step.detail || step.meaning}
+        <span
+          className={
+            step.state === "running" ? "text-sky-200" : "text-dark-text"
+          }
+        >
+          {step.state === "running"
+            ? step.meaning || "Running"
+            : step.detail || step.meaning}
         </span>
         {extra && <span className="ml-2 text-dark-muted">{extra}</span>}
       </span>
@@ -225,7 +263,9 @@ export function FinishPanel({ finish }: FinishPanelProps) {
         <span className={`rounded px-2 py-0.5 text-xs font-semibold ${badge}`}>
           {finishBadge(finish)}
         </span>
-        <h2 className="text-lg font-semibold text-indigo-200">{finishHeadline(finish)}</h2>
+        <h2 className="text-lg font-semibold text-indigo-200">
+          {finishHeadline(finish)}
+        </h2>
         {elapsed && (
           <span className="text-sm text-dark-muted">
             {finish.live ? "for " : "took "}
@@ -236,12 +276,22 @@ export function FinishPanel({ finish }: FinishPanelProps) {
 
       <p className="text-sm text-dark-muted">{finishDetail(finish)}</p>
 
+      {finish.next_action && (
+        <p className="text-sm text-indigo-100" data-finish-next-action="">
+          <strong className="font-semibold">Next: </strong>
+          {finish.next_action}
+        </p>
+      )}
+
       {finish.branch && (
         <p className="text-sm text-dark-muted">
-          Branch <strong className="font-mono text-dark-text">{finish.branch}</strong>
-          {finish.live && gate && !steps.some((step) => step.name === "gate") && (
-            <span className="ml-2">{gate}</span>
-          )}
+          Branch{" "}
+          <strong className="font-mono text-dark-text">{finish.branch}</strong>
+          {finish.live &&
+            gate &&
+            !steps.some((step) => step.name === "gate") && (
+              <span className="ml-2">{gate}</span>
+            )}
         </p>
       )}
 
@@ -255,7 +305,8 @@ export function FinishPanel({ finish }: FinishPanelProps) {
 
       {steps.length === 0 && finish.live && (
         <p className="text-sm text-dark-muted" role="status">
-          No step has been recorded yet. The first one lands within a couple of seconds.
+          No step has been recorded yet. The first one lands within a couple of
+          seconds.
         </p>
       )}
 
@@ -283,7 +334,10 @@ export function FinishPanel({ finish }: FinishPanelProps) {
       </div>
 
       {finish.output_tail && open && (
-        <div id="finish-output" className="rounded-lg border border-dark-border bg-dark-bg p-3">
+        <div
+          id="finish-output"
+          className="rounded-lg border border-dark-border bg-dark-bg p-3"
+        >
           <pre
             data-finish-output={finish.task_id}
             className="max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-dark-text"
@@ -301,8 +355,9 @@ export function FinishPanel({ finish }: FinishPanelProps) {
 
       {!finish.output_tail && finish.live && (
         <p className="text-xs text-dark-muted">
-          A finish writes its output when the process ends — no agent is involved, so
-          there is no session transcript. The steps above are what is live.
+          A finish writes its output when the process ends — no agent is
+          involved, so there is no session transcript. The steps above are what
+          is live.
         </p>
       )}
     </section>

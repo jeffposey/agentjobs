@@ -36,8 +36,20 @@ function finish(overrides: Partial<TaskFinishView> = {}): TaskFinishView {
     worktree: "C:/projects/worktrees/agentjobs-296",
     current_step: "gate",
     steps: [
-      { name: "preflight", state: "done", detail: "fix/task-296 at f886154a", seconds: 1.4, meaning: "Checking the branch" },
-      { name: "gate", state: "running", detail: "", seconds: 0, meaning: "Running the full gate" },
+      {
+        name: "preflight",
+        state: "done",
+        detail: "fix/task-296 at f886154a",
+        seconds: 1.4,
+        meaning: "Checking the branch",
+      },
+      {
+        name: "gate",
+        state: "running",
+        detail: "",
+        seconds: 0,
+        meaning: "Running the full gate",
+      },
     ],
     gate: {
       stage: "pytest",
@@ -80,7 +92,12 @@ describe("the sentence a reader acts on", () => {
   });
 
   it("says nothing was merged when nothing was", () => {
-    const stopped = finish({ state: "escalated", live: false, stopped_at: "gate", reason: "gate_failed" });
+    const stopped = finish({
+      state: "escalated",
+      live: false,
+      stopped_at: "gate",
+      reason: "gate_failed",
+    });
     expect(finishHeadline(stopped)).toContain("nothing was merged");
     expect(finishDetail(stopped)).toContain("gate");
   });
@@ -96,6 +113,27 @@ describe("the sentence a reader acts on", () => {
     expect(finishHeadline(stopped)).toContain("Merged as abcdef12");
   });
 
+  it("never says nothing was merged when an earlier attempt merged the branch", () => {
+    // task-322's reproduction: task-321 merged 95bebc1, was killed, and its retry stopped
+    // at the gate. The branch is in main; the headline must not say otherwise.
+    const retry = finish({
+      state: "escalated",
+      live: false,
+      stopped_at: "gate",
+      reason: "gate_failed",
+      merge_commit: "",
+      earlier_merge_commit: "95bebc10000000000000000000000000000000000",
+      earlier_merge_finish_id: "fin_d11a8f5e",
+      next_action: "The merge is done (95bebc10); delivery is not.",
+    });
+    render(<FinishPanel finish={retry} />);
+    const text = document.body.textContent ?? "";
+    expect(text).not.toMatch(/nothing was merged/i);
+    expect(finishHeadline(retry)).toContain("95bebc10");
+    expect(finishBadge(retry)).toBe("Stopped");
+    expect(screen.getByText(/delivery is not/)).toBeTruthy();
+  });
+
   it("explains a finish whose process is gone", () => {
     const dead = finish({ state: "interrupted", live: false });
     expect(finishDetail(dead)).toContain("process is gone");
@@ -106,9 +144,15 @@ describe("the badge", () => {
   it("never calls a finish that stopped 'done'", () => {
     // The first word read on the card, so it is the one that has to be true. A red
     // gate merged nothing and "Done" beside that is the worst available summary.
-    expect(finishBadge(finish({ state: "escalated", live: false }))).toBe("Stopped");
-    expect(finishBadge(finish({ state: "interrupted", live: false }))).toBe("Interrupted");
-    expect(finishBadge(finish({ state: "finished", live: false }))).toBe("Done");
+    expect(finishBadge(finish({ state: "escalated", live: false }))).toBe(
+      "Stopped",
+    );
+    expect(finishBadge(finish({ state: "interrupted", live: false }))).toBe(
+      "Interrupted",
+    );
+    expect(finishBadge(finish({ state: "finished", live: false }))).toBe(
+      "Done",
+    );
     expect(finishBadge(finish({ state: "starting" }))).toBe("Starting");
     expect(finishBadge(finish())).toBe("Running");
   });
@@ -121,16 +165,55 @@ describe("the gate line", () => {
 
   it("reports a gate that never wrote per-stage records without inventing a counter", () => {
     const old = finish({
-      gate: { stage: "", stages_run: 0, stages_total: 0, running: true, passed: null, seconds: 0, failed_stage: "" },
+      gate: {
+        stage: "",
+        stages_run: 0,
+        stages_total: 0,
+        running: true,
+        passed: null,
+        seconds: 0,
+        failed_stage: "",
+      },
     });
     expect(gateNote(old)).toBe("Gate: running");
+  });
+
+  it("says a green came on the one retry, not on a first pass", () => {
+    const retried = finish({
+      state: "finished",
+      live: false,
+      gate: {
+        stage: "",
+        stages_run: 2,
+        stages_total: 10,
+        running: false,
+        passed: true,
+        seconds: 40,
+        failed_stage: "",
+      },
+      gate_retry: {
+        failed_stage: "pytest",
+        classification: "flaky_test",
+        explanation: "",
+      },
+    });
+    expect(gateNote(retried)).toContain("green on its one retry");
+    expect(gateNote(retried)).toContain("flaky_test");
   });
 
   it("names the stage a red gate failed at", () => {
     const red = finish({
       state: "escalated",
       live: false,
-      gate: { stage: "", stages_run: 7, stages_total: 10, running: false, passed: false, seconds: 96, failed_stage: "pytest" },
+      gate: {
+        stage: "",
+        stages_run: 7,
+        stages_total: 10,
+        running: false,
+        passed: false,
+        seconds: 96,
+        failed_stage: "pytest",
+      },
     });
     expect(gateNote(red)).toContain("red at pytest");
     expect(gateNote(red)).toContain("never merges");
@@ -167,7 +250,9 @@ describe("rendering", () => {
 
   it("explains that a running finish has no text, rather than showing an empty box", () => {
     render(<FinishPanel finish={finish()} />);
-    expect(screen.getByText(/writes its output when the process ends/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/writes its output when the process ends/),
+    ).toBeInTheDocument();
   });
 
   it("shows the output once the process has written it", () => {
@@ -187,15 +272,22 @@ describe("rendering", () => {
     // an old finish must not open as a wall of terminal output.
     expect(document.querySelector("[data-finish-output]")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Output/ }));
-    expect(document.querySelector("[data-finish-output]")?.textContent).toContain("173.9s");
+    expect(
+      document.querySelector("[data-finish-output]")?.textContent,
+    ).toContain("173.9s");
   });
 
   it("opens itself while a finish is live", () => {
     render(
       <FinishPanel
-        finish={finish({ output_source: "gate-log", output_tail: "pytest ... 300 passed" })}
+        finish={finish({
+          output_source: "gate-log",
+          output_tail: "pytest ... 300 passed",
+        })}
       />,
     );
-    expect(document.querySelector("[data-finish-output]")?.textContent).toContain("300 passed");
+    expect(
+      document.querySelector("[data-finish-output]")?.textContent,
+    ).toContain("300 passed");
   });
 });
