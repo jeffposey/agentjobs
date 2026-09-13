@@ -4032,6 +4032,7 @@ finishes, on a full gate, because approval notes ask for follow-up commits (task
 Re-review is task-343's note semantics. Automatic resumption of a killed finish is
 task-443. Receipts live beside finish records rather than in the execution store; the
 controller task-416 built drives runs, not finishes.
+
 ### What task-417 built (2026-09-13)
 
 Auth recovery as specified above, plus the five-hour usage limit, which had no other
