@@ -1531,3 +1531,141 @@ class TestFrontierOrder:
         )
         manager.move(other.id, actor="Jeff Posey", top=True)
         assert [task.id for task in frontier(manager, parent_id)] == [mine]
+
+
+class TestAResumedChildIsNotSilentlyAuto:
+    """task-375 ac-3, the task-358 shape run through the whole guard chain.
+
+    The epic is dispatched ``autonomous``; its child already has a conversation that last
+    ran at ``auto``. Before task-375 the walk resumed that conversation with no posture
+    clause at all, recorded ``autonomous`` on the child, and the child -- correctly --
+    obeyed the only clause it had ever been told and handed off for review.
+    """
+
+    @pytest.fixture
+    def home(self, tmp_path: Path) -> Path:
+        machine = tmp_path / "home"
+        machine.mkdir()
+        return machine
+
+    @pytest.fixture
+    def cli(self, tmp_path: Path) -> Path:
+        from test_dispatch_wake import FAKE_CLI
+
+        script = tmp_path / "fakecli.py"
+        script.write_text(__import__("textwrap").dedent(FAKE_CLI), encoding="utf-8")
+        (tmp_path / "sessions.json").write_text("[]", encoding="utf-8")
+        return script
+
+    @pytest.fixture
+    def configured(self, home: Path, project: Project, cli: Path) -> Path:
+        config = {
+            "version": 1,
+            "enabled": True,
+            "runners": {
+                "fake": {
+                    "argv": [
+                        __import__("sys").executable,
+                        str(cli),
+                        "--bg",
+                        "--remote-control",
+                        "{prompt}",
+                    ],
+                    "actor": "claude",
+                    "mode": "session",
+                }
+            },
+            "projects": {
+                "sandbox": {
+                    "enabled": True,
+                    "runner": "fake",
+                    "require_clean_tree": False,
+                    "posture": "auto",
+                    "max_posture": "autonomous",
+                }
+            },
+        }
+        path = home / "dispatch.yaml"
+        path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+        return path
+
+    def seed_previous_session(self, home: Path, cli: Path, child_id: str, posture: str) -> None:
+        from agentjobs.dispatch.runner import RunDirectory
+        from test_dispatch_wake import set_sessions, stopped_row
+
+        RunDirectory.create(
+            home,
+            "run_8ad284df",
+            {
+                "run_id": "run_8ad284df",
+                "task_id": child_id,
+                "project_id": "sandbox",
+                "mode": "session",
+                "driver": "claude",
+                "posture": posture,
+                "posture_source": "project",
+                "status": "finished",
+                "session_id": "c3b3a806",
+                "started_at": "2026-09-07T01:00:00+00:00",
+            },
+        )
+        set_sessions(cli.parent, [stopped_row("c3b3a806", "c3b3a806-full-uuid")])
+
+    def start_child(self, manager: TaskManager, project: Project, home: Path, child_id: str):
+        dispatch_task(
+            manager=manager,
+            project=project,
+            project_config=PROJECT_CONFIG,
+            request=DispatchRequest(
+                task_id=child_id, trigger=DispatchTrigger.CHILD, on_behalf_of_parent=True
+            ),
+            home=home,
+            api_base="http://127.0.0.1:8765",
+        )
+        task = manager.get_task(child_id)
+        assert task is not None
+        entry = [e for e in task.log if e.type is LogEntryType.DISPATCH][-1]
+        return entry
+
+    def test_the_child_gets_a_fresh_session_told_autonomous(
+        self, manager: TaskManager, project: Project, home: Path, cli: Path, configured: Path
+    ) -> None:
+        from test_dispatch_wake import ran_argv, ran_stdin
+
+        parent_id = make_parent(
+            manager, posture=DispatchPosture.AUTONOMOUS, posture_source="dispatch"
+        )
+        child_id = make_child(manager, parent_id, "First")
+        self.seed_previous_session(home, cli, child_id, posture="auto")
+
+        entry = self.start_child(manager, project, home, child_id)
+
+        argv = ran_argv(cli.parent)
+        assert "--resume" not in argv, "resumed a session that had only been told auto"
+        assert ran_stdin(cli.parent) == ""
+        assert any("releases the merge gate" in element for element in argv)
+        data = dict(entry.data or {})
+        assert data["posture"] == "autonomous"
+        assert data["posture_source"] == "epic"
+        assert data["delivery"]["posture_delivered"] is True
+        assert "posture `auto`" in data["delivery"]["resume_refused"]
+        assert "Resumed" not in (entry.body or "")
+
+    def test_a_child_session_already_at_autonomous_is_resumed_and_told_again(
+        self, manager: TaskManager, project: Project, home: Path, cli: Path, configured: Path
+    ) -> None:
+        from test_dispatch_wake import ran_argv, ran_stdin
+
+        parent_id = make_parent(
+            manager, posture=DispatchPosture.AUTONOMOUS, posture_source="dispatch"
+        )
+        child_id = make_child(manager, parent_id, "First")
+        self.seed_previous_session(home, cli, child_id, posture="autonomous")
+
+        entry = self.start_child(manager, project, home, child_id)
+
+        assert "--resume" in ran_argv(cli.parent)
+        assert "releases the merge gate" in ran_stdin(cli.parent)
+        data = dict(entry.data or {})
+        assert data["delivery"]["channel"] == "stdin"
+        assert data["delivery"]["posture_delivered"] is True

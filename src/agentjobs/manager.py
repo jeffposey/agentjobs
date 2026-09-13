@@ -46,6 +46,8 @@ from .models_v2 import (
     DeliverableStatus,
     DependencyType,
     DispatchData,
+    DispatchDeliveryData,
+    DispatchEnvelopeData,
     DispatchSelectionData,
     DispatchMode,
     DispatchOutcome,
@@ -2716,6 +2718,8 @@ class TaskManager:
         selection: Optional[DispatchSelectionData] = None,
         playbook: Optional[str] = None,
         playbook_hash: Optional[str] = None,
+        envelope: Optional[DispatchEnvelopeData] = None,
+        delivery: Optional[DispatchDeliveryData] = None,
         body: Optional[str] = None,
         operation_id: Optional[str] = None,
     ) -> Task:
@@ -2758,6 +2762,8 @@ class TaskManager:
             selection=selection,
             playbook=playbook,
             playbook_hash=playbook_hash,
+            envelope=envelope,
+            delivery=delivery,
         )
         operation = self._operation(
             operation_id, "dispatch", actor, {"run_id": run_id, "argv": list(argv)}

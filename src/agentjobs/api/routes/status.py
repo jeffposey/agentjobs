@@ -666,6 +666,10 @@ _DISPATCH_STATUS: dict = {
     "unknown_runner": status.HTTP_409_CONFLICT,
     "unknown_group": status.HTTP_409_CONFLICT,
     "no_eligible_runner": status.HTTP_409_CONFLICT,
+    # A continuation's recorded runner, or its Stop (task-375). Both are fixed by a change
+    # of state -- re-enabling the runner, or a person dispatching afresh.
+    "recorded_runner_unavailable": status.HTTP_409_CONFLICT,
+    "grant_stopped": status.HTTP_409_CONFLICT,
     "invalid_config": status.HTTP_500_INTERNAL_SERVER_ERROR,
     "not_human_clocked": status.HTTP_403_FORBIDDEN,
     "authorizer_not_human": status.HTTP_403_FORBIDDEN,
@@ -699,6 +703,11 @@ _DISPATCH_ACTION: dict = {
     "no_eligible_runner": (
         "Enable a member of the group by hand, or install the CLI one of them needs."
     ),
+    "recorded_runner_unavailable": (
+        "Re-enable or reinstall the runner this work was granted, or dispatch the task "
+        "again to choose a different one."
+    ),
+    "grant_stopped": "Dispatch the task again to start a new run after the Stop.",
     "not_human_clocked": (
         "Act on the task yourself, then dispatch. This rule is not configurable."
     ),

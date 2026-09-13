@@ -641,6 +641,45 @@ class TestGroupsOnTheCommandLine:
         assert "skipped big: executable_not_found" in result.output
         assert "skipped spare: disabled" in result.output
 
+    def test_the_cli_and_the_dispatch_entry_report_the_same_candidates(self) -> None:
+        """task-415 runner-4: members after the winner are judged, on every surface.
+
+        The CLI prints the skipped members; the API and the React app read them from the
+        ``dispatch`` entry's ``selection``, which ``selection_data`` builds. Both come from
+        one ``RunnerSelection`` -- this pins that they say the same thing about members
+        listed *after* the winner, which neither did before.
+        """
+        import re
+
+        from agentjobs.dispatch.config import assert_dispatch_permitted
+        from agentjobs.dispatch.runner import selection_data
+
+        write_grouped_config(
+            runner_groups={
+                "default": {
+                    "members": [
+                        "small",
+                        {"runner": "spare", "enabled": False, "note": "kept in reserve"},
+                        "big",
+                    ]
+                }
+            },
+        )
+
+        result = runner.invoke(app, ["dispatch", "config", "--project", "agentjobs"])
+        recorded = selection_data(assert_dispatch_permitted("agentjobs", home()).selection)
+
+        assert result.exit_code == 0, result.output
+        assert recorded is not None
+        in_cli = set(re.findall(r"skipped (\S+): (\S+)", result.output))
+        in_record = {
+            (candidate.runner, candidate.skipped_because)
+            for candidate in recorded.candidates
+            if not candidate.eligible
+        }
+        assert in_cli == in_record == {("spare", "disabled"), ("big", "executable_not_found")}
+        assert [c.runner for c in recorded.candidates if c.selected] == ["small"]
+
     def test_a_flat_config_never_mentions_groups(self) -> None:
         """Someone who does not use groups should not learn from the CLI that they exist."""
         write_config()

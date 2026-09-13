@@ -575,15 +575,56 @@ class TestGroupSelection:
         resolution = assert_dispatch_permitted("agentjobs", home())
         assert resolution.runner.name == "spare"
 
-    def test_members_after_the_winner_are_listed_but_not_judged(self) -> None:
-        """'Not reached' and 'rejected' are different facts and stay different."""
+    def test_members_after_the_winner_are_judged_too(self) -> None:
+        """task-415: a later member used to be listed eligible without being checked.
+
+        The big-dawg shape: the second member was switched off, and the record said two
+        runners could run. Every predicate now runs on every member.
+        """
+        write_grouped_config(
+            runner_groups={
+                "default": {
+                    "members": [
+                        {"runner": "small"},
+                        {"runner": "spare", "enabled": False, "note": "no key on this machine"},
+                        {"runner": "gone"},
+                        {"runner": "big"},
+                    ]
+                }
+            },
+        )
+        selection = assert_dispatch_permitted("agentjobs", home()).selection
+        assert selection is not None
+        assert selection.runner.name == "small"
+        by_name = {candidate.runner: candidate for candidate in selection.candidates}
+        assert by_name["small"].eligible is True
+        assert by_name["small"].selected is True
+        assert by_name["spare"].eligible is False
+        assert by_name["spare"].skipped_because is SkipReason.DISABLED
+        assert by_name["spare"].detail == "no key on this machine"
+        assert by_name["gone"].skipped_because is SkipReason.UNDEFINED_RUNNER
+        assert by_name["big"].skipped_because is SkipReason.EXECUTABLE_NOT_FOUND
+        assert [c.runner for c in selection.candidates if c.selected] == ["small"]
+
+    def test_a_later_member_that_could_run_is_eligible_but_not_selected(self) -> None:
         write_grouped_config()
         selection = assert_dispatch_permitted("agentjobs", home()).selection
         assert selection is not None
         trailing = selection.candidates[-1]
         assert trailing.runner == "spare"
         assert trailing.eligible is True
+        assert trailing.selected is False
         assert trailing.skipped_because is None
+
+    def test_judging_later_members_does_not_change_which_one_runs(self) -> None:
+        """The winner, and the order, are what they were before every member was judged."""
+        write_grouped_config(
+            runner_groups={"default": {"members": ["big", "small", "spare"]}},
+        )
+        selection = assert_dispatch_permitted("agentjobs", home()).selection
+        assert selection is not None
+        assert selection.runner.name == "small"
+        assert [c.runner for c in selection.candidates] == ["big", "small", "spare"]
 
     def test_an_exhausted_group_refuses_rather_than_falling_back(self) -> None:
         write_grouped_config(

@@ -525,7 +525,7 @@ class TestGatesStillBind:
         ).read_text(encoding="utf-8")
         body = source.split("def dispatch_task(", 1)[1]
         uses = [line for line in body.splitlines() if "request.playbook" in line]
-        assert uses == ["            playbook=request.playbook,"], uses
+        assert uses == ["        playbook=request.playbook,"], uses
 
 
 # ----- what cannot be run -----------------------------------------------------

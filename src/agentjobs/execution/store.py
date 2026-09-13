@@ -928,6 +928,20 @@ class ExecutionStore:
         )
         return Execution.from_row(rows[0]) if rows else None
 
+    def latest_execution(self, project_id: str, task_id: str) -> Optional[Execution]:
+        """The newest execution accepted for this project/task, open or terminal.
+
+        Newest by acceptance, with the insertion order breaking a tie between two rows
+        stamped in the same instant. What a continuation reads its envelope from
+        (task-375).
+        """
+        rows = self._read(
+            "SELECT * FROM execution WHERE project_id = ? AND task_id = ? "
+            "ORDER BY created_at DESC, rowid DESC LIMIT 1",
+            (project_id, task_id),
+        )
+        return Execution.from_row(rows[0]) if rows else None
+
     def executions(self, *, open_only: bool = False) -> List[Execution]:
         sql = "SELECT * FROM execution"
         if open_only:

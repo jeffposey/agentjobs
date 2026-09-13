@@ -448,7 +448,7 @@ that survives. See [agent-dispatch-design.md](agent-dispatch-design.md).
     runner: claude
     mode: session              # session | batch
     posture: auto              # read_only | supervised | auto | autonomous
-    posture_source: task       # project | task | dispatch  -- which one supplied it
+    posture_source: task       # project | task | dispatch | epic | history
     posture_ceiling: auto      # the project's max_posture when this run started
     posture_requested: autonomous  # only when the ceiling cut the source down
     trigger: manual            # manual | auto
@@ -458,6 +458,14 @@ that survives. See [agent-dispatch-design.md](agent-dispatch-design.md).
     git_head: 4887b74
     playbook: groom            # playbook runs only; absent on an ordinary dispatch
     playbook_hash: sha256:3f9c… # the brief's content at instantiation
+    envelope:                  # task-375
+      source: grant            # grant | history -- chosen now, or carried over
+      execution_id: exe_5f0c…
+    delivery:                  # task-375: what the agent was actually sent
+      channel: argv            # argv | stdin | turn | none
+      payload_sha256: 9b1e…
+      posture_delivered: true  # the posture clause was inside that payload
+      acknowledged_by: feed1234
 - id: 8
   actor: claude
   type: dispatch_result
@@ -478,6 +486,15 @@ ceiling is machine-local, and the task's own `posture` field may have been edite
 `project`, which is what it always was, never as unknown. `posture_requested` appears
 **only** when the ceiling reduced what the source asked for, so its presence is itself
 the signal that something wanted a wider envelope than it got.
+
+`envelope` and `delivery` are task-375's, and they separate three facts one `posture`
+field used to stand for. `envelope.source: history` means the run continued an earlier
+execution and kept the runner, group and posture it was granted rather than re-reading
+today's defaults; `continues_execution_id` names that execution. `delivery` says what
+reached the agent: `posture_delivered` is computed from the delivered text, so an entry
+can no longer assert a posture its session was never told. `resume_refused` appears when
+a resumable session was deliberately not resumed because the posture changed. Both are
+absent on entries written before task-375.
 
 `playbook` and `playbook_hash` are present only when the run was given a playbook as
 its brief — see [the playbooks design](playbooks-design.md) §4.3. They answer a

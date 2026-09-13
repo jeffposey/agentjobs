@@ -500,9 +500,10 @@ class DispatchCandidateData(StrictModel):
     """One runner a group offered, and what the selector concluded about it.
 
     Every member of the group appears, winner included, in the order the file declares
-    them. A candidate listed after the winner is marked eligible and carries no reason:
-    "considered and not reached" is a different fact from "considered and rejected", and
-    a reader three weeks later needs to be able to tell them apart.
+    them, and every one was judged -- including the members after the winner (task-415).
+    Before that a later member was marked eligible without being checked, so a group
+    whose second runner was switched off read as offering two. ``eligible`` now always
+    means "could run here"; ``selected`` marks the one that did.
     """
 
     runner: str = Field(..., description="Runner name from the group's member list.")
@@ -517,6 +518,13 @@ class DispatchCandidateData(StrictModel):
     detail: Optional[str] = Field(
         default=None,
         description="The member's own note, or what specifically was missing.",
+    )
+    selected: Optional[bool] = Field(
+        default=None,
+        description=(
+            "True on the one candidate that ran. Absent on the others, and on every "
+            "entry written before task-415, where the winner is the entry's `runner`."
+        ),
     )
 
 
@@ -543,6 +551,73 @@ class DispatchSelectionData(StrictModel):
         ...,
         min_length=1,
         description="Every member of the group, in declared order, with its verdict.",
+    )
+
+
+class DispatchEnvelopeData(StrictModel):
+    """Where a run's grant came from (task-375).
+
+    A retry or resume keeps the runner, group and posture its execution was admitted
+    with. ``source`` says which kind of run this is, so a reader can tell a continuation
+    that kept a big-dawg runner from a fresh dispatch that chose one.
+    """
+
+    source: str = Field(
+        ...,
+        description=(
+            "'grant' when this dispatch resolved its runner and posture now; 'history' "
+            "when it continued an earlier execution's recorded ones."
+        ),
+    )
+    execution_id: Optional[str] = Field(
+        default=None, description="The execution journal's id for the intent this run serves."
+    )
+    continues_execution_id: Optional[str] = Field(
+        default=None,
+        description="On a continuation, the execution whose envelope it carried over.",
+    )
+
+
+class DispatchDeliveryData(StrictModel):
+    """What reached the agent, rather than what dispatch resolved (task-375).
+
+    The ``posture`` on the entry is the grant. Whether the agent was *told* it is a
+    separate fact, and one this entry used to assert without checking: task-273's
+    resumed session was recorded as ``autonomous`` and had only ever been sent ``auto``.
+    """
+
+    channel: str = Field(
+        ...,
+        description=(
+            "'argv' for a cold start's prompt, 'stdin' for a resumed session's turn, "
+            "'turn' for a Codex App Server turn, 'none' when the runner's command carries "
+            "no prompt at all."
+        ),
+    )
+    payload_sha256: Optional[str] = Field(
+        default=None, description="Hash of the exact prompt text delivered, when there was one."
+    )
+    posture_delivered: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Whether the posture and push clause was inside the delivered payload. Absent "
+            "for a posture that has no clause (read_only), which its flags enforce alone."
+        ),
+    )
+    acknowledged_by: Optional[str] = Field(
+        default=None,
+        description=(
+            "The session or thread id the launcher returned on accepting the payload. "
+            "That acceptance is the only acknowledgement available; it does not show "
+            "the model read the text."
+        ),
+    )
+    resume_refused: Optional[str] = Field(
+        default=None,
+        description=(
+            "Why a resumable session was deliberately not resumed -- today, only a posture "
+            "change. Absent when nothing was refused."
+        ),
     )
 
 
@@ -639,6 +714,22 @@ class DispatchData(StrictModel):
             "e.g. `sha256:3f9c...`. `git_head` above says which commit the tree was "
             "on; this says which brief actually ran, which is a different question "
             "whenever the tree was dirty or the file changed between two runs."
+        ),
+    )
+    envelope: Optional[DispatchEnvelopeData] = Field(
+        default=None,
+        description=(
+            "Which execution this run belongs to, and whether its runner and posture "
+            "were granted now or carried over from the execution it continues (task-375). "
+            "Absent on entries written before that task."
+        ),
+    )
+    delivery: Optional[DispatchDeliveryData] = Field(
+        default=None,
+        description=(
+            "What the agent was actually sent, as distinct from what was resolved: the "
+            "channel, a hash of the payload, and whether the posture clause was in it "
+            "(task-375). Absent on entries written before that task."
         ),
     )
 

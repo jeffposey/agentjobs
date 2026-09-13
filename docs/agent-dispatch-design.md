@@ -3370,7 +3370,9 @@ mechanisms and their history; where this section differs, it is a proposed repla
 not a claim that the runtime already works this way. Implementation is the child program
 on task-414. **The journal, admission, the terminal transition, the source feed and the
 legacy import shipped in task-264** -- see
-[What task-264 built](#what-task-264-built-2026-09-13); everything else here is still
+[What task-264 built](#what-task-264-built-2026-09-13) -- and **the frozen envelope and
+history-based continuation in task-375** -- see
+[What task-375 built](#what-task-375-built-2026-09-13); everything else here is still
 design.
 
 An accepted dispatch is an obligation with a durable identity. AgentJobs keeps advancing
@@ -3892,6 +3894,30 @@ operator restore, with every dispatching process stopped.
 on a failed turn, which took the run out of the poller's sight, so the poller's
 `crashed` settle for it was unreachable and its slot would never have been released under
 journal ownership. It now leaves the status live and the poller concludes the run.
+
+### What task-375 built (2026-09-13)
+
+The immutable envelope, history-based continuation and truthful candidate reporting.
+Authoritative from this build, and deliberately narrower than the text above in the
+places named:
+
+| Fact | Where it is decided |
+| --- | --- |
+| What an execution was granted | `dispatch.envelope.build_envelope`, frozen at admission: runner, driver, mode, argv template, env variable **names**, group and every candidate's verdict, posture with source/ceiling/requested, push, merge policy, the exact policy clause, a settings digest, trigger, workflow and adapter versions, and whether it is a new grant or a continuation (`grant.kind`, `continues_execution_id`, `root_execution_id`) |
+| Whether a dispatch continues one | `envelope.is_continuation`: trigger `auto` naming no runner, group, posture, playbook, authoriser or epic. A person's click, a CLI dispatch and an epic child are new grants and resolve from configuration as it stands |
+| What a continuation runs | The newest native execution for the project/task (`ExecutionStore.latest_execution`). `config.resolve_recorded_runner` skips the precedence ladder; the recorded member disabled in its group, removed, or not installed is `recorded_runner_unavailable`, never another member |
+| What posture it gets | `resolve_posture(history=...)`: below a dispatch-time or inherited choice, above the task field and project default; clamped by a lowered ceiling, never widened by a raised one. Push narrows the same way |
+| Whether a Stop defeats it | A `stop_requested` event on the execution being continued refuses an automatic continuation (`grant_stopped`). Every Stop today is a person's (API, CLI, panic); task-312 owns telling a stand-down apart |
+| Whether a session is resumed | `wake.resume_refusal`: never across a posture change, and never when the previous run recorded none. Claude and Codex both start a fresh session instead; for Codex this is not a resume failure, so the explicit-fresh-start policy is not engaged |
+| What the agent was told | The dispatch entry's `delivery`: channel, payload sha256, `posture_delivered` computed from the delivered text, the launcher's returned id as the only acknowledgement, and `resume_refused`. A same-posture wake carries the full policy clause on stdin |
+| Which group members could run | `config.select_runner` judges every member, including those after the winner; `selected` marks the one that ran (task-415) |
+
+**Not built here.** Retries *within* one execution (still one attempt per execution,
+task-416), a coordinator that reads the envelope back rather than the dispatcher, and
+observation events for policy checks: revocation is enforced at the dispatch gates, not
+yet recorded as a journal observation. Legacy-import and pre-envelope executions give no
+history and resolve as before; nothing reconstructs a missing runner or posture from
+today's defaults.
 
 ### Implementation ownership and order
 

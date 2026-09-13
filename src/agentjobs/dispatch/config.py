@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import re
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence
@@ -157,6 +157,19 @@ class NoEligibleRunnerError(DispatchError):
     """
 
     reason = "no_eligible_runner"
+
+
+class RecordedRunnerUnavailableError(DispatchError):
+    """A continuation's recorded runner can no longer run here (task-375).
+
+    A retry or resume keeps the runner its execution was granted. When that runner has
+    since been disabled in its group, removed from ``runners:``, or lost its executable,
+    the continuation is refused by name rather than handed to the next member of the
+    group or to today's project default: either would run a model nobody granted this
+    execution, which is the downgrade task-410 recorded.
+    """
+
+    reason = "recorded_runner_unavailable"
 
 
 class PlaceholderError(DispatchError):
@@ -333,6 +346,13 @@ class PostureSource(str, Enum):
     choice. A child that merged unreviewed must be traceable to the act that actually
     authorised it, and that act is on the parent's record, not this one's."""
 
+    HISTORY = "history"
+    """Carried over from the execution this run continues (task-375).
+
+    A retry or resume is not a new grant, so it keeps the posture its execution was
+    admitted with rather than re-reading today's project or task default. The ceiling
+    still applies, and only ever narrows it: see ``resolve_posture``."""
+
 
 @dataclass(frozen=True)
 class ResolvedPosture:
@@ -377,8 +397,17 @@ def resolve_posture(
     task: Optional[Posture] = None,
     requested: Optional[Posture] = None,
     inherited: Optional[Posture] = None,
+    history: Optional[Posture] = None,
 ) -> ResolvedPosture:
-    """Decide what one run may do, from up to four sources and one ceiling (task-308).
+    """Decide what one run may do, from up to five sources and one ceiling (task-308).
+
+    ``history`` is the posture a continuation's execution was admitted with (task-375).
+    The caller passes it only for a retry or resume, which never also carries a
+    dispatch-time or inherited choice, so its place in the order is below those two and
+    above the task field and the project default: a continuation keeps its grant whatever
+    either default says now. Against the ceiling it is **clamped**, never refused and
+    never widened -- a lowered ceiling is a revocation and wins, and a raised one grants
+    this execution nothing it did not already have.
 
     **Precedence is most-specific-wins**: a posture chosen for this dispatch beats one
     inherited from the epic this task belongs to, which beats one written on the task
@@ -452,6 +481,13 @@ def resolve_posture(
                 "dispatch.yaml."
             )
         return ResolvedPosture(posture=inherited, source=PostureSource.EPIC, ceiling=ceiling)
+
+    if history is not None:
+        if history.within(ceiling):
+            return ResolvedPosture(posture=history, source=PostureSource.HISTORY, ceiling=ceiling)
+        return ResolvedPosture(
+            posture=ceiling, source=PostureSource.HISTORY, ceiling=ceiling, requested=history
+        )
 
     if task is not None:
         if task.within(ceiling):
@@ -616,6 +652,12 @@ class SelectionSource(str, Enum):
     PROJECT_RUNNER = "project_runner"
     """``projects.<id>.runner`` -- today's behaviour, and the last rung of the ladder."""
 
+    HISTORY = "history"
+    """The runner the execution this run continues was granted (task-375).
+
+    Not a rung of the ladder: a retry or resume skips the ladder entirely, so a changed
+    project default, group order or machine default cannot change what it runs."""
+
 
 class SkipReason(str, Enum):
     """Why a group member was passed over. Recorded per candidate, in the task log."""
@@ -638,6 +680,9 @@ class RunnerCandidate:
     eligible: bool
     skipped_because: Optional[SkipReason] = None
     detail: Optional[str] = None
+    selected: bool = False
+    """The one candidate that runs. Every other eligible candidate was evaluated and
+    would have been able to run, but came later in the group's order (task-415)."""
 
 
 @dataclass(frozen=True)
@@ -1527,10 +1572,15 @@ def select_runner(
     """Choose the first member of ``group`` that can run, and account for the rest.
 
     Deterministic by construction: the inputs are the file's declared order and three
-    local predicates, so the same config selects the same member every time. Candidates
-    after the winner are still listed, marked eligible, and not evaluated further --
-    "considered and not reached" is a different fact from "considered and rejected", and
-    the log entry should not blur them.
+    local predicates, so the same config selects the same member every time.
+
+    **Every member is evaluated, including the ones after the winner** (task-415). Until
+    then a later member was listed as eligible without being checked, so a group whose
+    second member was switched off read as two runners able to run -- the big-dawg
+    record on task-410 said exactly that. ``eligible`` is now always the answer to "could
+    this one run here", and ``selected`` marks the one that does. None of the predicates
+    reaches past the file and ``PATH``: model availability, quota and credentials are
+    not probed.
 
     Raises ``NoEligibleRunnerError`` when every member was passed over. See that class
     for why this does not fall back to the project's plain runner.
@@ -1539,41 +1589,11 @@ def select_runner(
     chosen: Optional[DispatchRunner] = None
 
     for member in group.members:
-        if chosen is not None:
-            candidates.append(RunnerCandidate(runner=member.runner, eligible=True))
-            continue
-
-        definition = runners.get(member.runner)
-        if not member.enabled:
-            candidates.append(
-                RunnerCandidate(
-                    runner=member.runner,
-                    eligible=False,
-                    skipped_because=SkipReason.DISABLED,
-                    detail=member.note,
-                )
-            )
-        elif definition is None:
-            candidates.append(
-                RunnerCandidate(
-                    runner=member.runner,
-                    eligible=False,
-                    skipped_because=SkipReason.UNDEFINED_RUNNER,
-                    detail=f"No runner named {member.runner!r} under 'runners:'.",
-                )
-            )
-        elif not executable_available(definition.argv):
-            candidates.append(
-                RunnerCandidate(
-                    runner=member.runner,
-                    eligible=False,
-                    skipped_because=SkipReason.EXECUTABLE_NOT_FOUND,
-                    detail=f"{definition.argv[0]!r} is not on PATH.",
-                )
-            )
-        else:
+        definition, candidate = evaluate_member(member, runners)
+        if chosen is None and definition is not None:
             chosen = definition
-            candidates.append(RunnerCandidate(runner=member.runner, eligible=True))
+            candidate = replace(candidate, selected=True)
+        candidates.append(candidate)
 
     if chosen is None:
         raise NoEligibleRunnerError(
@@ -1584,6 +1604,77 @@ def select_runner(
         )
 
     return RunnerSelection(runner=chosen, source=source, group=group.name, candidates=candidates)
+
+
+def evaluate_member(
+    member: RunnerGroupMember, runners: Mapping[str, DispatchRunner]
+) -> tuple[Optional[DispatchRunner], RunnerCandidate]:
+    """Whether one group member could run here, and the definition if it could.
+
+    The three local predicates, in the order a person fixing the file would want them
+    reported: switched off, not defined, not installed.
+    """
+    definition = runners.get(member.runner)
+    if not member.enabled:
+        return None, RunnerCandidate(
+            runner=member.runner,
+            eligible=False,
+            skipped_because=SkipReason.DISABLED,
+            detail=member.note,
+        )
+    if definition is None:
+        return None, RunnerCandidate(
+            runner=member.runner,
+            eligible=False,
+            skipped_because=SkipReason.UNDEFINED_RUNNER,
+            detail=f"No runner named {member.runner!r} under 'runners:'.",
+        )
+    if not executable_available(definition.argv):
+        return None, RunnerCandidate(
+            runner=member.runner,
+            eligible=False,
+            skipped_because=SkipReason.EXECUTABLE_NOT_FOUND,
+            detail=f"{definition.argv[0]!r} is not on PATH.",
+        )
+    return definition, RunnerCandidate(runner=member.runner, eligible=True)
+
+
+def resolve_recorded_runner(
+    config: DispatchConfig, *, runner: str, group: Optional[str]
+) -> RunnerSelection:
+    """The runner a continuation was granted, if it can still run here (task-375).
+
+    Skips the precedence ladder: a retry or resume is not a new selection, so neither a
+    changed project default nor a reordered group can move it. What *can* stop it is a
+    revocation observed now -- the recorded member switched off in its recorded group,
+    the runner removed from ``runners:``, its executable gone -- and each is a refusal by
+    name. Nothing here substitutes another runner, inside the old group or out of it.
+
+    The selection carries ``source=history`` and one candidate, the recorded runner, with
+    the verdict it got just now. A group the file no longer defines is not a revocation
+    of the runner: the operator removed a grouping, not the model.
+    """
+    recorded_group = config.runner_groups.get(group) if group else None
+    member = None
+    if recorded_group is not None:
+        member = next((m for m in recorded_group.members if m.runner == runner), None)
+    definition, candidate = evaluate_member(
+        member or RunnerGroupMember(runner=runner), config.runners
+    )
+    if definition is None:
+        where = f" in group {group!r}" if member is not None else ""
+        raise RecordedRunnerUnavailableError(
+            f"This continues an execution granted runner {runner!r}{where}, and that runner "
+            f"cannot run here now ({_why_skipped([candidate])}). Nothing else is "
+            "substituted for it: re-enable or reinstall it, or dispatch the task again to "
+            "grant a different runner."
+        )
+    return RunnerSelection(
+        runner=definition,
+        source=SelectionSource.HISTORY,
+        group=group,
+        candidates=[replace(candidate, selected=True)],
+    )
 
 
 def _why_skipped(candidates: Sequence[RunnerCandidate]) -> str:
@@ -1692,8 +1783,15 @@ def assert_dispatch_permitted(
     *,
     runner: Optional[str] = None,
     group: Optional[str] = None,
+    recorded: Optional[tuple[str, Optional[str]]] = None,
 ) -> DispatchResolution:
     """Walk every dispatch gate for ``project_id`` and resolve its runner.
+
+    ``recorded`` is ``(runner, group)`` from the execution a retry or resume continues
+    (task-375). Given, the four gates run exactly as for any dispatch, and the runner is
+    the recorded one or a refusal -- see ``resolve_recorded_runner``. It excludes
+    ``runner`` and ``group``: a continuation that also chose a runner would be a new grant
+    wearing an old one's name.
 
     The single entry point the API, the CLI and the supervisor all call. Raises a
     ``DispatchError`` subclass naming the gate that refused; returns the resolved runner
@@ -1735,7 +1833,15 @@ def assert_dispatch_permitted(
 
     # Gate 2, and only now: every other gate is about whether this machine will run
     # anything at all, and none of them may be reachable from a caller's choice of group.
-    selection = resolve_runner(config, settings, runner=runner, group=group)
+    if recorded is not None:
+        if runner or group:
+            raise DispatchConfigError(
+                "A continuation keeps the runner its execution was granted, so it cannot "
+                "also name a runner or a group. Dispatch the task afresh to choose one."
+            )
+        selection = resolve_recorded_runner(config, runner=recorded[0], group=recorded[1])
+    else:
+        selection = resolve_runner(config, settings, runner=runner, group=group)
 
     return DispatchResolution(
         project_id=project_id,
@@ -1745,7 +1851,8 @@ def assert_dispatch_permitted(
         config=config,
         selection=(
             selection
-            if selection.from_group or selection.source is SelectionSource.DISPATCH_RUNNER
+            if selection.from_group
+            or selection.source in (SelectionSource.DISPATCH_RUNNER, SelectionSource.HISTORY)
             else None
         ),
     )
