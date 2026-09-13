@@ -587,18 +587,27 @@ the enum, the value and the task, rather than failing the call. An old client sh
 `posture: auto` as text it cannot interpret and everything else about the task still
 works.
 
+**Adding a field is the same widening one level over** (task-445). task-375 added
+`envelope` and `delivery` to dispatch entries; a supervisor whose MCP server predated it
+got `internal_error` — `log.10.delivery: Extra inputs are not permitted` — from a
+`task_log_append` that had in fact landed, and its retry recorded the entry twice. So the
+tolerant parse also leaves out a key a nested model does not declare, logging the field
+and the model. A log entry's `data` is kept as the raw mapping, so a newer writer's
+fields still appear in the parsed task, and nothing a client parses is written back.
+
 Tolerance is opt-in, scoped to that parse (`agentjobs.schema_tolerance`), and covers
-unknown *members of known enums* only. Everything else is unchanged:
+unknown *members of known enums* and *undeclared keys*. Everything else is unchanged:
 
-- **Writing an unknown enum value is still refused.** This is about what a reader
-  accepts, never about what may be stored.
-- **`TaskStorage` stays strict.** A file carrying a value this build does not know is
-  still a load error, reported by file and field.
-- A malformed payload — missing field, wrong type, unknown key — still fails loudly.
+- **Writing an unknown enum value or an undeclared field is still refused.** This is
+  about what a reader accepts, never about what may be stored.
+- **`TaskStorage` stays strict.** A file carrying a value or key this build does not
+  know is still a load error, reported by file and field.
+- A malformed payload — missing field, wrong type — still fails loudly.
 
-So widening an enum no longer requires restarting every session that holds an older
-build. Those sessions cannot *interpret* the new member, which is why the warning names
-it; they can still read and write the record.
+So widening an enum or adding an optional field no longer requires restarting every
+session that holds an older build. Those sessions cannot *interpret* what is new, which
+is why the warning names it; they can still read and write the record. A session that
+started before this tolerance existed still fails, which no change here can reach.
 
 ## Editing tasks
 
