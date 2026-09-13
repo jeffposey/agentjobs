@@ -642,3 +642,53 @@ class TestRetriesKeepTheirLimits:
         machine.clock.advance(12 * 3600)
         machine.tick(6)
         assert len(machine.attempts(task_id)) == 2
+
+
+# ----- sessions AgentJobs did not start are admitted too (from-264-admission) -----------
+
+
+class TestSessionsAreAdmitted:
+    def test_an_interactive_claim_owns_its_task_in_the_journal_without_a_slot(
+        self, machine: Machine
+    ) -> None:
+        from agentjobs.dispatch.interactive import start_interactive_run
+        from agentjobs.session_identity import SessionIdentity
+
+        task_id = machine.task()
+        machine.manager.claim_task(task_id, agent="claude")
+        project = ProjectRegistry(home=machine.home).get("sandbox")
+        record = start_interactive_run(
+            home=machine.home, project=project, task=machine.manager.get_task(task_id),
+            identity=SessionIdentity(session_id="11112222", cwd=str(machine.root), driver="claude"),
+            actor="claude",
+        )
+        assert record is not None
+        attempt = journal(machine.home).attempt(record.run_id)
+        assert attempt is not None and attempt.is_live and not attempt.takes_slot
+        assert attempt.session_id == "11112222"
+        from agentjobs.dispatch.guards import LiveRunExistsError
+
+        with pytest.raises(LiveRunExistsError):
+            machine.dispatch(task_id)  # one live owner per task, decided by the journal
+
+    def test_a_registered_session_cannot_free_itself_by_editing_its_meta(
+        self, machine: Machine
+    ) -> None:
+        from agentjobs.dispatch.journal import admit_session, release_ended
+        from agentjobs.dispatch.runner import RunDirectory
+
+        task_id = machine.task()
+        admit_session(
+            machine.home, project_id="sandbox", task_id=task_id, run_id="run_registered",
+            session_id="33334444", mode="session", takes_slot=True,
+        )
+        RunDirectory.create(
+            machine.home, "run_registered",
+            {"run_id": "run_registered", "task_id": task_id, "project_id": "sandbox",
+             "mode": "session", "origin": "registered", "status": "finished",
+             "session_id": "33334444"},
+        )
+        released = release_ended(machine.home, lambda _pid: machine.manager)
+        assert released == []
+        attempt = journal(machine.home).attempt("run_registered")
+        assert attempt is not None and attempt.is_live and attempt.takes_slot

@@ -482,7 +482,9 @@ def attempt_evidence(
                     "admitted but never launched, and the process that admitted it is gone",
                 )
         if record is not None and not record.is_live:
-            if record.is_interactive or record.origin:
+            # A person's session only (task-416). A registered background session is
+            # admitted and followed like a dispatch, so its own meta proves nothing.
+            if record.is_interactive:
                 return (
                     record.outcome or DispatchOutcome.SESSION_ENDED.value,
                     record.status,
@@ -552,6 +554,42 @@ def admit_dispatch(
         continues_execution_id=continues_execution_id,
         controlled_by=controlled_by,
     )
+
+
+def admit_session(
+    home: Path,
+    *,
+    project_id: str,
+    task_id: str,
+    run_id: str,
+    session_id: str,
+    mode: str,
+    takes_slot: bool,
+) -> Attempt:
+    """Admit a session AgentJobs did not start: a person's claim, or a self-registration.
+
+    Until task-416 these had no journal row until something concluded them, so their
+    ownership and -- for a registered background session -- their slot were judged from a
+    ``meta.yaml`` the session itself can write. They are admitted here like a dispatch:
+    ownership in the same transaction that refuses a second owner, and the attempt marked
+    launched at once, because the session already exists.
+
+    No capacity check, deliberately and as before: the session is already running, and
+    refusing it would not stop it, only hide it. A registered background session does hold
+    a slot from here on, because the machine really is running it. Raises
+    ``OwnershipConflict`` when something live already owns the task.
+    """
+    release_ended(home, lambda _project: None)
+    store = journal(home)
+    store.admit(
+        project_id=project_id,
+        task_id=task_id,
+        run_id=run_id,
+        capacity=None,
+        takes_slot=takes_slot,
+        mode=mode,
+    )
+    return store.mark_launched(run_id, session_id=session_id)
 
 
 def abandon_admission(home: Path, run_id: str, *, launched: bool, reason: str) -> None:
