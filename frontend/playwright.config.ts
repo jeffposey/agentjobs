@@ -66,8 +66,12 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
   workers: 1,
+  // No retries, deliberately. A blanket retry would also re-run a test whose browser the
+  // application crashed. The gate retries one narrow case instead: a test whose browser was
+  // already gone before it started, read from the JSON report below (task-404,
+  // scripts/e2e_failures.py, which asserts this path).
   retries: 0,
-  reporter: "line",
+  reporter: [["line"], ["json", { outputFile: "playwright-report/e2e-results.json" }]],
   use: {
     baseURL,
     browserName: "chromium",
