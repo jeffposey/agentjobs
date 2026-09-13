@@ -714,6 +714,8 @@ class Controller:
         if attempt is None or not attempt.is_live or record is None:
             return None
         ledger = DispatchLedger(self.home, registry=self.registry, managers=self.managers)  # type: ignore[arg-type]
+        if record.is_session and not record.session_id:
+            return self._stop_unrecorded_session(execution, record, ledger)
         stopped = ledger._stop(record)
         if record.is_session and not stopped.stopped:
             return f"stop not confirmed: {stopped.detail}"
@@ -723,6 +725,52 @@ class Controller:
             record, DispatchOutcome.CANCELLED, actor=CONTROLLER_ACTOR, body=stopped.detail
         )
         return f"stopped: {stopped.detail}"
+
+    def _stop_unrecorded_session(
+        self, execution: Execution, record: RunRecord, ledger: DispatchLedger
+    ) -> str:
+        """A Stop on a launch nobody recorded a session for: the ``effect_unknown`` case.
+
+        There is no id to stop, so the confirmation ``DispatchLedger.cancel`` needs cannot
+        come from ``stop <id>`` (task-312 concludes only a confirmed Stop). It comes from
+        the driver's listing instead, by the name the launch carried: every session under
+        that name is stopped and the listing re-read, and only a readable listing showing
+        none of them live concludes the run. The person's Stop is what makes this
+        acceptable where the controller alone escalated -- they were asked to look, and
+        asked for the run to end.
+        """
+        from agentjobs.dispatch.runner import DispatchRunError, session_name
+
+        runner = self._runner_for(execution, record)
+        if runner is None:
+            return "stop not confirmed: no runner to read the listing with"
+        name = str(
+            _meta(record).get("session_name")
+            or session_name(record.project_id, record.task_id, record.run_id)
+        )
+        try:
+            for row in runner.ledger(include_finished=True):
+                if str(row.get("name") or "") == name and row.get("state") != "stopped":
+                    runner.stop_session(str(row.get("id")))
+            still = [
+                row
+                for row in runner.ledger()
+                if str(row.get("name") or "") == name and row.get("state") != "stopped"
+            ]
+        except DispatchRunError as exc:
+            return f"stop not confirmed: the listing could not be read ({exc})"
+        if still:
+            return f"stop not confirmed: {len(still)} session(s) named {name!r} still listed"
+        ledger._conclude(
+            record,
+            DispatchOutcome.CANCELLED,
+            actor=CONTROLLER_ACTOR,
+            body=(
+                f"Stopped. No session under this run's name ({name}) is live in the driver's "
+                "listing, so nothing launched for it is still writing."
+            ),
+        )
+        return f"stopped: no live session named {name}"
 
     # ----- between attempts -----------------------------------------------------
 
