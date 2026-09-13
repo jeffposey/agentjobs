@@ -18,6 +18,12 @@ from agentjobs.principals import set_run_credential_verifier
 from agentjobs.projects import HOME_ENV
 from agentjobs.store_factory import close_databases, reset_server_process
 
+# Imported for its side effect, and before any fixture below exists: it captures the
+# machine's AgentJobs home at import, which is the only moment `isolate_project_registry`
+# has not yet re-pointed it. The corpus checks read the real backlog through that capture
+# rather than through the environment (task-411).
+import corpus_source  # noqa: E402,F401
+
 # The shared write-guard matrix holds assertions but is imported by the two hook test
 # modules rather than collected, so pytest would not rewrite them and a failure would
 # report a bare `assert False`. Registering it here, before anything imports it, keeps

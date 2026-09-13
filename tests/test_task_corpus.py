@@ -11,11 +11,16 @@ the frozen records left the checkout, and a test that collects nothing is not a 
 `tests/corpus_source.py` says where each of those guarantees went. Everything here is
 about *the backlog*, and reads whichever store holds it.
 
-**Which means everything here currently skips, and this file is not enforcing anything.**
-An autouse fixture hides the machine's store from every test; the measurement, why it was
-not fixed in passing, and what it costs to fix are in
-`corpus_source.WHY_THESE_SKIP` and task-411. Do not cite a check in this module as
-enforcement until that closes.
+**They skipped, silently, from task-311 until task-411**: an autouse fixture hid the
+machine's store from every test. They now read it through a home captured before that
+fixture runs, and **a store that cannot be read fails them** rather than skipping.
+`tests/test_corpus_source.py` asserts both halves, so the silence cannot come back
+unnoticed. `corpus_source` says how, and how a machine with no store opts out.
+
+**They read a live store, so they couple branches.** A record filed with a bad pointer or
+a verbatim quotation turns every gate on this machine red, with nothing in any diff to
+explain it; the failure names the task, and the fix is to the record, not to the branch.
+Seen from the gate's side that is task-409.
 """
 
 from __future__ import annotations
@@ -23,9 +28,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import PurePosixPath, PureWindowsPath
 
-import pytest
-
-from agentjobs.models_v2 import DeliverableStatus, Lifecycle, SCHEMA_VERSION, Task, load_task
+from agentjobs.models_v2 import DeliverableStatus, Lifecycle, SCHEMA_VERSION, load_task
 from agentjobs.quotation import scan_task
 
 import corpus_source
@@ -76,33 +79,14 @@ def retired_record_id(path: str) -> str | None:
     return candidate.stem
 
 
-def agentjobs_tasks() -> list[Task]:
-    """The product backlog, from whichever backend holds it. Skips if unreadable."""
-    tasks = corpus_source.product_tasks()
-    if tasks is None:
-        pytest.skip(
-            "this repository's own backlog could not be read from either backend; "
-            "`agentjobs storage status` says where it is"
-        )
-    return tasks
-
-
-def corpus_tasks() -> list[Task]:
-    """Every record: the product backlog plus the fixture data beside it."""
-    tasks = corpus_source.all_tasks()
-    if tasks is None:
-        pytest.skip("this repository's own backlog could not be read from either backend")
-    return tasks
-
-
 def test_corpus_is_not_empty() -> None:
-    """Guard against the corpus silently emptying, whichever backend holds it.
+    """Guard against the corpus silently emptying.
 
     Counted through the resolved source rather than by globbing a directory: a directory
     that has moved and a corpus that has been migrated look identical from a glob, and
     only one of them is a fault.
     """
-    tasks = corpus_tasks()
+    tasks = corpus_source.backlog()
     assert len(tasks) >= 20, (
         f"expected the task corpus to contain at least 20 records, found {len(tasks)} -- "
         "did a directory move, or a cutover go wrong, without this test being updated?"
@@ -123,7 +107,7 @@ def test_every_record_carries_the_stamp_and_round_trips() -> None:
     survive being dumped and reloaded breaks the export an operator recovers a corpus
     with, and nothing in the database can notice that.
     """
-    for task in corpus_tasks():
+    for task in corpus_source.backlog():
         assert task.schema_version == SCHEMA_VERSION, (
             f"{task.id} is not at schema {SCHEMA_VERSION} -- a record below it is "
             "treated as v1 and refused by the loader"
@@ -143,7 +127,7 @@ def test_every_record_carries_the_stamp_and_round_trips() -> None:
 
 def test_agentjobs_task_ids_and_relationships_are_not_dangling() -> None:
     """The durable roadmap must not point at records that do not exist."""
-    tasks = agentjobs_tasks()
+    tasks = corpus_source.backlog()
     ids = [task.id for task in tasks]
     assert len(ids) == len(set(ids)), "AgentJobs task ids must be unique"
 
@@ -189,9 +173,9 @@ def test_agentjobs_context_paths_exist() -> None:
     `agentjobs show` reads. Such a pointer passes when the record it names is in the
     backlog, and fails when it is not -- which is the dangling this check exists to catch.
     """
-    known = {task.id for task in agentjobs_tasks()}
+    known = {task.id for task in corpus_source.backlog()}
     pointers: list[tuple[str, str]] = []
-    for task in agentjobs_tasks():
+    for task in corpus_source.backlog():
         if task.lifecycle is Lifecycle.CLOSED:
             continue
         pending_deliverables = {
@@ -229,7 +213,7 @@ def test_agentjobs_context_paths_exist() -> None:
 
 def test_open_ui_tasks_do_not_target_legacy_templates() -> None:
     """New product UI work belongs to React; Jinja is compatibility/history only."""
-    for task in agentjobs_tasks():
+    for task in corpus_source.backlog():
         if task.lifecycle is Lifecycle.CLOSED:
             continue
 
@@ -263,7 +247,9 @@ def test_no_task_record_quotes_a_person_verbatim() -> None:
     it.
     """
     offenders = [
-        f"{task.id}: {remark.locator()}" for task in corpus_tasks() for remark in scan_task(task)
+        f"{task.id}: {remark.locator()}"
+        for task in corpus_source.backlog()
+        for remark in scan_task(task)
     ]
 
     assert not offenders, (
