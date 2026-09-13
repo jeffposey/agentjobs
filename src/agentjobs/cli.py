@@ -3266,6 +3266,12 @@ def finish(
         "--posture-release",
         help="Merge on the project's posture rather than on a human approval (task-021).",
     ),
+    resumed_from: str = typer.Option(
+        "",
+        "--resumed-from",
+        hidden=True,
+        help="The interrupted attempt this one resumes; written by the poller (task-443).",
+    ),
 ) -> None:
     """Run the scripted post-approval finish, with no agent in the loop (task-241).
 
@@ -3309,6 +3315,7 @@ def finish(
         task_id=task_id,
         approver=approver,
         authority=POSTURE if posture_release else APPROVAL,
+        resumed_from=resumed_from,
     )
     typer.echo(result.render())
     if result.outcome == DECLINED:

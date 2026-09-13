@@ -760,7 +760,15 @@ class FinishDirectory:
     finish_id: str
 
     @classmethod
-    def create(cls, home: Path, task_id: str, project_id: str) -> "FinishDirectory":
+    def create(cls, home: Path, task_id: str, project_id: str, **fields: Any) -> "FinishDirectory":
+        """A new attempt's directory, with what authorised it written down (task-443).
+
+        ``fields`` carries ``authority``, ``run_id``, ``resumed_from``: what
+        ``finish_resume`` needs to decide whether this attempt may be resumed if it dies,
+        read from the attempt itself rather than guessed afterwards. ``pid`` is always
+        written, because a posture finish's lock names its run, and a run settled as gone
+        can leave this process running.
+        """
         finish_id = f"fin_{uuid.uuid4().hex[:8]}"
         path = finishes_root(home) / finish_id
         path.mkdir(parents=True, exist_ok=True)
@@ -771,6 +779,8 @@ class FinishDirectory:
             project_id=project_id,
             outcome="running",
             started_at=datetime.now(timezone.utc).isoformat(),
+            pid=os.getpid(),
+            **{key: value for key, value in fields.items() if value},
         )
         return directory
 
@@ -2942,6 +2952,7 @@ def finish_task(
     api_base: Optional[str] = None,
     settings: Optional[FinishSettings] = None,
     authority: str = APPROVAL,
+    resumed_from: str = "",
 ) -> FinishResult:
     """Do the fixed part of ENGINEERING.md merge-gate steps 3 to 6, or stop and say where.
 
@@ -2953,6 +2964,11 @@ def finish_task(
     that ever made one before task-021: a person approved it. ``POSTURE`` is the other
     one, and it is checked rather than believed -- the project's machine-local posture
     has to actually release the merge gate, or this declines without touching anything.
+
+    ``resumed_from`` names the interrupted attempt this one was started to resume
+    (task-443). It changes nothing about what this attempt does -- recovery reads the
+    receipts either way -- and is written down so that this attempt dying too parks the
+    task for a human rather than being resumed again.
     """
     resolved_home = home or default_home()
     began_at = _now()
@@ -3063,7 +3079,18 @@ def finish_task(
                 return taken
             lock = taken
 
-    directory = FinishDirectory.create(resolved_home, task_id, project.id)
+    directory = FinishDirectory.create(
+        resolved_home,
+        task_id,
+        project.id,
+        authority=authority,
+        run_id=(
+            own_run_id(resolved_home, task_id, project_id=project.id)
+            if authority == POSTURE
+            else ""
+        ),
+        resumed_from=resumed_from,
+    )
     if lock is not None:
         # The lock is taken before the directory exists -- taking it is what decides
         # whether this attempt happens at all -- so the finish id is written a moment
@@ -4273,8 +4300,16 @@ def spawn_finish(
     task_id: str,
     approver: str,
     home: Optional[Path] = None,
+    resumed_from: str = "",
+    posture_run_id: str = "",
 ) -> Optional[str]:
     """Start a finish in a detached process, and return immediately.
+
+    ``resumed_from`` and ``posture_run_id`` are ``finish_resume``'s (task-443): the
+    attempt this one resumes, and -- for a finish that was merging on a run's posture --
+    the run whose grant it resumes on. That run's id goes into the child's environment,
+    where ``released_posture`` reads it back and re-applies today's ceiling; nothing here
+    grants a posture.
 
     **Not a thread in the server, and that is not a style preference.** Step five of the
     sequence restarts the server. A finish running inside it would be killed by its own
@@ -4317,6 +4352,12 @@ def spawn_finish(
         "--approver",
         approver,
     ]
+    if resumed_from:
+        argv += ["--resumed-from", resumed_from]
+    environment: Optional[Dict[str, str]] = None
+    if posture_run_id:
+        argv.append("--posture-release")
+        environment = {**os.environ, RUN_ID_ENV: posture_run_id}
     try:
         if os.name == "nt":
             subprocess.Popen(
@@ -4324,6 +4365,7 @@ def spawn_finish(
                 cwd=str(project.root),
                 stdout=handle,
                 stderr=subprocess.STDOUT,
+                env=environment,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
             )
         else:
@@ -4332,6 +4374,7 @@ def spawn_finish(
                 cwd=str(project.root),
                 stdout=handle,
                 stderr=subprocess.STDOUT,
+                env=environment,
                 start_new_session=True,
             )
     except (OSError, subprocess.SubprocessError):
