@@ -475,7 +475,14 @@ def attempt_evidence(
                         return outcome, status, "its dispatch_result is on the task"
         if attempt.state == "admitted" and attempt.holder_pid is not None:
             launched = record is not None and (record.session_id or record.pid is not None)
-            if not launched and not alive(int(attempt.holder_pid)):
+            # The launch marker is written before the launcher runs. With it, nothing on
+            # disk proves the launcher did not spawn a session it never got to record --
+            # the controller's `effect_unknown`, which keeps ownership for a person to
+            # resolve. Releasing it here, as any later admission on the machine did, freed
+            # that ownership and let a second writer start beside a possible orphan
+            # (task-419).
+            marked = directory.is_dir() and bool(_launch_marker(directory))
+            if not launched and not marked and not alive(int(attempt.holder_pid)):
                 return (
                     DispatchOutcome.CRASHED.value,
                     "failed",
@@ -499,6 +506,22 @@ def attempt_evidence(
         return None
 
     return verdict
+
+
+def _launch_marker(directory: Path) -> Optional[str]:
+    """The run's ``launch_attempted_at``, or ``None``. An unreadable meta reads as marked:
+    a record that cannot be read cannot prove a launch never happened."""
+    from agentjobs.dispatch.runner import RunDirectory
+
+    meta_path = directory / "meta.yaml"
+    if not meta_path.is_file():
+        return None
+    try:
+        meta = RunDirectory(path=directory).read_meta()
+    except Exception:  # noqa: BLE001 - see the docstring
+        return "unreadable"
+    marker = meta.get("launch_attempted_at")
+    return str(marker) if marker else None
 
 
 def release_ended(

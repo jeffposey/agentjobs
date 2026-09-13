@@ -1,0 +1,66 @@
+# Sanitised timelines from task-224 (agentjobs backlog), for tests/dispatch/test_durable_replay.py.
+#
+# Times are seconds relative to the session's first authentication failure, which is `at: 0`.
+# No credential, token, session id, run id, machine path or person's words are kept: an event
+# says what happened, and `entries` names the log entries that established it.
+fixture: task-224
+title: A mid-run login expiry parks a dispatched session
+provenance:
+  task: task-224
+  entries_read: [6, 7, 8, 10, 29, 30, 47, 48, 53]
+  checked: "2026-09-13 UTC, against the task record as served by the AgentJobs API"
+  corrections: >-
+    Entry 29 counted two of three occurrences as self-healing. Entry 30 withdrew that: the
+    2026-08-21 23:40 recovery was a person logging in. Only the 2026-08-20 occurrence healed
+    with nobody acting, so it is the only self-heal timeline here.
+  not_established:
+    - Why the refresh calls failed (entry 7 leaves it open; the daemon logs no HTTP status).
+    - Whether any process other than the daemon wrote the credential on 2026-08-20.
+
+timelines:
+  self_heal:
+    occurred: "2026-08-20"
+    entries: [6, 7, 30]
+    summary: >-
+      A dispatched child died on its first request with an expired login. About two minutes
+      later a fresh daemon found a token, and a retry worked. Nobody logged in.
+    events:
+      - {at: 0, kind: stall, text: "Login expired · Please run /login"}
+      - {at: 124, kind: store_recovers, note: "a fresh daemon found a token (entry 6)"}
+    expected:
+      human_actions: 0
+      notifications: 0
+      resumes: 1
+
+  dead_store:
+    occurred: "2026-08-21"
+    entries: [6, 8, 10]
+    summary: >-
+      The daemon discarded a still-valid token after four failed refreshes. The session stayed
+      dead. A message sent into it failed milliseconds later against the discarded credential.
+      Only a login cleared it, and the session then needed a message to resume.
+    events:
+      - {at: 0, kind: stall, text: "Login expired · Please run /login"}
+      - {at: 317, kind: historical_message, note: "a person messaged the session; it failed 9 ms later (entry 6)"}
+      - {at: 326, kind: login, note: "a person ran /login (entry 6)"}
+      - {at: 370, kind: store_recovers, note: "the credential file was rewritten (entry 6)"}
+      - {at: 385, kind: historical_message, note: "the message that resumed the session (entry 8)"}
+    expected:
+      human_actions: 1
+      notifications: 1
+      resumes: 1
+
+  spend_limit_probe:
+    occurred: "2026-08-22"
+    entries: [47, 48]
+    summary: >-
+      An experiment counted six probe answers as healthy. All six were the account's monthly
+      spend-limit refusal, exit 1, and none reached the model.
+    events:
+      - {at: 0, kind: stall, text: "Login expired · Please run /login"}
+      - at: 0
+        kind: probe_output
+        exit: 1
+        text: "You've hit your monthly spend limit - raise it at claude.ai/settings/usage?from=cc_cli_limit_message"
+    expected:
+      resumes: 0

@@ -526,10 +526,16 @@ def next_intents(state: ExecutionState) -> Tuple[Intent, ...]:
         intents = [
             Intent("observe", f"{eid}:observe:{state.run_id}", {"run_id": state.run_id}),
         ]
+        # Named by the attempt as well as the signal. The input names the attempt, and an
+        # activity id whose input changes is refused: keyed on the signal alone, a signal
+        # still pending when an attempt was retried made every replay of the execution
+        # raise `ActivityConflict` before its observe was recorded, so the retried attempt
+        # was never followed again (task-419). Delivering a message at most once across
+        # attempts is the `deliver:<project>:<event>` activity's job, not this proposal's.
         intents.extend(
             Intent(
                 "deliver_signal",
-                f"{eid}:signal:{signal}",
+                f"{eid}:signal:{state.run_id}:{signal}",
                 {"run_id": state.run_id, "source_event_id": signal},
             )
             for signal in state.pending_signals
