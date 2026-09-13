@@ -818,7 +818,7 @@ def _park_prompt(incident: Incident, waiter: Waiter, stall: Stall) -> str:
 @dataclass(frozen=True)
 class NudgeReceipt:
     state: str
-    """``applied``, ``not_applied`` or ``unknown``."""
+    """``applied``, ``not_applied``, ``deferred`` (nothing done, nothing spent) or ``unknown``."""
     detail: str
     session_id: Optional[str] = None
 
@@ -1598,6 +1598,16 @@ def _nudge(
             },
         )
         context.lines.append(f"{waiter.run_id}: nudged")
+    elif receipt.state == "deferred":
+        book.update_waiter(
+            waiter.incident_id,
+            waiter.run_id,
+            expect=(NUDGING,),
+            status=WAITING,
+            detail={"last_nudge_error": receipt.detail[:300]},
+            now=done,
+        )
+        context.lines.append(f"{waiter.run_id}: nudge deferred: {receipt.detail}")
     elif receipt.state == "not_applied":
         book.update_waiter(
             waiter.incident_id,
@@ -1724,6 +1734,10 @@ class ClaudeSessionNudger:
         full = row.get("sessionId")
         if not isinstance(full, str) or not full:
             return NudgeReceipt("not_applied", "the listing gives no full session id")
+        if row.get("status") == "busy":
+            # Something else already woke it -- a person attaching, say. Stopping a working
+            # session to deliver "carry on" would interrupt exactly what recovery wants.
+            return NudgeReceipt("deferred", "the session is busy; it is not stopped to be resumed")
         if row.get("pid"):
             try:
                 self._call(["stop", session_id])

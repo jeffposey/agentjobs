@@ -228,6 +228,13 @@ class TestReadingAQuotaRefusal:
         stall = read_limit_stall(SHORT, home=tmp_path)
         assert stall is not None and stall.kind == "spend_limit"
 
+    def test_a_subagents_refusal_is_not_the_sessions(self, tmp_path: Path) -> None:
+        at = datetime(2026, 9, 12, 3, 57, 41, tzinfo=timezone.utc)
+        line = self._line(at=at, text="You've hit your session limit", resets=1789201800)
+        line["isSidechain"] = True
+        write_transcript(tmp_path, [line], session=FULL)
+        assert read_limit_stall(SHORT, home=tmp_path) is None
+
     def test_a_real_reply_after_the_refusal_clears_it(self, tmp_path: Path) -> None:
         at = datetime(2026, 9, 12, 3, 57, 41, tzinfo=timezone.utc)
         lines = [
@@ -315,6 +322,13 @@ class TestTheNudgeAdapter:
         receipt = _nudger(fake, tmp_path).nudge(SHORT, "carry on")
         assert receipt.state == "not_applied"
         assert ["stop", "c0ffee12"] in fake.calls
+
+    def test_a_busy_session_is_never_stopped_to_be_resumed(self, tmp_path: Path) -> None:
+        fake = _FakeClaude()
+        fake.rows[0]["status"] = "busy"
+        receipt = _nudger(fake, tmp_path).nudge(SHORT, "carry on")
+        assert receipt.state == "deferred"
+        assert [call for call in fake.calls if call[:1] != ["agents"]] == []
 
     def test_an_unrecognised_answer_is_unknown_not_applied(self, tmp_path: Path) -> None:
         fake = _FakeClaude(resume="mute")

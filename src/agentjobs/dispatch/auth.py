@@ -361,7 +361,8 @@ def activity_since(
 def _is_limit_refusal(entry: dict, session_id: str) -> bool:
     if entry.get("error") != LIMIT_ERROR:
         return False
-    if entry.get("isApiErrorMessage") is not True:
+    if entry.get("isApiErrorMessage") is not True or entry.get("isSidechain") is True:
+        # A subagent's refusal is the subagent's; the session carries on without it.
         return False
     return _belongs_to(entry, session_id)
 
