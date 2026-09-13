@@ -676,6 +676,46 @@ class TestConcurrency:
             run(manager, project, home, ready_task.id, caused_by=authorising)
         assert caught.value.reason == "live_run_exists"
 
+    def test_a_refusal_during_the_spawn_names_the_run_already_admitted(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        ready_task,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """task-444: the window between admission and a launched run names its run.
+
+        A second walk was refused inside that window on 2026-09-13 and told the lock "has
+        not named its run yet", so it could not tell a sibling's healthy child from
+        nothing. The spawn is where the time goes, so that is where the second dispatch
+        arrives here.
+        """
+        from agentjobs.dispatch.ledger import read_lock_holder, run_lock_path
+
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        authorising = ready_task.log[-1].id
+        seen: Dict[str, object] = {}
+        real_start = DispatchRunner.start
+
+        def start(self, task, **kwargs):
+            holder = read_lock_holder(run_lock_path(home, task.id, project_id=project.id))
+            seen["holder"] = holder
+            with pytest.raises(LiveRunExistsError) as caught:
+                run(manager, project, home, task.id, caused_by=authorising)
+            seen["refusal"] = str(caught.value)
+            return real_start(self, task, **kwargs)
+
+        monkeypatch.setattr(DispatchRunner, "start", start)
+        handle = run(manager, project, home, ready_task.id, caused_by=authorising)
+        settle(handle)
+
+        holder = seen["holder"]
+        assert holder is not None and holder.run_id == handle.run_id  # type: ignore[attr-defined]
+        assert handle.run_id in str(seen["refusal"])
+        assert "has not named its run yet" not in str(seen["refusal"])
+
     def test_the_machine_limit_refuses_and_does_not_enqueue(
         self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
     ) -> None:
