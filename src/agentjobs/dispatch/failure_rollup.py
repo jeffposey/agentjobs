@@ -461,6 +461,20 @@ def _read_phases(directory: Path) -> Iterable[Dict[str, Any]]:
     return records
 
 
+def _test_id(line: object) -> str:
+    """``tests/x.py::T::t`` out of the gate's ``FAILED tests/x.py::T::t - message`` line.
+
+    A finish records whole summary lines; a repeat is a repeat of the test, whatever the
+    assertion said the second time.
+    """
+    text = str(line).strip()
+    for prefix in ("FAILED ", "ERROR "):
+        if text.startswith(prefix):
+            text = text[len(prefix) :]
+            break
+    return text.split(" - ", 1)[0].strip()
+
+
 def _directory_occurrences(home: Path) -> List[Occurrence]:
     found: List[Occurrence] = []
     for root, is_finish in ((home / "runs", False), (home / "finishes", True)):
@@ -510,7 +524,7 @@ def _directory_occurrences(home: Path) -> List[Occurrence]:
                             task_id=task_id,
                             run_id=run_id,
                             detail=str(first.get("failed_stage") or ""),
-                            tests=tuple(str(t) for t in first.get("failing_tests") or ()),
+                            tests=tuple(_test_id(t) for t in first.get("failing_tests") or ()),
                         )
                     )
     return found
