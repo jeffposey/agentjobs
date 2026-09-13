@@ -9,9 +9,11 @@ import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from datetime import datetime, timezone
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 
 
@@ -25,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 # the fix: it makes every script visible under two module names and aborts the run on the
 # collision, which is the failure task-166 spent a session on. `gate_scope` is checked on
 # its own merits as a top-level module either way.
+import e2e_failures  # type: ignore[import-not-found] # noqa: E402
 import gate_scope  # type: ignore[import-not-found] # noqa: E402
 import gate_slots  # type: ignore[import-not-found] # noqa: E402
 
@@ -121,6 +124,20 @@ def run(command: list[str], *, cwd: Path) -> None:
     """
     print(f"\n> {' '.join(command)}", flush=True)
     subprocess.run(command, cwd=cwd, check=True, env=child_environment())
+
+
+def status_of(command: list[str], *, cwd: Path) -> int:
+    """`run()`, answering with the exit code instead of raising."""
+    try:
+        run(command, cwd=cwd)
+    except subprocess.CalledProcessError as exc:
+        return exc.returncode
+    return 0
+
+
+def emit(text: str) -> None:
+    """Print a paragraph of the gate's own, between the streamed output of its stages."""
+    print(f"\n{text}", flush=True)
 
 
 def package_origin() -> Path | None:
@@ -495,6 +512,66 @@ def printable(text: str) -> str:
     return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
 
 
+BROWSER_STAGE = "e2e"
+"""The one stage whose failures are classified before they are believed. See below."""
+
+E2E_REPORT = FRONTEND / e2e_failures.REPORT
+"""Playwright's JSON report. A module attribute so the gate's own tests can move it."""
+
+
+def forget_e2e_report() -> None:
+    """Delete the last run's report, so whatever is there afterwards is this run's.
+
+    Comparing timestamps would also work, and would be one more way for a stale report to
+    be read as fresh. A report that does not exist cannot be mistaken for anything.
+    """
+    E2E_REPORT.unlink(missing_ok=True)
+
+
+def retry_browser_deaths(
+    npm: str, *, emit: Callable[[str], None], execute: Callable[[list[str]], int]
+) -> bool:
+    """After a red `e2e`, say whether a browser died, and re-run only those tests once.
+
+    Returns True only when a retry ran and passed exactly the tests whose browser was gone
+    (task-404). Every other outcome -- no report, a real failure anywhere in the run, too
+    many deaths, a red or empty retry -- leaves the stage failed, and the reason is printed
+    either way, which is the half that pays for itself even when nothing is retried.
+
+    **This is not a retry of a failing test.** It is a retry of a test that never started:
+    `e2e_failures.is_browser_death` accepts only an error raised by Playwright's own
+    fixture before the test body ran, so a browser the application brought down while a
+    test held a page is still a failure. `--last-failed` re-runs what the first run failed
+    and nothing else; the judgement checks that it ran exactly that many.
+
+    `emit` and `execute` are how the serial and concurrent runners differ -- one streams,
+    the other collects -- so the decision itself exists once.
+    """
+    outcome = e2e_failures.read(E2E_REPORT)
+    if outcome is None:
+        return False
+    explanation = e2e_failures.explain(outcome)
+    if explanation is None:
+        return False
+    emit(explanation)
+    tests = [failure.title for failure in outcome.browser_deaths]
+    if not outcome.retryable:
+        record_phase("gate_stage_browser_gone", stage=BROWSER_STAGE, tests=tests, retried=False)
+        return False
+
+    forget_e2e_report()
+    code = execute([npm, "run", "test:e2e", "--", "--last-failed"])
+    judged: tuple[bool, str] = e2e_failures.judge_retry(
+        len(tests), e2e_failures.read(E2E_REPORT), code
+    )
+    passed, verdict = judged
+    emit(verdict)
+    record_phase(
+        "gate_stage_browser_gone", stage=BROWSER_STAGE, tests=tests, retried=True, passed=passed
+    )
+    return passed
+
+
 def run_captured(commands: list[list[str]], *, cwd: Path) -> tuple[int, str]:
     """Run one stage's commands in order, keeping their output to print in one block.
 
@@ -525,6 +602,26 @@ def run_captured(commands: list[list[str]], *, cwd: Path) -> tuple[int, str]:
         if result.returncode != 0:
             return result.returncode, "".join(chunks)
     return 0, "".join(chunks)
+
+
+def run_stage_captured(stage: Stage, commands: list[list[str]], npm: str) -> tuple[int, str]:
+    """`run_captured`, plus the one stage that is classified before it is believed."""
+    if stage.name != BROWSER_STAGE:
+        return run_captured(commands, cwd=stage.cwd)
+    forget_e2e_report()
+    code, output = run_captured(commands, cwd=stage.cwd)
+    if code == 0:
+        return code, output
+    chunks = [output]
+
+    def execute(command: list[str]) -> int:
+        retry_code, retry_output = run_captured([command], cwd=stage.cwd)
+        chunks.append(retry_output)
+        return retry_code
+
+    if retry_browser_deaths(npm, emit=lambda text: chunks.append(f"\n{text}\n"), execute=execute):
+        return 0, "".join(chunks)
+    return code, "".join(chunks)
 
 
 def format_timings(timings: list[tuple[str, float]], wall: float | None = None) -> str:
@@ -571,12 +668,18 @@ def run_serially(selected: list[Stage], npm: str) -> tuple[list[tuple[str, float
         commands, budget = commands_for(stage, npm)
         if budget is not None:
             print(f"\n{budget}", flush=True)
+        if stage.name == BROWSER_STAGE:
+            forget_e2e_report()
         try:
             for command in commands:
                 run(command, cwd=stage.cwd)
         except subprocess.CalledProcessError as exc:
-            timings.append((stage.name, time.perf_counter() - started))
-            return timings, (stage.name, exc.returncode)
+            if not (
+                stage.name == BROWSER_STAGE
+                and retry_browser_deaths(npm, emit=emit, execute=partial(status_of, cwd=stage.cwd))
+            ):
+                timings.append((stage.name, time.perf_counter() - started))
+                return timings, (stage.name, exc.returncode)
         timings.append((stage.name, time.perf_counter() - started))
         record_phase(
             "gate_stage_finished",
@@ -630,7 +733,7 @@ def run_concurrently(selected: list[Stage], npm: str) -> tuple[list[tuple[str, f
                     commands, budget = commands_for(stage, npm, reserve=reserve)
                     opening = f"\n>>> {stage.name} started ({stage.what})"
                     print(opening if budget is None else f"{opening}\n{budget}", flush=True)
-                    running[pool.submit(run_captured, commands, cwd=stage.cwd)] = (
+                    running[pool.submit(run_stage_captured, stage, commands, npm)] = (
                         stage,
                         time.perf_counter(),
                     )
