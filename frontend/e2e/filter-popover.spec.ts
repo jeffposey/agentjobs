@@ -72,8 +72,13 @@ async function seed(request: APIRequestContext) {
  * The budget sits between them and near the new figure -- deliberately not *at* it,
  * because a budget that fails on a one-pixel font change is a budget somebody deletes,
  * and far enough below 358 that putting the panel back cannot pass.
+ *
+ * **Re-measured for task-385** on 2026-09-13, same window: the worded button with the
+ * keyboard paragraph under it cost **135px**; the icon button with the help behind a
+ * `?` costs **61px**. Same rule for the budget -- between, near the new figure -- so
+ * putting the paragraph back cannot pass.
  */
-const HEADER_BUDGET_PX = 180;
+const HEADER_BUDGET_PX = 90;
 
 /** How far below the top of the list region the first row starts. */
 async function headerCost(page: Page, taskId: string) {
@@ -234,5 +239,62 @@ test.describe("the filter controls behind a button", () => {
     await expect(page.getByTestId("active-filter-count")).toHaveCount(0);
     await expect(page.getByRole("searchbox", { name: "Search tasks" })).toHaveValue("");
     expect(new URL(page.url()).search).toBe("");
+  });
+});
+
+/**
+ * task-385: the keyboard help moved behind a `?` beside the filter button.
+ *
+ * Hover lives here rather than in jsdom because it is a real pointer resting on a real
+ * button -- the thing a synthesised `pointerenter` would only imitate.
+ */
+test.describe("the keyboard help behind a ? button", () => {
+  function helpButton(page: Page) {
+    return page.getByRole("button", { name: "Keyboard shortcuts" });
+  }
+
+  test("a resting mouse shows it, leaving hides it, and a click pins it", async ({ page }) => {
+    await page.setViewportSize(NARROWEST_TWO_REGION);
+    await page.goto(`/app/p/_local/tasks?q=${TOKEN}`);
+    const help = page.getByTestId("keyboard-help");
+
+    // Closed, the words are not on screen -- they take no room above the first row.
+    await expect(help).toHaveAttribute("data-open", "false");
+    const closedBox = await help.boundingBox();
+    expect(closedBox === null || closedBox.height <= 1).toBeTruthy();
+
+    await helpButton(page).hover();
+    await expect(help).toHaveAttribute("data-open", "true");
+    await expect(help).toBeVisible();
+    await expect(help).toContainText("remembered for this project");
+
+    await page.getByRole("searchbox", { name: "Search tasks" }).hover();
+    await expect(help).toHaveAttribute("data-open", "false");
+
+    // A click keeps it after the mouse has gone, which is how anyone reads it at leisure.
+    await helpButton(page).click();
+    await page.getByRole("searchbox", { name: "Search tasks" }).hover();
+    await expect(help).toHaveAttribute("data-open", "true");
+
+    // The whole popover is inside the 320px column's window, not clipped off its left.
+    const box = await help.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(NARROWEST_TWO_REGION.width);
+
+    await page.keyboard.press("Escape");
+    await expect(help).toHaveAttribute("data-open", "false");
+  });
+
+  test("on a phone a tap opens it inside the window", async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await page.goto(`/app/p/_local/tasks?q=${TOKEN}`);
+    const help = page.getByTestId("keyboard-help");
+
+    await helpButton(page).click();
+    await expect(help).toBeVisible();
+    const box = await help.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(PHONE.width);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(PHONE.height);
   });
 });
