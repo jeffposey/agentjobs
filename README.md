@@ -386,17 +386,16 @@ meant to move through them, with the workstreams inside each and what each one i
 No projection can produce that, because no record carries it — the phases are a decision
 about the product, and half this backlog is one subject spread across four priority
 bands that only a person looking at all of it at once can name. The phases are written
-by the owner; the `roadmap` playbook places the backlog under them; and the `roadmap`
-stage of `scripts/check.py` audits the page's claims:
+by the owner, and the `roadmap` playbook places the backlog under them and audits the
+page's claims as part of its pass:
 
 ```bash
 poetry run python scripts/export_roadmap.py docs/backlog.md --audit ROADMAP.md
 ```
 
-That audit is deliberately weak in one direction. A page that rosters a task which has
-closed is telling a reader something false, and it fails. A page that has not yet placed
-a task filed this morning is merely behind, and the listing beside it carries that task
-in full, so it is counted and let through.
+The audit fails on a rostered task that has closed and counts, without failing, a task
+the page has not placed yet. It is not a gate stage: between playbook passes the page may
+run behind the store, and a task closing elsewhere never turns a branch red.
 
 ```bash
 git clone https://github.com/jeffposey/agentjobs.git

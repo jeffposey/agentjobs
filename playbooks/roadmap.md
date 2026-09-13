@@ -159,7 +159,8 @@ property it has is one you gave it:
 - **Link to [docs/backlog.md](../docs/backlog.md) for the detail** rather than restating a
   summary. The page earns its length by grouping and explaining, never by copying.
 
-Then run the audit, which is the same gate stage as the listing:
+Then run the audit. It is this playbook's check and not a gate stage, so nothing else
+will run it for you:
 
 ```bash
 poetry run python scripts/export_roadmap.py docs/backlog.md --audit ROADMAP.md
@@ -167,8 +168,8 @@ poetry run python scripts/export_roadmap.py docs/backlog.md --audit ROADMAP.md
 
 It fails on a rostered task that is no longer open, and reports — without failing — the
 open tasks you have not placed. **A run of this playbook should leave that report empty.**
-It is allowed to be non-empty afterwards because tasks get filed every day and the gate
-must not go red for that, not because placing them is optional for you.
+It is allowed to be non-empty afterwards because tasks get filed and closed every day and
+no branch's gate may go red for that, not because placing them is optional for you.
 
 ## 5. What you may change in the records: two fields, and nothing else
 
