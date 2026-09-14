@@ -106,6 +106,9 @@ initialization instructions begin with this self-contained rule:
 > Call `projects_list`, pass its `project_id` to every task tool, and use only claim,
 > handoff, release, and close to move workflow state. Reading task YAML is allowed.
 
+(The published text now says "task records" where this says "task YAML", since records
+became rows; `src/agentjobs/mcp/instructions.py` is the current wording.)
+
 Tools use explicit JSON Schema input and output schemas. They return both
 `structuredContent` and a short serialized/text summary for clients that do not consume
 structured results. Read tools are annotated read-only and non-destructive. Mutation

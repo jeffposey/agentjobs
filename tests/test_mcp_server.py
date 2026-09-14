@@ -346,10 +346,11 @@ class TestInitializeContract:
 
     def test_the_leading_rule_survives_a_512_character_truncation(self):
         prefix = instructions.SERVER_INSTRUCTIONS[: instructions.LEADING_RULE_BUDGET]
-        assert "task YAML is generated state" in prefix
+        assert "Use these tools for every task mutation" in prefix
         assert "projects_list" in prefix
         assert "claim, handoff, release, and close" in prefix
-        assert "Reading task YAML is allowed" in prefix
+        assert "Reading a record is always allowed" in prefix
+        assert "YAML" not in prefix, "records are rows, not files (task-380)"
 
 
 # ----------------------------------------------------------------------------
@@ -490,7 +491,7 @@ class TestPackagedCommand:
         assert initialized.serverInfo.version == __version__
         assert initialized.capabilities.tools is not None
         assert initialized.instructions is not None
-        assert "task YAML is generated state" in initialized.instructions[:512]
+        assert "Use these tools for every task mutation" in initialized.instructions[:512]
         # The inventory the packaged command actually publishes over the wire. Named
         # rather than counted: a renamed tool breaks every client, and a count would
         # not notice.

@@ -1,8 +1,9 @@
 """The initialization instructions the MCP server publishes to every client.
 
 The first paragraph is the accepted wording from section 4 of
-``docs/mcp-integration-design.md``. It leads because some clients truncate
-instructions, and the rule that matters most has to survive the truncation.
+``docs/mcp-integration-design.md``, with "task YAML" reworded to "task records" once
+records became rows (task-380; reworded by task-448). It leads because some clients
+truncate instructions, and the rule that matters most has to survive the truncation.
 """
 
 from __future__ import annotations
@@ -13,14 +14,14 @@ from __future__ import annotations
 LEADING_RULE_BUDGET = 512
 
 SERVER_INSTRUCTIONS = """\
-AgentJobs task YAML is generated state. Use these tools for every task mutation. \
+AgentJobs task records are generated state. Use these tools for every task mutation. \
 Call `projects_list`, pass its `project_id` to every task tool, and use only claim, \
-handoff, release, and close to move workflow state. Reading task YAML is allowed.
+handoff, release, and close to move workflow state. Reading a record is always allowed.
 
 Every mutating tool needs an `actor` from the project's configured vocabulary and a \
 caller-generated `operation_id` UUID; reusing an operation_id replays the original \
 result instead of writing twice. There is no generic status, lifecycle, position \
-or YAML setter, and none is coming -- a task moves through the domain verbs or \
+or raw-record setter, and none is coming -- a task moves through the domain verbs or \
 not at all, and its place in line moves through `task_queue_move` or not at all.
 
 Call `task_next` before choosing work. It returns the queue's answer, the band and \

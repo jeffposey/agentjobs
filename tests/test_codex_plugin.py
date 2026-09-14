@@ -204,7 +204,7 @@ class TestSkillContent:
 
     def test_it_never_offers_direct_yaml_as_an_ordinary_fallback(self):
         """The one sentence that would undo the entire program if it were missing."""
-        assert "A failing tool is not permission to edit YAML." in FLAT_SKILL
+        assert "A failing tool is not permission to write around it." in FLAT_SKILL
         assert "emergency-recovery procedure only" in FLAT_SKILL
 
     def test_it_names_rest_and_cli_as_the_availability_fallback(self):
@@ -216,7 +216,7 @@ class TestSkillContent:
 
     def test_it_carries_the_two_repository_rules_the_tools_cannot_enforce(self):
         assert "worktree" in SKILL
-        assert "committed to `main`" in FLAT_SKILL
+        assert "Task records are not committed" in FLAT_SKILL
 
     def test_it_does_not_restate_tool_schemas(self):
         """MCP already publishes them; a copy here is a copy that goes stale."""

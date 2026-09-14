@@ -9,11 +9,12 @@ description: >-
 
 # Working AgentJobs tasks
 
-AgentJobs stores tasks as YAML in a git repository. **The YAML is generated state.**
-Read it freely; never edit it. Every write goes through the AgentJobs MCP tools, which
-validate the change, lock the file, and record who did what and why. An edit that
-skips them produces a record that looks fine and is not — that is the failure this
-whole interface exists to prevent.
+AgentJobs keeps each task as a record behind a local server: a row in a per-project
+database, outside every checkout. **The record is generated state.** Read it freely;
+never edit it. Every write goes through the AgentJobs MCP tools, which validate the
+change, lock the task, and record who did what and why. A write that goes around them —
+into the database file, or into an exported task file — produces a record that looks
+fine and is not; that is the failure this whole interface exists to prevent.
 
 ## Start here, every time
 
@@ -100,16 +101,16 @@ moment the session ends, and the next agent will make it again, differently.
 
 ## When a tool fails
 
-Surface the error and diagnose it. **A failing tool is not permission to edit YAML.**
-If the MCP tools are unavailable entirely, the managed REST API and the `agentjobs`
-CLI reach the same authoritative code path and are the correct fallback. Hand-editing
-a task file is a documented emergency-recovery procedure only: it needs an explicit
-reason, and `agentjobs validate` afterwards.
+Surface the error and diagnose it. **A failing tool is not permission to write around
+it.** If the MCP tools are unavailable entirely, the managed REST API and the
+`agentjobs` CLI reach the same authoritative code path and are the correct fallback.
+Writing a record any other way is an emergency-recovery procedure only, and needs the
+owner's explicit reason.
 
-A `broken_task` error means the file exists and does not parse. Report which file and
+A `broken_task` error means the record exists and does not load. Report which task and
 which field, and offer to repair it. Do not report it as a missing task. `tasks_list`
 and `tasks_search` return these alongside the valid tasks, in `broken` — if that array
-is non-empty, say so, because claimable work may be hidden inside those files.
+is non-empty, say so, because claimable work may be hidden inside those records.
 
 ## Working the AgentJobs repository itself
 
@@ -119,10 +120,10 @@ Two local rules, which the tools cannot enforce for you:
   clone, and `git checkout` replaces the files under whichever one is mid-task. Take it
   with `git worktree add`, not with Claude Code's `-w`: a `-w` session is isolated by a
   guard that refuses every git operation aimed at the shared clone, and that is where
-  the rule below requires your task-record commits to land.
-- **Task records are committed to `main`, never to a feature branch.** A handoff
-  committed to a branch is invisible to the person it is addressed to, who opens the
-  dashboard and reasonably concludes nothing is waiting for them.
+  your merge has to happen.
+- **Task records are not committed, to any branch.** They are rows outside the checkout,
+  so a handoff is visible from every branch the moment it is written and there is
+  nothing to stage. Commit code; write records through the tools.
 
 ## Tool schemas
 

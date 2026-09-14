@@ -236,8 +236,8 @@ a call someone can reverse instead of a fact they inherit.
 ## 6. Write through the verb, once
 
 Write through the managed `update_content` verb — the MCP tool, or `PATCH
-/api/projects/{project}/tasks/{task}`. **Never edit the YAML file.** The file is
-generated state; a writer that goes around the model will eventually disagree with it,
+/api/projects/{project}/tasks/{task}`. **Never write the record another way.** The
+record is generated state; a writer that goes around the model will eventually disagree with it,
 and the update's own log entry is half of what makes your write reversible.
 
 **One update, not six.** The log entry is the before/after boundary, so a single

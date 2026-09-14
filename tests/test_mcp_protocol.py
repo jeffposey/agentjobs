@@ -194,7 +194,7 @@ class TestPackagedProtocol:
         assert initialized.serverInfo.name == "agentjobs"
         assert initialized.serverInfo.version == __version__
         assert initialized.capabilities.tools is not None
-        assert "task YAML is generated state" in (initialized.instructions or "")[:512]
+        assert "Use these tools for every task mutation" in (initialized.instructions or "")[:512]
 
     def test_tools_list_publishes_the_complete_inventory(self, live_service):
         url, _ = live_service
