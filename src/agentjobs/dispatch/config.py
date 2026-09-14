@@ -36,12 +36,14 @@ from __future__ import annotations
 import re
 import shutil
 from dataclasses import dataclass, field, replace
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 
 import yaml
 
+from agentjobs.dispatch.yaml_patch import Delete, Edit, Set, UnpatchableYaml, patch_yaml
 from agentjobs.projects import default_home
 
 CONFIG_FILENAME = "dispatch.yaml"
@@ -2108,7 +2110,9 @@ def set_project_enabled(
     existing runner and is allowed on the same terms; authoring one is not.
 
     The raw mapping is edited in place rather than being round-tripped through the
-    dataclasses, so keys this build does not understand survive the write.
+    dataclasses, so keys this build does not understand survive the write -- and the file
+    itself is patched rather than re-serialised, so its comments do too (task-198; see
+    :func:`_write_config_edits`).
     """
     path = dispatch_config_path(home)
     if not path.is_file():
@@ -2120,7 +2124,8 @@ def set_project_enabled(
     config = load_dispatch_config(home)
     assert config is not None  # load_dispatch_config only returns None when absent
 
-    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    text = _read_config_text(path)
+    raw = yaml.safe_load(text) or {}
     if not isinstance(raw, dict):
         raise DispatchConfigError(f"Invalid dispatch config at {path}: expected a mapping.")
 
@@ -2133,6 +2138,8 @@ def set_project_enabled(
             f"Invalid dispatch config at {path}: projects.{project_id} must be a mapping."
         )
 
+    key = ("projects", project_id)
+    edits: List[Edit] = []
     if enabled:
         if runner is not None and group is not None:
             raise DispatchError(
@@ -2148,19 +2155,19 @@ def set_project_enabled(
                 )
             entry["group"] = group
             entry.pop("runner", None)
+            edits += [Set(key + ("group",), group), Delete(key + ("runner",))]
         elif not _already_grouped(entry, config):
             entry["runner"] = _runner_for_enable(
                 project_id, runner, entry.get("runner"), config, path
             )
+            edits.append(Set(key + ("runner",), entry["runner"]))
     elif runner is not None or group is not None:
         raise DispatchError("--runner and --group are meaningless when disabling a project.")
 
     entry["enabled"] = enabled
+    edits.append(Set(key + ("enabled",), enabled))
 
-    path.write_text(
-        yaml.safe_dump(raw, sort_keys=False, allow_unicode=False),
-        encoding="utf-8",
-    )
+    _write_config_edits(path, text, edits, raw)
 
     updated = load_dispatch_config(home)
     assert updated is not None
@@ -2187,7 +2194,8 @@ def set_idle_session_settings(
         )
     if idle_minutes is not None and (isinstance(idle_minutes, bool) or idle_minutes <= 0):
         raise DispatchConfigError("idle_sessions.idle_minutes must be a positive integer.")
-    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    text = _read_config_text(path)
+    raw = yaml.safe_load(text) or {}
     if not isinstance(raw, dict):
         raise DispatchConfigError(f"Invalid dispatch config at {path}: expected a mapping.")
     block = raw.setdefault("idle_sessions", {})
@@ -2195,14 +2203,58 @@ def set_idle_session_settings(
         raise DispatchConfigError(
             f"Invalid dispatch config at {path}: idle_sessions must be a mapping."
         )
+    edits: List[Edit] = []
     if enforce is not None:
         block["enforce"] = bool(enforce)
+        edits.append(Set(("idle_sessions", "enforce"), bool(enforce)))
     if idle_minutes is not None:
         block["idle_minutes"] = int(idle_minutes)
-    path.write_text(yaml.safe_dump(raw, sort_keys=False, allow_unicode=False), encoding="utf-8")
+        edits.append(Set(("idle_sessions", "idle_minutes"), int(idle_minutes)))
+    _write_config_edits(path, text, edits, raw)
     updated = load_dispatch_config(home)
     assert updated is not None
     return updated.idle_sessions
+
+
+def _read_config_text(path: Path) -> str:
+    """The config exactly as it is on disk, line endings included.
+
+    ``read_text`` would translate ``\\r\\n`` to ``\\n`` and ``write_text`` translate it
+    back to whatever this platform prefers, which is a rewrite of every line of a file
+    edited on the other platform.
+    """
+    return path.read_bytes().decode("utf-8")
+
+
+def _write_config_edits(
+    path: Path, text: str, edits: Sequence[Edit], expected: Mapping[str, object]
+) -> None:
+    """Write ``edits`` into the config at ``path`` without touching anything else in it.
+
+    **The comments in this file are its documentation** -- why a limit has its value,
+    which setting is temporary and until when -- and until task-198 every browser toggle
+    re-serialised the file through ``yaml.safe_dump`` and deleted all of them. So the
+    edit is spliced into the text (:mod:`agentjobs.dispatch.yaml_patch`), and is only
+    written once the result has been parsed back and found equal to ``expected``, the
+    same edits made to the parsed mapping. The data written is therefore exactly what the
+    old writer wrote; only the bytes around it now survive.
+
+    A file shaped in a way the patch does not handle -- a project entry written as a flow
+    mapping, say -- still gets the edit, through the old re-serialising write, but not
+    before a timestamped copy of the original is put beside it. That is the only path on
+    which anything can be lost, so it is the only one that pays for a backup; a backup on
+    every click would leave a litter of identical files.
+    """
+    try:
+        rendered = patch_yaml(text, edits, expected)
+    except UnpatchableYaml:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        path.with_name(f"{path.name}.bak-{stamp}").write_bytes(text.encode("utf-8"))
+        rendered = yaml.safe_dump(dict(expected), sort_keys=False, allow_unicode=False)
+        if "\r\n" in text:
+            rendered = rendered.replace("\n", "\r\n")
+    if rendered != text:
+        path.write_bytes(rendered.encode("utf-8"))
 
 
 def _already_grouped(entry: Mapping[str, object], config: DispatchConfig) -> bool:

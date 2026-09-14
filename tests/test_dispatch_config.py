@@ -8,6 +8,7 @@ these off a real ``~/.agentjobs``.
 
 from __future__ import annotations
 
+import difflib
 import os
 import sys
 from pathlib import Path
@@ -435,6 +436,210 @@ class TestSetProjectEnabled:
 
         with pytest.raises(UnknownRunnerError):
             set_project_enabled("newproj", True)
+
+
+# ----- the writer keeps what a person wrote (task-198) --------------------------
+
+
+COMMENTED_CONFIG = """\
+# ~/.agentjobs/dispatch.yaml -- machine-local. Never committed, never in a repository.
+#
+# Nothing in a project can add to this file.
+version: 1
+enabled: true   # the master switch
+
+# AgentJobs supplies --permission-mode, -w and --settings itself. Never write them here.
+runners:
+  claude:
+    # Every model id here was checked by running it on 2026-08-19.
+    argv: ["claude", "--bg", "--remote-control",
+           "{prompt}"]
+    mode: session
+    actor: claude          # the identity it writes as
+    note: 'Quoted on purpose, and long enough that a dumper would fold it somewhere past the eightieth column of the file.'
+  codex:
+    argv: ["codex", "exec", "{prompt}"]   # a placeholder until its flags are checked
+
+projects:
+  agentjobs:
+    enabled: true
+    runner: claude
+    # Set it back to true once task-182 lands.
+    require_clean_tree: false
+  quiet:
+    enabled: false    # off until the gate is measured
+    runner: codex
+
+# ----- limits -------------------------------------------------------------------
+limits:
+  max_concurrent_runs: 3   # measured on this machine, not guessed (task-191)
+"""
+"""A config written the way a person writes one: comments in the header, in runners and
+inside a project entry, a flow-style argv spread over two lines, a quoted long scalar."""
+
+COMMENT_LINES = [line for line in COMMENTED_CONFIG.splitlines() if "#" in line]
+
+
+def write_commented_config(text: str = COMMENTED_CONFIG, *, newline: str = "\n") -> Path:
+    path = home() / CONFIG_FILENAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(text.replace("\n", newline).encode("utf-8"))
+    return path
+
+
+def line_changes(before: str, after: str) -> tuple:
+    """(removed, added) lines between two versions of a file, in order."""
+    removed: list = []
+    added: list = []
+    old, new = before.splitlines(), after.splitlines()
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(a=old, b=new).get_opcodes():
+        if tag in ("replace", "delete"):
+            removed += old[i1:i2]
+        if tag in ("replace", "insert"):
+            added += new[j1:j2]
+    return removed, added
+
+
+class TestTheWriterKeepsWhatAPersonWrote:
+    def test_disabling_a_project_changes_one_line_and_nothing_else(self) -> None:
+        path = write_commented_config()
+
+        set_project_enabled("agentjobs", False)
+
+        after = path.read_text(encoding="utf-8")
+        assert line_changes(COMMENTED_CONFIG, after) == (
+            ["    enabled: true"],
+            ["    enabled: false"],
+        )
+        for comment in COMMENT_LINES:
+            assert comment in after.splitlines()
+
+    def test_a_toggle_there_and_back_is_byte_identical(self) -> None:
+        path = write_commented_config()
+        before = path.read_bytes()
+
+        set_project_enabled("agentjobs", False)
+        set_project_enabled("agentjobs", True)
+
+        assert path.read_bytes() == before
+
+    def test_a_trailing_comment_on_the_changed_line_survives(self) -> None:
+        path = write_commented_config()
+
+        set_project_enabled("quiet", True)
+
+        after = path.read_text(encoding="utf-8")
+        assert "    enabled: true    # off until the gate is measured" in after.splitlines()
+        assert line_changes(COMMENTED_CONFIG, after)[0] == [
+            "    enabled: false    # off until the gate is measured"
+        ]
+
+    def test_a_new_project_is_appended_without_touching_any_other_entry(self) -> None:
+        path = write_commented_config()
+
+        set_project_enabled("newproj", True, runner="codex")
+
+        after = path.read_text(encoding="utf-8")
+        assert line_changes(COMMENTED_CONFIG, after) == (
+            [],
+            ["  newproj:", "    runner: codex", "    enabled: true"],
+        )
+        assert after.index("  newproj:") > after.index("  quiet:")
+        assert after.index("  newproj:") < after.index("# ----- limits")
+
+    def test_pointing_a_project_at_a_group_swaps_only_those_lines(self) -> None:
+        text = COMMENTED_CONFIG.replace(
+            "projects:\n",
+            "runner_groups:\n  standard:\n    members: [claude, codex]  # order is preference\n\n"
+            "projects:\n",
+        )
+        path = write_commented_config(text)
+
+        set_project_enabled("agentjobs", True, group="standard")
+
+        removed, added = line_changes(text, path.read_text(encoding="utf-8"))
+        assert removed == ["    runner: claude"]
+        assert added == ["    group: standard"]
+
+    def test_windows_line_endings_are_kept_on_every_line(self) -> None:
+        path = write_commented_config(newline="\r\n")
+
+        set_project_enabled("newproj", True, runner="claude")
+
+        raw = path.read_bytes()
+        assert raw.count(b"\n") == raw.count(b"\r\n")
+        assert b"  newproj:\r\n    runner: claude\r\n    enabled: true\r\n" in raw
+
+    def test_the_example_config_keeps_its_annotation_when_a_project_is_first_enabled(
+        self,
+    ) -> None:
+        from agentjobs.dispatch.scaffold import EXAMPLE_CONFIG
+
+        path = write_commented_config(EXAMPLE_CONFIG)
+
+        set_project_enabled("agentjobs", True, group="deep")
+
+        after = path.read_text(encoding="utf-8")
+        assert line_changes(EXAMPLE_CONFIG, after) == (
+            ["projects: {}"],
+            ["projects:", "  agentjobs:", "    group: deep", "    enabled: true"],
+        )
+
+    def test_the_config_parses_to_the_same_settings_the_old_writer_produced(self) -> None:
+        """The data is exactly what ``yaml.safe_dump`` of the edited mapping would say;
+        only the bytes around it are different."""
+        path = write_commented_config()
+
+        set_project_enabled("newproj", True, runner="claude")
+        set_project_enabled("agentjobs", False)
+        patched = load_dispatch_config()
+
+        path.write_text(
+            yaml.safe_dump(yaml.safe_load(path.read_text(encoding="utf-8")), sort_keys=False),
+            encoding="utf-8",
+        )
+        assert patched is not None
+        assert patched == load_dispatch_config()
+        assert patched.project("agentjobs").enabled is False
+        assert patched.project("agentjobs").require_clean_tree is False
+        assert patched.project("newproj").runner == "claude"
+
+    def test_idle_session_settings_keep_the_comments_too(self) -> None:
+        from agentjobs.dispatch.config import set_idle_session_settings
+
+        path = write_commented_config()
+
+        set_idle_session_settings(enforce=True, idle_minutes=90)
+
+        after = path.read_text(encoding="utf-8")
+        assert line_changes(COMMENTED_CONFIG, after) == (
+            [],
+            ["idle_sessions:", "  enforce: true", "  idle_minutes: 90"],
+        )
+
+    def test_a_shape_it_cannot_patch_is_still_written_and_the_original_is_kept(self) -> None:
+        """A flow-mapping entry cannot grow a key by splicing. The toggle still works, as
+        it always did, but the annotated original is copied aside first."""
+        text = COMMENTED_CONFIG.replace(
+            "  quiet:\n    enabled: false    # off until the gate is measured\n"
+            "    runner: codex\n",
+            "  quiet: {runner: codex}\n",
+        )
+        path = write_commented_config(text)
+
+        set_project_enabled("quiet", True)
+
+        backups = list(path.parent.glob(f"{CONFIG_FILENAME}.bak-*"))
+        assert [backup.read_text(encoding="utf-8") for backup in backups] == [text]
+        config = load_dispatch_config()
+        assert config is not None and config.project("quiet").enabled is True
+
+    def test_no_backup_is_left_when_the_patch_succeeds(self) -> None:
+        path = write_commented_config()
+
+        set_project_enabled("agentjobs", False)
+
+        assert list(path.parent.glob(f"{CONFIG_FILENAME}.bak-*")) == []
 
 
 # ----- runner groups (task-177) -----------------------------------------------

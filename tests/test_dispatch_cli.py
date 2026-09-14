@@ -38,7 +38,15 @@ from test_dispatch_auth import (
     real_reply_line,
     write_transcript,
 )
-from test_dispatch_config import home, write_config, write_grouped_config
+from test_dispatch_config import (
+    COMMENT_LINES,
+    COMMENTED_CONFIG,
+    home,
+    line_changes,
+    write_commented_config,
+    write_config,
+    write_grouped_config,
+)
 
 runner = CliRunner()
 
@@ -169,6 +177,29 @@ class TestDispatchCli:
         assert disabled.exit_code == 0, disabled.output
         with pytest.raises(ProjectNotEnabledError):
             assert_dispatch_permitted("alpha")
+
+    def test_enable_and_disable_keep_every_comment_in_the_file(self, tmp_path: Path) -> None:
+        """task-198: these verbs reach the same writer the browser does, and used to
+        re-serialise the whole file and delete every comment in it."""
+        self.make_project(tmp_path, "alpha")
+        path = write_commented_config()
+
+        enabled = runner.invoke(app, ["dispatch", "enable", "alpha", "--runner", "codex"])
+        assert enabled.exit_code == 0, enabled.output
+        after_enable = path.read_text(encoding="utf-8")
+        assert line_changes(COMMENTED_CONFIG, after_enable) == (
+            [],
+            ["  alpha:", "    runner: codex", "    enabled: true"],
+        )
+
+        disabled = runner.invoke(app, ["dispatch", "disable", "alpha"])
+        assert disabled.exit_code == 0, disabled.output
+        after_disable = path.read_text(encoding="utf-8")
+        assert line_changes(after_enable, after_disable) == (
+            ["    enabled: true"],
+            ["    enabled: false"],
+        )
+        assert [line for line in after_disable.splitlines() if "#" in line] == COMMENT_LINES
 
     def test_enable_warns_when_the_master_switch_is_still_off(self, tmp_path: Path) -> None:
         self.make_project(tmp_path, "alpha")

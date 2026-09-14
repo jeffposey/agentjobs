@@ -494,6 +494,33 @@ class TestDispatchToggle:
         assert disabled.json()["project_enabled"] is False
         assert disabled.json()["refusal"]["reason"] == "project_not_enabled"
 
+    def test_the_toggle_keeps_every_comment_in_the_config_file(self, served) -> None:
+        """task-198: one click on "Enable dispatch for this project" used to delete every
+        comment in the file, including those inside project entries it never touched."""
+        from test_dispatch_config import COMMENT_LINES, COMMENTED_CONFIG, line_changes
+
+        client, _, home = served
+        path = home / "dispatch.yaml"
+        path.write_bytes(COMMENTED_CONFIG.encode("utf-8"))
+
+        enabled = client.post("/api/projects/sandbox/dispatch/enable", json={"runner": "claude"})
+        assert enabled.status_code == 200, enabled.text
+        after_enable = path.read_text(encoding="utf-8")
+        assert line_changes(COMMENTED_CONFIG, after_enable) == (
+            [],
+            ["  sandbox:", "    runner: claude", "    enabled: true"],
+        )
+
+        disabled = client.post("/api/projects/sandbox/dispatch/disable")
+        assert disabled.status_code == 200, disabled.text
+        after_disable = path.read_text(encoding="utf-8")
+        assert [line for line in after_disable.splitlines() if "#" in line] == COMMENT_LINES
+        assert '    argv: ["claude", "--bg", "--remote-control",' in after_disable.splitlines()
+        assert line_changes(after_enable, after_disable) == (
+            ["    enabled: true"],
+            ["    enabled: false"],
+        )
+
     def test_a_named_runner_must_already_exist_on_this_machine(
         self, served, tmp_path: Path
     ) -> None:
