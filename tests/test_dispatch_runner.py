@@ -1450,8 +1450,8 @@ class TestPromptStub:
         """task-303, ac-1 and ac-4. The settings key is the half that is enforced.
 
         Without it the harness refuses a background session's ``Write`` into the shared
-        checkout -- which is where this project requires task records to be committed,
-        so the refusal is not a nuisance but a block on the workflow. Probed on Claude
+        checkout -- which is where the merge has to land, so the refusal is not a
+        nuisance but a block on the workflow. Probed on Claude
         Code 2.1.238, 2026-08-25: refused with the key absent, accepted with it present,
         and the change took effect mid-session. This test pins the key so that removing
         it is a failure rather than a silent return of the block.
@@ -1471,9 +1471,11 @@ class TestPromptStub:
             text = (REPO_ROOT / name).read_text(encoding="utf-8")
 
             assert "bgIsolation" in text, name
-            # The version and date sit next to the result, so a later reader can tell
-            # whether the probe still describes the harness they are running.
-            assert "2.1.238" in text, name
+        # The version and date sit next to the result, so a later reader can tell whether
+        # the probe still describes the harness they are running. They live in the guide,
+        # not the always-loaded bundle (task-448, after Big Dawg Audit II's finding that
+        # dated probes in the bundle go stale with no trigger to re-probe).
+        assert "2.1.238" in (REPO_ROOT / GUIDE_PATH).read_text(encoding="utf-8")
 
     def test_the_guide_states_the_worktree_requirement_too(self) -> None:
         """The stub is one clause; the guide is where the reasoning lives.

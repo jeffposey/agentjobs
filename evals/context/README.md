@@ -27,6 +27,9 @@ poetry run python scripts/context_eval.py --tag quick     # the per-release subs
 poetry run python scripts/context_eval.py --runs 3        # the full sweep
 ```
 
+A verdict needs at least two scored runs per arm, so `--runs 1` always reports
+`inconclusive` — cheap for checking the harness works, useless for a decision.
+
 Useful flags: `--case <glob>` to run one scenario, `--model` to name the model under test
 (default `claude-opus-5`), `--jobs` for concurrency, `--keep` to leave the sandboxes on disk
 so you can go and look at one, `--out` for the results directory.
@@ -46,8 +49,9 @@ suite rots, and it costs nothing to check.
 - **After a substantial rewrite of `ENGINEERING.md` or `ALLAGENTS.md`**, at least
   `--dry-run`, because a rewrite is how the ablations go stale.
 
-Not on every commit, and not in `scripts/check.py`. The gate is 96 seconds and this is
-tens of minutes and real money; wiring it into the gate would get it disabled within a week.
+Not on every commit, and not in `scripts/check.py`. The gate costs minutes ([what it
+costs](../../docs/performance.md#what-the-gate-costs)) and this is tens of minutes and real money
+(about $1.50 a case-pair on Fable, measured 2026-09-11); wiring it into the gate would get it disabled within a week.
 What *is* in the gate is `tests/test_context_eval.py`, which re-renders every ablation
 against the current bundle and fails when one stops matching -- the cheap half of the check,
 where it belongs.

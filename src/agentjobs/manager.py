@@ -2540,9 +2540,11 @@ class TaskManager:
     def repair_queue(self) -> QueueRepairReport:
         """Make a broken queue into a queue again, and say exactly what was guessed.
 
-        Operates on a corrupt corpus by definition, so it reads the raw files rather
-        than loaded tasks -- the records it most needs are the ones rule 6 refuses to
-        load. Open tasks with no usable position, and the losing claimants of a shared
+        Written for a corrupt corpus of task files, where the records it most needed were
+        the ones rule 6 refused to load. On the SQLite store it reads loaded tasks through
+        ``_queue_records``, and the constraints make a missing or duplicate position
+        unrepresentable, so it runs and finds nothing (Big Dawg Audit II, 2026-09-11; its
+        retirement rides with task-258). Open tasks with no usable position, and the losing claimants of a shared
         one, are placed at the bottom of their band ordered by ``created`` then id: both
         halves immutable, so two runs over one corpus agree.
 

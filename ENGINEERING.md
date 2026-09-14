@@ -37,7 +37,7 @@ source rather than a neighbouring one's.
     ```bash
     poetry run python scripts/check.py
     ```
--   The gate is ten named stages run **cheapest first**, and every run prints what each
+-   The gate is named stages (`--list`) run **cheapest first**, and every run prints what each
     one cost — so the current per-stage table is the bottom of any gate rather than a
     number in this file. Stages, costs and history:
     [docs/performance.md](docs/performance.md#what-the-gate-costs).
@@ -91,15 +91,13 @@ source rather than a neighbouring one's.
         unqualified run on a clean tree records the commit it verified; `--since-gate`
         diffs the working tree against that. With no receipt it narrows nothing and runs
         every stage, saying so.
-    2.  **The classification table is default-deny.** Only task records under `tasks/`
-        and prose map to a reduced set; everything else, including anything nobody has
-        classified yet, selects all ten. An incomplete table costs time, never coverage.
-        It lives in `scripts/gate_scope.py`, and each entry has to name what reads those
-        paths.
-    3.  **A stage whose inputs are not bounded by the diff still runs.** "It was only a
-        task file" is not a safe skip: `tests/test_validate.py::TestRealCorpus` loads this
-        repository's own records, so a task YAML genuinely can turn the suite red — which
-        is why `tasks/` maps to `pytest` rather than to nothing.
+    2.  **The classification table is default-deny.** Only prose maps to a reduced set;
+        everything else, including anything nobody has classified yet, selects every
+        stage. An incomplete table costs time, never coverage. It lives in
+        `scripts/gate_scope.py`, and each entry has to name what reads those paths.
+    3.  **A stage whose inputs are not bounded by the diff still runs.** A store change
+        moves no file, so an empty diff says nothing about a stage that reads the store;
+        such stages go in `UNBOUNDED_STAGES`, and whether `pytest` is one is task-409.
     4.  **The output is the claim, in full** — `NECESSITY RUN`, the commit it diffed
         against, every changed path with the rule that matched it, every skipped stage.
         It never prints "Ran every stage"; an unchanged tree prints `NOTHING CHANGED`.
@@ -286,10 +284,8 @@ Agents in this repository are required to do this — see
 [ALLAGENTS.md](ALLAGENTS.md#task-lifecycle) — because several of them routinely run
 against one clone and none of them can see the others.
 
-One consequence is gone for a project on `sqlite`: the backlog is the same from every
-worktree and every branch, including one holding no records at all. On a project still
-on `files`, the checked-out branch decides what the dashboard shows — check that before
-filing anything.
+One consequence is gone: the backlog is the same from every worktree and every branch,
+including one holding no records at all.
 
 ### Commit Hygiene
 -   Stage explicit paths. `git add -A` commits whatever happens to be in the tree, which

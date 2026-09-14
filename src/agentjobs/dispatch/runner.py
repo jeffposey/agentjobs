@@ -181,7 +181,7 @@ The worktree paragraph is the one exception, and it is a considered one (task-18
 2026-08-19 ``posture_flags`` passed ``-w`` and containment was mechanical, so the stub
 had nothing to say about it. It cannot pass ``-w`` any more -- the isolation that flag
 buys carries a guard refusing every git operation aimed at the shared clone, which is
-where this project requires task records to be committed and where the merge gate runs.
+where the merge gate runs.
 Containment is therefore the agent's own act, and it is the **only** instruction that
 must be obeyed before the agent reads anything, the guide included. A pointer cannot
 carry an instruction that has to precede following the pointer, so this one line is
@@ -232,15 +232,14 @@ SUPERVISOR_STUB = (
 
 **Which stub a run gets is decided by the record, not by the dispatcher's opinion**: a
 task with an open child is an epic, and an epic's worker is a supervisor. That is the
-one checkable property Jeff's formulation reduces to -- "anything that is starting with
-a new worktree should be in a new session" -- and it needs no new field, no label
+one checkable property the owner's rule reduces to -- work that starts a new worktree
+belongs in a new session -- and it needs no new field, no label
 somebody has to remember to set, and no judgement at spawn time.
 
 It says the opposite of ``PROMPT_STUB`` about worktrees, and that inversion is the whole
 reason this is a second stub rather than an extra sentence. A supervisor that obeyed the
 worktree paragraph would check out a branch in the shared clone, which is the collision
-ALLAGENTS.md's worktree rule exists to prevent, and would then commit the parent's task
-records somewhere the dashboard cannot see them. A supervisor writes no code, so it
+ALLAGENTS.md's worktree rule exists to prevent. A supervisor writes no code, so it
 needs no isolation; what it needs is to be told, before it reads anything, that the
 first act the other stub demands is not its act. That is the same argument task-192 made
 for stating the worktree command here, applied in reverse.
@@ -951,9 +950,10 @@ def uncommitted_paths(project_root: Path, *, ignore: Sequence[Path] = ()) -> Opt
     treat it as unclean: dispatch's default is to refuse on a dirty tree, and "we could
     not tell" belongs on the refusing side of that.
 
-    *ignore* exists because AgentJobs writes into the very tree it is inspecting. A
-    project that keeps its task records in the repository being dispatched -- this one
-    does -- has its tasks directory dirtied by dispatch itself: the claim writes the task
+    *ignore* exists because AgentJobs used to write into the very tree it is inspecting. A
+    project that kept its task records in the repository being dispatched -- before
+    task-380 moved them into a database, this one did -- had its tasks directory dirtied
+    by dispatch itself: the claim writes the task
     YAML before the spawn, and the terminal ``dispatch_result`` entry is written after the
     run's last commit. Counting those made the check refuse every dispatch on the strength
     of its own writes (task-182). Excluding them is the price of the check meaning anything

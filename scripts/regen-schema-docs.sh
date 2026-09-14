@@ -119,27 +119,13 @@ for ex in schema/examples/*.yaml; do
   fi
 done
 
-echo
-# Every task file carries `schema: 2`, so validating them against $V1 reported success
-# against a schema none of them claim -- a check that could never have failed. Corrected
-# 2026-08-18 as part of task-069, whose sc-4 ("the corpus still validates") was
-# meaningless while this loop pointed at v1.
-echo "== Validate the live corpus against v2 =="
-pass=0
-fail=0
-for f in tasks/agentjobs/*.yaml tasks/test-data/*.yaml; do
-  if poetry run linkml-validate -s "$V2" --target-class Task "$f" 2>&1 | grep -q "No issues found"; then
-    pass=$((pass + 1))
-  else
-    fail=$((fail + 1))
-    echo "FAIL: $f"
-    poetry run linkml-validate -s "$V2" --target-class Task "$f" 2>&1 | head -5
-  fi
-done
-echo "corpus: $pass passed, $fail failed"
+# The live-corpus loop that stood here globbed task files under tasks/. task-380 retired
+# them from the checkout, so the globs matched nothing, expanded to themselves, and the
+# script exited 1 on every run (Big Dawg Audit II, auditor 12 finding 3). Records are
+# rows now: `agentjobs storage export` then `agentjobs validate --tasks-dir` checks them.
 
 echo
 echo "Done. Browse with:  poetry run mkdocs serve"
-if [ "$fail" -gt 0 ] || [ -n "${fail_examples:-}" ]; then
+if [ -n "${fail_examples:-}" ]; then
   exit 1
 fi

@@ -129,7 +129,8 @@ is how this project has lost the most time, so the status word comes first.
 bash scripts/regen-schema-docs.sh
 ```
 
-That script also validates the live task corpus against v2 and exits non-zero on
-failure, which makes it a useful check that no stage of `scripts/check.py` runs.
+That script also validates the teaching examples in `schema/examples/` against v2 and
+exits non-zero on failure. The live corpus is rows, not files: `agentjobs storage export
+<dir>` followed by `agentjobs validate --tasks-dir <dir>` is the equivalent check for it.
 `tests/test_schema_generated_is_current.py` covers the narrower question of whether the
 committed JSON Schema still matches its source.

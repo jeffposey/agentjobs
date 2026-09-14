@@ -167,11 +167,8 @@ are not working it — you are supervising, you take no worktree, and
     [How long a branch should live](ENGINEERING.md#how-long-a-branch-should-live); your
     branch has probably been open for hours and a conflict is far cheaper now, while you
     are in context, than at the merge where it stops a scripted finish. Then `handoff` to
-    `human`/`review` with a `ball_prompt` saying what was done and what needs review. On a
-    project still on `files`, **commit that to `main`** — a handoff sitting on your branch
-    is invisible in the React app, so the human you are handing to will never see it.
-    Make the review request
-    complete the first time: a round trip to answer a question you could have answered is
+    `human`/`review` with a `ball_prompt` saying what was done and what needs review.
+    Make the review request complete the first time: a round trip to answer a question you could have answered is
     the largest thing keeping your branch open. **Stop there** — do not merge.
 
     **Unless your dispatch prompt told you otherwise.** A run at posture `autonomous`
@@ -328,16 +325,11 @@ A human working alone does not need this; they have no peer to collide with. You
     `git worktree add`, as above. Probed on Claude Code 2.1.235, 2026-08-19; the
     reproduction is in task-186 and in
     [the dispatch design](docs/agent-dispatch-design.md).
--   **The harness tells background sessions the opposite, and this rule wins.** A `--bg`
-    session is handed a preamble instructing it to use `EnterWorktree` and saying the
-    instruction is enforced. In this repository that instruction is wrong for the reason
-    directly above. Ignore it.
-
-    **The enforcement half is switched off here, deliberately** (task-303).
-    `.claude/settings.json` sets `"worktree": {"bgIsolation": "none"}` -- the escape the
-    refusal message itself names -- so a background session's `Write` and `Edit` into the
-    shared clone land instead of being refused. Probed on **Claude Code 2.1.238,
-    2026-08-25**. `Bash` writes were never guarded either way.
+-   **If a harness preamble tells you to call `EnterWorktree`, this rule wins.**
+    `.claude/settings.json` sets `"worktree": {"bgIsolation": "none"}` (task-303), so a
+    background session's writes into the shared clone land and the preamble should say to
+    work in place; the probe history is in
+    [the workflow guide](docs/agent-workflow.md#before-you-write-anything-take-your-own-worktree).
 
     **If you are refused anyway** — *"This background session hasn't isolated its changes
     yet. Call EnterWorktree first"* — **put that on the task record before you work around
@@ -346,7 +338,7 @@ A human working alone does not need this; they have no peer to collide with. You
 
     A second refusal wears the same face and is different: the task-write guard refuses
     any write whose *content* names a task file path, even when you are editing
-    documentation. A false positive; task-276 is the fix. Build the path from pieces, or
+    documentation. A false positive, filed as task-276. Build the path from pieces, or
     reword, and carry on.
 
 Three agents skipped this in one afternoon on 2026-08-11 and each cost a peer real work;
@@ -436,8 +428,8 @@ rather than as engineering.
     the substance: "rejected the section outright" carries everything a reader needs.
 -   Already written one? `agentjobs redact` replaces a field **or a log entry body** —
     the only verb that reaches the append-only log — and records that it did.
-    `agentjobs quotations` finds them; the gate's corpus checks and the SQLite importer
-    both refuse a record carrying one.
+    `agentjobs quotations` flags quoted *tone* — a neutral verbatim quote is yours to
+    catch — and the gate's corpus checks and the SQLite importer refuse what it flags.
 
 ### Agent Handoffs
 -   When pausing, blocking, or handing off, `handoff` the ball with a `ball_prompt`

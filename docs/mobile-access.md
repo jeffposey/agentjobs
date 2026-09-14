@@ -49,6 +49,12 @@ The command prints the private `https://<host>.<tailnet>.ts.net` address. Open i
 the [Serve CLI reference](https://tailscale.com/docs/reference/tailscale-cli/serve).
 The first run may provide a URL for enabling HTTPS in the tailnet.
 
+**This path identifies nobody.** `tailscale serve` forwards from loopback and presents no
+front-door secret, so every request a tailnet device makes through it is served as the
+person at the host's keyboard, with every capability that person has. The `tsnet` proxy
+in the next section, run with the front-door secret, is the setup that tells a remote
+caller from the owner — see [the tailnet front door](tailnet-front-door.md).
+
 This machine-level setup intentionally shares one web origin with every other app
 served from that Tailscale hostname. Ports and paths separate HTTP routing, but some
 Android browsers still group installed apps by hostname. Use the dedicated Service
@@ -160,8 +166,9 @@ unauthenticated API on every interface.
 This fallback is HTTP, so treat it as browser access only: do not claim PWA
 installation, service-worker offline behavior, or transport privacy. **Parts of the UI
 also stop working**, not just the installability: `crypto.randomUUID` is only available
-in a secure context, and the React app calls it to mint the `operation_id` on a queue
-move, a reprioritize and an issue report. Over plain HTTP those actions throw. Read the
+in a secure context, and the React app calls it to mint the `operation_id` on several
+writes, a queue move, a reprioritize and an issue report among them. Over plain HTTP
+those actions throw. Read the
 task list, do not drive the queue from it. Anyone allowed by
 the network and firewall can act as the configured AgentJobs user until multi-user
 authentication is implemented.
@@ -172,7 +179,11 @@ The service worker precaches only the application shell: HTML, hashed JavaScript
 the manifest, and icons. `/api/` requests are always network-only. Every production
 build gives the shell cache a new revision; the worker activates immediately, removes
 older shell caches, takes control, and the app reloads once when that replacement
-controller arrives. A manual cache clear is not part of the upgrade path.
+controller arrives. That is the design; it is not yet the behaviour everywhere. Big Dawg
+Audit II (2026-09-11) showed an installed app launched after a rebuild getting the old
+shell with no server request, and the new worker precaching that old shell as its
+offline page. Until task-260 lands, a reload after the first launch — or a manual cache
+clear — may be needed to see a new build.
 
 For a physical-device release check:
 

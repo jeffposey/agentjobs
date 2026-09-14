@@ -62,12 +62,14 @@ sounds like the last word.** A Claude Code background session opens with *"Befor
 any code changes, use the EnterWorktree tool … This is enforced: file edits in the shared
 checkout are rejected until you isolate."* Both halves are true of the harness and wrong
 for this repository: the tool is the one thing you must not use, and the enforcement
-would stop you writing in the clone where your merge has to land — and, on a files
-project, where your task records have to be committed. So this
+would stop you writing in the clone where your merge has to land. So this
 repository turns the enforcement off — `.claude/settings.json` carries
 `"worktree": {"bgIsolation": "none"}`, which is the escape the refusal message itself
 names. Verified on Claude Code 2.1.238, 2026-08-25, by writing into the shared checkout
-from a `--bg` session with the key set and again with it removed.
+from a `--bg` session with the key set and again with it removed. On 2.1.269 and 2.1.270
+(Big Dawg Audit II, 2026-09-11) a `--bg` session with the key set received the opposite
+preamble — work in place, skip `EnterWorktree` — so the instruction above may no longer
+arrive at all; whether it returns without the key was not re-probed.
 
 Two things follow. **Take the worktree anyway** — nothing about that key changes why you
 need one; it only stops the harness picking the wrong isolation for you. And **if a write

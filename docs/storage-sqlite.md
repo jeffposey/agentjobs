@@ -257,8 +257,8 @@ last transaction on power loss, and at a few writes a minute an fsync per commit
 invisible while a lost handoff is expensive.
 
 The write context manager is **reentrant**, so a verb calling another verb joins the outer
-transaction. Without that, "state, history and the outbox row commit together" would hold
-only when a verb was called directly.
+transaction. Without that, "state and history commit together" would hold only when a
+verb was called directly.
 
 ## 6. Idempotency and webhooks
 
@@ -272,10 +272,14 @@ match the behaviour rather than the other way round. Storing the full original r
 per operation was rejected — 1,752 operations × a whole task document is roughly doubling
 the store to serve a field nobody reads.
 
-Webhooks go through `webhook_outbox`, written **in the same transaction as the state
-change**. A replayed operation short-circuits before the transaction body and so enqueues
-nothing (audit **F3**), and a crash between commit and send no longer loses the
-notification (task-047).
+**The webhook outbox is designed and not built.** The schema carries a `webhook_outbox`
+table meant to be written in the same transaction as the state change, so that a replay
+enqueues nothing (audit **F3**) and a crash between commit and send loses nothing.
+Nothing writes it: `TaskManager` still calls `WebhookManager.fire_event` during the
+mutating request, so a replayed operation re-fires its webhooks and a crash after commit
+loses the delivery. Big Dawg Audit II verified both on 2026-09-11 (R15: 0 outbox rows
+after 2,124 operations); task-255 holds the fix. The reentrant-transaction argument in §5
+is why the outbox *can* be added without restructuring the verbs.
 
 ## 7. Backup and restore
 

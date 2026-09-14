@@ -174,14 +174,15 @@ git clone https://github.com/jeffposey/agentjobs.git && cd agentjobs
 poetry install && poetry run agentjobs serve
 ```
 
-Then point any MCP client at `agentjobs mcp`. Fifteen tools cover discovery, the whole
+Then point any MCP client at `agentjobs mcp`. Its tools cover discovery, the whole
 claim/handoff/release/close loop, the queue, the append-only log, and zero-context
 resumption — each one validated, locked and logged by the same code the UI writes
 through.
 
-Claude Code and Codex each get a bundled plugin with a workflow skill and a hook that
-refuses direct writes to task files. Every client gets `agentjobs validate`, the portable
-backstop. [What each layer does and does not prevent](docs/mcp.md#what-protects-what)
+Claude Code and Codex each get a bundled plugin with a workflow skill. Records are rows
+in a database outside the checkout, so that managed write path is the layer that
+protects them; `agentjobs validate` checks a directory of exported or not-yet-imported
+task files. [What each layer does and does not prevent](docs/mcp.md#what-protects-what)
 is written down rather than implied.
 
 ## The React application
@@ -421,11 +422,11 @@ npm run check
 ```
 
 The repository commit gate is `poetry run python scripts/check.py` from the root. It
-runs ten stages, cheapest first: formatting, lint, types, the generated API contract,
+runs its stages cheapest first: formatting, lint, types, the generated API contract,
 the generated PWA icons, the frontend linter, then the Python suite, the Vitest
 component suite, the production build, and the Playwright suite against a live server. `scripts/check.py --list` prints
 them; `--from <stage>` resumes after a late failure without paying for the stages that
-already passed. The unqualified command runs all ten, and that is the one the commit
+already passed. The unqualified command runs every stage, and that is the one the commit
 rule means. `npm run check` is the focused frontend half of the gate. Run
 `npm run generate:api` when an intentional backend contract change needs to be recorded.
 

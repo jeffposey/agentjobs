@@ -155,7 +155,8 @@ class Database:
 
         Exposed for schema migration and backup, which drive transaction boundaries
         themselves. Ordinary writes go through :meth:`write` and must, because that is
-        what makes state, history and the outbox row commit together.
+        what makes state and history commit together -- and, once task-255 writes
+        ``webhook_outbox`` (nothing does yet), the outbox row with them.
         """
         return self._writer
 
@@ -164,8 +165,8 @@ class Database:
         """Hold the write connection inside one ``IMMEDIATE`` transaction.
 
         Reentrant: a verb that calls another verb joins the outer transaction rather
-        than opening a second one, so "state, history and the outbox row commit
-        together" holds however the call was reached. Only the outermost block commits.
+        than opening a second one, so "state and history commit together" holds however
+        the call was reached. Only the outermost block commits.
 
         ``BEGIN IMMEDIATE`` takes the write lock up front. The alternative -- SQLite's
         default deferred begin -- acquires it on the first write *after* the reads a
