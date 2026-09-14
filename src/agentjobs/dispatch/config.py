@@ -970,6 +970,32 @@ class ExecutionSettings:
 
 
 @dataclass(frozen=True)
+class IdleSessionSettings:
+    """What the idle-session sweep may do on this machine (task-447).
+
+    Every long-lived Claude Code process sharing the machine's login is another refresher
+    in the OAuth race that blanks ``.credentials.json`` (task-417, task-442). The sweep
+    finds idle sessions and, **only when ``enforce`` is true**, stops the ones it can bring
+    back. Off is the default and stops nothing: the report is the whole feature until the
+    owner has read it and switched enforcement on.
+    """
+
+    enforce: bool = False
+    idle_minutes: int = 240
+    """How long a session's transcript must have been quiet, as well as its ledger saying
+    ``idle``, before it may be stopped.
+
+    Four hours, from the 2026-09-13 inventory: every session the owner stopped by hand had
+    been quiet for at least seven and a half hours (the three Remote Control children
+    7h29m-9h47m, the two background orphans two days), and four hours is eight times
+    ``session_stall_seconds``, the longest a healthy working session goes silent. A stop
+    is recoverable, so the threshold only has to be long enough that the owner is not
+    mid-thought, not long enough to be certain."""
+    max_stops_per_sweep: int = 3
+    """A bound on one sweep's damage if the classification is ever wrong."""
+
+
+@dataclass(frozen=True)
 class DispatchConfig:
     """The parsed contents of ``~/.agentjobs/dispatch.yaml``."""
 
@@ -991,6 +1017,7 @@ class DispatchConfig:
     """
     path: Optional[Path] = None
     execution: "ExecutionSettings" = field(default_factory=lambda: ExecutionSettings())
+    idle_sessions: IdleSessionSettings = field(default_factory=IdleSessionSettings)
     explicit_keys: frozenset = frozenset()
     """Which ``limits.*`` and ``execution.*`` keys the file set, so a report can say whether
     a value is this machine's choice or the default."""
@@ -1138,6 +1165,8 @@ def _parse(raw: dict, path: Path) -> DispatchConfig:
         f"limits.auto.{key}" for key in _mapping(limits_raw.get("auto"), "limits.auto", path)
     }
     explicit |= {f"execution.{key}" for key in execution_raw}
+    idle_raw = _mapping(raw.get("idle_sessions"), "idle_sessions", path)
+    explicit |= {f"idle_sessions.{key}" for key in idle_raw}
     return DispatchConfig(
         version=version,
         enabled=_bool(raw.get("enabled"), "enabled", path, default=False),
@@ -1149,7 +1178,25 @@ def _parse(raw: dict, path: Path) -> DispatchConfig:
         api_base=_parse_api_base(raw.get("api_base"), path),
         path=path,
         execution=_parse_execution(execution_raw, path),
+        idle_sessions=_parse_idle_sessions(idle_raw, path),
         explicit_keys=frozenset(explicit),
+    )
+
+
+def _parse_idle_sessions(raw: Mapping[str, object], path: Path) -> IdleSessionSettings:
+    """Validate the ``idle_sessions:`` block, defaulting anything absent."""
+    defaults = IdleSessionSettings()
+    return IdleSessionSettings(
+        enforce=_bool(raw.get("enforce"), "idle_sessions.enforce", path, default=False),
+        idle_minutes=_positive_int(
+            raw.get("idle_minutes"), "idle_sessions.idle_minutes", path, defaults.idle_minutes
+        ),
+        max_stops_per_sweep=_positive_int(
+            raw.get("max_stops_per_sweep"),
+            "idle_sessions.max_stops_per_sweep",
+            path,
+            defaults.max_stops_per_sweep,
+        ),
     )
 
 
@@ -2118,6 +2165,44 @@ def set_project_enabled(
     updated = load_dispatch_config(home)
     assert updated is not None
     return updated.project(project_id)
+
+
+def set_idle_session_settings(
+    *,
+    enforce: Optional[bool] = None,
+    idle_minutes: Optional[int] = None,
+    home: Optional[Path] = None,
+) -> IdleSessionSettings:
+    """Switch idle-session enforcement or change its threshold, and return the result.
+
+    The second thing a browser may write in this file, beside project enablement, and on
+    the same terms: the raw mapping is edited in place so unknown keys survive, and the
+    written file is re-read through the parser so an invalid value is refused rather than
+    saved. It stops nothing itself; the next poller tick reads the new value.
+    """
+    path = dispatch_config_path(home)
+    if not path.is_file():
+        raise DispatchNotConfiguredError(
+            f"Dispatch is not configured on this machine: {path} does not exist."
+        )
+    if idle_minutes is not None and (isinstance(idle_minutes, bool) or idle_minutes <= 0):
+        raise DispatchConfigError("idle_sessions.idle_minutes must be a positive integer.")
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(raw, dict):
+        raise DispatchConfigError(f"Invalid dispatch config at {path}: expected a mapping.")
+    block = raw.setdefault("idle_sessions", {})
+    if not isinstance(block, dict):
+        raise DispatchConfigError(
+            f"Invalid dispatch config at {path}: idle_sessions must be a mapping."
+        )
+    if enforce is not None:
+        block["enforce"] = bool(enforce)
+    if idle_minutes is not None:
+        block["idle_minutes"] = int(idle_minutes)
+    path.write_text(yaml.safe_dump(raw, sort_keys=False, allow_unicode=False), encoding="utf-8")
+    updated = load_dispatch_config(home)
+    assert updated is not None
+    return updated.idle_sessions
 
 
 def _already_grouped(entry: Mapping[str, object], config: DispatchConfig) -> bool:

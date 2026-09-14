@@ -34,6 +34,7 @@ from .routes import (
     health_router,
     projects_router,
     runs_router,
+    sessions_router,
     web_legacy_router,
     web_router,
 )
@@ -358,6 +359,8 @@ app.include_router(projects_router)
 # spelling of /api/projects/{id}/... would be a URL asserting a scope the answer does
 # not have (task-328).
 app.include_router(runs_router)
+# Machine-wide for the same reason: which Claude sessions share this machine's login (task-447).
+app.include_router(sessions_router)
 
 # Web pages are canonically project-scoped. The legacy router keeps the old
 # unscoped URLs alive by redirecting into the resolved default project, so

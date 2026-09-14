@@ -2095,6 +2095,12 @@ def dispatch_show_config(
             else "  (the session poller follows runs; the journal replays in shadow)"
         )
     )
+    idle = config.idle_sessions
+    typer.echo(
+        f"Idle sessions:  enforce={'on' if idle.enforce else 'off'}  "
+        f"idle_minutes={idle.idle_minutes}  max_stops_per_sweep={idle.max_stops_per_sweep}"
+        "  (agentjobs sessions idle)"
+    )
     from agentjobs.dispatch.config import timeout_roles
 
     typer.echo("\nTimeouts by role (task-414 section 9a):")
@@ -2326,6 +2332,116 @@ def execution_backup(
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
     typer.echo(f"Snapshot written to {written}.")
+
+
+sessions_app = typer.Typer(
+    name="sessions",
+    help="Idle Claude sessions sharing this machine's login, and the sweep that stops them.",
+)
+app.add_typer(sessions_app)
+
+
+@sessions_app.command("idle")
+def sessions_idle(
+    as_json: bool = typer.Option(False, "--json", help="Print the inventory as JSON."),
+    idle_minutes: Optional[int] = typer.Option(
+        None, "--idle-minutes", min=1, help="Judge against this threshold instead."
+    ),
+) -> None:
+    """Every Claude Code process here, what the sweep makes of it, and why. Stops nothing."""
+    import json as json_module
+
+    from agentjobs.dispatch.config import IdleSessionSettings, load_dispatch_config
+    from agentjobs.dispatch.idle_sessions import duration_phrase, take_inventory
+
+    home = default_home()
+    config = load_dispatch_config(home)
+    settings = config.idle_sessions if config is not None else IdleSessionSettings()
+    threshold = idle_minutes or settings.idle_minutes
+    inventory = take_inventory(home, idle_minutes=threshold)
+    if as_json:
+        typer.echo(
+            json_module.dumps(
+                {
+                    "generated_at": inventory.generated_at,
+                    "enforce": settings.enforce,
+                    "idle_minutes": threshold,
+                    "errors": inventory.errors,
+                    "sessions": [
+                        {k: v for k, v in view.as_dict().items() if k != "cmdline"}
+                        for view in inventory.sessions
+                    ],
+                },
+                indent=2,
+            )
+        )
+        return
+    mode = "ENFORCING" if settings.enforce else "report only (enforcement off)"
+    typer.echo(f"Idle-session sweep: {mode}; threshold {duration_phrase(threshold * 60)}")
+    for error in inventory.errors:
+        typer.secho(f"  ! {error}", fg=typer.colors.YELLOW)
+    for view in inventory.sessions:
+        typer.echo(
+            f"  {view.pid:>7}  {view.kind:22} {view.verdict:12} "
+            f"{(view.short_id or '-'):9} {view.name[:32]:32} {view.reason}"
+        )
+
+
+@sessions_app.command("stop-idle")
+def sessions_stop_idle(
+    session: str = typer.Argument(..., help="Short id or uuid of one background session."),
+    idle_minutes: Optional[int] = typer.Option(
+        None, "--idle-minutes", min=1, help="Judge against this threshold instead."
+    ),
+) -> None:
+    """Stop one idle session now, through every guard the sweep uses, and record it.
+
+    A person's explicit act on one named session, so it does not wait for enforcement to
+    be switched on; it still refuses anything that is not a candidate.
+    """
+    from agentjobs.dispatch.config import IdleSessionSettings, load_dispatch_config
+    from agentjobs.dispatch.idle_sessions import (
+        SweepDeps,
+        book_for,
+        stop_candidate,
+        take_inventory,
+    )
+
+    home = default_home()
+    config = load_dispatch_config(home)
+    settings = config.idle_sessions if config is not None else IdleSessionSettings()
+    threshold = idle_minutes or settings.idle_minutes
+    deps = SweepDeps()
+    inventory = take_inventory(home, idle_minutes=threshold, deps=deps)
+    matches = [
+        view
+        for view in inventory.sessions
+        if view.kind == "background"
+        and session
+        and (
+            (view.short_id or "").startswith(session) or (view.session_id or "").startswith(session)
+        )
+    ]
+    if len(matches) != 1:
+        typer.secho(
+            f"{len(matches)} background sessions match {session!r}; name exactly one.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+    view = matches[0]
+    if view.verdict != "candidate":
+        typer.secho(f"Not stopped: {view.reason}", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+    report = stop_candidate(
+        view, book=book_for(home), idle_minutes=threshold, deps=deps, trigger="cli"
+    )
+    colour = typer.colors.GREEN if report.outcome == "stopped" else typer.colors.RED
+    typer.secho(f"{report.outcome}: {report.detail}", fg=colour)
+    if report.outcome == "stopped":
+        for command in view.resume_commands:
+            typer.echo(f"  resume with: {command}")
+    else:
+        raise typer.Exit(code=1)
 
 
 run_app = typer.Typer(

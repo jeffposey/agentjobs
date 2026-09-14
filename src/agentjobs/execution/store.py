@@ -252,11 +252,12 @@ CREATE TABLE child_wait (
 );
 """
 
-SCHEMA_REVISION = 3
+SCHEMA_REVISION = 4
 """Additive revisions applied on top of physical schema version 1 (task-416).
 
 Revision 3 (task-417) adds the auth-recovery incident, waiter and probe tables, which no
-earlier build reads.
+earlier build reads. Revision 4 (task-447) adds ``idle_session_event``, the record of every
+session the idle sweep stopped and every change of its enforcement mode.
 
 **Deliberately not a ``user_version`` bump.** Processes running the previous build share
 this file with the new one -- an epic walk started before an upgrade keeps dispatching
@@ -365,6 +366,16 @@ CREATE TABLE IF NOT EXISTS auth_probe (
   result_json    TEXT CHECK (result_json IS NULL OR json_valid(result_json))
 );
 CREATE INDEX IF NOT EXISTS ix_auth_probe_profile ON auth_probe(profile_key, started_at);
+
+CREATE TABLE IF NOT EXISTS idle_session_event (
+  event_id       TEXT PRIMARY KEY,
+  kind           TEXT NOT NULL CHECK (kind IN ('stop', 'mode')),
+  at             TEXT NOT NULL,
+  session_id     TEXT,
+  outcome        TEXT NOT NULL,
+  detail_json    TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(detail_json))
+);
+CREATE INDEX IF NOT EXISTS ix_idle_session_event_at ON idle_session_event(kind, at);
 """
 
 _ADDED_COLUMNS = (
@@ -1099,9 +1110,10 @@ class ExecutionStore:
     def read(self, sql: str, parameters: Sequence[Any] = ()) -> List[sqlite3.Row]:
         """A read outside any transaction, for a module that owns its own tables here.
 
-        ``dispatch.auth_recovery`` (task-417) is the one caller. Its tables live in this
-        file so its transitions share the journal's WAL and busy contract, but its logic is
-        not the journal's and does not belong in this class.
+        ``dispatch.auth_recovery`` (task-417) and ``dispatch.idle_sessions`` (task-447) are
+        the callers. Their tables live in this file so their transitions share the journal's
+        WAL and busy contract, but their logic is not the journal's and does not belong in
+        this class.
         """
         return self._read(sql, parameters)
 

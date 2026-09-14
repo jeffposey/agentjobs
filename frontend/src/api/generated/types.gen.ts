@@ -1284,6 +1284,211 @@ export type HumanActionResponse = {
 };
 
 /**
+ * IdleSessionEventView
+ */
+export type IdleSessionEventView = {
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * Auth Incidents
+     *
+     * On a mode event: the auth incident count at the switch-over.
+     */
+    auth_incidents?: number | null;
+    /**
+     * Cwd
+     */
+    cwd?: string;
+    /**
+     * Detail
+     */
+    detail?: string;
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Idle Seconds
+     */
+    idle_seconds?: number | null;
+    /**
+     * Kind
+     *
+     * stop, or mode for a change of enforcement.
+     */
+    kind: string;
+    /**
+     * Last Activity
+     */
+    last_activity?: string | null;
+    /**
+     * Name
+     */
+    name?: string;
+    /**
+     * Outcome
+     *
+     * stopped, failed or declined; enforce or report.
+     */
+    outcome: string;
+    /**
+     * Reason
+     */
+    reason?: string;
+    /**
+     * Resume Commands
+     */
+    resume_commands?: Array<string>;
+    /**
+     * Session Id
+     */
+    session_id?: string | null;
+    /**
+     * Short Id
+     */
+    short_id?: string | null;
+    /**
+     * Trigger
+     */
+    trigger?: string;
+};
+
+/**
+ * IdleSessionSettingsUpdate
+ */
+export type IdleSessionSettingsUpdate = {
+    /**
+     * Enforce
+     */
+    enforce?: boolean | null;
+    /**
+     * Idle Minutes
+     */
+    idle_minutes?: number | null;
+};
+
+/**
+ * IdleSessionSettingsView
+ */
+export type IdleSessionSettingsView = {
+    /**
+     * Configured
+     *
+     * This machine has a dispatch config to hold them.
+     */
+    configured: boolean;
+    /**
+     * Enforce
+     *
+     * Idle, resumable sessions are stopped automatically.
+     */
+    enforce: boolean;
+    /**
+     * Idle Minutes
+     */
+    idle_minutes: number;
+    /**
+     * Max Stops Per Sweep
+     */
+    max_stops_per_sweep: number;
+    /**
+     * Sweep Interval Seconds
+     */
+    sweep_interval_seconds: number;
+};
+
+/**
+ * IdleSessionView
+ */
+export type IdleSessionView = {
+    /**
+     * Cwd
+     */
+    cwd?: string;
+    /**
+     * Idle Seconds
+     */
+    idle_seconds?: number | null;
+    /**
+     * Kind
+     *
+     * daemon, background, remote_control_host, ...
+     */
+    kind: string;
+    /**
+     * Last Activity
+     */
+    last_activity?: string | null;
+    /**
+     * Ledger Status
+     */
+    ledger_status?: string | null;
+    /**
+     * Name
+     */
+    name?: string;
+    /**
+     * Pid
+     */
+    pid: number;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Resume Commands
+     */
+    resume_commands?: Array<string>;
+    /**
+     * Run Id
+     */
+    run_id?: string | null;
+    /**
+     * Session Id
+     */
+    session_id?: string | null;
+    /**
+     * Short Id
+     */
+    short_id?: string | null;
+    /**
+     * Verdict
+     *
+     * protected, in_use, idle, report_only or candidate.
+     */
+    verdict: string;
+};
+
+/**
+ * IdleSessionsView
+ */
+export type IdleSessionsView = {
+    /**
+     * Auth Incidents
+     */
+    auth_incidents?: number | null;
+    /**
+     * Errors
+     */
+    errors?: Array<string>;
+    /**
+     * Events
+     */
+    events: Array<IdleSessionEventView>;
+    /**
+     * Generated At
+     */
+    generated_at: string;
+    /**
+     * Sessions
+     */
+    sessions: Array<IdleSessionView>;
+    settings: IdleSessionSettingsView;
+};
+
+/**
  * Lifecycle
  *
  * Where a task is in its life (design doc section 3).
@@ -7424,6 +7629,47 @@ export type SearchTasksApiSearchGetResponses = {
 };
 
 export type SearchTasksApiSearchGetResponse = SearchTasksApiSearchGetResponses[keyof SearchTasksApiSearchGetResponses];
+
+export type ListIdleSessionsApiSessionsIdleGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/sessions/idle';
+};
+
+export type ListIdleSessionsApiSessionsIdleGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: IdleSessionsView;
+};
+
+export type ListIdleSessionsApiSessionsIdleGetResponse = ListIdleSessionsApiSessionsIdleGetResponses[keyof ListIdleSessionsApiSessionsIdleGetResponses];
+
+export type UpdateIdleSessionSettingsApiSessionsIdleSettingsPutData = {
+    body: IdleSessionSettingsUpdate;
+    path?: never;
+    query?: never;
+    url: '/api/sessions/idle/settings';
+};
+
+export type UpdateIdleSessionSettingsApiSessionsIdleSettingsPutErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateIdleSessionSettingsApiSessionsIdleSettingsPutError = UpdateIdleSessionSettingsApiSessionsIdleSettingsPutErrors[keyof UpdateIdleSessionSettingsApiSessionsIdleSettingsPutErrors];
+
+export type UpdateIdleSessionSettingsApiSessionsIdleSettingsPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: IdleSessionSettingsView;
+};
+
+export type UpdateIdleSessionSettingsApiSessionsIdleSettingsPutResponse = UpdateIdleSessionSettingsApiSessionsIdleSettingsPutResponses[keyof UpdateIdleSessionSettingsApiSessionsIdleSettingsPutResponses];
 
 export type ListTasksApiTasksGetData = {
     body?: never;

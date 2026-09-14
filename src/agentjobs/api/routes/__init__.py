@@ -11,6 +11,7 @@ from .queue import router as queue_router
 from .revision import router as revision_router
 from .runs import router as runs_router
 from .search import router as search_router
+from .sessions import router as sessions_router
 from .status import router as status_router
 from .tasks import router as tasks_router
 from .web import legacy_router as web_legacy_router
@@ -47,6 +48,7 @@ __all__ = [
     "revision_router",
     "runs_router",
     "search_router",
+    "sessions_router",
     "status_router",
     "tasks_router",
     "web_legacy_router",

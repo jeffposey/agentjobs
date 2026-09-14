@@ -67,6 +67,7 @@ import { IssueReporter } from "./components/IssueReporter";
 import { NextExplanation } from "./components/NextExplanation";
 import { invalidateProjectTaskQueries, LiveUpdateStatus } from "./components/LiveUpdates";
 import { LiveRunCount, LiveRunsPage, useLiveRuns } from "./components/LiveRuns";
+import { IdleSessionsSection } from "./components/IdleSessions";
 import { Playbooks, type PlaybookRunRequest } from "./components/Playbooks";
 import { AttentionBadge, useHumanAttention } from "./components/AttentionBadge";
 import { PrimaryNav } from "./components/PrimaryNav";
@@ -262,7 +263,12 @@ function useDashboardDispatch(projectId: string) {
 }
 
 function LiveRunsRoute() {
-  return <LiveRunsPage body={useLiveRuns()} />;
+  return (
+    <div className="space-y-6">
+      <LiveRunsPage body={useLiveRuns()} />
+      <IdleSessionsSection />
+    </div>
+  );
 }
 
 function TaskListPage({
