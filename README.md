@@ -85,9 +85,8 @@ notification with no payload, and the schema rejects it. (One deliberate exempti
 task in the ready pool, where the spec is itself the ask.)
 
 **Every open task has a place in line.** `queue_position` is present if and only if the
-task is open — that part the model enforces. Uniqueness inside a priority band it cannot
-see (one file cannot check another), so placement happens under a lock and
-`agentjobs queue check` reports any collision history left behind. The effect either way:
+task is open — that part the model enforces. Uniqueness inside a priority band is a
+unique index in the store, so a colliding position cannot be written. The effect:
 *"what should I work on"* always has exactly one answer, and that answer is a decision
 somebody stored — not a sort over `updated` that silently reorders your backlog every
 time an agent logs progress.
@@ -274,7 +273,7 @@ the MCP server) works without it.
 ## Quick start
 
 ```bash
-# From the AgentJobs clone, explore the project's own task data
+# From the AgentJobs clone, open the React application (a clone carries no records)
 poetry run agentjobs open
 
 # Or initialize another project while using the cloned package
@@ -294,7 +293,7 @@ CLI talks to. Arriving with a corpus of task YAML from an older version?
 From the AgentJobs clone, useful commands include:
 
 ```bash
-poetry run agentjobs create --ready --title "Describe the work" --priority high
+poetry run agentjobs create --ready --title "Describe the work" --description "Why and what" --priority high
 poetry run agentjobs list --lifecycle ready
 poetry run agentjobs show task-001
 poetry run agentjobs next --why          # what to work on, and why not the other one

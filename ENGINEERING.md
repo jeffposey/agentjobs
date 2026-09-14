@@ -109,8 +109,8 @@ source rather than a neighbouring one's.
     `docs/backlog.md` nor `ROADMAP.md` against the store, so a task changing elsewhere
     never turns your gate red and never needs a commit from you. Both may run behind the
     store; the `roadmap` playbook regenerates the listing and places the page.
--   **No stage of the gate may require a commit.** The two generated checks —
-    `openapi.json` and `src/api/generated/` — compare against **the working tree**, never
+-   **No stage of the gate may require a commit.** The generated checks —
+    `openapi.json`, `src/api/generated/` and the PWA icons — compare against **the working tree**, never
     `HEAD`: they ask whether the files on disk match what the application produces
     (task-189). So **regenerate before you gate**, whether or not you have committed. The
     `api` stage names `frontend/src/api/generated` when those files are uncommitted, and
@@ -125,7 +125,7 @@ source rather than a neighbouring one's.
     Concurrency is safe at all only because each checkout derives its own Playwright and
     benchmark ports from its path (task-187); a collision is a bug, not a reason to
     serialise.
--   Ensure high test coverage for core logic (`manager.py`, `storage.py`).
+-   Ensure high test coverage for core logic (`manager.py`, `sqlstore/store.py`).
 
 #### One gate per handoff
 
@@ -160,8 +160,9 @@ tree — commit, patch and untracked files alike — says so at the top of its o
     `scripts/bench.py` times the API, the CLI and the browser's open-a-task interaction;
     `scripts/run_report.py` says where dispatched agent time goes.
 -   **A speed claim, cycle time included, is a before/after pair from one of them or it
-    is an anecdote.** Prefer asserting on task files parsed rather than on wall-clock
-    time: the parse count means the same thing on every machine, and a threshold does not.
+    is an anecdote.** Prefer a count over wall-clock time: a count means the same thing
+    on every machine, and a threshold does not. `bench.py`'s corpus modes measure an
+    empty store until task-408, so read its caveat before quoting it.
 -   **Do not measure a run by grepping `transcript.log`.** It is a raw TTY capture, so a
     line appears in it as many times as the terminal repainted it and every count derived
     from it is an artefact of that (task-233).
@@ -216,10 +217,10 @@ ablation's reach.
     -   `docs: update installation guide`
 
 ### Branch Lifecycle
--   Create the branch **before** marking the task `in_progress`, so no committed work
-    exists outside a branch.
--   Record it in the task's `branches[]` field (`name`, `status: active`) as part of the
-    same update that sets `in_progress`.
+-   Create the branch **before** claiming the task, so no committed work exists outside
+    a branch.
+-   Record it in the task's `branches[]` field (`name`, `status: active`) straight after
+    the claim.
 -   Branch from an up-to-date `main`.
 -   Once it merges, `git worktree remove` the worktree and **then** `git branch -d` the
     branch. That order, because a branch checked out in a worktree cannot be deleted; and

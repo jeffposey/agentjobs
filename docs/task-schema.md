@@ -81,8 +81,8 @@ from a second reason value that could disagree with it.
 | `id`, `title`, `created`, `updated` | | Identity and timestamps. |
 | `lifecycle`, `ball`, `ball_reason`, `ball_prompt`, `outcome`, `archived` | | The state axes, above. |
 | `priority` | enum | `low` · `medium` · `high` · `critical` |
-| `queue_position` | int | Order **within** the priority band; `>= 1`, and present if and only if the task is open — the same rule shape as `ball`. Unique among open tasks of one band in one project, which the model cannot check and `agentjobs validate` does. Assigned in sparse steps of 100 so an insertion takes a midpoint and rewrites one file rather than a band. It is order and nothing else: `high/900` beats `medium/100` because of the band, not the number. |
-| `category`, `tags` | str, list | Project taxonomy. **Nothing validates these at write time** — not the model and not the manager. `agentjobs validate` reports a category outside the project's configured list, after the fact. |
+| `queue_position` | int | Order **within** the priority band; `>= 1`, and present if and only if the task is open — the same rule shape as `ball`. Unique among open tasks of one band in one project, which the model cannot check and the store's unique index enforces. Assigned in sparse steps of 100 so an insertion takes a midpoint and rewrites one row rather than a band. It is order and nothing else: `high/900` beats `medium/100` because of the band, not the number. |
+| `category`, `tags` | str, list | Project taxonomy. **Nothing validates these at write time** — not the model and not the manager. Nothing reports a category outside the project's configured list against the store today; `agentjobs validate --tasks-dir` does for an export. |
 | `effort` | str | Free text. An estimate, not a contract. |
 | `assignment` | object | `owner` (live, one actor id) and `eligible` (authoring-time list; empty means anyone). |
 | `parent` | str | Task id of an umbrella task. It must exist; a task may not be its own parent, nor be parented into a cycle. A task with an **open** child is never offered by `/next`, but a caller that names it can claim it: what that hands over is the supervisor's seat, and the `ball_prompt` written on the claim says so — a session per child, not the children's work. See [the parent-task protocol](agent-workflow.md#working-a-parent-task-you-supervise-the-children-you-do-not-work-them). `GET /api/tasks?parent=<id>` lists one umbrella's children. |
@@ -112,8 +112,9 @@ unrepresentable:
 5. `assignment.owner` must be empty while `draft` or `ready`, and present while
    `active`.
 6. `queue_position` is present **if and only if** the task is open, and is `>= 1`. Its
-   uniqueness within a band is not checkable by the model — `agentjobs validate` and
-   `agentjobs queue check` do that — but its presence is.
+   uniqueness within a band is not checkable by the model — the store's unique index
+   enforces it, and `agentjobs validate --tasks-dir` checks it in an export — but its
+   presence is.
 
 Six, and `models_v2.py` says "the six rules" where it validates them. The LinkML source
 encodes rules 1 to 4; rules 5 and 6 live only in the Pydantic model.
@@ -121,8 +122,8 @@ encodes rules 1 to 4; rules 5 and 6 live only in the Pydantic model.
 Null and absent mean the same thing for `ball`, `ball_reason` and `outcome`; omission
 is what the manager writes, and an explicit `null` is accepted on load.
 
-The rules are re-checked on every write, not only at construction: `TaskStorage.mutate_task`
-re-validates the mutated model before serialising it, because assigning an attribute
+The rules are re-checked on every write, not only at construction: `SqlTaskStore.mutate_task`
+re-validates the mutated model before persisting it, because assigning an attribute
 does not re-run a Pydantic validator.
 
 ---
@@ -553,13 +554,14 @@ Computed on read, never stored — `Needs review`, `In progress (claude)`,
 a drift bug waiting for its moment.
 
 It is a Pydantic *computed field*, so it appears in API responses and templates use it
-instead of switching on the axes themselves. `TaskStorage` excludes it when writing, and
-a file that contains it is rejected by name (`extra="forbid"`).
+instead of switching on the axes themselves. The store and the exporter both exclude it
+when writing, and a file that contains it is rejected by name (`extra="forbid"`).
 
-## How files are written
+## How an export is written
 
-`TaskStorage._write_task()` dumps with `by_alias=True` and `exclude_none=True`, so unset
-optional fields are **absent** rather than written as `null`.
+`taskfiles.canonical_bytes()` — what `agentjobs storage export` writes — dumps with
+`by_alias=True` and `exclude_none=True`, so unset optional fields are **absent** rather
+than written as `null`.
 
 `by_alias` is load-bearing: `schema` shadows a Pydantic `BaseModel` attribute, so the
 field is `schema_version` in Python with `alias="schema"`. Dumping without the alias
@@ -600,7 +602,7 @@ unknown *members of known enums* and *undeclared keys*. Everything else is uncha
 
 - **Writing an unknown enum value or an undeclared field is still refused.** This is
   about what a reader accepts, never about what may be stored.
-- **`TaskStorage` stays strict.** A file carrying a value or key this build does not
+- **The store and the file loader (`TaskFileCorpus`) stay strict.** A record carrying a value or key this build does not
   know is still a load error, reported by file and field.
 - A malformed payload — missing field, wrong type — still fails loudly.
 
@@ -641,7 +643,7 @@ it exists to serve.
 
 `update_task()` is for content fields (title, spec, acceptance, tags…). **The axes are
 kept out of it by the API's request model, not by the manager.**
-`TaskUpdateRequest` names the twelve fields a patch may carry and lifecycle, ball and
+`TaskUpdateRequest` names the fields a patch may carry and lifecycle, ball and
 outcome are not among them, so `PATCH /api/tasks/{task_id}` cannot move an axis. The
 manager's own `update_task()` applies whatever keys it is given, and is protected only
 by the consistency rules above rejecting an incoherent result. Calling it in-process

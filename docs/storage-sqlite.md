@@ -49,8 +49,8 @@ repository can see no plan at all.
 `ROADMAP.md` beside it is not a projection, and no code treats it as one. It is the
 owner's plan — phases in the order the project is meant to move through them — over a
 reading of the store: the workstreams no record carries, because grouping a hundred-odd
-tasks by subject is a judgement rather than a field. The gate audits its claims rather
-than regenerating it. Nothing reads it back either, so the rule above is undisturbed.
+tasks by subject is a judgement rather than a field. The `roadmap` playbook audits its
+claims (`export_roadmap.py --audit`) rather than regenerating it; no gate stage reads it. Nothing reads it back either, so the rule above is undisturbed.
 
 **Reviewing a task record in a pull request is gone, deliberately.** Task state is not code:
 a diff of `ball_reason` changing from `work` to `review` is a fact about the work rather
@@ -347,10 +347,10 @@ is its text, because `import_quarantine.raw_text` holds the whole file. Quaranti
 record for its content would put the content in the database in the same act that
 claimed to keep it out.
 
-The cost is that a false positive stops an import. Three things bound it: the same
-detector fails the gate's corpus checks, which read the store, so a record reaching an import has already passed
-the check on its way into `main`; `agentjobs redact` makes a real hit a one-command fix;
-and `run(enforce_quotation_policy=False)` lets an operator who has read the hits proceed
+The cost is that a false positive stops an import. Two things bound it: `agentjobs
+quotations --storage-dir <dir>` finds every hit before the import, so a real one can be
+fixed in the file; and `run(enforce_quotation_policy=False)` (`--allow-quotations` on the
+CLI) lets an operator who has read the hits proceed
 anyway, with `ImportReport.render()` saying the policy was off and naming every region it
 let through. The refusal and the report name regions and tone groups, never the quoted
 text.
@@ -412,12 +412,14 @@ these files, and such a record does not load at all. Three of the four projects 
 2026-09-08 were in that state, 17 open tasks between them.
 
 ```bash
-agentjobs queue check            # in that project's directory; names each one
-agentjobs queue repair           # gives every open task a place, and prints its guesses
+agentjobs validate --tasks-dir <directory>   # names each record that will not load
 ```
 
-Repair, commit the records, and preview again before importing. The positions it
-assigns are guesses and are printed for exactly that reason.
+Neither `queue check` nor `queue repair` can help here any more: both act on a project's
+store, and since task-402 there is no backend that serves a directory of files to them.
+Give each named open record a `queue_position` in its file (the bottom of its priority
+band is the neutral choice), then preview again before importing. The imported order is
+yours to correct afterwards with `agentjobs queue move`.
 
 **`--backfill-git` is on by default here and nowhere else**, and this is the one-shot part:
 the backfill reads the git history of the task files, so it must run before those files are
@@ -479,7 +481,6 @@ the actor vocabulary, dispatch configuration and authorization to a project.
 database: C:/Users/me/.agentjobs/agentjobs.db     # for a project that names none
 projects:
   agentjobs:
-    backend: sqlite
     cutover_at: '2026-09-07T05:12:00Z'
     source: C:/projects/agentjobs/tasks
     database: C:/Users/me/.agentjobs/databases/agentjobs.db

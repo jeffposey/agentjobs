@@ -23,12 +23,11 @@ Three things not to do instead, each of which has a real cost:
   deadlocks the graph if it ever points both ways, and lies to every reader who takes it
   at face value.
 - **Do not hand-edit `queue_position`.** The number is a consequence of a decision, and
-  the decision is what the record should show. A hand-written number can also collide
-  with another open task in the band, which is corruption.
+  the decision is what the record should show.
 - **Do not rely on an instruction given in chat to reorder work.** Chat does not survive
   the session. The queue does, and it is what the next agent will read.
 
-If a tool reports `queue_broken` — or `agentjobs queue check` exits non-zero — the order
+If a tool reports `queue_broken` — or `agentjobs queue check --strict` exits non-zero — the order
 itself is in doubt, so picking a task by hand is the one response that cannot be right;
 `agentjobs queue repair` states everything it guessed.
 
@@ -234,8 +233,9 @@ close and reorder **any** task, and file new ones (task-411). You may not approv
 review, dispatch anything, change dispatch configuration, register a project, or repair
 the queue. A 403 naming `capability_denied` is that rule and not a bug; ask the human,
 or say so on the record.
-The CLI speaks no HTTP and is unaffected, which is how the epic walk still starts
-children. The table is in [docs/authorization.md](docs/authorization.md).
+The table binds HTTP and MCP only: CLI verbs send no run credential and are served as
+the owner, and the dispatch family opens the store directly, which is how the epic walk
+still starts children. The table is in [docs/authorization.md](docs/authorization.md).
 
 ### If you are woken after an approval, read the record before you act
 

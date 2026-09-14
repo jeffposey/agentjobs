@@ -128,9 +128,10 @@ them.
 1.  **It is not per person.** Exposure is per project and per principal *kind*. The moment
     it depends on *which* human is asking it stops being a setting and becomes a role
     system, which task-066 ruled out for the whole epic.
-2.  **It does not touch the CLI**, which drives the manager directly and speaks no HTTP.
-    `agentjobs dispatch walk`, the poller, the scripted finish and `agentjobs queue` all
-    run as the person at the machine and see everything, by construction.
+2.  **It does not touch the CLI.** Its task verbs, `agentjobs queue` included, reach the
+    service over loopback with no run credential, and `agentjobs dispatch walk`, the
+    poller and the scripted finish open the store directly; all of them run as the
+    person at the machine and see everything.
 3.  **It is a disclosure control, not authentication.** A `tailnet` principal exists only
     because the front door proved an identity, which since task-244 means the tsnet proxy
     ran `WhoIs` on the connection, set `X-Tailscale-User`, and proved it was the proxy

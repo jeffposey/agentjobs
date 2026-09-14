@@ -157,8 +157,9 @@ Four limits, stated because the natural next assumption is wrong in each case.
     through it — see
     [what the credential buys](principals-design.md#what-it-buys-and-what-it-does-not).
 
-Nothing here reaches the CLI, which drives the manager directly and speaks no HTTP. So
-`agentjobs dispatch walk`, the session poller, the scripted finish and `agentjobs queue`
-are all outside this gate by construction. The HTTP callers are the React app (a human)
+Nothing here constrains the CLI. Its task verbs, `agentjobs queue` included, call the
+service over HTTP but send no run credential, so they are served as the person at the
+machine; `agentjobs dispatch walk`, the session poller and the scripted finish open the
+store directly. A run with a shell therefore has the whole CLI (Big Dawg Audit II, R4). The HTTP callers are the React app (a human)
 and the MCP server, whose client presents the run credential when it is inside a run —
 which is what makes a dispatched agent's MCP tools capability-checked.

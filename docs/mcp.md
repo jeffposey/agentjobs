@@ -23,8 +23,8 @@ agent
                                           one transaction)
 ```
 
-The MCP process never opens a task file and never imports `TaskManager` or
-`TaskStorage`; a test asserts that by parsing the package. Everything it does is an
+The MCP process never opens the store and never imports `TaskManager` or
+`SqlTaskStore`; a test asserts that by parsing the package. Everything it does is an
 HTTP call to a service that was already the authority, which is why a write through MCP
 is validated by exactly the same code as one from the CLI or the web UI.
 
@@ -180,7 +180,7 @@ this page would go stale.
 | Tool | What it is for |
 | --- | --- |
 | `projects_list` | Every project, with its actor vocabulary. The only tool with no `project_id`. |
-| `tasks_list` | One project's tasks, filtered, with unreadable files reported alongside. |
+| `tasks_list` | One project's tasks, filtered, with unreadable records reported alongside. |
 | `task_get` | The complete record: spec, current ask, log, dependency facts, children. |
 | `tasks_search` | Substring search within one project. |
 | `task_next` | Suggests claimable work: first in the queue, with the band, the position, and everything passed over to reach it. Explains an empty answer. Never claims. |
