@@ -95,7 +95,7 @@ URI: [aj:class/LogEntry](https://github.com/jeffposey/agentjobs/schema/v2/class/
 | [re](../slots/re.md) | 0..1 <br/> [Integer](../types/Integer.md) | Optional id of an earlier entry this one responds to | direct |
 | [body](../slots/body.md) | 0..1 <br/> [String](../types/String.md) | The human-readable content | direct |
 | [data](../slots/data.md) | 0..1 <br/> [AnyValue](../classes/AnyValue.md) | Optional structured payload, typed per entry type | direct |
-| [attachments](../slots/attachments.md) | * <br/> [Attachment](../classes/Attachment.md) | Images stored beside the tasks and referenced from this entry | direct |
+| [attachments](../slots/attachments.md) | * <br/> [Attachment](../classes/Attachment.md) | Images referenced from this entry | direct |
 
 
 
@@ -229,9 +229,9 @@ attributes:
     inlined: true
   attachments:
     name: attachments
-    description: Images stored beside the tasks and referenced from this entry. The
-      blob lives in a sidecar file; only the metadata is in the YAML, so a task file
-      stays readable in a text editor and diffable line by line.
+    description: Images referenced from this entry. The blob is stored in the database,
+      content-addressed, and written beside the task file by an export; only the metadata
+      is in the record, so an exported task file stays readable.
     from_schema: https://github.com/jeffposey/agentjobs/schema/v2
     rank: 1000
     domain_of:
@@ -332,9 +332,9 @@ attributes:
     inlined: true
   attachments:
     name: attachments
-    description: Images stored beside the tasks and referenced from this entry. The
-      blob lives in a sidecar file; only the metadata is in the YAML, so a task file
-      stays readable in a text editor and diffable line by line.
+    description: Images referenced from this entry. The blob is stored in the database,
+      content-addressed, and written beside the task file by an export; only the metadata
+      is in the record, so an exported task file stays readable.
     from_schema: https://github.com/jeffposey/agentjobs/schema/v2
     rank: 1000
     owner: LogEntry

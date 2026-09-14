@@ -39,7 +39,7 @@ Name: agentjobs-v2
 | [Link](classes/Link.md) | An external reference, with its kind made explicit |
 | [LogEntry](classes/LogEntry.md) | One immutable event in the task's history (section 4) |
 | [Spec](classes/Spec.md) | The working specification, split along the questions agents actually ask |
-| [Task](classes/Task.md) | A unit of work |
+| [Task](classes/Task.md) | A unit of work, stored as one record in the project's database and exported a... |
 
 
 
@@ -51,7 +51,7 @@ Name: agentjobs-v2
 | [actor](slots/actor.md) | Who or what produced this entry, referenced by actor id (D4) |
 | [archived](slots/archived.md) | Visibility flag, orthogonal to how the task ended |
 | [assignment](slots/assignment.md) | Live ownership plus authoring-time eligibility |
-| [attachments](slots/attachments.md) | Images stored beside the tasks and referenced from this entry |
+| [attachments](slots/attachments.md) | Images referenced from this entry |
 | [ball](slots/ball.md) | Who acts next |
 | [ball_prompt](slots/ball_prompt.md) | The ask, in prose, addressed to whoever holds the ball |
 | [ball_reason](slots/ball_reason.md) | Why the ball holder holds it |

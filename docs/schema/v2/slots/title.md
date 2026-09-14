@@ -20,7 +20,7 @@ URI: [aj:slot/title](https://github.com/jeffposey/agentjobs/schema/v2/slot/title
 
 | Name | Description | Modifies Slot |
 | --- | --- | --- |
-| [Task](../classes/Task.md) | A unit of work |  no  |
+| [Task](../classes/Task.md) | A unit of work, stored as one record in the project's database and exported a... |  no  |
 | [Link](../classes/Link.md) | An external reference, with its kind made explicit |  no  |
 
 

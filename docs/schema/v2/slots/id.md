@@ -20,7 +20,7 @@ URI: [aj:slot/id](https://github.com/jeffposey/agentjobs/schema/v2/slot/id)
 
 | Name | Description | Modifies Slot |
 | --- | --- | --- |
-| [Task](../classes/Task.md) | A unit of work |  no  |
+| [Task](../classes/Task.md) | A unit of work, stored as one record in the project's database and exported a... |  no  |
 | [Actor](../classes/Actor.md) | A party that can act on tasks |  no  |
 | [AcceptanceCriterion](../classes/AcceptanceCriterion.md) | One verifiable condition for done |  no  |
 | [LogEntry](../classes/LogEntry.md) | One immutable event in the task's history (section 4) |  no  |
