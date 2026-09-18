@@ -7,7 +7,7 @@ incident:
   what: >-
     An agent ran `git add -A` and committed a peer's uncommitted, in-flight files.
     Recovered only because it was noticed within a minute.
-  where: "ALLAGENTS.md, 'Three failures on 2026-08-11', failure 1"
+  where: "Shared clone, 2026-08-11, first of three failures; the narrative was cut from the bundle by task-305 and its residue is ALLAGENTS.md#Why you get your own worktree ('Three agents skipped this')"
 
 tags: [quick, shared-clone]
 runs: 3

@@ -22,6 +22,20 @@ install` produces. Skip it and step 2 has nothing to open. See
 [the installation guide](installation.md) for why, and for the release-wheel case that
 needs no Node at all.
 
+`init` prompts for a project name, prompts directory, port and your actor id, and Enter
+accepts each default. With no terminal — a script, or an agent following this page — the
+prompts abort, so pass every value:
+
+```bash
+poetry -P /path/to/agentjobs run agentjobs init \
+  --project-name "My project" --prompts-dir prompts --port 8765 --user "Your Name"
+```
+
+**Keep the default port.** `init` records `--port` in `.agentjobs/config.yaml` and in
+`.mcp.json`, but the CLI does not read it back yet: task commands reach `AGENTJOBS_URL`, then
+`api_base:` in `~/.agentjobs/dispatch.yaml`, then `http://127.0.0.1:8765`, and `serve`,
+`open` and `stop` default to 8765 unless given `--port`. A different port needs both.
+
 Initialization creates `.agentjobs/config.yaml`, a project registration for the local
 server, a database of this project's own under `~/.agentjobs/databases/`, and a
 `.mcp.json` declaring the AgentJobs MCP server so agents working here have the tools
@@ -57,7 +71,8 @@ Create work in the React UI, or use the CLI:
 
 ```bash
 poetry -P /path/to/agentjobs run agentjobs create --ready \
-  --title "Ship REST layer" --category engineering --priority high
+  --title "Ship REST layer" --description "Expose tasks over REST." \
+  --category engineering --priority high
 poetry -P /path/to/agentjobs run agentjobs list --lifecycle ready
 poetry -P /path/to/agentjobs run agentjobs work --agent codex
 ```
@@ -65,9 +80,13 @@ poetry -P /path/to/agentjobs run agentjobs work --agent codex
 `--ready` matters. Without it a task is born `draft`, and a draft is deliberately
 not claimable -- so `list --lifecycle ready` prints nothing and `work` reports "No
 tasks available". Drafting is the right default for a task whose spec is still being
-written; `agentjobs promote <id>` is the same step taken later. `work` resolves the
-project through the registry and reads whichever backend is authoritative for it, so it
-sees the same records the UI does.
+written; `agentjobs promote <id>` is the same step taken later. `create` prompts for
+any of `--title` and `--description` you leave out. `work` resolves the project through
+the registry and reads the project's database through the server, so it sees the same
+records the UI does. It is interactive.
+
+If the server is not running, these commands fail with a long traceback whose last line
+says "service unavailable, nothing written" and how to start it; step 2 is the fix.
 
 ## 4. Use the schema-v2 Python client
 

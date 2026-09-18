@@ -99,7 +99,7 @@ is how this project has lost the most time, so the status word comes first.
 
 | Document | State |
 | --- | --- |
-| [Agent loops design](agent-loops-design.md) | No implementation. Derived tasks are open and unclaimed. |
+| [Agent loops design](agent-loops-design.md) | No implementation. Re-planned on 2026-09-13 under task-437, executable acceptance criteria first; several of its original derived tasks were closed as superseded then. |
 | [Analytics page design](analytics-design.md) | §6's history contract shipped (task-371); the API, the page and its entry point (task-372 to task-374) are open and unstarted. |
 
 **Historical.** True when written, kept for the reasoning, not maintained.
@@ -115,11 +115,15 @@ is how this project has lost the most time, so the status word comes first.
 
 | Document | Date |
 | --- | --- |
-| [Task corpus audit](task-corpus-audit.md) | 2026-08-13 structural audit, plus a 2026-08-27 record-quality baseline — summary lengths by era and how often a `question` entry ever reaches a record. Regenerate that half with `scripts/corpus_stats.py`. |
+| [Task corpus audit](task-corpus-audit.md) | 2026-08-13 structural audit, plus a 2026-08-27 record-quality baseline — summary lengths by era and how often a `question` entry ever reaches a record. `scripts/corpus_stats.py` regenerated that half while records were files; on the store it prints zeros until task-396. |
 | [MCP release evidence](integration/mcp-release-evidence.md) | 2026-08-17. Its counts — "fourteen tools", "1089 tests" — were right that day and are not now. |
 | [The context budget](context-budget.md) | 2026-08-25. What a session loads before its first thought, per runner, with the instrument behind every figure. The totals move with each harness release and each commit to the always-loaded bundle; the methods and the proposed cap do not. |
 
 **Generated.** Never hand-edit; regenerate.
+
+[Backlog listing](backlog.md) — every open task by band, written by
+`scripts/export_roadmap.py docs/backlog.md` when the `roadmap` playbook runs, so it may
+run behind the store. `ROADMAP.md` at the repository root is the hand-written plan.
 
 [v2 entity diagram](schema/v2-erd.md) · [generated v2 reference](schema/v2/index.md) ·
 [generated v1 reference](schema/v1/index.md) · everything under `docs/schema/v1/`,
@@ -129,7 +133,8 @@ is how this project has lost the most time, so the status word comes first.
 bash scripts/regen-schema-docs.sh
 ```
 
-That script also validates the live task corpus against v2 and exits non-zero on
-failure, which makes it a useful check that no stage of `scripts/check.py` runs.
+That script also validates the teaching examples in `schema/examples/` against v2 and
+exits non-zero on failure. The live corpus is rows, not files: `agentjobs storage export
+<dir>` followed by `agentjobs validate --tasks-dir <dir>` is the equivalent check for it.
 `tests/test_schema_generated_is_current.py` covers the narrower question of whether the
 committed JSON Schema still matches its source.

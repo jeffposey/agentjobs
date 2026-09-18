@@ -6,7 +6,7 @@ search:
 # Class: Task 
 
 
-_A unit of work. One YAML file per task, in git -- diffable, reviewable, blame-able, mergeable. Hand-editing remains a first-class interface (D2)._
+_A unit of work, stored as one record in the project's database and exported as one YAML file per task. Every write goes through the managed verbs; hand-editing was a first-class interface (D2) until records became rows (task-380)._
 
 
 
@@ -338,8 +338,9 @@ URI: [aj:class/Task](https://github.com/jeffposey/agentjobs/schema/v2/class/Task
 <details>
 ```yaml
 name: Task
-description: A unit of work. One YAML file per task, in git -- diffable, reviewable,
-  blame-able, mergeable. Hand-editing remains a first-class interface (D2).
+description: A unit of work, stored as one record in the project's database and exported
+  as one YAML file per task. Every write goes through the managed verbs; hand-editing
+  was a first-class interface (D2) until records became rows (task-380).
 from_schema: https://github.com/jeffposey/agentjobs/schema/v2
 attributes:
   schema:
@@ -706,8 +707,9 @@ rules:
 <details>
 ```yaml
 name: Task
-description: A unit of work. One YAML file per task, in git -- diffable, reviewable,
-  blame-able, mergeable. Hand-editing remains a first-class interface (D2).
+description: A unit of work, stored as one record in the project's database and exported
+  as one YAML file per task. Every write goes through the managed verbs; hand-editing
+  was a first-class interface (D2) until records became rows (task-380).
 from_schema: https://github.com/jeffposey/agentjobs/schema/v2
 attributes:
   schema:

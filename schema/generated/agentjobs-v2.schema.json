@@ -360,7 +360,7 @@
                     "type": "string"
                 },
                 "attachments": {
-                    "description": "Images stored beside the tasks and referenced from this entry. The blob lives in a sidecar file; only the metadata is in the YAML, so a task file stays readable in a text editor and diffable line by line.",
+                    "description": "Images referenced from this entry. The blob is stored in the database, content-addressed, and written beside the task file by an export; only the metadata is in the record, so an exported task file stays readable.",
                     "items": {
                         "$ref": "#/$defs/Attachment"
                     },
@@ -725,7 +725,7 @@
                     }
                 }
             ],
-            "description": "A unit of work. One YAML file per task, in git -- diffable, reviewable, blame-able, mergeable. Hand-editing remains a first-class interface (D2).",
+            "description": "A unit of work, stored as one record in the project's database and exported as one YAML file per task. Every write goes through the managed verbs; hand-editing was a first-class interface (D2) until records became rows (task-380).",
             "properties": {
                 "acceptance": {
                     "description": "What \"done\" means. Replaces success_criteria.",
@@ -1128,7 +1128,7 @@
             }
         }
     ],
-    "description": "A unit of work. One YAML file per task, in git -- diffable, reviewable, blame-able, mergeable. Hand-editing remains a first-class interface (D2).",
+    "description": "A unit of work, stored as one record in the project's database and exported as one YAML file per task. Every write goes through the managed verbs; hand-editing was a first-class interface (D2) until records became rows (task-380).",
     "metamodel_version": "1.11.0",
     "properties": {
         "acceptance": {

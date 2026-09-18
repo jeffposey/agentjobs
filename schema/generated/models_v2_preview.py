@@ -351,7 +351,7 @@ class LogEntryType(str, Enum):
 
 class Task(ConfiguredBaseModel):
     """
-    A unit of work. One YAML file per task, in git -- diffable, reviewable, blame-able, mergeable. Hand-editing remains a first-class interface (D2).
+    A unit of work, stored as one record in the project's database and exported as one YAML file per task. Every write goes through the managed verbs; hand-editing was a first-class interface (D2) until records became rows (task-380).
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://github.com/jeffposey/agentjobs/schema/v2',
          'rules': [{'description': 'Rule 1 and 3: ball is absent-or-null if and only '
@@ -567,7 +567,7 @@ class LogEntry(ConfiguredBaseModel):
     re: Optional[int] = Field(default=None, description="""Optional id of an earlier entry this one responds to. How an `answer` attaches to its `question`.""", json_schema_extra = { "linkml_meta": {'domain_of': ['LogEntry']} })
     body: Optional[str] = Field(default=None, description="""The human-readable content. Markdown. For `handoff` entries this is the ask, mirroring ball_prompt; for `decision` entries it must include the rejected alternative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['LogEntry']} })
     data: Optional[Any] = Field(default=None, description="""Optional structured payload, typed per entry type. For `transition` entries it carries the state delta, e.g. {lifecycle: active, ball: agent, ball_reason: work}. Deliberately unconstrained at the schema level; the per-type shape is validated by the manager that writes it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['LogEntry']} })
-    attachments: Optional[list[Attachment]] = Field(default=None, description="""Images stored beside the tasks and referenced from this entry. The blob lives in a sidecar file; only the metadata is in the YAML, so a task file stays readable in a text editor and diffable line by line.""", json_schema_extra = { "linkml_meta": {'domain_of': ['LogEntry']} })
+    attachments: Optional[list[Attachment]] = Field(default=None, description="""Images referenced from this entry. The blob is stored in the database, content-addressed, and written beside the task file by an export; only the metadata is in the record, so an exported task file stays readable.""", json_schema_extra = { "linkml_meta": {'domain_of': ['LogEntry']} })
 
 
 class Attachment(ConfiguredBaseModel):

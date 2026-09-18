@@ -172,21 +172,20 @@ it ever did in Codex.
 }
 ```
 
-Protection: MCP tools and portable validation, plus the receipt gate if you install the
-git hook. A bare server entry carries no hook and no skill, so nothing stops the client
-writing task YAML with its own file tools. Install the plugin above where your client
-supports one, or install the commit gate, which is client-independent and catches the
-same edits one step later:
-
-```bash
-agentjobs validate --install-hook
-```
+Protection: the MCP tools. On a database project — every project since task-402 — there
+is no task file in the checkout for a client's own file tools to write, so the managed
+write path is the protection, with or without a plugin. A bare server entry carries no
+skill, so install the plugin above where your client supports one. The hook and the
+commit gate (`agentjobs validate --install-hook`) matter only while you hold task files:
+an export, or a corpus waiting to be imported
+([what protects what](mcp.md#what-protects-what)).
 
 ## Gemini
 
 Same STDIO entry as the one above, in Gemini's MCP configuration. Same protection
-level: tools and validation. **No pre-tool hook is shipped for Gemini yet**, so nothing
-stops Gemini writing task YAML with its own file tools.
+level: the tools. **No pre-tool hook is shipped for Gemini yet**, so nothing stops
+Gemini writing task YAML with its own file tools — which matters only while task files
+exist to write: an export, or a corpus waiting to be imported.
 
 That is a gap in what AgentJobs ships rather than a limit of the client. The guard's
 decision logic is client-agnostic and already serialises two clients' decision shapes

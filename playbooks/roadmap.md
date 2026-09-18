@@ -242,11 +242,11 @@ either — a fact smuggled into the page is one the listing still cannot show.
 
 ## 9. Finish by regenerating, and prove it
 
-The last act of the run is the generator, then the stage that audits the page:
+The last act of the run is the generator, then the audit of the page:
 
 ```bash
 poetry run python scripts/export_roadmap.py docs/backlog.md
-poetry run python scripts/check.py --only roadmap
+poetry run python scripts/export_roadmap.py docs/backlog.md --audit ROADMAP.md
 ```
 
 Commit both. **This run is when the listing gets regenerated.** No gate checks it against

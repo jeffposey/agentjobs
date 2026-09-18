@@ -6,7 +6,7 @@ search:
 # Slot: attachments 
 
 
-_Images stored beside the tasks and referenced from this entry. The blob lives in a sidecar file; only the metadata is in the YAML, so a task file stays readable in a text editor and diffable line by line._
+_Images referenced from this entry. The blob is stored in the database, content-addressed, and written beside the task file by an export; only the metadata is in the record, so an exported task file stays readable._
 
 
 
@@ -92,9 +92,9 @@ URI: [aj:slot/attachments](https://github.com/jeffposey/agentjobs/schema/v2/slot
 <details>
 ```yaml
 name: attachments
-description: Images stored beside the tasks and referenced from this entry. The blob
-  lives in a sidecar file; only the metadata is in the YAML, so a task file stays
-  readable in a text editor and diffable line by line.
+description: Images referenced from this entry. The blob is stored in the database,
+  content-addressed, and written beside the task file by an export; only the metadata
+  is in the record, so an exported task file stays readable.
 from_schema: https://github.com/jeffposey/agentjobs/schema/v2
 rank: 1000
 owner: LogEntry

@@ -20,7 +20,7 @@ URI: [aj:slot/priority](https://github.com/jeffposey/agentjobs/schema/v2/slot/pr
 
 | Name | Description | Modifies Slot |
 | --- | --- | --- |
-| [Task](../classes/Task.md) | A unit of work |  no  |
+| [Task](../classes/Task.md) | A unit of work, stored as one record in the project's database and exported a... |  no  |
 
 
 

@@ -146,6 +146,14 @@ wins. What survives is not a token problem but a correctness one: the two entrie
 different ports, and 8765 is the port `GLOBAL-AGENTS.md` explicitly warns serves stale
 data. Filed separately rather than fixed here — this task changes no registration.
 
+**Correction, 2026-09-11 and again 2026-09-13: it does reproduce now.** The measurement
+above stands for its date, when the plugin's server pointed at a dead port and never
+connected. Since task-317 removed that port pin it connects, and Claude Code prefixes the
+plugin's tools `mcp__plugin_agentjobs_agentjobs__*`, so nothing collides: Big Dawg Audit
+II (auditors 10 and 13, Claude Code 2.1.269) and an interactive desktop session on
+2026-09-13 each saw **32** AgentJobs tool names and the `## agentjobs` instruction block
+twice. Task-319 (retire the root `.mcp.json`) is the fix.
+
 ---
 
 ## 3. Claude Code, interactive

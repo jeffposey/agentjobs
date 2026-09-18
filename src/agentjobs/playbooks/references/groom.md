@@ -22,7 +22,7 @@ run_task:
         evidence.
     - text: Every executed close appears in the approved list, with the approved
         outcome (duplicate or superseded), and nothing else was closed.
-    - text: No task file was deleted, no spec was rewritten, no priority was changed
+    - text: No task record was deleted, no spec was rewritten, no priority was changed
         and no queue position was moved.
 ---
 
@@ -42,7 +42,7 @@ you did, so a reader who has only that task must be able to check your work agai
 
 The corpus is every **open** task in the project — `lifecycle` `draft`, `ready` or
 `active`. Read it through the read surfaces (`tasks_list`, `task_get`, the REST
-equivalents), never by parsing the YAML files yourself: the files are generated state
+equivalents), never by querying the database yourself: the record is generated state
 and a reader that goes around the model will eventually disagree with it.
 
 **Read the closed tasks too.** You are not judging them, but a superseding task is very
@@ -185,7 +185,7 @@ and do not close the run task to tidy it away.
 Exactly `{close-as-duplicate, close-as-superseded}`. Everything in this list is outside
 it, and none of these is a rule you may trade against a good reason:
 
-- **Never delete a task file.** The record of a closed task is why the close is
+- **Never delete a task record.** The record of a closed task is why the close is
   auditable.
 - **Never rewrite a spec.** Not to clarify it, not to merge two of them. That is
   `flesh-out`'s verb, on a task whose ball is parked for review.

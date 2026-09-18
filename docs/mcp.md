@@ -23,8 +23,8 @@ agent
                                           one transaction)
 ```
 
-The MCP process never opens a task file and never imports `TaskManager` or
-`TaskStorage`; a test asserts that by parsing the package. Everything it does is an
+The MCP process never opens the store and never imports `TaskManager` or
+`SqlTaskStore`; a test asserts that by parsing the package. Everything it does is an
 HTTP call to a service that was already the authority, which is why a write through MCP
 is validated by exactly the same code as one from the CLI or the web UI.
 
@@ -180,7 +180,7 @@ this page would go stale.
 | Tool | What it is for |
 | --- | --- |
 | `projects_list` | Every project, with its actor vocabulary. The only tool with no `project_id`. |
-| `tasks_list` | One project's tasks, filtered, with unreadable files reported alongside. |
+| `tasks_list` | One project's tasks, filtered, with unreadable records reported alongside. |
 | `task_get` | The complete record: spec, current ask, log, dependency facts, children. |
 | `tasks_search` | Substring search within one project. |
 | `task_next` | Suggests claimable work: first in the queue, with the band, the position, and everything passed over to reach it. Explains an empty answer. Never claims. |
@@ -281,6 +281,14 @@ retryable: an identical request is refused the same way. What each means is in
 Making the right thing easy is not the same as making the wrong thing impossible, and
 the difference is worth being precise about.
 
+**On a database project — every project since task-402 — the write path is the only
+layer.** Records are rows outside every checkout, so the hook, the receipt gate and
+`agentjobs validate` below guard task *files*, which exist only in a `storage export` or
+in a corpus waiting to be imported. The table is kept for that case. The write path
+itself validates, locks and logs every change, which is the stronger claim; what it does
+not stop is a process with a shell writing to the database file or the REST API directly
+([authorization.md](authorization.md) says which doors a run's credential governs).
+
 | Client / writer | MCP tools | Pre-tool hook | Local receipt gate | `agentjobs validate` |
 | --- | --- | --- | --- | --- |
 | Codex with the plugin | yes | yes, once you trust the hook | yes, if installed | yes |
@@ -308,8 +316,9 @@ the difference is worth being precise about.
   Both this row and the editor row above are the files-project case: on a SQLite project
   the records are outside every checkout, so there is nothing staged to gate and no file
   for an editor to reach.
-- **`agentjobs validate`** needs only the files, so it is the check CI and a clean clone
-  can run. It proves the corpus is safe to load and internally consistent. It **cannot**
+- **`agentjobs validate`** needs only a directory of task files (`--tasks-dir`, which it
+  requires), so it is the check to run over an export or over a corpus before import. It
+  proves the corpus is safe to load and internally consistent. It **cannot**
   prove which program wrote a file, because a careful hand edit produces a file that
   validates perfectly. That limitation is structural, and calling it "enforcement"
   would be wrong.

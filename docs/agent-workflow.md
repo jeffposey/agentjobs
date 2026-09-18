@@ -62,12 +62,14 @@ sounds like the last word.** A Claude Code background session opens with *"Befor
 any code changes, use the EnterWorktree tool … This is enforced: file edits in the shared
 checkout are rejected until you isolate."* Both halves are true of the harness and wrong
 for this repository: the tool is the one thing you must not use, and the enforcement
-would stop you writing in the clone where your merge has to land — and, on a files
-project, where your task records have to be committed. So this
+would stop you writing in the clone where your merge has to land. So this
 repository turns the enforcement off — `.claude/settings.json` carries
 `"worktree": {"bgIsolation": "none"}`, which is the escape the refusal message itself
 names. Verified on Claude Code 2.1.238, 2026-08-25, by writing into the shared checkout
-from a `--bg` session with the key set and again with it removed.
+from a `--bg` session with the key set and again with it removed. On 2.1.269 and 2.1.270
+(Big Dawg Audit II, 2026-09-11) a `--bg` session with the key set received the opposite
+preamble — work in place, skip `EnterWorktree` — so the instruction above may no longer
+arrive at all; whether it returns without the key was not re-probed.
 
 Two things follow. **Take the worktree anyway** — nothing about that key changes why you
 need one; it only stops the harness picking the wrong isolation for you. And **if a write
@@ -617,7 +619,7 @@ If a managed operation fails, diagnose the error — every one carries a code an
 suggested action. A failing tool is not permission to write to the store yourself.
 Direct repair is an
 emergency procedure for a maintainer, requires a stated reason, and is followed by
-`agentjobs validate`.
+`agentjobs queue check --strict` and a `task_get` of the repaired record.
 
 Agents with MCP available should prefer it for every task read and write; the REST API
 and CLI are the fallback when it is not.
@@ -708,8 +710,7 @@ Three things not to do instead:
   it ever points both ways, and lies to every reader who takes it at face value.
 - **Do not hand-edit `queue_position`.** There is no setter for it, for the same reason
   there is no `set_lifecycle`: the number is a consequence of a decision, and the record
-  should show the decision. A hand-written number can also collide with another open
-  task in the band, which is corruption selection refuses to answer over.
+  should show the decision.
 - **Do not rely on a chat instruction to reorder work.** Chat does not survive the
   session; the queue does, and it is what the next agent reads.
 
@@ -832,11 +833,10 @@ At any human-decision point:
    the task log.
 2. Call `handoff_task()` with `ball="human"`, the precise reason (`review`, `approval`,
    `decision`, `input`, or `spec`), and a self-contained `ball_prompt`.
-3. Commit the task-record update where the project workflow requires it.
-4. Notify through whatever interactive channel is available today: the chat reply and,
+3. Notify through whatever interactive channel is available today: the chat reply and,
    when the host provides it, push notification. The notification is only a wake-up
    signal; all substance belongs in the task record.
-5. Stop. Do not merge or make the decision on the human's behalf.
+4. Stop. Do not merge or make the decision on the human's behalf.
 
 #### Name your links, and write them on their own lines
 
@@ -1071,7 +1071,7 @@ removal unrecorded. It addresses `title`, `ball_prompt`, `spec.<name>` and
 `log[<id>].body`, refuses anything else rather than guessing, appends a note saying what
 was redacted and why and how many characters went -- never the text, and never a hash of
 it, since a hash of a short phrase is not one-way in any useful sense -- and re-writes
-the record canonically, whichever backend holds it.
+the record canonically.
 
 **You supply the replacement, and it should say what the removed text meant.** There is
 no black-bar mode on purpose: a redaction that loses why a task exists is a worse record,

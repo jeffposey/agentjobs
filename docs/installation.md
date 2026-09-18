@@ -58,10 +58,10 @@ The bootstrap does not build the frontend bundle, because `scripts/check.py` bui
 as its `build` stage. Run the `npm --prefix frontend run build` line above if you want
 `/app/` before you have run the gate.
 
-The complete check is ten named stages — formatting, lint, types, the generated API
+The complete check is a set of named stages (`scripts/check.py --list`) — formatting, lint, types, the generated API
 document and client, the generated PWA icons, frontend lint, the Python suite, the
 jsdom component tests, the production build, and the Playwright end-to-end tests
-against a live server. See [ENGINEERING.md](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md)
+against a live server. See [the performance guide](performance.md#what-the-gate-costs)
 for the stage table and what each one costs. Release
 artifacts must be created with `poetry run python scripts/build_release.py`; it produces
 and verifies a platform-independent `py3-none-any` wheel, then boots the installed
