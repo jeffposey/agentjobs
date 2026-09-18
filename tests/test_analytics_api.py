@@ -1,7 +1,7 @@
 """``GET /api/projects/{id}/analytics`` -- the endpoint ``docs/analytics-design.md`` §7 specifies.
 
-The corpus here is planted event by event at chosen instants, through the store's own
-write path, because every claim this page makes is about *when* something happened. A
+The corpus here is planted event by event at chosen instants, as rows the product could
+have written, because every claim this page makes is about *when* something happened. A
 fixture that let the clock fall where it liked could not fail for any of the reasons
 these tests exist:
 
