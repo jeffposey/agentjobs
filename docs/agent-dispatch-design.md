@@ -999,11 +999,46 @@ That name is not decoration. Three surfaces read it, and the second is load-bear
 3. A human debugging **reconciliation or stall detection** (task-296, task-320) is
    reading these names, even though the mechanism there is session ids.
 
-AgentJobs now splices `--name <project>/<task>@<short run id>` — `agentjobs/task-324@11085a50`
-— into the argv, at the same insertion point and for the same reason as the posture
-flags: it is AgentJobs' business, not the operator's, and a template copied from the
-scaffold must not be able to lose it by being edited. `session_name_flags` in
-`dispatch/runner.py` is the whole of it.
+AgentJobs now splices `--name <project>/<task>` — `agentjobs/task-324` — into the argv, at
+the same insertion point and for the same reason as the posture flags: it is AgentJobs'
+business, not the operator's, and a template copied from the scaffold must not be able to
+lose it by being edited. `session_name_flags` in `dispatch/runner.py` is the whole of it.
+
+**The name carries a discriminator only when one is needed** (task-452). Until then every
+name ended in `@` plus the run id's first eight hex characters — `agentjobs/task-324@11085a50`
+— and the owner's report was that the trailing hex reads as random and makes a list of
+sessions harder to scan. It was there for one reader: the peer channel has to be able to
+tell two runs of one task apart, and the task id alone cannot. That case is real and rare,
+and the common case was paying for it on every row.
+
+So the suffix is now an **ordinal**, and `choose_session_name` uses one above 1 only when
+the machine's live-session roster already holds the name below it: `agentjobs/task-324`,
+then `agentjobs/task-324#2`. A sequence rather than a hash, because "the second run of
+this task" is the thing the reader who wants a discriminator is trying to learn.
+
+Two facts make that cheap. **Uniqueness among live sessions is the requirement**, not
+global uniqueness — Claude Code renames a session whose name collides with a live one to a
+variant of its own choosing, so shipping a collidable name is worse than shipping a
+suffix, because the name AgentJobs recorded would not be the name the session has. And the
+roster at `~/.claude/sessions/<pid>.json` is **plain-readable by the same OS user with no
+Claude process in the loop** (task-449), so the dispatcher can ask "is a session for this
+task already live" before it picks: `idle_sessions.live_session_names`, a directory of
+small JSON files rather than a `claude agents --json` subprocess on the dispatch path.
+
+`#` was chosen over `/` after checking the property that is not obvious: `SendMessage`
+validates its `to` argument *before* it looks anything up, and task-451 found it rejects
+any name containing `@` outright. On Claude Code 2.1.276, 2026-09-18, three sandbox
+sessions named `agentjobs/task-996`, `agentjobs/task-996#2` and `agentjobs/task-996/2` were
+each sent a message by name from a `claude -p` sender; all three resolved to distinct rows
+and all three acted on what they were sent. `/2` was rejected because it reads as another
+path segment, inviting the reader to parse `2` as a third id of the same kind as the
+project and the task.
+
+A run's name is therefore **not a pure function of the run**, and is picked once per run by
+`DispatchRunner.session_name_for` and remembered: the same string goes into `--name` and
+onto the run's meta, which is what the controller correlates a launch by and what `stop`
+matches sessions against. A roster that cannot be read yields the ordinary name rather than
+raising — the suffix improves a name and is never a precondition for a dispatch.
 
 **Which flag, established by observation on Claude Code 2.1.247 rather than from
 `--help`.** The help text advertises two naming surfaces and does not say whether they
