@@ -55,6 +55,7 @@ from agentjobs.dispatch.runner import (
     RunDirectory,
     git_head,
     new_run_id,
+    row_names_session,
 )
 from agentjobs.models_v2 import Ball, DispatchMode, DispatchOutcome, Lifecycle, Task
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
@@ -81,14 +82,19 @@ def start_interactive_run(
     """Write the run record for a session that has just claimed ``task``, or nothing.
 
     ``None`` is an ordinary answer and never an error: no identity (a human at the
-    keyboard, a caller that sent none), a task that is not active, or a task that
-    already has a live run -- a replayed claim, or a dispatched run whose agent claimed
-    on arrival. Every one of those is a state in which writing a record would either
-    invent a session or put two runs on one task.
+    keyboard, a caller that sent none), a task that is not active, a task whose ball is
+    not with the agent, or a task that already has a live run -- a replayed claim, or a
+    dispatched run whose agent claimed on arrival. Every one of those is a state in
+    which writing a record would either invent a session or put two runs on one task.
+
+    The ball check is what keeps a task in review from reading as worked (task-466): an
+    interactive run ends the moment the ball leaves the agent, so one written after
+    that is a record the next sweep concludes -- and until that sweep the dashboard
+    shows a person's review as an agent's work in progress.
     """
     if identity is None or not identity.session_id.strip():
         return None
-    if task.lifecycle is not Lifecycle.ACTIVE:
+    if task.lifecycle is not Lifecycle.ACTIVE or task.ball is not Ball.AGENT:
         return None
     for run in live_runs(home):
         if same_task(run, project.id, task.id):
@@ -299,16 +305,8 @@ def _session_rows(home: Path, project: Project) -> Optional[List[Dict[str, objec
 def _session_listed(rows: List[Dict[str, object]], session_id: str) -> bool:
     """Whether the driver's ledger still lists this session, under either of its names.
 
-    Background rows carry a short ``id`` and the full ``sessionId``; interactive rows
-    carry only the full one. An interactive record stores the full uuid, so the match
-    is exact on ``sessionId`` and, for a record written with the short form, a prefix
-    match is accepted too -- a session id is the first group of its uuid.
+    The matching is ``row_names_session``'s, shared with registration and the poller
+    since task-466: this sweep was the one place that already accepted a short id
+    against an interactive row's full uuid, and the other three compared exactly.
     """
-    for row in rows:
-        full = str(row.get("sessionId") or "")
-        short = str(row.get("id") or "")
-        if session_id in (full, short):
-            return True
-        if full and full.startswith(session_id):
-            return True
-    return False
+    return any(row_names_session(row, session_id) for row in rows)

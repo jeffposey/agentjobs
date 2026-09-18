@@ -738,6 +738,17 @@ class WalkResult:
     stop: WalkStop
     attempts: List[ChildAttempt] = field(default_factory=list)
     detail: str = ""
+    stopped_on: Optional[str] = None
+    """The child that grounded this walk, when one did.
+
+    Recorded rather than derived, because deriving it was wrong (task-466). The handoff
+    took ``attempts[-1]`` and called it the failing child, but attempts are ordered by
+    when each child *landed*, and since task-223 the walk watches down whatever is
+    already in the air after it grounds. The last lander is therefore routinely a child
+    that succeeded: on 2026-09-18 task-212's handoff told the owner the walk had stopped
+    on task-464 while quoting task-465's reason and run id, and task-464 had merged
+    cleanly. A record naming the wrong task is worse than one naming none.
+    """
     peak_in_flight: int = 0
     """The most children this walk had running at one moment.
 
@@ -901,6 +912,8 @@ class _Restored:
     retries: List[str] = field(default_factory=list)
     attempts: List["ChildAttempt"] = field(default_factory=list)
     grounded: Optional[Tuple["WalkStop", str]] = None
+    grounded_on: Optional[str] = None
+    """The child the restored grounding names, so a resumed walk hands off saying it."""
     started: int = 0
     peak_in_flight: int = 0
     notes: List[str] = field(default_factory=list)
@@ -984,6 +997,8 @@ class _Supervision:
                     WalkStop(grounding.get("stop")),
                     str(grounding.get("detail") or ""),
                 )
+                child = grounding.get("child")
+                restored.grounded_on = str(child) if child else None
             except ValueError:
                 restored.grounded = (WalkStop.CHILD_NEEDS_A_HUMAN, str(grounding))
         for child in self.store.supervised_children(self.walk.walk_id):
@@ -1205,11 +1220,11 @@ class _Supervision:
             },
         )
 
-    def ground(self, stop: "WalkStop", detail: str) -> None:
+    def ground(self, stop: "WalkStop", detail: str, child: Optional[str] = None) -> None:
         self.store.update_walk(
             self.walk.walk_id,
             epoch=self.walk.epoch,
-            grounding={"stop": stop.value, "detail": detail},
+            grounding={"stop": stop.value, "detail": detail, "child": child},
         )
 
     def finish(self, result: "WalkResult") -> None:
@@ -1367,6 +1382,10 @@ def _walk_epic(
     # Set the first time a child lands badly. From then on nothing further takes off, but
     # whatever is already in the air is watched down before the walk returns.
     grounded: Optional[Tuple[WalkStop, str]] = None
+    # Which child that was. Held beside `grounded` rather than inside it because the
+    # handoff a person reads names this task, and deriving it from the attempt order
+    # named the wrong one -- see WalkResult.stopped_on.
+    grounded_on: Optional[str] = None
     # When the sky is empty and the machine will not give us a slot. Bounded by the
     # per-child ceiling, because a walk that can never start anything is the same kind of
     # "something upstream is not settling" that ceiling already exists for.
@@ -1392,6 +1411,7 @@ def _walk_epic(
         retries.extend(restored.retries)
         result.attempts.extend(restored.attempts)
         grounded = restored.grounded
+        grounded_on = restored.grounded_on
         started = restored.started
         result.peak_in_flight = restored.peak_in_flight
         for line in restored.notes:
@@ -1402,15 +1422,16 @@ def _walk_epic(
             in_flight[flight.child_id] = flight
             announce(note)
 
-    def ground(stop: WalkStop, detail: str) -> None:
-        nonlocal grounded
+    def ground(stop: WalkStop, detail: str, child: Optional[str] = None) -> None:
+        nonlocal grounded, grounded_on
         if grounded is not None:
             return
         grounded = (stop, detail)
+        grounded_on = child
         if supervision is not None:
             # Committed before anything else happens, so a supervisor that dies in the
             # next instant restarts grounded rather than taking off again.
-            supervision.ground(stop, detail)
+            supervision.ground(stop, detail, child)
         if in_flight:
             announce(
                 f"No further children will be started. {len(in_flight)} already in "
@@ -1493,6 +1514,7 @@ def _walk_epic(
                     ChildVerdict.DIED: WalkStop.CHILD_EXHAUSTED_ATTEMPTS,
                 }[attempt.verdict],
                 attempt.detail,
+                attempt.child_id,
             )
 
         # ----- follow whatever another dispatch started for us ----------------
@@ -1545,6 +1567,7 @@ def _walk_epic(
                     f"{child_id} is being worked by run {holder_run}, which was not dispatched "
                     "on this epic's authorisation. It is somebody else's run, so the walk "
                     "neither follows it nor starts a second.",
+                    child_id,
                 )
             elif now() - since >= CONTENTION_GRACE_SECONDS:
                 del contended[child_id]
@@ -1554,6 +1577,7 @@ def _walk_epic(
                     + (f" (run {holder_run})" if holder_run else "")
                     + f" for {CONTENTION_GRACE_SECONDS / 60:.0f} minutes without its "
                     "record saying whose authorisation it runs on.",
+                    child_id,
                 )
 
         # ----- fill every free slot -------------------------------------------
@@ -1583,7 +1607,7 @@ def _walk_epic(
             try:
                 assert_attempts_remain(authorization, candidate)
             except ChildAttemptsExhaustedError as exc:
-                ground(WalkStop.CHILD_EXHAUSTED_ATTEMPTS, str(exc))
+                ground(WalkStop.CHILD_EXHAUSTED_ATTEMPTS, str(exc), candidate.id)
                 break
 
             attempt_number = authorization.attempts_used + 1
@@ -1599,6 +1623,7 @@ def _walk_epic(
                         WalkStop.CHILD_EXHAUSTED_ATTEMPTS,
                         f"{candidate.id} has used its {CHILD_ATTEMPT_LIMIT} attempts on this "
                         "authorisation, counting attempts this walk reserved before a restart.",
+                        candidate.id,
                     )
                     break
                 attempt_number, operation_id = reserved
@@ -1648,6 +1673,7 @@ def _walk_epic(
                     WalkStop.COULD_NOT_START_CHILD,
                     f"{candidate.id} could not be started "
                     f"({getattr(exc, 'reason', 'refused')}): {exc}",
+                    candidate.id,
                 )
                 result.attempts.append(
                     ChildAttempt(
@@ -1698,6 +1724,7 @@ def _walk_epic(
 
         if grounded is not None:
             result.stop, result.detail = grounded
+            result.stopped_on = grounded_on
             return finish()
 
         remaining = open_children(manager, parent_id)
@@ -1929,12 +1956,15 @@ def walk_report(result: WalkResult, *, started_at: Optional[datetime] = None) ->
 
 
 def walk_handoff_prompt(result: WalkResult) -> str:
-    """What the parent's ball prompt becomes when a walk stops for cause."""
-    failing = result.attempts[-1] if result.attempts else None
-    who = failing.child_id if failing else "no child"
+    """What the parent's ball prompt becomes when a walk stops for cause.
+
+    The child named is ``stopped_on``, never the last attempt in the list: see that
+    field for the incident where deriving it named a child that had merged cleanly.
+    """
+    who = result.stopped_on or "a child it did not name"
     return (
         f"The epic walk stopped on {who}: {result.detail} "
-        f"{len(result.merged_children)} child/children completed before it "
+        f"{len(result.merged_children)} child/children completed in this walk "
         f"({', '.join(result.merged_children) or 'none'}). Read that child's record, "
         "decide what it needs, and restart the walk when it is resolved -- it re-reads "
         "the attempt count off each child's log, so nothing is double-spent."

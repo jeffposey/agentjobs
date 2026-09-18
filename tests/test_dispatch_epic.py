@@ -35,12 +35,14 @@ import yaml
 from agentjobs.dispatch.config import Posture
 from agentjobs.dispatch.epic import (
     CHILD_ATTEMPT_LIMIT,
+    ChildAttempt,
     ChildAttemptsExhaustedError,
     ChildVerdict,
     EpicAuthorization,
     NotAChildError,
     ParentNotHumanClockedError,
     ParentNotSupervisedError,
+    WalkResult,
     WalkSettings,
     WalkStop,
     assert_attempts_remain,
@@ -52,6 +54,7 @@ from agentjobs.dispatch.epic import (
     parent_authorizing_entry,
     resolve_epic_authorization,
     walk_epic,
+    walk_handoff_prompt,
     walk_report,
 )
 from agentjobs.dispatch.guards import (
@@ -573,6 +576,32 @@ class TestWalkStops:
         assert result.stop is WalkStop.CHILD_NEEDS_A_HUMAN
         assert dispatcher.started == [first]
         assert result.attempts[-1].verdict is ChildVerdict.PARKED
+        assert result.stopped_on == first, "the walk records which child grounded it"
+
+    def test_the_handoff_names_the_child_that_grounded_the_walk(self) -> None:
+        """Not the last one to land, which under concurrency is a child that succeeded.
+
+        The incident (task-466): task-212's handoff told the owner the walk had stopped
+        on task-464 while quoting task-465's reason and run id. task-464 had merged
+        cleanly and needed nothing; task-465 was the one waiting on him. Attempts are
+        ordered by when each child landed, and the walk watches down whatever is already
+        in the air after it grounds, so the last lander is routinely the wrong answer.
+        """
+        result = WalkResult(
+            parent_id="task-212",
+            stop=WalkStop.CHILD_NEEDS_A_HUMAN,
+            detail="ball is human/decision: somebody has to look at it.",
+            stopped_on="task-465",
+            attempts=[
+                ChildAttempt("task-465", 1, "run_parked", ChildVerdict.PARKED, "parked"),
+                ChildAttempt("task-464", 1, "run_clean", ChildVerdict.COMPLETED, "closed"),
+            ],
+        )
+
+        prompt = walk_handoff_prompt(result)
+
+        assert "stopped on task-465" in prompt
+        assert "stopped on task-464" not in prompt
 
     def test_a_child_closed_unresolved_stops_the_walk(
         self, manager: TaskManager, project: Project

@@ -1750,10 +1750,10 @@ class ClaudeSessionNudger:
             return False, None
         if isinstance(loaded, dict):
             loaded = loaded.get("agents") or loaded.get("sessions") or []
+        from agentjobs.dispatch.runner import row_names_session
+
         for row in loaded if isinstance(loaded, list) else []:
-            if isinstance(row, dict) and (
-                row.get("id") == session_id or row.get("sessionId") == session_id
-            ):
+            if isinstance(row, dict) and row_names_session(row, session_id):
                 return True, row
         return True, None
 

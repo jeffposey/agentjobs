@@ -67,6 +67,7 @@ from agentjobs.dispatch.runner import (
     classify_session,
     git_head,
     new_run_id,
+    row_names_session,
 )
 from agentjobs.models_v2 import DispatchMode, Lifecycle, LogEntryType
 from agentjobs.projects import Project
@@ -314,8 +315,11 @@ def register_session(
         )
         if record is None:
             raise RegistrationRunExistsError(
-                f"{task.id} could not be given an interactive run: it is not active, or "
-                "something else holds it. Claim it first."
+                f"{task.id} could not be given an interactive run: it is not active, its "
+                f"ball is with {task.ball.value if task.ball else 'nobody'} rather than "
+                "the agent, or something else holds it. Claim it first -- a task waiting "
+                "on a person is not being worked, and a record saying otherwise is what "
+                "makes their own review read as an agent's work in progress."
             )
         return Registration(
             task_id=task.id,
@@ -475,11 +479,20 @@ def _already_dispatched(
 def _live_row(runner: DispatchRunner, session_id: str) -> Dict[str, object]:
     """The claimed session's live ledger row, or a refusal that says which way it failed.
 
-    "Wrong id" and "already dead" are different mistakes with different fixes, so the
-    failure path spends one extra ledger read to tell them apart. The listing is scoped
-    to the project root, which is also the check that the session is *this* project's --
-    and is why a session launched from inside a worktree cannot register: the poller
-    looks it up the same way and would report it gone at the next tick.
+    "Wrong id", "already dead" and "live, but somewhere else" are different mistakes
+    with different fixes, so the failure path spends extra ledger reads to tell them
+    apart rather than guessing. Until task-466 the not-found refusal guessed a worktree
+    launch, and the guess was wrong every time it was seen: the session was under the
+    project root, and the lookup had compared the short id ``self_session_id`` returns
+    against an interactive row's full uuid, which never matches. The match is now
+    ``row_names_session``'s -- the one the interactive sweep already used.
+
+    The listing is scoped to the project root because that is how the poller looks a
+    *background* session up, and a record for one it would report gone at the next
+    tick is worse than none. An interactive session found only under another
+    directory is adopted anyway: its record is swept unscoped, by id, and never acted
+    on, so nothing would misjudge it -- and the Claude desktop app routinely starts a
+    session in ``.claude/worktrees/<name>`` rather than the root.
     """
     try:
         rows = runner.ledger()
@@ -489,39 +502,64 @@ def _live_row(runner: DispatchRunner, session_id: str) -> Dict[str, object]:
             f"that session {session_id} exists could not be checked, and a run record "
             f"naming a session nothing can find is worse than none: {exc}"
         ) from exc
-    for row in rows:
-        if row.get("id") != session_id and row.get("sessionId") != session_id:
-            continue
-        # The active listing is *supposed* to omit a session that is over, and on Claude
-        # Code 2.1.247 it does. Asked again anyway, through the same classifier the
-        # poller uses, because "the row is here" and "the session is alive" are two
-        # claims and only the second one is the one being relied on.
-        phase = classify_session(
-            str(row.get("status")) if row.get("status") is not None else None,
-            str(row.get("state")) if row.get("state") is not None else None,
-        )
-        if phase is SessionPhase.STOPPED:
-            raise SessionUnknownError(_over_message(runner, session_id, "stopped"))
+    row = _named_row(rows, session_id)
+    if row is not None:
+        _refuse_unless_live(runner, row, session_id)
         return row
 
     try:
-        finished = [
-            row
-            for row in runner.ledger(include_finished=True)
-            if row.get("id") == session_id or row.get("sessionId") == session_id
-        ]
+        elsewhere = _named_row(runner.ledger(scoped=False), session_id)
+    except DispatchRunError:  # pragma: no cover - the scoped read already worked
+        elsewhere = None
+    if elsewhere is not None:
+        _refuse_unless_live(runner, elsewhere, session_id)
+        if session_kind(elsewhere) != "background":
+            return elsewhere
+        raise SessionUnknownError(
+            f"Session {session_id} is live, but under "
+            f"{elsewhere.get('cwd') or 'a directory the ledger did not record'} rather "
+            f"than {runner.project_root}. The poller looks a background session up under "
+            "the project root and would report this one gone at its next tick, so no run "
+            "record was written. Relaunch it from the project root, or dispatch it."
+        )
+
+    try:
+        finished = _named_row(runner.ledger(include_finished=True), session_id)
     except DispatchRunError:  # pragma: no cover - the first read already worked
-        finished = []
-    if finished:
-        state = finished[0].get("state") or finished[0].get("status") or "over"
+        finished = None
+    if finished is not None:
+        state = finished.get("state") or finished.get("status") or "over"
         raise SessionUnknownError(_over_message(runner, session_id, str(state)))
     live = ", ".join(str(row.get("id") or row.get("sessionId")) for row in rows[:6]) or "none"
     raise SessionUnknownError(
-        f"No live session {session_id} under {runner.project_root}. Live there now: "
-        f"{live}. A session launched from somewhere else -- a worktree, most likely -- "
-        "is not listed here, and the poller would look it up exactly this way and "
-        "report it gone. Relaunch it from the project root, or dispatch it."
+        f"No session {session_id} in {runner.display_command()}'s ledger, under "
+        f"{runner.project_root} or anywhere else on this machine. Live under the root "
+        f"now: {live}. Check the id with `{runner.display_command()} agents`."
     )
+
+
+def _named_row(rows: List[Dict[str, object]], session_id: str) -> Optional[Dict[str, object]]:
+    """The first row this id names, under either of a session's two names."""
+    for row in rows:
+        if row_names_session(row, session_id):
+            return row
+    return None
+
+
+def _refuse_unless_live(runner: DispatchRunner, row: Mapping[str, object], session_id: str) -> None:
+    """Refuse a row that is present but over.
+
+    The active listing is *supposed* to omit a session that is over, and on Claude
+    Code 2.1.247 it does. Asked again anyway, through the same classifier the poller
+    uses, because "the row is here" and "the session is alive" are two claims and only
+    the second one is the one being relied on.
+    """
+    phase = classify_session(
+        str(row.get("status")) if row.get("status") is not None else None,
+        str(row.get("state")) if row.get("state") is not None else None,
+    )
+    if phase is SessionPhase.STOPPED:
+        raise SessionUnknownError(_over_message(runner, session_id, "stopped"))
 
 
 def _over_message(runner: DispatchRunner, session_id: str, state: str) -> str:
