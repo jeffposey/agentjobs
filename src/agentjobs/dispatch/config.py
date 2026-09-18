@@ -660,6 +660,17 @@ class SelectionSource(str, Enum):
     Not a rung of the ladder: a retry or resume skips the ladder entirely, so a changed
     project default, group order or machine default cannot change what it runs."""
 
+    EPIC = "epic"
+    """The runner the epic this task is a child of was dispatched with (task-453).
+
+    Not a rung of the ladder either, and for the same reason as ``history``: the walk
+    that starts a child is not a new selection. The runner and group a person chose for
+    the epic are carried onto every child it starts, exactly as its posture already was
+    (task-316), so a child cannot quietly land on the project default while its parent
+    runs on the model the person paid for. A distinct value rather than ``history``
+    because the reader's question -- why did this run on that model -- is answered on
+    the *parent's* record, not on an earlier execution of this task."""
+
 
 class SkipReason(str, Enum):
     """Why a group member was passed over. Recorded per candidate, in the task log."""
@@ -1831,20 +1842,29 @@ def evaluate_member(
 
 
 def resolve_recorded_runner(
-    config: DispatchConfig, *, runner: str, group: Optional[str]
+    config: DispatchConfig,
+    *,
+    runner: str,
+    group: Optional[str],
+    source: SelectionSource = SelectionSource.HISTORY,
 ) -> RunnerSelection:
-    """The runner a continuation was granted, if it can still run here (task-375).
+    """The runner an earlier grant named, if it can still run here (task-375, task-453).
 
-    Skips the precedence ladder: a retry or resume is not a new selection, so neither a
-    changed project default nor a reordered group can move it. What *can* stop it is a
-    revocation observed now -- the recorded member switched off in its recorded group,
-    the runner removed from ``runners:``, its executable gone -- and each is a refusal by
-    name. Nothing here substitutes another runner, inside the old group or out of it.
+    Skips the precedence ladder: a retry or resume is not a new selection, and neither
+    is a child the epic walk starts, so neither a changed project default nor a
+    reordered group can move it. What *can* stop it is a revocation observed now -- the
+    recorded member switched off in its recorded group, the runner removed from
+    ``runners:``, its executable gone -- and each is a refusal by name. Nothing here
+    substitutes another runner, inside the old group or out of it.
 
-    The selection carries ``source=history`` and one candidate, the recorded runner, with
-    the verdict it got just now. A group the file no longer defines is not a revocation
-    of the runner: the operator removed a grouping, not the model.
+    ``source`` says which record the grant is read from: ``history`` for the execution
+    a continuation carries on, ``epic`` for the parent a child inherits from. The
+    selection carries that source and one candidate, the recorded runner, with the
+    verdict it got just now. A group the file no longer defines is not a revocation of
+    the runner: the operator removed a grouping, not the model.
     """
+    if source not in (SelectionSource.HISTORY, SelectionSource.EPIC):
+        raise ValueError(f"a recorded runner is read from history or an epic, not {source!r}")
     recorded_group = config.runner_groups.get(group) if group else None
     member = None
     if recorded_group is not None:
@@ -1854,15 +1874,21 @@ def resolve_recorded_runner(
     )
     if definition is None:
         where = f" in group {group!r}" if member is not None else ""
+        granted = (
+            "This continues an execution granted"
+            if source is SelectionSource.HISTORY
+            else "This child inherits from an epic dispatched on"
+        )
         raise RecordedRunnerUnavailableError(
-            f"This continues an execution granted runner {runner!r}{where}, and that runner "
-            f"cannot run here now ({_why_skipped([candidate])}). Nothing else is "
-            "substituted for it: re-enable or reinstall it, or dispatch the task again to "
-            "grant a different runner."
+            f"{granted} runner {runner!r}{where}, and that runner cannot run here now "
+            f"({_why_skipped([candidate])}). Nothing else is substituted for it: "
+            "re-enable or reinstall it, or dispatch the "
+            + ("task" if source is SelectionSource.HISTORY else "epic")
+            + " again to grant a different runner."
         )
     return RunnerSelection(
         runner=definition,
-        source=SelectionSource.HISTORY,
+        source=source,
         group=group,
         candidates=[replace(candidate, selected=True)],
     )
@@ -2015,11 +2041,13 @@ def assert_dispatch_permitted(
     runner: Optional[str] = None,
     group: Optional[str] = None,
     recorded: Optional[tuple[str, Optional[str]]] = None,
+    recorded_source: SelectionSource = SelectionSource.HISTORY,
 ) -> DispatchResolution:
     """Walk every dispatch gate for ``project_id`` and resolve its runner.
 
     ``recorded`` is ``(runner, group)`` from the execution a retry or resume continues
-    (task-375). Given, the four gates run exactly as for any dispatch, and the runner is
+    (task-375), or from the epic a child inherits (task-453), and ``recorded_source``
+    says which. Given, the four gates run exactly as for any dispatch, and the runner is
     the recorded one or a refusal -- see ``resolve_recorded_runner``. It excludes
     ``runner`` and ``group``: a continuation that also chose a runner would be a new grant
     wearing an old one's name.
@@ -2070,7 +2098,9 @@ def assert_dispatch_permitted(
                 "A continuation keeps the runner its execution was granted, so it cannot "
                 "also name a runner or a group. Dispatch the task afresh to choose one."
             )
-        selection = resolve_recorded_runner(config, runner=recorded[0], group=recorded[1])
+        selection = resolve_recorded_runner(
+            config, runner=recorded[0], group=recorded[1], source=recorded_source
+        )
     else:
         selection = resolve_runner(config, settings, runner=runner, group=group)
 
@@ -2082,11 +2112,22 @@ def assert_dispatch_permitted(
         config=config,
         selection=(
             selection
-            if selection.from_group
-            or selection.source in (SelectionSource.DISPATCH_RUNNER, SelectionSource.HISTORY)
+            if selection.from_group or selection.source in RECORDED_ON_DISPATCH_ENTRY
             else None
         ),
     )
+
+
+RECORDED_ON_DISPATCH_ENTRY = frozenset(
+    {SelectionSource.DISPATCH_RUNNER, SelectionSource.HISTORY, SelectionSource.EPIC}
+)
+"""Selection sources that name no group and are still written onto the ``dispatch`` entry.
+
+A flat project-default selection writes nothing, so a config that has never heard of
+groups produces the entry it always did. These three are the sources a later reader
+cannot reconstruct from ``dispatch.yaml``: a runner somebody named for this run, one an
+execution was granted, one an epic was dispatched with.
+"""
 
 
 # ----- mutation ---------------------------------------------------------------

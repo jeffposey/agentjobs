@@ -4105,6 +4105,34 @@ commits (task-228). Whether to refuse or re-review belongs with the durable fini
 (task-322). Auth recovery delivering buffered messages is task-417; the note's meaning is
 task-343. Batch runs are not stood down.
 
+### What task-453 fixed: the epic walk re-resolved the runner (2026-09-18)
+
+The frozen envelope above covered retries and resumes. **The epic walk's child start
+was a third path that read configuration at decision time**, and the determinism rule
+did not reach it. Observed 2026-09-18 at 17:19 UTC: task-212 dispatched from the
+dashboard at `autonomous` on `claude-fable-5-1` through `big-dawg`; its first child,
+task-372, started forty seconds later at `autonomous` with `posture_source: epic` and
+argv `--model claude-opus-5`. Posture inheritance (task-316) was wired and working, and
+the runner rode past it to `projects.agentjobs.runner`.
+
+| Fact | Where it is decided |
+| --- | --- |
+| A child's runner and group | Read off the parent's newest `dispatch` entry by `epic.inherited_runner`, the same entry the posture and the authorisation come from. The guards pass it to `assert_dispatch_permitted` as a recorded runner with source `epic`, so the ladder is skipped exactly as it is for `history`. Never taken from the walk's request: a `DispatchRequest.runner` on the child would have made the runner something the walk asserts rather than something the parent's record says. |
+| Which sources cross | `epic.INHERITABLE_RUNNER_SOURCES`: `dispatch_runner`, `dispatch`, `epic`, `history`. The project's and machine's defaults do not, for the reason the posture set gives. `history` is in this set and not in the posture one because a parent resumed after a handback carries its runner as `history`, and a walk from that parent would otherwise reach the task-410 shape through a resume. |
+| The recorded runner is unavailable | `RecordedRunnerUnavailableError`, by name, with no substitution -- the same refusal a continuation gets, phrased for an epic. The walk catches the whole `DispatchError` family now and grounds with `COULD_NOT_START_CHILD` naming the reason; before this the configuration refusals escaped the walk uncaught. Rejected: falling back to the project default with a warning, because `big-dawg` is single-member precisely so that an unavailable Fable is a stop. |
+| What the walk announces | `describe_settings` prints the runner and group children will start on beside the posture, or says the project's configuration will be resolved as each child starts. A downgrade nobody prints is a downgrade nobody catches. |
+| The record on the child | `runner_source: epic` on the dispatch entry, `selection.source: epic` when a group chose it, and the epic's runner and group under `epic:` on the authorising note. |
+| Retry and adoption | The second attempt goes through the same guards and the same read. An adopted child was started by another dispatch on this epic's authorisation, which is the same path; adoption itself starts nothing and resolves nothing. |
+
+**Verified** by the model string in the child's recorded argv after a real dispatch
+through the guards, not by the presence of an envelope field
+(`tests/test_dispatch_epic_runner.py`). Against the pre-fix source the same scenario
+prints `child runner=fake ... posture_source=epic argv --model default-model`.
+
+**Not touched.** The nudge (`auth_recovery`) takes its model from the run's recorded
+argv, not from configuration, so it does not share the defect. The `codex-astra`
+eligibility half of task-375, and runner selection itself, are unchanged.
+
 ### What task-416 built (2026-09-13)
 
 The replay engine and durable epic supervision (task-418 absorbed). **The controller is
