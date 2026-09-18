@@ -932,6 +932,20 @@ class DispatchLimits:
     slots would have to turn a run over every six minutes to reach thirty, and no real
     run on this machine has ever been that short, while a dispatch loop reaches it in
     seconds. A cap that fires on real work is a cap somebody raises to infinity."""
+    dispatch_queue_limit: int = 20
+    """How many authorised dispatches may wait for a slot at once (task-459).
+
+    Twenty because the queue's purpose is to stop a *person's* click being wasted when
+    the machine is briefly full, and twenty is comfortably more than one sitting's worth
+    of clicking while still being a number somebody can look at. The cap is not a spend
+    control -- ``dispatches_per_hour`` is, and queued starts are counted by it exactly as
+    clicks are -- it is a bound on how far ahead of itself an authorisation can get: at a
+    ceiling of 3 and runs of half an hour, a full queue of twenty is about three hours of
+    work, which is the point past which "I meant this" stops being a safe assumption.
+
+    Rejected: *unbounded*, which turns one afternoon's clicking into a promise nobody can
+    see the end of; and *equal to the ceiling*, which refuses the second click of a pair
+    on a three-slot machine and so fails at the thing the queue was built for."""
     session_stall_seconds: int = 1800
     """How long a live session may emit nothing before it is reported as stalled.
 
@@ -1623,6 +1637,12 @@ def _parse_limits(raw: Mapping[str, object], path: Path) -> DispatchLimits:
             "limits.dispatches_per_hour",
             path,
             defaults.dispatches_per_hour,
+        ),
+        dispatch_queue_limit=_positive_int(
+            raw.get("dispatch_queue_limit"),
+            "limits.dispatch_queue_limit",
+            path,
+            defaults.dispatch_queue_limit,
         ),
         auto=AutoDispatchLimits(
             per_task_per_day=_positive_int(

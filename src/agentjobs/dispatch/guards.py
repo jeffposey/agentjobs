@@ -134,6 +134,15 @@ from agentjobs.models_v2 import (
 from agentjobs.projects import Project
 from agentjobs.store_factory import TaskManagerLike
 
+IF_FULL_REFUSE = "refuse"
+IF_FULL_QUEUE = "queue"
+IF_FULL_CHOICES = (IF_FULL_REFUSE, IF_FULL_QUEUE)
+"""What a caller may ask for when every machine slot is taken (task-459).
+
+Defined here rather than in ``dispatch.queue`` only because ``DispatchRequest`` lives
+here and a dataclass default cannot import the module that imports it.
+"""
+
 TERMINAL_RUN_STATUSES = frozenset({"finished", "cancelled", "failed"})
 """Run statuses that mean nothing is executing any more.
 
@@ -253,9 +262,34 @@ class AlreadyAdmittedError(DispatchRefused):
 
 
 class ConcurrencyLimitError(DispatchRefused):
-    """The machine is already running as many agents as it is configured to."""
+    """The machine is already running as many agents as it is configured to.
+
+    Still the answer for a caller that did not ask to wait. Since task-459 a caller that
+    did -- ``if_full: queue`` -- is accepted into the machine's dispatch queue instead,
+    and this refusal says so rather than arguing that queueing is the wrong answer.
+    """
 
     reason = "concurrency_limit"
+
+
+class DispatchQueueFullError(DispatchRefused):
+    """The machine's dispatch queue is at ``limits.dispatch_queue_limit`` (task-459)."""
+
+    reason = "dispatch_queue_full"
+
+
+class AlreadyQueuedError(DispatchRefused):
+    """This task already has a dispatch waiting for a slot (task-459).
+
+    One waiting entry per task, for the reason there is one live run per task: two
+    entries would start two agents on one repository the moment two slots freed.
+    """
+
+    reason = "already_queued"
+
+    def __init__(self, message: str, *, queue_id: str = "") -> None:
+        super().__init__(message)
+        self.queue_id = queue_id
 
 
 class BudgetCapError(DispatchRefused):
@@ -826,6 +860,20 @@ class DispatchRequest:
     it and before it learned the run id finds the same attempt rather than a second one
     (task-416). The epic walk and the controller's relaunch pass one."""
 
+    if_full: str = IF_FULL_REFUSE
+    """What to do when every machine slot is taken: ``refuse`` or ``queue`` (task-459).
+
+    Read by :func:`agentjobs.dispatch.queue.dispatch_or_queue` and **by no gate in this
+    module**. It cannot widen anything: ``queue`` does not start a run, it records that
+    one was authorised and asked to wait, and the run it eventually becomes is a full
+    pass through ``dispatch_task`` with every gate judged at that moment.
+
+    ``refuse`` is the default, so every caller that predates task-459 -- the CLI without
+    its flag, MCP, auto-dispatch, the epic walk, the controller's relaunch -- behaves
+    exactly as it did. Deliberately not consulted by ``envelope.is_continuation``: it
+    says nothing about what the run may do, which is what that function is asking.
+    """
+
 
 def dispatch_task(
     *,
@@ -845,9 +893,13 @@ def dispatch_task(
     that losing a race costs a rejected HTTP request rather than a model call somebody
     pays for.
 
-    Raises a `DispatchRefused` subclass naming the gate that refused. Never queues: a
-    concurrency limit that queues turns a click into a promise to spend money later, at
-    a moment nobody is watching. "Busy, try again" is worse UX and better behaviour.
+    Raises a `DispatchRefused` subclass naming the gate that refused. **This function
+    still never queues**, and that is a boundary rather than a policy: it is the one
+    place that starts a run, and a function that sometimes starts one and sometimes
+    records an intention to start one later has two return types and two contracts.
+    Waiting for a slot is `dispatch.queue.dispatch_or_queue`, which calls this, catches
+    the concurrency refusal, and enqueues -- and whose queued entry comes back *here*,
+    whole, when a slot frees (task-459).
 
     ``api_base`` is passed through untouched, including ``None``: a caller that knows the
     address the server answered on says so, and everyone else leaves it to
@@ -1045,9 +1097,8 @@ def dispatch_task(
         raise ConcurrencyLimitError(
             f"This machine allows {resolution.limits.max_concurrent_runs} concurrent "
             f"run(s) and {len(holding)} are active: {describe_slot_holders(holding)}. "
-            "Refused rather than queued: a queue turns this click into a promise to "
-            "spend money later, when nobody is watching. Cancel one of those runs, or "
-            "dispatch this again once one finishes."
+            "Send this dispatch again with `if_full: queue` to have it start on its own "
+            "when a slot frees, cancel one of those runs, or wait for one to finish."
         )
 
     # The spend caps, and the thing that actually bounds a dispatch loop -- see
@@ -1195,9 +1246,9 @@ def dispatch_task(
         raise ConcurrencyLimitError(
             f"This machine allows {resolution.limits.max_concurrent_runs} concurrent "
             f"run(s) and {len(exc.holders)} are active: {named}. Another dispatch took the "
-            "last slot a moment ago. Refused rather than queued: a queue turns this click "
-            "into a promise to spend money later, when nobody is watching. Cancel one of "
-            "those runs, or dispatch this again once one finishes."
+            "last slot a moment ago. Send this dispatch again with `if_full: queue` to "
+            "have it start on its own when a slot frees, cancel one of those runs, or "
+            "wait for one to finish."
         ) from exc
     except ExecutionStoreError as exc:
         lock.release()

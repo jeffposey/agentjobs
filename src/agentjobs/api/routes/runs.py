@@ -28,6 +28,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from agentjobs.dispatch import queue as dispatch_queue
 from agentjobs.dispatch.config import machine_ceiling
 from agentjobs.dispatch.finish_status import read_finish_status
 from agentjobs.dispatch.ledger import (
@@ -41,6 +42,7 @@ from agentjobs.dispatch.ledger import (
     run_health,
     runway_lock_name,
 )
+from agentjobs.execution.store import QueuedDispatch
 from agentjobs.exposure import Visibility, readable_by
 from agentjobs.principals import Principal
 from agentjobs.projects import Project, default_home
@@ -121,6 +123,56 @@ class MachineHolderView(BaseModel):
     task_url: str = Field(default="", description="Empty when there is no task to link to.")
 
 
+class QueuedDispatchView(BaseModel):
+    """One authorised dispatch waiting for a slot (task-459).
+
+    Beside the live runs rather than in a call of its own, for the reason the capacity
+    numbers are: a board that read "three of three busy" from one endpoint and "two
+    waiting" from another would have two answers about one machine, taken a second apart.
+    """
+
+    queue_id: str = Field(
+        ...,
+        description=(
+            "The entry's id. It is what `POST .../dispatch/runs/{run_id}/cancel` takes "
+            "while the dispatch is waiting -- a queued entry cancels through the same "
+            "route as the run it has not become."
+        ),
+    )
+    position: int = Field(..., description="1-based place in line. FIFO by when it was queued.")
+    task_id: str
+    task_title: str = ""
+    project_id: str
+    project_name: str = ""
+    queued_at: str = Field(..., description="When it joined the queue, UTC.")
+    waiting_seconds: Optional[float] = Field(
+        default=None,
+        description=(
+            "How long it has been waiting, computed on the server. The phone reading "
+            "this page is not on the clock that wrote `queued_at`."
+        ),
+    )
+    queued_by: str = Field(
+        default="", description="Who asked for it. Empty for a dispatch nobody signed."
+    )
+    source: str = Field(default="manual", description="`manual` today; `pull` is reserved.")
+    status: str = Field(
+        ...,
+        description=(
+            "`queued`, or `starting` for the seconds a tick is putting it through the "
+            "dispatch gates. A `starting` entry is not yet a run and may still be refused."
+        ),
+    )
+    detail: str = Field(
+        default="",
+        description=(
+            "Why it is still waiting, when a start has already been tried and refused "
+            "for a condition that clears on its own."
+        ),
+    )
+    task_url: str = Field(..., description="Where this entry's task is, in this app.")
+
+
 class LiveRunsView(BaseModel):
     """Everything both machine-wide surfaces need, in one response.
 
@@ -153,6 +205,21 @@ class LiveRunsView(BaseModel):
     )
     runs: List[LiveRunView]
     holders: List[MachineHolderView]
+    queued: List[QueuedDispatchView] = Field(
+        default_factory=list,
+        description=(
+            "Dispatches waiting for a slot, in the order they will start (task-459). "
+            "Empty on a machine where nobody has queued one. Filtered by what this "
+            "caller may see, exactly as `runs` is."
+        ),
+    )
+    queue_limit: int = Field(
+        default=0,
+        description=(
+            "`limits.dispatch_queue_limit` from ~/.agentjobs/dispatch.yaml: how many "
+            "dispatches may wait at once."
+        ),
+    )
     generated_at: str = Field(..., description="When this answer was assembled, in UTC.")
 
 
@@ -283,6 +350,33 @@ def _run_view(record: RunRecord, projects: Dict[str, Project]) -> LiveRunView:
     )
 
 
+def queued_dispatch_view(
+    entry: QueuedDispatch, position: int, projects: Dict[str, Project]
+) -> QueuedDispatchView:
+    """Render one waiting dispatch for the browser.
+
+    Public, and the one renderer: the project-scoped cancel route returns the entry it
+    removed, and two renderings of one row would eventually disagree about what a
+    queued dispatch is called.
+    """
+    project = projects.get(entry.project_id)
+    return QueuedDispatchView(
+        queue_id=entry.queue_id,
+        position=position,
+        task_id=entry.task_id,
+        task_title=_task_title(project, entry.task_id),
+        project_id=entry.project_id,
+        project_name=project.name if project else entry.project_id,
+        queued_at=entry.queued_at,
+        waiting_seconds=_elapsed_since(entry.queued_at),
+        queued_by=entry.queued_by,
+        source=entry.source,
+        status=entry.status,
+        detail=entry.detail,
+        task_url=_task_url(entry.project_id, entry.task_id),
+    )
+
+
 def _runway_owners(projects: Dict[str, Project]) -> Dict[str, Project]:
     """Runway lock name -> the project whose checkout it protects.
 
@@ -394,11 +488,22 @@ async def list_live_runs(
     ]
     holders = [holder for holder in holders if _may_see(holder.project_id, projects, principal)]
 
+    # FIFO, and the position is assigned over the machine's whole queue before this
+    # caller's filter runs: a rail numbered 1, 2, 3 over rows that are really 1, 2 and 5
+    # would be a lie about when the third one starts.
+    waiting = [
+        queued_dispatch_view(entry, index, projects)
+        for index, entry in enumerate(dispatch_queue.waiting(home), start=1)
+        if _may_see(entry.project_id, projects, principal)
+    ]
+
     return LiveRunsView(
         occupied=len(occupied),
         max_concurrent_runs=ceiling,
         dispatch_configured=configured,
         runs=[_run_view(record, projects) for record in records],
         holders=holders,
+        queued=waiting,
+        queue_limit=dispatch_queue.queue_limit(home),
         generated_at=datetime.now(timezone.utc).isoformat(),
     )

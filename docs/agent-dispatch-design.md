@@ -416,6 +416,7 @@ limits:
   session_stale_seconds: 3600      # a session that ended its turn without handing off (§9)
   session_stall_seconds: 1800      # one still claiming to work but silent; reports, never kills
   dispatches_per_hour: 30          # machine-wide takeoffs, every trigger (§7)
+  dispatch_queue_limit: 20         # dispatches that may wait for a free slot (§7)
   auto:                            # per-task; historical name, binds every trigger (task-334)
     per_task_per_day: 3
     per_task_lifetime: 10

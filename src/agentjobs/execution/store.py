@@ -36,6 +36,7 @@ import hashlib
 import json
 import os
 import socket
+import uuid
 import sqlite3
 import threading
 from contextlib import contextmanager, suppress
@@ -57,11 +58,13 @@ from typing import (
 
 from agentjobs.execution.errors import (
     ActivityConflict,
+    AlreadyQueued,
     CapacityExhausted,
     ExecutionStoreError,
     HistoryIncompatible,
     OwnerModeConflict,
     OwnershipConflict,
+    QueueFull,
     StaleOwner,
     StorageFailure,
     StoreBusy,
@@ -252,12 +255,15 @@ CREATE TABLE child_wait (
 );
 """
 
-SCHEMA_REVISION = 4
+SCHEMA_REVISION = 5
 """Additive revisions applied on top of physical schema version 1 (task-416).
 
 Revision 3 (task-417) adds the auth-recovery incident, waiter and probe tables, which no
 earlier build reads. Revision 4 (task-447) adds ``idle_session_event``, the record of every
-session the idle sweep stopped and every change of its enforcement mode.
+session the idle sweep stopped and every change of its enforcement mode. Revision 5
+(task-459) adds ``dispatch_queue``, the machine's durable queue of authorised dispatches
+waiting for a slot -- a table the previous build neither reads nor writes, so a queue
+filled by the new server is simply invisible to an older process rather than misread.
 
 **Deliberately not a ``user_version`` bump.** Processes running the previous build share
 this file with the new one -- an epic walk started before an upgrade keeps dispatching
@@ -376,6 +382,29 @@ CREATE TABLE IF NOT EXISTS idle_session_event (
   detail_json    TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(detail_json))
 );
 CREATE INDEX IF NOT EXISTS ix_idle_session_event_at ON idle_session_event(kind, at);
+
+CREATE TABLE IF NOT EXISTS dispatch_queue (
+  queue_id     TEXT PRIMARY KEY,
+  seq          INTEGER NOT NULL UNIQUE,
+  project_id   TEXT NOT NULL,
+  task_id      TEXT NOT NULL,
+  source       TEXT NOT NULL DEFAULT 'manual',
+  request_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(request_json)),
+  queued_by    TEXT NOT NULL DEFAULT '',
+  status       TEXT NOT NULL DEFAULT 'queued'
+               CHECK (status IN ('queued', 'starting', 'started', 'cancelled', 'refused')),
+  run_id       TEXT,
+  detail       TEXT NOT NULL DEFAULT '',
+  attempts     INTEGER NOT NULL DEFAULT 0,
+  queued_at    TEXT NOT NULL,
+  claimed_at   TEXT,
+  settled_at   TEXT,
+  updated_at   TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_dispatch_queue_task
+  ON dispatch_queue(project_id, task_id) WHERE status IN ('queued', 'starting');
+CREATE INDEX IF NOT EXISTS ix_dispatch_queue_waiting
+  ON dispatch_queue(seq) WHERE status IN ('queued', 'starting');
 """
 
 _ADDED_COLUMNS = (
@@ -801,6 +830,67 @@ class Timer:
         )
 
 
+QUEUE_WAITING = "queued"
+QUEUE_STARTING = "starting"
+QUEUE_STARTED = "started"
+QUEUE_CANCELLED = "cancelled"
+QUEUE_REFUSED = "refused"
+
+QUEUE_OPEN_STATUSES = (QUEUE_WAITING, QUEUE_STARTING)
+"""The two statuses that still hold a place in line. Everything else is history."""
+
+
+@dataclass(frozen=True)
+class QueuedDispatch:
+    """One authorised dispatch waiting for a machine slot (task-459).
+
+    Everything a run would carry, minus the run: the task, the project, how the
+    authorisation is to be established at start time, who asked and when. It is not an
+    execution and has no history -- an execution begins at admission, and this row exists
+    precisely because admission has not happened yet.
+    """
+
+    queue_id: str
+    seq: int
+    project_id: str
+    task_id: str
+    source: str
+    request: Dict[str, Any]
+    queued_by: str
+    status: str
+    run_id: Optional[str]
+    detail: str
+    attempts: int
+    queued_at: str
+    claimed_at: Optional[str]
+    settled_at: Optional[str]
+    updated_at: str
+
+    @property
+    def waiting(self) -> bool:
+        return self.status in QUEUE_OPEN_STATUSES
+
+    @classmethod
+    def from_row(cls, row: sqlite3.Row) -> "QueuedDispatch":
+        return cls(
+            queue_id=row["queue_id"],
+            seq=int(row["seq"]),
+            project_id=row["project_id"],
+            task_id=row["task_id"],
+            source=row["source"],
+            request=_loads(row["request_json"], {}),
+            queued_by=row["queued_by"] or "",
+            status=row["status"],
+            run_id=row["run_id"],
+            detail=row["detail"] or "",
+            attempts=int(row["attempts"] or 0),
+            queued_at=row["queued_at"],
+            claimed_at=row["claimed_at"],
+            settled_at=row["settled_at"],
+            updated_at=row["updated_at"],
+        )
+
+
 @dataclass(frozen=True)
 class Supervision:
     """One durable epic walk: the authority it runs on and where it has got to."""
@@ -917,6 +1007,21 @@ def _utc(moment: Optional[datetime]) -> datetime:
 
 def _iso(moment: datetime) -> str:
     return _utc(moment).isoformat()
+
+
+def _parse_moment(text: Optional[str]) -> Optional[datetime]:
+    """A stored ISO stamp as an aware moment, or ``None`` when it cannot be read.
+
+    ``None`` on an unreadable stamp rather than a guess, because the one caller
+    (:meth:`ExecutionStore.claim_queued_dispatch`) treats it as "old enough to reclaim" --
+    and a row whose claim time is unreadable is a row no living process is describing.
+    """
+    if not text:
+        return None
+    try:
+        return _utc(datetime.fromisoformat(str(text).replace("Z", "+00:00")))
+    except ValueError:
+        return None
 
 
 # ----- the store --------------------------------------------------------------
@@ -2481,6 +2586,206 @@ class ExecutionStore:
                 self._refresh_due(connection, row["execution_id"])
             return cursor.rowcount == 1
 
+    # ----- the machine's dispatch queue (task-459) --------------------------------
+
+    def enqueue_dispatch(
+        self,
+        project_id: str,
+        task_id: str,
+        *,
+        request: Mapping[str, Any],
+        queued_by: str = "",
+        source: str = "manual",
+        limit: int = 0,
+        queue_id: Optional[str] = None,
+    ) -> QueuedDispatch:
+        """Accept a dispatch that found no slot, as a durable place in line.
+
+        The cap and the one-entry-per-task rule are enforced *inside* the transaction
+        rather than by a read before it, for the reason every other admission here is:
+        two processes both reading "there is room" is exactly the race a queue with a
+        bound exists to lose safely.
+
+        ``seq`` is allocated from the table's own maximum in the same transaction, so
+        FIFO order is a stored fact rather than a sort over two clocks. Order by it and
+        never by ``queued_at``: two entries queued in the same millisecond by different
+        processes have one order here and no order there.
+        """
+        with self.transaction("queue-enqueue") as connection:
+            existing = connection.execute(
+                "SELECT * FROM dispatch_queue WHERE project_id = ? AND task_id = ? "
+                "AND status IN ('queued', 'starting')",
+                (project_id, task_id),
+            ).fetchone()
+            if existing is not None:
+                raise AlreadyQueued(
+                    f"{task_id} already has dispatch {existing['queue_id']} waiting in the "
+                    f"queue ({existing['status']}); cancel it rather than queueing a second",
+                    queue_id=existing["queue_id"],
+                )
+            depth = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM dispatch_queue WHERE status IN ('queued', 'starting')"
+                ).fetchone()[0]
+            )
+            if limit > 0 and depth >= limit:
+                raise QueueFull(
+                    f"the dispatch queue holds {depth} waiting dispatch(es) and this machine's "
+                    f"limits.dispatch_queue_limit is {limit}",
+                    depth=depth,
+                    limit=limit,
+                )
+            moment = _iso(self.now())
+            seq = (
+                int(
+                    connection.execute(
+                        "SELECT COALESCE(MAX(seq), 0) FROM dispatch_queue"
+                    ).fetchone()[0]
+                )
+                + 1
+            )
+            identifier = queue_id or f"q_{uuid.uuid4().hex[:12]}"
+            connection.execute(
+                "INSERT INTO dispatch_queue(queue_id, seq, project_id, task_id, source, "
+                "request_json, queued_by, status, queued_at, updated_at) "
+                "VALUES (?,?,?,?,?,?,?,'queued',?,?)",
+                (
+                    identifier,
+                    seq,
+                    project_id,
+                    task_id,
+                    source,
+                    _dumps(dict(request)),
+                    queued_by,
+                    moment,
+                    moment,
+                ),
+            )
+            row = connection.execute(
+                "SELECT * FROM dispatch_queue WHERE queue_id = ?", (identifier,)
+            ).fetchone()
+            return QueuedDispatch.from_row(row)
+
+    def queued_dispatches(
+        self, *, waiting_only: bool = True, limit: int = 0
+    ) -> List[QueuedDispatch]:
+        """Every entry still holding a place in line, oldest first. FIFO is ``seq``."""
+        sql = "SELECT * FROM dispatch_queue"
+        if waiting_only:
+            sql += " WHERE status IN ('queued', 'starting')"
+        sql += " ORDER BY seq"
+        if limit > 0:
+            sql += f" LIMIT {int(limit)}"
+        return [QueuedDispatch.from_row(row) for row in self._read(sql)]
+
+    def queued_dispatch(self, queue_id: str) -> Optional[QueuedDispatch]:
+        rows = self._read("SELECT * FROM dispatch_queue WHERE queue_id = ?", (queue_id,))
+        return QueuedDispatch.from_row(rows[0]) if rows else None
+
+    def queue_depth(self) -> int:
+        return int(
+            self._read(
+                "SELECT COUNT(*) AS n FROM dispatch_queue WHERE status IN ('queued', 'starting')"
+            )[0]["n"]
+        )
+
+    def claim_queued_dispatch(
+        self,
+        queue_id: str,
+        *,
+        stale_after_seconds: int = 900,
+        retry_after_seconds: int = 0,
+    ) -> Optional[QueuedDispatch]:
+        """Take one entry out of the line to try starting it. ``None`` if somebody else has.
+
+        The compare-and-set on ``status`` is what stops two ticks -- a server's and a
+        hand-run ``agentjobs execution tick`` -- both spending a slot on the same entry.
+
+        An entry left ``starting`` by a process that died is reclaimed after
+        ``stale_after_seconds``. That is safe rather than hopeful: the retry passes the
+        same ``admission_operation_id``, so if the dead process did admit a run, the
+        second attempt is handed that attempt instead of starting a second one.
+
+        ``retry_after_seconds`` holds an entry that was already tried and put back. The
+        tick runs every few seconds and a condition that refused a start -- the task's own
+        run still finishing, a hold -- clears on a human scale, so retrying at the tick's
+        rate is work nobody asked for. ``claimed_at`` is kept across a release for this,
+        which is why it means *last tried* rather than *currently held*.
+        """
+        with self.transaction("queue-claim") as connection:
+            row = connection.execute(
+                "SELECT * FROM dispatch_queue WHERE queue_id = ?", (queue_id,)
+            ).fetchone()
+            if row is None or row["status"] not in QUEUE_OPEN_STATUSES:
+                return None
+            now = self.now()
+            claimed = _parse_moment(row["claimed_at"])
+            if row["status"] == QUEUE_STARTING:
+                if claimed is None or (now - claimed).total_seconds() < stale_after_seconds:
+                    return None
+            elif (
+                retry_after_seconds > 0
+                and claimed is not None
+                and (now - claimed).total_seconds() < retry_after_seconds
+            ):
+                return None
+            moment = _iso(now)
+            connection.execute(
+                "UPDATE dispatch_queue SET status = 'starting', claimed_at = ?, updated_at = ?, "
+                "attempts = attempts + 1 WHERE queue_id = ?",
+                (moment, moment, queue_id),
+            )
+            return QueuedDispatch.from_row(
+                connection.execute(
+                    "SELECT * FROM dispatch_queue WHERE queue_id = ?", (queue_id,)
+                ).fetchone()
+            )
+
+    def release_queued_dispatch(self, queue_id: str, *, detail: str = "") -> bool:
+        """Put a claimed entry back in line, keeping its place. A transient refusal.
+
+        ``claimed_at`` is deliberately left alone: it is the moment this entry was last
+        tried, and it is what ``retry_after_seconds`` above measures.
+        """
+        with self.transaction("queue-release") as connection:
+            cursor = connection.execute(
+                "UPDATE dispatch_queue SET status = 'queued', detail = ?, "
+                "updated_at = ? WHERE queue_id = ? AND status = 'starting'",
+                (detail[:1000], _iso(self.now()), queue_id),
+            )
+            return cursor.rowcount == 1
+
+    def settle_queued_dispatch(
+        self,
+        queue_id: str,
+        *,
+        status: str,
+        run_id: Optional[str] = None,
+        detail: str = "",
+    ) -> bool:
+        """Close an entry out of the line: started, refused, or cancelled."""
+        if status not in (QUEUE_STARTED, QUEUE_REFUSED, QUEUE_CANCELLED):
+            raise ValueError(f"{status!r} is not a terminal dispatch-queue status")
+        with self.transaction("queue-settle") as connection:
+            moment = _iso(self.now())
+            cursor = connection.execute(
+                "UPDATE dispatch_queue SET status = ?, run_id = ?, detail = ?, settled_at = ?, "
+                "updated_at = ? WHERE queue_id = ? AND status IN ('queued', 'starting')",
+                (status, run_id, detail[:1000], moment, moment, queue_id),
+            )
+            return cursor.rowcount == 1
+
+    def purge_queue_history(self, *, keep: int = 200) -> int:
+        """Drop the oldest settled entries beyond ``keep``. The waiting ones are untouched."""
+        with self.transaction("queue-purge") as connection:
+            cursor = connection.execute(
+                "DELETE FROM dispatch_queue WHERE status NOT IN ('queued', 'starting') "
+                "AND seq NOT IN (SELECT seq FROM dispatch_queue "
+                "WHERE status NOT IN ('queued', 'starting') ORDER BY seq DESC LIMIT ?)",
+                (int(keep),),
+            )
+            return cursor.rowcount
+
     def mark_controlled(self, execution_id: str, *, controlled_by: Optional[str]) -> None:
         """Hand an execution to the durable controller, or back. Quiescent boundary only."""
         with self.transaction("controlled-by") as connection:
@@ -3378,6 +3683,13 @@ __all__ = [
     "OutboxItem",
     "PROVENANCE_LEGACY",
     "PROVENANCE_NATIVE",
+    "QUEUE_CANCELLED",
+    "QUEUE_OPEN_STATUSES",
+    "QUEUE_REFUSED",
+    "QUEUE_STARTED",
+    "QUEUE_STARTING",
+    "QUEUE_WAITING",
+    "QueuedDispatch",
     "SCHEMA_REVISION",
     "SCHEMA_VERSION",
     "SourceEvent",

@@ -72,6 +72,10 @@ from agentjobs.manager import TaskManager
 from agentjobs.principals import Principal
 from agentjobs.projects import Project, default_home
 
+from agentjobs.dispatch import queue as dispatch_queue
+
+from .runs import QueuedDispatchView, queued_dispatch_view
+
 from ..dependencies import (
     get_principal,
     get_task_manager,
@@ -457,12 +461,26 @@ class TaskFinishView(BaseModel):
 
 
 class DispatchCancelResult(BaseModel):
-    """What cancelling asked for, and whether it happened."""
+    """What cancelling asked for, and whether it happened.
+
+    One result for two things that can be cancelled at that id, because they are two
+    states of one act: a dispatch that is waiting for a slot (task-459) and the run it
+    becomes. ``run`` is null for the first and ``queued`` for the second, so a caller
+    that stops reading here still cannot mistake one for the other.
+    """
 
     run_id: str
     stopped: bool
     detail: str
-    run: DispatchRunView
+    run: Optional[DispatchRunView] = Field(
+        default=None, description="The cancelled run. Null when a queued entry was removed."
+    )
+    queued: Optional[QueuedDispatchView] = Field(
+        default=None,
+        description=(
+            "The removed queue entry, with its final status. Null when a run was " "cancelled."
+        ),
+    )
 
 
 class DispatchEnableRequest(BaseModel):
@@ -837,8 +855,47 @@ async def cancel_dispatch_run(
     project: Project = Depends(request_project),
     principal: Optional[Principal] = Depends(get_principal),
 ) -> DispatchCancelResult:
-    """Stop one run and write its cancellation to the task record."""
+    """Stop one run, or take one queued dispatch out of the line, and record it.
+
+    **The queue is tried first, and only a *waiting* entry answers here.** A queued
+    dispatch that started a second ago is a run, its queue row says ``started``, and this
+    falls through to the run path with the run's own id -- which is the one that stops
+    something. The reverse ordering would report a cancellation over a live agent.
+
+    Same route for both because they are the same act from where the person is standing:
+    the card they are cancelling is the same card, before and after a slot freed under it.
+    """
     home = _home()
+    entry = dispatch_queue.find(home, run_id)
+    if entry is not None and entry.waiting:
+        if entry.project_id and entry.project_id != project.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Queued dispatch {run_id!r} does not belong to project {project.id!r}.",
+            )
+        requester = (
+            (principal.actor_id or principal.login or principal.kind.value)
+            if principal is not None
+            else ""
+        )
+        removed = dispatch_queue.cancel(home, run_id, requester=requester, manager=manager)
+        if removed is None:
+            # It started between the read and the write. Fall through: the run is what
+            # there is to cancel now, and it is under a different id.
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Queued dispatch {run_id!r} started while this cancellation was in "
+                    "flight. Re-read the queue and cancel the run it became."
+                ),
+            )
+        return DispatchCancelResult(
+            run_id=run_id,
+            stopped=True,
+            detail=f"Removed from the dispatch queue before it started ({removed.detail}).",
+            queued=queued_dispatch_view(removed, 0, {project.id: project}),
+        )
+
     # The manager is handed in rather than looked up. This request already resolved the
     # project, and a server serving an implicit project -- AGENTJOBS_PROJECT_ROOT, no
     # registry entry -- would otherwise stop the run and have nowhere to write what

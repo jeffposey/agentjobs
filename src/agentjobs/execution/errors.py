@@ -58,17 +58,44 @@ class CapacityExhausted(ExecutionStoreError):
         self.limit = limit
 
 
+class QueueFull(ExecutionStoreError):
+    """The machine's dispatch queue is at its configured length cap (task-459).
+
+    A bound rather than a courtesy: an unbounded queue of authorised dispatches is a
+    promise to spend money the person who made it can no longer see the end of.
+    """
+
+    def __init__(self, message: str, *, depth: int = 0, limit: int = 0) -> None:
+        super().__init__(message)
+        self.depth = depth
+        self.limit = limit
+
+
+class AlreadyQueued(ExecutionStoreError):
+    """This project/task already has an entry waiting in the dispatch queue.
+
+    One waiting entry per task, for the same reason there is one live run per task: two
+    would start two agents on one repository the moment two slots freed together.
+    """
+
+    def __init__(self, message: str, *, queue_id: str = "") -> None:
+        super().__init__(message)
+        self.queue_id = queue_id
+
+
 class OwnerModeConflict(ExecutionStoreError):
     """A controller of one mode tried to act on a run another mode owns (legacy/durable)."""
 
 
 __all__ = [
     "ActivityConflict",
+    "AlreadyQueued",
     "CapacityExhausted",
     "ExecutionStoreError",
     "HistoryIncompatible",
     "OwnerModeConflict",
     "OwnershipConflict",
+    "QueueFull",
     "StaleOwner",
     "StorageFailure",
     "StoreBusy",
