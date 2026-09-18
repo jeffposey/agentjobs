@@ -271,6 +271,7 @@ repaint. Link to it and read it; never compute a count from it.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/runs/live` | Every run happening on this **machine**, in every project, with its remaining capacity |
+| `GET` | `/api/recent/closures` | The last few tasks to close on this **machine**, in every project this caller may see (task-460) |
 | `GET` | `/api/sessions/idle` | Every Claude Code process on this machine, the idle sweep's verdict on each and why, and its record of stops and switch-overs (task-447) |
 | `PUT` | `/api/sessions/idle/settings` | Turn idle-session enforcement on or off, or change `idle_minutes`. Needs `dispatch.admin` |
 
@@ -281,9 +282,11 @@ resource it describes is not a project's: `limits.max_concurrent_runs` is machin
 the run ledger under `~/.agentjobs/runs/` is machine-level, and the run occupying the
 last slot is usually on some other project's task. Serving the same body under every
 value of `{project_id}` would be a URL asserting a scope the answer does not have
-(task-328).
+(task-328). For closures, for the same reason one layer up: what landed overnight is
+routinely in a different project from the one whose Dashboard is open, which is the
+whole value of the region that reads it.
 
-Two fields are worth reading carefully:
+Two of `/api/runs/live`'s fields are worth reading carefully:
 
 - **`health`, not `live`.** `live` means only that nothing has declared the run over. A
   session parked on a permission prompt, a session that has emitted nothing for the
@@ -298,6 +301,21 @@ Two fields are worth reading carefully:
   (task-352) -- because a gate running for a task is running, whatever it holds; a
   client of this endpoint should read `runs` plus the `finish` holders as "what is
   running", and `occupied` as "how many slots are taken", which are different questions.
+
+`/api/recent/closures` takes `limit` (default 5, ceiling 20) and `days` (default 7,
+ceiling 90), and returns them alongside the rows so a client's empty state can name the
+window it was actually given rather than hard-coding one. Three things about it:
+
+- **Finished means the task closed.** A run that ended without closing its task is not
+  finished work; that is a run that stopped, and `/api/runs/live` is where it is said.
+- **The timestamp is the close, not the last edit.** Rows are ordered by the store's
+  `closed_at`, which is stamped once at the close and survives every later write. A
+  closed record is edited often -- a correction, a redaction, a late decision entry --
+  and each of those moves `updated`, so ordering by it would re-date a month-old
+  closure to this morning.
+- **Exposure applies per project.** A project this caller may not see contributes no
+  rows at all, not a redacted row and not a count: each row carries a task id, a title
+  and a project name. See [exposure.md](exposure.md).
 
 ### The two readings of one run
 
