@@ -78,6 +78,9 @@ const GLANCE_MUST_BE_WHOLE: ReadonlyArray<[keyof typeof VIEWPORTS, number]> = [
 /** How many active tasks the amplified response carries. */
 const CROWD = 40;
 
+/** How many rows the recently-finished region shows at its fullest (`RECENT_LIMIT`). */
+const RECENT_ROWS = 5;
+
 const seeded: string[] = [];
 
 test.beforeAll(async ({ request }) => {
@@ -157,6 +160,36 @@ async function withCeiling(page: Page, ceiling: number) {
 }
 
 /**
+ * Pin what the recently-finished region is handed, so the frame is measured at a known
+ * number of rows rather than at whatever this shared project happens to have closed.
+ *
+ * `count` rows of a realistic length, or none. Both matter and for different reasons:
+ * populated is the tallest the region gets, and empty is the state its sentence is for
+ * -- and a region that collapses to nothing changes what the tail's last section is, so
+ * the clipping assertion is measuring a different last child in each case (task-460).
+ */
+async function withClosures(page: Page, count: number) {
+  await page.route("**/api/recent/closures*", async (route: Route) => {
+    await fulfilJson(route, {
+      closures: Array.from({ length: count }, (_unused, index) => ({
+        task_id: `task-${600 + index}`,
+        task_title:
+          "A closure with a title long enough to test how one of these rows truncates it",
+        project_id: index % 2 === 0 ? "_local" : "another",
+        project_name: index % 2 === 0 ? "This Project" : "Another Project Entirely",
+        outcome: index === 1 ? "superseded" : "completed",
+        closed_at: new Date(Date.now() - (index + 1) * 3_600_000).toISOString(),
+        age_seconds: (index + 1) * 3_600,
+        task_url: `/p/${index % 2 === 0 ? "_local" : "another"}/tasks/task-${600 + index}`,
+      })),
+      limit: RECENT_ROWS,
+      window_days: 7,
+      generated_at: new Date().toISOString(),
+    });
+  });
+}
+
+/**
  * Open the Dashboard and wait for the board, which is the last thing to arrive.
  *
  * The board renders nothing until the machine-wide query answers, so measuring before
@@ -165,6 +198,10 @@ async function withCeiling(page: Page, ceiling: number) {
 async function openDashboard(page: Page) {
   await page.goto(DASHBOARD);
   await expect(page.getByTestId("slot-board")).toBeVisible();
+  // The recently-finished region is the tail's middle section and arrives on its own
+  // machine-wide query, so it is waited for too -- measuring before it lands would
+  // measure a shorter tail than the one under test.
+  await expect(page.getByTestId("recently-finished")).toBeVisible();
 }
 
 /** What the browser says about the document's own scroll. */
@@ -375,3 +412,73 @@ test("the frame is not the shell's: an unframed surface still scrolls its docume
   });
   expect(scrolled, "window.scrollBy still moves this surface").toBeGreaterThan(0);
 });
+
+// ---------------------------------------------------------------------------
+// task-460: the recently-finished region lives inside the same frame
+// ---------------------------------------------------------------------------
+
+/**
+ * Both states, because the region has two and they fail differently.
+ *
+ * Populated is the tallest it gets and is what could push the tail's content past the
+ * frame. Empty is one sentence -- and it changes which element is the tail's last child,
+ * which is what the clipping assertion reaches for, so a region that rendered nothing at
+ * all rather than its empty state would pass a populated-only test and leave the reader
+ * unable to tell "nothing finished" from "this is broken".
+ *
+ * Three slots throughout: the loop above already proves the frame at one, three and six
+ * against the region's live content, and the ceiling is not what this pair varies.
+ */
+for (const [state, rows] of [
+  ["populated", RECENT_ROWS],
+  ["empty", 0],
+] as const) {
+  for (const [name, viewport] of Object.entries(VIEWPORTS)) {
+    test(`the Dashboard still fits on a ${name} with the finished region ${state}`, async ({
+      page,
+    }) => {
+      await withCeiling(page, 3);
+      await withCrowdedDashboard(page);
+      await withClosures(page, rows);
+      await page.setViewportSize(viewport);
+      await openDashboard(page);
+
+      const region = page.getByTestId("recently-finished");
+      await expect(region).toContainText("Recently finished");
+      if (rows > 0) {
+        await expect(page.getByTestId("closure-row")).toHaveCount(rows);
+        // The rendered value, not the markup: the outcome and the project are what a
+        // reader scans a row for, and both belong to the row's own project.
+        await expect(region).toContainText("superseded");
+        await expect(region).toContainText("Another Project Entirely");
+      } else {
+        await expect(region).toContainText("Nothing has finished in the last 7 days.");
+        await expect(page.getByTestId("closure-row")).toHaveCount(0);
+      }
+
+      const scroll = await documentScroll(page);
+      expect(
+        scroll.scrollHeight,
+        `${name}, region ${state}: the document is ${scroll.scrollHeight}px in a ` +
+          `${scroll.innerHeight}px viewport`,
+      ).toBeLessThanOrEqual(scroll.innerHeight);
+
+      const reached = await page.evaluate(() => {
+        const tail = document.querySelector('[data-testid="dashboard-tail"]');
+        if (!tail) return null;
+        tail.scrollTop = tail.scrollHeight;
+        const last = tail.lastElementChild;
+        if (!last) return null;
+        return {
+          bottom: last.getBoundingClientRect().bottom,
+          frame: tail.getBoundingClientRect().bottom,
+        };
+      });
+      expect(reached, "the tail has sections in it").not.toBeNull();
+      expect(
+        reached!.bottom,
+        `${name}, region ${state}: the tail can be scrolled to its last section`,
+      ).toBeLessThanOrEqual(reached!.frame + 1);
+    });
+  }
+}
