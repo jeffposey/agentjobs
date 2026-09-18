@@ -261,6 +261,30 @@ class TestRefusals:
         assert record.session_id == FULL_SESSION
         assert record.origin == "registered"
 
+    def test_an_interactive_session_naming_itself_by_its_short_id_is_adopted(self, bench) -> None:
+        """The task-466 defect: what the environment gives is what the ledger must match.
+
+        ``self_session_id`` returns the first group of ``CLAUDE_CODE_SESSION_ID``, and an
+        interactive row carries only the full uuid. Comparing the two exactly refused
+        every interactive session on the machine with a message blaming a worktree
+        launch that had not happened; the test above stayed green because it passed
+        the full uuid by hand.
+        """
+        _set_ledger(bench["fake_cli"], [_row(kind="interactive")])
+
+        result = _register(bench, session_id=None, env={"CLAUDE_CODE_SESSION_ID": FULL_SESSION})
+
+        assert not result.already_known
+        record = read_run(Path(result.directory))
+        assert record.is_interactive
+        assert record.session_id == FULL_SESSION, "the record keeps the full name"
+
+    def test_a_missing_session_is_not_blamed_on_a_worktree(self, bench) -> None:
+        with pytest.raises(SessionUnknownError) as caught:
+            _register(bench, session_id="deadbeef")
+        assert "worktree" not in str(caught.value)
+        _wrote_nothing(bench)
+
     def test_a_closed_task_is_refused(self, bench) -> None:
         bench["manager"].close_task(
             bench["task_id"], actor="claude", outcome=Outcome.COMPLETED, body="done"

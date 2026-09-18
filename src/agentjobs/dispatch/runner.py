@@ -46,7 +46,17 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
-from typing import IO, Callable, Collection, Dict, List, Optional, Sequence, TYPE_CHECKING
+from typing import (
+    IO,
+    Callable,
+    Collection,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    TYPE_CHECKING,
+)
 
 
 from agentjobs.dispatch.address import resolve_api_base
@@ -1299,6 +1309,27 @@ class SessionPhase(Enum):
     FINISHED = "finished"
     STOPPED = "stopped"
     GONE = "gone"
+
+
+def row_names_session(row: Mapping[str, object], session_id: str) -> bool:
+    """Whether a ledger row is this session, under either of a session's two names.
+
+    A background row carries the short ``id`` the CLI assigns for ``attach``, ``logs``
+    and ``stop``, and the full ``sessionId`` uuid; an interactive row carries only the
+    full one. The short id is the uuid's first group, and it is what ``self_session_id``
+    reads out of the environment and what every run record stores -- so a short id is
+    matched as a prefix of the full uuid, not only exactly. Comparing exactly was how
+    ``agentjobs run register`` refused every interactive session on this machine
+    (task-466): the session was in the ledger, and nothing could name it.
+    """
+    wanted = session_id.strip()
+    if not wanted:
+        return False
+    short = str(row.get("id") or "")
+    full = str(row.get("sessionId") or "")
+    if wanted in (short, full):
+        return True
+    return bool(full) and len(wanted) < len(full) and full.startswith(wanted)
 
 
 def classify_session(status: Optional[str], state: Optional[str]) -> SessionPhase:
@@ -2986,7 +3017,7 @@ class DispatchRunner:
     def _ledger_row(self, session_id: str) -> Optional[Dict[str, object]]:
         """The ledger row for one session, or None when it is gone."""
         for row in self.ledger():
-            if row.get("id") == session_id or row.get("sessionId") == session_id:
+            if row_names_session(row, session_id):
                 return row
         return None
 
