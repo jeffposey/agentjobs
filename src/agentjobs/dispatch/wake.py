@@ -22,6 +22,15 @@ session run for the task is ever a candidate. Reaching further back would hand t
 an agent whose picture of the branch is two runs out of date, which is worse than the
 cold start it was trying to avoid.
 
+**A session that is still running is messaged where it stands, and keeps everything**
+(task-451). ``wake_in_place`` looks the conversation up in Claude Code's live-session
+roster and, on a hit, sends the wake prompt through the peer channel: same session id,
+same pid, same job id, same row in agent view. The fork below is what happens when that
+lookup misses -- the process has ended, the name is one the peer channel will not accept,
+or the delivery could not be shown to have landed. Nothing about the fork changed, and
+**the in-place path is an optimisation on an optimisation**: every doubt in it resolves
+to the fork, exactly as every doubt in the fork resolves to a cold start.
+
 **A woken session gets a new id, and this module never supplies one.** Claude Code will
 not apply a differently-flagged launch to a background session's saved options, so a
 ``--bg ... --resume <uuid>`` copies the conversation into a fresh session instead of
@@ -44,7 +53,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Callable, Dict, List, Mapping, Optional, Sequence
+
+from agentjobs.dispatch.peers import LiveSession, PeerDelivery, find_live_session
 
 if TYPE_CHECKING:  # pragma: no cover - `ledger` imports `runner`, which imports this
     from agentjobs.dispatch.ledger import RunRecord
@@ -335,3 +346,72 @@ def build_wake_prompt(
     if policy:
         rendered = f"{rendered}\n\n{policy}"
     return rendered
+
+
+# ----- waking a session that is still running (task-451) ----------------------
+
+
+WAKE_PATH_IN_PLACE = "in_place"
+WAKE_PATH_FORK = "fork"
+"""What a run's ``wake_path`` records, so the corpus can say which path a wake took.
+
+Written on the run rather than inferred later, because the two are indistinguishable
+afterwards: a forked run and an in-place one both end up with a ``resumed`` flag and a
+session id, and only the run that did it knows whether that session id was minted or
+adopted. ``scripts/run_report.py`` is the reader.
+"""
+
+
+@dataclass(frozen=True)
+class InPlaceWake:
+    """What an attempt to wake a live session did. Falsy means "fork instead"."""
+
+    delivered: bool
+    detail: str
+    session: Optional[LiveSession] = None
+
+    def __bool__(self) -> bool:
+        return self.delivered
+
+
+def wake_in_place(
+    target: WakeTarget,
+    message: str,
+    *,
+    send: Callable[[LiveSession, str], PeerDelivery],
+    sessions_dir: Optional[Path] = None,
+) -> InPlaceWake:
+    """Deliver ``message`` to ``target``'s session if it is still running.
+
+    Two steps, each of which may say no, and a no is never an error:
+
+    1.  **Is the conversation's process alive?** A roster lookup, not a connect attempt --
+        when a session ends, Claude Code removes its registration within seconds, so
+        absence is an immediate and unambiguous answer rather than a timeout. This is the
+        fallback trigger the whole design rests on.
+    2.  **Did the message land?** ``send`` reports a delivery only when the sending turn
+        said ``SendMessage`` succeeded. A held or refused message is a miss, because a
+        session that was not woken must be forked rather than assumed awake.
+
+    ``send`` is injected rather than called directly so this stays a pure decision: the
+    runner supplies a closure over its own executable prefix, working directory and
+    environment, and a test supplies a recorder.
+
+    **The session's identity is re-checked here even though the caller looked it up.**
+    ``WakeTarget.session_uuid`` comes from the session ledger, which lists conversations
+    that no longer have a process; the roster lists processes. Matching the uuid against a
+    live row is what makes "this name belongs to the conversation I mean" a fact rather
+    than a hope -- a name is not unique, and a stale one would wake the wrong session.
+    """
+    live = find_live_session(target.session_uuid, sessions_dir=sessions_dir)
+    if live is None:
+        return InPlaceWake(
+            False,
+            f"session {target.session_uuid[:8]} is not in the live roster, so its process "
+            "has ended",
+        )
+    try:
+        delivery = send(live, message)
+    except Exception as exc:  # noqa: BLE001 - a wake is an optimisation; see the docstring
+        return InPlaceWake(False, f"the send failed: {type(exc).__name__}: {exc}", live)
+    return InPlaceWake(delivery.delivered, delivery.detail, live)

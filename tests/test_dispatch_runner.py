@@ -661,6 +661,21 @@ class TestSessionName:
         assert session_name("agentjobs", "task-324", 2) == "agentjobs/task-324#2"
         assert session_name("agentjobs", "task-324", 3) == "agentjobs/task-324#3"
 
+    @pytest.mark.parametrize("ordinal", [1, 2, 17])
+    def test_every_name_is_one_the_peer_channel_will_accept(self, ordinal: int) -> None:
+        """task-451: the second surface this name exists for could not use the old one.
+
+        Asserted against ``peers.UNADDRESSABLE`` rather than against a separator, because
+        what must hold is the rule -- ``SendMessage`` validates ``to`` before it looks
+        anything up and rejects an ``@`` outright -- and not whichever characters satisfy
+        it today. A name that fails this is one an in-place wake cannot reach at all.
+        """
+        from agentjobs.dispatch.peers import UNADDRESSABLE, LiveSession
+
+        name = session_name("agentjobs", "task-324", ordinal)
+        assert UNADDRESSABLE not in name
+        assert LiveSession(1, "uuid", "job", name, "idle", ".", "2.1.276").addressable
+
     def test_the_first_ordinal_adds_nothing(self) -> None:
         """The ordinary case pays nothing for the rare one, which is task-452's point."""
         assert session_name("agentjobs", "task-324", 1) == session_name("agentjobs", "task-324")
@@ -702,9 +717,9 @@ class TestSessionName:
         the directory missing, a file that is not JSON, a file that is JSON but not an
         object, and an object with no ``name``.
         """
-        from agentjobs.dispatch import idle_sessions
+        from agentjobs.dispatch.peers import SESSIONS_DIR_ENV
 
-        monkeypatch.setattr(idle_sessions, "SESSIONS_DIR", tmp_path / "absent")
+        monkeypatch.setenv(SESSIONS_DIR_ENV, str(tmp_path / "absent"))
         assert choose_session_name("agentjobs", "task-324") == "agentjobs/task-324"
 
         roster = tmp_path / "sessions"
@@ -713,20 +728,18 @@ class TestSessionName:
         (roster / "2.json").write_text("[]", encoding="utf-8")
         (roster / "3.json").write_text('{"pid": 3}', encoding="utf-8")
         (roster / "4.json").write_text('{"name": "agentjobs/task-324"}', encoding="utf-8")
-        monkeypatch.setattr(idle_sessions, "SESSIONS_DIR", roster)
+        monkeypatch.setenv(SESSIONS_DIR_ENV, str(roster))
 
         assert choose_session_name("agentjobs", "task-324") == "agentjobs/task-324#2"
 
     def test_two_runs_on_one_task_are_told_apart_by_the_name_alone(
-        self, workspace: Path, manager: TaskManager
+        self, workspace: Path, manager: TaskManager, isolate_session_roster: Path
     ) -> None:
         """ac-2, through the dispatcher: a second run started while the first is live.
 
         The roster is the machine's, so the registration the first run's launch would
         write is written here instead -- the launcher is not run in this suite.
         """
-        from agentjobs.dispatch import idle_sessions
-
         runner = build(
             workspace,
             manager,
@@ -734,7 +747,7 @@ class TestSessionName:
         )
 
         first = runner.build_argv("task-324-example", "run_aaaa1111")
-        (idle_sessions.SESSIONS_DIR / "4242.json").write_text(
+        (isolate_session_roster / "4242.json").write_text(
             json.dumps({"pid": 4242, "name": "sandbox/task-324-example", "status": "busy"}),
             encoding="utf-8",
         )
@@ -745,7 +758,7 @@ class TestSessionName:
         assert names[0] != names[1]
 
     def test_a_run_s_name_is_chosen_once_however_often_it_is_asked_for(
-        self, workspace: Path, manager: TaskManager
+        self, workspace: Path, manager: TaskManager, isolate_session_roster: Path
     ) -> None:
         """The argv's name and the meta's name are the same string or the run is lost.
 
@@ -756,8 +769,6 @@ class TestSessionName:
         two asks -- which is what really happens once the session registers -- and the
         answer must not move.
         """
-        from agentjobs.dispatch import idle_sessions
-
         runner = build(
             workspace,
             manager,
@@ -765,7 +776,7 @@ class TestSessionName:
         )
 
         chosen = runner.session_name_for("task-324-example", "run_aaaa1111")
-        (idle_sessions.SESSIONS_DIR / "4242.json").write_text(
+        (isolate_session_roster / "4242.json").write_text(
             json.dumps({"pid": 4242, "name": chosen, "status": "busy"}), encoding="utf-8"
         )
 

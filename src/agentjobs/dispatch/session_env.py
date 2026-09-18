@@ -69,6 +69,25 @@ SESSION_SETTINGS_FILENAME = "session-settings.json"
 SETTINGS_FLAG = "--settings"
 """The Claude Code flag that loads an additional settings document."""
 
+CROSS_SESSION_INBOUND = "crossSessionInbound"
+CROSS_SESSION_ACCEPT = "accept"
+"""Whether this run takes a message from another Claude session unattended (task-451).
+
+**Without it the in-place wake silently does not arrive.** A ``bypassPermissions``
+receiver -- which is what posture ``autonomous`` dispatches -- *holds* a prompting-class
+sender's message for approval, and a background session with no terminal attached holds it
+indefinitely. Nothing errors; the message simply never becomes a turn, and the supervisor
+waits on a wake that was never delivered.
+
+Proven on Claude Code 2.1.276, 2026-09-18: with this key, a ``bypassPermissions --bg``
+sandbox took a message from a ``claude -p`` sender and acted on it with no terminal in the
+loop, keeping its session id and pid. Task-449 is the spike.
+
+It is safe to default because it changes what may *reach* the session, not what the
+session may do: a peer message arrives as external content inside an XML wrapper, is
+marked as not typed by the user, and is acted on under the receiver's own permission mode.
+"""
+
 DAEMON_START_BANNER = "starting background service"
 """What the launcher prints when *this* launch is the one that starts the daemon.
 
@@ -185,6 +204,10 @@ def merged_document(
     Their ``env`` keys survive except where they collide with the run's identity, which
     they may not win. Every other key of theirs -- ``permissions`` above all, which is
     what ``posture_flags`` puts here -- is carried through untouched.
+
+    ``crossSessionInbound`` is **defaulted, not imposed** (task-451): a run that does not
+    take it is a run the in-place wake cannot reach, so it goes in unless the operator
+    said otherwise, and an operator who wrote the key meant it.
     """
     document: Dict[str, object] = dict(base or {})
     merged: Dict[str, str] = {}
@@ -193,6 +216,7 @@ def merged_document(
         merged.update({str(key): str(value) for key, value in existing.items()})
     merged.update(environment)
     document["env"] = merged
+    document.setdefault(CROSS_SESSION_INBOUND, CROSS_SESSION_ACCEPT)
     return document
 
 

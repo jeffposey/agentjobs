@@ -612,18 +612,6 @@ def command_line_of(
     return None
 
 
-SESSIONS_DIR = Path.home() / ".claude" / "sessions"
-"""Where Claude Code registers every live session, one ``<pid>.json`` each.
-
-Undocumented surface, established by probe on Claude Code 2.1.276, Windows 11,
-2026-09-18 (task-449, confirmed by task-452). A registration carries ``pid``,
-``sessionId``, ``jobId``, ``cwd``, ``kind``, ``version``, ``status`` and ``name``; a
-sibling ``<pid>.<sha256>.key`` holds the session's peer token and is never read here.
-Both files disappear within seconds of the process ending, so absence is an immediate
-and unambiguous "not live" -- no subprocess and no timeout.
-"""
-
-
 def live_session_names(directory: Optional[Path] = None) -> Set[str]:
     """Every name the live-session roster currently holds.
 
@@ -632,30 +620,23 @@ def live_session_names(directory: Optional[Path] = None) -> Set[str]:
     on the dispatch path that needs this. Nothing here needs the rest of a registration,
     so nothing else is returned.
 
+    **The roster itself belongs to** :mod:`agentjobs.dispatch.peers`, which reads the same
+    ``~/.claude/sessions/<pid>.json`` files whole so the wake can find one session by id.
+    Task-451 and task-452 arrived at that directory within a day of each other from
+    opposite ends -- naming a session, and messaging one -- and two readers of one
+    undocumented file layout is one too many: the next CLI release that changes it would
+    have to be found twice. This is the projection.
+
     **Every failure is an empty result, deliberately.** The caller
     (``runner.choose_session_name``) is choosing a cosmetic discriminator; a roster that
     cannot be read, a file being written as it is read, or a registration in a shape
     nobody anticipated must cost at worst a name Claude Code disambiguates itself, never
-    a dispatch that will not start. A file with no readable ``name`` contributes nothing
-    and does not stop the others being read.
+    a dispatch that will not start. ``peers.roster`` already drops each of those, and a
+    registration with no readable name contributes nothing here.
     """
-    root = SESSIONS_DIR if directory is None else directory
-    names: Set[str] = set()
-    try:
-        entries = sorted(root.glob("*.json"))
-    except OSError:
-        return names
-    for entry in entries:
-        try:
-            loaded = json.loads(entry.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        if not isinstance(loaded, dict):
-            continue
-        name = loaded.get("name")
-        if isinstance(name, str) and name:
-            names.add(name)
-    return names
+    from agentjobs.dispatch.peers import roster
+
+    return {row.name for row in roster(directory) if row.name}
 
 
 def ledger_rows(executable: str = "claude") -> List[Dict[str, Any]]:

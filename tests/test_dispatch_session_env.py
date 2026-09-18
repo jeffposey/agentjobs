@@ -33,6 +33,8 @@ from agentjobs.dispatch.session_env import (
     Delivery,
     daemon_was_started,
     deliver_identity,
+    CROSS_SESSION_ACCEPT,
+    CROSS_SESSION_INBOUND,
     merged_document,
     redacted,
     session_environment,
@@ -85,6 +87,25 @@ class TestTheDocument:
         assert document["permissions"] == {"allow": ["Bash(pytest:*)"]}
         assert document["enabledMcpjsonServers"] == ["agentjobs"]
         assert cast(Dict[str, str], document["env"])["AGENTJOBS_RUN_ID"] == "run_abc123"
+
+    def test_the_run_is_configured_to_take_a_message_from_another_session(self) -> None:
+        """task-451, and the whole of ac-3.
+
+        Without this key a ``bypassPermissions`` receiver *holds* a prompting-class
+        sender's message for an approval nobody is attached to give, so an in-place wake
+        would never become a turn and nothing would error. It is defaulted rather than
+        imposed: an operator who wrote the key meant it.
+        """
+        document = merged_document({"AGENTJOBS_RUN_ID": "run_abc123"})
+
+        assert document[CROSS_SESSION_INBOUND] == CROSS_SESSION_ACCEPT
+
+    def test_an_operator_who_set_it_themselves_keeps_their_answer(self) -> None:
+        document = merged_document(
+            {"AGENTJOBS_RUN_ID": "run_abc123"}, {CROSS_SESSION_INBOUND: "reject"}
+        )
+
+        assert document[CROSS_SESSION_INBOUND] == "reject"
 
     def test_redaction_keeps_the_names_and_drops_the_values(self) -> None:
         """ "Which variables did this run get" is worth answering from the record. The

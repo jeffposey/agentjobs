@@ -21,10 +21,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 import textwrap
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import pytest
 import yaml
@@ -40,14 +41,19 @@ from agentjobs.dispatch.config import (
     ResolvedPosture,
     RunnerMode,
 )
+from agentjobs.dispatch.peers import SESSIONS_DIR_ENV, LiveSession, PeerDelivery
 from agentjobs.dispatch.runner import DispatchRunner, RunDirectory
 from agentjobs.dispatch.wake import (
+    WAKE_PATH_FORK,
+    WAKE_PATH_IN_PLACE,
     WakeError,
+    WakeTarget,
     build_wake_prompt,
     find_wake_target,
     resume_refusal,
     session_uuids,
     wake_argv,
+    wake_in_place,
 )
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import DispatchTrigger, Lifecycle
@@ -67,6 +73,13 @@ if args[:2] == ["agents", "--json"]:
         # forgot --all must fail here rather than in production.
         rows = [r for r in rows if r.get("status")]
     print(json.dumps(rows))
+    raise SystemExit(0)
+if args[:1] == ["-p"]:
+    # The peer-channel sender (task-451). It is the same executable as the launcher, so
+    # the fake has to answer as both; `send_outcome.txt` is how a test makes it refuse.
+    (here / "sent.txt").write_text(sys.stdin.read() if not sys.stdin.isatty() else "")
+    outcome = here / "send_outcome.txt"
+    print(outcome.read_text() if outcome.exists() else "AGENTJOBS-WAKE-DELIVERED")
     raise SystemExit(0)
 (here / "argv.json").write_text(json.dumps(args))
 (here / "stdin.txt").write_text(sys.stdin.read() if not sys.stdin.isatty() else "")
@@ -180,6 +193,61 @@ def seed_finished_run(
     if reaped:
         meta["reaped"] = True
     return RunDirectory.create(home, run_id, meta)
+
+
+# ----- the live-session roster (task-451) -------------------------------------
+
+
+def roster_dir() -> Path:
+    """The empty directory ``conftest.isolate_session_roster`` points every test at."""
+    return Path(os.environ[SESSIONS_DIR_ENV])
+
+
+def register_live(
+    *,
+    session_uuid: str,
+    name: str = "sandbox/task-001/previous",
+    pid: int = 4242,
+    status: str = "idle",
+) -> None:
+    """Put one live registration in front of the wake, shaped as Claude Code writes them."""
+    (roster_dir() / f"{pid}.json").write_text(
+        json.dumps(
+            {
+                "pid": pid,
+                "sessionId": session_uuid,
+                "jobId": session_uuid[:8],
+                "cwd": "\\\\projects\\\\agentjobs",
+                "kind": "bg",
+                "version": "2.1.276",
+                "status": status,
+                "name": name,
+                "peerProtocol": 1,
+                "peerFeatures": ["notify_idle", "artifact_yield"],
+                "messagingSocketPath": "\\\\\\\\.\\\\pipe\\\\LOCAL\\\\cc-msg-deadbeef",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def refuse_sends(workspace: Path, why: str = "it was held for approval") -> None:
+    """Make the fake sender report that SendMessage did not deliver."""
+    (workspace / "send_outcome.txt").write_text(f"AGENTJOBS-WAKE-FAILED {why}", encoding="utf-8")
+
+
+def sent_instruction(workspace: Path) -> Optional[str]:
+    """What the peer sender was asked to deliver, or ``None`` if it was never run."""
+    path = workspace / "sent.txt"
+    if not path.is_file():
+        return None
+    return path.read_text(encoding="utf-8")
+
+
+def run_meta(workspace: Path, run_id: str) -> Dict[str, object]:
+    """One run's recorded meta, by run id."""
+    path = workspace / "home" / "runs" / run_id / "meta.yaml"
+    return dict(yaml.safe_load(path.read_text(encoding="utf-8")) or {})
 
 
 def ran_argv(workspace: Path) -> List[str]:
@@ -711,4 +779,312 @@ class TestPostureAcrossAResume:
             task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.AUTO
         )
 
+        assert "--resume" not in ran_argv(workspace)
+
+
+# ----- waking a session that is still running (task-451) ----------------------
+
+
+class TestWakeInPlaceUnit:
+    """The decision on its own: roster lookup, then delivery, and every doubt is a fork."""
+
+    TARGET = WakeTarget(
+        previous_run_id="run_previous",
+        session_id="aaaa1111",
+        session_uuid="aaaa1111-2222-3333-4444-555555555555",
+    )
+
+    def test_a_session_that_is_not_in_the_roster_is_gone(self, tmp_path: Path) -> None:
+        """The fallback trigger. Both files vanish within seconds of the process ending,
+        so this is a file lookup and never a connect timeout."""
+        outcome = wake_in_place(self.TARGET, "wake up", send=_unused, sessions_dir=tmp_path)
+
+        assert not outcome
+        assert "not in the live roster" in outcome.detail
+
+    def test_a_live_session_is_sent_the_message(self, tmp_path: Path) -> None:
+        _register(tmp_path, self.TARGET.session_uuid)
+        sent: List[Tuple[str, str]] = []
+
+        def send(live: LiveSession, text: str) -> PeerDelivery:
+            sent.append((live.name, text))
+            return PeerDelivery(True, "delivered")
+
+        outcome = wake_in_place(self.TARGET, "wake up", send=send, sessions_dir=tmp_path)
+
+        assert outcome
+        assert sent == [("sandbox/task-001/previous", "wake up")]
+        assert outcome.session is not None and outcome.session.pid == 4242
+
+    def test_a_refused_delivery_is_not_a_wake(self, tmp_path: Path) -> None:
+        """A held message is the failure mode worth naming: the session is alive, nothing
+        errored, and the turn never arrived. Believing it would strand a supervisor."""
+        _register(tmp_path, self.TARGET.session_uuid)
+
+        outcome = wake_in_place(
+            self.TARGET,
+            "wake up",
+            send=lambda live, text: PeerDelivery(False, "it was held"),
+            sessions_dir=tmp_path,
+        )
+
+        assert not outcome
+        assert "held" in outcome.detail
+
+    def test_a_sender_that_raises_is_a_fork_rather_than_a_failed_dispatch(
+        self, tmp_path: Path
+    ) -> None:
+        _register(tmp_path, self.TARGET.session_uuid)
+
+        def boom(live: LiveSession, text: str) -> PeerDelivery:
+            raise RuntimeError("the machine caught fire")
+
+        outcome = wake_in_place(self.TARGET, "wake up", send=boom, sessions_dir=tmp_path)
+
+        assert not outcome
+        assert "the machine caught fire" in outcome.detail
+
+    def test_the_uuid_is_rechecked_against_a_live_row(self, tmp_path: Path) -> None:
+        """A name is not unique and the session ledger lists conversations with no process.
+
+        Matching the uuid against a *live* row is what makes "this name belongs to the
+        conversation I mean" a fact rather than a hope.
+        """
+        _register(tmp_path, "bbbb2222-0000-0000-0000-000000000000", name="somebody/else/1")
+
+        assert not wake_in_place(self.TARGET, "wake up", send=_unused, sessions_dir=tmp_path)
+
+
+def _unused(live: LiveSession, text: str) -> PeerDelivery:
+    raise AssertionError("the sender should not have been reached")
+
+
+def _register(directory: Path, session_uuid: str, name: str = "sandbox/task-001/previous") -> None:
+    (directory / "4242.json").write_text(
+        json.dumps(
+            {
+                "pid": 4242,
+                "sessionId": session_uuid,
+                "jobId": session_uuid[:8],
+                "status": "idle",
+                "name": name,
+                "version": "2.1.276",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+class TestWakeInPlaceThroughDispatch:
+    """The same decision where it is made, with a launcher that records what it was given.
+
+    The pair every test here is built on: **the peer sender ran and the launcher did not**,
+    or the other way round. ``argv.json`` exists only when something was launched, so its
+    absence is the strongest available evidence that no second session was started.
+    """
+
+    def _previous(self, workspace: Path, task_id: str) -> None:
+        seed_finished_run(workspace / "home", task_id, session_id="aaaa1111")
+        set_sessions(workspace, [stopped_row("aaaa1111", "aaaa1111-uuid")])
+
+    def test_a_live_session_is_woken_where_it_stands(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        """ac-1, in the unit. The live half is on the task record."""
+        self._previous(workspace, task.id)
+        register_live(session_uuid="aaaa1111-uuid")
+
+        handle = build(workspace, manager, cli).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.AUTO
+        )
+
+        assert not (workspace / "argv.json").exists()
+        assert "same session" in (sent_instruction(workspace) or "")
+        assert handle.session_id == "aaaa1111"
+        assert run_meta(workspace, handle.run_id)["wake_path"] == WAKE_PATH_IN_PLACE
+
+    def test_the_run_adopts_the_session_rather_than_minting_one(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        """The whole benefit, stated as an assertion.
+
+        ``feed1234`` is what the fake launcher prints, so a run carrying it is a run that
+        forked. A woken run carries the id the session has always had, which is what the
+        poller, ``stop`` and reconciliation all follow.
+        """
+        self._previous(workspace, task.id)
+        register_live(session_uuid="aaaa1111-uuid")
+
+        handle = build(workspace, manager, cli).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.AUTO
+        )
+
+        assert handle.session_id == "aaaa1111"
+        assert handle.session_id != "feed1234"
+
+    def test_the_dispatch_entry_says_the_message_went_by_the_peer_channel(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        self._previous(workspace, task.id)
+        register_live(session_uuid="aaaa1111-uuid")
+
+        build(workspace, manager, cli).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.AUTO
+        )
+
+        entry = newest_entry(manager, task.id)
+        delivery = dict(entry.data or {})["delivery"]
+        assert delivery["channel"] == "peer"
+        assert delivery["acknowledged_by"] == "aaaa1111"
+        assert delivery["posture_delivered"] is True
+        assert "in place" in (entry.body or "")
+
+    def test_a_session_that_has_ended_forks_exactly_as_before(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        """ac-2. Nothing in the roster, so nothing changed about the wake that existed."""
+        self._previous(workspace, task.id)
+
+        handle = build(workspace, manager, cli).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.AUTO
+        )
+
+        assert "--resume" in ran_argv(workspace)
+        assert ran_argv(workspace)[ran_argv(workspace).index("--resume") + 1] == "aaaa1111-uuid"
+        assert "same session" in ran_stdin(workspace)
+        assert sent_instruction(workspace) is None
+        meta = run_meta(workspace, handle.run_id)
+        assert meta["wake_path"] == WAKE_PATH_FORK
+        assert "not in the live roster" in str(meta["wake_detail"])
+
+    def test_a_name_the_peer_channel_refuses_forks(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        """ac-4. Every run dispatched before the separator changed is in this case."""
+        self._previous(workspace, task.id)
+        register_live(session_uuid="aaaa1111-uuid", name="sandbox/task-001@previous")
+
+        handle = build(workspace, manager, cli).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.AUTO
+        )
+
+        assert "--resume" in ran_argv(workspace)
+        assert sent_instruction(workspace) is None
+        assert "@" in str(run_meta(workspace, handle.run_id)["wake_detail"])
+
+    def test_a_sender_that_reports_a_failure_forks(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        """ac-4. The session is alive and reachable and the message still did not land."""
+        self._previous(workspace, task.id)
+        register_live(session_uuid="aaaa1111-uuid")
+        refuse_sends(workspace)
+
+        handle = build(workspace, manager, cli).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.AUTO
+        )
+
+        assert sent_instruction(workspace) is not None
+        assert "--resume" in ran_argv(workspace)
+        assert run_meta(workspace, handle.run_id)["wake_path"] == WAKE_PATH_FORK
+
+    def test_a_sender_that_says_nothing_recognisable_forks(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        self._previous(workspace, task.id)
+        register_live(session_uuid="aaaa1111-uuid")
+        (workspace / "send_outcome.txt").write_text("I think that went fine!", encoding="utf-8")
+
+        build(workspace, manager, cli).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.AUTO
+        )
+
+        assert "--resume" in ran_argv(workspace)
+
+    def test_a_cold_start_never_touches_the_peer_channel(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        """No previous session means no conversation to wake, in place or otherwise."""
+        register_live(session_uuid="aaaa1111-uuid")
+
+        handle = build(workspace, manager, cli).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.AUTO
+        )
+
+        assert sent_instruction(workspace) is None
+        assert "--resume" not in ran_argv(workspace)
+        assert "wake_path" not in run_meta(workspace, handle.run_id)
+
+    def test_a_woken_run_claims_no_launch(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        """task-416's receipt stays honest: nothing was launched, so nothing says one was.
+
+        A coordinator reads ``launch_attempted_at`` with no session id as "the launcher
+        ran and nobody recorded what it printed". An in-place wake has a session id from
+        its first write and never ran a launcher, so writing the marker would invent a
+        launch for it to reconcile.
+        """
+        self._previous(workspace, task.id)
+        register_live(session_uuid="aaaa1111-uuid")
+
+        handle = build(workspace, manager, cli).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.AUTO
+        )
+
+        meta = run_meta(workspace, handle.run_id)
+        assert "launch_attempted_at" not in meta
+        assert meta["session_id"] == "aaaa1111"
+
+    def test_a_woken_run_records_the_name_the_session_answers_to(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        """Not a name `choose_session_name` would pick, which is a different string.
+
+        Since task-452 a name is the lowest ordinal no live session is using, so asking
+        for one here would answer `sandbox/task-NNN#2` -- the woken session itself is
+        holding the name below it. A run's recorded name is what `stop` matches sessions
+        against and what the controller correlates a launch by, so it has to be the name
+        the session actually has.
+        """
+        self._previous(workspace, task.id)
+        register_live(session_uuid="aaaa1111-uuid", name="sandbox/task-001")
+
+        handle = build(workspace, manager, cli).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.AUTO
+        )
+
+        assert run_meta(workspace, handle.run_id)["session_name"] == "sandbox/task-001"
+
+    def test_the_posture_clause_still_reaches_a_session_woken_in_place(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        """task-375's rule does not get a hole cut in it by a new delivery channel."""
+        self._previous(workspace, task.id)
+        register_live(session_uuid="aaaa1111-uuid")
+
+        build(workspace, manager, cli).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.AUTO
+        )
+
+        assert "Do not merge." in (sent_instruction(workspace) or "")
+
+    def test_a_posture_change_still_refuses_to_resume_at_all(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        """The in-place path sits *behind* ``resume_refusal``, not beside it.
+
+        A conversation remembers every clause it was told, so raising its authority by
+        message would be exactly the authorisation change task-375 refuses -- and cheaper
+        to do, which is the reason to check it.
+        """
+        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", posture="auto")
+        set_sessions(workspace, [stopped_row("aaaa1111", "aaaa1111-uuid")])
+        register_live(session_uuid="aaaa1111-uuid")
+
+        build(workspace, manager, cli, posture=AUTONOMOUS_FROM_EPIC).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.CHILD
+        )
+
+        assert sent_instruction(workspace) is None
         assert "--resume" not in ran_argv(workspace)

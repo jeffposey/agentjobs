@@ -3026,6 +3026,87 @@ the active-only view, because a session missing from *that* one is a session tha
 
 Off switch: `resume_sessions: false` on a project. It changes speed and nothing else.
 
+#### A session that is still running is messaged where it stands (task-451, 2026-09-18)
+
+Everything above is the **fork**, and it is now the fallback. The two paths answer
+different questions about the same conversation: the fork asks *does this conversation
+still exist*, and the in-place path asks *is its process still up*. A session whose run
+the poller settled is very often still running -- it went idle, which is what settled it.
+
+**The roster.** Claude Code registers every live session under `~/.claude/sessions/`, two
+files per session: `<pid>.json` with `pid`, `sessionId`, `jobId`, `cwd`, `kind`,
+`version`, `status` and `name`, and `<pid>.<sha256>.key` with a per-session auth token
+that AgentJobs never reads. Both are plain files any process of this OS user can open,
+which is exactly what the poller is. When a session's process ends -- `claude stop`, or
+agent view's one-hour unattached rule -- **both disappear within seconds**, so the
+fallback trigger is a file lookup and never a connect timeout.
+
+**The sender is `SendMessage`, not the pipe.** Task-449 proved the documented auth line
+authenticates a plain Python process to another session's inbox, with a wrong-token
+control that was closed on immediately, and that the message envelope after it is
+published nowhere: five candidate shapes were accepted and delivered nothing. Going
+further means lifting a wire format out of a 235 MB binary that moved from 2.1.270 to
+2.1.276 during that spike's own session, and it would fail silently when it moved again.
+So `peers.send_peer_message` shells out to `claude -p` and lets the supported tool
+deliver. One short headless turn per wake, against a published tool rather than an
+unpublished protocol.
+
+**The name has to be one `SendMessage` will accept**, which is a constraint on a string
+that existed before this and had never been sent to. `SendMessage` validates `to` before
+any lookup and rejects any name containing an `@` -- *"to must be a bare teammate name —
+there is only one team per session"* -- wherever the character sits.
+`agentjobs/task-999@aa451sbx`, `agentjobs-task-999@aa451sbx`, `agentjobs@task-999` and
+`task-999@aa451sbx` all draw that; `agentjobs/task-999` and `agentjobs-task-999-aa451sbx`
+reach the lookup and answer *"No agent named"*. A session id, a bracketed ref and a name
+with one appended are refused too, so there is no way round it and no escaping to try.
+
+Every name AgentJobs gave a session carried an `@` until task-452, which took the run stub
+off for its own reasons and checked this property while it was there -- see
+[the naming section](#the-session-is-named-after-the-run-task-324-2026-08-29). Nothing
+further is needed here, and `peers` asserts the rule rather than the separator: a name it
+cannot address is a miss and the caller forks, which is what a run dispatched before that
+change gets.
+
+**The receiver has to be configured to take it.** A `bypassPermissions` receiver holds a
+prompting-class sender's message for an approval, and a background session with no
+terminal attached holds it indefinitely: nothing errors and the wake simply never becomes
+a turn. `crossSessionInbound: accept` in the per-run `--settings` document is the fix, and
+`session_env.merged_document` defaults it — an operator who sets the key keeps their
+answer.
+
+**The instruction goes on stdin.** The same trap `wake_argv` documents one flag along,
+and it fails the same way: as a positional argument through the Windows `claude.CMD` shim
+the sending turn came up with no task at all — exit 0, nothing on stderr, *"I'm ready.
+What would you like me to work on?"* — so every wake reported an unrecognised answer and
+forked. On stdin it is acted on every time.
+
+**The run adopts the session rather than minting one**, which is the whole benefit:
+`session_id` is the id the session has always had, so the poller, `stop` and
+reconciliation keep pointing at the process doing the work, and there is no moment where
+a supervisor watches a copy. A run record is still written — an agent was asked to do a
+thing — but it claims no launch: no `launch_attempted_at`, no launcher output, so
+task-416's receipt stays honest with the session id present from the first write. The
+argv it records is the one the run *would* have been launched with, which is the
+permission envelope this dispatch resolved; `wake_path` beside it says it was never run.
+
+**Every doubt is the fork**, which is the same asymmetry the fork itself rests on. An
+absent registration, an unparseable one, an ambiguous short id, a name with an `@`, a
+sender that will not start or times out, a non-zero exit, and an answer that does not say
+the message landed are all misses. The last is the one worth naming: a session that
+*held* the message is alive, nothing errored, and the turn never arrived — so a delivery
+is claimed only when the sending turn says `SendMessage` succeeded.
+
+`auth_recovery`'s nudger gets the same path in front of its stop-and-resume, which is the
+caller that most visibly destroyed a live session to deliver one sentence. A miss there
+falls through rather than returning a failed receipt: it has spent nothing.
+
+Proven end to end on 2026-09-18, Claude Code 2.1.276, through `DispatchRunner` itself
+against a real parked `--bg` session: `wake_path: in_place`, the run's `session_id` the
+one the session already had, pid 53116 / `sessionId 32ea269c-…` / `jobId 32ea269c`
+identical before and after, and the marker file the message asked for appended. Then with
+that process stopped, the same dispatch recorded *"session 32ea269c is not in the live
+roster, so its process has ended"* and forked to `--resume 32ea269c-…` with a new id.
+
 #### A woken session has a new id, and the record has to be followable (task-394, 2026-09-07)
 
 **A flagged `--resume` forks the conversation rather than continuing it.** Claude Code
