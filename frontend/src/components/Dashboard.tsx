@@ -380,33 +380,16 @@ export function Dashboard({ dashboard, projectId, renderSlotBoard }: DashboardPr
               <span className="font-normal text-dark-muted">({dashboard.active_tasks.length})</span>
             </h2>
             {/*
-              The analytics page's only entry point (docs/analytics-design.md section 11).
-              It rides this row because the row already exists and already carries a
-              right-aligned link, so the link costs zero vertical pixels -- which is the
-              whole point on a page task-294 spent a task fitting into one screen. A
-              PrimaryNav destination was rejected there: NAV_INLINE_MIN_PX is measured from
-              the row's contents, and another destination drops a band of desktop widths
-              into the burger. `Analytics →` goes first so `View all →` keeps the edge
-              position a reader's thumb already knows.
+              Only `View all` here. Task-374 put the analytics page's entry point on this
+              row too; task-465 moved it to the primary nav, where a reader looks for a
+              surface. `whitespace-nowrap` stays: `View all 40 →` breaking after `40`
+              leaves the arrow alone on the next line, which reads as a broken glyph.
             */}
-            {/*
-              `whitespace-nowrap`, because two links on a 320px row is where the arrow
-              parts company with its word. With one link there was room to spare and the
-              row never wrapped; with two, `View all 40 →` breaks after `40` and the
-              arrow lands alone on the next line, which reads as a broken glyph rather
-              than as a link. Each link wraps as a unit instead, and the heading takes
-              the second line if one is needed.
-            */}
-            <div className="flex items-baseline gap-3">
-              <Link to={projectPath(projectId, "/analytics")} className="touch-target whitespace-nowrap text-xs text-blue-400 hover:text-blue-300">
-                Analytics →
-              </Link>
-              <Link to={projectPath(projectId, "/tasks")} className="touch-target whitespace-nowrap text-xs text-blue-400 hover:text-blue-300">
-                {dashboard.active_tasks.length > ACTIVE_PREVIEW
-                  ? `View all ${dashboard.active_tasks.length} →`
-                  : "View all →"}
-              </Link>
-            </div>
+            <Link to={projectPath(projectId, "/tasks")} className="touch-target whitespace-nowrap text-xs text-blue-400 hover:text-blue-300">
+              {dashboard.active_tasks.length > ACTIVE_PREVIEW
+                ? `View all ${dashboard.active_tasks.length} →`
+                : "View all →"}
+            </Link>
           </div>
           <div className="space-y-2 p-2">
             {dashboard.active_tasks.length > 0 ? dashboard.active_tasks.slice(0, ACTIVE_PREVIEW).map((task) => (

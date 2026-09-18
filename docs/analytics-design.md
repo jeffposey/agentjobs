@@ -993,40 +993,39 @@ Task-294 removed the strip and created **no route, no link and no placeholder**,
 entry point entirely to this design. The parent's constraint: discoverable but small, and
 reclaiming vertical space is the point, so a banner is a failure.
 
-**Decision: one text link, `Analytics →`, on the Dashboard's existing "Active tasks"
-heading row, on the right, where `View all N →` already sits.**
+**Decision (2026-09-18, task-465, reversing task-374): Analytics is a `PrimaryNav`
+destination, between Tasks and Create.** The Dashboard heading row carries only
+`View all N →`, as it did before task-374.
 
-Concretely, that row is `Dashboard.tsx`'s `<div className="flex items-baseline
-justify-between gap-4 …">` holding the `Active tasks (n)` heading and the `View all n →`
-link. The two links become a `flex items-baseline gap-3` group on the right, `Analytics →`
-first so the existing link keeps the edge position a reader's thumb already knows.
+**What was decided first, and why it was reversed.** Task-374 shipped this as one text
+link, `Analytics →`, on the Dashboard's "Active tasks" heading row beside `View all N →`.
+The argument was that the row already existed and already carried a right-aligned link, so
+the entry point cost zero vertical pixels on a page task-294 had just fitted to one screen;
+a nav destination was rejected because `NAV_INLINE_MIN_PX` is measured from the row's
+contents and another entry drops a band of desktop widths into the burger. The owner
+reviewed the merged result the same day and could not find the page. That is the whole
+finding: a small text link in a heading row is not an entry point for a surface, and
+discoverability outranks the burger band. The rejected alternative became the decision.
 
-Why that and not the obvious alternative:
+**What it cost, measured.** Seven destinations plus API Docs, with the switcher pinned to
+its 224px maximum and the attention badge showing, did not fit inside the header's
+`max-w-7xl` at the old 24px spacing at any viewport: 17px short, with `API Docs` wrapping
+to two lines at 1280. So the inline row's gap went from 24px to 16px, and
+`NAV_INLINE_MIN_PX` moved from 1140 to **1220** — the bar last overflows at 1208 with the
+tighter gap. The 1140–1219 band now gets the burger. The measurement method and the
+numbers are in the constant's docstring in `PrimaryNav.tsx`.
 
-- **It costs zero vertical pixels.** The heading row already exists and already carries a
-  right-aligned link. `dashboard-one-screen.spec.ts` asserts the Dashboard never scrolls;
-  an entry point that adds a row would put that at risk and would be relitigating the space
-  task-294 just reclaimed.
-- **It is at the point of removal**, which is what the parent's sc-2 asks for.
-- On a phone the heading row is already visible without scrolling, so the link is reachable
-  in the place it matters most.
+**Expected to move again.** Task-345 takes the bar down to Dashboard, Tasks and Runs with
+the rest behind an actions menu (task-168). Where Analytics lands in that design is that
+task's decision; this one only establishes that it is a nav-level surface and not a link
+inside another page.
 
-**Rejected: a `PrimaryNav` destination.** It is the more discoverable option and it costs
-nothing on the Dashboard, which is genuinely attractive. Against it: `NAV_INLINE_MIN_PX` is
-**1140px**, measured, and the constant is a function of the row's contents — task-338's
-34px badge moved it from 1090. Another destination moves it again, which drops every desktop
-window between 1140 and the new value into the burger. Paying that for a page opened weekly
-is the wrong trade. **Reopen trigger:** the page becoming something opened from the Tasks or
-Runs surfaces rather than from the Dashboard.
+**Still rejected: an icon.** An unlabelled glyph for a page nobody has seen before is a
+guess, and the nav's other entries are words.
 
-**Rejected: an icon.** An unlabelled glyph for a page nobody has seen before is a guess. The
-word costs about sixty pixels of a row that has room.
-
-**Mobile treatment.** The link is the same link — it is a text link on a row that is already
-in the layout at every width. At the narrowest widths the heading row wraps, which is
-existing behaviour for `View all N →` and is acceptable for a link that is not a call to
-action. The implementing child verifies at 320px, 390px and 768px that the Dashboard still
-does not scroll, using the existing one-screen spec rather than a new mechanism.
+**Mobile treatment.** Below the breakpoint the destination is in the burger panel with
+the others, one tap away. Nothing on the Dashboard changes at any width, so the
+one-screen spec is unaffected.
 
 ---
 

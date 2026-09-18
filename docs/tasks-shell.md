@@ -78,9 +78,9 @@ treated as a phone and starts stacked; that is acceptable and self-correcting.
 It lives in `frontend/src/components/shellLayout.ts` as `WIDE_SHELL_QUERY`.
 
 **This is a third breakpoint, deliberately.** `min-[820px]:` in `TaskList` and
-`min-[1140px]:` in `PrimaryNav` (task-292) are both real numbers in this codebase and
+`min-[1220px]:` in `PrimaryNav` (task-292, re-measured by task-465) are both real numbers in this codebase and
 neither expresses device class: 820 catches no phone but excludes the iPad mini in
-portrait, and 1140 excludes every tablet in portrait. Those two ask "does this content fit
+portrait, and 1220 excludes every tablet in portrait. Those two ask "does this content fit
 on one line". This one asks "is this a phone". **Do not consolidate them.**
 
 Rejected: a user-agent check, and `pointer: coarse`. More precise in principle, wrong in
