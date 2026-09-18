@@ -1624,6 +1624,7 @@ def dispatch_walk(
         describe_settings,
         frontier,
         inherited_posture,
+        inherited_runner,
         open_children,
         utc_stamp,
         walk_epic,
@@ -1696,7 +1697,10 @@ def dispatch_walk(
     typer.echo(f"Walking {parent.id}: {parent.title}")
     typer.echo(f"  open children: {', '.join(c.id for c in remaining) or 'none'}")
     for line in describe_settings(
-        settings, posture=chosen_posture, inherited=inherited_posture(parent)
+        settings,
+        posture=chosen_posture,
+        inherited=inherited_posture(parent),
+        inherited_runner=inherited_runner(parent),
     ):
         typer.echo(f"  {line}")
 

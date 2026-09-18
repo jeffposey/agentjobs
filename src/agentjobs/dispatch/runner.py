@@ -73,11 +73,11 @@ from agentjobs.dispatch.config import (
     DispatchRunner as RunnerConfig,
     MergePolicy,
     Posture,
+    RECORDED_ON_DISPATCH_ENTRY,
     ResolvedPosture,
     RunnerDriver,
     RunnerMode,
     RunnerSelection,
-    SelectionSource,
     resolve_posture,
     sentinel_active,
     substitute_argv,
@@ -2192,8 +2192,7 @@ class DispatchRunner:
             runner_source=(
                 self.resolution.selection.source.value
                 if self.resolution.selection is not None
-                and self.resolution.selection.source
-                in (SelectionSource.DISPATCH_RUNNER, SelectionSource.HISTORY)
+                and self.resolution.selection.source in RECORDED_ON_DISPATCH_ENTRY
                 else None
             ),
             mode=mode,

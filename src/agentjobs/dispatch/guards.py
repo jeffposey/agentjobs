@@ -66,7 +66,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple
 
 import yaml
 
@@ -89,6 +89,7 @@ from agentjobs.dispatch.config import (
     DispatchResolution,
     Posture,
     PostureSource,
+    SelectionSource,
     assert_dispatch_permitted,
     dispatch_config_path,
     resolve_posture,
@@ -117,6 +118,9 @@ from agentjobs.dispatch.runner import (
     uncommitted_paths,
 )
 from agentjobs.playbooks.pointer import PlaybookPointer
+
+if TYPE_CHECKING:  # pragma: no cover - epic imports this module
+    from agentjobs.dispatch.epic import EpicAuthorization
 from agentjobs.models_v2 import (
     Ball,
     BallReason,
@@ -920,15 +924,47 @@ def dispatch_task(
         if history is not None:
             assert_not_stopped(history, task.id)
 
+    # A child of an epic reads its runner off the parent's record before the gates, for
+    # the reason a continuation reads its history before them (task-453): the runner the
+    # gates resolve has to *be* the epic's, or a refusal. It is read here and judged
+    # below, once the gates have opened, so that naming an epic still routes past none
+    # of them; and it is read off the stored record rather than taken from the request,
+    # for the same reason the posture is -- there is no input here a walk could get
+    # wrong. Observed 2026-09-18: an epic dispatched on `claude-fable-5-1` started its
+    # first child on `claude-opus-5`, the project default, with `posture_source: epic`
+    # on the child's record proving inheritance was wired for posture and nothing else.
+    inherited: Optional["EpicAuthorization"] = None
+    if request.on_behalf_of_parent:
+        from agentjobs.dispatch.epic import resolve_epic_authorization
+
+        inherited = resolve_epic_authorization(manager, project_config, task)
+        if inherited.runner is not None and (request.runner or request.group):
+            raise ConflictingAuthorizationError(
+                f"This dispatch starts {task.id} on its epic's authorisation, which carries "
+                f"runner {inherited.runner!r}, and also names a runner or group of its own. "
+                "A child runs on what the epic was dispatched with; dispatch the child "
+                "directly to choose for it."
+            )
+
     # Gate 1-4 from task-068, including the sentinel. Re-checked at spawn time by the
     # runner: this proves dispatch was permitted when it was asked, not for the lifetime
     # of the answer.
+    if history is not None:
+        recorded: Optional[Tuple[str, Optional[str]]] = (history.runner, history.group)
+        recorded_source = SelectionSource.HISTORY
+    elif inherited is not None and inherited.runner is not None:
+        recorded = (inherited.runner, inherited.group)
+        recorded_source = SelectionSource.EPIC
+    else:
+        recorded = None
+        recorded_source = SelectionSource.HISTORY
     resolution = assert_dispatch_permitted(
         project.id,
         home,
         runner=request.runner,
         group=request.group,
-        recorded=(history.runner, history.group) if history is not None else None,
+        recorded=recorded,
+        recorded_source=recorded_source,
     )
     machine_home = resolve_machine_home(home, resolution)
 
@@ -954,10 +990,9 @@ def dispatch_task(
     epic_note: Optional[str] = None
     epic_data: Optional[Dict[str, object]] = None
     epic_posture: Optional[Posture] = None
-    if request.on_behalf_of_parent:
-        from agentjobs.dispatch.epic import assert_attempts_remain, resolve_epic_authorization
+    if inherited is not None:
+        from agentjobs.dispatch.epic import assert_attempts_remain
 
-        inherited = resolve_epic_authorization(manager, project_config, task)
         assert_attempts_remain(inherited, task)
         if not record_can_brief(task):
             # Stricter than the browser path, which lets a human type the brief in the

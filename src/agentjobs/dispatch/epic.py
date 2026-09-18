@@ -69,6 +69,16 @@ A child now inherits the parent run's posture, and :data:`INHERITABLE_POSTURE_SO
 records which of the four sources may cross that boundary and why the others may not.
 The rule is the same one the authorisation runs on: what crosses is a human's act.
 
+The runner crosses on the same terms (task-453). Task-316 carried the posture and
+nothing else, so an epic dispatched on ``claude-fable-5-1`` through ``big-dawg`` on
+2026-09-18 started its first child on ``claude-opus-5``: ``posture_source: epic`` on the
+child's record, and the project default in its argv. :func:`inherited_runner` reads the
+runner and group off the same parent entry the posture comes from, the guards resolve
+the child's runner *as* that record or refuse -- never as today's default -- and
+:data:`INHERITABLE_RUNNER_SOURCES` says which sources cross. The refusal is deliberate:
+``big-dawg`` is single-member so that an unavailable model is a stop, not a substitution,
+and the walk grounds on it with the reason on the record.
+
 ## The bound, which is mechanical rather than promised
 
 An unattended loop that retries forever is precisely the runaway design section 7 exists
@@ -92,7 +102,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from agentjobs.actors import Actor
-from agentjobs.dispatch.config import Posture, PostureSource
+from agentjobs.dispatch.config import DispatchError, Posture, PostureSource, SelectionSource
 from agentjobs.queue import order_key
 from agentjobs.projects import Project, default_home
 from agentjobs.models_v2 import (
@@ -205,6 +215,18 @@ class EpicAuthorization:
     the sources crosses this boundary. ``None`` is not "unknown": it means nothing about
     this epic overrides what the child would have got anyway.
     """
+    runner: Optional[str] = None
+    """The runner the epic was dispatched with, when somebody chose one (task-453).
+
+    Read the same way as the posture, off the parent's newest ``dispatch`` entry, and
+    ``None`` on the same terms: a parent that ran on the project's default runner passes
+    nothing down, because the default already reaches every child on its own. Set, the
+    child is started on exactly this runner or refused -- never on whatever the default
+    has become. See :func:`inherited_runner`.
+    """
+    group: Optional[str] = None
+    """The group that runner was chosen from, when a group chose it. Carried so the
+    refusal can say which group's member is no longer enabled."""
 
     @property
     def attempts_left(self) -> int:
@@ -221,13 +243,20 @@ class EpicAuthorization:
         *child's* record where the human's name and the envelope their click bought
         appear in the same sentence. Everything else about it -- source, ceiling, what
         was clamped -- is on the child's `dispatch` entry moments later; this is the
-        attribution.
+        attribution. The runner is named on the same terms (task-453): a child that ran
+        on a model the project default does not name should say, in the entry that
+        authorised it, that the model was the epic's.
         """
         envelope = (
             f" They chose posture `{self.posture.value}` for the epic, so this run gets " "it too."
             if self.posture is not None
             else ""
         )
+        if self.runner is not None:
+            via = f" from group `{self.group}`" if self.group else ""
+            envelope += (
+                f" The epic was dispatched on runner `{self.runner}`{via}, so this run is too."
+            )
         return (
             f"{self.actor.display_name} authorised a dispatch of {self.parent.id}, and "
             f"this run is attempt {self.attempts_used + 1} of {CHILD_ATTEMPT_LIMIT} at "
@@ -237,15 +266,19 @@ class EpicAuthorization:
         )
 
     def data(self) -> Dict[str, object]:
+        epic: Dict[str, object] = {
+            "parent": self.parent.id,
+            "entry": self.entry.id,
+            "attempt": self.attempts_used + 1,
+            "limit": CHILD_ATTEMPT_LIMIT,
+        }
+        if self.runner is not None:
+            epic["runner"] = self.runner
+            epic["group"] = self.group
         return {
             "authorizes_dispatch": True,
             "surface": "the epic walk",
-            EPIC_DATA_KEY: {
-                "parent": self.parent.id,
-                "entry": self.entry.id,
-                "attempt": self.attempts_used + 1,
-                "limit": CHILD_ATTEMPT_LIMIT,
-            },
+            EPIC_DATA_KEY: epic,
         }
 
 
@@ -359,6 +392,77 @@ def inherited_posture(parent: Task) -> Optional[Posture]:
         return Posture(entry.data.get("posture"))
     except ValueError:
         return None
+
+
+INHERITABLE_RUNNER_SOURCES = frozenset(
+    {
+        SelectionSource.DISPATCH_RUNNER,
+        SelectionSource.DISPATCH,
+        SelectionSource.EPIC,
+        SelectionSource.HISTORY,
+    }
+)
+"""Which sources of a parent run's runner cross into its children (task-453).
+
+The same principle as :data:`INHERITABLE_POSTURE_SOURCES`: what crosses the boundary is
+a choice somebody made for *this epic*, never a default that reaches the child on its
+own. ``dispatch_runner`` and ``dispatch`` are that choice -- a runner or a group named
+when the epic was dispatched -- and ``epic`` is the same choice one generation down.
+
+``history`` is in this set and not in the posture one, and the difference is deliberate.
+A parent resumed after a handback is a continuation: its runner is frozen from the grant
+it carries on (task-375), so the record says ``history`` even when the original grant was
+a person naming ``big-dawg``. A walk run from that resumed parent would otherwise put its
+children on the project default -- the task-410 shape again, reached through a resume
+instead of a walk. Where the original grant *was* the project default, inheriting it
+changes what the child runs on only if the default has moved since, and then keeping
+the child on the parent's model is the deterministic answer section 9a asks for.
+
+``project``, ``machine`` and ``project_runner`` do not cross, for the reason the posture
+set gives: the default already reaches every child, and relabelling it ``epic`` would
+point a reader at the parent for an answer that is in ``dispatch.yaml``.
+"""
+
+
+def inherited_runner(parent: Task) -> Optional[Tuple[str, Optional[str]]]:
+    """The ``(runner, group)`` a child should be started on, or ``None`` to decide locally.
+
+    Read off the parent's newest ``dispatch`` entry, the same one the posture and the
+    authorisation come from, so a child runs on the runner of *the run that is walking
+    it*. The entry records the source in one of two places: ``runner_source`` when a
+    runner was named outright or carried from history, and ``selection.source`` when a
+    group chose it. Either way the runner is the entry's ``runner`` field -- the member
+    the group actually selected, not the group's first choice today -- and the group is
+    the selection's, when there was one.
+
+    ``None`` for a source outside :data:`INHERITABLE_RUNNER_SOURCES`, for an entry that
+    records no source at all, and for an entry whose runner field is missing. Observed
+    on 2026-09-18: a parent whose entry said ``runner: claude-fable-5-1`` and
+    ``runner_source: dispatch_runner`` started its first child on ``claude-opus-5``,
+    because nothing read this.
+    """
+    entry = parent_dispatch_entry(parent)
+    if entry is None or not isinstance(entry.data, dict):
+        return None
+    runner = entry.data.get("runner")
+    if not isinstance(runner, str) or not runner:
+        return None
+    group: Optional[str] = None
+    raw_source = entry.data.get("runner_source")
+    selection = entry.data.get("selection")
+    if isinstance(selection, dict):
+        recorded_group = selection.get("group")
+        if isinstance(recorded_group, str) and recorded_group:
+            group = recorded_group
+        if raw_source is None:
+            raw_source = selection.get("source")
+    try:
+        source = SelectionSource(raw_source)
+    except ValueError:
+        return None
+    if source not in INHERITABLE_RUNNER_SOURCES:
+        return None
+    return runner, group
 
 
 def count_attempts(child: Task, *, parent_id: str, entry_id: int) -> int:
@@ -523,12 +627,15 @@ def resolve_epic_authorization(
         ) from exc
 
     used = count_attempts(child, parent_id=parent.id, entry_id=entry.id)
+    runner = inherited_runner(parent)
     return EpicAuthorization(
         parent=parent,
         entry=entry,
         actor=actor,
         attempts_used=used,
         posture=inherited_posture(parent),
+        runner=runner[0] if runner is not None else None,
+        group=runner[1] if runner is not None else None,
     )
 
 
@@ -1196,7 +1303,7 @@ def _walk_epic(
     money and take an hour, and the alternative to injecting them is a test suite that
     proves the stop rule by not testing it.
     """
-    from agentjobs.dispatch.guards import DispatchRefused, DispatchRequest, dispatch_task
+    from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
     from agentjobs.dispatch.ledger import find_run
 
     settings = settings or WalkSettings()
@@ -1528,7 +1635,13 @@ def _walk_epic(
                     f"record to see whose run it is. ({exc})"
                 )
                 continue
-            except DispatchRefused as exc:
+            except DispatchError as exc:
+                # `DispatchRefused` and the configuration refusals alike (task-453). The
+                # one that matters here is `recorded_runner_unavailable`: the epic's
+                # runner has been switched off since it was dispatched, and the walk
+                # stops with that reason rather than starting the child on whatever
+                # the default has become. Before this the config family escaped the
+                # walk uncaught, which ended the supervisor with no record of why.
                 if supervision is not None:
                     supervision.refuse(candidate.id, operation_id, grounded=True)
                 ground(
@@ -1833,6 +1946,7 @@ def describe_settings(
     *,
     posture: Optional[Posture] = None,
     inherited: Optional[Posture] = None,
+    inherited_runner: Optional[Tuple[str, Optional[str]]] = None,
 ) -> Sequence[str]:
     """The bounds, printed before a walk starts so nobody has to guess at them.
 
@@ -1842,6 +1956,10 @@ def describe_settings(
     appears only when something is unusual trains a reader to skim it. It says
     ``the project default`` when nothing overrides it, which is a claim about what will
     happen rather than an absence.
+
+    The runner line is there for the same reason (task-453). The walk that downgraded
+    task-212's children printed the posture they would inherit and nothing about the
+    runner, so the only way to see they had landed on the default was to read argv.
     """
     if posture is not None:
         envelope = f"{posture.value} (chosen for this walk)"
@@ -1849,6 +1967,15 @@ def describe_settings(
         envelope = f"{inherited.value} (inherited from the epic's own dispatch)"
     else:
         envelope = "the project default, or each child's own record where it sets one"
+    if inherited_runner is not None:
+        runner_name, group_name = inherited_runner
+        via = f" from group {group_name}" if group_name else ""
+        runner_line = (
+            f"{runner_name}{via} (inherited from the epic's own dispatch; a child is "
+            "refused rather than started elsewhere if it cannot run)"
+        )
+    else:
+        runner_line = "the project's configured runner or group, resolved as each child starts"
     if settings.max_concurrent > 1:
         slots = (
             f"{settings.max_concurrent} at once, so independent children fly in parallel "
@@ -1863,6 +1990,7 @@ def describe_settings(
         f"children this walk may start: {settings.max_children or 'every open one'}",
         f"children in flight: {slots}",
         f"posture children start at: {envelope}",
+        f"runner children start on: {runner_line}",
     )
 
 

@@ -18,10 +18,15 @@ a record say ``autonomous`` about a resumed session that had only ever been told
   runner, group, posture, authoriser or epic -- continues the newest execution
   for that task. It reuses the recorded runner, group and posture, and says so with
   source ``history``.
-- A person's click or command, and an epic child started on its parent's authorisation,
-  are new grants and resolve against configuration as it stands now. Treating them as
-  history would let a fresh click inherit an old epic's ``autonomous`` without anyone
-  choosing it again.
+- A person's click or command is a new grant and resolves against configuration as it
+  stands now. Treating it as history would let a fresh click inherit an old epic's
+  ``autonomous`` without anyone choosing it again.
+- An epic child started on its parent's authorisation is a new grant too, but its runner,
+  group and posture are read off the *parent's* dispatch entry rather than resolved
+  from configuration (task-316 for the posture, task-453 for the runner), with source
+  ``epic``. On 2026-09-18 a walk resolving the runner locally started a ``big-dawg``
+  epic's child on the project default, which is this module's own incident reached by
+  another path.
 
 **Frozen is not irrevocable.** A continuation still passes every gate a new dispatch
 passes, observed now: the kill switch, disabled dispatch, a hold, the ceiling. A
