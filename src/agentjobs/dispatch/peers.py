@@ -53,10 +53,10 @@ up: *"to must be a bare teammate name -- there is only one team per session"*. T
 not about the peer channel at all, and no escaping or quoting gets past it. ``/`` is not
 special, and neither a session id nor a bracketed ref is accepted in ``to``.
 
-So a session is addressable here only if its name is ``@``-free, which is why
-``runner.session_name`` separates the run id with ``/``. A name this cannot address is
-reported as a miss, and the caller forks -- runs dispatched before that change have an
-``@`` in the name recorded on their own record, and are simply woken the old way.
+So a session is addressable here only if its name is ``@``-free, which is a constraint
+on ``runner.session_name`` and the reason it carries none. A name this cannot address is
+reported as a miss and the caller forks -- runs dispatched before task-452 have an ``@``
+in the name recorded on their own record, and are simply woken the old way.
 """
 
 from __future__ import annotations
@@ -97,8 +97,9 @@ named after its working directory -- task-449's first delivery arrived as ``tmp-
 UNADDRESSABLE = "@"
 """The one character that makes a session name unusable in ``SendMessage``'s ``to``.
 
-Named rather than inlined so ``runner.session_name`` can be tested against the rule, and
-so the next person to read the rejection has somewhere to put what they learned.
+Named rather than inlined so ``runner.session_name`` can be tested against the *rule*
+rather than against whichever separators satisfy it today -- which is what keeps the two
+in step, since nothing about a name says it has to stay sendable.
 """
 
 DELIVERED = "AGENTJOBS-WAKE-DELIVERED"
@@ -190,11 +191,20 @@ class PeerDelivery:
 
 
 def _row(path: Path) -> Optional[LiveSession]:
-    """One registration file as a :class:`LiveSession`, or ``None`` for anything odd.
+    """One registration file as a :class:`LiveSession`, or ``None`` if it is not a mapping.
 
-    **Every unexpected shape is "nothing".** This reads an undocumented file layout that
-    an unrelated CLI release may change, and the only consequence of not understanding a
-    row is that the session gets woken by a fork -- which is what happens today.
+    **It reads what is there and requires nothing**, which is deliberate and is the one
+    design decision in this module with two callers pulling on it. This is an undocumented
+    file layout that an unrelated CLI release may change, and the two things read off it
+    want different fields: a wake needs ``sessionId`` to find one conversation, and
+    ``idle_sessions.live_session_names`` needs only ``name`` to know a name is taken.
+    Demanding both here would make a registration missing one invisible to the other --
+    for naming, that means a name silently treated as free and a session Claude Code then
+    renames out from under the record.
+
+    So a missing field becomes its empty value and each caller filters for what it needs:
+    :func:`find_live_session` never matches a row with no session id, because the id it is
+    given is never empty.
     """
     try:
         loaded = json.loads(path.read_text(encoding="utf-8"))
@@ -203,17 +213,21 @@ def _row(path: Path) -> Optional[LiveSession]:
     if not isinstance(loaded, dict):
         return None
     pid = loaded.get("pid")
-    session_id = loaded.get("sessionId")
-    if not isinstance(pid, int) or not isinstance(session_id, str) or not session_id:
-        return None
+
+    def text(key: str) -> str:
+        # Not `str(value)`: coercing a number would invent a name, and an invented name
+        # is worse than an absent one -- `choose_session_name` would treat it as taken.
+        value = loaded.get(key)
+        return value if isinstance(value, str) else ""
+
     return LiveSession(
-        pid=pid,
-        session_id=session_id,
-        job_id=str(loaded.get("jobId") or ""),
-        name=str(loaded.get("name") or ""),
-        status=str(loaded.get("status") or ""),
-        cwd=str(loaded.get("cwd") or ""),
-        version=str(loaded.get("version") or ""),
+        pid=pid if isinstance(pid, int) else 0,
+        session_id=text("sessionId"),
+        job_id=text("jobId"),
+        name=text("name"),
+        status=text("status"),
+        cwd=text("cwd"),
+        version=text("version"),
     )
 
 
@@ -245,7 +259,7 @@ def find_live_session(
     wanted = (session_id or "").strip()
     if not wanted:
         return None
-    rows = roster(sessions_dir)
+    rows = [row for row in roster(sessions_dir) if row.session_id]
     exact = [row for row in rows if row.session_id == wanted]
     if exact:
         return exact[0]

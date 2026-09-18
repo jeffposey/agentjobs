@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from pathlib import Path
 from typing import Iterator
 
 from starlette.testclient import TestClient
@@ -34,19 +35,23 @@ pytest.register_assert_rewrite("task_write_guard_matrix")
 
 
 @pytest.fixture(autouse=True)
-def isolate_session_roster(tmp_path_factory, monkeypatch) -> Iterator[None]:
+def isolate_session_roster(tmp_path_factory, monkeypatch) -> Iterator[Path]:
     """Point the live-session roster at an empty temp directory for every test.
 
     The roster is machine-level -- ``~/.claude/sessions`` -- and lists whatever Claude Code
-    sessions happen to be running, including the dispatched agent running the suite. A
-    test that reaches it would be deciding whether to wake in place or fork from the state
-    of the machine it runs on, which is the flakiest input there is. Empty is also the
-    honest default: no session under test is really running.
+    sessions happen to be running, the dispatched agent running the suite included. Two
+    things read it and both would otherwise be decided by the state of the machine:
+    ``runner.choose_session_name`` asks whether a name is taken, and the wake asks whether
+    a session is still up. A test asserting either would go green or red for reasons
+    nothing in the suite controls.
 
-    A test that wants a roster passes ``sessions_dir=`` explicitly or re-points this.
+    Empty is also the honest default: no session under test is really running. A test that
+    wants a roster writes registrations into the directory this yields, or passes
+    ``sessions_dir=`` to ``peers.roster`` directly.
     """
-    monkeypatch.setenv(SESSIONS_DIR_ENV, str(tmp_path_factory.mktemp("claude-sessions")))
-    yield
+    directory = tmp_path_factory.mktemp("claude-sessions")
+    monkeypatch.setenv(SESSIONS_DIR_ENV, str(directory))
+    yield directory
 
 
 @pytest.fixture(autouse=True)
@@ -205,24 +210,6 @@ def the_test_client_arrives_on_loopback(monkeypatch) -> None:
         original(self, *args, **kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr(TestClient, "__init__", on_loopback)
-
-
-@pytest.fixture(autouse=True)
-def isolate_live_session_roster(tmp_path_factory, monkeypatch) -> Iterator[None]:
-    """Point the live-session roster at an empty temp directory for every test.
-
-    ``idle_sessions.SESSIONS_DIR`` is machine-level -- ``~/.claude/sessions`` -- and
-    ``runner.choose_session_name`` reads it to decide whether a dispatched session needs
-    a ``#2``. Left alone, a test asserting a session's name would be asserting something
-    about whichever Claude Code sessions happened to be running on the developer's
-    machine, and would go green or red for reasons nothing in the suite controls. Empty
-    is the state every test wants unless it says otherwise; a test exercising a collision
-    writes registrations into ``idle_sessions.SESSIONS_DIR`` itself.
-    """
-    from agentjobs.dispatch import idle_sessions
-
-    monkeypatch.setattr(idle_sessions, "SESSIONS_DIR", tmp_path_factory.mktemp("claude-sessions"))
-    yield
 
 
 @pytest.fixture(autouse=True)

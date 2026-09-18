@@ -79,17 +79,9 @@ class TestRoster:
         assert roster(tmp_path / "never-created") == []
 
     @pytest.mark.parametrize(
-        "content",
-        [
-            "not json at all",
-            "[]",
-            '{"sessionId": "abc"}',
-            '{"pid": "not an int", "sessionId": "abc"}',
-            '{"pid": 1, "sessionId": ""}',
-        ],
-        ids=["unparseable", "not-a-mapping", "no-pid", "pid-not-an-int", "empty-session-id"],
+        "content", ["not json at all", "[]", '"a string"'], ids=["unparseable", "a-list", "a-str"]
     )
-    def test_every_unexpected_shape_is_dropped_rather_than_raised(
+    def test_anything_that_is_not_a_mapping_is_dropped_rather_than_raised(
         self, sessions: Path, content: str
     ) -> None:
         """The file layout is undocumented and an unrelated CLI release may change it.
@@ -99,6 +91,30 @@ class TestRoster:
         """
         (sessions / "999.json").write_text(content, encoding="utf-8")
         assert roster(sessions) == []
+
+    @pytest.mark.parametrize(
+        "content",
+        ['{"sessionId": "abc"}', '{"pid": "not an int", "sessionId": "abc"}', '{"name": "a"}'],
+        ids=["no-pid", "pid-not-an-int", "name-only"],
+    )
+    def test_a_missing_field_becomes_its_empty_value_rather_than_dropping_the_row(
+        self, sessions: Path, content: str
+    ) -> None:
+        """Two callers want different fields off one file. See ``_row``.
+
+        Requiring a session id here would make a name-only registration invisible to
+        ``idle_sessions.live_session_names``, which is how a name gets treated as free and
+        the session Claude Code starts ends up called something the record does not know.
+        """
+        (sessions / "999.json").write_text(content, encoding="utf-8")
+        (row,) = roster(sessions)
+        assert row.pid == 0 or isinstance(row.pid, int)
+
+    def test_a_row_with_no_session_id_is_never_matched_by_a_lookup(self, sessions: Path) -> None:
+        """The other half of that leniency: a wake still needs an id to match on."""
+        (sessions / "999.json").write_text('{"pid": 3, "name": "a"}', encoding="utf-8")
+        assert roster(sessions) != []
+        assert find_live_session("aaaa1111", sessions_dir=sessions) is None
 
     def test_one_bad_row_does_not_hide_the_good_ones(self, sessions: Path) -> None:
         (sessions / "1.json").write_text("{{{", encoding="utf-8")

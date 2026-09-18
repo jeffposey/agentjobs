@@ -3051,17 +3051,21 @@ So `peers.send_peer_message` shells out to `claude -p` and lets the supported to
 deliver. One short headless turn per wake, against a published tool rather than an
 unpublished protocol.
 
-**`@` made the name unaddressable, and that is why the separator changed.**
-`SendMessage` validates `to` before any lookup and rejects any name containing an `@` --
-*"to must be a bare teammate name — there is only one team per session"* — wherever the
-character sits. `agentjobs/task-999@aa451sbx`, `agentjobs-task-999@aa451sbx`,
-`agentjobs@task-999` and `task-999@aa451sbx` all draw that; `agentjobs/task-999` and
-`agentjobs-task-999-aa451sbx` reach the lookup and answer *"No agent named"*. A session
-id, a bracketed ref and a name with one appended are all refused too, so there is no way
-round it. `session_name` therefore reads `agentjobs/task-324/11085a50`. `ListAgents`
-prints the `@` name with no ` [ref]` suffix — advertising it as the address — and
-`SendMessage` refuses the only string that would resolve; the name task-324 built *for
-the peer channel* had never been sent to until task-449.
+**The name has to be one `SendMessage` will accept**, which is a constraint on a string
+that existed before this and had never been sent to. `SendMessage` validates `to` before
+any lookup and rejects any name containing an `@` -- *"to must be a bare teammate name —
+there is only one team per session"* -- wherever the character sits.
+`agentjobs/task-999@aa451sbx`, `agentjobs-task-999@aa451sbx`, `agentjobs@task-999` and
+`task-999@aa451sbx` all draw that; `agentjobs/task-999` and `agentjobs-task-999-aa451sbx`
+reach the lookup and answer *"No agent named"*. A session id, a bracketed ref and a name
+with one appended are refused too, so there is no way round it and no escaping to try.
+
+Every name AgentJobs gave a session carried an `@` until task-452, which took the run stub
+off for its own reasons and checked this property while it was there -- see
+[the naming section](#the-session-is-named-after-the-run-task-324-2026-08-29). Nothing
+further is needed here, and `peers` asserts the rule rather than the separator: a name it
+cannot address is a miss and the caller forks, which is what a run dispatched before that
+change gets.
 
 **The receiver has to be configured to take it.** A `bypassPermissions` receiver holds a
 prompting-class sender's message for an approval, and a background session with no

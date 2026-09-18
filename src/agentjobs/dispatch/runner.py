@@ -743,22 +743,14 @@ def session_name(project_id: str, task_id: str, ordinal: int = 1) -> str:
     name AgentJobs recorded would not be the name the session has. The live roster is what
     ``choose_session_name`` consults, and a name freed by a finished run is reused.
 
-    **The run id is separated with ``/`` because ``@`` made the second of those
-    impossible** (task-451, Claude Code 2.1.276, 2026-09-18). ``SendMessage`` validates
-    its ``to`` argument *before* looking anything up and rejects any name containing an
-    ``@`` outright -- *"to must be a bare teammate name -- there is only one team per
-    session"* -- wherever the character sits and whatever is on either side of it. No
-    quoting gets past it, and neither a session id nor a bracketed ref is accepted in its
-    place, so an ``@`` name is unreachable by every route there is. ``/`` is not special
-    to that validator: a sandbox named ``agentjobs/task-998/bb451sbx`` took a message and
-    acted on it with its session id, job id and pid unchanged. This name was built for
-    the peer channel and had until then never been sent to, which is how it came to be
-    unusable by the one surface it was for.
-
-    Runs dispatched before that change keep the ``@`` name recorded in their own
-    ``meta["session_name"]``, which the controller's correlation prefers over regenerating
-    one; ``peers.send_peer_message`` reports such a name as unaddressable and the caller
-    wakes them the old way.
+    **A name containing ``@`` is unusable by the second reader**, which is why neither
+    form above has one (task-451, task-452). ``SendMessage`` validates its ``to`` argument
+    *before* looking anything up and rejects an ``@`` outright, wherever it sits; no
+    quoting gets past it and no session id or bracketed ref is accepted in its place. Runs
+    dispatched before task-452 carry one in their own ``meta["session_name"]``, which the
+    controller's correlation prefers over regenerating a name, and
+    ``peers.send_peer_message`` reports such a name as unaddressable so its caller wakes
+    them the old way.
 
     The project is included because both surfaces are machine-wide while a task id is
     only unique within its project: ``task-042`` names a different piece of work in every
