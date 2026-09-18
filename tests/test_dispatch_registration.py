@@ -279,6 +279,27 @@ class TestRefusals:
         assert record.is_interactive
         assert record.session_id == FULL_SESSION, "the record keeps the full name"
 
+    def test_an_interactive_session_is_not_adopted_onto_a_task_in_review(self, bench) -> None:
+        """A task whose ball is with a person is not being worked, whoever registers.
+
+        Seen 2026-09-18: a run registered onto task-465 six minutes after its session
+        handed off for review made the dashboard show the owner's own review as an
+        agent's work in progress until the next sweep concluded it.
+        """
+        from agentjobs.models_v2 import Ball, BallReason
+
+        bench["manager"].handoff(
+            bench["task_id"],
+            actor="claude",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Please look.",
+        )
+        _set_ledger(bench["fake_cli"], [_row(kind="interactive")])
+        with pytest.raises(RegistrationRunExistsError):
+            _register(bench, session_id=None, env={"CLAUDE_CODE_SESSION_ID": FULL_SESSION})
+        _wrote_nothing(bench)
+
     def test_a_missing_session_is_not_blamed_on_a_worktree(self, bench) -> None:
         with pytest.raises(SessionUnknownError) as caught:
             _register(bench, session_id="deadbeef")

@@ -315,8 +315,11 @@ def register_session(
         )
         if record is None:
             raise RegistrationRunExistsError(
-                f"{task.id} could not be given an interactive run: it is not active, or "
-                "something else holds it. Claim it first."
+                f"{task.id} could not be given an interactive run: it is not active, its "
+                f"ball is with {task.ball.value if task.ball else 'nobody'} rather than "
+                "the agent, or something else holds it. Claim it first -- a task waiting "
+                "on a person is not being worked, and a record saying otherwise is what "
+                "makes their own review read as an agent's work in progress."
             )
         return Registration(
             task_id=task.id,

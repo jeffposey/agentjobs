@@ -167,7 +167,7 @@ It refuses rather than guessing, and each refusal names its gate:
 | Refusal | What it means |
 | --- | --- |
 | `session_unnamed` | Your runner does not publish its own session id. Find it with `<runner> agents` and pass `--session`. |
-| `session_unknown` | No live session with that id under the project root. A session launched from inside a worktree is not listed there — the poller would look it up the same way and report it gone. |
+| `session_unknown` | No live session with that id: not under the project root, and not anywhere else on the machine. A *background* session listed under another directory is refused too, naming that directory, because the poller looks background sessions up under the project root and would report it gone; an interactive one found there is adopted, since its record is swept by id and never acted on. |
 | `session_interactive` | A session a person is sitting in is deliberately not adoptable. Claiming the task is what records that you are working it. |
 | `live_run_exists` | Something is already following this task. |
 | `dispatched_elsewhere` | You are a dispatched run for a *different* task. |
