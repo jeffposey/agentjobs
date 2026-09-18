@@ -89,12 +89,16 @@ from agentjobs.dispatch.record_commit import (
 )
 from agentjobs.playbooks.pointer import PlaybookPointer
 from agentjobs.dispatch.wake import (
+    WAKE_PATH_FORK,
+    WAKE_PATH_IN_PLACE,
+    InPlaceWake,
     WakeError,
     WakeTarget,
     build_wake_prompt,
     find_wake_target,
     resume_refusal,
     wake_argv,
+    wake_in_place,
     newest_session_run,
 )
 from agentjobs.models_v2 import (
@@ -118,6 +122,7 @@ from agentjobs.dispatch.credentials import (
     mint_run_credential,
     revoke_run_credential,
 )
+from agentjobs.dispatch import peers
 from agentjobs.dispatch.session_env import daemon_was_started, deliver_identity
 from agentjobs.project_setup import MCP_CONFIG_FILENAME
 from agentjobs.execution.errors import ExecutionStoreError
@@ -737,6 +742,23 @@ def session_name(project_id: str, task_id: str, ordinal: int = 1) -> str:
     choosing, so shipping a name that can collide is worse than shipping a suffix: the
     name AgentJobs recorded would not be the name the session has. The live roster is what
     ``choose_session_name`` consults, and a name freed by a finished run is reused.
+
+    **The run id is separated with ``/`` because ``@`` made the second of those
+    impossible** (task-451, Claude Code 2.1.276, 2026-09-18). ``SendMessage`` validates
+    its ``to`` argument *before* looking anything up and rejects any name containing an
+    ``@`` outright -- *"to must be a bare teammate name -- there is only one team per
+    session"* -- wherever the character sits and whatever is on either side of it. No
+    quoting gets past it, and neither a session id nor a bracketed ref is accepted in its
+    place, so an ``@`` name is unreachable by every route there is. ``/`` is not special
+    to that validator: a sandbox named ``agentjobs/task-998/bb451sbx`` took a message and
+    acted on it with its session id, job id and pid unchanged. This name was built for
+    the peer channel and had until then never been sent to, which is how it came to be
+    unusable by the one surface it was for.
+
+    Runs dispatched before that change keep the ``@`` name recorded in their own
+    ``meta["session_name"]``, which the controller's correlation prefers over regenerating
+    one; ``peers.send_peer_message`` reports such a name as unaddressable and the caller
+    wakes them the old way.
 
     The project is included because both surfaces are machine-wide while a task id is
     only unique within its project: ``task-042`` names a different piece of work in every
@@ -2388,6 +2410,135 @@ class DispatchRunner:
             None,
         )
 
+    def _wake_in_place(
+        self, wake: Optional[WakeTarget], message: Optional[str]
+    ) -> Optional[InPlaceWake]:
+        """Try to wake ``wake``'s session where it stands, or ``None`` if there is nothing to try.
+
+        ``None`` means this dispatch is not a wake at all -- a cold start, or a resume this
+        runner refused to build -- and is distinct from an attempt that missed, which is an
+        :class:`InPlaceWake` with a reason on it. The caller records the reason.
+
+        **Every failure is a fork, never an exception**, which is the same asymmetry
+        ``_plan_wake`` rests on one level up: forking is a correct, merely slower answer to
+        anything that can go wrong here, and a dispatch that refused to happen is not.
+        """
+        if wake is None or not message:
+            return None
+        if self.runner.driver is not RunnerDriver.CLAUDE:
+            # The peer channel is Claude Code's. A Codex thread has no name in the session
+            # picker and nothing to send to -- see `session_name_flags` for the same line.
+            return None
+        try:
+            environment = self._environment()
+        except Exception:  # noqa: BLE001 - see the docstring
+            return None
+
+        def send(live: peers.LiveSession, text: str) -> peers.PeerDelivery:
+            return peers.send_peer_message(
+                live,
+                text,
+                prefix=self.executable_prefix(),
+                cwd=self.project_root,
+                env=environment,
+            )
+
+        try:
+            return wake_in_place(wake, message, send=send)
+        except Exception as exc:  # noqa: BLE001 - see the docstring
+            return InPlaceWake(False, f"the in-place wake could not be attempted: {exc}")
+
+    def _adopt_woken_session(
+        self,
+        task: Task,
+        run_id: str,
+        directory: RunDirectory,
+        *,
+        wake: WakeTarget,
+        argv: List[str],
+        prompt: str,
+        stdin_text: Optional[str],
+        in_place: InPlaceWake,
+        actor: str,
+        caused_by: int,
+        trigger: DispatchTrigger,
+    ) -> RunHandle:
+        """Finish a dispatch that woke a live session instead of starting one.
+
+        **The run adopts the session it woke** rather than minting one, and that is the
+        whole benefit: ``session_id`` is the id the session has always had, so the poller,
+        ``stop`` and reconciliation all keep pointing at the process that is actually doing
+        the work. A fork would have handed them a copy and left the original running.
+
+        A run record is still written, because a run is AgentJobs' record of *an agent was
+        asked to do a thing* and one was. What it does not do is claim a launch: there is
+        no ``launch_attempted_at``, no launcher output to capture, and no daemon question
+        to answer -- so the receipt task-416 defined stays honest, with the session id
+        present from the first write.
+
+        ``argv`` is recorded as the run *would* have been launched. It is the permission
+        envelope this dispatch resolved, which is what recording argv is for, and keeping
+        it means a woken run's record answers the same questions as every other one; the
+        ``wake_path`` key beside it says the argv was never run.
+        """
+        session_id = wake.session_id
+        (directory.path / STDOUT_FILENAME).write_text(
+            f"woke session {session_id} in place: {in_place.detail}\n", encoding="utf-8"
+        )
+        directory.update_meta(
+            wake_path=WAKE_PATH_IN_PLACE,
+            wake_detail=in_place.detail,
+            session_id=session_id,
+        )
+        try:
+            entry_id = self._record_dispatch(
+                task,
+                run_id,
+                argv,
+                actor=actor,
+                caused_by=caused_by,
+                trigger=trigger,
+                mode=DispatchMode.SESSION,
+                session_id=session_id,
+                body=(
+                    f"Woke the session from run `{wake.previous_run_id}` **in place** "
+                    "rather than resuming a copy of it, so this is the same session id, "
+                    "the same process and the same row in agent view -- along with the "
+                    "worktree, the branch and the verification it established there. The "
+                    "ball prompt and this run's posture clause reached it as a message on "
+                    f"the peer channel: {in_place.detail}."
+                ),
+                delivery=self.delivery_data(
+                    task.id,
+                    channel="peer",
+                    payload=stdin_text,
+                    acknowledged_by=session_id,
+                ),
+            )
+        except BaseException as exc:  # noqa: BLE001 - re-raised; see `_abandon_unfollowable`
+            self._abandon_unfollowable(task.id, directory, session_id, exc, adopted=True)
+            if isinstance(exc, (DispatchRunError, KeyboardInterrupt, SystemExit)):
+                raise
+            raise DispatchRunError(
+                f"A session for {task.id} was woken in place and the run could not be "
+                f"recorded on the task ({type(exc).__name__}: {exc}), so nothing would "
+                "ever have been able to follow it."
+            ) from exc
+
+        directory.update_meta(status="running", session_id=session_id, dispatch_entry_id=entry_id)
+        self._mark_launched(directory, run_id, session_id)
+        return RunHandle(
+            run_id=run_id,
+            task_id=task.id,
+            mode=DispatchMode.SESSION,
+            directory=directory,
+            session_id=session_id,
+            dispatch_entry_id=entry_id,
+            runner=self.runner.name,
+            group=self._group_name(),
+            api_base=self.api_base,
+        )
+
     def _start_session(
         self,
         task: Task,
@@ -2486,15 +2637,38 @@ class DispatchRunner:
             meta["execution_id"] = self.execution_id
         directory = RunDirectory.create(self.home, run_id, meta)
 
+        # Before the in-place attempt as well as before the launcher, because it is what
+        # the run is *called* either way -- the correlation token on one path, and simply
+        # the truth on the other.
+        directory.update_meta(session_name=self.session_name_for(task.id, run_id))
+
+        in_place = self._wake_in_place(wake, stdin_text)
+        if wake is not None and in_place is not None and in_place.delivered:
+            return self._adopt_woken_session(
+                task,
+                run_id,
+                directory,
+                wake=wake,
+                argv=argv,
+                prompt=prompt,
+                stdin_text=stdin_text,
+                in_place=in_place,
+                actor=actor,
+                caused_by=caused_by,
+                trigger=trigger,
+            )
+        if wake is not None:
+            directory.update_meta(
+                wake_path=WAKE_PATH_FORK,
+                wake_detail=in_place.detail if in_place is not None else "",
+            )
+
         # The launcher receipt's first half (task-416). Written before the launcher runs,
         # so a coordinator that finds an admitted attempt with no session id can tell "the
         # launcher never ran" -- no marker, nothing was started, safe to try again -- from
         # "the launcher ran and nobody recorded what it printed", which only the driver's
         # own listing can answer. The run's session name is the attempt token it searches.
-        directory.update_meta(
-            launch_attempted_at=self.clock().isoformat(),
-            session_name=self.session_name_for(task.id, run_id),
-        )
+        directory.update_meta(launch_attempted_at=self.clock().isoformat())
         try:
             completed = subprocess.run(
                 argv,
@@ -2620,6 +2794,8 @@ class DispatchRunner:
         directory: RunDirectory,
         session_id: str,
         exc: BaseException,
+        *,
+        adopted: bool = False,
     ) -> None:
         """Stop a session that started and whose run record could not be completed.
 
@@ -2650,10 +2826,19 @@ class DispatchRunner:
         Nothing here raises. This runs on the way out of a failure the caller is about to
         report, and a second exception from the cleanup would replace a diagnosis with a
         traceback about the cleanup.
+
+        **``adopted`` is the one case where the session is left alone** (task-451). An
+        in-place wake did not start that process: it is the session that worked the task
+        before, it holds a worktree, a branch and the whole conversation, and every word of
+        the trade above turns on the session being milliseconds old and having done
+        nothing. Stopping it would destroy the context the wake existed to keep in order to
+        tidy a run record. So the record is written as failed with the session named on it,
+        and the session goes on being followable through the *previous* run, which is where
+        it was followable from a moment ago.
         """
         stopped = False
         try:
-            stopped = self.stop_session(session_id)
+            stopped = False if adopted else self.stop_session(session_id)
         except Exception:  # noqa: BLE001 - the caller's failure is the one worth reporting
             stopped = False
         try:
@@ -2667,6 +2852,7 @@ class DispatchRunner:
                 # fact a person has to act on: a live session nothing is following.
                 abandoned_session=session_id,
                 abandoned_session_stopped=stopped,
+                abandoned_session_adopted=adopted,
             )
         except OSError:  # pragma: no cover - the run directory went away underneath us
             pass

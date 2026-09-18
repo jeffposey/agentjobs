@@ -72,7 +72,7 @@ from typing import (
     Tuple,
 )
 
-from agentjobs.dispatch import auth
+from agentjobs.dispatch import auth, peers
 from agentjobs.dispatch.auth_probe import (
     ProbeClass,
     ProbeRequest,
@@ -1666,6 +1666,13 @@ class ClaudeSessionNudger:
     session is still running, or a short id, *starts a copy* instead of continuing it. So
     the order is fixed -- stop, observe no pid, resume by full uuid with no flags -- and a
     launcher that reports a copy is treated as not applied, with the copy stopped.
+
+    **That whole sequence is now the fallback** (task-451, Claude Code 2.1.276). A session
+    parked on an expired login still has a process, and a process can be sent a message;
+    ``_in_place`` tries that first and the stop-and-resume runs only when it misses. The
+    difference is not speed -- it is that the recovered session keeps the identity the
+    incident was recorded against, so a recovery no longer ends by having to find the run
+    it was recovering under a new id.
     """
 
     def __init__(
@@ -1725,6 +1732,33 @@ class ClaudeSessionNudger:
                 return True, row
         return True, None
 
+    def _in_place(self, full: str, message: str) -> Optional[NudgeReceipt]:
+        """Deliver by message instead of by stop-and-resume, or ``None`` to fall through.
+
+        **This is the path that should normally run** (task-451). A session parked on an
+        expired login is *alive*: the stop-and-resume below destroys a working process,
+        its session id and its row in agent view purely to get one sentence into it, and
+        then the recovery has to re-find the run it was recovering. Sending the sentence
+        costs a headless turn and changes nothing about the session.
+
+        ``None`` rather than a failed receipt, deliberately: a miss here has spent nothing
+        and must not be mistaken for an attempt, so the caller goes on to the stop-and-
+        resume exactly as it did before this existed.
+        """
+        live = peers.find_live_session(full)
+        if live is None:
+            return None
+        delivery = peers.send_peer_message(
+            live, message, prefix=self.prefix, cwd=self.cwd, env=self.env, run=self._run
+        )
+        if not delivery.delivered:
+            return None
+        return NudgeReceipt(
+            "applied",
+            f"woke the session in place: {delivery.detail}",
+            session_id=live.session_id[:8],
+        )
+
     def nudge(self, session_id: str, message: str) -> NudgeReceipt:
         readable, row = self._row(session_id)
         if not readable:
@@ -1738,6 +1772,9 @@ class ClaudeSessionNudger:
             # Something else already woke it -- a person attaching, say. Stopping a working
             # session to deliver "carry on" would interrupt exactly what recovery wants.
             return NudgeReceipt("deferred", "the session is busy; it is not stopped to be resumed")
+        in_place = self._in_place(full, message)
+        if in_place is not None:
+            return in_place
         if row.get("pid"):
             try:
                 self._call(["stop", session_id])

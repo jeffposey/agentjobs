@@ -661,6 +661,21 @@ class TestSessionName:
         assert session_name("agentjobs", "task-324", 2) == "agentjobs/task-324#2"
         assert session_name("agentjobs", "task-324", 3) == "agentjobs/task-324#3"
 
+    @pytest.mark.parametrize("ordinal", [1, 2, 17])
+    def test_every_name_is_one_the_peer_channel_will_accept(self, ordinal: int) -> None:
+        """task-451: the second surface this name exists for could not use the old one.
+
+        Asserted against ``peers.UNADDRESSABLE`` rather than against a separator, because
+        what must hold is the rule -- ``SendMessage`` validates ``to`` before it looks
+        anything up and rejects an ``@`` outright -- and not whichever characters satisfy
+        it today. A name that fails this is one an in-place wake cannot reach at all.
+        """
+        from agentjobs.dispatch.peers import UNADDRESSABLE, LiveSession
+
+        name = session_name("agentjobs", "task-324", ordinal)
+        assert UNADDRESSABLE not in name
+        assert LiveSession(1, "uuid", "job", name, "idle", ".", "2.1.276").addressable
+
     def test_the_first_ordinal_adds_nothing(self) -> None:
         """The ordinary case pays nothing for the rare one, which is task-452's point."""
         assert session_name("agentjobs", "task-324", 1) == session_name("agentjobs", "task-324")

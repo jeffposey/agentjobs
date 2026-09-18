@@ -13,6 +13,7 @@ from agentjobs.api.dependencies import reset_dependency_cache
 from agentjobs.dispatch.address import ApiBaseProbe
 from agentjobs.dispatch.auth import CLAUDE_HOME_ENV
 from agentjobs.dispatch.credentials import verify_run_credential
+from agentjobs.dispatch.peers import SESSIONS_DIR_ENV
 from agentjobs.front_door import SECRET_ENV
 from agentjobs.principals import set_run_credential_verifier
 from agentjobs.projects import HOME_ENV
@@ -30,6 +31,22 @@ import corpus_source  # noqa: E402,F401
 # report a bare `assert False`. Registering it here, before anything imports it, keeps
 # the diagnostics.
 pytest.register_assert_rewrite("task_write_guard_matrix")
+
+
+@pytest.fixture(autouse=True)
+def isolate_session_roster(tmp_path_factory, monkeypatch) -> Iterator[None]:
+    """Point the live-session roster at an empty temp directory for every test.
+
+    The roster is machine-level -- ``~/.claude/sessions`` -- and lists whatever Claude Code
+    sessions happen to be running, including the dispatched agent running the suite. A
+    test that reaches it would be deciding whether to wake in place or fork from the state
+    of the machine it runs on, which is the flakiest input there is. Empty is also the
+    honest default: no session under test is really running.
+
+    A test that wants a roster passes ``sessions_dir=`` explicitly or re-points this.
+    """
+    monkeypatch.setenv(SESSIONS_DIR_ENV, str(tmp_path_factory.mktemp("claude-sessions")))
+    yield
 
 
 @pytest.fixture(autouse=True)

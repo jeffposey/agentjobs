@@ -171,6 +171,15 @@ class Run:
     Read only so that a task id can be resolved to a parent in the right corpus
     (task-223). Two projects may both have a ``task-042``.
     """
+    wake_path: Optional[str] = None
+    """Which wake this run got -- ``in_place``, ``fork``, or None if it was not a wake.
+
+    Recorded by the run that did it (task-451), because the two are indistinguishable
+    afterwards: both end with ``resumed_from`` set and a session id on the record, and
+    only the dispatch that performed one knows whether that session id was minted by a
+    launcher or adopted from a process that was already running. This is what lets the
+    corpus say how often a wake lands in place rather than forking.
+    """
     daemon_started: Optional[bool] = None
     """Whether this run's own launch started the Claude Code daemon (task-249).
 
@@ -353,6 +362,7 @@ def read_run(directory: Path) -> Optional[Run]:
         resumed_from=(
             str(meta["resumed_from"]) if isinstance(meta.get("resumed_from"), str) else None
         ),
+        wake_path=(str(meta["wake_path"]) if isinstance(meta.get("wake_path"), str) else None),
         session_env=(
             str(meta["session_env"]) if isinstance(meta.get("session_env"), str) else None
         ),
@@ -655,12 +665,21 @@ def _resume_lines(timed: List[Run]) -> List[str]:
             return "-"
         return minutes(sum(run.seconds or 0.0 for run in group) / len(group))
 
-    return [
+    lines = [
         "",
         f"  follow-on runs        {len(later)} (runs after a task's first)",
         f"    cold start          {len(cold)}, mean {mean(cold)}",
         f"    resumed session     {len(warm)}, mean {mean(warm)}",
     ]
+    # Which kind of wake, for the runs that say (task-451). Split out rather than folded
+    # into the line above because they are not two ways of doing one thing: a fork leaves
+    # the original session running and a new id to follow, and an in-place wake does not.
+    in_place = [run for run in warm if run.wake_path == "in_place"]
+    forked = [run for run in warm if run.wake_path == "fork"]
+    if in_place or forked:
+        lines.append(f"      in place          {len(in_place)}, mean {mean(in_place)}")
+        lines.append(f"      forked            {len(forked)}, mean {mean(forked)}")
+    return lines
 
 
 def _finish_lines(finishes: Sequence[Finish]) -> List[str]:

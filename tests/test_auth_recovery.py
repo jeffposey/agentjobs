@@ -42,6 +42,7 @@ from agentjobs.dispatch.auth_probe import (
     classify_probe,
     run_probe,
 )
+from agentjobs.dispatch.peers import SESSIONS_DIR_ENV
 from agentjobs.dispatch.auth_recovery import (
     MARKER,
     ClaudeSessionNudger,
@@ -251,20 +252,32 @@ class TestReadingAQuotaRefusal:
 class _FakeClaude:
     """A scripted ``subprocess.run`` for the nudger: a listing, stop and resume."""
 
-    def __init__(self, *, pid_clears: bool = True, resume: str = "woke") -> None:
+    def __init__(
+        self,
+        *,
+        pid_clears: bool = True,
+        resume: str = "woke",
+        send: str = "AGENTJOBS-WAKE-DELIVERED",
+    ) -> None:
         self.rows: List[Dict[str, Any]] = [
             {"id": SHORT, "sessionId": FULL, "pid": 4242, "status": "idle"}
         ]
         self.calls: List[List[str]] = []
         self.pid_clears = pid_clears
         self.resume = resume
+        self.send = send
         self.stdin: Optional[str] = None
+        self.sent: Optional[str] = None
 
     def __call__(self, argv: List[str], **kwargs: Any) -> subprocess.CompletedProcess:
         arguments = argv[1:]
         self.calls.append(arguments)
         if arguments[:1] == ["agents"]:
             return subprocess.CompletedProcess(argv, 0, json.dumps(self.rows), "")
+        if arguments[:1] == ["-p"]:
+            # The peer sender (task-451). Only reached when the roster has a live row.
+            self.sent = arguments[-1]
+            return subprocess.CompletedProcess(argv, 0, self.send, "")
         if arguments[:1] == ["stop"]:
             if self.pid_clears:
                 for row in self.rows:
@@ -333,6 +346,84 @@ class TestTheNudgeAdapter:
     def test_an_unrecognised_answer_is_unknown_not_applied(self, tmp_path: Path) -> None:
         fake = _FakeClaude(resume="mute")
         assert _nudger(fake, tmp_path).nudge(SHORT, "carry on").state == "unknown"
+
+
+class TestTheNudgeWakesInPlaceFirst:
+    """task-451: a parked session is alive, and a live session can simply be messaged.
+
+    The stop-and-resume below it is correct and stays. What it costs is the thing this
+    avoids: it destroys a working process and its session id to deliver one sentence, and
+    then the recovery has to find the run it was recovering under a new identity.
+    """
+
+    def _live(self, name: str = "agentjobs/task-417/f92ef995") -> None:
+        directory = Path(os.environ[SESSIONS_DIR_ENV])
+        (directory / "4242.json").write_text(
+            json.dumps(
+                {
+                    "pid": 4242,
+                    "sessionId": FULL,
+                    "jobId": SHORT,
+                    "status": "idle",
+                    "name": name,
+                    "version": "2.1.276",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def test_a_live_session_is_messaged_and_never_stopped(self, tmp_path: Path) -> None:
+        self._live()
+        fake = _FakeClaude()
+
+        receipt = _nudger(fake, tmp_path).nudge(SHORT, "your login works again; carry on")
+
+        assert receipt.state == "applied"
+        assert receipt.session_id == SHORT, "the same session, so the incident still matches"
+        assert "your login works again" in (fake.sent or "")
+        assert not [call for call in fake.calls if call[:1] in (["stop"], ["--bg"])]
+
+    def test_a_session_absent_from_the_roster_stops_and_resumes_as_before(
+        self, tmp_path: Path
+    ) -> None:
+        """The process really has gone, so there is nothing to message. Nothing changed."""
+        fake = _FakeClaude()
+
+        receipt = _nudger(fake, tmp_path).nudge(SHORT, "carry on")
+
+        assert receipt.state == "applied"
+        assert fake.sent is None
+        assert ["--bg", "--resume", FULL] in fake.calls
+
+    def test_a_refused_delivery_falls_through_rather_than_failing_the_recovery(
+        self, tmp_path: Path
+    ) -> None:
+        """A miss has spent nothing, so it must not be mistaken for an attempt."""
+        self._live()
+        fake = _FakeClaude(send="AGENTJOBS-WAKE-FAILED it was held")
+
+        receipt = _nudger(fake, tmp_path).nudge(SHORT, "carry on")
+
+        assert receipt.state == "applied"
+        assert fake.sent is not None
+        assert ["--bg", "--resume", FULL] in fake.calls
+
+    def test_a_name_the_peer_channel_refuses_falls_through(self, tmp_path: Path) -> None:
+        self._live(name="agentjobs/task-417@f92ef995")
+        fake = _FakeClaude()
+
+        assert _nudger(fake, tmp_path).nudge(SHORT, "carry on").state == "applied"
+        assert fake.sent is None
+        assert ["--bg", "--resume", FULL] in fake.calls
+
+    def test_a_busy_session_is_still_deferred_before_any_of_this(self, tmp_path: Path) -> None:
+        """The busy check stays in front: something else already woke it."""
+        self._live()
+        fake = _FakeClaude()
+        fake.rows[0]["status"] = "busy"
+
+        assert _nudger(fake, tmp_path).nudge(SHORT, "carry on").state == "deferred"
+        assert fake.sent is None
 
 
 # ----- a machine: a registered project, a fake CLI, a Claude home ---------------------
