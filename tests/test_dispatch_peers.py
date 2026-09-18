@@ -218,9 +218,22 @@ class TestSending:
 
     def test_the_target_name_and_the_message_both_reach_the_sender(self) -> None:
         _, run = send(live(), "the ball prompt, verbatim")
-        instruction = run.calls[0]["argv"][-1]
+        instruction = run.calls[0]["input"]
         assert "agentjobs/task-451/3db3bfde" in instruction
         assert "the ball prompt, verbatim" in instruction
+
+    def test_the_instruction_goes_on_stdin_and_never_in_argv(self) -> None:
+        """The same trap `wake_argv` documents, and it fails the same silent way.
+
+        Measured on Claude Code 2.1.276 through the Windows `claude.CMD` shim: this
+        instruction as a positional argument is dropped and the turn comes up with no
+        task at all -- exit 0, nothing on stderr, `"I'm ready. What would you like me to
+        work on?"`. On stdin it is acted on every time.
+        """
+        _, run = send(live(), "the ball prompt, verbatim")
+        argv = run.calls[0]["argv"]
+        assert "the ball prompt, verbatim" not in " ".join(argv)
+        assert argv[-1] == SENDER_NAME, "nothing positional after the flags"
 
     def test_the_sender_names_itself_so_the_receiver_records_who_woke_it(self) -> None:
         """``--name`` carries through to ``from-name`` on the receiver's own record.

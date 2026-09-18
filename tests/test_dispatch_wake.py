@@ -77,7 +77,7 @@ if args[:2] == ["agents", "--json"]:
 if args[:1] == ["-p"]:
     # The peer-channel sender (task-451). It is the same executable as the launcher, so
     # the fake has to answer as both; `send_outcome.txt` is how a test makes it refuse.
-    (here / "sent.json").write_text(json.dumps(args))
+    (here / "sent.txt").write_text(sys.stdin.read() if not sys.stdin.isatty() else "")
     outcome = here / "send_outcome.txt"
     print(outcome.read_text() if outcome.exists() else "AGENTJOBS-WAKE-DELIVERED")
     raise SystemExit(0)
@@ -238,10 +238,10 @@ def refuse_sends(workspace: Path, why: str = "it was held for approval") -> None
 
 def sent_instruction(workspace: Path) -> Optional[str]:
     """What the peer sender was asked to deliver, or ``None`` if it was never run."""
-    path = workspace / "sent.json"
+    path = workspace / "sent.txt"
     if not path.is_file():
         return None
-    return str(json.loads(path.read_text(encoding="utf-8"))[-1])
+    return path.read_text(encoding="utf-8")
 
 
 def run_meta(workspace: Path, run_id: str) -> Dict[str, object]:

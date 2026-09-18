@@ -276,7 +276,7 @@ class _FakeClaude:
             return subprocess.CompletedProcess(argv, 0, json.dumps(self.rows), "")
         if arguments[:1] == ["-p"]:
             # The peer sender (task-451). Only reached when the roster has a live row.
-            self.sent = arguments[-1]
+            self.sent = kwargs.get("input")
             return subprocess.CompletedProcess(argv, 0, self.send, "")
         if arguments[:1] == ["stop"]:
             if self.pid_clears:
