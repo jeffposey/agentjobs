@@ -837,6 +837,60 @@
         "title": "CloseRequest",
         "type": "object"
       },
+      "ClosureView": {
+        "description": "One finished task, in the fields a row on the Dashboard renders.",
+        "properties": {
+          "age_seconds": {
+            "description": "Seconds since it closed, computed on the server. The phone reading this page is not on the clock that wrote the stamp, and *how long ago* is what the row is actually read for.",
+            "title": "Age Seconds",
+            "type": "number"
+          },
+          "closed_at": {
+            "description": "When the task closed, in UTC. This is the store's `closed_at`, stamped at the close and untouched by later edits -- not `updated`, which an edit after closing would move.",
+            "title": "Closed At",
+            "type": "string"
+          },
+          "outcome": {
+            "description": "How it ended: `completed`, `cancelled`, `superseded` or `duplicate`. Shown as written -- a region that printed every row as *done* would be hiding the difference the reader is scanning for.",
+            "title": "Outcome",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "project_name": {
+            "default": "",
+            "description": "The project's display name, falling back to its id.",
+            "title": "Project Name",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "task_title": {
+            "title": "Task Title",
+            "type": "string"
+          },
+          "task_url": {
+            "description": "Where this task is, in this app.",
+            "title": "Task Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "task_title",
+          "project_id",
+          "outcome",
+          "closed_at",
+          "age_seconds",
+          "task_url"
+        ],
+        "title": "ClosureView",
+        "type": "object"
+      },
       "ContextPointer": {
         "additionalProperties": false,
         "description": "A curated \"read this first\" pointer, with the reason it matters.",
@@ -4645,6 +4699,41 @@
           "repair_command"
         ],
         "title": "QueueResponse",
+        "type": "object"
+      },
+      "RecentClosuresView": {
+        "description": "The region's whole answer, with the bounds it was computed under.",
+        "properties": {
+          "closures": {
+            "items": {
+              "$ref": "#/components/schemas/ClosureView"
+            },
+            "title": "Closures",
+            "type": "array"
+          },
+          "generated_at": {
+            "description": "When this answer was assembled, in UTC.",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "limit": {
+            "description": "The most rows this answer could have held.",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "window_days": {
+            "description": "How far back it looked. On the wire because the empty state says it -- *nothing has finished in the last 7 days* -- and a page that hard-coded the number would keep saying seven after this endpoint stopped meaning it.",
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "closures",
+          "limit",
+          "window_days",
+          "generated_at"
+        ],
+        "title": "RecentClosuresView",
         "type": "object"
       },
       "RedactRequest": {
@@ -11640,6 +11729,64 @@
         "summary": "Repair Queue",
         "tags": [
           "queue"
+        ]
+      }
+    },
+    "/api/recent/closures": {
+      "get": {
+        "description": "The newest closed tasks this caller may see, newest first.\n\n**Each project is asked for ``limit`` rows and the merge keeps ``limit``.** Asking\nfor fewer per project would make the answer depend on how the closures happen to be\ndistributed -- one busy project would be cut short while a quiet one contributed a\nweek-old row ahead of it.\n\n**A project that cannot be read contributes nothing and does not fail the request.**\nA store mid-migration, or one whose database has been moved, is a deployment fact;\ntaking the Dashboard down over it would be a worse answer than a list that is one\nproject short.",
+        "operationId": "list_recent_closures_api_recent_closures_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "maximum": 90,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecentClosuresView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Recent Closures",
+        "tags": [
+          "dashboard"
         ]
       }
     },

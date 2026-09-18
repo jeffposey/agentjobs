@@ -46,6 +46,7 @@ from agentjobs.store_factory import (
 __all__ = [
     "project_store",
     "quarantine_record",
+    "set_closed_at",
     "set_updated",
     "task_manager",
     "task_store",
@@ -142,5 +143,21 @@ def set_updated(store: SqlTaskStore, task_id: str, when: datetime) -> None:
     with store.database.write() as connection:
         connection.execute(
             "UPDATE task SET updated_at = ? WHERE project_id = ? AND task_id = ?",
+            (when.isoformat().replace("+00:00", "Z"), store.project_id, task_id),
+        )
+
+
+def set_closed_at(store: SqlTaskStore, task_id: str, when: datetime) -> None:
+    """Backdate one record's ``closed_at`` column, bypassing every verb.
+
+    ``close`` stamps the moment it runs, so a test about a *window* -- what fell out of
+    it, what is still inside it -- cannot produce its own fixtures through the verb. This
+    is the same move :func:`set_updated` makes one field over, and the two together are
+    what let a test seed the case the column exists for: a task closed a month ago and
+    edited this morning.
+    """
+    with store.database.write() as connection:
+        connection.execute(
+            "UPDATE task SET closed_at = ? WHERE project_id = ? AND task_id = ?",
             (when.isoformat().replace("+00:00", "Z"), store.project_id, task_id),
         )
