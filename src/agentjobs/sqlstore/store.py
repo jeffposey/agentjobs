@@ -123,6 +123,19 @@ class SqlTaskStore:
         """
         return self.database.writer if self.database.in_transaction else self.database.reader()
 
+    def read_connection(self) -> sqlite3.Connection:
+        """The connection a read-only projection should use.
+
+        The public spelling of :meth:`_connection`, for a caller that queries these
+        tables rather than assembling task documents from them -- today that is
+        ``agentjobs.analytics``, which reads ``task``, ``task_event`` and ``project``
+        directly because the whole point of the analytics page is that it parses no task
+        document. Public so such a caller does not have to reach past an underscore, and
+        a method rather than an attribute because which connection is right depends on
+        whether a write transaction is open (see :meth:`_connection`).
+        """
+        return self._connection()
+
     def load_task(self, task_id: str) -> Optional[Task]:
         """Assemble one task, ``None`` when there is no such task -- and raise when
         there *was* one that could not be read.

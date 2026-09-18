@@ -42,6 +42,11 @@ export const PROJECT_TASK_QUERY_IDS = new Set([
   // move the revision. The runs list additionally polls on its own clock while
   // something is live, because progress within a run is not a task write at all.
   "listDispatchRunsApiProjectsProjectIdDispatchRunsGet",
+  // Every panel of the analytics page is a projection of task rows and their history:
+  // a create or a close moves the backlog level and the totals, a handoff moves the
+  // holder bands, and all of those are task writes that move the revision. It is one
+  // request for the whole page (docs/analytics-design.md section 7.1), so one refetch.
+  "getAnalyticsApiProjectsProjectIdAnalyticsGet",
 ]);
 
 /**

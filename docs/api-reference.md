@@ -54,6 +54,7 @@ the scoped form so switching projects never depends on the server's current dire
 | `GET` | `/api/search?q=...` | Search task id, title, spec, ball prompt and tags |
 | `GET` | `/api/dashboard` | Return dashboard counts and activity |
 | `GET` | `/api/attention` | Count the tasks stopped waiting on a person; the header's red badge |
+| `GET` | `/api/analytics` | Backlog, throughput, aging and where work is stuck, over one range. `range` is `30d`, `90d`, `12m` or `all` |
 | `GET` | `/api/revision` | Return the project revision used for client refresh |
 
 The human inbox is `GET /api/tasks?ball=human`; external blockers are

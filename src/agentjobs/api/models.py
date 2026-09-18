@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -996,3 +996,171 @@ class DispatchStarted(BaseModel):
         default=None,
         description="Runner group it was selected from, when one participated.",
     )
+
+
+# ---------------------------------------------------------------------------
+# Analytics (docs/analytics-design.md section 7.3)
+#
+# Named models rather than inline dicts, and that is a hard requirement rather than a
+# style preference: `npm run generate:api-client` regenerates
+# `frontend/src/api/generated/` from `openapi.json`, and the `api` stage of
+# `scripts/check.py` compares both against the working tree. An inline `dict` here
+# generates anonymous TypeScript the page cannot name.
+# ---------------------------------------------------------------------------
+
+
+class AnalyticsRange(BaseModel):
+    """The window every panel in one response was computed over.
+
+    ``bucket`` and ``throughput_bucket`` are two grains rather than one, per section 8.3
+    and section 8.4: the backlog level is read a day at a time while throughput is read
+    a week or a month at a time, and a client that had to infer the second from the
+    dates would be holding a copy of a rule that lives here.
+    """
+
+    key: Literal["30d", "90d", "12m", "all"]
+    start: datetime = Field(..., description="Inclusive, UTC. Clipped to the coverage baseline.")
+    end: datetime = Field(..., description="Exclusive, UTC.")
+    bucket: Literal["day", "week", "month"] = Field(
+        ..., description="Grain of the backlog and holder spines."
+    )
+    throughput_bucket: Literal["day", "week", "month"] = Field(
+        ..., description="Grain of the throughput and cycle-time series."
+    )
+    timezone: str = Field(..., description="IANA zone name the buckets were computed in.")
+
+
+class AnalyticsCoverage(BaseModel):
+    """What the store is prepared to claim about its own history (section 3.6).
+
+    Part of the payload rather than something the page infers, so no panel has to guess
+    how far back it is allowed to draw. ``baseline_at`` is null for exactly one state --
+    a project with no events at all -- which is what section 9.1 renders as a sentence
+    rather than as an empty axis.
+    """
+
+    baseline_at: Optional[datetime] = Field(
+        default=None, description="Null means the store makes no claim at all."
+    )
+    baseline_kind: Literal["native", "reconstructed", "backfilled", "unknown"] = "unknown"
+    native_from: Optional[datetime] = Field(
+        default=None, description="First event written by a verb at the moment of the change."
+    )
+    reconstructed_before: Optional[datetime] = Field(
+        default=None, description="Draw the hatch left of this instant."
+    )
+    events: Dict[str, int] = Field(default_factory=dict, description="Event counts by source.")
+    complete: bool = Field(
+        default=False, description="True when the whole window is covered by native events."
+    )
+    note: Optional[str] = Field(
+        default=None, description="One sentence, rendered as the coverage caption."
+    )
+
+
+class AnalyticsTotals(BaseModel):
+    """Identical, field for field, to ``build_dashboard_snapshot()["stats"]``.
+
+    Plus ``open``, which is the number the backlog series ends on. The two are computed
+    by different code -- SQL here, Python there -- and
+    ``tests/test_analytics_api.py`` asserts they agree, which is the whole point:
+    a page whose headline counts disagreed with the Dashboard's would discredit both.
+    """
+
+    total: int
+    in_progress: int
+    blocked: int
+    waiting_for_human: int
+    awaiting_input: int
+    completed: int
+    open: int
+
+
+class BacklogPoint(BaseModel):
+    """One bucket of the backlog level and both flows, on a filled calendar spine."""
+
+    day: date
+    open_count: int
+    opened: int = Field(..., description="Arrivals in this bucket.")
+    closed: int = Field(..., description="Departures in this bucket.")
+    estimated: bool = Field(
+        ..., description="This bucket contains a reconstructed or backfilled event."
+    )
+
+
+class HolderPoint(BaseModel):
+    """Who held the open work, per bucket, on the backlog's spine."""
+
+    day: date
+    agent: int
+    human: int
+    external: int
+
+
+class ThroughputPoint(BaseModel):
+    """Completions, cancellations and cycle time for one throughput bucket.
+
+    ``tasks_completed`` and ``completion_events`` differ whenever a task was reopened
+    and closed again (section 3.3). The chart plots the first; the second is returned so
+    a reader whose arithmetic does not work out has an answer.
+    """
+
+    bucket: date = Field(..., description="First day of the bucket, in the reporting zone.")
+    tasks_completed: int = Field(..., description="COUNT(DISTINCT task_id).")
+    completion_events: int = Field(..., description="COUNT(*).")
+    cancelled: int = Field(..., description="Closed with any outcome other than completed.")
+    cycle_p50_days: Optional[float] = None
+    cycle_p90_days: Optional[float] = None
+    sample: int = Field(..., description="Tasks behind the percentiles.")
+
+
+class AgeBucket(BaseModel):
+    """One band of the age distribution, emitted whether or not it holds anything."""
+
+    label: Literal["0-6d", "7-29d", "30-89d", "90d+"]
+    tasks: int
+    mean_age_days: float
+
+
+class AgingTask(BaseModel):
+    """One of the ten oldest open, unarchived tasks."""
+
+    task_id: str
+    title: str
+    priority: str
+    ball: Optional[str] = None
+    ball_reason: Optional[str] = None
+    age_days: float
+
+
+class StuckGroup(BaseModel):
+    """Open work grouped by who holds it and why, with how long they have held it."""
+
+    ball: str
+    ball_reason: str
+    tasks: int
+    mean_days_held: float
+    max_days_held: float
+    oldest_task_id: str
+
+
+class AnalyticsResponse(BaseModel):
+    """One request for the whole analytics page (section 7.1).
+
+    Not seventeen endpoints: the panels share a range, a timezone and a coverage
+    statement that must be identical across all of them, and the storage cost of the
+    whole set was measured at 6.3 ms -- so splitting it would buy nothing and cost
+    seventeen chances to render half a page.
+    """
+
+    range: AnalyticsRange
+    coverage: AnalyticsCoverage
+    totals: AnalyticsTotals
+    backlog: List[BacklogPoint] = Field(
+        default_factory=list, description="One entry per bucket in range, gaps filled."
+    )
+    holders: List[HolderPoint] = Field(default_factory=list, description="The same spine.")
+    throughput: List[ThroughputPoint] = Field(default_factory=list)
+    aging: List[AgeBucket] = Field(default_factory=list)
+    oldest: List[AgingTask] = Field(default_factory=list, description="Ten, open and not archived.")
+    stuck: List[StuckGroup] = Field(default_factory=list)
