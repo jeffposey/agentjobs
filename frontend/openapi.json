@@ -50,6 +50,342 @@
         "title": "AcceptanceStatus",
         "type": "string"
       },
+      "AgeBucket": {
+        "description": "One band of the age distribution, emitted whether or not it holds anything.",
+        "properties": {
+          "label": {
+            "enum": [
+              "0-6d",
+              "7-29d",
+              "30-89d",
+              "90d+"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "mean_age_days": {
+            "title": "Mean Age Days",
+            "type": "number"
+          },
+          "tasks": {
+            "title": "Tasks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "label",
+          "tasks",
+          "mean_age_days"
+        ],
+        "title": "AgeBucket",
+        "type": "object"
+      },
+      "AgingTask": {
+        "description": "One of the ten oldest open, unarchived tasks.",
+        "properties": {
+          "age_days": {
+            "title": "Age Days",
+            "type": "number"
+          },
+          "ball": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ball"
+          },
+          "ball_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ball Reason"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "title",
+          "priority",
+          "age_days"
+        ],
+        "title": "AgingTask",
+        "type": "object"
+      },
+      "AnalyticsCoverage": {
+        "description": "What the store is prepared to claim about its own history (section 3.6).\n\nPart of the payload rather than something the page infers, so no panel has to guess\nhow far back it is allowed to draw. ``baseline_at`` is null for exactly one state --\na project with no events at all -- which is what section 9.1 renders as a sentence\nrather than as an empty axis.",
+        "properties": {
+          "baseline_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null means the store makes no claim at all.",
+            "title": "Baseline At"
+          },
+          "baseline_kind": {
+            "default": "unknown",
+            "enum": [
+              "native",
+              "reconstructed",
+              "backfilled",
+              "unknown"
+            ],
+            "title": "Baseline Kind",
+            "type": "string"
+          },
+          "complete": {
+            "default": false,
+            "description": "True when the whole window is covered by native events.",
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "events": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Event counts by source.",
+            "title": "Events",
+            "type": "object"
+          },
+          "native_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "First event written by a verb at the moment of the change.",
+            "title": "Native From"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One sentence, rendered as the coverage caption.",
+            "title": "Note"
+          },
+          "reconstructed_before": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Draw the hatch left of this instant.",
+            "title": "Reconstructed Before"
+          }
+        },
+        "title": "AnalyticsCoverage",
+        "type": "object"
+      },
+      "AnalyticsRange": {
+        "description": "The window every panel in one response was computed over.\n\n``bucket`` and ``throughput_bucket`` are two grains rather than one, per section 8.3\nand section 8.4: the backlog level is read a day at a time while throughput is read\na week or a month at a time, and a client that had to infer the second from the\ndates would be holding a copy of a rule that lives here.",
+        "properties": {
+          "bucket": {
+            "description": "Grain of the backlog and holder spines.",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "title": "Bucket",
+            "type": "string"
+          },
+          "end": {
+            "description": "Exclusive, UTC.",
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "key": {
+            "enum": [
+              "30d",
+              "90d",
+              "12m",
+              "all"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "start": {
+            "description": "Inclusive, UTC. Clipped to the coverage baseline.",
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          },
+          "throughput_bucket": {
+            "description": "Grain of the throughput and cycle-time series.",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "title": "Throughput Bucket",
+            "type": "string"
+          },
+          "timezone": {
+            "description": "IANA zone name the buckets were computed in.",
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "start",
+          "end",
+          "bucket",
+          "throughput_bucket",
+          "timezone"
+        ],
+        "title": "AnalyticsRange",
+        "type": "object"
+      },
+      "AnalyticsResponse": {
+        "description": "One request for the whole analytics page (section 7.1).\n\nNot seventeen endpoints: the panels share a range, a timezone and a coverage\nstatement that must be identical across all of them, and the storage cost of the\nwhole set was measured at 6.3 ms -- so splitting it would buy nothing and cost\nseventeen chances to render half a page.",
+        "properties": {
+          "aging": {
+            "items": {
+              "$ref": "#/components/schemas/AgeBucket"
+            },
+            "title": "Aging",
+            "type": "array"
+          },
+          "backlog": {
+            "description": "One entry per bucket in range, gaps filled.",
+            "items": {
+              "$ref": "#/components/schemas/BacklogPoint"
+            },
+            "title": "Backlog",
+            "type": "array"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/AnalyticsCoverage"
+          },
+          "holders": {
+            "description": "The same spine.",
+            "items": {
+              "$ref": "#/components/schemas/HolderPoint"
+            },
+            "title": "Holders",
+            "type": "array"
+          },
+          "oldest": {
+            "description": "Ten, open and not archived.",
+            "items": {
+              "$ref": "#/components/schemas/AgingTask"
+            },
+            "title": "Oldest",
+            "type": "array"
+          },
+          "range": {
+            "$ref": "#/components/schemas/AnalyticsRange"
+          },
+          "stuck": {
+            "items": {
+              "$ref": "#/components/schemas/StuckGroup"
+            },
+            "title": "Stuck",
+            "type": "array"
+          },
+          "throughput": {
+            "items": {
+              "$ref": "#/components/schemas/ThroughputPoint"
+            },
+            "title": "Throughput",
+            "type": "array"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/AnalyticsTotals"
+          }
+        },
+        "required": [
+          "range",
+          "coverage",
+          "totals"
+        ],
+        "title": "AnalyticsResponse",
+        "type": "object"
+      },
+      "AnalyticsTotals": {
+        "description": "Identical, field for field, to ``build_dashboard_snapshot()[\"stats\"]``.\n\nPlus ``open``, which is the number the backlog series ends on. The two are computed\nby different code -- SQL here, Python there -- and\n``tests/test_analytics_api.py`` asserts they agree, which is the whole point:\na page whose headline counts disagreed with the Dashboard's would discredit both.",
+        "properties": {
+          "awaiting_input": {
+            "title": "Awaiting Input",
+            "type": "integer"
+          },
+          "blocked": {
+            "title": "Blocked",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "in_progress": {
+            "title": "In Progress",
+            "type": "integer"
+          },
+          "open": {
+            "title": "Open",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "waiting_for_human": {
+            "title": "Waiting For Human",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "in_progress",
+          "blocked",
+          "waiting_for_human",
+          "awaiting_input",
+          "completed",
+          "open"
+        ],
+        "title": "AnalyticsTotals",
+        "type": "object"
+      },
       "AnswerActionRequest": {
         "description": "Answers to the task's open questions, plus optional prose (task-017).\n\n``feedback`` is optional **here and nowhere else**, which is the one way this differs\nfrom every other send-back. Requiring it would defeat the point of the task: answering\nfour questions by tapping four options, on a phone, without typing. Something has to\nhave been said, though -- a request with neither answers nor prose is refused, because\nit would hand the ball back carrying nothing.\n\nFree text and options are not alternatives. Both can be sent, per question and for the\ntask as a whole, because the session that motivated this had every option on one\nquestion rejected in favour of a typed reply.",
         "properties": {
@@ -244,6 +580,44 @@
           "blocking"
         ],
         "title": "AttentionResponse",
+        "type": "object"
+      },
+      "BacklogPoint": {
+        "description": "One bucket of the backlog level and both flows, on a filled calendar spine.",
+        "properties": {
+          "closed": {
+            "description": "Departures in this bucket.",
+            "title": "Closed",
+            "type": "integer"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "estimated": {
+            "description": "This bucket contains a reconstructed or backfilled event.",
+            "title": "Estimated",
+            "type": "boolean"
+          },
+          "open_count": {
+            "title": "Open Count",
+            "type": "integer"
+          },
+          "opened": {
+            "description": "Arrivals in this bucket.",
+            "title": "Opened",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "open_count",
+          "opened",
+          "closed",
+          "estimated"
+        ],
+        "title": "BacklogPoint",
         "type": "object"
       },
       "Ball": {
@@ -1729,6 +2103,36 @@
           "ball_reason"
         ],
         "title": "HandoffRequest",
+        "type": "object"
+      },
+      "HolderPoint": {
+        "description": "Who held the open work, per bucket, on the backlog's spine.",
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "integer"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "external": {
+            "title": "External",
+            "type": "integer"
+          },
+          "human": {
+            "title": "Human",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "agent",
+          "human",
+          "external"
+        ],
+        "title": "HolderPoint",
         "type": "object"
       },
       "HumanActionResponse": {
@@ -4684,6 +5088,45 @@
         "title": "Spec",
         "type": "object"
       },
+      "StuckGroup": {
+        "description": "Open work grouped by who holds it and why, with how long they have held it.",
+        "properties": {
+          "ball": {
+            "title": "Ball",
+            "type": "string"
+          },
+          "ball_reason": {
+            "title": "Ball Reason",
+            "type": "string"
+          },
+          "max_days_held": {
+            "title": "Max Days Held",
+            "type": "number"
+          },
+          "mean_days_held": {
+            "title": "Mean Days Held",
+            "type": "number"
+          },
+          "oldest_task_id": {
+            "title": "Oldest Task Id",
+            "type": "string"
+          },
+          "tasks": {
+            "title": "Tasks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ball",
+          "ball_reason",
+          "tasks",
+          "mean_days_held",
+          "max_days_held",
+          "oldest_task_id"
+        ],
+        "title": "StuckGroup",
+        "type": "object"
+      },
       "Task": {
         "additionalProperties": false,
         "description": "A task, in schema v2.\n\nThe five consistency rules from design doc section 3 are enforced below in\n``_check_consistency``. They are what make limbo unrepresentable: an open task with\nnobody responsible, or a handoff with no stated ask, cannot be written down.",
@@ -6020,6 +6463,68 @@
         "title": "TaskUpdateRequest",
         "type": "object"
       },
+      "ThroughputPoint": {
+        "description": "Completions, cancellations and cycle time for one throughput bucket.\n\n``tasks_completed`` and ``completion_events`` differ whenever a task was reopened\nand closed again (section 3.3). The chart plots the first; the second is returned so\na reader whose arithmetic does not work out has an answer.",
+        "properties": {
+          "bucket": {
+            "description": "First day of the bucket, in the reporting zone.",
+            "format": "date",
+            "title": "Bucket",
+            "type": "string"
+          },
+          "cancelled": {
+            "description": "Closed with any outcome other than completed.",
+            "title": "Cancelled",
+            "type": "integer"
+          },
+          "completion_events": {
+            "description": "COUNT(*).",
+            "title": "Completion Events",
+            "type": "integer"
+          },
+          "cycle_p50_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cycle P50 Days"
+          },
+          "cycle_p90_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cycle P90 Days"
+          },
+          "sample": {
+            "description": "Tasks behind the percentiles.",
+            "title": "Sample",
+            "type": "integer"
+          },
+          "tasks_completed": {
+            "description": "COUNT(DISTINCT task_id).",
+            "title": "Tasks Completed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bucket",
+          "tasks_completed",
+          "completion_events",
+          "cancelled",
+          "sample"
+        ],
+        "title": "ThroughputPoint",
+        "type": "object"
+      },
       "TranscriptCallView": {
         "description": "One tool call inside a run of them, for the disclosure that holds the detail.",
         "properties": {
@@ -6532,6 +7037,53 @@
         "summary": "Get All Tasks",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/analytics": {
+      "get": {
+        "description": "Backlog, throughput, aging and where work is stuck, over one window.\n\n**A project with no history is a 200, not an error** (§7.4): the totals are\npopulated from ``task``, every series is empty and ``coverage.baseline_at`` is null,\nwhich is what lets the page tell \"nothing has happened here\" from \"we do not know\nwhat happened\". Those are different sentences and the page renders them differently.",
+        "operationId": "get_analytics_api_analytics_get",
+        "parameters": [
+          {
+            "description": "How far back to look. Four presets are the whole surface (§7.1).",
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "default": "90d",
+              "description": "How far back to look. Four presets are the whole surface (§7.1).",
+              "pattern": "^(30d|90d|12m|all)$",
+              "title": "Range",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Analytics",
+        "tags": [
+          "analytics"
         ]
       }
     },
@@ -7314,6 +7866,62 @@
         "summary": "Inspect Project Path",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/analytics": {
+      "get": {
+        "description": "Backlog, throughput, aging and where work is stuck, over one window.\n\n**A project with no history is a 200, not an error** (§7.4): the totals are\npopulated from ``task``, every series is empty and ``coverage.baseline_at`` is null,\nwhich is what lets the page tell \"nothing has happened here\" from \"we do not know\nwhat happened\". Those are different sentences and the page renders them differently.",
+        "operationId": "get_analytics_api_projects__project_id__analytics_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "How far back to look. Four presets are the whole surface (§7.1).",
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "default": "90d",
+              "description": "How far back to look. Four presets are the whole surface (§7.1).",
+              "pattern": "^(30d|90d|12m|all)$",
+              "title": "Range",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Analytics",
+        "tags": [
+          "analytics"
         ]
       }
     },

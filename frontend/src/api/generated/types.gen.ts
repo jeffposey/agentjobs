@@ -43,6 +43,247 @@ export type AcceptanceCriterion = {
 export type AcceptanceStatus = 'pending' | 'met' | 'failed' | 'dropped';
 
 /**
+ * AgeBucket
+ *
+ * One band of the age distribution, emitted whether or not it holds anything.
+ */
+export type AgeBucket = {
+    /**
+     * Label
+     */
+    label: '0-6d' | '7-29d' | '30-89d' | '90d+';
+    /**
+     * Mean Age Days
+     */
+    mean_age_days: number;
+    /**
+     * Tasks
+     */
+    tasks: number;
+};
+
+/**
+ * AgingTask
+ *
+ * One of the ten oldest open, unarchived tasks.
+ */
+export type AgingTask = {
+    /**
+     * Age Days
+     */
+    age_days: number;
+    /**
+     * Ball
+     */
+    ball?: string | null;
+    /**
+     * Ball Reason
+     */
+    ball_reason?: string | null;
+    /**
+     * Priority
+     */
+    priority: string;
+    /**
+     * Task Id
+     */
+    task_id: string;
+    /**
+     * Title
+     */
+    title: string;
+};
+
+/**
+ * AnalyticsCoverage
+ *
+ * What the store is prepared to claim about its own history (section 3.6).
+ *
+ * Part of the payload rather than something the page infers, so no panel has to guess
+ * how far back it is allowed to draw. ``baseline_at`` is null for exactly one state --
+ * a project with no events at all -- which is what section 9.1 renders as a sentence
+ * rather than as an empty axis.
+ */
+export type AnalyticsCoverage = {
+    /**
+     * Baseline At
+     *
+     * Null means the store makes no claim at all.
+     */
+    baseline_at?: string | null;
+    /**
+     * Baseline Kind
+     */
+    baseline_kind?: 'native' | 'reconstructed' | 'backfilled' | 'unknown';
+    /**
+     * Complete
+     *
+     * True when the whole window is covered by native events.
+     */
+    complete?: boolean;
+    /**
+     * Events
+     *
+     * Event counts by source.
+     */
+    events?: {
+        [key: string]: number;
+    };
+    /**
+     * Native From
+     *
+     * First event written by a verb at the moment of the change.
+     */
+    native_from?: string | null;
+    /**
+     * Note
+     *
+     * One sentence, rendered as the coverage caption.
+     */
+    note?: string | null;
+    /**
+     * Reconstructed Before
+     *
+     * Draw the hatch left of this instant.
+     */
+    reconstructed_before?: string | null;
+};
+
+/**
+ * AnalyticsRange
+ *
+ * The window every panel in one response was computed over.
+ *
+ * ``bucket`` and ``throughput_bucket`` are two grains rather than one, per section 8.3
+ * and section 8.4: the backlog level is read a day at a time while throughput is read
+ * a week or a month at a time, and a client that had to infer the second from the
+ * dates would be holding a copy of a rule that lives here.
+ */
+export type AnalyticsRange = {
+    /**
+     * Bucket
+     *
+     * Grain of the backlog and holder spines.
+     */
+    bucket: 'day' | 'week' | 'month';
+    /**
+     * End
+     *
+     * Exclusive, UTC.
+     */
+    end: string;
+    /**
+     * Key
+     */
+    key: '30d' | '90d' | '12m' | 'all';
+    /**
+     * Start
+     *
+     * Inclusive, UTC. Clipped to the coverage baseline.
+     */
+    start: string;
+    /**
+     * Throughput Bucket
+     *
+     * Grain of the throughput and cycle-time series.
+     */
+    throughput_bucket: 'day' | 'week' | 'month';
+    /**
+     * Timezone
+     *
+     * IANA zone name the buckets were computed in.
+     */
+    timezone: string;
+};
+
+/**
+ * AnalyticsResponse
+ *
+ * One request for the whole analytics page (section 7.1).
+ *
+ * Not seventeen endpoints: the panels share a range, a timezone and a coverage
+ * statement that must be identical across all of them, and the storage cost of the
+ * whole set was measured at 6.3 ms -- so splitting it would buy nothing and cost
+ * seventeen chances to render half a page.
+ */
+export type AnalyticsResponse = {
+    /**
+     * Aging
+     */
+    aging?: Array<AgeBucket>;
+    /**
+     * Backlog
+     *
+     * One entry per bucket in range, gaps filled.
+     */
+    backlog?: Array<BacklogPoint>;
+    coverage: AnalyticsCoverage;
+    /**
+     * Holders
+     *
+     * The same spine.
+     */
+    holders?: Array<HolderPoint>;
+    /**
+     * Oldest
+     *
+     * Ten, open and not archived.
+     */
+    oldest?: Array<AgingTask>;
+    range: AnalyticsRange;
+    /**
+     * Stuck
+     */
+    stuck?: Array<StuckGroup>;
+    /**
+     * Throughput
+     */
+    throughput?: Array<ThroughputPoint>;
+    totals: AnalyticsTotals;
+};
+
+/**
+ * AnalyticsTotals
+ *
+ * Identical, field for field, to ``build_dashboard_snapshot()["stats"]``.
+ *
+ * Plus ``open``, which is the number the backlog series ends on. The two are computed
+ * by different code -- SQL here, Python there -- and
+ * ``tests/test_analytics_api.py`` asserts they agree, which is the whole point:
+ * a page whose headline counts disagreed with the Dashboard's would discredit both.
+ */
+export type AnalyticsTotals = {
+    /**
+     * Awaiting Input
+     */
+    awaiting_input: number;
+    /**
+     * Blocked
+     */
+    blocked: number;
+    /**
+     * Completed
+     */
+    completed: number;
+    /**
+     * In Progress
+     */
+    in_progress: number;
+    /**
+     * Open
+     */
+    open: number;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Waiting For Human
+     */
+    waiting_for_human: number;
+};
+
+/**
  * AnswerActionRequest
  *
  * Answers to the task's open questions, plus optional prose (task-017).
@@ -221,6 +462,40 @@ export type AttentionResponse = {
      * Blocking
      */
     blocking: number;
+};
+
+/**
+ * BacklogPoint
+ *
+ * One bucket of the backlog level and both flows, on a filled calendar spine.
+ */
+export type BacklogPoint = {
+    /**
+     * Closed
+     *
+     * Departures in this bucket.
+     */
+    closed: number;
+    /**
+     * Day
+     */
+    day: string;
+    /**
+     * Estimated
+     *
+     * This bucket contains a reconstructed or backfilled event.
+     */
+    estimated: boolean;
+    /**
+     * Open Count
+     */
+    open_count: number;
+    /**
+     * Opened
+     *
+     * Arrivals in this bucket.
+     */
+    opened: number;
 };
 
 /**
@@ -1272,6 +1547,30 @@ export type HandoffRequest = {
      * Questions to pose alongside this handoff, each optionally offering options. Written in the same mutation, so the human never opens a half-populated form.
      */
     questions?: Array<QuestionDraft>;
+};
+
+/**
+ * HolderPoint
+ *
+ * Who held the open work, per bucket, on the backlog's spine.
+ */
+export type HolderPoint = {
+    /**
+     * Agent
+     */
+    agent: number;
+    /**
+     * Day
+     */
+    day: string;
+    /**
+     * External
+     */
+    external: number;
+    /**
+     * Human
+     */
+    human: number;
 };
 
 /**
@@ -3383,6 +3682,38 @@ export type Spec = {
 };
 
 /**
+ * StuckGroup
+ *
+ * Open work grouped by who holds it and why, with how long they have held it.
+ */
+export type StuckGroup = {
+    /**
+     * Ball
+     */
+    ball: string;
+    /**
+     * Ball Reason
+     */
+    ball_reason: string;
+    /**
+     * Max Days Held
+     */
+    max_days_held: number;
+    /**
+     * Mean Days Held
+     */
+    mean_days_held: number;
+    /**
+     * Oldest Task Id
+     */
+    oldest_task_id: string;
+    /**
+     * Tasks
+     */
+    tasks: number;
+};
+
+/**
  * Task
  *
  * A task, in schema v2.
@@ -4170,6 +4501,56 @@ export type TaskUpdateRequest = {
 };
 
 /**
+ * ThroughputPoint
+ *
+ * Completions, cancellations and cycle time for one throughput bucket.
+ *
+ * ``tasks_completed`` and ``completion_events`` differ whenever a task was reopened
+ * and closed again (section 3.3). The chart plots the first; the second is returned so
+ * a reader whose arithmetic does not work out has an answer.
+ */
+export type ThroughputPoint = {
+    /**
+     * Bucket
+     *
+     * First day of the bucket, in the reporting zone.
+     */
+    bucket: string;
+    /**
+     * Cancelled
+     *
+     * Closed with any outcome other than completed.
+     */
+    cancelled: number;
+    /**
+     * Completion Events
+     *
+     * COUNT(*).
+     */
+    completion_events: number;
+    /**
+     * Cycle P50 Days
+     */
+    cycle_p50_days?: number | null;
+    /**
+     * Cycle P90 Days
+     */
+    cycle_p90_days?: number | null;
+    /**
+     * Sample
+     *
+     * Tasks behind the percentiles.
+     */
+    sample: number;
+    /**
+     * Tasks Completed
+     *
+     * COUNT(DISTINCT task_id).
+     */
+    tasks_completed: number;
+};
+
+/**
  * TranscriptCallView
  *
  * One tool call inside a run of them, for the disclosure that holds the detail.
@@ -4939,6 +5320,38 @@ export type GetAllTasksApiAllTasksGetResponses = {
 
 export type GetAllTasksApiAllTasksGetResponse = GetAllTasksApiAllTasksGetResponses[keyof GetAllTasksApiAllTasksGetResponses];
 
+export type GetAnalyticsApiAnalyticsGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Range
+         *
+         * How far back to look. Four presets are the whole surface (§7.1).
+         */
+        range?: string;
+    };
+    url: '/api/analytics';
+};
+
+export type GetAnalyticsApiAnalyticsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAnalyticsApiAnalyticsGetError = GetAnalyticsApiAnalyticsGetErrors[keyof GetAnalyticsApiAnalyticsGetErrors];
+
+export type GetAnalyticsApiAnalyticsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnalyticsResponse;
+};
+
+export type GetAnalyticsApiAnalyticsGetResponse = GetAnalyticsApiAnalyticsGetResponses[keyof GetAnalyticsApiAnalyticsGetResponses];
+
 export type GetAttentionApiAttentionGetData = {
     body?: never;
     path?: never;
@@ -5446,6 +5859,43 @@ export type InspectProjectPathApiProjectsInspectPostResponses = {
 };
 
 export type InspectProjectPathApiProjectsInspectPostResponse = InspectProjectPathApiProjectsInspectPostResponses[keyof InspectProjectPathApiProjectsInspectPostResponses];
+
+export type GetAnalyticsApiProjectsProjectIdAnalyticsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: {
+        /**
+         * Range
+         *
+         * How far back to look. Four presets are the whole surface (§7.1).
+         */
+        range?: string;
+    };
+    url: '/api/projects/{project_id}/analytics';
+};
+
+export type GetAnalyticsApiProjectsProjectIdAnalyticsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAnalyticsApiProjectsProjectIdAnalyticsGetError = GetAnalyticsApiProjectsProjectIdAnalyticsGetErrors[keyof GetAnalyticsApiProjectsProjectIdAnalyticsGetErrors];
+
+export type GetAnalyticsApiProjectsProjectIdAnalyticsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnalyticsResponse;
+};
+
+export type GetAnalyticsApiProjectsProjectIdAnalyticsGetResponse = GetAnalyticsApiProjectsProjectIdAnalyticsGetResponses[keyof GetAnalyticsApiProjectsProjectIdAnalyticsGetResponses];
 
 export type GetAttentionApiProjectsProjectIdAttentionGetData = {
     body?: never;
