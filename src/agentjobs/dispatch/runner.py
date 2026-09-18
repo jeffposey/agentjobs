@@ -46,7 +46,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
-from typing import IO, Callable, Dict, List, Optional, Sequence, TYPE_CHECKING
+from typing import IO, Callable, Collection, Dict, List, Optional, Sequence, TYPE_CHECKING
 
 
 from agentjobs.dispatch.address import resolve_api_base
@@ -691,20 +691,52 @@ _NAME_FLAGS = frozenset({"--name", "-n"})
 """Every spelling of the flag above, so an operator who set one is not given a second."""
 
 
-def session_name(project_id: str, task_id: str, run_id: str) -> str:
+SESSION_NAME_ORDINAL = "#"
+"""What separates a session name from the ordinal that tells two runs of one task apart.
+
+Verified addressable on Claude Code 2.1.276, Windows 11, 2026-09-18 (task-452), which is
+the property that matters and the one that is not obvious: ``SendMessage`` validates its
+``to`` argument before it looks anything up, and task-451 found it rejects any name
+containing an ``@`` outright. ``#`` is not special to that validator. Three sandbox
+sessions named ``agentjobs/task-996``, ``agentjobs/task-996#2`` and ``agentjobs/task-996/2``
+were each sent a message by name from a ``claude -p`` sender; all three resolved to
+distinct rows and all three acted on what they were sent.
+
+``/2`` was rejected as the alternative: it reads as another path segment, so
+``agentjobs/task-996/2`` invites the reader to parse ``2`` as a third id of the same kind
+as the project and the task. ``#2`` reads as "the second one", which is the only thing it
+means.
+"""
+
+
+def session_name(project_id: str, task_id: str, ordinal: int = 1) -> str:
     """The display name AgentJobs gives a session it starts.
 
-    ``agentjobs/task-324@11085a50``: the project, the task, and the run that is working
-    it. Three ids and nothing else, because this string is read in two places that want
-    different things and the ids are what both of them want.
+    ``agentjobs/task-324``: the project and the task, and **nothing else** unless
+    something else is needed. This string is read in two places that want different
+    things, and the ids are what both of them want.
 
     * A **picker** listing every session on the machine is *scanned*, so the task id goes
       where the eye lands and a name stays short enough that the rest of the row survives.
       There is no length cap to respect -- a 127-character name came back from ``claude
       agents --json`` verbatim -- so brevity here is a choice, not a constraint.
     * The **peer channel** addresses a session *by this name*, so it is typed, and it has
-      to distinguish two runs of one task. The run id is what does that; the task id
-      alone cannot.
+      to distinguish two runs of one task.
+
+    **Only the second reader ever needs more than the two ids, and only rarely.** Until
+    task-452 every name carried ``@`` plus the run id's first eight hex characters, so the
+    ordinary case -- one live run of a task -- paid a suffix that discriminated nothing
+    against a reader who could not read it. The suffix is now an ``ordinal`` the caller
+    supplies, and ``choose_session_name`` supplies one above 1 only when a live session is
+    already using the name below it: ``agentjobs/task-324``, then ``agentjobs/task-324#2``.
+    A sequence rather than a hash, because "the second run of this task" is what the
+    reader who needs the discriminator is trying to learn.
+
+    **Uniqueness among live sessions is the requirement, not global uniqueness.** Claude
+    Code renames a session whose name collides with a live one to a variant of its own
+    choosing, so shipping a name that can collide is worse than shipping a suffix: the
+    name AgentJobs recorded would not be the name the session has. The live roster is what
+    ``choose_session_name`` consults, and a name freed by a finished run is reused.
 
     The project is included because both surfaces are machine-wide while a task id is
     only unique within its project: ``task-042`` names a different piece of work in every
@@ -712,18 +744,60 @@ def session_name(project_id: str, task_id: str, run_id: str) -> str:
 
     **The title is deliberately absent.** It is the one candidate that reads well and it
     was rejected on two grounds. A title is editable, so two runs of one task could be
-    named after two different descriptions of it, which is the instability this task
-    exists to remove. And truncating one rarely distinguishes: the tasks that need
-    telling apart are neighbours in the same area, whose titles share a prefix -- this
-    task and task-296 both begin "Dispatch does not". The id is the key every other
-    surface already uses, and it is the key here.
+    named after two different descriptions of it, which is the instability task-324 set
+    out to remove. And truncating one rarely distinguishes: the tasks that need telling
+    apart are neighbours in the same area, whose titles share a prefix -- task-324 and
+    task-296 both begin "Dispatch does not". The id is the key every other surface already
+    uses, and it is the key here.
 
     The name is built from the dispatcher's own identity -- resolved project, claimed
-    task, freshly minted run id -- and there is no parameter through which a dispatch
-    request could supply any part of it. That is the same rule ``validate_argv`` enforces
-    for the template: nothing a caller sends becomes an argv element.
+    task, and an ordinal read off the machine's own session roster -- and there is no
+    parameter through which a dispatch request could supply any part of it. That is the
+    same rule ``validate_argv`` enforces for the template: nothing a caller sends becomes
+    an argv element.
     """
-    return f"{project_id}/{task_id}@{short_run_id(run_id)}"
+    if ordinal <= 1:
+        return f"{project_id}/{task_id}"
+    return f"{project_id}/{task_id}{SESSION_NAME_ORDINAL}{ordinal}"
+
+
+def choose_session_name(
+    project_id: str,
+    task_id: str,
+    *,
+    taken: Optional[Collection[str]] = None,
+) -> str:
+    """``session_name`` with the lowest ordinal no live session is already using.
+
+    ``taken`` is the set of names in use; it defaults to the live-session roster, which
+    is :func:`idle_sessions.live_session_names` -- a directory of small JSON files the
+    same OS user can read with no Claude process in the loop (task-449). Imported inside
+    the function because ``idle_sessions`` imports this module.
+
+    **A roster that cannot be read yields the base name**, and that is the right failure.
+    The cost of a collision is a name Claude Code picks instead of this one, which is the
+    situation every run before task-452 was already in every time; the cost of raising
+    would be a dispatch that does not start because a cosmetic string could not be
+    chosen. The suffix is an improvement to a name, never a precondition for a run.
+
+    The search is bounded only by the roster's size -- the first ordinal not in ``taken``
+    wins, so it terminates after at most ``len(taken) + 1`` steps.
+
+    **There is a window**, and it is narrow and survivable: a session registers a moment
+    after its launcher is asked to start it, so two launches close enough together both
+    read a roster without the other and both pick the same name. Claude Code then renames
+    the second to a variant of its own, which is precisely the situation every run before
+    task-452 was in permanently. Closing it would mean holding a lock across a subprocess
+    launch, for a cosmetic string.
+    """
+    if taken is None:
+        from agentjobs.dispatch.idle_sessions import live_session_names
+
+        taken = live_session_names()
+    ordinal = 1
+    while session_name(project_id, task_id, ordinal) in taken:
+        ordinal += 1
+    return session_name(project_id, task_id, ordinal)
 
 
 def short_run_id(run_id: str) -> str:
@@ -735,11 +809,14 @@ def session_name_flags(
     template: Sequence[str],
     *,
     driver: RunnerDriver,
-    project_id: str,
-    task_id: str,
-    run_id: str,
+    name: str,
 ) -> List[str]:
     """``--name <name>``, or nothing when it would be wrong to add it.
+
+    ``name`` is passed in rather than built here because since task-452 it depends on
+    what else is live on this machine, so it is not a pure function of the run and must
+    not be computed twice: ``DispatchRunner.session_name_for`` picks it once per run and
+    the same string goes into the argv and onto the run's meta.
 
     Spliced by the dispatcher rather than written into a runner template, for the same
     reason the posture flags are: an operator's custom runner then gets an identifiable
@@ -764,7 +841,7 @@ def session_name_flags(
         return []
     if any(element in _NAME_FLAGS for element in template):
         return []
-    return [SESSION_NAME_FLAG, session_name(project_id, task_id, run_id)]
+    return [SESSION_NAME_FLAG, name]
 
 
 def compose_argv(
@@ -1330,7 +1407,9 @@ class DispatchRunner:
     """Starts and follows one project's runs.
 
     Holds no state between runs beyond what is on disk and in the task record, so a
-    restart loses nothing that mattered.
+    restart loses nothing that mattered. The one exception is ``_session_names``, which
+    is a memo rather than state: it keeps a run's chosen session name stable across the
+    two calls that need it, and a restart that loses it re-reads the roster.
     """
 
     def __init__(
@@ -1358,6 +1437,10 @@ class DispatchRunner:
         """The execution this run continues, or ``None`` for a new grant (task-375)."""
         self.execution_id: Optional[str] = None
         """The execution admission put this run under, when the caller admitted one."""
+        self._session_names: Dict[str, str] = {}
+        """Each run id's chosen session name -- see ``session_name_for``. The one thing
+        held between two calls about the same run, because it is read off the machine
+        rather than derived from the run, so re-deriving it can answer differently."""
         self.posture = posture or resolve_posture(resolution.settings)
         """What this run may do, and which of the three sources said so (task-308).
 
@@ -1483,6 +1566,22 @@ class DispatchRunner:
             supervisor=bool(children),
         )
 
+    def session_name_for(self, task_id: str, run_id: str) -> str:
+        """This run's session name, picked once and remembered.
+
+        Memoised on the run id because :func:`choose_session_name` reads the live-session
+        roster, so it is not a pure function of the run: asking twice can answer twice,
+        and the two answers would be the name in ``--name`` and the name recorded on the
+        run's meta -- the string the controller correlates a launch by and the one
+        ``stop`` matches sessions against. One read, one answer, for the life of the
+        object that launched it.
+        """
+        cached = self._session_names.get(run_id)
+        if cached is None:
+            cached = choose_session_name(self.resolution.project_id, task_id)
+            self._session_names[run_id] = cached
+        return cached
+
     def build_argv(self, task_id: str, run_id: str) -> List[str]:
         """The full argv for a run, posture flags included."""
         return self.build_argv_and_prompt(task_id, run_id)[0]
@@ -1523,9 +1622,7 @@ class DispatchRunner:
             *session_name_flags(
                 self.runner.argv,
                 driver=self.runner.driver,
-                project_id=self.resolution.project_id,
-                task_id=task_id,
-                run_id=run_id,
+                name=self.session_name_for(task_id, run_id),
             ),
         ]
         argv = compose_argv(self.runner.argv, values, flags)
@@ -2396,7 +2493,7 @@ class DispatchRunner:
         # own listing can answer. The run's session name is the attempt token it searches.
         directory.update_meta(
             launch_attempted_at=self.clock().isoformat(),
-            session_name=session_name(self.resolution.project_id, task.id, run_id),
+            session_name=self.session_name_for(task.id, run_id),
         )
         try:
             completed = subprocess.run(
@@ -2601,6 +2698,15 @@ class DispatchRunner:
         passes the run stub it just put in ``--name``, and a run's own id can never be
         the id the CLI assigned. A future change to the name format therefore cannot
         resurrect this, whatever it puts on the line.
+
+        **That promise was cashed by task-452, which took the run stub out of the name.**
+        The stub is still passed as ``reject`` and both halves stay: ``strip_ansi`` is
+        what makes the real id visible at all, and ``reject`` is what makes the guard
+        independent of whatever the name happens to contain. A name is now typically
+        ``agentjobs/task-452``, which offers the scan no 8-hex token to mistake -- but
+        "the current format puts nothing capturable on the line" is exactly the assumption
+        that was true before task-324 and false afterwards, and it is not the one this
+        guard rests on.
         """
         for line in stdout.splitlines():
             for match in cls._SHORT_ID.finditer(strip_ansi(line)):
