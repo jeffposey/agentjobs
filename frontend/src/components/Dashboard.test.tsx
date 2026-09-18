@@ -227,6 +227,22 @@ describe("Dashboard supporting sections", () => {
     expect(screen.queryByText("Title of task-active-3")).not.toBeInTheDocument();
   });
 
+  it("reaches the analytics page from the Active tasks heading row (task-374)", () => {
+    // The page's only entry point. Asserted on the rendered href rather than on the
+    // markup, and on the order of the two links: section 11 puts `Analytics →` first so
+    // that `View all →` keeps the edge position it has always had.
+    renderDashboard(dashboard({ active_tasks: [claimable] }));
+
+    const analytics = screen.getByRole("link", { name: "Analytics →" });
+    expect(analytics).toHaveAttribute("href", "/p/inbox/analytics");
+
+    const viewAll = screen.getByRole("link", { name: "View all →" });
+    expect(analytics.parentElement).toBe(viewAll.parentElement);
+    expect(
+      analytics.compareDocumentPosition(viewAll) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("splits the page into a pinned glance and a tail that takes what is left", () => {
     // The two regions are the whole of task-294's layout decision: the board and the
     // one call to action are sized to their content, and the lists below them are a

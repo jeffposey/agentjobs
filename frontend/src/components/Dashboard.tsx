@@ -379,11 +379,26 @@ export function Dashboard({ dashboard, projectId, renderSlotBoard }: DashboardPr
               Active tasks{" "}
               <span className="font-normal text-dark-muted">({dashboard.active_tasks.length})</span>
             </h2>
-            <Link to={projectPath(projectId, "/tasks")} className="touch-target text-xs text-blue-400 hover:text-blue-300">
-              {dashboard.active_tasks.length > ACTIVE_PREVIEW
-                ? `View all ${dashboard.active_tasks.length} →`
-                : "View all →"}
-            </Link>
+            {/*
+              The analytics page's only entry point (docs/analytics-design.md section 11).
+              It rides this row because the row already exists and already carries a
+              right-aligned link, so the link costs zero vertical pixels -- which is the
+              whole point on a page task-294 spent a task fitting into one screen. A
+              PrimaryNav destination was rejected there: NAV_INLINE_MIN_PX is measured from
+              the row's contents, and another destination drops a band of desktop widths
+              into the burger. `Analytics →` goes first so `View all →` keeps the edge
+              position a reader's thumb already knows.
+            */}
+            <div className="flex items-baseline gap-3">
+              <Link to={projectPath(projectId, "/analytics")} className="touch-target text-xs text-blue-400 hover:text-blue-300">
+                Analytics →
+              </Link>
+              <Link to={projectPath(projectId, "/tasks")} className="touch-target text-xs text-blue-400 hover:text-blue-300">
+                {dashboard.active_tasks.length > ACTIVE_PREVIEW
+                  ? `View all ${dashboard.active_tasks.length} →`
+                  : "View all →"}
+              </Link>
+            </div>
           </div>
           <div className="space-y-2 p-2">
             {dashboard.active_tasks.length > 0 ? dashboard.active_tasks.slice(0, ACTIVE_PREVIEW).map((task) => (
