@@ -72,7 +72,7 @@ export function undoMove(placement: QueueMovePlacement | null): QueueMove | null
   return placement.kind === "before" ? { before: placement.target } : { after: placement.target };
 }
 
-const STATUS_FILTERS = new Set(["all", "open", "draft", "ready", "active", "human", "external", "closed"]);
+const STATUS_FILTERS = new Set(["all", "open", "draft", "ready", "active", "human", "external", "reset", "closed"]);
 const PRIORITY_FILTERS = new Set(["all", "critical", "high", "medium", "low"]);
 const SCOPE_FILTERS = new Set(["all", "project", "test"]);
 const PRIORITY_CLASSES: Record<string, string> = {
@@ -205,6 +205,24 @@ function orderSignature(tasks: Array<TaskRead>) {
   return tasks.map((task) => `${task.id}:${task.queue_position ?? ""}`).join("|");
 }
 
+/**
+ * Whether one task answers the Status filter.
+ *
+ * Two of the options are not a `lifecycle` or a `ball` value, because the state a reader
+ * wants to separate is not either of those. A park on a usage limit and a third party
+ * being down are both `external`, and only one of them needs anybody: `reset` selects the
+ * self-clearing waits and `external` now excludes them, so each is reachable on its own.
+ * Before this they shared one option and a reader could filter to neither.
+ */
+function matchesStatus(task: TaskRead, status: string) {
+  const selfClearing = task.self_clearing_wait != null;
+  if (status === "all") return true;
+  if (status === "open") return task.lifecycle !== "closed";
+  if (status === "reset") return selfClearing;
+  if (status === "external") return task.ball === "external" && !selfClearing;
+  return task.lifecycle === status || task.ball === status;
+}
+
 function matchesTask(task: TaskRead, search: string, status: string, priority: string, scope: string) {
   const term = search.trim().toLowerCase();
   // The id is searched as well as the title because the id is what people quote:
@@ -215,10 +233,7 @@ function matchesTask(task: TaskRead, search: string, status: string, priority: s
   const titleMatches = term === ""
     || task.title.toLowerCase().includes(term)
     || task.id.toLowerCase().includes(term);
-  const statusMatches = status === "all"
-    || (status === "open" && task.lifecycle !== "closed")
-    || task.lifecycle === status
-    || task.ball === status;
+  const statusMatches = matchesStatus(task, status);
   const priorityMatches = priority === "all" || task.priority === priority;
   const tags = task.tags ?? [];
   const isTest = tags.includes("test") || tags.includes("example");
@@ -1013,7 +1028,7 @@ export function TaskList({
               >
                 <label className="sr-only" htmlFor="status-filter">Status</label>
                 <select ref={firstFilterRef} id="status-filter" aria-label="Status" value={status} onChange={(event) => updateParam("status", event.target.value, "open")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">
-                  <option value="open">Open (not closed)</option><option value="all">All Status</option><option value="draft">Draft</option><option value="ready">Ready</option><option value="active">Active</option><option value="human">Needs Human</option><option value="external">Blocked</option><option value="closed">Closed</option>
+                  <option value="open">Open (not closed)</option><option value="all">All Status</option><option value="draft">Draft</option><option value="ready">Ready</option><option value="active">Active</option><option value="human">Needs Human</option><option value="external">Blocked</option><option value="reset">Waiting on a reset</option><option value="closed">Closed</option>
                 </select>
                 <label className="sr-only" htmlFor="priority-filter">Priority</label>
                 <select id="priority-filter" aria-label="Priority" value={priority} onChange={(event) => updateParam("priority", event.target.value, "all")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">

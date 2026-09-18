@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterator, Tuple
+from typing import Any, Dict, Iterator, Tuple
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,7 +11,16 @@ from agentjobs.api.dependencies import get_task_manager, reset_dependency_cache
 from agentjobs.api.main import app
 from agentjobs.api.routes.status import get_acting_project
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Dependency, DependencyType, Lifecycle, Outcome, Priority
+from agentjobs.models_v2 import (
+    AUTH_RECOVERY_MARKER,
+    Ball,
+    BallReason,
+    Dependency,
+    DependencyType,
+    Lifecycle,
+    Outcome,
+    Priority,
+)
 from agentjobs.projects import Project
 from support import task_store
 
@@ -183,6 +192,67 @@ def test_task_responses_carry_display_status(api_client) -> None:
     response = client.get(f"/api/tasks/{task.id}")
     assert response.status_code == 200
     assert response.json()["display_status"] == "Ready"
+
+
+def _park_on_a_quota(manager: TaskManager, *, marker: Dict[str, Any]) -> str:
+    """A task parked `external`/`service` by an auth-recovery-shaped handoff."""
+    task = manager.create_task(
+        title="Parked",
+        description="x",
+        category="ops",
+        lifecycle=Lifecycle.READY,
+    )
+    manager.claim_task(task.id, agent="claude")
+    manager.handoff(
+        task.id,
+        actor="dispatcher",
+        ball=Ball.EXTERNAL,
+        ball_reason=BallReason.SERVICE,
+        ball_prompt="The limit resets at 2026-09-18T21:30:00+00:00.",
+        data={AUTH_RECOVERY_MARKER: marker} if marker else None,
+    )
+    return str(task.id)
+
+
+def test_a_quota_park_reaches_a_client_as_both_a_label_and_a_structure(api_client) -> None:
+    """Over real HTTP, on both read surfaces the React app uses.
+
+    Both halves, because a client needs each for a different job: the label answers "is
+    there anything to do", and the structure is what the task list filters on -- matching
+    a label's prose is the mistake ENGINEERING.md's rendered-value rule exists to stop.
+    """
+    client, manager = api_client
+    task_id = _park_on_a_quota(
+        manager,
+        marker={
+            "incident": "inc_1",
+            "run_id": "run_1",
+            "action": "park",
+            "kind": "usage_limit",
+            "resets_at": "2026-09-18T21:30:00+00:00",
+        },
+    )
+
+    row = next(item for item in client.get("/api/tasks").json() if item["id"] == task_id)
+    detail = client.get(f"/api/tasks/{task_id}/detail").json()["task"]
+
+    for served in (row, detail):
+        assert served["display_status"] == "Waiting on quota reset (21:30 UTC)"
+        assert served["self_clearing_wait"] == {
+            "kind": "usage_limit",
+            "resets_at": "2026-09-18T21:30:00Z",
+        }
+
+
+def test_a_service_park_nobody_marked_carries_no_wait(api_client) -> None:
+    """A person parking a task on a third party still reads as blocked, with no structure."""
+    client, manager = api_client
+    task_id = _park_on_a_quota(manager, marker={})
+
+    row = next(item for item in client.get("/api/tasks").json() if item["id"] == task_id)
+
+    assert row["display_status"] == "Blocked on a service"
+    assert row["self_clearing_wait"] is None
 
 
 def test_get_task_success(api_client) -> None:

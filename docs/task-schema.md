@@ -557,6 +557,29 @@ It is a Pydantic *computed field*, so it appears in API responses and templates 
 instead of switching on the axes themselves. The store and the exporter both exclude it
 when writing, and a file that contains it is rejected by name (`extra="forbid"`).
 
+### `Waiting on quota reset (21:30 UTC)`
+
+One label is derived from more than the axes. An `external`/`service` park is
+`Blocked on a service` — except where the newest handoff is auth recovery's own, its
+action still means waiting, and the incident kind is one that lifts with nobody acting.
+Today that is `usage_limit` alone, and the label then names the reset time the refusal
+reported, in UTC, because a label derived on the server cannot know the reader's zone.
+The full timestamp stays in `ball_prompt`.
+
+**The point is that the two states need different things from a reader.** A session
+waiting out a usage limit is probed and resumed by AgentJobs itself, so a label saying
+only "Blocked on a service" sends somebody to investigate a condition already handled
+(task-456). A `spend_limit` and a dead credential store past its probe deadline park on
+a *person* instead, so they keep reading `Needs input` and none of this reaches them.
+
+`TaskRead` carries the same fact as `self_clearing_wait` — `{kind, resets_at}`, or null
+— because a client needs the structure and not only the prose: the task list's `reset`
+filter separates these waits from real blockers, and matching on a label's text is what
+[the rendered-value rule](../ENGINEERING.md#verification) exists to prevent. It is
+derived from the record on every read, like `display_status`, and is not a stored field.
+Both the label and the field come from `models_v2.self_clearing_wait()`, so they cannot
+disagree.
+
 ## How an export is written
 
 `taskfiles.canonical_bytes()` — what `agentjobs storage export` writes — dumps with

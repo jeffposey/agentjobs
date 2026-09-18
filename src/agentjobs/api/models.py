@@ -23,8 +23,10 @@ from agentjobs.models_v2 import (
     Outcome,
     Priority,
     QuestionDraft,
+    SelfClearingWait,
     Spec,
     Task,
+    self_clearing_wait,
 )
 
 
@@ -36,6 +38,27 @@ class TaskRead(Task):
     needs_cycles: List[List[str]] = Field(default_factory=list)
     unblocks_count: int = 0
     open_children_count: int = 0
+    self_clearing_wait: Optional[SelfClearingWait] = None
+    """Set when this `external`/`service` park is a quota wait that needs nobody.
+
+    Unlike the dependency facts above, it is not passed in: `_fill_self_clearing_wait`
+    derives it from the task's own log on every construction, so no caller can build a
+    `TaskRead` that forgets it. Clients need the structure and not only
+    `display_status`'s label -- the task list filters on it, and matching on the prose of
+    a label is what ENGINEERING.md's rendered-value rule exists to prevent.
+    """
+
+    @model_validator(mode="after")
+    def _fill_self_clearing_wait(self) -> "TaskRead":
+        """Derive the wait from this record, overwriting anything passed for it.
+
+        Here rather than at each construction site, because there are two of them and a
+        third would not know to do it. The derivation itself stays in `models_v2`, which
+        is also where `display_status` reads it, so the label and the field cannot
+        disagree.
+        """
+        self.self_clearing_wait = self_clearing_wait(self)
+        return self
 
     @classmethod
     def from_tasks(cls, manager: TaskManager, tasks: List[Task]) -> List["TaskRead"]:

@@ -53,9 +53,14 @@ export function dependencyState(task: TaskRead) {
     };
   }
   if (task.ball === "external") {
+    // A park on a usage limit clears with nobody acting, so it is drawn as a wait and
+    // not in the red a blockage gets: the colour is what a scan of the list reads, and
+    // red on a condition already handled is what sends somebody to investigate it.
+    // `display_status` carries the reset time -- derive nothing here, show that.
+    const selfClearing = task.self_clearing_wait != null;
     return {
-      kind: "blocked" as const,
-      label: "Blocked",
+      kind: selfClearing ? ("waiting" as const) : ("blocked" as const),
+      label: selfClearing ? task.display_status : "Blocked",
       reasons: [task.ball_prompt || "Waiting for an external dependency."],
     };
   }

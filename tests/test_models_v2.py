@@ -16,7 +16,9 @@ import yaml
 from pydantic import ValidationError
 
 from agentjobs.models_v2 import (
+    AUTH_RECOVERY_MARKER,
     BALL_REASONS,
+    SELF_CLEARING_KINDS,
     AcceptanceStatus,
     Ball,
     BallReason,
@@ -32,6 +34,7 @@ from agentjobs.models_v2 import (
     Task,
     check_schema_version,
     load_task,
+    self_clearing_wait,
 )
 
 EXAMPLE = pathlib.Path(__file__).resolve().parents[1] / "schema" / "examples" / "task-048.v2.yaml"
@@ -587,6 +590,180 @@ class TestDisplayStatus:
         )
 
         assert task.display_status == "Completed (archived)"
+
+
+class TestSelfClearingWait:
+    """A park on a quota reset needs nobody, and the label has to say so (task-456).
+
+    The happy paths are driven through ``auth_recovery`` in
+    ``tests/test_auth_recovery.py::TestTheParkSaysWhatItIs``, which is where the marker
+    is written. What is here is the derivation's edges: the shapes a reader older or
+    newer than the writer can actually be handed, none of which may raise from a
+    property a label is drawn from.
+    """
+
+    def _parked(self, marker: Any, **overrides: Any) -> Task:
+        data = task_data(
+            lifecycle="active",
+            ball="external",
+            ball_reason="service",
+            ball_prompt="Waiting on the reset.",
+            assignment={"owner": "claude"},
+            log=[
+                {
+                    "id": 1,
+                    "ts": NOW,
+                    "actor": "dispatcher",
+                    "type": "handoff",
+                    "body": "Parked.",
+                    "data": {} if marker is None else {AUTH_RECOVERY_MARKER: marker},
+                }
+            ],
+            **overrides,
+        )
+        return Task.model_validate(data)
+
+    def test_the_kinds_it_trusts_are_auth_recoverys_own(self) -> None:
+        # A rename in `auth_recovery` would otherwise empty this set silently, and every
+        # quota park would quietly go back to reading "Blocked on a service".
+        from agentjobs.dispatch import auth_recovery
+
+        assert auth_recovery.KIND_USAGE_LIMIT in SELF_CLEARING_KINDS
+        assert auth_recovery.KIND_SPEND_LIMIT not in SELF_CLEARING_KINDS
+        assert auth_recovery.KIND_AUTH not in SELF_CLEARING_KINDS
+        assert auth_recovery.MARKER == AUTH_RECOVERY_MARKER
+
+    def test_it_is_not_a_stored_field(self) -> None:
+        # Derived, like `display_status`: a file carrying it is rejected by name rather
+        # than round-tripped back out as though a caller had set it.
+        assert "self_clearing_wait" not in Task.model_fields
+        with pytest.raises(ValidationError):
+            Task.model_validate(task_data(self_clearing_wait={"kind": "usage_limit"}))
+
+    @pytest.mark.parametrize(
+        "marker",
+        [
+            None,
+            "not-a-dict",
+            {},
+            {"action": "park"},
+            {"action": "escalate", "kind": "usage_limit"},
+            {"action": "park", "kind": "spend_limit"},
+            {"action": "park", "kind": "auth"},
+            {"action": "park", "kind": 7},
+        ],
+        ids=[
+            "no-marker",
+            "marker-is-not-a-mapping",
+            "empty-marker",
+            "no-kind",
+            "escalated",
+            "spend-limit",
+            "auth",
+            "kind-is-not-a-string",
+        ],
+    )
+    def test_anything_but_a_live_quota_park_stays_blocked(self, marker: Any) -> None:
+        task = self._parked(marker)
+
+        assert self_clearing_wait(task) is None
+        assert task.display_status == "Blocked on a service"
+
+    @pytest.mark.parametrize(
+        "raw",
+        ["", "not a timestamp", 1789201800, None, {"when": "later"}],
+        ids=["empty", "prose", "epoch-seconds", "null", "mapping"],
+    )
+    def test_a_reset_time_it_cannot_read_costs_the_time_and_not_the_label(self, raw: Any) -> None:
+        # An integer is deliberately in here: the marker is `Dict[str, Any]`, so nothing
+        # stops a future writer storing epoch seconds, and a label that raised would take
+        # the whole read down with it.
+        task = self._parked({"action": "park", "kind": "usage_limit", "resets_at": raw})
+
+        wait = self_clearing_wait(task)
+        assert wait is not None and wait.resets_at is None
+        assert task.display_status == "Waiting on quota reset"
+
+    def test_a_naive_reset_time_is_read_as_utc(self) -> None:
+        task = self._parked(
+            {"action": "park", "kind": "usage_limit", "resets_at": "2026-09-18T21:30:00"}
+        )
+
+        assert task.display_status == "Waiting on quota reset (21:30 UTC)"
+
+    def test_a_reset_time_in_another_zone_is_rendered_in_utc(self) -> None:
+        # Recovery writes UTC, but the field is free-form, and a local-looking time in a
+        # label whose reader is deciding whether to act is the failure worth avoiding.
+        task = self._parked(
+            {"action": "park", "kind": "usage_limit", "resets_at": "2026-09-18T16:30:00-05:00"}
+        )
+
+        assert task.display_status == "Waiting on quota reset (21:30 UTC)"
+
+    def test_a_notify_handoff_is_a_wait_too(self) -> None:
+        task = self._parked(
+            {"action": "notify", "kind": "usage_limit", "resets_at": "2026-09-18T21:30:00Z"}
+        )
+
+        assert task.display_status == "Waiting on quota reset (21:30 UTC)"
+
+    def test_only_the_newest_handoff_is_read(self) -> None:
+        """The ball moved on; an older park must not keep speaking for the task."""
+        task = Task.model_validate(
+            task_data(
+                lifecycle="active",
+                ball="external",
+                ball_reason="service",
+                ball_prompt="The vendor is down.",
+                assignment={"owner": "claude"},
+                log=[
+                    {
+                        "id": 1,
+                        "ts": NOW,
+                        "actor": "dispatcher",
+                        "type": "handoff",
+                        "body": "Parked on a quota.",
+                        "data": {AUTH_RECOVERY_MARKER: {"action": "park", "kind": "usage_limit"}},
+                    },
+                    {
+                        "id": 2,
+                        "ts": NOW,
+                        "actor": "Jeff Posey",
+                        "type": "handoff",
+                        "body": "Parked on the vendor instead.",
+                        "data": {},
+                    },
+                ],
+            )
+        )
+
+        assert self_clearing_wait(task) is None
+        assert task.display_status == "Blocked on a service"
+
+    def test_a_dependency_park_is_untouched(self) -> None:
+        task = Task.model_validate(
+            task_data(
+                lifecycle="active",
+                ball="external",
+                ball_reason="dependency",
+                ball_prompt="Waiting on task-044.",
+                assignment={"owner": "claude"},
+                dependencies=[{"task": "task-044-docs", "type": "needs"}],
+                log=[
+                    {
+                        "id": 1,
+                        "ts": NOW,
+                        "actor": "dispatcher",
+                        "type": "handoff",
+                        "body": "Parked.",
+                        "data": {AUTH_RECOVERY_MARKER: {"action": "park", "kind": "usage_limit"}},
+                    }
+                ],
+            )
+        )
+
+        assert self_clearing_wait(task) is None
+        assert task.display_status == "Blocked on task-044-docs"
 
 
 class TestValueObjects:
