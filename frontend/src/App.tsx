@@ -17,6 +17,7 @@ import {
   cancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostMutation,
   disableDispatchApiProjectsProjectIdDispatchDisablePostMutation,
   enableDispatchApiProjectsProjectIdDispatchEnablePostMutation,
+  getAnalyticsApiProjectsProjectIdAnalyticsGetOptions,
   getDashboardApiProjectsProjectIdDashboardGetOptions,
   getDispatchStateApiProjectsProjectIdDispatchGetOptions,
   getPlaybooksApiProjectsProjectIdPlaybooksGetOptions,
@@ -49,6 +50,7 @@ import {
   requireSupportedTaskSchemas,
   UnsupportedTaskSchemaError,
 } from "./api/schema-version";
+import { Analytics } from "./components/Analytics";
 import { BrokenFiles } from "./components/BrokenFiles";
 import { Dashboard } from "./components/Dashboard";
 import { ConnectionUnavailable } from "./components/ConnectionUnavailable";
@@ -891,6 +893,35 @@ function TaskCreatePage({ projectId }: { projectId: string }) {
   );
 }
 
+/**
+ * The analytics page's one request (docs/analytics-design.md section 7.1).
+ *
+ * One endpoint for the whole page, not one per panel: the panels share a range, a
+ * timezone and a coverage statement that must be identical across all of them, and
+ * seventeen round trips over Tailscale would be seventeen chances to render half a
+ * page. The range lives in this component rather than in the URL because it is a
+ * reading position rather than a place -- a pasted link to the analytics page should
+ * open on its default, and react-query caches each range separately so moving between
+ * them costs nothing after the first look.
+ */
+function AnalyticsPage({ projectId }: { projectId: string }) {
+  const [range, setRange] = useState("90d");
+  const analytics = useQuery(
+    getAnalyticsApiProjectsProjectIdAnalyticsGetOptions({
+      path: { project_id: projectId },
+      query: { range },
+    }),
+  );
+  return (
+    <Analytics
+      data={analytics.data ?? null}
+      projectId={projectId}
+      rangeKey={range}
+      onRangeChange={setRange}
+    />
+  );
+}
+
 function PlaybooksPage({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [runningName, setRunningName] = useState<string | null>(null);
@@ -1060,6 +1091,9 @@ function ProjectApp() {
           <Route path="tasks" element={<TasksSurface projectId={projectId} />}>
             <Route path=":taskId" element={<TaskDetailPage projectId={projectId} />} />
           </Route>
+          {/* Unframed, like every surface but the Dashboard and the two-region Tasks
+              view: a column of stacked panels is a document and may scroll. */}
+          <Route path="analytics" element={<AnalyticsPage projectId={projectId} />} />
           <Route path="dispatch" element={<DispatchSettingsPage projectId={projectId} />} />
           <Route path="playbooks" element={<PlaybooksPage projectId={projectId} />} />
           {/* Inside the project shell for its chrome, machine-wide in its content:
