@@ -45,7 +45,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
 SWEEP_INTERVAL_SECONDS = 300
 """How often the poller's tick runs the sweep. The tick itself is ten seconds; enumerating
@@ -100,7 +100,22 @@ COMMAND_VERBS = frozenset(
 )
 """First arguments that make a short-lived command rather than a session."""
 
-AGENTJOBS_SESSION_NAME = re.compile(r"^[^/\s]+/task-\d+@[0-9a-f]{8}$")
+AGENTJOBS_SESSION_NAME = re.compile(r"^[^/\s]+/task-\d+(?:[@/][0-9a-f]{8}|#\d+)?$")
+"""A session name this module should recognise as a dispatch and leave to the dispatcher.
+
+Every shape ``runner.session_name`` has ever produced, because the sweep meets *live*
+sessions and a long-running one outlives the release that named it:
+
+* ``agentjobs/task-324`` and ``agentjobs/task-324#2`` -- since task-452.
+* ``agentjobs/task-324@11085a50`` -- task-324's original, carried by any run started
+  before task-452.
+* ``agentjobs/task-324/11085a50`` -- the ``/`` separator, matched because task-451 was in
+  flight alongside task-452 and either could have landed first. Costless to allow and a
+  protection lost if it is not.
+
+Matching too widely is the safe direction: a name this matches is *protected* from the
+sweep, never stopped by it.
+"""
 UUID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 
@@ -595,6 +610,52 @@ def command_line_of(
         if row.pid == pid:
             return row.cmdline
     return None
+
+
+SESSIONS_DIR = Path.home() / ".claude" / "sessions"
+"""Where Claude Code registers every live session, one ``<pid>.json`` each.
+
+Undocumented surface, established by probe on Claude Code 2.1.276, Windows 11,
+2026-09-18 (task-449, confirmed by task-452). A registration carries ``pid``,
+``sessionId``, ``jobId``, ``cwd``, ``kind``, ``version``, ``status`` and ``name``; a
+sibling ``<pid>.<sha256>.key`` holds the session's peer token and is never read here.
+Both files disappear within seconds of the process ending, so absence is an immediate
+and unambiguous "not live" -- no subprocess and no timeout.
+"""
+
+
+def live_session_names(directory: Optional[Path] = None) -> Set[str]:
+    """Every name the live-session roster currently holds.
+
+    The cheap half of :func:`ledger_rows`: the same set of live sessions, read as files
+    rather than by spawning ``claude agents --json``, which costs a second or more and is
+    on the dispatch path that needs this. Nothing here needs the rest of a registration,
+    so nothing else is returned.
+
+    **Every failure is an empty result, deliberately.** The caller
+    (``runner.choose_session_name``) is choosing a cosmetic discriminator; a roster that
+    cannot be read, a file being written as it is read, or a registration in a shape
+    nobody anticipated must cost at worst a name Claude Code disambiguates itself, never
+    a dispatch that will not start. A file with no readable ``name`` contributes nothing
+    and does not stop the others being read.
+    """
+    root = SESSIONS_DIR if directory is None else directory
+    names: Set[str] = set()
+    try:
+        entries = sorted(root.glob("*.json"))
+    except OSError:
+        return names
+    for entry in entries:
+        try:
+            loaded = json.loads(entry.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(loaded, dict):
+            continue
+        name = loaded.get("name")
+        if isinstance(name, str) and name:
+            names.add(name)
+    return names
 
 
 def ledger_rows(executable: str = "claude") -> List[Dict[str, Any]]:

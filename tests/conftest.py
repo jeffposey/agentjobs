@@ -191,6 +191,24 @@ def the_test_client_arrives_on_loopback(monkeypatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def isolate_live_session_roster(tmp_path_factory, monkeypatch) -> Iterator[None]:
+    """Point the live-session roster at an empty temp directory for every test.
+
+    ``idle_sessions.SESSIONS_DIR`` is machine-level -- ``~/.claude/sessions`` -- and
+    ``runner.choose_session_name`` reads it to decide whether a dispatched session needs
+    a ``#2``. Left alone, a test asserting a session's name would be asserting something
+    about whichever Claude Code sessions happened to be running on the developer's
+    machine, and would go green or red for reasons nothing in the suite controls. Empty
+    is the state every test wants unless it says otherwise; a test exercising a collision
+    writes registrations into ``idle_sessions.SESSIONS_DIR`` itself.
+    """
+    from agentjobs.dispatch import idle_sessions
+
+    monkeypatch.setattr(idle_sessions, "SESSIONS_DIR", tmp_path_factory.mktemp("claude-sessions"))
+    yield
+
+
+@pytest.fixture(autouse=True)
 def no_database_survives_a_test() -> Iterator[None]:
     """Close every SQLite store a test opened, and forget the server declaration.
 

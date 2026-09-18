@@ -230,7 +230,18 @@ class Epic:
         )
 
     def sessions_named(self, child_id: str) -> List[Dict[str, object]]:
-        return [row for row in self.machine.rows() if f"/{child_id}@" in str(row.get("name"))]
+        """Every listed session working one child.
+
+        A name is ``<project>/<task>``, and carries ``#<n>`` only when a session of that
+        name was already live (task-452) -- so the task is everything before the first
+        ``#``, matched as a whole trailing segment because ``task-1`` is a prefix of
+        ``task-10``.
+        """
+        return [
+            row
+            for row in self.machine.rows()
+            if str(row.get("name")).partition("#")[0].endswith(f"/{child_id}")
+        ]
 
     def epic_attempts(self, child_id: str) -> int:
         task = self.machine.manager.get_task(child_id)

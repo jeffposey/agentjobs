@@ -7,6 +7,8 @@ the session alive. The command lines are the shapes read off this machine on 202
 
 from __future__ import annotations
 
+import json
+
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -33,6 +35,7 @@ from agentjobs.dispatch.idle_sessions import (
     VERDICT_IN_USE,
     VERDICT_PROTECTED,
     VERDICT_REPORT_ONLY,
+    AGENTJOBS_SESSION_NAME,
     Evidence,
     IdleSessionBook,
     ProcessRow,
@@ -40,6 +43,7 @@ from agentjobs.dispatch.idle_sessions import (
     SweepDeps,
     classify_process,
     judge,
+    live_session_names,
     note_mode,
     split_command_line,
     stop_candidate,
@@ -453,3 +457,100 @@ class TestSettings:
         self.write(tmp_path, {"version": 1, "runners": {}, "idle_sessions": {"enforce": "yes"}})
         with pytest.raises(DispatchConfigError):
             load_dispatch_config(tmp_path)
+
+
+class TestTheLiveSessionRoster:
+    """task-452: the machine's own list of live sessions, read as files.
+
+    ``runner.choose_session_name`` asks this whether a dispatched session needs a ``#2``,
+    on the dispatch path, which is why it is a directory read rather than another
+    ``claude agents --json`` subprocess.
+    """
+
+    def write(self, root: Path, pid: int, body: Dict[str, Any]) -> None:
+        root.mkdir(parents=True, exist_ok=True)
+        (root / f"{pid}.json").write_text(json.dumps(body), encoding="utf-8")
+
+    def test_every_registration_s_name_comes_back(self, tmp_path: Path) -> None:
+        """The shape is a real one: these four fields are copied from
+        ``~/.claude/sessions/<pid>.json`` as it stood on Claude Code 2.1.276."""
+        self.write(
+            tmp_path,
+            61632,
+            {
+                "pid": 61632,
+                "sessionId": "1502ba36-bfc7-4859-9c5e-68f9c0febdf5",
+                "kind": "bg",
+                "status": "busy",
+                "name": "agentjobs/task-452",
+            },
+        )
+        self.write(
+            tmp_path,
+            29452,
+            {"pid": 29452, "kind": "interactive", "status": "idle", "name": "agentjobs-65"},
+        )
+
+        assert live_session_names(tmp_path) == {"agentjobs/task-452", "agentjobs-65"}
+
+    def test_a_missing_directory_is_an_empty_roster(self, tmp_path: Path) -> None:
+        """Not an error: a machine with no Claude Code session has no directory, and a
+        name is an improvement to a dispatch rather than a precondition for one."""
+        assert live_session_names(tmp_path / "never-created") == set()
+
+    def test_an_unreadable_registration_costs_only_itself(self, tmp_path: Path) -> None:
+        """A file half-written by a session registering as this reads must not take the
+        rest of the roster with it."""
+        tmp_path.mkdir(parents=True, exist_ok=True)
+        (tmp_path / "1.json").write_text('{"name": "agentjobs/task-4', encoding="utf-8")
+        (tmp_path / "2.json").write_text("[]", encoding="utf-8")
+        self.write(tmp_path, 3, {"pid": 3})
+        self.write(tmp_path, 4, {"pid": 4, "name": ""})
+        self.write(tmp_path, 5, {"pid": 5, "name": 17})
+        self.write(tmp_path, 6, {"pid": 6, "name": "agentjobs/task-452"})
+
+        assert live_session_names(tmp_path) == {"agentjobs/task-452"}
+
+    def test_the_key_files_beside_a_registration_are_never_opened(self, tmp_path: Path) -> None:
+        """Each registration has a ``<pid>.<sha256>.key`` sibling holding that session's
+        peer token. Nothing here needs it, and the glob is what keeps it that way."""
+        self.write(tmp_path, 7, {"pid": 7, "name": "agentjobs/task-452"})
+        (tmp_path / "7.abc123.key").write_text("a-secret", encoding="utf-8")
+
+        assert live_session_names(tmp_path) == {"agentjobs/task-452"}
+
+
+class TestADispatchedNameIsLeftToTheDispatcher:
+    """Every shape ``runner.session_name`` has produced is recognised by the sweep.
+
+    The sweep meets *live* sessions, and a long-running one outlives the release that
+    named it -- so dropping an old shape from this pattern would expose exactly the
+    sessions that have been up longest.
+    """
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "agentjobs/task-452",
+            "agentjobs/task-452#2",
+            "agentjobs/task-452#10",
+            "agentjobs/task-324@11085a50",
+            "agentjobs/task-324/11085a50",
+            "other-project/task-1",
+        ],
+    )
+    def test_a_dispatched_name_matches(self, name: str) -> None:
+        assert AGENTJOBS_SESSION_NAME.match(name)
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "agentjobs-65",
+            "Aorus Engine startup issue",
+            "git worktree task setup",
+            "agentjobs/task-452 and more",
+            "",
+        ],
+    )
+    def test_anything_else_does_not(self, name: str) -> None:
+        assert not AGENTJOBS_SESSION_NAME.match(name)

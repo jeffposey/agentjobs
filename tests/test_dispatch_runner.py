@@ -67,6 +67,7 @@ from agentjobs.dispatch.runner import (
     readable_tail,
     codex_desktop_executable,
     resolve_executable,
+    choose_session_name,
     session_name,
     session_name_flags,
     settings_json,
@@ -651,18 +652,81 @@ class TestSessionName:
     survives the rename Claude Code otherwise performs from the prompt.
     """
 
-    def test_the_name_is_the_project_the_task_and_the_run(self) -> None:
-        assert session_name("agentjobs", "task-324", "run_11085a50") == (
-            "agentjobs/task-324@11085a50"
+    def test_the_name_is_the_project_and_the_task(self) -> None:
+        assert session_name("agentjobs", "task-324") == "agentjobs/task-324"
+
+    def test_an_ordinal_above_one_is_what_tells_two_runs_apart(self) -> None:
+        """task-452. A sequence, because "the second run of this task" is the thing the
+        one reader who needs a discriminator is trying to learn."""
+        assert session_name("agentjobs", "task-324", 2) == "agentjobs/task-324#2"
+        assert session_name("agentjobs", "task-324", 3) == "agentjobs/task-324#3"
+
+    def test_the_first_ordinal_adds_nothing(self) -> None:
+        """The ordinary case pays nothing for the rare one, which is task-452's point."""
+        assert session_name("agentjobs", "task-324", 1) == session_name("agentjobs", "task-324")
+
+    def test_the_lowest_ordinal_no_live_session_holds_is_chosen(self) -> None:
+        """ac-2 in the unit; the live half ran against two real sessions and is on the
+        task log. A name freed by a finished run is reused rather than skipped, because
+        uniqueness among *live* sessions is the whole requirement."""
+        assert choose_session_name("agentjobs", "task-324", taken=set()) == "agentjobs/task-324"
+        assert (
+            choose_session_name("agentjobs", "task-324", taken={"agentjobs/task-324"})
+            == "agentjobs/task-324#2"
+        )
+        assert (
+            choose_session_name(
+                "agentjobs",
+                "task-324",
+                taken={"agentjobs/task-324", "agentjobs/task-324#2"},
+            )
+            == "agentjobs/task-324#3"
+        )
+        assert (
+            choose_session_name("agentjobs", "task-324", taken={"agentjobs/task-324#2"})
+            == "agentjobs/task-324"
         )
 
-    def test_a_run_id_without_the_prefix_is_left_alone(self) -> None:
-        assert session_name("agentjobs", "task-324", "11085a50") == ("agentjobs/task-324@11085a50")
+    def test_another_task_s_live_session_does_not_push_this_one_along(self) -> None:
+        """The roster is machine-wide, so it holds every project's and every task's
+        names. Only this task's own are in the way."""
+        taken = {"agentjobs/task-999", "other/task-324", "Aorus Engine startup issue"}
+        assert choose_session_name("agentjobs", "task-324", taken=taken) == "agentjobs/task-324"
+
+    def test_an_unreadable_roster_yields_the_ordinary_name(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A cosmetic discriminator must never be a precondition for a dispatch.
+
+        Every shape a registration can fail in is one file skipped and the rest read:
+        the directory missing, a file that is not JSON, a file that is JSON but not an
+        object, and an object with no ``name``.
+        """
+        from agentjobs.dispatch import idle_sessions
+
+        monkeypatch.setattr(idle_sessions, "SESSIONS_DIR", tmp_path / "absent")
+        assert choose_session_name("agentjobs", "task-324") == "agentjobs/task-324"
+
+        roster = tmp_path / "sessions"
+        roster.mkdir()
+        (roster / "1.json").write_text("{not json", encoding="utf-8")
+        (roster / "2.json").write_text("[]", encoding="utf-8")
+        (roster / "3.json").write_text('{"pid": 3}', encoding="utf-8")
+        (roster / "4.json").write_text('{"name": "agentjobs/task-324"}', encoding="utf-8")
+        monkeypatch.setattr(idle_sessions, "SESSIONS_DIR", roster)
+
+        assert choose_session_name("agentjobs", "task-324") == "agentjobs/task-324#2"
 
     def test_two_runs_on_one_task_are_told_apart_by_the_name_alone(
         self, workspace: Path, manager: TaskManager
     ) -> None:
-        """ac sc-2, in the unit. The live half is quoted in the task log."""
+        """ac-2, through the dispatcher: a second run started while the first is live.
+
+        The roster is the machine's, so the registration the first run's launch would
+        write is written here instead -- the launcher is not run in this suite.
+        """
+        from agentjobs.dispatch import idle_sessions
+
         runner = build(
             workspace,
             manager,
@@ -670,11 +734,44 @@ class TestSessionName:
         )
 
         first = runner.build_argv("task-324-example", "run_aaaa1111")
+        (idle_sessions.SESSIONS_DIR / "4242.json").write_text(
+            json.dumps({"pid": 4242, "name": "sandbox/task-324-example", "status": "busy"}),
+            encoding="utf-8",
+        )
         second = runner.build_argv("task-324-example", "run_bbbb2222")
 
         names = [argv[argv.index(SESSION_NAME_FLAG) + 1] for argv in (first, second)]
-        assert names == ["sandbox/task-324-example@aaaa1111", "sandbox/task-324-example@bbbb2222"]
+        assert names == ["sandbox/task-324-example", "sandbox/task-324-example#2"]
         assert names[0] != names[1]
+
+    def test_a_run_s_name_is_chosen_once_however_often_it_is_asked_for(
+        self, workspace: Path, manager: TaskManager
+    ) -> None:
+        """The argv's name and the meta's name are the same string or the run is lost.
+
+        ``choose_session_name`` reads the roster, so it is not a pure function of the
+        run: asking twice can answer twice. The controller correlates a launch by the
+        recorded name and ``stop`` matches sessions against it, so two answers means a
+        worker nothing can find. Here the roster gains the run's own name between the
+        two asks -- which is what really happens once the session registers -- and the
+        answer must not move.
+        """
+        from agentjobs.dispatch import idle_sessions
+
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(["claude", "--bg", "--remote-control", "{prompt}"]),
+        )
+
+        chosen = runner.session_name_for("task-324-example", "run_aaaa1111")
+        (idle_sessions.SESSIONS_DIR / "4242.json").write_text(
+            json.dumps({"pid": 4242, "name": chosen, "status": "busy"}), encoding="utf-8"
+        )
+
+        assert runner.session_name_for("task-324-example", "run_aaaa1111") == chosen
+        argv = runner.build_argv("task-324-example", "run_aaaa1111")
+        assert argv[argv.index(SESSION_NAME_FLAG) + 1] == chosen
 
     def test_the_name_lands_before_the_prompt(self, workspace: Path, manager: TaskManager) -> None:
         """Beside the posture flags, where a CLI expects options.
@@ -701,7 +798,7 @@ class TestSessionName:
             "--permission-mode",
             "bypassPermissions",
             SESSION_NAME_FLAG,
-            "sandbox/task-324-example@aaaa1111",
+            "sandbox/task-324-example",
             runner.build_prompt("task-324-example", "run_aaaa1111"),
         ]
 
@@ -721,7 +818,7 @@ class TestSessionName:
         argv = runner.build_argv("task-324-example", "run_aaaa1111")
 
         assert argv[1:5] == ["--bg", "--remote-control", "--model", "haiku"]
-        assert argv[-3:-1] == [SESSION_NAME_FLAG, "sandbox/task-324-example@aaaa1111"]
+        assert argv[-3:-1] == [SESSION_NAME_FLAG, "sandbox/task-324-example"]
 
     @pytest.mark.parametrize("flag", ["--name", "-n"])
     def test_a_template_that_names_itself_is_not_given_a_second_name(self, flag: str) -> None:
@@ -734,9 +831,7 @@ class TestSessionName:
             session_name_flags(
                 ["claude", "--bg", flag, "release-run", "{prompt}"],
                 driver=RunnerDriver.CLAUDE,
-                project_id="agentjobs",
-                task_id="task-324",
-                run_id="run_11085a50",
+                name="agentjobs/task-324",
             )
             == []
         )
@@ -753,9 +848,7 @@ class TestSessionName:
             session_name_flags(
                 ["codex", "exec", "--json", "{prompt}"],
                 driver=RunnerDriver.CODEX,
-                project_id="agentjobs",
-                task_id="task-324",
-                run_id="run_11085a50",
+                name="agentjobs/task-324",
             )
             == []
         )
@@ -793,7 +886,7 @@ class TestSessionName:
             )
         ]
 
-        assert names == ["sandbox/task-324-example@aaaa1111"] * 2
+        assert names == ["sandbox/task-324-example"] * 2
         assert "pwned" not in names[0]
 
 
@@ -831,8 +924,58 @@ class TestCaptureSessionId:
         "\r\nStarting background service…\r\n"
     )
 
+    # Two real launches from 2026-09-18, after task-452 took the run stub out of the
+    # name: `claude --bg --name agentjobs/task-996` and the same with `#2`. Verbatim,
+    # for the same reason as the fixtures above -- the point of keeping the format's
+    # actual output is that nobody has to reason about what it probably looks like.
+    UNSTUBBED = (
+        "backgrounded · \x1b[36m284070ba\x1b[39m · agentjobs/task-996\r\n"
+        "\x1b[2m  claude agents             list sessions\x1b[22m\r\n"
+        "\x1b[2m  claude attach 284070ba    open in this terminal\x1b[22m\r\n"
+        "\x1b[2m  claude logs 284070ba      show recent output\x1b[22m\r\n"
+        "\x1b[2m  claude stop 284070ba      stop this session\x1b[22m\r\n"
+    )
+    UNSTUBBED_SECOND = (
+        "backgrounded · \x1b[36m5108b310\x1b[39m · agentjobs/task-996#2\r\n"
+        "\x1b[2m  claude agents             list sessions\x1b[22m\r\n"
+        "\x1b[2m  claude attach 5108b310    open in this terminal\x1b[22m\r\n"
+        "\x1b[2m  claude logs 5108b310      show recent output\x1b[22m\r\n"
+        "\x1b[2m  claude stop 5108b310      stop this session\x1b[22m\r\n"
+    )
+
     def test_the_coloured_id_is_read_not_the_run_stub_beside_it(self) -> None:
         assert DispatchRunner.capture_session_id(self.NAMED, reject="703a9997") == "1b5f4a48"
+
+    @pytest.mark.parametrize(
+        "stdout, session_id",
+        [("UNSTUBBED", "284070ba"), ("UNSTUBBED_SECOND", "5108b310")],
+    )
+    def test_the_guard_still_holds_with_the_stub_out_of_the_name(
+        self, stdout: str, session_id: str
+    ) -> None:
+        """ac-3. task-452 cashed the promise the docstring above makes.
+
+        The run stub is still passed as ``reject`` although the name no longer carries
+        it, and both halves of the guard are still load-bearing: ``strip_ansi`` is what
+        makes the coloured id visible at all, and ``reject`` is what keeps the parse
+        independent of whatever the name contains. The ``#2`` discriminator is checked
+        beside the ordinary name because it is the one part of the new format that puts
+        a character next to a digit.
+        """
+        line = getattr(self, stdout)
+        assert DispatchRunner.capture_session_id(line, reject="f4d53fa3") == session_id
+        assert DispatchRunner.capture_session_id(line) == session_id
+
+    def test_the_stub_is_still_refused_though_the_name_no_longer_carries_one(self) -> None:
+        """ac-3's other half: the rule is about the run's id, not about the format.
+
+        A launcher that printed the run stub for any reason -- a future flag, a log line,
+        a name format that puts it back -- must not have it captured as a session id.
+        Asserted with a name in task-452's own shape, so the guard is not resting on the
+        stub happening to be in the name.
+        """
+        stdout = "backgrounded · agentjobs/task-996 703a9997\r\n"
+        assert DispatchRunner.capture_session_id(stdout, reject="703a9997") is None
 
     def test_the_id_is_found_even_with_no_reject_to_help(self) -> None:
         """Stripping the escape is the repair; `reject` is only the belt to its braces.

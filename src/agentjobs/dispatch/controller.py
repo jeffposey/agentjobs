@@ -101,9 +101,11 @@ CAPABILITIES: Mapping[Tuple[str, str], DriverCapabilities] = {
         authoritative_absence=False,
         evidence=(
             "`claude agents --json --all` returns each background session's `name`, and a "
-            "dispatch launches with `--name <project>/<task>@<run>` (verified on Claude Code "
-            "2.1.270, 2026-09-13). A launcher orphaned by its coordinator can still register, "
-            "so absence from the listing proves nothing."
+            "dispatch launches with `--name <project>/<task>` (verified on Claude Code "
+            "2.1.270, 2026-09-13, when the name ended `@<run>`; the run stub came off in "
+            "task-452 and the correlation is unchanged, because it matches the name the "
+            "launch recorded rather than parsing one). A launcher orphaned by its "
+            "coordinator can still register, so absence from the listing proves nothing."
         ),
     ),
     ("codex", "session"): DriverCapabilities(
@@ -378,10 +380,12 @@ class Controller:
         from agentjobs.dispatch.runner import DispatchRunError, session_name
 
         deadline = self.settings().execution.reconcile_deadline_seconds
-        name = str(
-            meta.get("session_name")
-            or session_name(record.project_id, record.task_id, record.run_id)
-        )
+        # The recorded name first, and it is there for every run since task-416 wrote it
+        # before the launcher ran. The fallback is for records older than that, and since
+        # task-452 it can only guess: a name's ordinal comes from what was live at launch
+        # and is not recoverable from the record. It guesses the ordinary name, which is
+        # what all but a colliding run has.
+        name = str(meta.get("session_name") or session_name(record.project_id, record.task_id))
         runner = self._runner_for(execution, record)
         if runner is None:
             return None
@@ -744,9 +748,10 @@ class Controller:
         runner = self._runner_for(execution, record)
         if runner is None:
             return "stop not confirmed: no runner to read the listing with"
+        # As in `_correlate_session`: the recorded name, or a guess at the ordinary one
+        # for a record predating task-416.
         name = str(
-            _meta(record).get("session_name")
-            or session_name(record.project_id, record.task_id, record.run_id)
+            _meta(record).get("session_name") or session_name(record.project_id, record.task_id)
         )
         try:
             for row in runner.ledger(include_finished=True):

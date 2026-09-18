@@ -384,15 +384,30 @@ class World:
         (self.cli_dir / "ledger.json").write_text(json.dumps(rows), encoding="utf-8")
 
     def row(self, run_id: str) -> Dict[str, Any]:
-        [found] = [r for r in self.rows() if r["name"].endswith(run_id[len("run_") :])]
+        """The fake CLI's listed session for one run.
+
+        Matched on the session id the launcher printed and the run recorded, which is the
+        correlation the run record itself holds. It used to be matched on the run stub in
+        the session name, which task-452 took out: the name now says which *task* a
+        session is working, not which run, and telling two runs of one task apart from
+        the name alone was never something a name could be relied on for.
+        """
+        meta = RunDirectory(path=runs_root(self.home) / run_id).read_meta()
+        [found] = [r for r in self.rows() if r["id"] == meta.get("session_id")]
         return found
 
     def live_sessions(self, task_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        return [
-            r
-            for r in self.rows()
-            if r.get("state") != "stopped" and (task_id is None or f"/{task_id}@" in r["name"])
-        ]
+        """Sessions the fake CLI still lists, optionally only one task's.
+
+        The name is ``<project>/<task>``, with ``#<n>`` appended only when a session of
+        that name was already live (task-452), so the task is everything up to the first
+        ``#``. Matched on the whole trailing segment rather than a substring: ``task-1``
+        is a prefix of ``task-10``.
+        """
+        rows = [r for r in self.rows() if r.get("state") != "stopped"]
+        if task_id is None:
+            return rows
+        return [r for r in rows if str(r["name"]).partition("#")[0].endswith(f"/{task_id}")]
 
     def calls(self, name: str) -> List[Any]:
         path = self.cli_dir / name

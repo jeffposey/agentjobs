@@ -78,7 +78,8 @@ enabled: false
 # `--permission-mode` and `--tools` come from.
 #
 # `--name` is not yours either, and you do not need it: AgentJobs splices a session name
-# built from the project, the task and the run -- `agentjobs/task-324@11085a50` -- so the
+# built from the project and the task -- `agentjobs/task-324`, and `agentjobs/task-324#2`
+# when a session of that name is already live -- so the
 # session picker, the terminal title and the peer channel all say which run is which. It
 # is the one spliced flag you can override, by writing your own `--name` here; do that
 # only if you have a name better than the task the run is working.

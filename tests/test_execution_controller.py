@@ -336,10 +336,11 @@ def _last_dispatch_result(manager: TaskManager, task_id: str) -> Optional[str]:
 
 def test_the_fake_listing_is_shaped_like_the_real_one(machine: Machine) -> None:
     task_id = machine.task()
-    handle = machine.dispatch(task_id)
+    machine.dispatch(task_id)
     [row] = machine.rows()
     assert set(row) >= {"id", "sessionId", "cwd", "kind", "name", "state"}
-    assert row["name"] == f"sandbox/{task_id}@{handle.run_id[len('run_'):]}"
+    # No run stub since task-452: one live run of a task is named for the task alone.
+    assert row["name"] == f"sandbox/{task_id}"
 
 
 def test_capabilities_claim_nothing_the_drivers_do_not_offer() -> None:
