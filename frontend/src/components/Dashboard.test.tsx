@@ -227,20 +227,14 @@ describe("Dashboard supporting sections", () => {
     expect(screen.queryByText("Title of task-active-3")).not.toBeInTheDocument();
   });
 
-  it("reaches the analytics page from the Active tasks heading row (task-374)", () => {
-    // The page's only entry point. Asserted on the rendered href rather than on the
-    // markup, and on the order of the two links: section 11 puts `Analytics →` first so
-    // that `View all →` keeps the edge position it has always had.
+  it("carries no analytics link: that entry point is the primary nav (task-465)", () => {
+    // Task-374 put `Analytics →` on this row and the owner could not find the page.
+    // The nav is asserted in PrimaryNav.test.tsx; this guards against the link coming
+    // back here and the page having two entry points that disagree.
     renderDashboard(dashboard({ active_tasks: [claimable] }));
 
-    const analytics = screen.getByRole("link", { name: "Analytics →" });
-    expect(analytics).toHaveAttribute("href", "/p/inbox/analytics");
-
-    const viewAll = screen.getByRole("link", { name: "View all →" });
-    expect(analytics.parentElement).toBe(viewAll.parentElement);
-    expect(
-      analytics.compareDocumentPosition(viewAll) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Analytics →" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View all →" })).toHaveAttribute("href", "/p/inbox/tasks");
   });
 
   it("splits the page into a pinned glance and a tail that takes what is left", () => {

@@ -21,11 +21,12 @@ const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844 };
 
 /** Mirrors `NAV_INLINE_MIN_PX`; below it the destinations are behind the burger. */
-const NAV_INLINE_MIN_PX = 1100;
+const NAV_INLINE_MIN_PX = 1220;
 
 const SURFACES = [
   ["/app/p/_local", "Dashboard"],
   ["/app/p/_local/tasks", "Tasks"],
+  ["/app/p/_local/analytics", "Analytics"],
   ["/app/p/_local/tasks/new", "Create"],
   ["/app/p/_local/dispatch", "Dispatch"],
   ["/app/p/_local/playbooks", "Playbooks"],
