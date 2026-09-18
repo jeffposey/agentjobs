@@ -73,6 +73,12 @@ def broken_task(record: Mapping[str, Any]) -> Dict[str, Any]:
     }
 
 
+#: Derived values a read surface attaches that are not dependency facts. A task document
+#: must carry none of them: a caller cannot set any, and `display_status` looked settable
+#: inside one once already.
+_DERIVED_ONLY = frozenset({"display_status", "self_clearing_wait"})
+
+
 def dependency_facts(record: Mapping[str, Any]) -> Dict[str, Any]:
     """Extract the computed dependency state the service attached to a task."""
     return {
@@ -94,8 +100,13 @@ def task_document(record: Mapping[str, Any]) -> Dict[str, Any]:
     into the document, so a reader can tell what AgentJobs stored from what it worked
     out. Mixing them is how ``display_status`` ended up looking like a field a caller
     could set.
+
+    ``_DERIVED_ONLY`` is a list of names rather than a question asked of the read model,
+    to keep this module free of an import from the API layer. That makes it a list to keep
+    current, and ``tests/test_mcp_read_tools.py`` asserts the document is free of each
+    name it holds.
     """
-    computed = set(dependency_facts(record)) | {"display_status"}
+    computed = set(dependency_facts(record)) | _DERIVED_ONLY
     return {key: value for key, value in record.items() if key not in computed}
 
 

@@ -4956,6 +4956,33 @@
         "title": "ScopedDependencyEdge",
         "type": "object"
       },
+      "SelfClearingWait": {
+        "additionalProperties": false,
+        "description": "Why an ``external``/``service`` park needs nobody, and when it ends.\n\nDerived from the task's newest auth-recovery handoff and never stored, so it cannot\ndisagree with the log entry it comes from.",
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "resets_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resets At"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "SelfClearingWait",
+        "type": "object"
+      },
       "SendBackActionRequest": {
         "description": "Feedback whose meaning is carried by which route received it.\n\nThe same shape as requesting changes, on purpose: every send-back is a note the\nhuman wrote plus the ball moving to the agent, and the only thing that differs is\nwhat the note *means*. That difference is the route and the ball_reason it writes,\nnot a discriminator inside the payload -- one act per route is what /approve,\n/request-changes and /reject already do, and it is what makes a network log or a\nserver log readable without cross-referencing a body.",
         "properties": {
@@ -5979,6 +6006,16 @@
             "title": "Schema",
             "type": "integer"
           },
+          "self_clearing_wait": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SelfClearingWait"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "spec": {
             "$ref": "#/components/schemas/Spec"
           },
@@ -6225,6 +6262,16 @@
             "description": "Schema version stamp. Always 2 for this model (D3).",
             "title": "Schema",
             "type": "integer"
+          },
+          "self_clearing_wait": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SelfClearingWait"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "spec": {
             "$ref": "#/components/schemas/Spec"

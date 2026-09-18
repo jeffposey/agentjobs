@@ -390,6 +390,20 @@ class TestTaskGet:
             "unblocks_count",
         }
 
+    def test_every_field_the_model_computes_is_stripped(self, service):
+        """Not just the two by name: whatever `Task` computes must not look settable.
+
+        `display_status` is the mistake this guards against -- it reached callers inside
+        the document once, where it read as a field they could set back. A new computed
+        field would do the same, and naming them here rather than asking the model is how
+        the list would fall behind.
+        """
+        registry, _, _ = service
+
+        payload = call(registry, "task_get", {"project_id": "alpha", "task_id": SHARED_ID})
+
+        assert not {"display_status", "self_clearing_wait"} & set(payload["task"])
+
     def test_dependency_facts_report_a_real_block(self, service):
         registry, _, _ = service
 

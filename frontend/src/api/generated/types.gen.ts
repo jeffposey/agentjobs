@@ -3583,6 +3583,25 @@ export type ScopedDependencyEdge = {
 };
 
 /**
+ * SelfClearingWait
+ *
+ * Why an ``external``/``service`` park needs nobody, and when it ends.
+ *
+ * Derived from the task's newest auth-recovery handoff and never stored, so it cannot
+ * disagree with the log entry it comes from.
+ */
+export type SelfClearingWait = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Resets At
+     */
+    resets_at?: string | null;
+};
+
+/**
  * SendBackActionRequest
  *
  * Feedback whose meaning is carried by which route received it.
@@ -4256,6 +4275,7 @@ export type TaskReadInput = {
      * Schema version stamp. Always 2 for this model (D3).
      */
     schema?: number;
+    self_clearing_wait?: SelfClearingWait | null;
     spec: Spec;
     /**
      * Tags
@@ -4406,6 +4426,7 @@ export type TaskReadOutput = {
      * Schema version stamp. Always 2 for this model (D3).
      */
     schema?: number;
+    self_clearing_wait?: SelfClearingWait | null;
     spec: Spec;
     /**
      * Tags
@@ -5253,6 +5274,7 @@ export type TaskReadOutputWritable = {
      * Schema version stamp. Always 2 for this model (D3).
      */
     schema?: number;
+    self_clearing_wait?: SelfClearingWait | null;
     spec: Spec;
     /**
      * Tags
