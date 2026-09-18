@@ -2481,6 +2481,11 @@ class DispatchRunner:
             wake_path=WAKE_PATH_IN_PLACE,
             wake_detail=in_place.detail,
             session_id=session_id,
+            # The name the session already answers to, **not** `session_name_for` (task-452
+            # picks the lowest ordinal no live session is using, which would give this run
+            # a name no session has, and a run's recorded name is what `stop` matches
+            # sessions against and what the controller correlates a launch by).
+            session_name=in_place.session.name if in_place.session is not None else "",
         )
         try:
             entry_id = self._record_dispatch(
@@ -2629,11 +2634,6 @@ class DispatchRunner:
             meta["execution_id"] = self.execution_id
         directory = RunDirectory.create(self.home, run_id, meta)
 
-        # Before the in-place attempt as well as before the launcher, because it is what
-        # the run is *called* either way -- the correlation token on one path, and simply
-        # the truth on the other.
-        directory.update_meta(session_name=self.session_name_for(task.id, run_id))
-
         in_place = self._wake_in_place(wake, stdin_text)
         if wake is not None and in_place is not None and in_place.delivered:
             return self._adopt_woken_session(
@@ -2660,7 +2660,10 @@ class DispatchRunner:
         # launcher never ran" -- no marker, nothing was started, safe to try again -- from
         # "the launcher ran and nobody recorded what it printed", which only the driver's
         # own listing can answer. The run's session name is the attempt token it searches.
-        directory.update_meta(launch_attempted_at=self.clock().isoformat())
+        directory.update_meta(
+            launch_attempted_at=self.clock().isoformat(),
+            session_name=self.session_name_for(task.id, run_id),
+        )
         try:
             completed = subprocess.run(
                 argv,

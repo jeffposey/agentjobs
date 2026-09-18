@@ -1034,8 +1034,27 @@ class TestWakeInPlaceThroughDispatch:
 
         meta = run_meta(workspace, handle.run_id)
         assert "launch_attempted_at" not in meta
-        assert meta["session_name"] == f"sandbox/{task.id}/{handle.run_id[len('run_'):]}"
         assert meta["session_id"] == "aaaa1111"
+
+    def test_a_woken_run_records_the_name_the_session_answers_to(
+        self, workspace: Path, manager: TaskManager, task, cli: Path
+    ) -> None:
+        """Not a name `choose_session_name` would pick, which is a different string.
+
+        Since task-452 a name is the lowest ordinal no live session is using, so asking
+        for one here would answer `sandbox/task-NNN#2` -- the woken session itself is
+        holding the name below it. A run's recorded name is what `stop` matches sessions
+        against and what the controller correlates a launch by, so it has to be the name
+        the session actually has.
+        """
+        self._previous(workspace, task.id)
+        register_live(session_uuid="aaaa1111-uuid", name="sandbox/task-001")
+
+        handle = build(workspace, manager, cli).start(
+            task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.AUTO
+        )
+
+        assert run_meta(workspace, handle.run_id)["session_name"] == "sandbox/task-001"
 
     def test_the_posture_clause_still_reaches_a_session_woken_in_place(
         self, workspace: Path, manager: TaskManager, task, cli: Path
