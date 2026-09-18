@@ -27,6 +27,16 @@ type DashboardProps = {
    * straight to the board, so they are no longer this component's business.
    */
   renderSlotBoard?: (statusOnly: boolean) => React.ReactNode;
+  /**
+   * The recently-finished region (task-460), supplied by the page for the same reason
+   * the board is: it owns a machine-wide query, and this component is otherwise pure
+   * presentation rendered straight from a response object in its tests.
+   *
+   * It sits in the tail rather than the glance. What just landed is worth knowing and is
+   * never a call to action -- nobody acts on a task that is already closed -- so it must
+   * not take space from the board or compete with the page's one next step.
+   */
+  renderRecentlyFinished?: () => React.ReactNode;
 };
 
 const priorityClasses: Record<string, string> = {
@@ -294,7 +304,12 @@ client.claim_task(task.id, agent="agent-name")`}</pre>
   }
 }
 
-export function Dashboard({ dashboard, projectId, renderSlotBoard }: DashboardProps) {
+export function Dashboard({
+  dashboard,
+  projectId,
+  renderSlotBoard,
+  renderRecentlyFinished,
+}: DashboardProps) {
   /**
    * Whether an alarm holds the page.
    *
@@ -399,6 +414,13 @@ export function Dashboard({ dashboard, projectId, renderSlotBoard }: DashboardPr
             )}
           </div>
         </section>
+        {/*
+          Above "Recent updates" and below "Active tasks": the tail reads newest-question
+          first. What is open is the thing a reader might still do something about; what
+          just closed is the thing they missed; the log feed is neither and is the least
+          glance-like thing on the page, which is why it stays last.
+        */}
+        {renderRecentlyFinished?.()}
         <section className="shrink-0 rounded-lg border border-dark-border bg-dark-surface">
           <div className="border-b border-dark-border px-4 py-2">
             <h2 className="text-sm font-medium text-dark-text">Recent updates</h2>

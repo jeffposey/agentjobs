@@ -33,6 +33,7 @@ from .routes import (
     PROJECT_SCOPED_ROUTERS,
     health_router,
     projects_router,
+    recent_router,
     runs_router,
     sessions_router,
     web_legacy_router,
@@ -359,6 +360,9 @@ app.include_router(projects_router)
 # spelling of /api/projects/{id}/... would be a URL asserting a scope the answer does
 # not have (task-328).
 app.include_router(runs_router)
+# And for the same reason: what just finished is routinely in another project than the
+# one whose Dashboard is open, which is the whole point of the region (task-460).
+app.include_router(recent_router)
 # Machine-wide for the same reason: which Claude sessions share this machine's login (task-447).
 app.include_router(sessions_router)
 

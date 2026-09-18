@@ -69,6 +69,7 @@ import { IssueReporter } from "./components/IssueReporter";
 import { NextExplanation } from "./components/NextExplanation";
 import { invalidateProjectTaskQueries, LiveUpdateStatus } from "./components/LiveUpdates";
 import { LiveRunCount, LiveRunsPage, useLiveRuns } from "./components/LiveRuns";
+import { RecentlyFinished, useRecentClosures } from "./components/RecentlyFinished";
 import { IdleSessionsSection } from "./components/IdleSessions";
 import { Playbooks, type PlaybookRunRequest } from "./components/Playbooks";
 import { AttentionBadge, useHumanAttention } from "./components/AttentionBadge";
@@ -119,6 +120,9 @@ function DashboardPage({ projectId }: { projectId: string }) {
   // that guessed a shape and corrected it one poll later would be worse than one that
   // arrives a moment late.
   const liveRuns = useLiveRuns();
+  // Machine-wide like the board's, and null until it answers -- the region draws its
+  // heading and waits rather than claiming nothing has finished (task-460).
+  const closures = useRecentClosures();
   const dashboardQuery = useQuery({
     ...getDashboardApiProjectsProjectIdDashboardGetOptions({
       path: { project_id: projectId },
@@ -194,6 +198,7 @@ function DashboardPage({ projectId }: { projectId: string }) {
           )}
         />
       )}
+      renderRecentlyFinished={() => <RecentlyFinished body={closures} projectId={projectId} />}
     />
   );
 }

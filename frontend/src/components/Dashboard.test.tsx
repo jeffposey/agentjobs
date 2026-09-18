@@ -422,3 +422,55 @@ describe("Dashboard placement of the slot board", () => {
     expect(screen.getByTestId("next-action")).toHaveTextContent("Backlog awaiting your input");
   });
 });
+
+// ---------------------------------------------------------------------------
+// task-460 -- where "what just landed" sits
+// ---------------------------------------------------------------------------
+
+describe("Dashboard placement of the recently-finished region", () => {
+  function renderWithRegion(value: DashboardResponse) {
+    return render(
+      <MemoryRouter>
+        <Dashboard
+          dashboard={value}
+          projectId="inbox"
+          renderSlotBoard={() => <section data-testid="board">Board</section>}
+          renderRecentlyFinished={() => <section data-testid="finished">Finished</section>}
+        />
+      </MemoryRouter>,
+    );
+  }
+
+  it("puts it in the tail, never in the glance", () => {
+    // Nobody acts on a task that is already closed, so it must not take space from the
+    // board or stand beside the page's one call to action (task-294, task-081).
+    renderWithRegion(dashboard({ next_action: "next_up", queue_preview: [claimable] }));
+
+    const region = screen.getByTestId("finished");
+    expect(screen.getByTestId("dashboard-tail")).toContainElement(region);
+    expect(screen.getByTestId("dashboard-glance")).not.toContainElement(region);
+  });
+
+  it("keeps it below the active tasks and above the log feed", () => {
+    renderWithRegion(dashboard({ next_action: "nothing_claimable" }));
+
+    const tail = screen.getByTestId("dashboard-tail");
+    const order = Array.from(tail.children).map((child) =>
+      child.getAttribute("data-testid") ?? child.textContent?.slice(0, 13),
+    );
+    expect(order).toEqual(["Active tasks ", "finished", "Recent update"]);
+  });
+
+  it("still renders the tail when the page supplies no region", () => {
+    // Every other test in this file builds a Dashboard without one; the prop is
+    // optional and the two sections that predate it must not depend on it.
+    render(
+      <MemoryRouter>
+        <Dashboard dashboard={dashboard({ next_action: "nothing_claimable" })} projectId="inbox" />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Recent updates")).toBeInTheDocument();
+    expect(screen.queryByTestId("finished")).not.toBeInTheDocument();
+  });
+});
