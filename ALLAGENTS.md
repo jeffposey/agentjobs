@@ -147,6 +147,11 @@ are not working it — you are supervising, you take no worktree, and
     silent stall then leaves the task reading `agent`/`work` while your supervisor waits
     on a process nobody is watching (task-320).
 
+    **If you are already inside a linked worktree** — `git rev-parse --git-common-dir`
+    answers something other than `.git` — a surface put you there before you could read
+    this. Work in it, rename its branch to `<type>/task-<nnn>-<slug>` with
+    `git branch -m`, record that branch, and do not nest a second one.
+
     **A task record is a row in a database outside your checkout, so it is not something
     you commit.** See [Where task records live](ENGINEERING.md#where-task-records-live).
 3.  **Work**: Small, single-logical-change commits with tests green before each one.
@@ -300,9 +305,13 @@ run against one clone. A clone has one working tree and one `HEAD`, so `git chec
 replaces the files under whichever peer is mid-task — you will not get an error, and
 neither will they.
 
-A human working alone does not need this; they have no peer to collide with. You do.
-
--   Create the worktree **before** the branch, the claim, or anything written to disk.
+-   Create the worktree **before** the branch, the claim, or anything written to disk —
+    unless you are already in one. The Claude desktop app and agent view hand a session
+    `.claude/worktrees/<name>` on a `worktree-<name>` branch before it can read a word of
+    this, so the name is not yours to choose; rename the branch and use what you have.
+    `agentjobs branches` labels such a row rather than calling it a stray, and
+    [the guide](docs/agent-workflow.md#when-a-surface-has-already-put-you-in-one)
+    has the setting that moves where they land.
 -   Name it `<repo>-<nnn>` — the project's directory name and the task's number, so here
     `agentjobs-045` — and put it in the `worktrees/` directory beside the clone, not
     inside the clone and not loose in the workspace beside the projects:
@@ -341,8 +350,7 @@ A human working alone does not need this; they have no peer to collide with. You
     documentation. A false positive, filed as task-276. Build the path from pieces, or
     reword, and carry on.
 
-Three agents skipped this in one afternoon on 2026-08-11 and each cost a peer real work;
-two things from that are worth carrying:
+Three agents skipped this on 2026-08-11 and each cost a peer real work. Two of them:
 
 -   **If you commit a peer's in-flight files** — which is what `git add -A` does here —
     recover with `git reset --soft HEAD~1`, then `git restore --staged` their paths.
@@ -363,10 +371,8 @@ python scripts/bootstrap.py
 ```
 
 It runs `poetry install`, `npm ci`, and `playwright install chromium`, then confirms the
-environment imports the worktree's own `src/`. **About 30 seconds** in a brand-new
-worktree and **13 seconds** to re-run in one that already has both — timed 2026-08-19,
-longer on a machine whose Poetry and npm caches are cold. That is not a reason to skip
-the worktree.
+environment imports the worktree's own `src/`. **About 30 seconds** in a brand-new one and
+**13 seconds** to re-run — timed 2026-08-19, longer on cold caches. Not a reason to skip.
 
 **Do not borrow the main clone's virtualenv instead.** `poetry install` puts the *main
 clone's* `src/` on that environment's path, so `pytest` run from your worktree against it
@@ -392,11 +398,6 @@ re-exporting. Since task-210 the gate disowns a foreign `VIRTUAL_ENV` for every 
 it spawns, so the nested `poetry run` calls inside it resolve to this checkout too. The
 hazard is still real everywhere else: `poetry run` outside the gate still prefers
 whatever your shell activated.
-
-That preference is also why the bootstrap tells you it is **ignoring** an activated
-virtualenv belonging to another checkout. Until task-194 it did not, and a worktree's
-`poetry install` silently rewrote the main clone's editable install. You are not being
-careless if you hit this; following these instructions verbatim is what used to cause it.
 
 ### Logging Work to the Task
 The task record — not the surrounding conversation — is the source of truth for where

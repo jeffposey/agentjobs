@@ -81,6 +81,11 @@ If a worktree for this task already exists from an earlier run, `git worktree ad
 refuse it. That is not a reason to reach for the tool — use the existing path, or take a
 new one under a different name.
 
+One more thing the bootstrap will tell you, so it does not read as your mistake: it
+says it is **ignoring** an activated virtualenv belonging to another checkout. Until
+task-194 it did not, and a worktree's `poetry install` silently rewrote the main clone's
+editable install. Following the instructions verbatim is what used to cause that.
+
 This used to be arranged for the agent. Dispatch passed Claude Code's `-w` flag, which
 put the session in a worktree the CLI managed, and containment was mechanical. It cannot
 any more: the isolation that flag grants is enforced by a guard that refuses **every**
@@ -88,6 +93,50 @@ git operation aimed at the shared checkout — by `-C` and by `cd` alike — and
 happens there. A run isolated that way could do the work and then be unable to land it. So the containment is unchanged in what
 it protects; taking it is now your first act rather than the launcher's. The full argument, with the reproduction, is in
 [the dispatch design](agent-dispatch-design.md).
+
+### When a surface has already put you in one
+
+**Check before you create anything: `git rev-parse --git-common-dir`.** In an ordinary
+clone it answers `.git`; in a linked worktree it answers an absolute path into the main
+clone's git directory. If it answers the second, you are already isolated and the
+paragraphs above are satisfied — by something else, and before you could have read them.
+
+Two surfaces do this. The **Claude desktop app**, whose "work in parallel with sessions"
+option stores worktrees under `<project-root>/.claude/worktrees/` by default. And the
+**agent view**, which moves a background session into `.claude/worktrees/<name>/` before
+it edits and skips creating one when it is already inside a linked worktree. Both name
+the branch `worktree-<name>`. This repository's `"worktree": {"bgIsolation": "none"}`
+switches off the *enforcement* for `--bg` sessions AgentJobs starts; it does not switch
+off the desktop app's own worktree option, which is a different mechanism reached from a
+different place.
+
+**So the convention cannot be followed from there, and the failure is not yours.** The
+worktree exists before the session has read a single instruction file, so no instruction
+could have named the task in it. What is left to you is the branch:
+
+```bash
+git rev-parse --git-common-dir          # not ".git" -> you are already in a worktree
+git branch -m <type>/task-<nnn>-<slug>  # the name the convention wanted
+```
+
+Then record that branch on the task as usual and work where you are. **Do not add a
+second worktree from inside the first.** Nesting one buys no isolation you do not already
+have, and it leaves two directories and two branches for one task.
+
+`agentjobs branches` recognises both signals — the `worktree-` prefix and a path under
+`.claude/worktrees/` — and labels such a row a *desktop or agent-view worktree* instead
+of leaving it to read as in-flight work nobody can account for. It still deletes nothing;
+that rule is not relaxed for a surface the owner uses. `.gitignore` carries
+`.claude/worktrees/`, because git does not ignore a nested linked worktree on its own and
+an untracked directory inside the clone is exactly what a careless `git add -A` sweeps up.
+
+**The owner can move where they land**, in Settings → Claude Code → "Worktree location",
+which also carries a branch-prefix setting. Pointing it at `C:/projects/worktrees` puts
+desktop worktrees beside the ones this guide asks for rather than inside the clone. It is
+worth doing, and it is the owner's click rather than an agent's. Note that it closes only
+half the gap: the folder is still named for the session rather than `<repo>-<nnn>`, and
+the branch is still `worktree-<name>` until somebody renames it. Which is why the report
+tests both signals rather than either alone.
 
 ## Then register, whatever started you
 
