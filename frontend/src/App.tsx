@@ -44,7 +44,12 @@ import {
   runPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostMutation,
   updateTaskApiProjectsProjectIdTasksTaskIdPatchMutation,
 } from "./api/generated/@tanstack/react-query.gen";
-import type { DispatchRunView, MutationResultOutput, Priority } from "./api/types";
+import type {
+  DispatchRunView,
+  MutationResultOutput,
+  Priority,
+  QueuedDispatchView,
+} from "./api/types";
 import { readRefusal } from "./api/mutation-error";
 import {
   requireSupportedTaskSchemas,
@@ -196,6 +201,17 @@ function DashboardPage({ projectId }: { projectId: string }) {
           renderQueueGate={() => (
             <QueueDispatchGate state={dispatch.state} projectId={projectId} />
           )}
+          renderQueuedAction={(entry) => (
+            <button
+              type="button"
+              data-testid="cancel-queued-dispatch"
+              disabled={dispatch.cancellingQueueId === entry.queue_id}
+              onClick={() => void dispatch.cancelQueued(entry)}
+              className="touch-target rounded-lg border border-dark-border px-2 text-xs text-dark-muted hover:border-orange-700/70 hover:text-orange-200 disabled:opacity-60"
+            >
+              {dispatch.cancellingQueueId === entry.queue_id ? "Cancelling…" : "Cancel"}
+            </button>
+          )}
         />
       )}
       renderRecentlyFinished={() => <RecentlyFinished body={closures} projectId={projectId} />}
@@ -220,6 +236,7 @@ function DashboardPage({ projectId }: { projectId: string }) {
 function useDashboardDispatch(projectId: string) {
   const queryClient = useQueryClient();
   const [startingTaskId, setStartingTaskId] = useState<string | null>(null);
+  const [cancellingQueueId, setCancellingQueueId] = useState<string | null>(null);
   const [refusal, setRefusal] = useState<{ taskId: string; refusal: DispatchRefusal } | null>(null);
 
   // The same endpoint the task page, the playbooks page and the settings page read, so
@@ -230,11 +247,32 @@ function useDashboardDispatch(projectId: string) {
   const start = useMutation(
     dispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostMutation(),
   );
+  // The same route that cancels a run, because a waiting dispatch and the run it
+  // becomes are one card to whoever is looking at it (task-459). The server tries the
+  // queue first and falls through to the run, so a click that lands a moment late stops
+  // the agent rather than reporting a cancellation that did not happen.
+  const cancelQueued = useMutation(
+    cancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostMutation(),
+  );
 
   return {
     state: stateQuery.data ?? null,
     startingTaskId,
+    cancellingQueueId,
     refusal,
+    cancelQueued: async (entry: QueuedDispatchView): Promise<void> => {
+      setCancellingQueueId(entry.queue_id);
+      try {
+        await cancelQueued.mutateAsync({
+          // The entry's own project, never the page's: the rail is machine-wide and
+          // most of what is on it belongs to somebody else's project.
+          path: { project_id: entry.project_id || projectId, run_id: entry.queue_id },
+        });
+      } finally {
+        setCancellingQueueId(null);
+        await queryClient.invalidateQueries();
+      }
+    },
     start: async (taskId: string, user: string | null): Promise<void> => {
       setRefusal(null);
       setStartingTaskId(taskId);
@@ -532,6 +570,7 @@ function useTaskDispatch(projectId: string, taskId: string, user: string | null)
   const queryClient = useQueryClient();
   const [refusal, setRefusal] = useState<DispatchRefusal | null>(null);
   const [cancellingRunId, setCancellingRunId] = useState<string | null>(null);
+  const [queuedNotice, setQueuedNotice] = useState<string | null>(null);
 
   const stateQuery = useQuery(
     getDispatchStateApiProjectsProjectIdDispatchGetOptions({ path: { project_id: projectId } }),
@@ -564,6 +603,7 @@ function useTaskDispatch(projectId: string, taskId: string, user: string | null)
     dispatchRefusal: refusal,
     onDispatch: async (options?: DispatchOptions): Promise<boolean> => {
       setRefusal(null);
+      setQueuedNotice(null);
       let started = false;
       try {
         // `user` names who is clicking, and the server writes their authorising entry
@@ -575,7 +615,7 @@ function useTaskDispatch(projectId: string, taskId: string, user: string | null)
         // server falls back to the pre-task-188 rule rather than signing the run with
         // whatever `default_user` happens to be. The panel disables the button before
         // it comes to that.
-        await start.mutateAsync({
+        const answer = await start.mutateAsync({
           path: { project_id: projectId, task_id: taskId },
           // `options` is spread rather than picked apart: its keys are absent unless
           // the human chose something, so a dispatch with nothing picked posts the
@@ -583,6 +623,16 @@ function useTaskDispatch(projectId: string, taskId: string, user: string | null)
           // posture arrives here without touching this call.
           body: { ...(user ? { user } : {}), ...(options ?? {}) },
         });
+        // Both answers are 202 and only `queued` tells them apart (task-459). Reporting
+        // a queued dispatch as started would tell somebody an agent is working when
+        // nothing has started.
+        if (answer?.queued) {
+          setQueuedNotice(
+            `Queued for the next free slot — place ${answer.queue_position || 1} in line. ` +
+              "Nothing has started yet; every dispatch gate is checked when it does. " +
+              "It is on the Dashboard's slot board, where it can be cancelled.",
+          );
+        }
         started = true;
       } catch (error) {
         const read = readRefusal(error);
@@ -610,6 +660,7 @@ function useTaskDispatch(projectId: string, taskId: string, user: string | null)
       // twice over.
       return started;
     },
+    queuedNotice,
     onCancel: async (runId: string) => {
       setCancellingRunId(runId);
       try {

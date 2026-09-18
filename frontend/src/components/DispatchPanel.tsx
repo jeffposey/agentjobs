@@ -62,7 +62,7 @@ export const REFUSAL_ACTIONS: Record<string, string> = {
     "A person put this task on hold, and the release condition is in the panel above. Resume it there before dispatching an agent at it.",
   live_run_exists: "A run for this task is already going. Wait for it, or cancel it below.",
   concurrency_limit:
-    "Every slot this machine allows is in use. The refusal above names the runs holding them and the task each is working; cancel one of those, or raise limits.max_concurrent_runs in ~/.agentjobs/dispatch.yaml.",
+    "Queue it for the next free slot, cancel one of the runs named above, or raise limits.max_concurrent_runs in ~/.agentjobs/dispatch.yaml. A queued dispatch starts on its own, with every dispatch gate checked at that moment.",
   dirty_tree: "The project's working tree has uncommitted changes. Commit or stash them first.",
   claim_lost: "Someone else took this task. Re-read it before deciding again.",
   owner_mismatch: "This task is owned by a different agent. Release it, or dispatch its owner.",
@@ -117,6 +117,16 @@ export type DispatchOptions = {
   posture?: DispatchPosture;
   /** The human's brief, sent only when the panel asked for one. */
   note?: string;
+  /**
+   * What to do if every slot is taken: refuse (the default, and the server's) or wait
+   * for one (task-459).
+   *
+   * Sent only when somebody pressed the button that means it, so an ordinary Dispatch
+   * posts the body it always posted. The three-way prompt before the first click is
+   * task-461; until it lands this is offered where the refusal already appears, which
+   * is the one moment the answer is certainly relevant.
+   */
+  if_full?: "refuse" | "queue";
 };
 
 /** How often to re-read the runs list. Fast while something is running, never otherwise. */
@@ -168,7 +178,16 @@ export function runStateLabel(run: DispatchRunView): string {
  * interrupt on every task page, and makes `getByRole("alert")` on any other page
  * ambiguous -- which is how this was found.
  */
-function RefusalNote({ refusal, answered = true }: { refusal: DispatchRefusal; answered?: boolean }) {
+function RefusalNote({
+  refusal,
+  answered = true,
+  children,
+}: {
+  refusal: DispatchRefusal;
+  answered?: boolean;
+  /** A control that acts on this refusal, when the page can offer one. */
+  children?: React.ReactNode;
+}) {
   const action = PAGE_REMEDY_REASONS.has(refusal.reason)
     ? REFUSAL_ACTIONS[refusal.reason]
     : refusal.suggestedAction || REFUSAL_ACTIONS[refusal.reason];
@@ -180,6 +199,7 @@ function RefusalNote({ refusal, answered = true }: { refusal: DispatchRefusal; a
     >
       <p>{refusal.message}</p>
       {action && <p className="mt-2 text-orange-200">{action}</p>}
+      {children && <div className="mt-3">{children}</div>}
     </div>
   );
 }
@@ -221,6 +241,15 @@ export type DispatchPanelProps = {
    */
   finishLive?: boolean;
   cancellingRunId?: string | null;
+  /**
+   * What happened to the last click when it did not start a run but was not refused
+   * either: a dispatch accepted into the machine's queue (task-459).
+   *
+   * Its own prop rather than a flavour of refusal, because it is the opposite of one.
+   * Rendering "queued, place 2" inside an orange refusal box would tell somebody their
+   * dispatch failed at the moment it succeeded.
+   */
+  queuedNotice?: string | null;
   /** The last refusal from pressing Dispatch, which the state endpoint cannot predict. */
   dispatchRefusal?: DispatchRefusal | null;
   /**
@@ -269,6 +298,7 @@ export function DispatchPanel({
   finishLive = false,
   cancellingRunId = null,
   dispatchRefusal = null,
+  queuedNotice = null,
   onDispatch,
   onCancel,
   renderOutput,
@@ -505,8 +535,34 @@ export function DispatchPanel({
         </form>
       )}
 
+      {queuedNotice && (
+        <p
+          role="status"
+          data-testid="dispatch-queued-notice"
+          className="rounded-lg border border-amber-600/50 bg-amber-950/30 p-3 text-sm text-amber-100"
+        >
+          {queuedNotice}
+        </p>
+      )}
       {taskIsDispatchable && gateRefusal && <RefusalNote refusal={gateRefusal} answered={false} />}
-      {dispatchRefusal && <RefusalNote refusal={dispatchRefusal} />}
+      {dispatchRefusal && (
+        <RefusalNote refusal={dispatchRefusal}>
+          {/* Offered here rather than before the click, because this is the moment the
+              question is certainly live: the machine was full a second ago and the
+              person is reading that. The three-way prompt that asks first is task-461. */}
+          {dispatchRefusal.reason === "concurrency_limit" && (
+            <button
+              type="button"
+              disabled={blocked}
+              data-testid="dispatch-queue-it"
+              onClick={() => void onDispatch({ ...options(), if_full: "queue" })}
+              className="touch-target rounded-lg border border-amber-500/60 bg-amber-900/40 px-3 text-sm font-semibold text-amber-100 hover:bg-amber-900/60 disabled:opacity-60"
+            >
+              Queue it for the next free slot
+            </button>
+          )}
+        </RefusalNote>
+      )}
 
       <DispatchRunList
         runs={runs}

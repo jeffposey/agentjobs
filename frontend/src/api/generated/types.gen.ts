@@ -637,56 +637,6 @@ export type CloseRequest = {
 };
 
 /**
- * ClosureView
- *
- * One finished task, in the fields a row on the Dashboard renders.
- */
-export type ClosureView = {
-    /**
-     * Age Seconds
-     *
-     * Seconds since it closed, computed on the server. The phone reading this page is not on the clock that wrote the stamp, and *how long ago* is what the row is actually read for.
-     */
-    age_seconds: number;
-    /**
-     * Closed At
-     *
-     * When the task closed, in UTC. This is the store's `closed_at`, stamped at the close and untouched by later edits -- not `updated`, which an edit after closing would move.
-     */
-    closed_at: string;
-    /**
-     * Outcome
-     *
-     * How it ended: `completed`, `cancelled`, `superseded` or `duplicate`. Shown as written -- a region that printed every row as *done* would be hiding the difference the reader is scanning for.
-     */
-    outcome: string;
-    /**
-     * Project Id
-     */
-    project_id: string;
-    /**
-     * Project Name
-     *
-     * The project's display name, falling back to its id.
-     */
-    project_name?: string;
-    /**
-     * Task Id
-     */
-    task_id: string;
-    /**
-     * Task Title
-     */
-    task_title: string;
-    /**
-     * Task Url
-     *
-     * Where this task is, in this app.
-     */
-    task_url: string;
-};
-
-/**
  * ContextPointer
  *
  * A curated "read this first" pointer, with the reason it matters.
@@ -900,13 +850,25 @@ export type DependencyType = 'needs' | 'blocks' | 'related';
  * DispatchCancelResult
  *
  * What cancelling asked for, and whether it happened.
+ *
+ * One result for two things that can be cancelled at that id, because they are two
+ * states of one act: a dispatch that is waiting for a slot (task-459) and the run it
+ * becomes. ``run`` is null for the first and ``queued`` for the second, so a caller
+ * that stops reading here still cannot mistake one for the other.
  */
 export type DispatchCancelResult = {
     /**
      * Detail
      */
     detail: string;
-    run: DispatchRunView;
+    /**
+     * The removed queue entry, with its final status. Null when a run was cancelled.
+     */
+    queued?: QueuedDispatchView | null;
+    /**
+     * The cancelled run. Null when a queued entry was removed.
+     */
+    run?: DispatchRunView | null;
     /**
      * Run Id
      */
@@ -1009,6 +971,12 @@ export type DispatchRequestBody = {
      * Runner group to choose from, overriding the project's. Names a group this machine already defines; it never creates one, and it cannot open a gate that is closed.
      */
     group?: string | null;
+    /**
+     * If Full
+     *
+     * What to do when every machine slot is taken. 'refuse' is the historical behaviour and the default, so a caller that predates task-459 is unchanged: 409 'concurrency_limit'. 'queue' accepts the dispatch into the machine's dispatch queue instead -- 202 with 'queued': true and a 'queue_id' -- and the server starts it when a slot frees, with every dispatch gate judged at that moment rather than this one.
+     */
+    if_full?: 'refuse' | 'queue';
     /**
      * Note
      *
@@ -1206,13 +1174,18 @@ export type DispatchRunView = {
 /**
  * DispatchStarted
  *
- * What a successful dispatch reports back.
+ * What a successful dispatch reports back -- or, since task-459, a queued one.
+ *
+ * **Read ``queued`` before anything else.** Both answers are 202, because both mean
+ * "accepted, and how it ends arrives later on the task". They are not the same event,
+ * and a client that renders "Dispatched" over a queued one has told somebody a run is
+ * working when nothing has started.
  */
 export type DispatchStarted = {
     /**
      * Caused By
      *
-     * The log entry this dispatch is attributed to.
+     * The log entry this dispatch is attributed to. 0 while a dispatch is queued -- the authorising entry is written when it starts, exactly as for a click.
      */
     caused_by: number;
     /**
@@ -1224,19 +1197,37 @@ export type DispatchStarted = {
     /**
      * Mode
      *
-     * session or batch.
+     * session or batch. Empty while a dispatch is queued.
      */
     mode: string;
     /**
      * Posture
      *
-     * What the run is permitted to do.
+     * What the run is permitted to do. Empty while a dispatch is queued: the posture is resolved by the gates when it starts, not when it was queued.
      */
     posture: string;
     /**
+     * Queue Position
+     *
+     * 1-based place in line while queued; 0 for a dispatch that started.
+     */
+    queue_position?: number;
+    /**
+     * Queued
+     *
+     * True when the machine was full and the caller sent if_full=queue: nothing has started, and the entry waits in the machine's dispatch queue.
+     */
+    queued?: boolean;
+    /**
+     * Queued At
+     *
+     * When the entry joined the queue, UTC.
+     */
+    queued_at?: string | null;
+    /**
      * Run Id
      *
-     * AgentJobs' identifier for this run.
+     * AgentJobs' identifier for this run. On a queued dispatch this is the queue entry's id, which is what the cancel route takes while it waits.
      */
     run_id: string;
     /**
@@ -1995,6 +1986,18 @@ export type LiveRunsView = {
      */
     occupied: number;
     /**
+     * Queue Limit
+     *
+     * `limits.dispatch_queue_limit` from ~/.agentjobs/dispatch.yaml: how many dispatches may wait at once.
+     */
+    queue_limit?: number;
+    /**
+     * Queued
+     *
+     * Dispatches waiting for a slot, in the order they will start (task-459). Empty on a machine where nobody has queued one. Filtered by what this caller may see, exactly as `runs` is.
+     */
+    queued?: Array<QueuedDispatchView>;
+    /**
      * Runs
      */
     runs: Array<LiveRunView>;
@@ -2539,7 +2542,7 @@ export type PlaybookRunStarted = {
     /**
      * Caused By
      *
-     * The log entry this dispatch is attributed to.
+     * The log entry this dispatch is attributed to. 0 while a dispatch is queued -- the authorising entry is written when it starts, exactly as for a click.
      */
     caused_by: number;
     /**
@@ -2557,7 +2560,7 @@ export type PlaybookRunStarted = {
     /**
      * Mode
      *
-     * session or batch.
+     * session or batch. Empty while a dispatch is queued.
      */
     mode: string;
     /**
@@ -2581,13 +2584,31 @@ export type PlaybookRunStarted = {
     /**
      * Posture
      *
-     * What the run is permitted to do.
+     * What the run is permitted to do. Empty while a dispatch is queued: the posture is resolved by the gates when it starts, not when it was queued.
      */
     posture: string;
     /**
+     * Queue Position
+     *
+     * 1-based place in line while queued; 0 for a dispatch that started.
+     */
+    queue_position?: number;
+    /**
+     * Queued
+     *
+     * True when the machine was full and the caller sent if_full=queue: nothing has started, and the entry waits in the machine's dispatch queue.
+     */
+    queued?: boolean;
+    /**
+     * Queued At
+     *
+     * When the entry joined the queue, UTC.
+     */
+    queued_at?: string | null;
+    /**
      * Run Id
      *
-     * AgentJobs' identifier for this run.
+     * AgentJobs' identifier for this run. On a queued dispatch this is the queue entry's id, which is what the cancel route takes while it waits.
      */
     run_id: string;
     /**
@@ -3421,33 +3442,85 @@ export type QueueResponse = {
 };
 
 /**
- * RecentClosuresView
+ * QueuedDispatchView
  *
- * The region's whole answer, with the bounds it was computed under.
+ * One authorised dispatch waiting for a slot (task-459).
+ *
+ * Beside the live runs rather than in a call of its own, for the reason the capacity
+ * numbers are: a board that read "three of three busy" from one endpoint and "two
+ * waiting" from another would have two answers about one machine, taken a second apart.
  */
-export type RecentClosuresView = {
+export type QueuedDispatchView = {
     /**
-     * Closures
-     */
-    closures: Array<ClosureView>;
-    /**
-     * Generated At
+     * Detail
      *
-     * When this answer was assembled, in UTC.
+     * Why it is still waiting, when a start has already been tried and refused for a condition that clears on its own.
      */
-    generated_at: string;
+    detail?: string;
     /**
-     * Limit
+     * Position
      *
-     * The most rows this answer could have held.
+     * 1-based place in line. FIFO by when it was queued.
      */
-    limit: number;
+    position: number;
     /**
-     * Window Days
-     *
-     * How far back it looked. On the wire because the empty state says it -- *nothing has finished in the last 7 days* -- and a page that hard-coded the number would keep saying seven after this endpoint stopped meaning it.
+     * Project Id
      */
-    window_days: number;
+    project_id: string;
+    /**
+     * Project Name
+     */
+    project_name?: string;
+    /**
+     * Queue Id
+     *
+     * The entry's id. It is what `POST .../dispatch/runs/{run_id}/cancel` takes while the dispatch is waiting -- a queued entry cancels through the same route as the run it has not become.
+     */
+    queue_id: string;
+    /**
+     * Queued At
+     *
+     * When it joined the queue, UTC.
+     */
+    queued_at: string;
+    /**
+     * Queued By
+     *
+     * Who asked for it. Empty for a dispatch nobody signed.
+     */
+    queued_by?: string;
+    /**
+     * Source
+     *
+     * `manual` today; `pull` is reserved.
+     */
+    source?: string;
+    /**
+     * Status
+     *
+     * `queued`, or `starting` for the seconds a tick is putting it through the dispatch gates. A `starting` entry is not yet a run and may still be refused.
+     */
+    status: string;
+    /**
+     * Task Id
+     */
+    task_id: string;
+    /**
+     * Task Title
+     */
+    task_title?: string;
+    /**
+     * Task Url
+     *
+     * Where this entry's task is, in this app.
+     */
+    task_url: string;
+    /**
+     * Waiting Seconds
+     *
+     * How long it has been waiting, computed on the server. The phone reading this page is not on the clock that wrote `queued_at`.
+     */
+    waiting_seconds?: number | null;
 };
 
 /**
@@ -8117,40 +8190,6 @@ export type RepairQueueApiQueueRepairPostResponses = {
 };
 
 export type RepairQueueApiQueueRepairPostResponse = RepairQueueApiQueueRepairPostResponses[keyof RepairQueueApiQueueRepairPostResponses];
-
-export type ListRecentClosuresApiRecentClosuresGetData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Limit
-         */
-        limit?: number;
-        /**
-         * Days
-         */
-        days?: number;
-    };
-    url: '/api/recent/closures';
-};
-
-export type ListRecentClosuresApiRecentClosuresGetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListRecentClosuresApiRecentClosuresGetError = ListRecentClosuresApiRecentClosuresGetErrors[keyof ListRecentClosuresApiRecentClosuresGetErrors];
-
-export type ListRecentClosuresApiRecentClosuresGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: RecentClosuresView;
-};
-
-export type ListRecentClosuresApiRecentClosuresGetResponse = ListRecentClosuresApiRecentClosuresGetResponses[keyof ListRecentClosuresApiRecentClosuresGetResponses];
 
 export type GetProjectRevisionApiRevisionGetData = {
     body?: never;

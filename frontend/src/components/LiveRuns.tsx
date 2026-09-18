@@ -50,7 +50,12 @@ export const IDLE_POLL_MS = 15_000;
  */
 export function liveRunsPollInterval(body: LiveRunsView | undefined): number {
   if (!body) return BUSY_POLL_MS;
-  return body.runs.length > 0 || body.holders.length > 0 ? BUSY_POLL_MS : IDLE_POLL_MS;
+  // A waiting dispatch counts as busy (task-459). The machine is full by definition
+  // while one is queued, and the moment worth seeing promptly is the one where a slot
+  // frees and the card turns into a run.
+  const busy =
+    body.runs.length > 0 || body.holders.length > 0 || (body.queued?.length ?? 0) > 0;
+  return busy ? BUSY_POLL_MS : IDLE_POLL_MS;
 }
 
 /** The machine-wide runs query, shared by the nav badge, the Dashboard and the tab. */

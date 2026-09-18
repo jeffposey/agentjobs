@@ -2,7 +2,13 @@ import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
-import type { LiveRunView, LiveRunsView, MachineHolderView, TaskRead } from "../api/types";
+import type {
+  LiveRunView,
+  LiveRunsView,
+  MachineHolderView,
+  QueuedDispatchView,
+  TaskRead,
+} from "../api/types";
 import { BOARD_CELL_LIMIT, SlotBoard, boardLayout, orderedRuns } from "./SlotBoard";
 
 /**
@@ -61,6 +67,25 @@ function body(overrides: Partial<LiveRunsView> = {}): LiveRunsView {
     runs: [],
     holders: [],
     generated_at: "2026-09-04T01:01:30Z",
+    ...overrides,
+  };
+}
+
+function queued(overrides: Partial<QueuedDispatchView> = {}): QueuedDispatchView {
+  return {
+    queue_id: "q_aaaa",
+    position: 1,
+    task_id: "task-050",
+    task_title: "Waiting for a slot",
+    project_id: "alpha",
+    project_name: "Alpha Project",
+    queued_at: "2026-09-04T01:00:00Z",
+    waiting_seconds: 120,
+    queued_by: "Jeff Posey",
+    source: "manual",
+    status: "queued",
+    detail: "",
+    task_url: "/p/alpha/tasks/task-050",
     ...overrides,
   };
 }
@@ -496,5 +521,133 @@ describe("a session somebody is working in (task-354)", () => {
     );
 
     expect(screen.getByText("Idle")).toHaveAttribute("data-health", "idle");
+  });
+});
+
+/**
+ * The waiting rail (task-459, ac-4).
+ *
+ * Every assertion here is on a *value* a person or a click acts on -- the order, the
+ * task it names, who queued it, and whether the cancel control is there -- rather than
+ * on the presence of markup. A rail that rendered its cards in the wrong order, or
+ * numbered them 1, 2, 3 over entries that are really 1, 2 and 5, would pass a test that
+ * only counted nodes.
+ */
+describe("dispatches waiting for a slot", () => {
+  const waitingBody = (queue: QueuedDispatchView[]) =>
+    body({ occupied: 1, max_concurrent_runs: 1, runs: [run()], queued: queue, queue_limit: 20 });
+
+  it("lists them in the order the server says they will start", () => {
+    renderBoard(
+      <SlotBoard
+        body={waitingBody([
+          queued({ queue_id: "q_1", position: 1, task_id: "task-050" }),
+          queued({ queue_id: "q_2", position: 2, task_id: "task-051" }),
+        ])}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    const cards = screen.getAllByTestId("queued-dispatch");
+    expect(cards.map((card) => card.dataset.taskId)).toEqual(["task-050", "task-051"]);
+    // The server's number, not the array index: the rows are filtered by what this
+    // caller may see, so counting them here would promise somebody a place they do not
+    // have.
+    expect(cards.map((card) => card.dataset.position)).toEqual(["1", "2"]);
+  });
+
+  it("names the task, who queued it, and how long it has waited", () => {
+    renderBoard(
+      <SlotBoard body={waitingBody([queued()])} queue={[]} projectId="alpha" />,
+    );
+
+    const card = screen.getByTestId("queued-dispatch");
+    expect(within(card).getByText("Waiting for a slot")).toBeVisible();
+    expect(within(card).getByText(/Jeff Posey/)).toBeVisible();
+    expect(within(card).getByText(/waiting 2m/)).toBeVisible();
+    expect(within(card).getByRole("link")).toHaveAttribute("href", "/p/alpha/tasks/task-050");
+  });
+
+  it("says when one is being put through the gates rather than still waiting", () => {
+    renderBoard(
+      <SlotBoard
+        body={waitingBody([queued({ status: "starting" })])}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    expect(screen.getByText(/starting/)).toBeVisible();
+  });
+
+  it("renders the page's cancel control against the entry it belongs to", () => {
+    const cancelled: string[] = [];
+    renderBoard(
+      <SlotBoard
+        body={waitingBody([queued({ queue_id: "q_1" }), queued({ queue_id: "q_2", position: 2 })])}
+        queue={[]}
+        projectId="alpha"
+        renderQueuedAction={(entry) => (
+          <button type="button" onClick={() => cancelled.push(entry.queue_id)}>
+            Cancel {entry.queue_id}
+          </button>
+        )}
+      />,
+    );
+
+    screen.getByRole("button", { name: "Cancel q_2" }).click();
+
+    expect(cancelled).toEqual(["q_2"]);
+  });
+
+  it("keeps the rail under an alarm and withholds only the cancel control", () => {
+    // Same rule as the cells: work the machine has already been told to do is status,
+    // and `statusOnly` suppresses actions rather than information (task-081).
+    renderBoard(
+      <SlotBoard
+        body={waitingBody([queued()])}
+        queue={[]}
+        projectId="alpha"
+        statusOnly
+        renderQueuedAction={() => <button type="button">Cancel</button>}
+      />,
+    );
+
+    expect(screen.getByTestId("queued-dispatch")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+  });
+
+  it("draws nothing at all when nothing is waiting", () => {
+    renderBoard(<SlotBoard body={body({ queued: [] })} queue={[]} projectId="alpha" />);
+
+    expect(screen.queryByTestId("slot-board-queue")).not.toBeInTheDocument();
+  });
+
+  it("shows why an entry is still waiting only when a start has been tried", () => {
+    renderBoard(
+      <SlotBoard
+        body={waitingBody([queued({ detail: "task_on_hold: released from the review panel" })])}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    expect(screen.getByTestId("slot-board-queue-detail")).toHaveTextContent("task_on_hold");
+  });
+
+  it("draws the board for a queue even on a machine with nothing else on it", () => {
+    // The board returns null when it has no cells and nothing else to say. A queue is
+    // something to say: a machine whose ceiling is unconfigured and whose only news is
+    // that two dispatches are waiting must not render blank.
+    renderBoard(
+      <SlotBoard
+        body={body({ dispatch_configured: false, occupied: 0, queued: [queued()] })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    expect(screen.getByTestId("slot-board-queue")).toBeVisible();
   });
 });
