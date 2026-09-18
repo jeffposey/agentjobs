@@ -3535,7 +3535,7 @@ def branches(
     Always exits 0. Leftover branches are untidy, not broken, and a report that fails a
     script over tidiness would end up suppressed.
     """
-    from agentjobs.branch_report import survey_branches
+    from agentjobs.branch_report import DESKTOP_LABEL, survey_branches
 
     registry = ProjectRegistry()
     try:
@@ -3556,7 +3556,8 @@ def branches(
             fg=typer.colors.YELLOW,
         )
         for row in report.litter:
-            typer.echo(f"  {row.name:<48} {row.task_id or '-':<10} {row.task_state}")
+            note = f"  ({row.note})" if row.note else ""
+            typer.echo(f"  {row.name:<48} {row.task_id or '-':<10} {row.task_state}{note}")
         typer.echo("\n  Delete with: git branch -d <name>   (-d, never -D)")
     else:
         typer.secho(f"Nothing {base} contains is left behind.", fg=typer.colors.GREEN)
@@ -3566,10 +3567,25 @@ def branches(
         for row in report.in_flight:
             age = f"{row.age_days:.1f}d" if row.age_days is not None else "-"
             where = str(row.worktree) if row.worktree else "no worktree"
+            if row.note:
+                where = f"{where}  ({row.note})"
             typer.echo(
                 f"  {row.name:<48} {age:>7}  {row.task_id or '-':<10} "
                 f"{row.task_state:<24} {where}"
             )
+
+    if report.desktop:
+        # Said once, under the listing, rather than left for a reader to infer from a
+        # branch name carrying no task id. Without it these rows read as somebody's stray
+        # work, which is the one reading that invites a sweep.
+        typer.echo(
+            f"\n{len(report.desktop)} row(s) above are marked {DESKTOP_LABEL}. The "
+            "Claude desktop app\n  and agent view put a session in .claude/worktrees/<name> "
+            "on a worktree-<name>\n  branch before it can read an instruction file, so the "
+            "branch cannot carry a\n  task id. That session should use the worktree it is in "
+            "and rename its branch\n  with `git branch -m <type>/task-<nnn>-<slug>`. Nothing "
+            "here removes one."
+        )
 
 
 playbook_app = typer.Typer(

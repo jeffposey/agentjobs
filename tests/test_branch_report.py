@@ -20,7 +20,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from agentjobs.branch_report import survey_branches
+from agentjobs.branch_report import DESKTOP_LABEL, survey_branches
 from agentjobs.cli import app
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Lifecycle
@@ -171,6 +171,97 @@ class TestWhoseItIs:
         assert "no task" in row.task_state
 
 
+class TestDesktopWorktrees:
+    """Branches the Claude desktop app and agent view make for themselves.
+
+    They land at ``.claude/worktrees/<name>`` inside the clone on a ``worktree-<name>``
+    branch, before the session has read an instruction file -- so the branch carries no
+    task id and cannot be made to. Read literally by the rest of this report that is
+    in-flight work of unknown origin, which is the reading that gets a branch swept.
+    """
+
+    def _desktop_worktree(self, repo, name: str, file: str) -> Path:
+        """A branch made the way the desktop app makes one: inside the clone, no task."""
+        root: Path = repo["root"]
+        worktree = root / ".claude" / "worktrees" / name
+        git(root, "worktree", "add", "-b", f"worktree-{name}", str(worktree), "main")
+        commit(worktree, file)
+        return worktree
+
+    def test_the_branch_prefix_alone_labels_it(self, repo: Dict[str, Any]) -> None:
+        """The path signal is absent here: the worktree is in the ordinary place.
+
+        Which is the case after somebody points the desktop app's "Worktree location"
+        setting at the conventional directory -- the folder moves, the branch name does
+        not.
+        """
+        make_branch(repo, "worktree-plucky-otter", "elsewhere.txt")
+
+        report = survey_branches(repo["root"], repo["manager"])
+
+        row = next(r for r in report.rows if r.name == "worktree-plucky-otter")
+        assert row.desktop is True
+        assert row.note == DESKTOP_LABEL
+
+    def test_a_path_inside_dot_claude_labels_it_even_once_the_branch_is_renamed(
+        self, repo: Dict[str, Any]
+    ) -> None:
+        """The branch signal is absent here, because renaming it is what we ask for.
+
+        A session that took our advice and ran ``git branch -m`` is still sitting in a
+        worktree inside the clone, and the row should still say where it is working.
+        """
+        self._desktop_worktree(repo, "brave-heron", "inside.txt")
+        git(repo["root"], "branch", "-m", "worktree-brave-heron", "feat/task-042-renamed")
+
+        report = survey_branches(repo["root"], repo["manager"])
+
+        row = next(r for r in report.rows if r.name == "feat/task-042-renamed")
+        assert row.desktop is True
+
+    def test_an_ordinary_worktree_is_not_labelled(self, repo: Dict[str, Any]) -> None:
+        """The label has to be wrong for the common case or it says nothing."""
+        make_branch(repo, "feat/task-041-ordinary", "ordinary.txt")
+
+        report = survey_branches(repo["root"], repo["manager"])
+
+        row = next(r for r in report.rows if r.name == "feat/task-041-ordinary")
+        assert row.desktop is False
+        assert row.note == ""
+
+    def test_nothing_about_the_label_makes_it_deletable(self, repo: Dict[str, Any]) -> None:
+        """Report and tolerate. A labelled branch is somebody working, not litter."""
+        self._desktop_worktree(repo, "calm-badger", "live.txt")
+
+        report = survey_branches(repo["root"], repo["manager"])
+
+        assert [r.name for r in report.litter] == []
+        assert "worktree-calm-badger" in [r.name for r in report.in_flight]
+
+    def test_the_footnote_counts_only_rows_the_command_printed(self, repo: Dict[str, Any]) -> None:
+        """A desktop worktree that has not committed yet appears in neither listing.
+
+        It is not litter -- it is checked out -- and not in flight, because the base
+        contains every commit it has. Counting it in a footnote under listings it is
+        absent from would send a reader looking for a row that is not there.
+        """
+        root: Path = repo["root"]
+        git(
+            root,
+            "worktree",
+            "add",
+            "-b",
+            "worktree-silent",
+            str(root / ".claude" / "worktrees" / "silent"),
+            "main",
+        )
+
+        report = survey_branches(root, repo["manager"])
+
+        assert [r.name for r in report.rows if r.desktop] == ["worktree-silent"]
+        assert report.desktop == []
+
+
 class TestAge:
     def test_age_comes_from_the_author_date_and_survives_a_rebase(
         self, repo: Dict[str, Any]
@@ -272,6 +363,24 @@ class TestTheCommand:
         assert result.exit_code == 0, result.output
         assert "left behind" in result.output
         assert "does not contain" in result.output
+
+    def test_it_names_a_desktop_worktree_rather_than_leaving_it_unexplained(
+        self, repo: Dict[str, Any], monkeypatch
+    ) -> None:
+        """What a person actually reads: the row is marked and the mark is explained."""
+        self._register(repo, monkeypatch)
+        root: Path = repo["root"]
+        worktree = root / ".claude" / "worktrees" / "eager-marten"
+        git(root, "worktree", "add", "-b", "worktree-eager-marten", str(worktree), "main")
+        commit(worktree, "desk.txt")
+
+        result = CliRunner().invoke(app, ["branches", "--project", "demo"])
+
+        assert result.exit_code == 0, result.output
+        assert "worktree-eager-marten" in result.output
+        assert DESKTOP_LABEL in result.output
+        assert "git branch -m" in result.output
+        assert "Nothing here removes one" in result.output
 
     def test_it_exits_zero_even_with_litter(self, repo: Dict[str, Any], monkeypatch) -> None:
         """Untidy is not broken, and a report that fails a script gets suppressed."""
