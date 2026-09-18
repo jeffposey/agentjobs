@@ -56,7 +56,13 @@ from agentjobs.dispatch.ledger import find_run
 from agentjobs.dispatch.poller import poll_live_sessions
 from agentjobs.dispatch.runner import DispatchRunner, RunDirectory, SessionPhase, runs_root
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType
+from agentjobs.models_v2 import (
+    Ball,
+    BallReason,
+    Lifecycle,
+    LogEntryType,
+    self_clearing_wait,
+)
 from agentjobs.projects import ProjectRegistry
 from support import task_store
 from test_dispatch_auth import auth_failure_line, real_reply_line, write_transcript
@@ -1214,6 +1220,136 @@ class TestUsageLimits:
         incident = machine.book().incident(machine.meta(run_id)["auth_incident"])
         assert incident is not None
         assert incident.next_probe_at >= later
+
+
+# ----- what a reader is told (task-456) ----------------------------------------------
+
+
+class TestTheParkSaysWhatItIs:
+    """The label a reader acts on, asserted as the exact string a surface renders.
+
+    Every one of these drives ``auth_recovery`` and reads the label off the task it
+    parked. None of them writes the marker by hand: the marker's shape is half of what
+    is under test, so a test that built it would be asserting its own fixture.
+    """
+
+    def _limit_line(self, *, at: datetime, resets: datetime) -> dict:
+        line = auth_failure_line(
+            at=at,
+            session=FULL,
+            text="You've hit your session limit · resets 3:30am (America/Chicago)",
+        )
+        line["error"] = "rate_limit"
+        line["quotaLimits"] = {
+            "rateLimitType": "five_hour",
+            "status": "rejected",
+            "resetsAt": int(resets.timestamp()),
+        }
+        return line
+
+    def _spend_line(self, *, at: datetime) -> dict:
+        line = auth_failure_line(
+            at=at,
+            session=FULL,
+            text="You've hit your monthly spend limit · raise it at claude.ai/settings/usage",
+        )
+        line["error"] = "rate_limit"
+        return line
+
+    def test_a_usage_limit_park_names_the_reset_time(self, machine: Machine) -> None:
+        run_id, task_id = machine.start()
+        now = datetime.now(timezone.utc)
+        resets = (now + timedelta(hours=2)).replace(second=0, microsecond=0)
+        machine.transcript([self._limit_line(at=now + timedelta(seconds=1), resets=resets)])
+        machine.go_idle()
+        assert machine.poll()[run_id].phase is SessionPhase.AUTH_STALLED
+
+        task = machine.task(task_id)
+        assert task.ball is Ball.EXTERNAL and task.ball_reason is BallReason.SERVICE
+        # The whole point of the task: the string a reader sees says nobody is needed and
+        # when it ends, rather than "Blocked on a service".
+        assert task.display_status == f"Waiting on quota reset ({resets:%H:%M} UTC)"
+        wait = self_clearing_wait(task)
+        assert wait is not None and wait.kind == "usage_limit"
+        assert wait.resets_at == resets
+
+    def test_an_unreported_reset_still_reads_as_a_wait(self, machine: Machine) -> None:
+        """A refusal with no reset time is no less self-clearing -- recovery still probes."""
+        run_id, task_id = machine.start()
+        now = datetime.now(timezone.utc)
+        line = auth_failure_line(
+            at=now + timedelta(seconds=1),
+            session=FULL,
+            text="You've hit your session limit · resets 3:30am (America/Chicago)",
+        )
+        line["error"] = "rate_limit"
+        machine.transcript([line])
+        machine.go_idle()
+        assert machine.poll()[run_id].phase is SessionPhase.AUTH_STALLED
+
+        task = machine.task(task_id)
+        assert task.display_status == "Waiting on quota reset"
+        wait = self_clearing_wait(task)
+        assert wait is not None and wait.resets_at is None
+
+    def test_a_spend_limit_still_reads_as_needing_a_person(self, machine: Machine) -> None:
+        """Only the account owner can raise a spend limit, so it must not read as a wait."""
+        run_id, task_id = machine.start()
+        now = datetime.now(timezone.utc)
+        machine.transcript([self._spend_line(at=now + timedelta(seconds=1))])
+        machine.go_idle()
+        assert machine.poll()[run_id].phase is SessionPhase.AUTH_STALLED
+
+        task = machine.task(task_id)
+        assert task.ball is Ball.HUMAN
+        assert task.display_status == "Needs input"
+        assert self_clearing_wait(task) is None
+
+    def test_a_quota_escalation_reads_as_needing_a_person(self, machine: Machine) -> None:
+        """Refused again for the same window: recovery gives up, and the label says so."""
+        run_id, task_id = machine.start()
+        now = datetime.now(timezone.utc)
+        resets = (now + timedelta(hours=2)).replace(microsecond=0)
+        machine.transcript([self._limit_line(at=now + timedelta(seconds=1), resets=resets)])
+        machine.go_idle()
+        machine.poll()
+        assert self_clearing_wait(machine.task(task_id)) is not None
+
+        def ready(request: ProbeRequest) -> ProbeResult:
+            return ProbeResult(ProbeClass.READY, "ok", 0)
+
+        class Recording:
+            def nudge(self, session_id: str, message: str) -> NudgeReceipt:
+                return NudgeReceipt("applied", "woke", session_id)
+
+        machine.tick(2 * 3600 + 61, probe=ready, nudger_for=lambda runner: Recording())
+        machine.transcript(
+            [
+                self._limit_line(at=now + timedelta(seconds=1), resets=resets),
+                self._limit_line(at=now + timedelta(hours=2, minutes=2), resets=resets),
+            ]
+        )
+        machine.poll()
+        machine.tick(2 * 3600 + 200, probe=ready, nudger_for=lambda runner: Recording())
+
+        task = machine.task(task_id)
+        assert task.ball is Ball.HUMAN
+        assert task.display_status == "Needs input"
+        assert self_clearing_wait(task) is None
+
+    def test_a_service_park_nobody_marked_is_still_blocked(self, machine: Machine) -> None:
+        """A person parking a task on a third party is untouched by any of this."""
+        _, task_id = machine.start()
+        task = machine.manager.handoff(
+            task_id,
+            actor="Jeff Posey",
+            ball=Ball.EXTERNAL,
+            ball_reason=BallReason.SERVICE,
+            ball_prompt="The vendor's API has been 503 since this morning.",
+        )
+
+        assert task.display_status == "Blocked on a service"
+        assert self_clearing_wait(task) is None
 
 
 # ----- the epic walk holds ------------------------------------------------------------

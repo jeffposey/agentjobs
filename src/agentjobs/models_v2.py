@@ -171,6 +171,54 @@ A single flat enum with a scoping table, rather than three enums, so that
 """
 
 
+AUTH_RECOVERY_MARKER = "auth_recovery"
+"""The ``log[].data`` key auth recovery stamps its own handoffs with.
+
+Declared here rather than only in ``dispatch.auth_recovery`` because this module is
+below the dispatch package -- ``auth_recovery`` imports these models, so it cannot be
+imported back -- and :func:`self_clearing_wait` has to read the key. ``auth_recovery``
+takes its ``MARKER`` from this name, so there is one spelling and not two.
+"""
+
+SELF_CLEARING_KINDS = frozenset({"usage_limit"})
+"""Auth-recovery incident kinds that clear with no human act, so a park on one is a wait
+rather than a blockage.
+
+Deliberately *not* every kind recovery can resume by itself. An ``auth`` incident is
+resumed automatically too, but only once somebody logs in again, and a ``spend_limit``
+needs the account owner -- both of which park the task on a person, where they read as
+needing one. Only a usage limit passes with nobody doing anything, and only that may be
+drawn as a wait. ``tests/test_models_v2.py`` asserts this set against
+``auth_recovery``'s own kind constants, so renaming one there cannot quietly empty it.
+"""
+
+SELF_CLEARING_ACTIONS = frozenset({"park", "notify"})
+"""Auth-recovery handoff actions that mean the wait is still on.
+
+``escalate`` is excluded, as it is recovery saying it cannot proceed; ``recovered`` and
+``cleared`` hand the ball back to the agent, so they never reach this branch anyway.
+Same two names as ``epic.RECOVERING_ACTIONS`` and a separate constant on purpose: that
+one answers whether an epic walk keeps waiting, for every kind, which is a different
+question from what a reader should be told.
+"""
+
+
+class SelfClearingWait(BaseModel):
+    """Why an ``external``/``service`` park needs nobody, and when it ends.
+
+    Derived from the task's newest auth-recovery handoff and never stored, so it cannot
+    disagree with the log entry it comes from.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: str
+    """The auth-recovery incident kind, e.g. ``usage_limit``."""
+    resets_at: Optional[datetime] = None
+    """When the limit lifts, where the refusal reported it. ``None`` means unreported --
+    recovery still probes, so the wait is no less self-clearing for it."""
+
+
 class Outcome(ValueEnum):
     """How a task ended. Set if and only if lifecycle is closed."""
 
@@ -1245,6 +1293,16 @@ class Task(StrictModel):
             if self.ball_reason is BallReason.DEPENDENCY:
                 blockers = [d.task for d in self.dependencies if d.type is DependencyType.NEEDS]
                 return f"Blocked on {blockers[0]}" if blockers else "Blocked"
+            wait = self_clearing_wait(self)
+            if wait is not None:
+                # UTC because a label derived on the server cannot know the reader's
+                # zone, and an unmarked local-looking time is the worse failure: the
+                # question this answers is whether to do anything, and an hour's
+                # ambiguity either way changes that answer. The full timestamp is in
+                # `ball_prompt`, which every surface draws beside this.
+                if wait.resets_at is not None:
+                    return f"Waiting on quota reset ({wait.resets_at.astimezone(timezone.utc):%H:%M} UTC)"
+                return "Waiting on quota reset"
             return "Blocked on a service"
         if self.ball is Ball.AGENT:
             if self.ball_reason is BallReason.AVAILABLE:
@@ -1320,6 +1378,75 @@ class Task(StrictModel):
         # sortable behind the known bands rather than making a list or dashboard fail
         # with KeyError.
         return PRIORITY_RANK.get(self.priority, len(PRIORITY_RANK))
+
+
+def self_clearing_wait(task: "Task") -> Optional[SelfClearingWait]:
+    """``task`` is parked on a quota reset that needs nobody, or ``None``.
+
+    Every `external`/`service` park used to render one flat "Blocked on a service", so a
+    session waiting out a usage limit -- which recovery probes and resumes by itself --
+    was indistinguishable from a third party being down. A reader then has to open the
+    task to learn there is nothing to do, which is exactly the cost the label exists to
+    save.
+
+    Derived from the newest handoff's auth-recovery marker rather than from a new
+    ``ball_reason``. Widening the enum was the alternative and it buys less than it looks:
+    the reset time lives only on the log entry, so a label naming *when* it clears has to
+    read the log whichever reason the task carries -- the enum member would be a second
+    source of a fact the marker already holds, plus the older-reader hazard task-248 is
+    the incident for. Reading the log is a real coupling for a derived label, and narrow:
+    design section 3 rejected *storing* this label, not deriving it from more of the
+    record, and ``Task.dispatch_count`` already derives from the log.
+
+    Three conditions, all required, so the honest cases stay honest:
+
+    - the ball is `external`/`service` -- a park on a person is not touched, which is where
+      a ``spend_limit`` and an escalated dead credential store both sit;
+    - the newest handoff is auth recovery's, and its action still means waiting;
+    - the incident kind is one that lifts with nobody acting (``SELF_CLEARING_KINDS``).
+
+    A module function rather than a property on ``Task``, because ``TaskRead`` declares a
+    field of this name and Pydantic warns about a field shadowing an inherited attribute.
+    A ``computed_field`` on ``Task`` would have avoided that and cost more: a computed
+    field is *required* in the response schema, so every task fixture in the frontend
+    suite would have had to spell ``self_clearing_wait: null`` to say nothing.
+    """
+    if task.ball is not Ball.EXTERNAL or task.ball_reason is not BallReason.SERVICE:
+        return None
+    newest = next(
+        (entry for entry in reversed(task.log) if entry.type is LogEntryType.HANDOFF), None
+    )
+    if newest is None:
+        return None
+    marker = (newest.data or {}).get(AUTH_RECOVERY_MARKER)
+    if not isinstance(marker, dict):
+        return None
+    if marker.get("action") not in SELF_CLEARING_ACTIONS:
+        return None
+    kind = marker.get("kind")
+    if not isinstance(kind, str) or kind not in SELF_CLEARING_KINDS:
+        return None
+    return SelfClearingWait(kind=kind, resets_at=_marker_moment(marker.get("resets_at")))
+
+
+def _marker_moment(raw: object) -> Optional[datetime]:
+    """A moment out of a log entry's ``data``, or ``None`` if it is not one.
+
+    ``LogEntry.data`` is ``Dict[str, Any]``: the value arrives as a ``datetime`` from a
+    writer in this process and as an ISO string once it has been through storage, and a
+    reader older or newer than the writer may find neither. Nothing here may raise --
+    this is reached from the derivation a label is drawn from, so a malformed value has
+    to cost the time in the label and not the whole read.
+    """
+    if isinstance(raw, datetime):
+        return raw if raw.tzinfo else raw.replace(tzinfo=timezone.utc)
+    if not isinstance(raw, str) or not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 class SchemaVersionError(ValueError):

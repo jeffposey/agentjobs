@@ -82,7 +82,13 @@ from agentjobs.dispatch.auth_probe import (
 )
 from agentjobs.execution.errors import ExecutionStoreError
 from agentjobs.execution.store import ExecutionStore, digest, this_holder
-from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType
+from agentjobs.models_v2 import (
+    AUTH_RECOVERY_MARKER,
+    Ball,
+    BallReason,
+    Lifecycle,
+    LogEntryType,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from agentjobs.dispatch.runner import DispatchRunner, RunHandle
@@ -94,9 +100,11 @@ KIND_USAGE_LIMIT = auth.KIND_USAGE_LIMIT
 KIND_SPEND_LIMIT = auth.KIND_SPEND_LIMIT
 
 ACTOR = "dispatcher"
-MARKER = "auth_recovery"
+MARKER = AUTH_RECOVERY_MARKER
 """The ``data`` key on every entry this module writes, so a reader -- the epic walk, the
-handoff-clearing check -- can tell its entries from a person's."""
+handoff-clearing check, ``Task.self_clearing_wait`` -- can tell its entries from a
+person's. Spelled in ``models_v2`` because that module is below this one and reads it
+too; re-exported under the short name this module has always used."""
 
 PROBE_HOURLY_CAP = 60
 MAX_NUDGES_PER_RUN = 3
@@ -771,6 +779,8 @@ def park(runner: "DispatchRunner", handle: "RunHandle", stall: Stall) -> Joined:
             reason=reason,
             prompt=_park_prompt(joined.incident, waiter, stall),
             action="park",
+            kind=joined.incident.kind,
+            resets_at=stall.resets_at,
         )
         if entry is not None:
             book.update_waiter(
@@ -1228,6 +1238,8 @@ def _notify_if_due(
             reason=reason,
             prompt=_notify_prompt(incident, waiter, tasks),
             action="notify",
+            kind=incident.kind,
+            resets_at=incident.resets_at,
         )
         if entry is not None:
             book.update_waiter(
@@ -1335,25 +1347,38 @@ def _handoff(
     reason: BallReason,
     prompt: str,
     action: str,
+    kind: Optional[str] = None,
+    resets_at: Optional[datetime] = None,
 ) -> Optional[int]:
+    """Write one auth-recovery handoff and return its entry id.
+
+    ``kind`` and ``resets_at`` are on the marker because the park they describe is drawn
+    from it: ``Task.self_clearing_wait`` reads exactly these two keys to tell a quota
+    wait, which needs nobody, from a service that is down. Optional so an escalation --
+    which always parks on a person and is never self-clearing -- states nothing it does
+    not need to.
+    """
     if manager is None:
         return None
     task = manager.get_task(waiter.task_id)
     if task is None or task.lifecycle is Lifecycle.CLOSED:
         return None
+    marker: Dict[str, Any] = {
+        "incident": waiter.incident_id,
+        "run_id": waiter.run_id,
+        "action": action,
+    }
+    if kind is not None:
+        marker["kind"] = kind
+    if resets_at is not None:
+        marker["resets_at"] = _iso(resets_at)
     updated = manager.handoff(
         waiter.task_id,
         actor=ACTOR,
         ball=ball,
         ball_reason=reason,
         ball_prompt=prompt,
-        data={
-            MARKER: {
-                "incident": waiter.incident_id,
-                "run_id": waiter.run_id,
-                "action": action,
-            }
-        },
+        data={MARKER: marker},
     )
     newest = next((e for e in reversed(updated.log) if e.type is LogEntryType.HANDOFF), None)
     return newest.id if newest is not None else None
