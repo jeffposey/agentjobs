@@ -17,7 +17,7 @@ import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 import yaml
@@ -204,7 +204,7 @@ def start(
     child_id: str,
     *,
     now: Optional[datetime] = None,
-) -> Tuple[object, Dict[str, object]]:
+) -> Tuple[object, Dict[str, Any]]:
     """Dispatch ``child_id`` on its epic's authorisation and return its dispatch entry.
 
     ``now`` is the dispatcher's clock, for a second attempt that would otherwise sit
@@ -315,8 +315,8 @@ class TestARealChildRunsOnTheEpicsRunner:
         note = next(e for e in child.log if e.data.get("authorizes_dispatch"))
         assert note.data["epic"]["runner"] == BIG
         assert note.data["epic"]["group"] == GROUP
-        assert f"runner `{BIG}`" in note.body
-        assert f"group `{GROUP}`" in note.body
+        assert f"runner `{BIG}`" in (note.body or "")
+        assert f"group `{GROUP}`" in (note.body or "")
 
     def test_a_child_dispatch_that_also_names_a_runner_is_refused(
         self, manager: TaskManager, project: Project, home: Path, configured: Path
@@ -405,7 +405,7 @@ class TestAnUnavailableEpicRunnerRefusesRatherThanFallsBack:
         second = make_child(manager, parent_id, "Second")
 
         class Refusing(Dispatcher):
-            def __call__(self, *, request, **kwargs):  # type: ignore[override]
+            def __call__(self, *, request, **kwargs):
                 self.started.append(request.task_id)
                 raise RecordedRunnerUnavailableError(
                     f"This child inherits from an epic dispatched on runner {BIG!r} in "
@@ -502,7 +502,8 @@ class TestWhichRunnerSourcesCrossTheBoundary:
         authorization = resolve_epic_authorization(manager, PROJECT_CONFIG, child)
         assert authorization.runner == BIG
         assert authorization.group == GROUP
-        assert authorization.data()["epic"]["runner"] == BIG
+        epic: Dict[str, Any] = authorization.data()["epic"]  # type: ignore[assignment]
+        assert epic["runner"] == BIG
 
 
 # ----- a3: the walk says which runner before it starts -----------------------------
