@@ -202,7 +202,7 @@ def build_project(
     return store
 
 
-def seed_history(store: SqlTaskStore) -> None:
+def seed_history(store: SqlTaskStore) -> datetime:
     """A small corpus with every state the panels have to render.
 
     Deliberately not random. Each task below exists to make one assertion possible, and
@@ -216,6 +216,9 @@ def seed_history(store: SqlTaskStore) -> None:
     gave the suite a 4.8-hour window in which it was green. Ages are relative in every
     assertion that reads this corpus, so the reference only has to be the same one the
     endpoint uses. `NOW` stays for the projection tests, which inject it.
+
+    Returns the reference it planted from, so a test can compare it with the clock the
+    endpoint answered on -- see `test_the_corpus_and_the_endpoint_are_on_one_clock`.
     """
     reference = datetime.now(timezone.utc)
     day = lambda n: reference - timedelta(days=n)  # noqa: E731 - a local shorthand, read once
@@ -254,6 +257,7 @@ def seed_history(store: SqlTaskStore) -> None:
     plant_task(
         store, "task-011", created=day(200), ball="agent", ball_reason="available", archived=True
     )
+    return reference
 
 
 @pytest.fixture()
@@ -759,6 +763,44 @@ class TestThroughput:
 
 class TestAgingAndStuck:
     """§8.5 and §8.6 -- the two panels that are calls to attention."""
+
+    def test_the_corpus_and_the_endpoint_are_on_one_clock(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """task-464. The precondition of every age assertion below, asserted directly.
+
+        Both of the numeric assertions in this class read an age, and an age is a
+        subtraction of the instant `seed_history` planted from the instant the endpoint
+        answered on. While those were two clocks -- a frozen literal here, the wall
+        clock there -- every age in the payload was wrong by exactly the gap between
+        them, and the whole symptom was `assert 120.11 == 120 +- 0.1`: a number slightly
+        off, with nothing in it to say which of the two had moved.
+
+        `range.end` is the endpoint's own `now` (§7.3), so the two clocks can be
+        compared rather than inferred from a value derived from both. A minute is
+        generous for planting eleven tasks and one HTTP call, and still four orders of
+        magnitude tighter than the 2.4 hours the `abs=0.1` tolerance would absorb --
+        which is the point: this fails the moment they are different clocks, rather than
+        a few hours after.
+        """
+        monkeypatch.setenv("AGENTJOBS_HOME", str(tmp_path / "home"))
+        monkeypatch.delenv(TASKS_DIR_ENV, raising=False)
+        monkeypatch.delenv("AGENTJOBS_PROJECT_ROOT", raising=False)
+        monkeypatch.chdir(tmp_path)
+        reset_dependency_cache()
+        store = build_project(tmp_path / "solo", "solo")
+        planted_from = seed_history(store)
+        ProjectRegistry(home=tmp_path / "home").add(tmp_path / "solo", project_id="solo")
+
+        with TestClient(app) as client:
+            answered_at = analytics(client, "solo")["range"]["end"]
+
+        reset_dependency_cache()
+        gap = datetime.fromisoformat(answered_at.replace("Z", "+00:00")) - planted_from
+        assert abs(gap.total_seconds()) < 60, (
+            "the fixture and the endpoint are reading different clocks, which makes "
+            f"every age in this payload wrong by {gap}"
+        )
 
     def test_every_age_band_is_emitted_whether_or_not_it_holds_anything(self, served) -> None:
         """A missing bar reads as a rendering fault; a bar labelled zero reads as a fact."""

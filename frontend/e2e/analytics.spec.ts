@@ -78,7 +78,17 @@ interface AnalyticsBody {
   throughput: Array<Record<string, unknown>>;
 }
 
-/** `YYYY-MM-DD` for `offset` days before today, built without a timezone conversion. */
+/**
+ * `YYYY-MM-DD` for `offset` days before 18 Sep 2026, without a timezone conversion.
+ *
+ * A fixed anchor rather than today, and safe here for a reason worth stating -- task-464
+ * was these same two clocks going wrong in the Python suite. These keys only ever reach
+ * a mocked response, where they are axis labels rather than ages. The one value the page
+ * measures against its own clock is `coverage.baseline_at`, and that is `dayKey(BUCKETS)`
+ * -- 90 days back, and a day further back with every day that passes, so `historyOf()`
+ * reads `full` now and can only go on reading `full`. An anchor that drifted *towards*
+ * its threshold would be a time bomb; this one drifts away from it.
+ */
 function dayKey(offset: number): string {
   const day = new Date(Date.UTC(2026, 8, 18) - offset * 86_400_000);
   return day.toISOString().slice(0, 10);
