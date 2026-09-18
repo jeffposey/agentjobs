@@ -122,6 +122,67 @@ describe("TaskList filtering", () => {
     expect(within(table).queryByText("task-101-unrelated")).not.toBeInTheDocument();
   });
 
+  // task-456: both parks are `external`, and one of them needs nobody. Before this they
+  // shared one filter option, so a reader could separate neither.
+  describe("separating a self-clearing wait from a real blocker", () => {
+    const quota = () =>
+      task("task-on-a-quota", {
+        lifecycle: "active",
+        ball: "external",
+        ball_reason: "service",
+        ball_prompt: "The limit resets at 2026-09-18T21:30:00Z. Nothing to do.",
+        display_status: "Waiting on quota reset (21:30 UTC)",
+        assignment: { owner: "claude", eligible: [] },
+        self_clearing_wait: { kind: "usage_limit", resets_at: "2026-09-18T21:30:00Z" },
+      });
+    const vendor = () =>
+      task("task-on-a-vendor", {
+        lifecycle: "active",
+        ball: "external",
+        ball_reason: "service",
+        ball_prompt: "Their API has been 503 since this morning.",
+        display_status: "Blocked on a service",
+        assignment: { owner: "claude", eligible: [] },
+        self_clearing_wait: null,
+      });
+
+    it("shows only the real blocker under Blocked", () => {
+      renderList([quota(), vendor()], "/p/inbox/tasks?status=external");
+
+      const table = screen.getByRole("region", { name: "Tasks" });
+      expect(within(table).getByText("task-on-a-vendor")).toBeVisible();
+      expect(within(table).queryByText("task-on-a-quota")).not.toBeInTheDocument();
+    });
+
+    it("shows only the self-clearing wait under Waiting on a reset", () => {
+      renderList([quota(), vendor()], "/p/inbox/tasks?status=reset");
+
+      const table = screen.getByRole("region", { name: "Tasks" });
+      expect(within(table).getByText("task-on-a-quota")).toBeVisible();
+      expect(within(table).queryByText("task-on-a-vendor")).not.toBeInTheDocument();
+    });
+
+    it("offers the option to a reader who opens the filters", () => {
+      renderList([quota(), vendor()], "/p/inbox/tasks?status=all");
+      const popover = openFilters();
+
+      fireEvent.change(within(popover).getByLabelText("Status"), { target: { value: "reset" } });
+
+      expect(screen.getByTestId("location")).toHaveTextContent("status=reset");
+      const table = screen.getByRole("region", { name: "Tasks" });
+      expect(within(table).getByText("Waiting on quota reset (21:30 UTC)")).toBeVisible();
+      expect(within(table).queryByText("task-on-a-vendor")).not.toBeInTheDocument();
+    });
+
+    it("leaves both in the list when no status filter is set", () => {
+      renderList([quota(), vendor()], "/p/inbox/tasks?status=all");
+
+      const table = screen.getByRole("region", { name: "Tasks" });
+      expect(within(table).getByText("task-on-a-quota")).toBeVisible();
+      expect(within(table).getByText("task-on-a-vendor")).toBeVisible();
+    });
+  });
+
   it("keeps a superseded task distinguishable from a completed one on the list", () => {
     renderList([
       task("task-058-superseded", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "superseded", display_status: "Superseded" }),

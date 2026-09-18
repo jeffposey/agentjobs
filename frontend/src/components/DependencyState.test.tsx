@@ -158,3 +158,71 @@ describe("DependencyState in a list column", () => {
     expect(screen.getByText("Actionable now")).toBeVisible();
   });
 });
+
+describe("DependencyState on an external park", () => {
+  // task-456: every `external`/`service` park read "Blocked", in the red a real blockage
+  // gets, including a session waiting out a usage limit that recovery resumes by itself.
+  // A reader then has to open the task to learn there is nothing to do.
+  const parked: TaskRead = {
+    schema: 2,
+    id: "task-parked",
+    title: "A parked task",
+    created: "2026-09-18T18:00:00Z",
+    updated: "2026-09-18T19:00:00Z",
+    lifecycle: "active",
+    ball: "external",
+    ball_reason: "service",
+    ball_prompt: "The limit resets at 2026-09-18T21:30:00Z. Nothing to do.",
+    display_status: "Waiting on quota reset (21:30 UTC)",
+    priority: "medium",
+    category: "ops",
+    tags: [],
+    assignment: { owner: "claude", eligible: [] },
+    spec: { summary: "Summary.", description: "Body." },
+  };
+  const quota: TaskRead = {
+    ...parked,
+    self_clearing_wait: { kind: "usage_limit", resets_at: "2026-09-18T21:30:00Z" },
+  };
+  const vendorDown: TaskRead = {
+    ...parked,
+    display_status: "Blocked on a service",
+    ball_prompt: "Their API has been 503 since this morning.",
+    self_clearing_wait: null,
+  };
+
+  it("says what a quota park is waiting for and when it ends", () => {
+    render(<DependencyState task={quota} />);
+
+    expect(screen.getByText("Waiting on quota reset (21:30 UTC)")).toBeVisible();
+    expect(screen.queryByText("Blocked")).not.toBeInTheDocument();
+  });
+
+  it("still says Blocked when nothing says the wait clears itself", () => {
+    render(<DependencyState task={vendorDown} />);
+
+    expect(screen.getByText("Blocked")).toBeVisible();
+  });
+
+  // The colour is what a scan of the list reads, and red on a condition already handled
+  // is what sends somebody to investigate it.
+  it("does not draw a self-clearing wait in the colour a blockage gets", () => {
+    const { unmount } = render(<DependencyState task={vendorDown} />);
+    const blockedClasses = screen.getByText("Blocked").className;
+    unmount();
+
+    render(<DependencyState task={quota} />);
+
+    expect(screen.getByText("Waiting on quota reset (21:30 UTC)").className).not.toEqual(
+      blockedClasses,
+    );
+  });
+
+  // The routes serialise a task with no wait as an absent key on some surfaces and a
+  // null on others, so the check has to survive both.
+  it("treats an absent field the same as a null one", () => {
+    render(<DependencyState task={parked} />);
+
+    expect(screen.getByText("Blocked")).toBeVisible();
+  });
+});
