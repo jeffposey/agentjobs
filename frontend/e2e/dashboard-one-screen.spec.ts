@@ -356,6 +356,28 @@ for (const viewport of ENTRY_POINT_WIDTHS) {
     await expect(analytics).toHaveAttribute("href", "/app/p/_local/analytics");
     await expect(page.getByRole("link", { name: `View all ${CROWD} →` })).toBeVisible();
 
+    // Neither label breaks across lines. This is the assertion with the teeth: at
+    // 320px, two links on this row is enough to make `View all 40 →` break after the
+    // number and leave the arrow alone on the next line, which reads as a broken glyph.
+    // A `Range` over the text node is the only thing that sees it -- the links are
+    // `inline-flex` with a 44px `min-height`, so a wrapped label changes neither the
+    // link's box nor the row's height.
+    const wrapped = await page.evaluate(() => {
+      const labels = ["Analytics", "View all"];
+      return Array.from(document.querySelectorAll("a"))
+        .filter((a) => labels.some((label) => (a.textContent ?? "").trim().startsWith(label)))
+        .filter((a) => a.closest("div")?.previousElementSibling?.tagName === "H2")
+        .map((a) => {
+          const range = document.createRange();
+          range.selectNodeContents(a);
+          return { text: (a.textContent ?? "").trim(), lines: range.getClientRects().length };
+        });
+    });
+    expect(wrapped.length, "both links on the heading row were found").toBe(2);
+    for (const link of wrapped) {
+      expect(link.lines, `"${link.text}" is on one line at ${viewport.width}px`).toBe(1);
+    }
+
     // The row wraps rather than overflowing, and the document gains no horizontal
     // scroll from it.
     const row = await page.evaluate(() => {

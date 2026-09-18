@@ -389,11 +389,19 @@ export function Dashboard({ dashboard, projectId, renderSlotBoard }: DashboardPr
               into the burger. `Analytics →` goes first so `View all →` keeps the edge
               position a reader's thumb already knows.
             */}
+            {/*
+              `whitespace-nowrap`, because two links on a 320px row is where the arrow
+              parts company with its word. With one link there was room to spare and the
+              row never wrapped; with two, `View all 40 →` breaks after `40` and the
+              arrow lands alone on the next line, which reads as a broken glyph rather
+              than as a link. Each link wraps as a unit instead, and the heading takes
+              the second line if one is needed.
+            */}
             <div className="flex items-baseline gap-3">
-              <Link to={projectPath(projectId, "/analytics")} className="touch-target text-xs text-blue-400 hover:text-blue-300">
+              <Link to={projectPath(projectId, "/analytics")} className="touch-target whitespace-nowrap text-xs text-blue-400 hover:text-blue-300">
                 Analytics →
               </Link>
-              <Link to={projectPath(projectId, "/tasks")} className="touch-target text-xs text-blue-400 hover:text-blue-300">
+              <Link to={projectPath(projectId, "/tasks")} className="touch-target whitespace-nowrap text-xs text-blue-400 hover:text-blue-300">
                 {dashboard.active_tasks.length > ACTIVE_PREVIEW
                   ? `View all ${dashboard.active_tasks.length} →`
                   : "View all →"}
