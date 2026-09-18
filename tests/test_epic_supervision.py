@@ -34,7 +34,14 @@ from agentjobs.dispatch.journal import journal
 from agentjobs.dispatch.ledger import read_run
 from agentjobs.dispatch.runner import runs_root
 from agentjobs.execution import store as epic_store
-from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome
+from agentjobs.models_v2 import (
+    Ball,
+    BallReason,
+    DispatchMode,
+    Lifecycle,
+    LogEntryType,
+    Outcome,
+)
 from agentjobs.projects import ProjectRegistry
 from test_execution_controller import TESTS, Machine, environment
 
@@ -452,7 +459,7 @@ def test_a_detached_walk_is_advanced_by_the_server_with_no_supervisor_process(wa
     project = ProjectRegistry(home=walk.machine.home).get("sandbox")
     walk_id = detach_walk(
         manager=walk.machine.manager,
-        project=project,
+        project_id=project.id,
         parent_id=walk.parent_id,
         home=walk.machine.home,
         settings=WalkSettings(max_concurrent=1),
@@ -479,8 +486,277 @@ def test_a_detached_walk_is_advanced_by_the_server_with_no_supervisor_process(wa
     assert (
         parent is not None and parent.is_open
     ), "the parent's own acceptance is not the walk's call"
-    assert "every open child is done" in (parent.log[-1].body or "")
+    assert any("every open child is done" in (e.body or "") for e in parent.log)
+    assert (
+        parent.ball is Ball.HUMAN and parent.ball_reason is BallReason.REVIEW
+    ), "a landed walk at a review posture puts the judgement in front of a person (task-458)"
     assert advance_hosted_walks(walk.machine.home, resolve=resolve) == []
+
+
+# ----- task-458: a dispatched epic starts no agent --------------------------------------
+
+
+def _dispatch_epic(walk: Epic):
+    """Dispatch the parent itself, the way the Dispatch button does."""
+    from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
+
+    project = ProjectRegistry(home=walk.machine.home).get("sandbox")
+    parent = walk.machine.manager.get_task(walk.parent_id)
+    assert parent is not None
+    entry = epic.parent_authorizing_entry(parent)
+    assert entry is not None
+    return dispatch_task(
+        manager=walk.machine.manager,
+        project=project,
+        project_config=project.load_config(),
+        request=DispatchRequest(task_id=walk.parent_id, caused_by=entry.id),
+        home=walk.machine.home,
+        api_base="http://127.0.0.1:9",
+    )
+
+
+class TestADispatchedEpicHoldsNoSlot:
+    """The supervisor session is gone; the walk is the run (task-458).
+
+    Until this, dispatching an epic started a session whose entire life was blocking on
+    ``dispatch walk``. It held one of the machine's three slots to do that, so a walk
+    dispatched from the UI flew two children and refused the third.
+    """
+
+    def test_the_dispatch_starts_a_walk_and_no_agent(self, walk: Epic) -> None:
+        walk.child("First")
+        handle = _dispatch_epic(walk)
+
+        assert handle.mode is DispatchMode.WALK
+        assert walk.machine.rows() == [], "no session was launched for the epic itself"
+        [record] = journal(walk.machine.home).open_walks()
+        assert record.parent_task_id == walk.parent_id and record.host == "server"
+
+    def test_no_run_of_the_parent_holds_a_slot_once_the_dispatch_returns(self, walk: Epic) -> None:
+        """ac-2. Asserted against the exact list ``GET /api/runs/live`` reads.
+
+        The route is a pure function of ``ledger.live_runs``, so asserting it here rather
+        than through an HTTP client tests the thing that would actually be wrong -- a run
+        left live -- instead of the serialisation around it.
+        """
+        from agentjobs.dispatch.ledger import live_runs
+
+        walk.child("First")
+        handle = _dispatch_epic(walk)
+
+        live = live_runs(walk.machine.home)
+        assert [run.run_id for run in live if run.task_id == walk.parent_id] == []
+        assert [run.run_id for run in live if run.takes_slot] == []
+        assert handle.run_id not in [run.run_id for run in live]
+
+    def test_the_dispatch_entry_is_still_written_so_children_inherit_from_it(
+        self, walk: Epic
+    ) -> None:
+        """The reason an epic still gets a run rather than nothing at all.
+
+        ``inherited_posture`` and ``inherited_runner`` read the parent's ``dispatch``
+        entry. A detach that wrote none would drop every child to the project default,
+        which is the defect task-453 was filed for, reached by a different road.
+        """
+        walk.child("First")
+        _dispatch_epic(walk)
+
+        parent = walk.machine.manager.get_task(walk.parent_id)
+        assert parent is not None
+        entry = epic.parent_dispatch_entry(parent)
+        assert entry is not None
+        assert entry.data.get("mode") == DispatchMode.WALK.value
+        assert entry.data.get("posture")
+        assert epic.parent_authorizing_entry(parent) is not None, "the human act is not shadowed"
+
+    def test_the_run_lock_is_released_so_the_epic_can_be_dispatched_again(self, walk: Epic) -> None:
+        """A terminal run has nothing coming back later to let go of its lock.
+
+        A second dispatch of the same epic therefore gets as far as the journal, which
+        hands it the walk that is already open rather than starting a second one. The
+        failure this guards against is the other answer: a lock held for ever by a run
+        that ended, so every later dispatch of the epic is told a run is still live.
+        """
+        walk.child("First")
+        first = _dispatch_epic(walk)
+        second = _dispatch_epic(walk)
+
+        assert second.run_id != first.run_id
+        walks = journal(walk.machine.home).open_walks()
+        assert len(walks) == 1, "the second dispatch adopted the open walk"
+        assert [row.get("state") for row in walk.machine.rows()] == []
+
+    def test_the_walk_fills_the_whole_ceiling(self, walk: Epic) -> None:
+        """ac-1. Three independent children, ceiling three, and nothing supervising.
+
+        The number is the point: with the old attached walk this was two, because the
+        supervisor's own session was the third slot holder.
+        """
+
+        def resolve(project_id: str) -> Any:
+            return walk.machine.manager, ProjectRegistry(home=walk.machine.home).get("sandbox")
+
+        children = [walk.child(title) for title in ("First", "Second", "Third")]
+        _dispatch_epic(walk)
+
+        advance_hosted_walks(walk.machine.home, resolve=resolve)
+
+        assert [len(walk.sessions_named(child)) for child in children] == [1, 1, 1]
+
+    def test_nothing_the_walk_can_see_claims_a_supervisor_slot(self, walk: Epic) -> None:
+        """``supervisor_slot_held`` is the exception path now, not the norm.
+
+        The epic's own run is terminal, so a walk asking whether a supervisor holds a slot
+        gets ``False`` and keeps the whole ceiling -- which is what the test above measures
+        in children and this one asserts in the predicate that decides it.
+        """
+        walk.child("First")
+        handle = _dispatch_epic(walk)
+
+        os.environ["AGENTJOBS_RUN_ID"] = handle.run_id
+        try:
+            assert not supervisor_slot_held(walk.machine.home)
+        finally:
+            os.environ.pop("AGENTJOBS_RUN_ID", None)
+
+
+class TestWhatHappensWhenTheWalkLands:
+    """ac-3. The judging half of a supervision nobody is sitting in (task-458)."""
+
+    def resolve(self, walk: Epic) -> Callable[[str], Any]:
+        project = ProjectRegistry(home=walk.machine.home).get("sandbox")
+
+        def resolve(project_id: str) -> Any:
+            return walk.machine.manager, project
+
+        return resolve
+
+    def land(self, walk: Epic) -> List[str]:
+        """Dispatch the epic, then tick the server until the walk is over."""
+        resolve = self.resolve(walk)
+        _dispatch_epic(walk)
+        lines: List[str] = []
+        for _ in range(8):
+            lines.extend(advance_hosted_walks(walk.machine.home, resolve=resolve))
+            if any("all_children_done" in line for line in lines):
+                break
+            walk.complete_active()
+            for row in walk.machine.rows():
+                row["state"] = "done"
+        return lines
+
+    def test_a_landed_walk_at_a_review_posture_asks_a_person(self, walk: Epic) -> None:
+        walk.child("First")
+        lines = self.land(walk)
+
+        assert any("all_children_done" in line for line in lines), lines
+        parent = walk.machine.manager.get_task(walk.parent_id)
+        assert parent is not None and parent.is_open
+        assert parent.ball is Ball.HUMAN and parent.ball_reason is BallReason.REVIEW
+        assert "acceptance criteria" in (parent.ball_prompt or "")
+        assert walk.sessions_named(walk.parent_id) == [], "nothing was started to do the reading"
+
+    def test_a_landed_walk_at_an_autonomous_posture_dispatches_one_evaluation_run(
+        self, walk: Epic, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """(b) from the spec: an autonomous epic is unattended from the click to the close."""
+        walk.machine.configure(controller="shadow", posture="autonomous")
+        only = walk.child("First")
+        lines = self.land(walk)
+
+        assert any("all_children_done" in line for line in lines), lines
+        parent = walk.machine.manager.get_task(walk.parent_id)
+        assert parent is not None and parent.is_open
+        assert parent.ball is Ball.AGENT, "nobody was asked to read it"
+        evaluations = [
+            row
+            for row in walk.machine.rows()
+            if str(row.get("name")).partition("#")[0].endswith(f"/{walk.parent_id}")
+        ]
+        assert len(evaluations) == 1, walk.machine.rows()
+        entry = epic.parent_dispatch_entry(parent)
+        assert entry is not None and entry.data.get("trigger") == "evaluation"
+        authorising = epic.parent_authorizing_entry(parent)
+        assert authorising is not None and entry.data.get("caused_by") == authorising.id
+        assert authorising.actor == "Jeff Posey", "on the human act, not on an agent's"
+        assert only in walk.children
+
+    def test_an_evaluation_that_cannot_start_falls_back_to_asking_a_person(
+        self, walk: Epic, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A refused dispatch must not leave the parent reading agent/work for ever.
+
+        The failure is injected rather than provoked because every real cause -- a busy
+        machine, a spent budget, a tripped sentinel -- reaches this code as the same
+        exception from the same call, and provoking one of them would test that cause.
+        """
+        walk.machine.configure(controller="shadow", posture="autonomous")
+        walk.child("First")
+
+        def refuse(*args: Any, **kwargs: Any) -> str:
+            raise RuntimeError("injected: no slot")
+
+        monkeypatch.setattr(epic, "dispatch_parent_evaluation", refuse)
+        self.land(walk)
+
+        parent = walk.machine.manager.get_task(walk.parent_id)
+        assert parent is not None
+        assert parent.ball is Ball.HUMAN and parent.ball_reason is BallReason.REVIEW
+        assert any("injected: no slot" in (item.body or "") for item in parent.log)
+
+    def test_a_grounded_walk_still_names_the_child_and_its_reason(self, walk: Epic) -> None:
+        """The other half of ac-3, and the behaviour task-466 fixed, still standing."""
+        resolve = self.resolve(walk)
+        only = walk.child("First")
+        _dispatch_epic(walk)
+        advance_hosted_walks(walk.machine.home, resolve=resolve)
+        walk.machine.manager.handoff(
+            only,
+            actor="claude",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Look at this.",
+        )
+        lines = advance_hosted_walks(walk.machine.home, resolve=resolve)
+
+        assert any("child_needs_a_human" in line for line in lines), lines
+        parent = walk.machine.manager.get_task(walk.parent_id)
+        assert parent is not None
+        assert parent.ball is Ball.HUMAN and parent.ball_reason is BallReason.DECISION
+        assert only in (parent.ball_prompt or "")
+
+
+def test_a_nested_epic_is_not_counted_dead_when_its_walk_run_ends(walk: Epic) -> None:
+    """A child that is itself an epic gets a ``walk`` run, which is terminal at once.
+
+    Reading that as "the session went without finishing" would ground the outer walk on a
+    nested epic that is working perfectly -- the one regression detaching at dispatch time
+    could introduce, because every other run this poller sees outlives its own start.
+    """
+    from agentjobs.dispatch.epic import _poll_child
+
+    parent_child = walk.child("A child that is itself an epic")
+    walk.machine.manager.create_task(
+        title="Grandchild",
+        category="general",
+        summary="A grandchild.",
+        description="Do the grandchild's thing.",
+        lifecycle=Lifecycle.READY,
+        actor="claude",
+        parent=parent_child,
+    )
+    walk.machine.manager.claim_task(parent_child, agent="claude")
+    flight = epic.Flight(child_id=parent_child, run_id="run_gone", attempt=1, deadline=1e12)
+
+    verdict = _poll_child(
+        manager=walk.machine.manager,
+        flight=flight,
+        settings=WalkSettings(),
+        status="finished",
+        now=lambda: 0.0,
+    )
+
+    assert verdict is None, "its own walk lands it; this one keeps waiting"
 
 
 # ----- from-walk-slots ------------------------------------------------------------------

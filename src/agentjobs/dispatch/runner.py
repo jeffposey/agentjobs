@@ -232,37 +232,37 @@ it has no context for.
 The rendered prompt is still asserted to be short and to not restate the record, which
 is the property that matters. It is not asserted to be minimal."""
 
-SUPERVISOR_STUB = (
-    "You are the agent `{agent}` supervising parent task `{task_id}` in project "
-    "`{project_id}` (root: {project_root}). It has open children: {children}. "
-    "You are the supervisor, not the worker: start a separate session for one eligible "
-    "child at a time and let that session do the child's work. Do not work a child "
-    "yourself, do not take a worktree, and check nothing out -- you stay in the shared "
-    "working tree as it is, and each child session takes its own. AgentJobs is serving "
-    "at {api_base}. Read the parent record, then follow the parent-task protocol in "
-    + GUIDE_PATH
-    + ". Dispatch run id: {run_id}."
+EVALUATION_STUB = (
+    "You are the agent `{agent}` evaluating epic `{task_id}` in project `{project_id}` "
+    "(root: {project_root}). Its walk has landed every open child and is over; nothing "
+    "of this epic is still running. You are not the worker: do not take a worktree, "
+    "check nothing out, start no child, and write no code -- you stay in the shared "
+    "working tree as it is. AgentJobs is serving at {api_base}. Read this parent's "
+    "record and each child's, judge this parent's acceptance criteria against what the "
+    "children recorded, and close it only where that evidence supports it; where a "
+    "criterion is not met, say which and hand the parent back. The parent-task protocol "
+    "is in " + GUIDE_PATH + ". Dispatch run id: {run_id}."
 )
-"""The stub for a task that has open children. Task-164.
+"""The stub for the one run an epic gets after its walk landed (task-164, task-458).
 
-**Which stub a run gets is decided by the record, not by the dispatcher's opinion**: a
-task with an open child is an epic, and an epic's worker is a supervisor. That is the
-one checkable property the owner's rule reduces to -- work that starts a new worktree
-belongs in a new session -- and it needs no new field, no label
-somebody has to remember to set, and no judgement at spawn time.
+**Supervision is two acts and only one of them needs a model.** Until task-458 this stub
+was given to a session at the *start* of an epic, which then blocked on the walk for
+hours: the waiting was the whole of its life, and it held one of the machine's slots to
+do it. The waiting is the server's now. What is left is the judging -- reading the
+children's evidence against the parent's criteria -- which is a real act, happens once,
+and happens when there is something to judge.
 
-It says the opposite of ``PROMPT_STUB`` about worktrees, and that inversion is the whole
-reason this is a second stub rather than an extra sentence. A supervisor that obeyed the
+It still says the opposite of ``PROMPT_STUB`` about worktrees, and that inversion is the
+whole reason this is a second stub rather than an extra sentence. A run that obeyed the
 worktree paragraph would check out a branch in the shared clone, which is the collision
-ALLAGENTS.md's worktree rule exists to prevent. A supervisor writes no code, so it
-needs no isolation; what it needs is to be told, before it reads anything, that the
-first act the other stub demands is not its act. That is the same argument task-192 made
-for stating the worktree command here, applied in reverse.
+ALLAGENTS.md's worktree rule exists to prevent. This run writes no code, so it needs no
+isolation; what it needs is to be told, before it reads anything, that the first act the
+other stub demands is not its act. That is the same argument task-192 made for stating
+the worktree command here, applied in reverse.
 
-The children are named rather than counted because the supervisor's first decision is
-which one is eligible, and a count sends it back to the API for something the prompt
-could have carried for nothing. Named, not described: what each child *is* stays in its
-own record, per the pointer-not-composition rule above."""
+The children are not named here, unlike the stub this replaces. They were named because a
+supervisor's first decision was which one was eligible; by the time this runs they are all
+closed, and which ones they were is a fact about the record it is about to open."""
 
 REVIEW_CLAUSE = (
     "Posture `{posture}` stops at the merge gate: when the work is done and verified, "
@@ -287,38 +287,22 @@ the entire safety argument for merging without a person. So the clause says whic
 command, and says not to do it by hand.
 """
 
-SUPERVISOR_REVIEW_CLAUSE = (
-    "Posture `{posture}` stops at the merge gate: each child you start hands off for "
-    "human review and merges only on an approval. You approve nothing yourself."
+EVALUATION_CLAUSE = (
+    "Posture `{posture}` decided what the children did with their branches, and they have "
+    "already done it: every child of this epic is closed. You hold no branch, so there is "
+    "nothing here for you to merge and nothing to finish -- close this parent through the "
+    "API, or hand it back saying which criterion is unmet."
 )
-"""The review policy, restated for a run that holds no branch of its own."""
+"""The merge policy, restated for a run that holds no branch of its own (task-458).
 
-SUPERVISOR_AUTOMATIC_CLAUSE = (
-    "Posture `{posture}` releases the merge gate: a child you start merges its own work "
-    "once its gate is green, with no human review."
-)
-"""The automatic policy, restated for a run that holds no branch of its own."""
+One clause for every posture rather than two, because the difference the two versions of
+this used to draw -- whether a child merges on an approval or on its own gate -- is a fact
+about runs that are over by the time this one starts. Saying it here would describe the
+past and invite this run to act on it. What this run needs to be told is that the merge
+question is not its question, which is true at every posture.
 
-WALK_CLAUSE = (
-    "Do not start the children by hand: run `agentjobs dispatch walk {task_id} --project "
-    "{project_id}` from {project_root} and let it finish. It takes one eligible child at "
-    "a time and stops the whole walk on the first that is not clean. Exit 0 means every "
-    "open child is done -- then judge this parent's own acceptance criteria against what "
-    "the children recorded, and close it. Exit 1 means it stopped and this record says why."
-)
-"""How a supervisor is told to walk its children (task-022).
-
-**It names a command rather than describing a loop**, on exactly the reasoning task-192
-gave for the worktree line and task-021 gave for the finish command: an instruction a
-model can satisfy in several ways gets satisfied in the cheapest one, and here the
-cheapest one is to start a child, say it will check back, and end the turn. The workflow
-guide records that happening -- *"a supervisor that ends its turn saying it will check
-back periodically is not supervising, it is asleep"* -- and this clause is the answer to
-it. The walk blocks, so a supervisor obeying this cannot end its turn early.
-
-The final sentence is the one thing the walk deliberately does not do, so it has to be
-said here: no open child remaining is not the same as the parent's criteria being met,
-and that judgement is the supervisor's."""
+The posture is still named. Not naming it would leave the one run that closes an epic
+unable to say, on the record, what envelope it was closing it under."""
 
 NO_PUSH_CLAUSE = "Never push: this project is configured `push: false`."
 PUSH_CLAUSE = "This project is configured `push: true`, so pushing `{base}` is permitted."
@@ -333,7 +317,7 @@ def policy_clause(
     project_id: str,
     project_root: object,
     base_branch: str = "main",
-    supervisor: bool = False,
+    evaluation: bool = False,
 ) -> str:
     """What this run is permitted to do with its branch, in one or two sentences.
 
@@ -353,12 +337,8 @@ def policy_clause(
     policy = posture.merge_policy
     if policy is MergePolicy.NONE:
         return ""
-    if supervisor:
-        template = (
-            SUPERVISOR_AUTOMATIC_CLAUSE
-            if policy is MergePolicy.AUTOMATIC
-            else SUPERVISOR_REVIEW_CLAUSE
-        )
+    if evaluation:
+        template = EVALUATION_CLAUSE
     else:
         template = AUTOMATIC_CLAUSE if policy is MergePolicy.AUTOMATIC else REVIEW_CLAUSE
     merge = template.format(
@@ -368,23 +348,15 @@ def policy_clause(
         project_root=project_root,
     )
     push_text = PUSH_CLAUSE.format(base=base_branch) if push else NO_PUSH_CLAUSE
-    clauses = [merge, push_text]
-    if supervisor:
-        # Both merge policies get it. The walk is how children are started at either, and
-        # what differs is only what each child does with its own branch at the end --
-        # which is the child's prompt's business, not the supervisor's.
-        clauses.append(
-            WALK_CLAUSE.format(task_id=task_id, project_id=project_id, project_root=project_root)
-        )
-    return " ".join(clauses)
+    return " ".join([merge, push_text])
 
 
 CHILDREN_NAMED = 8
-"""How many child ids the supervisor stub lists before it summarises the rest.
+"""How many child ids a sentence about an epic's children names before summarising.
 
-A ceiling on prompt length rather than a considered number. Eight covers every parent in
-this repository's corpus; a wider epic gets ``and N more``, and the supervisor reads the
-rest from the record it is about to open anyway.
+A ceiling on length rather than a considered number. Eight covers every parent in this
+repository's corpus; a wider epic gets ``and N more``, and the reader gets the rest from
+the record.
 """
 
 GRACE_SECONDS = 30.0
@@ -1473,6 +1445,7 @@ class DispatchRunner:
         push: Optional[bool] = None,
         history: Optional["History"] = None,
         over_ceiling: bool = False,
+        evaluation: bool = False,
     ) -> None:
         self.manager = manager
         self.resolution = resolution
@@ -1487,6 +1460,15 @@ class DispatchRunner:
         Held on the runner for the reason ``posture`` is: it reaches the run's metadata
         and the run's dispatch entry, and a machine over its ceiling in one of those and
         not the other is a record that cannot be reconciled afterwards."""
+        self.evaluation = evaluation
+        """Whether this run is an epic's end-of-walk evaluation (task-458).
+
+        Derived from the request's trigger by the caller rather than from the record,
+        which is the one thing that could not work here: an epic being evaluated has no
+        open children left, so it is indistinguishable from an ordinary task by reading
+        it. The trigger is the only place the distinction exists, and it is written by
+        the walk that caused this dispatch.
+        """
         self.execution_id: Optional[str] = None
         """The execution admission put this run under, when the caller admitted one."""
         self._session_names: Dict[str, str] = {}
@@ -1559,29 +1541,23 @@ class DispatchRunner:
             return []
         return sorted(child.id for child in children if child.is_open)
 
-    def build_prompt(
-        self, task_id: str, run_id: str, children: Optional[Sequence[str]] = None
-    ) -> str:
+    def build_prompt(self, task_id: str, run_id: str) -> str:
         """The prompt stub. A pointer to the record, never a copy of it.
 
-        Two stubs, chosen by one property of the record: a task with an open child is an
-        epic, so the agent sent at it is told to supervise rather than to work. See
-        ``SUPERVISOR_STUB`` for why that cannot be one extra sentence on the other one.
+        Two stubs, chosen by what caused this dispatch: an epic's end-of-walk evaluation
+        is told to read and judge, and everything else is told to work. See
+        ``EVALUATION_STUB`` for why that cannot be one extra sentence on the other one.
 
-        ``children`` is an optimisation with a correctness point behind it. ``build_argv``
-        needs the same answer to decide the prompt *and* the permission grant, and the
-        two must not be able to disagree -- a supervisor prompt paired with a worker's
-        settings is the bug task-220 fixes, and reading the record twice is how that
-        would eventually happen. Passing it in reads once. Omitted, this looks it up
-        itself, so every other caller is unchanged.
+        **A task with open children gets no prompt at all**, because it gets no agent
+        (task-458): its dispatch detaches a server-hosted walk and concludes. What used to
+        be decided here by counting children is now decided in ``start``, one level up,
+        where the choice is between starting a session and starting nothing.
 
         The posture's merge and push policy is appended (task-021) and is the one thing
         here that is *not* a pointer, because there is nothing to point at: see
         ``policy_clause``.
         """
-        if children is None:
-            children = self.open_child_ids(task_id)
-        stub = SUPERVISOR_STUB if children else PROMPT_STUB
+        stub = EVALUATION_STUB if self.evaluation else PROMPT_STUB
         rendered = stub.format(
             agent=self.runner.actor_id,
             task_id=task_id,
@@ -1589,9 +1565,8 @@ class DispatchRunner:
             project_root=self.project_root,
             api_base=self.api_base,
             run_id=run_id,
-            children=describe_children(children),
         )
-        clause = self.policy_clause_for(task_id, children)
+        clause = self.policy_clause_for(task_id)
         if clause:
             rendered = f"{rendered} {clause}"
         # A playbook run appends one line and changes nothing else about the stub. It is
@@ -1600,14 +1575,12 @@ class DispatchRunner:
             rendered = f"{rendered} {self.playbook.prompt_line()}"
         return rendered
 
-    def policy_clause_for(self, task_id: str, children: Optional[Sequence[str]] = None) -> str:
+    def policy_clause_for(self, task_id: str) -> str:
         """The posture and push sentences this run's agent is told, exactly (task-021).
 
         One composition, used by the cold prompt, the wake prompt and the envelope the
         journal freezes (task-375), so the three cannot describe different runs.
         """
-        if children is None:
-            children = self.open_child_ids(task_id)
         return policy_clause(
             self.posture.posture,
             push=self.push,
@@ -1615,7 +1588,7 @@ class DispatchRunner:
             project_id=self.resolution.project_id,
             project_root=self.project_root,
             base_branch=self.resolution.settings.finish.base_branch,
-            supervisor=bool(children),
+            evaluation=self.evaluation,
         )
 
     def session_name_for(self, task_id: str, run_id: str) -> str:
@@ -1641,18 +1614,13 @@ class DispatchRunner:
     def build_argv_and_prompt(self, task_id: str, run_id: str) -> tuple[List[str], str]:
         """The full argv, and the prompt string that is inside it.
 
-        The open children are read **once** and used twice -- for the prompt stub and for
-        the supervisor permission grant. One read, so the prompt and the settings cannot
-        describe two different runs.
-
         The prompt is returned alongside rather than recovered from the argv afterwards
         because a wake has to *replace* that element (see ``dispatch.wake``), and
         searching an argv for "the one that looks like a prompt" is a guess. Handing back
         the exact string the caller put in is not.
         """
-        children = self.open_child_ids(task_id)
         values = {
-            "prompt": self.build_prompt(task_id, run_id, children),
+            "prompt": self.build_prompt(task_id, run_id),
             "task_id": task_id,
             "project_id": self.resolution.project_id,
             "project_root": str(self.project_root),
@@ -1663,7 +1631,7 @@ class DispatchRunner:
         flags = posture_flags(
             self.posture.posture,
             mcpjson_server_names(self.project_root),
-            supervisor=bool(children),
+            supervisor=self.evaluation,
             driver=self.runner.driver,
         )
         # The session name is AgentJobs the same way the posture flags are, and rides
@@ -2358,6 +2326,16 @@ class DispatchRunner:
         attempt before any worker exists; omitted, one is minted here, which is what every
         caller outside ``dispatch_task`` has always had.
         """
+        if self.open_child_ids(task.id):
+            # **An epic starts no agent** (task-458). Its dispatch hands the walk to the
+            # server and concludes in this same call, so the ceiling it is about to fill
+            # with children has nothing of its own in it. Before `_assert_spawnable`
+            # because nothing is spawned: a dirty working tree is a reason not to let an
+            # agent commit on top of it, and the children's own dispatches make that
+            # check for themselves, each against the tree as it stands when it starts.
+            return self._start_walk(
+                task, actor=actor, caused_by=caused_by, trigger=trigger, run_id=run_id
+            )
         self._assert_spawnable(task)
         if self.runner.mode is RunnerMode.SESSION:
             handle = self._start_session(
@@ -2373,6 +2351,178 @@ class DispatchRunner:
         # spent money on a run should be able to say what envelope it got.
         handle.posture = self.posture
         return handle
+
+    # ----- walk mode: an epic, with no agent ----------------------------------
+
+    def _start_walk(
+        self,
+        task: Task,
+        *,
+        actor: str,
+        caused_by: int,
+        trigger: DispatchTrigger,
+        run_id: Optional[str] = None,
+    ) -> RunHandle:
+        """Hand this epic's walk to the server and conclude in the same call (task-458).
+
+        **Detaching the walk is the run.** A ``walk`` run has no worker, no prompt, no
+        model call and no argv; it exists so that the epic's takeoff leaves the same
+        evidence every other takeoff leaves, and so that the ``dispatch`` entry every
+        child reads its posture, runner and authorising human off is written by the
+        thing that authorised them. It is terminal before this method returns, which is
+        what makes the machine's whole ceiling available to the children it just
+        started.
+
+        Nothing here writes to the parent beyond that entry. The walk re-derives each
+        child's authorisation from the parent's newest human entry, so an agent's note
+        announcing the detach would shadow the human act being walked on and every child
+        would be refused -- the same constraint ``detach_walk`` states from its own side.
+        """
+        from agentjobs.dispatch.epic import (
+            EpicError,
+            WalkSettings,
+            detach_walk,
+        )
+
+        run_id = run_id or new_run_id()
+        directory = RunDirectory.create(
+            self.home,
+            run_id,
+            {
+                "run_id": run_id,
+                "task_id": task.id,
+                "project_id": self.resolution.project_id,
+                **({"execution_id": self.execution_id} if self.execution_id else {}),
+                "mode": DispatchMode.WALK.value,
+                "driver": self.runner.driver.value,
+                "posture": self.posture.posture.value,
+                **self.posture.as_data(),
+                "status": "starting",
+                "started_at": self.clock().isoformat(),
+                "caused_by": caused_by,
+                "argv": [],
+            },
+        )
+        entry_id = self._record_dispatch(
+            task,
+            run_id,
+            [],
+            actor=actor,
+            caused_by=caused_by,
+            trigger=trigger,
+            mode=DispatchMode.WALK,
+            session_id=None,
+            body=(
+                f"Handing {task.id}'s children to a server-hosted walk. No agent is "
+                "started for the epic itself, so none of its children queue behind one."
+            ),
+            # Nothing was sent anywhere, and saying so is not the same as leaving it
+            # unrecorded: a run credited with a delivery it never made is how a posture
+            # comes to be believed to have reached an agent that never existed.
+            delivery=self.delivery_data(
+                task.id, channel="none", payload=None, acknowledged_by=None
+            ),
+        )
+        handle = RunHandle(
+            run_id=run_id,
+            task_id=task.id,
+            mode=DispatchMode.WALK,
+            directory=directory,
+            dispatch_entry_id=entry_id,
+            runner=self.runner.name,
+            group=self._group_name(),
+            api_base=self.api_base,
+        )
+
+        settings = WalkSettings(max_concurrent=self.resolution.limits.max_concurrent_runs)
+        try:
+            walk_id = detach_walk(
+                manager=self.manager,
+                project_id=self.resolution.project_id,
+                parent_id=task.id,
+                home=self.home,
+                settings=settings,
+                # `None`, so each child resolves the epic's own posture off the dispatch
+                # entry written moments ago. Freezing this run's resolved posture into the
+                # walk instead would turn an inherited value into an asserted one, which
+                # is the distinction task-316 drew and the reason inheritance is read from
+                # the record rather than passed along.
+                posture=None,
+                actor=self.runner.actor_id,
+            )
+        except (EpicError, Exception) as exc:  # noqa: BLE001 - every failure ends this run
+            directory.update_meta(status="failed", error=str(exc))
+            # The dispatch entry is already written, so it must not be left without a
+            # terminal partner -- an unfinished dispatch is indistinguishable from a walk
+            # still going. Same shape as a batch run whose spawn failed.
+            self.manager.record_dispatch_result(
+                task.id,
+                actor="dispatcher",
+                run_id=run_id,
+                outcome=DispatchOutcome.CRASHED,
+                re=entry_id,
+                log_path=str(directory.path),
+                body=f"The walk was not detached, so no child was started: {exc}",
+            )
+            self._commit_record(
+                task.id, f"record run {run_id} as crashed before it started", directory=directory
+            )
+            raise DispatchRunError(f"Could not detach a walk for {task.id}: {exc}") from exc
+
+        directory.update_meta(walk_id=walk_id, dispatch_entry_id=entry_id)
+        self._mark_launched(directory, run_id, None)
+        self._conclude_walk(handle, walk_id)
+        return handle
+
+    def _conclude_walk(self, handle: RunHandle, walk_id: str) -> None:
+        """End a ``walk`` run the moment its walk is recorded.
+
+        Concluded here rather than left for the poller, which is the whole point: a run
+        the poller has to notice is a run that holds a slot until it does. The journal's
+        compare-and-set still decides who writes the ending, exactly as it does for a
+        session -- nothing about the right to conclude is relaxed because the conclusion
+        is quick.
+        """
+        from agentjobs.dispatch import journal  # local: journal imports this module lazily
+
+        record = self._record_for(handle)
+        body = (
+            f"The walk is recorded as `{walk_id}` and the server advances it on every "
+            "poll tick. This run held no slot while it waited, because it did not wait: "
+            "detaching the walk was the whole of it. What the children did lands on this "
+            "record when the walk ends."
+        )
+        projection = journal.result_projection(
+            record,
+            DispatchOutcome.COMPLETED,
+            actor="dispatcher",
+            re=handle.dispatch_entry_id,
+            duration_seconds=0.0,
+            body=body,
+        )
+        try:
+            conclusion = journal.claim_conclusion(
+                self.home,
+                record,
+                DispatchOutcome.COMPLETED,
+                concluded_by="walk detach",
+                status="finished",
+                projection=projection,
+            )
+        except ExecutionStoreError:
+            # The journal could not record the ending, so nothing may claim it. The run is
+            # left live for startup reconciliation, which is wrong-but-recoverable; the
+            # walk itself is already recorded and runs either way.
+            handle.directory.update_meta(status="finished")
+            return
+        if not conclusion.won:
+            return
+        handle.directory.update_meta(
+            status="finished",
+            outcome=DispatchOutcome.COMPLETED.value,
+            finished_at=self.clock().isoformat(),
+        )
+        journal.deliver_projection(self.home, self.manager, projection)
 
     # ----- session mode ------------------------------------------------------
 

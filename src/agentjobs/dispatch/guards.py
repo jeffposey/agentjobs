@@ -1204,6 +1204,11 @@ def dispatch_task(
         push=push,
         history=history,
         over_ceiling=request.over_ceiling,
+        # The trigger is the only place an end-of-walk evaluation differs from an ordinary
+        # dispatch (task-458): by the time one runs, the epic has no open children left
+        # and its record reads like any other task's. Read here rather than inside the
+        # runner because this is where the request is.
+        evaluation=request.trigger is DispatchTrigger.EVALUATION,
     )
 
     # Taken before the claim and held for the run's lifetime. The storage lock the
@@ -1384,6 +1389,12 @@ def dispatch_task(
     # permanent (task-190).
     lock.adopt(handle.run_id)
     handle.lock = lock
+    if handle.mode is DispatchMode.WALK:
+        # This run is already terminal: detaching the walk *was* the run (task-458). Every
+        # other mode has something that comes back later to release this -- a poller, a
+        # supervisor thread -- and a walk has nothing, so a lock left here would refuse
+        # every future dispatch at this epic with "a run is already live".
+        handle.release_lock()
     return handle
 
 

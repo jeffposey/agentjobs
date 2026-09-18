@@ -1808,6 +1808,23 @@ def _recovering(child: object, status: Optional[str]) -> bool:
     return isinstance(marker, dict) and marker.get("action") in RECOVERING_ACTIONS
 
 
+def _is_being_walked(manager: TaskManagerLike, child_id: str) -> bool:
+    """Whether this child is itself an epic whose own walk is what will land it.
+
+    A child with open children is dispatched as a ``walk`` run, which is terminal the
+    moment it is started (task-458): detaching the walk *was* the run. Its ended run is
+    therefore evidence of nothing, and reading it as a session that went without
+    finishing would ground the outer walk on a nested epic that is working perfectly.
+    The signal stays what the docstring above says it is -- the task record -- and this
+    is the one case where the run status has to be told to be quiet.
+    """
+    try:
+        children = manager.get_subtasks(child_id)
+    except Exception:  # noqa: BLE001 - an unreadable child is judged by its run, as before
+        return False
+    return any(child.is_open for child in children)
+
+
 def _poll_child(
     *,
     manager: TaskManagerLike,
@@ -1888,7 +1905,11 @@ def _poll_child(
             f"ball is {holder}/{reason}: {child.ball_prompt or 'no prompt recorded'}",
         )
 
-    if status is not None and status in TERMINAL_RUN_STATUSES:
+    if (
+        status is not None
+        and status in TERMINAL_RUN_STATUSES
+        and not _is_being_walked(manager, child_id)
+    ):
         return verdict(
             ChildVerdict.DIED,
             f"run ended {status!r} with the child still open and its ball still with the "
@@ -2033,6 +2054,12 @@ def supervisor_slot_held(home: Path) -> bool:
     Read from the journal, never from the run's own meta: the walk subtracts this slot from
     the ceiling it fills, and a run that could write "I hold nothing" would buy its walk an
     extra child the machine then refuses.
+
+    **This is the exception path now** (task-458). A dispatched epic starts no session at
+    all: its dispatch detaches a server-hosted walk and concludes, so nothing is left
+    holding a slot and the walk fills the whole ceiling. What still reaches this is a
+    person running an attached ``agentjobs dispatch walk`` from inside a session AgentJobs
+    dispatched -- rare, and still owed the narrowing, because that session's slot is real.
     """
     from agentjobs.dispatch.journal import journal
     from agentjobs.dispatch.ledger import calling_run_id
@@ -2051,7 +2078,7 @@ def supervisor_slot_held(home: Path) -> bool:
 def detach_walk(
     *,
     manager: TaskManagerLike,
-    project: Project,
+    project_id: str,
     parent_id: str,
     home: Path,
     settings: WalkSettings,
@@ -2078,7 +2105,7 @@ def detach_walk(
         )
     try:
         walk, _ = journal(home).open_walk(
-            project_id=project.id,
+            project_id=project_id,
             parent_task_id=parent_id,
             authority_entry=entry.id,
             authority_actor=entry.actor,
@@ -2103,14 +2130,102 @@ def detach_walk(
     return walk.walk_id
 
 
+def walk_review_prompt(result: WalkResult) -> str:
+    """What the parent's ball prompt becomes when a walk landed every child (task-458).
+
+    The judging half of an epic's supervision, addressed to the person rather than to an
+    agent. It says what landed and what the remaining act is, because nothing else on the
+    parent does: each child's record says what that child did, and the walk report says
+    the order -- neither says that the decision is now somebody's.
+    """
+    landed = ", ".join(result.merged_children) or "none"
+    return (
+        f"The epic walk landed every open child ({landed}). Nothing is left running and "
+        "nothing holds a slot. What remains is the one judgement the walk deliberately "
+        "does not make: read this parent's acceptance criteria against what the children "
+        "recorded, and close it where that evidence supports it -- or file what is still "
+        "missing as a child and walk it again."
+    )
+
+
+def evaluation_ball_prompt(parent_id: str) -> str:
+    """The ask an evaluation run is dispatched against (task-458)."""
+    return (
+        f"Every open child of {parent_id} landed and the walk is over. Read each child's "
+        "record for the evidence it left, judge this parent's acceptance criteria against "
+        "it, and close the parent only where that evidence supports it. You hold no "
+        "branch and start nothing: if a criterion is not met, say which and hand the "
+        "parent back rather than closing it."
+    )
+
+
+def dispatch_parent_evaluation(
+    manager: TaskManagerLike,
+    parent_id: str,
+    *,
+    home: Path,
+    project: Project,
+    project_config: Dict[str, object],
+) -> str:
+    """Start the one run that judges a landed epic, and return its run id.
+
+    **Attributed to the same human entry the walk itself ran on**, which is the rule the
+    walk's own authorisation runs on and the reason this is not an agent authorising a
+    dispatch: the person who clicked the epic authorised its ending as much as its
+    children. Raises whatever the guards raise -- the caller falls back to asking a human.
+    """
+    from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
+    from agentjobs.models_v2 import DispatchTrigger
+
+    parent = manager.get_task(parent_id)
+    entry = parent_authorizing_entry(parent) if parent is not None else None
+    if parent is None or entry is None:
+        raise ParentNotHumanClockedError(
+            f"{parent_id} has no entry a dispatch could be caused by, so its evaluation "
+            "has nothing to run on."
+        )
+    handle = dispatch_task(
+        manager=manager,
+        project=project,
+        project_config=project_config,
+        request=DispatchRequest(
+            task_id=parent_id,
+            caused_by=entry.id,
+            trigger=DispatchTrigger.EVALUATION,
+        ),
+        home=home,
+    )
+    return handle.run_id
+
+
 def record_walk_outcome(
-    manager: TaskManagerLike, parent_id: str, *, actor: str, result: WalkResult
+    manager: TaskManagerLike,
+    parent_id: str,
+    *,
+    actor: str,
+    result: WalkResult,
+    home: Optional[Path] = None,
+    project: Optional[Project] = None,
+    project_config: Optional[Dict[str, object]] = None,
 ) -> None:
-    """Write how a walk ended onto its parent, and hand the parent over if it stopped.
+    """Write how a walk ended onto its parent, and put the parent in front of whoever acts next.
 
     Shared by the blocking walk and a server-hosted one, so the parent reads the same
     whichever process walked it. It never closes the parent: that stays a judgement about
-    the parent's own acceptance criteria.
+    the parent's own acceptance criteria -- but since task-458 it no longer leaves that
+    judgement to nobody, because there is no longer a supervisor session waiting to make
+    it.
+
+    * A walk that **stopped for cause** hands the parent to ``human/decision`` with the
+      child and the reason, exactly as before.
+    * A walk that **landed every child** hands the parent to ``human/review`` -- or, at
+      posture ``autonomous``, dispatches one evaluation run to do the reading instead,
+      which is what keeps an autonomous epic unattended from the click to the close.
+
+    ``home``/``project``/``project_config`` are what an evaluation dispatch needs. Without
+    them -- a caller that has no dispatch context, and every test that only wants the
+    record written -- the autonomous path degrades to asking a human, which is the
+    direction that cannot start a run nobody authorised.
     """
     from agentjobs.models_v2 import BallReason
 
@@ -2122,17 +2237,101 @@ def record_walk_outcome(
     manager.add_log_entry(
         parent_id, actor=actor, type=LogEntryType.PROGRESS, body=walk_report(result)
     )
-    if result.stop.is_success:
-        return
     refreshed = manager.get_task(parent_id)
-    if refreshed is not None and refreshed.is_open and refreshed.ball is not Ball.HUMAN:
+    if refreshed is None or not refreshed.is_open:
+        return
+    if not result.stop.is_success:
+        if refreshed.ball is not Ball.HUMAN:
+            manager.handoff(
+                parent_id,
+                actor=actor,
+                ball=Ball.HUMAN,
+                ball_reason=BallReason.DECISION,
+                ball_prompt=walk_handoff_prompt(result),
+            )
+        return
+
+    prompt = walk_review_prompt(result)
+    if _evaluates_itself(refreshed) and home is not None and project is not None:
+        # The ball is moved *before* the dispatch, and to the agent, so that a run started
+        # here is started against a record that already says what it is for. A dispatch
+        # that then fails leaves the parent reading agent/work, which the fallback below
+        # corrects; the other order would leave a live evaluation run looking at a
+        # ball_prompt written for a person.
+        manager.handoff(
+            parent_id,
+            actor=actor,
+            ball=Ball.AGENT,
+            ball_reason=BallReason.WORK,
+            ball_prompt=evaluation_ball_prompt(parent_id),
+        )
+        try:
+            run_id = dispatch_parent_evaluation(
+                manager,
+                parent_id,
+                home=home,
+                project=project,
+                project_config=project_config or project.load_config(),
+            )
+        except Exception as exc:  # noqa: BLE001 - any refusal means a person judges it
+            manager.add_log_entry(
+                parent_id,
+                actor=actor,
+                type=LogEntryType.PROGRESS,
+                body=(
+                    "The evaluation run this epic's posture calls for was not started: "
+                    f"{type(exc).__name__}: {exc}. The reading is a person's again."
+                ),
+            )
+        else:
+            manager.add_log_entry(
+                parent_id,
+                actor=actor,
+                type=LogEntryType.PROGRESS,
+                body=(
+                    f"Every child landed, so run `{run_id}` was dispatched to judge this "
+                    "parent's acceptance criteria against their evidence and close it. "
+                    "Posture `autonomous` is what makes that this run's act rather than "
+                    "a person's."
+                ),
+            )
+            return
+        refreshed = manager.get_task(parent_id)
+        if refreshed is None or not refreshed.is_open:
+            return
+
+    if refreshed.ball is not Ball.HUMAN:
         manager.handoff(
             parent_id,
             actor=actor,
             ball=Ball.HUMAN,
-            ball_reason=BallReason.DECISION,
-            ball_prompt=walk_handoff_prompt(result),
+            ball_reason=BallReason.REVIEW,
+            ball_prompt=prompt,
         )
+
+
+def _evaluates_itself(parent: Task) -> bool:
+    """Whether this epic was dispatched at a posture that judges its own ending.
+
+    ``autonomous`` and nothing else. Read off the parent's own ``dispatch`` entry, which
+    only the manager may write, for the same reason every other inheritance in this module
+    is read from there: it is not forgeable over the API.
+
+    **The value, not the inheritance.** ``inherited_posture`` deliberately answers ``None``
+    for a posture that came from the project default rather than from a person's click,
+    because a default reaches each child on its own and relabelling it would point a reader
+    at the wrong record. That distinction is about where a *child's* envelope comes from and
+    has nothing to say here. The question this asks is whether this epic's work merges
+    without review, and a project whose default is ``autonomous`` answers yes just as
+    loudly as a click does.
+    """
+    entry = parent_dispatch_entry(parent)
+    if entry is None or not isinstance(entry.data, dict):
+        return False
+    try:
+        return Posture(entry.data.get("posture")) is Posture.AUTONOMOUS
+    except ValueError:
+        return False
 
 
 def _reporter(lines: List[str], walk_id: str) -> Callable[[str], None]:
@@ -2198,6 +2397,8 @@ def advance_hosted_walks(
                 walk.parent_task_id,
                 actor=str(saved.get("actor") or "dispatcher"),
                 result=result,
+                home=home,
+                project=project,
             )
             lines.append(f"{walk.walk_id}: {result.stop.value}")
     return lines

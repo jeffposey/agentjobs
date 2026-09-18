@@ -350,6 +350,16 @@ class DispatchTrigger(ValueEnum):
     is followable in both directions -- but only if the trigger says there is a chain.
     """
 
+    EVALUATION = "evaluation"
+    """The one run an epic gets after its walk landed every child (task-458).
+
+    Distinct from ``manual`` for the same reason ``child`` is: nobody clicked this task
+    now. It was clicked when the epic was authorised, and this run is the judging half of
+    a supervision whose waiting half the server did. It is what tells a reader -- and the
+    prompt builder -- that this run holds no branch and exists to read the children's
+    evidence against the parent's acceptance criteria.
+    """
+
 
 class DispatchMode(ValueEnum):
     """Which process lifecycle a run had (design doc section 4, task-077).
@@ -363,6 +373,15 @@ class DispatchMode(ValueEnum):
     SESSION = "session"
     BATCH = "batch"
     INTERACTIVE = "interactive"
+    WALK = "walk"
+    """An epic whose walk was handed to the server, with no agent started (task-458).
+
+    A dispatch aimed at a task with open children detaches a server-hosted walk and
+    concludes in the same call, so a ``walk`` run is terminal before the dispatch returns
+    and holds a slot for none of the epic it started. It is a run rather than nothing
+    because the ``dispatch`` entry it writes is what every child reads its posture,
+    runner and authorising human off.
+    """
 
 
 class DispatchPosture(ValueEnum):
@@ -701,6 +720,13 @@ class DispatchData(StrictModel):
     argv** -- secrets go in the runner's ``env``, which is never logged. Stated here
     because the recording is the safety feature: weakening it to hide a token would be
     the wrong fix for the wrong problem.
+
+    It is required to be non-empty for every mode but ``walk``, which is the one dispatch
+    that starts no process at all (task-458): an epic's dispatch hands its children to a
+    server-hosted walk and concludes. An argv there would have to be invented, and an
+    invented one is worse than none -- a reader would take it for a command that ran.
+    The rule is a model validator rather than a field constraint because only the model
+    can see the mode.
     """
 
     run_id: str = Field(..., description="Machine-local run identifier.")
@@ -713,7 +739,9 @@ class DispatchData(StrictModel):
             "run. Absent preserves the historical project/group interpretation."
         ),
     )
-    mode: DispatchMode = Field(..., description="Session or batch (task-077).")
+    mode: DispatchMode = Field(
+        ..., description="Which process lifecycle this run had (task-077, task-458)."
+    )
     posture: DispatchPosture = Field(..., description="What the run may do (task-076).")
     posture_source: Optional[str] = Field(
         default=None,
@@ -749,7 +777,7 @@ class DispatchData(StrictModel):
             "human-clocked (D4), and this is the evidence for that claim."
         ),
     )
-    argv: List[str] = Field(..., min_length=1, description="Resolved argv, verbatim.")
+    argv: List[str] = Field(default_factory=list, description="Resolved argv, verbatim.")
     cwd: str = Field(..., description="Working directory the process was started in.")
     git_head: str = Field(
         ...,
@@ -801,6 +829,36 @@ class DispatchData(StrictModel):
             "(task-375). Absent on entries written before that task."
         ),
     )
+
+    @model_validator(mode="after")
+    def _argv_is_present_unless_nothing_ran(self) -> "DispatchData":
+        """Every mode but ``walk`` records the command it started (task-458)."""
+        if not self.argv and self.mode is not DispatchMode.WALK:
+            raise ValueError(
+                f"a {self.mode.value} dispatch started a process, so its argv is what it "
+                "ran and cannot be empty"
+            )
+        return self
+
+
+def spends_a_run(entry: "LogEntry") -> bool:
+    """Whether a log entry is a dispatch that actually started something (task-458).
+
+    Every ``dispatch`` entry but a ``walk`` one. A walk dispatch records that an epic's
+    children were handed to the server and concludes in the same call -- no process, no
+    model call, no slot -- so the per-task budget caps, which exist to bound spend and to
+    stop a loop, have nothing to weigh. Reading the mode off the entry rather than keeping
+    a flag beside it, for the reason ``Task.dispatch_count`` is derived at all: a second
+    copy of a fact can disagree with the evidence for it, and here it would disagree in
+    the direction that spends money.
+
+    An entry whose data cannot be read as a dispatch payload counts. "We could not tell"
+    is not "it was free".
+    """
+    if entry.type is not LogEntryType.DISPATCH:
+        return False
+    data = entry.data if isinstance(entry.data, dict) else {}
+    return data.get("mode") != DispatchMode.WALK.value
 
 
 class DispatchResultData(StrictModel):
@@ -1341,8 +1399,14 @@ class Task(StrictModel):
         Deliberately a plain property, not a ``computed_field``: unlike
         ``display_status`` it is not something an API response should carry by default,
         and it would then also have to be excluded on write.
+
+        **A ``walk`` dispatch is not counted** (task-458). The caps that read this exist to
+        bound spend and to stop a loop, and a dispatch that hands an epic's children to
+        the server starts no process, makes no model call and takes no slot: it spends
+        nothing there is a cap for. Counted, it would also park an epic for reaching a
+        lifetime cap it never paid into.
         """
-        return sum(1 for entry in self.log if entry.type is LogEntryType.DISPATCH)
+        return sum(1 for entry in self.log if spends_a_run(entry))
 
     def dispatches_since(self, since: datetime) -> int:
         """Dispatches recorded at or after ``since``, for the per-day budget cap.
@@ -1355,7 +1419,7 @@ class Task(StrictModel):
         return sum(
             1
             for entry in self.log
-            if entry.type is LogEntryType.DISPATCH
+            if spends_a_run(entry)
             and (entry.ts if entry.ts.tzinfo else entry.ts.replace(tzinfo=timezone.utc)) >= cutoff
         )
 
