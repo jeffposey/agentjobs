@@ -76,3 +76,10 @@ out/
 # Context-eval results. One committed baseline per model lives in
 # evals/context/baselines/; a fresh sweep is evidence of a run, not a source.
 evals/context/results/
+
+# Worktrees the Claude desktop app and agent view create for themselves. They land
+# *inside* the clone at .claude/worktrees/<name>/ rather than at ../worktrees/, and git
+# does not ignore a nested linked worktree on its own -- it shows as one untracked
+# directory, which is exactly what a careless `git add -A` sweeps into a commit.
+# Ignoring the path does not endorse it: the convention is still ../worktrees/<repo>-<nnn>.
+.claude/worktrees/
