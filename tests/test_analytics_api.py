@@ -207,8 +207,18 @@ def seed_history(store: SqlTaskStore) -> None:
 
     Deliberately not random. Each task below exists to make one assertion possible, and
     the numbers in the tests are counted from this function rather than from a run.
+
+    **Seeded from the real clock, not from `NOW`.** This corpus is read back over HTTP
+    by the `served` fixture, and the endpoint has no `now` to inject -- it ages
+    everything against the wall clock. Seeding from a fixed instant therefore asserted
+    that the wall clock *is* that instant: `age_days` came out as 120 plus however far
+    today has drifted from 18 Sep 2026 17:00 UTC, and `pytest.approx(120, abs=0.1)`
+    gave the suite a 4.8-hour window in which it was green. Ages are relative in every
+    assertion that reads this corpus, so the reference only has to be the same one the
+    endpoint uses. `NOW` stays for the projection tests, which inject it.
     """
-    day = lambda n: NOW - timedelta(days=n)  # noqa: E731 - a local shorthand, read once
+    reference = datetime.now(timezone.utc)
+    day = lambda n: reference - timedelta(days=n)  # noqa: E731 - a local shorthand, read once
 
     # Four completed, spread over three weeks, one of them reopened and closed again.
     for index, (age, closed_age) in enumerate([(60, 40), (50, 30), (35, 20), (30, 8)], start=1):

@@ -323,6 +323,104 @@ test("the count-tile strip is gone, and everything else is still on the page", a
   );
 });
 
+/**
+ * The narrow widths task-374 verifies its entry point at.
+ *
+ * 320px is the narrowest phone still in use, 390px is the one this app is actually read
+ * on, and 768px is the tablet boundary. The heights are the real ones for those widths;
+ * the claim being measured is horizontal, but the document must still not scroll either
+ * way with a second link on the row.
+ */
+const ENTRY_POINT_WIDTHS = [
+  { width: 320, height: 568 },
+  { width: 390, height: 844 },
+  { width: 768, height: 1024 },
+] as const;
+
+for (const viewport of ENTRY_POINT_WIDTHS) {
+  test(`the analytics link fits the Active tasks heading row at ${viewport.width}px (task-374)`, async ({
+    page,
+  }) => {
+    // task-374 puts a second link on this row, and the row is the only place on the
+    // Dashboard where the entry point to the analytics page exists. The risk is
+    // entirely geometric: a row that wraps badly, or one that widens the document. Both
+    // are measured rectangles rather than class names, and `View all 40 →` is the
+    // widest that link ever gets, so this is the row at its worst.
+    await withCeiling(page, 3);
+    await withCrowdedDashboard(page);
+    await page.setViewportSize(viewport);
+    await openDashboard(page);
+
+    const analytics = page.getByRole("link", { name: "Analytics →" });
+    await expect(analytics).toBeVisible();
+    await expect(analytics).toHaveAttribute("href", "/app/p/_local/analytics");
+    await expect(page.getByRole("link", { name: `View all ${CROWD} →` })).toBeVisible();
+
+    // Neither label breaks across lines. This is the assertion with the teeth: at
+    // 320px, two links on this row is enough to make `View all 40 →` break after the
+    // number and leave the arrow alone on the next line, which reads as a broken glyph.
+    // A `Range` over the text node is the only thing that sees it -- the links are
+    // `inline-flex` with a 44px `min-height`, so a wrapped label changes neither the
+    // link's box nor the row's height.
+    const wrapped = await page.evaluate(() => {
+      const labels = ["Analytics", "View all"];
+      return Array.from(document.querySelectorAll("a"))
+        .filter((a) => labels.some((label) => (a.textContent ?? "").trim().startsWith(label)))
+        .filter((a) => a.closest("div")?.previousElementSibling?.tagName === "H2")
+        .map((a) => {
+          const range = document.createRange();
+          range.selectNodeContents(a);
+          return { text: (a.textContent ?? "").trim(), lines: range.getClientRects().length };
+        });
+    });
+    expect(wrapped.length, "both links on the heading row were found").toBe(2);
+    for (const link of wrapped) {
+      expect(link.lines, `"${link.text}" is on one line at ${viewport.width}px`).toBe(1);
+    }
+
+    // The row wraps rather than overflowing, and the document gains no horizontal
+    // scroll from it.
+    const row = await page.evaluate(() => {
+      const heading = document.evaluate(
+        "//h2[starts-with(normalize-space(.), 'Active tasks')]",
+        document,
+        null,
+        XPathResult.FIRST_ORDERED_NODE_TYPE,
+        null,
+      ).singleNodeValue as HTMLElement | null;
+      const box = heading?.parentElement;
+      if (!box) return null;
+      return {
+        scrollWidth: box.scrollWidth,
+        clientWidth: box.clientWidth,
+        height: box.getBoundingClientRect().height,
+        documentScrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+      };
+    });
+    expect(row, "the Active tasks heading row is in the DOM").not.toBeNull();
+    const measured = row as NonNullable<typeof row>;
+    expect(
+      measured.scrollWidth,
+      `the heading row does not overflow itself at ${viewport.width}px`,
+    ).toBeLessThanOrEqual(measured.clientWidth + 1);
+    expect(
+      measured.documentScrollWidth,
+      `the document gains no horizontal scroll at ${viewport.width}px`,
+    ).toBeLessThanOrEqual(measured.innerWidth + 1);
+    // Two 20px baselines plus padding if it wraps; a third line would be a design
+    // failure rather than an acceptable wrap.
+    expect(
+      measured.height,
+      `the heading row is at most two lines tall at ${viewport.width}px`,
+    ).toBeLessThanOrEqual(80);
+
+    // And it reaches the page, which is the whole point of the link.
+    await analytics.click();
+    await expect(page).toHaveURL(/\/app\/p\/_local\/analytics$/);
+  });
+}
+
 test("the frame is not the shell's: an unframed surface still scrolls its document", async ({
   page,
   request,
