@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
 import type {
+  ArmedProjectView,
   LiveRunView,
   LiveRunsView,
   MachineHolderView,
@@ -756,5 +757,135 @@ describe("a walk run, which started no agent (task-458)", () => {
     expect(layout.cells.map((cell) => (cell.kind === "run" ? cell.run.run_id : cell.kind))).toEqual(
       ["run_a", "run_walk", "queued", "empty"],
     );
+  });
+});
+
+function armed(overrides: Partial<ArmedProjectView> = {}): ArmedProjectView {
+  return {
+    project_id: "alpha",
+    project_name: "Alpha Project",
+    arming_id: "arm_aaaa",
+    armed_by: "Jeff Posey",
+    armed_at: "2026-09-04T00:30:00Z",
+    bound: "1 of 3 starts used",
+    starts_left: 2,
+    posture: null,
+    next_task_id: "task-077",
+    next_task_title: "The one it would start",
+    next_task_url: "/p/alpha/tasks/task-077",
+    ...overrides,
+  };
+}
+
+describe("the projects the pull mode is armed for (task-462)", () => {
+  it("names who armed it and what is left of the bound", () => {
+    // ac-5. Both facts, in the words the server composed, so the board cannot come to
+    // disagree with the CLI about what "1 of 3" means.
+    renderBoard(<SlotBoard body={body({ armed: [armed()] })} queue={[]} projectId="alpha" />);
+
+    const row = screen.getByTestId("armed-project");
+    expect(within(row).getByTestId("armed-bound")).toHaveTextContent("armed by Jeff Posey");
+    expect(within(row).getByTestId("armed-bound")).toHaveTextContent("1 of 3 starts used");
+  });
+
+  it("says what it would start next, as a link to that task", () => {
+    // The affordance the whole mode rests on: steering is reordering the queue, and a
+    // person can only reorder in time if they can see the choice before it happens.
+    renderBoard(<SlotBoard body={body({ armed: [armed()] })} queue={[]} projectId="alpha" />);
+
+    const next = screen.getByTestId("armed-next");
+    expect(next).toHaveTextContent("task-077");
+    expect(next).toHaveTextContent("The one it would start");
+    expect(next).toHaveAttribute("href", "/p/alpha/tasks/task-077");
+  });
+
+  it("says so rather than going quiet when that backlog has nothing claimable", () => {
+    renderBoard(
+      <SlotBoard
+        body={body({ armed: [armed({ next_task_id: "", next_task_title: "" })] })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    expect(screen.getByTestId("armed-next-empty")).toBeVisible();
+  });
+
+  it("offers the Disarm the page supplies", () => {
+    renderBoard(
+      <SlotBoard
+        body={body({ armed: [armed()] })}
+        queue={[]}
+        projectId="alpha"
+        renderArmedAction={(entry) => <button type="button">Disarm {entry.project_id}</button>}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Disarm alpha" })).toBeVisible();
+  });
+
+  it("withholds the Disarm under an alarm and still draws the rail", () => {
+    // Same rule the waiting rail follows: work this machine will keep doing on its own
+    // is status, and status is drawn on a bad day too. Only the action is withheld.
+    renderBoard(
+      <SlotBoard
+        body={body({ armed: [armed()] })}
+        queue={[]}
+        projectId="alpha"
+        statusOnly
+        renderArmedAction={() => <button type="button">Disarm</button>}
+      />,
+    );
+
+    expect(screen.getByTestId("slot-board-armed")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Disarm" })).not.toBeInTheDocument();
+  });
+
+  it("draws nothing at all when no project is armed", () => {
+    renderBoard(<SlotBoard body={body({ armed: [] })} queue={[]} projectId="alpha" />);
+
+    expect(screen.queryByTestId("slot-board-armed")).not.toBeInTheDocument();
+  });
+
+  it("states that a dispatch asked for by name starts first", () => {
+    // The precedence rule, on the board rather than only in the design doc: somebody
+    // watching both rails compete for one slot should be able to read which wins.
+    renderBoard(
+      <SlotBoard
+        body={body({ armed: [armed()], queued: [queued()] })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    expect(screen.getByTestId("slot-board-armed")).toHaveTextContent(
+      "A dispatch you asked for by name starts before any of these.",
+    );
+  });
+
+  it("draws the board for an arming even on a machine with nothing else on it", () => {
+    renderBoard(
+      <SlotBoard
+        body={body({ dispatch_configured: false, occupied: 0, armed: [armed()] })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    expect(screen.getByTestId("slot-board-armed")).toBeVisible();
+  });
+
+  it("names the armed project's own id on its row, not the page's", () => {
+    // The rail is machine-wide, so a disarm wired to the page's project would disarm
+    // the wrong one -- the same mistake the queue rail's cancel had to avoid.
+    renderBoard(
+      <SlotBoard
+        body={body({ armed: [armed({ project_id: "beta", project_name: "Beta" })] })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    expect(screen.getByTestId("armed-project").dataset.projectId).toBe("beta");
   });
 });

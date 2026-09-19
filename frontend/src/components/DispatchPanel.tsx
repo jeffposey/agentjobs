@@ -1073,6 +1073,25 @@ export type DispatchSettingsProps = {
   error?: string | null;
   onEnable: (target: DispatchEnableTarget) => Promise<void> | void;
   onDisable: () => Promise<void> | void;
+  /** Arm the pull mode with the bound and envelope the person chose (task-462). */
+  onArm?: (choice: PullArmChoice) => Promise<void> | void;
+  /** Stop it starting anything more. Kills nothing. */
+  onDisarm?: () => Promise<void> | void;
+};
+
+/**
+ * What the Arm control submits: a bound, and optionally an envelope.
+ *
+ * The bound is not optional and has no default here, which mirrors the API and is the
+ * point of the control rather than a validation detail: the difference between "three
+ * runs" and "all night" is the whole decision, and a form that pre-filled it would make
+ * that decision for the person in the one place they are entitled to be asked.
+ */
+export type PullArmChoice = {
+  bound_kind: "starts" | "until" | "open";
+  starts?: number | null;
+  until?: string | null;
+  posture?: string | null;
 };
 
 /**
@@ -1114,6 +1133,238 @@ function groupOptionValue(name: string): string {
 }
 
 /**
+ * The pull mode's control: arm this project's backlog, or stop it (task-462).
+ *
+ * **The bound is a radio group and not a text field with a default**, because it is the
+ * decision being made. Three starts and "until disarmed" are different orders of
+ * magnitude of spend, and a control that preselected one would be choosing on the
+ * person's behalf in the one place the design says a human must choose.
+ *
+ * **The envelope says what it does to the branch, not what it is called.** The same
+ * wording the dispatch chooser uses, from the same server-sent `posture_merge_policies`,
+ * for a reason that is stronger here than there: a posture chosen at arming time decides
+ * what happens to *every* branch the mode produces while nobody is watching, so
+ * "autonomous" sitting unexplained in a pulldown is the single most misleading string
+ * this app could render.
+ *
+ * Armed, the control collapses to what a person needs while it is running: who armed it,
+ * what is left of the bound, what it will start next -- so a reorder is still possible
+ * before it happens -- and Disarm. Disarm is rendered unconditionally and asks nothing,
+ * on the rule the dispatch kill switch follows.
+ */
+export function PullModeControl({
+  state,
+  busy = false,
+  onArm,
+  onDisarm,
+}: {
+  state: DispatchStateView;
+  busy?: boolean;
+  onArm?: (choice: PullArmChoice) => Promise<void> | void;
+  onDisarm?: () => Promise<void> | void;
+}) {
+  const [bound, setBound] = useState<PullArmChoice["bound_kind"]>("starts");
+  const [starts, setStarts] = useState("3");
+  const [until, setUntil] = useState("");
+  const [posture, setPosture] = useState("");
+  const pull = state.pull ?? null;
+  if (!onArm && !onDisarm) return null;
+
+  if (pull?.armed) {
+    return (
+      <section
+        data-testid="pull-mode"
+        data-pull-armed="yes"
+        aria-label="Pull mode"
+        className="mt-6 rounded-lg border border-orange-800/70 bg-orange-950/20 p-4"
+      >
+        <h3 className="text-sm font-semibold text-orange-200">Pull mode is armed</h3>
+        <p className="mt-1 text-sm text-dark-text" data-testid="pull-mode-bound">
+          Armed by {pull.armed_by || "somebody"} · {pull.bound}
+          {pull.posture ? ` · ${pull.posture}` : ""}
+        </p>
+        <p className="mt-1 text-xs text-dark-muted">
+          Every free slot on this machine is filled with whatever the queue says is next.
+          Each start goes through every dispatch gate, and a manual dispatch waiting for a
+          slot starts before it does.
+        </p>
+        {pull.next_task_id && (
+          <p className="mt-2 text-sm" data-testid="pull-mode-next">
+            <span className="text-dark-muted">Next: </span>
+            <span className="font-mono text-xs text-blue-400">{pull.next_task_id}</span>
+            <span className="ml-2 text-dark-text">{pull.next_task_title}</span>
+          </p>
+        )}
+        <button
+          type="button"
+          data-testid="pull-mode-disarm"
+          disabled={busy}
+          onClick={() => void onDisarm?.()}
+          className="touch-target mt-4 rounded-lg bg-red-700 px-4 font-semibold text-white hover:bg-red-600 disabled:opacity-60"
+        >
+          Disarm
+        </button>
+        <p className="mt-2 text-xs text-dark-muted">
+          Disarming stops takeoffs. Runs already going keep running — each was authorised
+          on its own and has its own merge gate.
+        </p>
+      </section>
+    );
+  }
+
+  const chosen = posture || state.posture || "";
+  const consequence = mergeConsequence(chosen, state);
+  return (
+    <section
+      data-testid="pull-mode"
+      data-pull-armed="no"
+      aria-label="Pull mode"
+      className="mt-6 rounded-lg border border-dark-border bg-dark-bg p-4"
+    >
+      <h3 className="text-sm font-semibold">Pull mode</h3>
+      <p className="mt-1 text-sm text-dark-muted">
+        Keep filling free run slots with whatever this project&rsquo;s queue says is next,
+        with no further click, until the bound below runs out or you disarm it.
+      </p>
+      {pull?.last_state && (
+        <p className="mt-2 text-xs text-dark-muted" data-testid="pull-mode-last">
+          Last time: {pull.last_state}
+          {pull.last_detail ? ` — ${pull.last_detail}` : ""}
+        </p>
+      )}
+
+      <fieldset className="mt-4" disabled={busy}>
+        <legend className="text-sm font-semibold">Stop after</legend>
+        <div className="mt-2 space-y-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name="pull-bound"
+              value="starts"
+              checked={bound === "starts"}
+              onChange={() => setBound("starts")}
+            />
+            <span>this many starts</span>
+            <input
+              type="number"
+              min={1}
+              aria-label="Number of starts"
+              value={starts}
+              onChange={(event) => setStarts(event.target.value)}
+              className="w-20 rounded-lg border border-dark-border bg-dark-surface p-1 text-dark-text"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name="pull-bound"
+              value="until"
+              checked={bound === "until"}
+              onChange={() => setBound("until")}
+            />
+            <span>this moment</span>
+            <input
+              type="datetime-local"
+              aria-label="Stop at"
+              value={until}
+              onChange={(event) => setUntil(event.target.value)}
+              className="rounded-lg border border-dark-border bg-dark-surface p-1 text-dark-text"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name="pull-bound"
+              value="open"
+              checked={bound === "open"}
+              onChange={() => setBound("open")}
+            />
+            <span>nothing — keep going until I disarm it</span>
+          </label>
+        </div>
+      </fieldset>
+
+      {(state.offerable_postures ?? []).length > 1 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <label htmlFor="pull-posture" className="text-sm text-dark-muted">
+            Envelope
+          </label>
+          <select
+            id="pull-posture"
+            value={posture}
+            disabled={busy}
+            onChange={(event) => setPosture(event.target.value)}
+            className="rounded-lg border border-dark-border bg-dark-surface p-2 text-sm text-dark-text"
+          >
+            <option value="">Project default</option>
+            {(state.offerable_postures ?? []).map((name) => {
+              const blocked = postureNeedsFinish(name, state);
+              const says = blocked ? FINISH_REQUIRED : mergeConsequence(name, state);
+              return (
+                <option key={name} value={name} disabled={blocked}>
+                  {says ? `${name} — ${says}` : name}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+      )}
+
+      {/* What the chosen posture will do to every branch the mode produces. Stated
+          outside the pulldown as well as inside it, because this is the sentence the
+          decision turns on and an <option> is read once and then not looked at again. */}
+      {consequence && (
+        <p className="mt-2 text-sm" data-testid="pull-mode-consequence">
+          <span className="text-dark-muted">Each pulled run </span>
+          <strong
+            className={
+              state.posture_merge_policies?.[chosen] === "automatic"
+                ? "text-orange-300"
+                : "text-dark-text"
+            }
+          >
+            {consequence}
+          </strong>
+          {state.posture_merge_policies?.[chosen] === "automatic" && !state.push && (
+            <span className="text-dark-muted">
+              {" "}
+              — nothing is pushed, so a merge you did not want is revertible here.
+            </span>
+          )}
+        </p>
+      )}
+
+      <button
+        type="button"
+        data-testid="pull-mode-arm"
+        disabled={busy || !state.project_enabled || (bound === "until" && !until)}
+        onClick={() =>
+          void onArm?.({
+            bound_kind: bound,
+            starts: bound === "starts" ? Number(starts) || 0 : null,
+            // A `datetime-local` value carries no zone; the person means their own
+            // clock, so it is sent as a local moment and the server stores what it is
+            // given. Appending a `Z` here would silently move the deadline by the
+            // machine's offset.
+            until: bound === "until" ? until : null,
+            posture: posture || null,
+          })
+        }
+        className="touch-target mt-4 rounded-lg bg-orange-700 px-4 font-semibold text-white hover:bg-orange-600 disabled:opacity-60"
+      >
+        Arm pull mode
+      </button>
+      {!state.project_enabled && (
+        <p className="mt-2 text-xs text-dark-muted">
+          Dispatch is off for this project, so there is nothing for the pull mode to start.
+          Enable it above first.
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
  * The per-project switch, and the machine state it depends on.
  *
  * Disable is rendered unconditionally whenever the project is on: no confirmation, no
@@ -1133,6 +1384,8 @@ export function DispatchSettings({
   error = null,
   onEnable,
   onDisable,
+  onArm,
+  onDisarm,
 }: DispatchSettingsProps) {
   const [target, setTarget] = useState<string>("");
   if (!state) {
@@ -1284,6 +1537,11 @@ export function DispatchSettings({
           switch chooses among commands that already exist on this machine; it cannot
           describe a new one.
         </p>
+
+        {/* Below the project switch and inside the same card, because arming is a
+            statement about *this project's* dispatch and reads as nonsense above the
+            control that decides whether it may dispatch at all. */}
+        <PullModeControl state={state} busy={busy} onArm={onArm} onDisarm={onDisarm} />
         {error && (
           <p role="alert" className="mt-3 text-sm text-red-300">
             {error}
