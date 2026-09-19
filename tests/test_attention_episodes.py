@@ -352,3 +352,26 @@ class TestReconcileAgreesWithTheBadge:
 
         assert state.blocking == count_blocking_human(manager) == 2
         assert sorted(task.id for task in state.waiting) == ["task-001", "task-002"]
+
+
+class TestTheIdBecomesAFilename:
+    """What may be turned into a path here, and what may not.
+
+    The rule is deliberately not ``projects.validate_project_id``. That one says what a
+    **person** may register and refuses a leading underscore -- and the id the server
+    uses for a project resolved from the working directory is ``_local``, which every
+    Playwright test runs against. Validating with it turned every attention read in the
+    e2e suite into a 500 (caught by the gate on 2026-09-19).
+    """
+
+    def test_the_reserved_local_project_is_allowed(self) -> None:
+        assert episode_path("_local", home=Path("/tmp/home")).name == "_local.yaml"
+
+    @pytest.mark.parametrize(
+        "hostile",
+        ["../escape", "a/b", "a\b", "C:hostile", "", "."],
+        ids=["traversal", "posix-separator", "windows-separator", "drive", "empty", "dot"],
+    )
+    def test_anything_that_could_leave_the_directory_is_refused(self, hostile: str) -> None:
+        with pytest.raises(ValueError):
+            episode_path(hostile, home=Path("/tmp/home"))

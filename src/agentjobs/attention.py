@@ -45,6 +45,7 @@ land in the same millisecond cannot each decide the episode is new.
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
@@ -55,10 +56,24 @@ from .dashboard import human_waiting_tasks
 from .dispatch.atomic_yaml import merge_yaml_atomically, read_yaml_resiliently
 from .manager import TaskManager
 from .models_v2 import Task
-from .projects import default_home, validate_project_id
+from .projects import default_home
 
 ATTENTION_DIRNAME = "attention"
 """Directory under the AgentJobs home holding one document per project."""
+
+SAFE_PROJECT_ID = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]*$")
+"""What may become a filename here.
+
+Deliberately **not** :func:`agentjobs.projects.validate_project_id`, which is the
+rule for an id a person may register and refuses a leading underscore. The reserved
+id the server uses for a project resolved from the working directory is ``_local``,
+so validating with that function turned every attention read on it into a 500 -- the
+whole Playwright suite, which runs against exactly that project.
+
+What this has to rule out is a path component that could leave the directory, which
+is a separator, a drive letter or a traversal token. It is a guard on the filesystem
+rather than a second opinion about what a project may be called.
+"""
 
 
 def _now() -> datetime:
@@ -163,10 +178,11 @@ def advance(
 def episode_path(project_id: str, *, home: Optional[Path] = None) -> Path:
     """The state document for one project.
 
-    The id is validated here as well as at the registry, because this function turns it
-    into a filename and a path component is the one place a slug has to be trusted.
+    The id is checked here as well as wherever it came from, because this function turns
+    it into a filename and a path component is the one place a string has to be trusted.
     """
-    validate_project_id(project_id)
+    if not SAFE_PROJECT_ID.match(project_id):
+        raise ValueError(f"project id {project_id!r} cannot be used as a filename")
     return (home or default_home()) / ATTENTION_DIRNAME / f"{project_id}.yaml"
 
 
