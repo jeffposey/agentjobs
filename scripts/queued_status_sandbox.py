@@ -285,7 +285,9 @@ def main() -> None:
     print(f"[review]   third in line         {base}/tasks/task-003", flush=True)
     print(f"[review]   start paused          {base}/tasks/task-004  ({incident})", flush=True)
     print(f"[review]   the slot board        http://127.0.0.1:{port}/app/runs", flush=True)
-    print("[review] Glance at the list first. Then cancel task-002's entry. Then 390x844.", flush=True)
+    print(
+        "[review] Glance at the list first. Then cancel task-002's entry. Then 390x844.", flush=True
+    )
     # `lifespan="off"`, which is the one thing here that is not the real server. The
     # lifespan starts the dispatch poller, the poller drives the controller, and the
     # controller drains the queue the moment a slot is free -- correctly, because that is
