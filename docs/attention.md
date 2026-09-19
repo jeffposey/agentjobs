@@ -6,8 +6,9 @@ This is the part that works when you are not — a persistent red mark on the Wi
 taskbar and one desktop notification, driven by durable state rather than by whichever
 agent session happens to still be alive.
 
-Built on task-422, under the notifications epic (task-421). The mobile push child reuses
-the rule below rather than inventing a second one.
+Built on task-422, under the notifications epic (task-421). **Mobile push reuses the
+rule below rather than inventing a second one** — a phone is another client of the same
+episode, and [Mobile push](push.md) is how it is registered and what it is sent.
 
 ## What is being tracked
 

@@ -74,3 +74,159 @@ self.addEventListener("notificationclick", (event) => {
       }),
   );
 });
+
+// ---------------------------------------------------------------------------
+// Mobile push (task-423).
+//
+// A push arrives at a worker, not at a page, and usually at a device whose AgentJobs
+// window was closed hours ago. So everything below has to work with no application
+// running: parse the payload, decide what to say, and say it.
+//
+// **The payload is a starting point, not the message.** A push service holds a
+// message for an offline device for up to its TTL, which here is twelve hours, and
+// "3 tasks are waiting on you" is a sentence that can stop being true in that time.
+// So the worker re-reads the live attention state and renders *that*, falling back to
+// the payload only when the fetch fails -- which is the offline case, where the
+// payload is the best that exists.
+//
+// A `push` handler that shows nothing is penalised by the browser, so every branch
+// here ends in a notification, including the one where the answer turns out to be
+// "nothing is waiting any more".
+
+const PUSH_CONTEXT_CACHE = "agentjobs-push-context";
+const PUSH_CONTEXT_KEY = "/__agentjobs_push_context__";
+
+function pushFallback(payload) {
+  return {
+    title: (payload && payload.title) || "AgentJobs needs you",
+    body: (payload && payload.body) || "Open AgentJobs to see what has stopped.",
+    url: (payload && payload.url) || "/app/",
+    tag: (payload && payload.tag) || "agentjobs-attention",
+  };
+}
+
+// The current truth, or null when this device cannot reach the server right now.
+async function currentAttention(projectId) {
+  if (!projectId) return null;
+  try {
+    const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/attention`, {
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function notificationFromAttention(attention, payload) {
+  const count = attention.blocking || 0;
+  const episode = attention.episode;
+  if (count <= 0 || !episode) {
+    // The push outlived the work. Saying so is better than repeating a number that is
+    // no longer true, and better than the browser's own "this site was updated in the
+    // background", which is what showing nothing would earn.
+    return {
+      title: "AgentJobs is clear",
+      body: "Nothing is waiting on you any more.",
+      url: "/app/",
+      tag: pushFallback(payload).tag,
+    };
+  }
+  const title = count === 1 ? "1 task is waiting on you" : `${count} tasks are waiting on you`;
+  return {
+    title,
+    // The body stays the server's, because it is the only part that depends on the
+    // device's own privacy setting -- whether this device is allowed to be told which
+    // task it is. Re-deriving it here would silently promote every device to the
+    // detailed form.
+    body: pushFallback(payload).body,
+    url: episode.deep_link || pushFallback(payload).url,
+    tag: pushFallback(payload).tag,
+  };
+}
+
+self.addEventListener("push", (event) => {
+  let payload = null;
+  try {
+    payload = event.data ? event.data.json() : null;
+  } catch {
+    payload = null;
+  }
+  event.waitUntil(
+    currentAttention(payload && payload.project).then((attention) => {
+      const note = attention ? notificationFromAttention(attention, payload) : pushFallback(payload);
+      return self.registration.showNotification(note.title, {
+        body: note.body,
+        tag: note.tag,
+        // Never true, for the reason the desktop toast never sets it: a repeat of the
+        // same tag is an update of a number, and renotify would buzz for every task
+        // joining an episode the person has already been told about.
+        renotify: false,
+        data: { url: note.url },
+        icon: "/app/icons/icon-192.png",
+        badge: "/app/icons/icon-192.png",
+      });
+    }),
+  );
+});
+
+// The browser rotating a subscription out from under us.
+//
+// It fires once, possibly while no page has been open for weeks, and if it is not
+// handled the device goes quiet for ever: the old endpoint starts answering 410 and
+// nothing ever registers the new one. The page cannot do this on its own because the
+// case that matters is the one where the page is never opened again.
+//
+// The project id is not derivable here, so the page leaves it in a cache entry when it
+// subscribes. A worker with no such entry has nothing to re-register against and stops,
+// which is the same state as never having subscribed.
+async function pushContext() {
+  try {
+    const cache = await caches.open(PUSH_CONTEXT_CACHE);
+    const stored = await cache.match(PUSH_CONTEXT_KEY);
+    return stored ? await stored.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    (async () => {
+      const context = await pushContext();
+      if (!context || !context.projectId || !context.applicationServerKey) return;
+      const base = `/api/projects/${encodeURIComponent(context.projectId)}/push`;
+      const post = (path, body) =>
+        fetch(base + path, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }).catch(() => undefined);
+
+      const old = event.oldSubscription;
+      if (old && old.endpoint) await post("/unsubscribe", { endpoint: old.endpoint });
+
+      let fresh = event.newSubscription || null;
+      if (!fresh) {
+        try {
+          fresh = await self.registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: context.applicationServerKey,
+          });
+        } catch {
+          return;
+        }
+      }
+      const json = fresh.toJSON();
+      await post("/subscribe", {
+        endpoint: json.endpoint,
+        keys: json.keys,
+        label: context.label || "",
+        detail: context.detail || "count",
+      });
+    })(),
+  );
+});

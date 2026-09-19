@@ -88,6 +88,7 @@ import {
   useAcknowledgeFromUrl,
   useAcknowledgeOnOpen,
 } from "./components/attention/WindowsAttention";
+import { MobilePush } from "./components/attention/MobilePush";
 import { PrimaryNav } from "./components/PrimaryNav";
 import { QueueBroken } from "./components/QueueBroken";
 import { QueueDispatch, QueueDispatchGate } from "./components/QueueDispatch";
@@ -236,7 +237,16 @@ function DashboardPage({ projectId }: { projectId: string }) {
         />
       )}
       renderRecentlyFinished={() => <RecentlyFinished body={closures} projectId={projectId} />}
-      renderNotificationDelivery={() => <NotificationDelivery />}
+      renderNotificationDelivery={() => (
+        <>
+          <NotificationDelivery />
+          {/* Beside the desktop notice, not on a page of its own: they are two answers
+              to one question -- how does AgentJobs reach me when I am not looking at
+              this -- and separating them would make the phone half the one nobody
+              finds (task-423). */}
+          <MobilePush projectId={projectId} />
+        </>
+      )}
     />
   );
 }

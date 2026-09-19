@@ -55,6 +55,10 @@ the scoped form so switching projects never depends on the server's current dire
 | `GET` | `/api/dashboard` | Return dashboard counts and activity |
 | `GET` | `/api/attention` | The tasks stopped waiting on a person -- the header's red badge, plus the attention episode driving the Windows taskbar and notification. **Reconciles the episode**, so the answer is idempotent rather than read-only |
 | `POST` | `/api/attention/ack` | Record that a person deliberately acted on the episode they were shown. Stops the next interruption being suppressed; does **not** clear the indicator. Takes `episode_id`; a stale one is a no-op. No run may call it |
+| `GET` | `/api/push` | The application-server key a browser subscribes against, and every device registered for this project. **Reading it mints the machine's VAPID keypair on first use**, and it answers with device labels, so it needs `push.manage` like the three writes below |
+| `POST` | `/api/push/subscribe` | Register a device for mobile push. Takes the browser's own `PushSubscription.toJSON()` plus a `label` and a `detail` mode. Idempotent by endpoint; a device registered mid-episode waits for the next one |
+| `POST` | `/api/push/unsubscribe` | Forget a device, by `subscription_id` from the page or by `endpoint` from a service worker. Idempotent |
+| `POST` | `/api/push/test` | Push one message on purpose, to one device or to all. Does not consume the episode's interruption |
 | `GET` | `/api/analytics` | Backlog, throughput, aging and where work is stuck, over one range. `range` is `30d`, `90d`, `12m` or `all` |
 | `GET` | `/api/revision` | Return the project revision used for client refresh |
 
