@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Callable, Dict, List, Optional, Sequence, TypedDict
 
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, Lifecycle, Outcome, Task
@@ -72,6 +73,47 @@ def awaits_human_input(task: Task) -> bool:
     return task.ball is Ball.HUMAN and task.lifecycle is Lifecycle.DRAFT
 
 
+def deferred_to_child(task: Task, children: Sequence[Task]) -> Optional[Task]:
+    """The open child that is already holding this task's ask, if one is (task-467).
+
+    A parent whose child sits at ``human``/``review`` is not a second thing to do. The
+    person has one click, on the child; the parent is waiting for the consequence of it.
+    Counting both is what made one approval read as two asks on 2026-09-18, and what let
+    a parent that nothing ever retracted keep the badge lit afterwards.
+
+    Deliberately narrow. Only an **open** child, and only one holding the ball with a
+    **human**: a child an agent is working says nothing about whether the parent needs
+    a person, and a closed one says nothing at all.
+    """
+    for child in children:
+        if child.is_open and child.ball is Ball.HUMAN:
+            return child
+    return None
+
+
+def human_waiting(
+    tasks: Sequence[Task], children_of: Callable[[str], Sequence[Task]]
+) -> List[Task]:
+    """The waiting set itself: what a person is holding up, in inbox order.
+
+    One function so that the badge, the notification and the dashboard panel cannot
+    disagree -- which they did before task-422, and would again the moment a second
+    caller grew its own copy of :func:`deferred_to_child`.
+
+    ``children_of`` is a lookup rather than a manager because the two callers reach
+    children differently: the dashboard already holds every task and can build the map
+    once, while the attention poll holds only the handful of human-held candidates and
+    asks for each one's subtasks.
+    """
+    return _inbox_order(
+        [
+            task
+            for task in tasks
+            if blocks_human(task) and deferred_to_child(task, children_of(task.id)) is None
+        ]
+    )
+
+
 def human_waiting_tasks(manager: TaskManager) -> List[Task]:
     """Every task a person is actually holding up, in the order the inbox shows them.
 
@@ -81,9 +123,7 @@ def human_waiting_tasks(manager: TaskManager) -> List[Task]:
     order as the dashboard's own panel, so an alert and the page it leads to cannot
     disagree about what is waiting or which of them is first.
     """
-    return _inbox_order(
-        [task for task in manager.list_tasks(ball=Ball.HUMAN) if blocks_human(task)]
-    )
+    return human_waiting(manager.list_tasks(ball=Ball.HUMAN), manager.get_subtasks)
 
 
 def count_blocking_human(manager: TaskManager) -> int:
@@ -196,7 +236,11 @@ def build_dashboard_snapshot(
     """
     limit = max(QUEUE_PREVIEW_LIMIT, preview_limit or 0)
     tasks = manager.list_tasks()
-    waiting_tasks = _inbox_order([task for task in tasks if blocks_human(task)])
+    children_by_parent: Dict[str, List[Task]] = defaultdict(list)
+    for task in tasks:
+        if task.parent:
+            children_by_parent[task.parent].append(task)
+    waiting_tasks = human_waiting(tasks, lambda task_id: children_by_parent.get(task_id, ()))
     backlog_tasks = _inbox_order([task for task in tasks if awaits_human_input(task)])
     # Selection refuses to guess an order it cannot justify (design section 8), and
     # that refusal is a RuntimeError which no route handler catches -- so before

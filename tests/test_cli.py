@@ -453,3 +453,67 @@ def test_load_config_fallback(tmp_path: Path, monkeypatch) -> None:
     result = runner.invoke(app, ["list"])
     assert result.exit_code == 0
     assert "No tasks found" in result.stdout
+
+
+def test_attention_repair_reports_before_it_changes_anything(tmp_path: Path, monkeypatch) -> None:
+    """task-467. ``--dry-run`` is the survey; without it the same findings are applied.
+
+    The sweep runs on the poller tick, so this command is for the corpus that
+    accumulated before it did and for a reader who wants to see what it would touch.
+    Silence is the normal answer, which is asserted after the repair rather than
+    assumed.
+    """
+    from agentjobs.models_v2 import Ball, BallReason, Lifecycle
+
+    monkeypatch.chdir(tmp_path)
+    _init_project(tmp_path)
+    manager = TaskManager(task_store(tmp_path / "tasks"))
+    parent = manager.create_task(
+        title="Epic",
+        category="general",
+        summary="An epic.",
+        description="Walk it.",
+        lifecycle=Lifecycle.READY,
+    )
+    manager.claim_task(parent.id, agent="claude")
+    first = manager.create_task(
+        title="First",
+        category="general",
+        summary="A child.",
+        description="Do it.",
+        lifecycle=Lifecycle.READY,
+        parent=parent.id,
+    )
+    manager.create_task(
+        title="Second",
+        category="general",
+        summary="Another.",
+        description="Do it too.",
+        lifecycle=Lifecycle.READY,
+        parent=parent.id,
+    )
+    manager.handoff(
+        parent.id,
+        actor="claude",
+        ball=Ball.HUMAN,
+        ball_reason=BallReason.DECISION,
+        ball_prompt=f"The epic walk stopped on {first.id}. Read that child and decide.",
+        data={"waiting_on": first.id},
+    )
+    manager.close_task(first.id, actor="jeff", outcome=Outcome.COMPLETED)
+
+    dry = runner.invoke(app, ["attention", "repair", "--dry-run"])
+    assert dry.exit_code == 0
+    assert parent.id in dry.stdout and "Nothing was written" in dry.stdout
+    manager.storage.refresh()
+    untouched = manager.get_task(parent.id)
+    assert untouched is not None and untouched.ball is Ball.HUMAN
+
+    applied = runner.invoke(app, ["attention", "repair"])
+    assert applied.exit_code == 0 and parent.id in applied.stdout
+    manager.storage.refresh()
+    corrected = manager.get_task(parent.id)
+    assert corrected is not None and corrected.ball is not Ball.HUMAN
+
+    again = runner.invoke(app, ["attention", "repair"])
+    assert "Nothing is holding a person" in again.stdout

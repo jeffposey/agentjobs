@@ -732,7 +732,13 @@ class TestWhatHappensWhenTheWalkLands:
         assert any("injected: no slot" in (item.body or "") for item in parent.log)
 
     def test_a_grounded_walk_still_names_the_child_and_its_reason(self, walk: Epic) -> None:
-        """The other half of ac-3, and the behaviour task-466 fixed, still standing."""
+        """The other half of ac-3, and the behaviour task-466 fixed, still standing.
+
+        The child is still named and the stop is still reported. What changed in
+        task-467 is *who the parent is handed to*: the child is already in the person's
+        list with an Approve button on it, so the parent goes to external/dependency
+        rather than asking them a second question about the same click.
+        """
         resolve = self.resolve(walk)
         only = walk.child("First")
         _dispatch_epic(walk)
@@ -749,7 +755,7 @@ class TestWhatHappensWhenTheWalkLands:
         assert any("child_needs_a_human" in line for line in lines), lines
         parent = walk.machine.manager.get_task(walk.parent_id)
         assert parent is not None
-        assert parent.ball is Ball.HUMAN and parent.ball_reason is BallReason.DECISION
+        assert parent.ball is Ball.EXTERNAL and parent.ball_reason is BallReason.DEPENDENCY
         assert only in (parent.ball_prompt or "")
 
 
@@ -1007,3 +1013,133 @@ class TestTwoWalkersOfOneEpic:
         finally:
             (signals / "go").write_text("")
             walker.communicate(timeout=120)
+
+
+class TestAWaitIsNotAnAsk:
+    """task-467. A walk that is waiting keeps walking, and nobody is asked twice.
+
+    The defect these cover, from task-421 on 2026-09-19: a child parked for review
+    grounded the walk, the walk wrote ``stopped`` and handed the *parent* to a person as
+    well, and when the child was approved and merged twenty minutes later nothing
+    retracted the parent's ball and nothing resumed the epic. The parent became a
+    permanent member of the attention waiting set, which under the one-alert-per-episode
+    rule silenced the alarm for every genuinely new wait after it.
+    """
+
+    def resolve(self, walk: Epic) -> Callable[[str], Any]:
+        project = ProjectRegistry(home=walk.machine.home).get("sandbox")
+
+        def resolve(project_id: str) -> Any:
+            return walk.machine.manager, project
+
+        return resolve
+
+    def after(self, walk: Epic, title: str, blocker: str) -> str:
+        """A child that cannot start until *blocker* closes.
+
+        A real epic's children are ordered by their dependencies, and the ordering is
+        what makes "the first child that is not clean grounds every further takeoff"
+        mean anything. Two independent children would both be in the air before the
+        first one could park, which tests a different walk.
+        """
+        from agentjobs.models_v2 import Dependency, DependencyType
+
+        created = walk.machine.manager.create_task(
+            title=title,
+            category="general",
+            summary=f"{title}.",
+            description=f"Do {title}.",
+            lifecycle=Lifecycle.READY,
+            actor="claude",
+            parent=walk.parent_id,
+            dependencies=[Dependency(task=blocker, type=DependencyType.NEEDS)],
+        )
+        walk.children.append(created.id)
+        return created.id
+
+    def park(self, walk: Epic, child_id: str) -> None:
+        walk.machine.manager.handoff(
+            child_id,
+            actor="claude",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Look at this.",
+        )
+
+    def test_a_parked_child_leaves_the_walk_walking_and_the_parent_out_of_the_inbox(
+        self, walk: Epic
+    ) -> None:
+        resolve = self.resolve(walk)
+        first = walk.child("First")
+        self.after(walk, "Second", first)
+        _dispatch_epic(walk)
+        advance_hosted_walks(walk.machine.home, resolve=resolve)
+        self.park(walk, first)
+
+        advance_hosted_walks(walk.machine.home, resolve=resolve)
+
+        parent = walk.machine.manager.get_task(walk.parent_id)
+        assert parent is not None
+        assert parent.ball is Ball.EXTERNAL and parent.ball_reason is BallReason.DEPENDENCY
+        assert first in (parent.ball_prompt or "")
+        # The record that used to say `stopped` here is what left nobody watching.
+        assert [record.walk_id for record in journal(walk.machine.home).open_walks()]
+
+    def test_the_same_wait_is_not_written_again_on_every_tick(self, walk: Epic) -> None:
+        resolve = self.resolve(walk)
+        first = walk.child("First")
+        self.after(walk, "Second", first)
+        _dispatch_epic(walk)
+        advance_hosted_walks(walk.machine.home, resolve=resolve)
+        self.park(walk, first)
+        advance_hosted_walks(walk.machine.home, resolve=resolve)
+        settled = walk.machine.manager.get_task(walk.parent_id)
+        assert settled is not None
+        before = len(settled.log)
+
+        for _ in range(3):
+            advance_hosted_walks(walk.machine.home, resolve=resolve)
+
+        after = walk.machine.manager.get_task(walk.parent_id)
+        assert after is not None
+        assert len(after.log) == before, "a hosted walk re-derives the same wait every tick"
+
+    def test_resolving_the_child_resumes_the_epic_with_no_human_touch(self, walk: Epic) -> None:
+        resolve = self.resolve(walk)
+        first = walk.child("First")
+        second = self.after(walk, "Second", first)
+        _dispatch_epic(walk)
+        advance_hosted_walks(walk.machine.home, resolve=resolve)
+        self.park(walk, first)
+        advance_hosted_walks(walk.machine.home, resolve=resolve)
+        assert walk.sessions_named(second) == [], "the wait grounded every further takeoff"
+
+        # The approval, its gate and its merge, as one act: the child closes.
+        walk.machine.manager.close_task(first, actor="Jeff Posey", outcome=Outcome.COMPLETED)
+        advance_hosted_walks(walk.machine.home, resolve=resolve)
+
+        assert len(walk.sessions_named(second)) == 1, "the epic did not take off again"
+        parent = walk.machine.manager.get_task(walk.parent_id)
+        assert parent is not None
+        assert parent.ball is Ball.AGENT, "the parent was left on a wait that had cleared"
+
+    def test_a_child_closed_unresolved_is_a_stop_and_still_asks_a_person(self, walk: Epic) -> None:
+        """Cancelling a parked child does not clear the ground it stood on.
+
+        A sibling taking off now could be building on the gap the cancellation left,
+        which is what grounding exists to prevent -- so this one does reach a person.
+        """
+        resolve = self.resolve(walk)
+        first = walk.child("First")
+        self.after(walk, "Second", first)
+        _dispatch_epic(walk)
+        advance_hosted_walks(walk.machine.home, resolve=resolve)
+        self.park(walk, first)
+        advance_hosted_walks(walk.machine.home, resolve=resolve)
+
+        walk.machine.manager.close_task(first, actor="Jeff Posey", outcome=Outcome.CANCELLED)
+        advance_hosted_walks(walk.machine.home, resolve=resolve)
+
+        parent = walk.machine.manager.get_task(walk.parent_id)
+        assert parent is not None
+        assert parent.ball is Ball.HUMAN and parent.ball_reason is BallReason.DECISION

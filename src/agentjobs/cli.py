@@ -1857,6 +1857,7 @@ def dispatch_walk(
             home=home,
             settings=settings,
             posture=chosen_posture,
+            actor=actor,
             on_event=lambda message: typer.echo(f"  {utc_stamp()} {message}"),
         )
     except EpicError as exc:
@@ -1911,9 +1912,19 @@ def dispatch_walk(
         )
         return
 
+    # Read back rather than asserted, for the reason the success branch gives: since
+    # task-467 a stop that is only a *wait* leaves the parent on external/dependency and
+    # the walk still walking, and printing "its ball is with a human" over that would
+    # describe a state this command did not produce -- and send somebody looking for a
+    # click that is on the child, not here.
+    settled = manager.get_task(parent.id)
+    where = (
+        f"{settled.ball.value}/{settled.ball_reason.value}"
+        if settled is not None and settled.ball and settled.ball_reason
+        else "unchanged"
+    )
     typer.secho(
-        f"Stopped: {result.stop.value}. The parent holds the reason and its ball is with "
-        "a human.",
+        f"Stopped: {result.stop.value}. The parent holds the reason and its ball is " f"{where}.",
         fg=typer.colors.RED,
     )
     raise typer.Exit(code=1)
@@ -3206,6 +3217,67 @@ def storage_restore(
     if not report.ok:
         raise typer.Exit(code=1)
     typer.secho(f"restored {snapshot} to {target}", fg=typer.colors.GREEN)
+
+
+attention_app = typer.Typer(
+    name="attention",
+    help="What is stopped on a person, and taking back asks that are no longer asks.",
+)
+app.add_typer(attention_app)
+
+
+@attention_app.command("repair")
+def attention_repair(
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Say what would be corrected and change nothing."
+    ),
+    actor: Optional[str] = typer.Option(
+        None, "--actor", help="Who the correction is written as. Defaults to `dispatcher`."
+    ),
+) -> None:
+    """Take back an ask whose reason has been resolved (task-467).
+
+    An epic parent handed to a person because one of its children was in review stays
+    there after that child merges, because the walk that wrote the ask has stopped and
+    nothing is watching. It is a permanent member of the waiting set, which keeps the
+    badge lit and -- because an attention episode only resets when the set *empties* --
+    stops the next genuinely new wait from interrupting at all.
+
+    The poller runs this every tick, so the ordinary machine never needs it. It is here
+    for the corpus that accumulated before it did, and for a reader who wants to see
+    what the sweep would touch: ``--dry-run`` prints exactly the findings the sweep acts
+    on and writes nothing.
+
+    Silence means nothing is stale, which is the normal answer.
+    """
+    from agentjobs.retraction import retract, survey
+
+    manager = _build_manager(Path.cwd())
+    tasks = manager.list_tasks()
+    if dry_run:
+        findings = survey(tasks, manager.get_subtasks)
+        if not findings:
+            typer.echo("Nothing is holding a person for a reason that has been resolved.")
+            return
+        for finding in findings:
+            typer.echo(finding.describe())
+        typer.secho(
+            f"{len(findings)} would be corrected. Nothing was written.", fg=typer.colors.YELLOW
+        )
+        return
+    lines = retract(
+        tasks,
+        manager.get_subtasks,
+        handoff=manager.handoff,
+        log=manager.add_log_entry,
+        actor=actor or "dispatcher",
+    )
+    if not lines:
+        typer.echo("Nothing is holding a person for a reason that has been resolved.")
+        return
+    for line in lines:
+        typer.echo(line)
+    typer.secho(f"{len(lines)} corrected.", fg=typer.colors.GREEN)
 
 
 queue_app = typer.Typer(

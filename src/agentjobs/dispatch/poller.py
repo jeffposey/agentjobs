@@ -165,6 +165,7 @@ def poll_live_sessions(
     results.extend(_drive_controller(home, registry, managers))
     results.extend(_recover_parked(home, registry, managers))
     results.extend(_resume_interrupted_finishes(home, registry, managers))
+    results.extend(_retract_resolved_asks(registry, managers))
     results.extend(_sweep_idle_sessions(home))
     return results
 
@@ -188,6 +189,48 @@ def _release_finished_slots(
     except Exception as exc:  # noqa: BLE001 - the sweep must never take the poller down
         return [PollResult("slot-release", None, f"failed: {exc}")]
     return [PollResult(item.run_id, None, item.detail) for item in released]
+
+
+def _retract_resolved_asks(
+    registry: ProjectRegistry, managers: Dict[str, TaskManagerLike]
+) -> List[PollResult]:
+    """Take back an ask whose reason has been resolved (task-467).
+
+    Late in the tick, after the walks above have had their say, so a parent a walk has
+    just corrected itself is already correct and is not found here twice.
+
+    This is the half of the attention rule that nothing used to own: an epic parent
+    handed to a person because a child was in review stayed there after the child
+    merged, because the walk that wrote it had already stopped and nothing was watching.
+    A permanent member of the waiting set keeps the badge lit *and*, under the
+    one-alert-per-episode rule, stops the next genuinely new wait from ever interrupting.
+    So the sweep runs on the clock rather than on somebody noticing, which is the whole
+    of the second clause.
+    """
+    from agentjobs.retraction import retract
+
+    results: List[PollResult] = []
+    try:
+        projects = registry.list_projects()
+    except ProjectError as exc:
+        return [PollResult("retraction", None, f"no projects to sweep: {exc}")]
+    for project in projects:
+        # Every registered project, not only the ones that happen to have a run this
+        # tick: a stale ask outlives the run that wrote it by definition, and a sweep
+        # that only visited busy projects would never reach the epic that went quiet.
+        try:
+            manager = managers.get(project.id) or dispatch_manager_for(project)
+            lines = retract(
+                manager.list_tasks(),
+                manager.get_subtasks,
+                handoff=manager.handoff,
+                log=manager.add_log_entry,
+            )
+        except Exception as exc:  # noqa: BLE001 - a sweep must never take the poller down
+            results.append(PollResult("retraction", None, f"{project.id}: failed: {exc}"))
+            continue
+        results.extend(PollResult("retraction", None, f"{project.id}: {line}") for line in lines)
+    return results
 
 
 def _sweep_idle_sessions(home: Path) -> List[PollResult]:

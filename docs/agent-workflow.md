@@ -528,6 +528,40 @@ next `dispatch child` or `dispatch walk` is refused `parent_not_human_clocked` u
 person writes on the epic or dispatches it again. One human act buys one walk. A walk that
 could restart itself after stopping for a person would not be stopping for a person.
 
+### Waiting is not stopping (task-467)
+
+**Two of the endings above are not stops at all, and they no longer ask anybody
+anything.** A child parked for review is already in the person's list with an Approve
+button on it; the one open child being somebody else's live work is somebody else's live
+work. Neither needs a second question, and on 2026-09-18 and again on 2026-09-19 asking
+one made a single click read as two asks.
+
+So a walk in either of those states:
+
+- **hands the parent to `external`/`dependency` naming the child it is waiting on**, not
+  to `human`/`decision`. The parent leaves the badge and the attention episode; the child
+  keeps the click. `agentjobs.dispatch.epic.waiting_child` is the decision, and it is
+  taken against the live records rather than off the stop code -- `no_eligible_child`
+  also covers a graph in which nothing is moving, which clears for nobody and *is* a
+  person's;
+- **keeps walking.** Its supervision record stays `walking` and moves to the server, so
+  an ordinary poll tick rebuilds it, lifts the grounding the moment the child lets go,
+  and takes off the next child. No re-dispatch, and nothing for anybody to notice;
+- **says it once.** A hosted walk re-derives the same wait every tick, so a parent that
+  already says it is waiting on that child is not written to again.
+
+A child that **closed unresolved** is not a wait. Somebody cancelled it rather than
+finishing it, a sibling taking off now could be building on the gap that left, and that
+is a stop for cause like any other.
+
+**And what nothing used to own: the demand is withdrawn when its reason is resolved.**
+Every poll tick sweeps for an open task holding a person for a reason that names a child
+which has since let go, reports it, and corrects it (`agentjobs.retraction`;
+`agentjobs attention repair --dry-run` is the same survey by hand). It exists because the
+walk that wrote task-421's ask had already stopped, so approving its child fired nothing,
+and the stale parent then held the attention episode open and silenced the alarm for
+every wait after it. See [Attention](attention.md).
+
 ### Supervision, in the four states a child can be in
 
 **The walk does this for you.** What follows is the rule it implements, and it is here
@@ -573,9 +607,12 @@ yours at all:
 Either way, **stop starting children**: the next child may depend on the parked one, and
 an unattended run that keeps going past a question is how a wrong answer gets built on.
 The walk does exactly this — the first child that is not clean grounds every further
-takeoff and none is ever skipped — and it hands the parent to `human`/`decision` with the
-reason before it exits, so the parent record does not read `agent/work` while nothing is
-happening to it. **Children already in flight are watched down rather than killed**: none
+takeoff and none is ever skipped — and it writes the reason onto the parent
+before it exits, so the parent record does not read `agent/work` while nothing is
+happening to it. Since task-467 that handoff is to `external`/`dependency` naming the
+parked child rather than to `human`/`decision`: the click is on the child, and the parent
+is waiting for its consequence -- see
+[Waiting is not stopping](#waiting-is-not-stopping-task-467). **Children already in flight are watched down rather than killed**: none
 of them can depend on the parked one, or claimability would not have offered them, so
 stopping them would throw away work for no safety gain.
 

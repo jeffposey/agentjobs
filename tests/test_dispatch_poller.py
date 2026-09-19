@@ -857,3 +857,56 @@ class TestTheServerStartsIt:
         before = len(polled)
         time.sleep(0.1)
         assert len(polled) == before
+
+
+def test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved(machine) -> None:
+    """task-467. The sweep runs on the clock, not on somebody noticing.
+
+    The whole point of putting it here is that nothing else was watching: the walk that
+    wrote the ask had already stopped, so resolving its child fired nothing at all. It
+    sweeps every *registered* project rather than only the ones with a run this tick,
+    because a stale ask outlives the run that wrote it by definition.
+    """
+    home, _root, manager, _cli = machine
+    parent = manager.create_task(
+        title="Epic",
+        category="infrastructure",
+        summary="An epic.",
+        description="Walk it.",
+        lifecycle=Lifecycle.READY,
+    )
+    manager.claim_task(parent.id, agent="claude")
+    first = manager.create_task(
+        title="First",
+        category="infrastructure",
+        summary="A child.",
+        description="Do it.",
+        lifecycle=Lifecycle.READY,
+        parent=parent.id,
+    )
+    manager.create_task(
+        title="Second",
+        category="infrastructure",
+        summary="Another child.",
+        description="Do it too.",
+        lifecycle=Lifecycle.READY,
+        parent=parent.id,
+    )
+    manager.handoff(
+        parent.id,
+        actor="claude",
+        ball=Ball.HUMAN,
+        ball_reason=BallReason.DECISION,
+        ball_prompt=f"The epic walk stopped on {first.id}. Read that child and decide.",
+        data={"waiting_on": first.id},
+    )
+    from agentjobs.models_v2 import Outcome
+
+    manager.close_task(first.id, actor="Jeff Posey", outcome=Outcome.COMPLETED)
+
+    results = poll_live_sessions(home)
+
+    assert any(parent.id in (result.detail or "") for result in results), results
+    manager.storage.refresh()
+    corrected = manager.get_task(parent.id)
+    assert corrected is not None and corrected.ball is not Ball.HUMAN

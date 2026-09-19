@@ -211,7 +211,7 @@ class TestVerbScoping:
         assert kinds == [DEFAULT_BALL_PROMPT]
 
     def test_no_verb_evaluates_every_condition_for_the_corpus_view(self, manager):
-        # Three records rather than one, because the conditions are no longer jointly
+        # Four records rather than one, because the conditions are no longer jointly
         # satisfiable: a default ask survives only at agent/work, and a review link is
         # only ever handed to a human. The property being pinned is that every kind is
         # reachable with no verb -- a condition nothing can raise is a dead check.
@@ -224,12 +224,93 @@ class TestVerbScoping:
             summary="Short enough.",
             lifecycle=Lifecycle.READY,
         )
+        invited = manager.create_task(
+            id="task-004",
+            title="The epic",
+            description="Children get filed as they are wanted.",
+            summary="Short enough.",
+            lifecycle=Lifecycle.READY,
+        )
+        invited = manager.handoff(
+            invited.id,
+            actor="bot",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.DECISION,
+            ball_prompt="This epic stays open; file the next child whenever you want one.",
+        )
 
         kinds = {warning.kind for warning in check_record(worked)}
         kinds |= {warning.kind for warning in check_record(handed)}
         kinds |= {warning.kind for warning in check_record(quoted)}
+        kinds |= {warning.kind for warning in check_record(invited)}
 
         assert kinds == set(WARNING_KINDS)
+
+
+class TestStandingInvitations:
+    """An invitation is not an ask (task-467).
+
+    The decision this pins: the schema **does not refuse** a human handoff whose prompt
+    describes no act available today, because whether a sentence describes one is not
+    decidable from the sentence, and a refusal that is wrong blocks the one honest ask.
+    It is a convention with a warning, exactly like ``default_ball_prompt``, and the
+    sanctioned home for an invitation is ``agent``/``hold``.
+    """
+
+    def invite(self, manager: TaskManager, prompt: str) -> Task:
+        task = manager.create_task(
+            id="task-010",
+            title="The epic",
+            description="Children get filed as they are wanted.",
+            summary="Short enough.",
+            lifecycle=Lifecycle.READY,
+        )
+        return manager.handoff(
+            task.id,
+            actor="bot",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.DECISION,
+            ball_prompt=prompt,
+        )
+
+    def test_an_open_ended_invitation_is_raised(self, manager) -> None:
+        handed = self.invite(
+            manager, "This epic stays open; file the next child whenever you want one."
+        )
+
+        [warning] = check_record(handed, verb="handoff")
+
+        assert warning.kind == record_check.STANDING_INVITATION
+        assert "agent/hold" in warning.message
+
+    def test_an_ordinary_review_request_is_silent(self, manager) -> None:
+        handed = self.invite(manager, "The branch is rebased and green. Approve or object.")
+
+        assert check_record(handed, verb="handoff") == []
+
+    def test_the_same_words_to_an_agent_are_not_an_ask_at_all(self, manager) -> None:
+        """Only a ball on a person creates a row in anybody's blocked-on-you list."""
+        task = manager.create_task(
+            id="task-011",
+            title="The epic",
+            description="Children get filed as they are wanted.",
+            summary="Short enough.",
+            lifecycle=Lifecycle.READY,
+        )
+        handed = manager.handoff(
+            task.id,
+            actor="bot",
+            ball=Ball.AGENT,
+            ball_reason=BallReason.HOLD,
+            ball_prompt="Pick this up whenever you are ready.",
+        )
+
+        assert check_record(handed, verb="handoff") == []
+
+    def test_a_verb_that_did_not_write_the_prompt_does_not_raise_it(self, manager) -> None:
+        handed = self.invite(manager, "File the next child whenever you want one.")
+
+        assert check_record(handed, verb="log_append") == []
 
 
 class TestReviewLinks:
