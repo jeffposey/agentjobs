@@ -204,6 +204,30 @@ class Profile:
     def key(self) -> str:
         return digest(self.as_json())
 
+    @property
+    def credential_key(self) -> str:
+        """What *pays* for a turn, which is coarser than what shares a probe (task-463).
+
+        A probe speaks for another run only when the model and the executable match too,
+        because readiness is a statement about one exact invocation. A **subscription's**
+        five-hour window is not: it is charged against the login, so a usage limit hit on
+        Opus is equally in force for Sonnet on the same home, and a start gate keyed on
+        :attr:`key` would wave through the very run the limit refuses.
+
+        So the key drops ``model`` and ``executable`` and keeps the three facts that
+        decide *whose* quota is being spent -- the driver, the Claude home, and the names
+        of the auth environment variables that override it. Dropping the driver as well
+        was rejected: a Codex limit says nothing about a Claude subscription, and one
+        that paused the other would idle a machine that had a working runner.
+        """
+        return digest(
+            {
+                "driver": self.driver,
+                "claude_home": self.claude_home,
+                "auth_env": list(self.auth_env),
+            }
+        )
+
     def as_json(self) -> Dict[str, Any]:
         return {
             "driver": self.driver,

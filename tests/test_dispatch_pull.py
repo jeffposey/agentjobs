@@ -22,6 +22,7 @@ on:
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 
@@ -44,6 +45,7 @@ from agentjobs.execution.store import (
     BOUND_OPEN,
     BOUND_STARTS,
     BOUND_UNTIL,
+    PULL_ARMED,
     PULL_DISARMED,
     PULL_EXPIRED,
     PULL_FAULTED,
@@ -139,13 +141,32 @@ def thin_task(box: Machine) -> str:
 
 
 def open_incident(box: Machine, kind: str = "usage_limit") -> None:
-    """An open auth/usage incident, written the way task-417's book writes one."""
+    """An open auth/usage incident against **this machine's own credential** (task-463).
+
+    The profile is what makes it bite. Since the pause is judged per credential, an
+    incident carrying an empty profile is an incident against nobody, and seeding one
+    would leave this test green whatever the gate did.
+    """
+    from agentjobs.dispatch import start_pause
+    from agentjobs.dispatch.config import load_dispatch_config
+
+    config = load_dispatch_config(box.home)
+    assert config is not None
+    profile = start_pause.profile_for_runner(config.runners["fake"])
     moment = datetime.now(timezone.utc).isoformat()
     with journal(box.home).transaction("test-incident") as connection:
         connection.execute(
             "INSERT INTO auth_incident(incident_id, kind, profile_key, profile_json, state, "
-            "opened_at, next_probe_at, updated_at) VALUES (?,?,?,'{}','open',?,?,?)",
-            ("inc_test", kind, "fake", moment, moment, moment),
+            "opened_at, next_probe_at, updated_at) VALUES (?,?,?,?,'open',?,?,?)",
+            (
+                "inc_test",
+                kind,
+                profile.key,
+                json.dumps(profile.as_json()),
+                moment,
+                moment,
+                moment,
+            ),
         )
 
 
@@ -524,20 +545,27 @@ class TestStopping:
 
         assert arming_row(machine, armed.arming_id).started == 0
 
-    def test_an_open_auth_incident_disarms_with_the_reason_on_the_record(
+    def test_an_open_auth_incident_holds_the_arming_rather_than_retiring_it(
         self, machine: Machine
     ) -> None:
-        """The seam the quota child replaces with a pause and a resume."""
+        """task-463 replaced the disarm this seam used to do with a pause.
+
+        Retiring threw the authority away, so the hours after the reset -- exactly the
+        hours the arming was for -- were lost unless somebody came back and armed it
+        again. The full behaviour, including the resume, is in ``test_start_pause.py``;
+        what is asserted here is only that this module no longer retires.
+        """
         machine.task()
         armed = arm(machine, bound_kind=BOUND_STARTS, bound_starts=3)
         open_incident(machine)
 
-        machine.tick()
+        lines = machine.tick()
 
         row = arming_row(machine, armed.arming_id)
         assert machine.rows() == []
-        assert row.state == PULL_DISARMED
-        assert "usage_limit" in row.detail
+        assert row.state == PULL_ARMED
+        assert row.started == 0
+        assert any("paused" in line and "usage limit" in line for line in lines)
 
 
 # ----- the bound's own arithmetic ------------------------------------------------------

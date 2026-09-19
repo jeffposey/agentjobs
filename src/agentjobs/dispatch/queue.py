@@ -59,6 +59,7 @@ from agentjobs.dispatch.guards import (
     effective_live_runs,
     live_runs,
 )
+from agentjobs.dispatch import start_pause
 from agentjobs.dispatch.journal import journal
 from agentjobs.execution.errors import (
     AlreadyQueued,
@@ -465,6 +466,13 @@ def start_due(
     alternative and is rejected: one task whose own run is still finishing would hold up
     a queue of unrelated work for as long as that run lasted.
 
+    **An entry whose credential is out of quota is not tried at all** (task-463). An open
+    usage-limit incident means a run started on that credential would park the moment it
+    asked for a turn, so the entry keeps its place and its position and nothing is spent
+    on it -- no attempt, no hourly cap, not a word written to its task. The pause is per
+    credential, so a queue holding entries for two runners keeps starting the one whose
+    subscription still answers. See :mod:`agentjobs.dispatch.start_pause`.
+
     ``limit`` bounds how many entries one pass may start; ``0`` means "as many as there
     are free slots", which is the application's value.
     """
@@ -477,6 +485,7 @@ def start_due(
         return decisions
     if not entries:
         return decisions
+    incidents = start_pause.open_pauses(home)
     room = free_slots(home)
     budget = min(room, limit) if limit > 0 else room
     if budget <= 0:
@@ -490,9 +499,19 @@ def start_due(
         # tasks if a queue walked into it every tick.
         return [QueueDecision("", "", "", "held", hourly.message)]
 
+    said: set = set()
     for entry in entries:
         if budget <= 0:
             break
+        held = _paused(home, entry, incidents)
+        if held is not None:
+            # Reported once per incident rather than once per entry: a queue of ten
+            # entries behind one reset is one fact, and ten copies of it would bury the
+            # tick's other lines. Nothing is written to the entry or its task.
+            if held.incident_id not in said:
+                said.add(held.incident_id)
+                decisions.append(QueueDecision("", "", "", "held", held.sentence()))
+            continue
         decision = _start_one(
             home,
             store,
@@ -509,6 +528,27 @@ def start_due(
         if decision.outcome == "started":
             budget -= 1
     return decisions
+
+
+def _paused(
+    home: Path, entry: QueuedDispatch, incidents: Mapping[str, Any]
+) -> Optional["start_pause.Pause"]:
+    """The open incident this entry's credential is under, or ``None`` to try it.
+
+    The runner and group are read off the *stored ask*, so an entry that named a runner
+    is judged against that runner rather than against whatever the project's ladder would
+    pick today -- the same request the start will rebuild.
+    """
+    if not incidents:
+        return None
+    stored = entry.request
+    return start_pause.pause_for(
+        home,
+        entry.project_id,
+        runner=stored.get("runner"),
+        group=stored.get("group"),
+        incidents=incidents,
+    )
 
 
 def _start_one(

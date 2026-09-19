@@ -55,6 +55,7 @@ from agentjobs.dispatch.guards import (
 )
 from agentjobs.dispatch.journal import journal
 from agentjobs.dispatch.queue import free_slots
+from agentjobs.dispatch import start_pause
 from agentjobs.execution.errors import AlreadyQueued, ExecutionStoreError
 from agentjobs.execution.store import (
     BOUND_OPEN,
@@ -433,11 +434,24 @@ def pull_due(
     if not live:
         return decisions
 
-    stalled = _incident_stall(home)
-    if stalled:
+    incidents = start_pause.open_pauses(home)
+    if incidents:
+        going: List[PullArming] = []
+        said: set = set()
         for arming in live:
-            _retire(store, arming, PULL_DISARMED, stalled, decisions)
-        return decisions
+            pause = start_pause.pause_for(home, arming.project_id, incidents=incidents)
+            if pause is None:
+                going.append(arming)
+                continue
+            # Held, not retired. The arming keeps its bound, its posture and the identity
+            # that authorised it, and starts again on the first tick after task-417's
+            # probe closes the incident -- which is the whole of the resume mechanism.
+            if pause.incident_id not in said:
+                said.add(pause.incident_id)
+                decisions.append(PullDecision(arming.project_id, "", "held", pause.sentence()))
+        live = going
+        if not live:
+            return decisions
 
     from agentjobs.dispatch import queue as dispatch_queue
 
@@ -744,34 +758,10 @@ def _retire(
         )
 
 
-def _incident_stall(home: Path) -> str:
-    """Why the pull mode must stop because the machine cannot authenticate, or ``""``.
-
-    **The seam the quota child replaces.** An open auth or usage incident (task-417)
-    means every run this mode started would park on the same login or the same reset, so
-    a mode that kept pulling would convert one incident into a queue of parked sessions
-    and a spent hourly cap. Until pausing and resuming at the reset exists, disarming is
-    the honest thing to do: it stops the takeoffs, kills nothing, and leaves a record
-    naming the incident so a person knows what to fix before arming again.
-
-    Never raises. A store that cannot be read is not evidence of an incident, and
-    refusing to pull on the strength of an unreadable table would be a mode that stops
-    for the wrong reason.
-    """
-    try:
-        from agentjobs.dispatch.auth_recovery import book_for
-
-        open_incidents = book_for(home).open_incidents()
-    except Exception:  # noqa: BLE001 - see the docstring
-        return ""
-    if not open_incidents:
-        return ""
-    kinds = ", ".join(sorted({incident.kind for incident in open_incidents}))
-    return (
-        f"this machine has an open {kinds} incident, so every run the pull mode started "
-        "would park on the same thing. The mode disarmed rather than spending the hourly "
-        "cap on runs that cannot work; arm it again once the incident has cleared."
-    )
+# ``_incident_stall`` used to live here, and disarmed every arming on the machine when
+# any incident was open (task-462). task-463 replaced it with a *pause* that keeps the
+# arming: see :mod:`agentjobs.dispatch.start_pause` for why holding the authority beats
+# throwing it away, and why the judgement is now per credential rather than per machine.
 
 
 def _moment(raw: str) -> Optional[datetime]:
