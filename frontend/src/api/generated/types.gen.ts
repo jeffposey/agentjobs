@@ -637,6 +637,56 @@ export type CloseRequest = {
 };
 
 /**
+ * ClosureView
+ *
+ * One finished task, in the fields a row on the Dashboard renders.
+ */
+export type ClosureView = {
+    /**
+     * Age Seconds
+     *
+     * Seconds since it closed, computed on the server. The phone reading this page is not on the clock that wrote the stamp, and *how long ago* is what the row is actually read for.
+     */
+    age_seconds: number;
+    /**
+     * Closed At
+     *
+     * When the task closed, in UTC. This is the store's `closed_at`, stamped at the close and untouched by later edits -- not `updated`, which an edit after closing would move.
+     */
+    closed_at: string;
+    /**
+     * Outcome
+     *
+     * How it ended: `completed`, `cancelled`, `superseded` or `duplicate`. Shown as written -- a region that printed every row as *done* would be hiding the difference the reader is scanning for.
+     */
+    outcome: string;
+    /**
+     * Project Id
+     */
+    project_id: string;
+    /**
+     * Project Name
+     *
+     * The project's display name, falling back to its id.
+     */
+    project_name?: string;
+    /**
+     * Task Id
+     */
+    task_id: string;
+    /**
+     * Task Title
+     */
+    task_title: string;
+    /**
+     * Task Url
+     *
+     * Where this task is, in this app.
+     */
+    task_url: string;
+};
+
+/**
  * ContextPointer
  *
  * A curated "read this first" pointer, with the reason it matters.
@@ -3521,6 +3571,36 @@ export type QueuedDispatchView = {
      * How long it has been waiting, computed on the server. The phone reading this page is not on the clock that wrote `queued_at`.
      */
     waiting_seconds?: number | null;
+};
+
+/**
+ * RecentClosuresView
+ *
+ * The region's whole answer, with the bounds it was computed under.
+ */
+export type RecentClosuresView = {
+    /**
+     * Closures
+     */
+    closures: Array<ClosureView>;
+    /**
+     * Generated At
+     *
+     * When this answer was assembled, in UTC.
+     */
+    generated_at: string;
+    /**
+     * Limit
+     *
+     * The most rows this answer could have held.
+     */
+    limit: number;
+    /**
+     * Window Days
+     *
+     * How far back it looked. On the wire because the empty state says it -- *nothing has finished in the last 7 days* -- and a page that hard-coded the number would keep saying seven after this endpoint stopped meaning it.
+     */
+    window_days: number;
 };
 
 /**
@@ -8190,6 +8270,40 @@ export type RepairQueueApiQueueRepairPostResponses = {
 };
 
 export type RepairQueueApiQueueRepairPostResponse = RepairQueueApiQueueRepairPostResponses[keyof RepairQueueApiQueueRepairPostResponses];
+
+export type ListRecentClosuresApiRecentClosuresGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/recent/closures';
+};
+
+export type ListRecentClosuresApiRecentClosuresGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListRecentClosuresApiRecentClosuresGetError = ListRecentClosuresApiRecentClosuresGetErrors[keyof ListRecentClosuresApiRecentClosuresGetErrors];
+
+export type ListRecentClosuresApiRecentClosuresGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: RecentClosuresView;
+};
+
+export type ListRecentClosuresApiRecentClosuresGetResponse = ListRecentClosuresApiRecentClosuresGetResponses[keyof ListRecentClosuresApiRecentClosuresGetResponses];
 
 export type GetProjectRevisionApiRevisionGetData = {
     body?: never;
