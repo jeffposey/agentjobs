@@ -614,22 +614,28 @@ it cannot drift out of sync with the task record, and it is small enough to read
 `dispatch` log entry. Composing a richer prompt would duplicate the resumption contract
 in a second place and guarantee the two disagree eventually — rejected in §10.
 
-### A parent task gets the other stub (task-164, 2026-08-21)
+### A parent task gets no agent at all (task-164, 2026-08-21; task-458, 2026-09-18)
 
-There are two stubs, and the record picks which one a run gets: **a task with an open
-child is an epic, and the agent sent at an epic is told to supervise rather than to
-work.** It starts one session per child, one at a time, and does not work a child itself.
+**A task with an open child is an epic, and an epic is not given an agent.** Its dispatch
+goes through every gate an ordinary dispatch goes through, and then — instead of spawning
+a process — records a server-hosted walk and concludes its own run in the same call. The
+run's mode is `walk`, it is terminal before the dispatch returns, and it holds a slot for
+none of the epic it started. See
+[the supervisor holds no slot](#the-supervisor-holds-no-slot-task-458-2026-09-18) below.
 
-That condition is the whole mechanism. It needs no new field, no label anyone has to
-remember to set, and no judgement at spawn time — `manager.get_subtasks()` already
-answers it, and `get_next_task()` already refuses to hand out a parent with open
-children, so the two agree about what an epic is. Jeff's formulation was *"anything that
-is starting with a new worktree should be in a new session"*; "has an open child" is that
-sentence made checkable.
+That condition is still the whole mechanism, and it is still read the same way. It needs
+no new field, no label anyone has to remember to set, and no judgement at spawn time —
+`manager.get_subtasks()` already answers it, and `get_next_task()` already refuses to
+hand out a parent with open children, so the two agree about what an epic is. Jeff's
+formulation was *"anything that is starting with a new worktree should be in a new
+session"*; "has an open child" is that sentence made checkable. What has changed is only
+what the answer selects: a prompt, until task-458; a walk, since.
 
-The second stub is a second string rather than an extra sentence on the first because it
-**inverts** the first's load-bearing instruction. `PROMPT_STUB` opens by ordering a
-worktree before anything else is written; a supervisor writes no code, needs no
+**There is still a second stub, and it is for the end rather than the beginning.**
+`EVALUATION_STUB` is what the one run an epic gets after its walk has landed every child
+is told, and it is a second string rather than an extra sentence on `PROMPT_STUB` because
+it **inverts** that stub's load-bearing instruction. `PROMPT_STUB` opens by ordering a
+worktree before anything else is written; an evaluation writes no code, needs no
 isolation, and must not check anything out in the shared clone — doing so is the exact
 collision the worktree rule prevents, and it would then commit the parent's task records
 somewhere the dashboard cannot see them. By task-192's argument, an instruction that has
@@ -651,10 +657,10 @@ Task-022 answers it, and the answer is that they are ordinary runs. See
 [the epic walk](#the-epic-walk-one-human-act-many-runs-task-022-2026-08-23) below for how the rule
 in §2 is satisfied rather than bent, and for what it costs.
 
-The protocol the supervisor prompt points at — which child, and what to do when one
+The protocol this used to point an agent at — which child, and what to do when one
 finishes, parks, dies, or leaves the parent waiting — is in
 [the workflow guide](agent-workflow.md#working-a-parent-task-you-supervise-the-children-you-do-not-work-them),
-and is now performed by `agentjobs dispatch walk` rather than by the supervising agent.
+and is performed by the walk rather than by any agent.
 
 ### The epic walk: one human act, many runs (task-022, 2026-08-23)
 
@@ -721,9 +727,13 @@ epic would spawn an unbounded number of sessions that nothing counts — which i
 the runaway the caps exist for. And nothing would settle a finished child: the poller
 reaps runs, and a walk watching subprocesses would have had to reimplement that.
 
-One operational consequence, stated because it looks like a bug: **an epic walk needs at
-least two concurrency slots**, one for the supervising run and one for the child. A
-machine set to one refuses the first child, saying so.
+**An epic walk used to need at least two concurrency slots**, one for the supervising
+run and one for the child, and a machine set to one refused the first child. That is gone
+since task-458: a dispatched epic starts no session, so the walk fills the whole ceiling
+and a machine set to one flies one child. What is left of the narrowing is
+`supervisor_slot_held`, which still subtracts a slot for a person running an attached
+`agentjobs dispatch walk` from inside a session AgentJobs dispatched — a real slot, and
+now the exception rather than the norm.
 
 #### The bound is mechanical
 
@@ -4302,7 +4312,7 @@ execution's follower.
 | Stop between attempts | `ExecutionStore.stop_execution`, reached by `DispatchLedger.cancel` on a run whose execution is waiting: requester recorded, execution cancelled, no retry after a restart |
 | Sessions AgentJobs did not start | `journal.admit_session`: interactive claims (no slot) and registered sessions (a slot) are admitted like a dispatch. Only a person's interactive record is still accepted as its own evidence of ending |
 | Timeout roles | `config.timeout_roles`, printed by `dispatch config` beside the unrenamed keys and their source |
-| Durable supervision | `epic._Supervision`: authority, reserved attempts with admission ids, flights, landings with the child's revision, and sticky grounding, each committed before the act. A walk resumed on the same authorisation reconciles every child first. `dispatch walk --detach` leaves the walk to the server's poll tick (`advance_hosted_walks`), so no session holds a slot while it waits. The supervisor's own run and a landed child's unsettled run count against the walk's slots |
+| Durable supervision | `epic._Supervision`: authority, reserved attempts with admission ids, flights, landings with the child's revision, and sticky grounding, each committed before the act. A walk resumed on the same authorisation reconciles every child first. A dispatched epic detaches its walk to the server's poll tick (`advance_hosted_walks`) and starts no session at all (task-458), so nothing holds a slot while it waits; `dispatch walk --detach` is the same thing by hand. A landed child's unsettled run still counts against the walk's slots, and so does an attached walk's own session |
 
 **Proof.** `tests/test_execution_controller.py` runs production `dispatch_task` in a
 child interpreter that dies at each launch boundary, then drives a fresh `Controller`.
@@ -4619,6 +4629,83 @@ harness's two-death grounding test red was contended enough to recycle pids.
 The first rollup over this machine's real runs (2026-09-13, `--since 3`) found six browser
 deaths, all retried, two of them on repeated test ids, plus one flaky test and one
 `worker_gone` with no execution row.
+
+### The supervisor holds no slot (task-458, 2026-09-18)
+
+Jeff, 2026-09-18: the epic session that sits idle should not take one of the machine's
+agent slots. With the ceiling at three, an attached walk flew two children and spent the
+third slot on a session whose only job was to wait.
+
+**A dispatch aimed at a task with open children now starts no agent.** It goes through
+every gate — configuration, authority, contention, budget, the working-tree check, the
+run lock, admission — and then, where it would have spawned a process, it records a
+server-hosted walk and concludes its own run in the same call. The run's mode is `walk`.
+It is terminal before the dispatch returns, so it is absent from `GET /api/runs/live`
+from the first poll tick and the walk it started has the machine's whole ceiling.
+
+**It is still a run, and that is the load-bearing part.** Three things read the parent's
+`dispatch` entry: `parent_authorizing_entry` for the human act each child is started on,
+`inherited_posture` for the envelope, and `inherited_runner` for the model. A dispatch
+that wrote no such entry would drop every child to the project default — the defect
+task-453 was filed for, reached by a different road. Keeping the run also keeps one
+dispatch equal to one entry in the epic's history, where every other takeoff is.
+
+**Rejected: keeping the session and changing its instruction to `dispatch walk
+--detach`.** It still spends a model call and a process launch to run one command, still
+holds a slot for as long as the session takes to boot and read the record, and makes the
+machine's slot accounting depend on whether a model obeys a sentence. The property this
+task is about — no run of the parent holds a slot within one poll tick of the dispatch —
+is not something a booting session can promise. Not starting something is a mechanism the
+same way watching is.
+
+#### Supervision is two acts, and only one of them needs a model
+
+The waiting is the server's. What is left is the judging — reading the children's evidence
+against the parent's acceptance criteria — which happens once, when there is something to
+judge, and which the walk has always deliberately refused to do itself: no open child
+remaining is not the parent's criteria being met.
+
+`record_walk_outcome` is where that lands, and it now depends on the posture the epic was
+dispatched at:
+
+| Epic dispatched at | A walk that lands every child | A walk that stops for cause |
+| --- | --- | --- |
+| `auto`, `supervised`, `read_only` | parent to `human`/`review`, with what landed | parent to `human`/`decision`, naming the child and the reason |
+| `autonomous` | one evaluation run of the parent | parent to `human`/`decision`, as above |
+
+The split is the spec's own recommendation and the reason is asymmetric cost. At a review
+posture every child stopped for a person anyway, so a person is already in the loop and an
+extra run buys nothing. At `autonomous` the whole point is that nobody is: an epic that
+merged its children unattended and then sat waiting for someone to notice would be
+unattended in the half that costs money and attended in the half that does not.
+
+The evaluation run is dispatched with `trigger: evaluation` against **the same human entry
+the walk itself ran on** — the rule the walk's own authorisation runs on, and the reason
+this is not an agent authorising a dispatch. It gets `EVALUATION_STUB`: no worktree,
+nothing started, no branch, read and close or hand back saying which criterion is unmet.
+Its permission grant is task-220's, which followed the role rather than being rebuilt for
+it. A refusal — a busy machine, a spent budget, a tripped sentinel — is not a hang: the
+parent falls back to `human`/`review` with the refusal written on it.
+
+**Nothing closes the parent mechanically at any posture.** The evaluation is a run that
+reads, and it can decline to close.
+
+#### Two consequences that had to move with it
+
+**A `walk` dispatch does not count towards the per-task budget caps** (`spends_a_run`).
+The cooldown's own words are that it refuses "two runs in the same breath", and handing an
+epic's children to the server starts no run at all: no process, no model call, no slot.
+Counted, it refused the very evaluation a short epic's landing is meant to cause — found
+by the test, not by reasoning — and it would also have parked an epic for reaching a
+lifetime dispatch cap it never paid into. An entry whose data cannot be read as a dispatch
+payload still counts: "we could not tell" is not "it was free".
+
+**A child that is itself an epic is no longer read as dead when its run ends.** Every
+other run the walk watches outlives its own start; a nested epic's `walk` run is terminal
+immediately, and `_poll_child` would have called that "the session went without
+finishing" and grounded the outer walk on a nested epic that was working perfectly. The
+signal stays the task record, which is what that function's docstring has always said, and
+the run status is told to be quiet for the one case where it means nothing.
 
 ### Implementation ownership and order
 
