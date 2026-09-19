@@ -2126,6 +2126,27 @@ on `ended_at IS NULL` and cannot serve it.
   index.
 - No `task_event` change. The segments read what is there.
 
+### 20.7 Where each item landed (task-472, 2026-09-19)
+
+| item | where it lives | note |
+|---|---|---|
+| the four tables and their indexes (§20.1) | migration `005_finish_and_gate_history.sql` | DDL as written above, plus `source` on `finish` and `gate_run` |
+| the plans (§20.2) | checked on a copy of the live store after the import | every §18 query plans as the indexed range read the table says |
+| the finisher writes rows (§20.3) | `dispatch.finish.FinishDirectory` → `history.FinishHistory` | over the service: the finish holds a remote manager, and only the server opens the database (task-273) |
+| the gate writes rows (§20.3) | `scripts/check.py` → `history.GateHistory`, `PUT /history/gates/{id}` | origin from the inherited run or finish id; project from the clone the checkout is a worktree of; `patient=False` so a dead service costs one refused request |
+| a partial run is a row marked `partial` | `history.SCOPES` | the gate's `necessity` is stored as `since_gate` |
+| the one-time import (§20.4) | `agentjobs storage import-finishes --project <id>` | idempotent on finish id; reports `exists`, `unknown_task`, `still_running`, `no meta.yaml`, another project's, torn lines |
+| §20.5 A, re-stamp | migration `005`, from the `dispatch` and `dispatch_result` entries' `ts` | the run ledger on disk was not needed: the entries in the store carry the same instants. `_record_run` now stamps from the entry, not the clock. **§18.5's exclusion is dead code once this lands** |
+| §20.5 B, `ix_run_started` | migration `005` | |
+| what the gate row costs | printed under the gate's timing table as `history` | measured on task-472: two writes of a red partial run in under 0.05 s; one write is one loopback `PUT` |
+
+Two things differ from the text above. **The finisher has no store access of its own**
+-- `agentjobs finish` runs with `task_manager_for`, which outside the server is the
+service -- so the rows go through two `PUT` routes and the manager verbs behind them
+rather than "one more `INSERT`". And the gate's `checkout` and `branch` on imported rows
+come from the preflight step's detail (`<branch> at <sha> in <path>`), which 172 of the
+219 imported gates carry; the gate's own phase lines never held them.
+
 ---
 
 ## 21. The API, second set
@@ -2372,3 +2393,6 @@ Task-472 carries §20.5 A and B as well as the four tables: the re-stamp is what
 run series honest before 7 Sep, and it is a one-pass fix over a ledger that already has
 the answer. Task-473 should not build R-1 to R-4 over the un-re-stamped rows and then
 exclude them; if task-472 has landed, the exclusion in §18.5 is dead code.
+
+*Task-472 landed on 2026-09-19 with both halves of §20.5 (§20.7). The exclusion in §18.5
+is dead code from that migration on.*

@@ -565,3 +565,44 @@ any records, which is the failure mode worth looking for the day a split is run.
   service client; dispatch is a stated exception with its reasoning in
   `store_factory.dispatch_manager_for` and on task-311.
 - **`ball` history is not backfilled**, per §4.
+
+## 13. Finish and gate history (task-472)
+
+Physical schema version 5 adds four tables that are **an index over files**, not a
+record of their own: `finish` and `finish_step` over each finish's `meta.yaml` and
+`phases.jsonl` under the home's `finishes/`, and `gate_run` and `gate_stage` over the
+gate's phase lines. The files stay and `finish_status.py` still reads them; the rows are
+what a page can query without parsing a directory per request. The columns and the
+plans they serve are in the analytics design, section 20.
+
+Three rules, each a constraint or a code path rather than a convention:
+
+- **`source` says who wrote the row.** The finisher and the gate write `native` rows as
+  they run, and a native write is an upsert -- the finish row is rewritten with every
+  `meta.yaml` write, steps and stages are replaced by sequence number. The import writes
+  `imported` rows and **never overwrites a row that exists**, which is what makes
+  `agentjobs storage import-finishes` re-runnable and stops a re-run clobbering a
+  finish the finisher has since recorded itself.
+- **A finish names a task this project has**, or it is refused (`unknown_task`) rather
+  than inserted with the foreign key off. `gate_run` has no foreign key, by design: a
+  gate in a worktree records itself before the run it belongs to is a row here, and a
+  gate run by hand belongs to nothing.
+- **Neither writer opens the database.** The finisher is a CLI process holding a remote
+  manager and the gate is a script in a worktree, so both write through `PUT
+  /history/...` (section 1's decision). The gate resolves its project as *the registered
+  project whose clone this checkout is or is a worktree of* (`git rev-parse
+  --git-common-dir`), never from a path it composed, and turns its client's patience off
+  so a service that is not there costs one refused request rather than a quarter of a
+  minute of backoff. `AGENTJOBS_GATE_HISTORY=off` switches it off; the gate sets that
+  on every child, so the suite's simulated gates write nothing.
+
+The same derivation serves both moments: `agentjobs.history.finish_record` turns a
+`meta.yaml` mapping into the row and `GateAssembler` turns the gate's four phase events
+into the row and its stages, whether fed live or from the file afterwards. A finish
+recorded live and the same finish imported produce the same rows, so one set of tests
+covers both (`tests/test_history.py`).
+
+The migration also re-stamps `task_run.started_at` and `ended_at` from the dispatch
+entries that carry the true instants (design section 20.5 A): the cutover of 7 September
+had stamped 171 rows with the import minute. `_record_run` now takes the entry's
+timestamp rather than the clock, so the next import cannot do it again.
