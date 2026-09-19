@@ -80,6 +80,17 @@ class Capability(str, Enum):
     The persistent indicator is unaffected either way -- it tracks the waiting set --
     so what this protects is specifically the interruption."""
 
+    PUSH_MANAGE = "push.manage"
+    """Register, forget or test one of the owner's own devices for push (task-423).
+
+    A run holds this in no circumstances, for a reason one step beyond
+    :attr:`ATTENTION_ACK`: a push subscription is a live capability to put text on a
+    person's lock screen, and the ability to register one is the ability to choose
+    *whose* screen. It also covers the read, which is the one read in this table that is
+    not a run-output route -- reading the status mints the machine's VAPID keypair on
+    first use, and answers with the labels of every device the owner carries.
+    """
+
     DISPATCH = "dispatch.start"
     """Spend money: start a run on a task or a playbook, or cancel one."""
 

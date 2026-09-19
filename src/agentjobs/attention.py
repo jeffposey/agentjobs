@@ -50,6 +50,7 @@ import uuid
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from .dashboard import human_waiting_tasks
@@ -170,6 +171,55 @@ def advance(
         return Episode(id=new_id(), started_at=moment, members=current)
 
     return replace(previous, members=current)
+
+
+def owes_notification(episode: Optional[Episode], last_notified_id: Optional[str]) -> bool:
+    """Whether a client that last notified for *last_notified_id* owes one now.
+
+    The other half of :func:`advance`, and the reason both halves are here. ``advance``
+    decides what the episode *is*; this decides what a particular client has already
+    done about it, which is a per-client question -- a desktop browser, a phone, a
+    second window -- and so cannot live in the episode itself.
+
+    Three conditions, each ruling out a real way of being wrong: no episode is the
+    quiet state, an acknowledged episode is one the person has already acted on, and an
+    episode this client has already drawn is why a reload is not an alert.
+
+    ``components/attention/episode.ts``'s ``shouldNotify`` is the same function for a
+    browser, which keeps its own last-notified id in ``localStorage``;
+    :mod:`agentjobs.push` is the same function for a phone, which keeps its own on the
+    subscription. Notice what is **not** here: nothing asks whether anything is
+    focused, visible or frontmost. A notification while you are looking at something
+    else is the entire point.
+    """
+    if episode is None or episode.acknowledged:
+        return False
+    return episode.id != last_notified_id
+
+
+def waiting_path(project_id: str, episode: Episode) -> str:
+    """Where a person should land from a notification for *episode*.
+
+    One waiting task goes straight to it; several go to the filtered list, which is the
+    same ``status=human`` view the Dashboard's alarm links to. Not the Dashboard
+    itself -- the notification already said the number, and the thing it is for is
+    getting to the work.
+
+    The episode id rides along as ``attention_ack`` because activating a notification
+    is one of the three acknowledging acts, and the click may arrive at a window that
+    did not exist a moment ago. The app strips the marker once it has used it.
+
+    Computed here rather than only in the client because there are now three callers in
+    two languages: the React notifier, the push payload, and the service worker
+    rendering a push that arrived while no page was running. The endpoint publishes the
+    result as ``deep_link`` so the other two read it instead of re-deriving it.
+    """
+    base = f"/app/p/{quote(project_id, safe='')}"
+    ack = f"attention_ack={quote(episode.id, safe='')}"
+    lead = episode.members[0] if len(episode.members) == 1 else None
+    if lead:
+        return f"{base}/tasks/{quote(lead, safe='')}?{ack}"
+    return f"{base}/tasks?status=human&{ack}"
 
 
 # ----- persistence -------------------------------------------------------------
