@@ -525,20 +525,80 @@ export type AttachmentUpload = {
 };
 
 /**
+ * AttentionAckRequest
+ *
+ * The episode a person has just deliberately acted on.
+ *
+ * The id is required rather than implied by "the current one", so a click made
+ * against a screen one poll out of date acknowledges the episode the person actually
+ * saw, or nothing at all -- never whichever episode happens to be open when the
+ * request lands.
+ */
+export type AttentionAckRequest = {
+    /**
+     * Episode Id
+     */
+    episode_id: string;
+};
+
+/**
+ * AttentionEpisodeView
+ *
+ * The current attention episode, as much of it as a client needs to act.
+ *
+ * ``id`` is what a client compares against the last episode it notified for, so one
+ * desktop notification is drawn per episode however often the page polls. ``tasks``
+ * is the membership in inbox order; ``lead_task_id`` and ``lead_task_title`` are its
+ * head, repeated as fields so a notification can name the task without a client
+ * re-deriving "first" from an array it did not sort.
+ */
+export type AttentionEpisodeView = {
+    /**
+     * Acknowledged
+     */
+    acknowledged: boolean;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Lead Task Id
+     */
+    lead_task_id?: string | null;
+    /**
+     * Lead Task Title
+     */
+    lead_task_title?: string | null;
+    /**
+     * Started At
+     */
+    started_at: string;
+    /**
+     * Tasks
+     */
+    tasks: Array<string>;
+};
+
+/**
  * AttentionResponse
  *
- * How much of this project is stopped waiting on a person.
+ * How much of this project is stopped waiting on a person, and whether they know.
  *
  * Its own endpoint rather than a field of the dashboard, because the header renders
  * it on every surface and the dashboard projection is 900KB of task records --
  * measured against this repository's own corpus, 2026-09-05. A badge that cost that
- * on the Tasks tab would not be worth having.
+ * on the Tasks tab would not be worth having. The episode added on task-422 keeps
+ * that property: it is one small object, never the records.
+ *
+ * ``blocking`` is unchanged and still the badge number. ``episode`` is ``null``
+ * exactly when nothing is waiting.
  */
 export type AttentionResponse = {
     /**
      * Blocking
      */
     blocking: number;
+    episode?: AttentionEpisodeView | null;
 };
 
 /**
@@ -5979,6 +6039,31 @@ export type GetAttentionApiAttentionGetResponses = {
 
 export type GetAttentionApiAttentionGetResponse = GetAttentionApiAttentionGetResponses[keyof GetAttentionApiAttentionGetResponses];
 
+export type AcknowledgeAttentionApiAttentionAckPostData = {
+    body: AttentionAckRequest;
+    path?: never;
+    query?: never;
+    url: '/api/attention/ack';
+};
+
+export type AcknowledgeAttentionApiAttentionAckPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AcknowledgeAttentionApiAttentionAckPostError = AcknowledgeAttentionApiAttentionAckPostErrors[keyof AcknowledgeAttentionApiAttentionAckPostErrors];
+
+export type AcknowledgeAttentionApiAttentionAckPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: AttentionResponse;
+};
+
+export type AcknowledgeAttentionApiAttentionAckPostResponse = AcknowledgeAttentionApiAttentionAckPostResponses[keyof AcknowledgeAttentionApiAttentionAckPostResponses];
+
 export type GetDashboardApiDashboardGetData = {
     body?: never;
     path?: never;
@@ -6578,6 +6663,36 @@ export type GetAttentionApiProjectsProjectIdAttentionGetResponses = {
 };
 
 export type GetAttentionApiProjectsProjectIdAttentionGetResponse = GetAttentionApiProjectsProjectIdAttentionGetResponses[keyof GetAttentionApiProjectsProjectIdAttentionGetResponses];
+
+export type AcknowledgeAttentionApiProjectsProjectIdAttentionAckPostData = {
+    body: AttentionAckRequest;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/attention/ack';
+};
+
+export type AcknowledgeAttentionApiProjectsProjectIdAttentionAckPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AcknowledgeAttentionApiProjectsProjectIdAttentionAckPostError = AcknowledgeAttentionApiProjectsProjectIdAttentionAckPostErrors[keyof AcknowledgeAttentionApiProjectsProjectIdAttentionAckPostErrors];
+
+export type AcknowledgeAttentionApiProjectsProjectIdAttentionAckPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: AttentionResponse;
+};
+
+export type AcknowledgeAttentionApiProjectsProjectIdAttentionAckPostResponse = AcknowledgeAttentionApiProjectsProjectIdAttentionAckPostResponses[keyof AcknowledgeAttentionApiProjectsProjectIdAttentionAckPostResponses];
 
 export type GetDashboardApiProjectsProjectIdDashboardGetData = {
     body?: never;

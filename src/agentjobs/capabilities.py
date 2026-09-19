@@ -70,6 +70,16 @@ class Capability(str, Enum):
     reject. A run holds this in no circumstances -- it is the capability the audit found
     an agent could reach by typing a name it had read out of a GET."""
 
+    ATTENTION_ACK = "attention.ack"
+    """Say that a person has seen an attention episode and acted on it (task-422).
+
+    A run holds this in no circumstances, for the reason that keeps :attr:`TASK_REVIEW`
+    away from runs: acknowledgment is a claim *about the person*. An agent able to make
+    it could silence the alarm raised by its own handoff, and the next task to stop on
+    the owner would then arrive without the notification the episode exists to send.
+    The persistent indicator is unaffected either way -- it tracks the waiting set --
+    so what this protects is specifically the interruption."""
+
     DISPATCH = "dispatch.start"
     """Spend money: start a run on a task or a playbook, or cancel one."""
 

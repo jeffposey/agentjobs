@@ -129,16 +129,51 @@ class ProjectRevisionResponse(BaseModel):
     task_count: int
 
 
+class AttentionEpisodeView(BaseModel):
+    """The current attention episode, as much of it as a client needs to act.
+
+    ``id`` is what a client compares against the last episode it notified for, so one
+    desktop notification is drawn per episode however often the page polls. ``tasks``
+    is the membership in inbox order; ``lead_task_id`` and ``lead_task_title`` are its
+    head, repeated as fields so a notification can name the task without a client
+    re-deriving "first" from an array it did not sort.
+    """
+
+    id: str
+    started_at: datetime
+    acknowledged: bool
+    tasks: List[str]
+    lead_task_id: Optional[str] = None
+    lead_task_title: Optional[str] = None
+
+
 class AttentionResponse(BaseModel):
-    """How much of this project is stopped waiting on a person.
+    """How much of this project is stopped waiting on a person, and whether they know.
 
     Its own endpoint rather than a field of the dashboard, because the header renders
     it on every surface and the dashboard projection is 900KB of task records --
     measured against this repository's own corpus, 2026-09-05. A badge that cost that
-    on the Tasks tab would not be worth having.
+    on the Tasks tab would not be worth having. The episode added on task-422 keeps
+    that property: it is one small object, never the records.
+
+    ``blocking`` is unchanged and still the badge number. ``episode`` is ``null``
+    exactly when nothing is waiting.
     """
 
     blocking: int
+    episode: Optional[AttentionEpisodeView] = None
+
+
+class AttentionAckRequest(BaseModel):
+    """The episode a person has just deliberately acted on.
+
+    The id is required rather than implied by "the current one", so a click made
+    against a screen one poll out of date acknowledges the episode the person actually
+    saw, or nothing at all -- never whichever episode happens to be open when the
+    request lands.
+    """
+
+    episode_id: str
 
 
 class DashboardRecentUpdate(BaseModel):

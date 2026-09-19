@@ -1,4 +1,9 @@
-"""Read-only dashboard API consumed by the React client."""
+"""The dashboard API consumed by the React client.
+
+Reads, with one exception: acknowledging an attention episode is a write, and it is
+here rather than in a router of its own because it is the same state the badge reads
+and belongs beside it (task-422).
+"""
 
 from __future__ import annotations
 
@@ -6,7 +11,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends
 
-from agentjobs.dashboard import build_dashboard_snapshot, count_blocking_human
+from agentjobs.attention import AttentionState, acknowledge, reconcile
+from agentjobs.dashboard import build_dashboard_snapshot
 from agentjobs.dispatch.config import machine_ceiling
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Task
@@ -14,7 +20,14 @@ from agentjobs.principals import Principal
 from agentjobs.projects import Project
 
 from ..dependencies import current_identity, get_project, get_principal, get_task_manager
-from ..models import AttentionResponse, DashboardResponse, ReviewIdentity, TaskRead
+from ..models import (
+    AttentionAckRequest,
+    AttentionEpisodeView,
+    AttentionResponse,
+    DashboardResponse,
+    ReviewIdentity,
+    TaskRead,
+)
 
 router = APIRouter(tags=["dashboard"])
 
@@ -66,16 +79,61 @@ async def get_dashboard(
     )
 
 
+def _attention_view(state: AttentionState) -> AttentionResponse:
+    """Render reconciled attention state for a client."""
+    if state.episode is None:
+        return AttentionResponse(blocking=state.blocking, episode=None)
+    lead = state.waiting[0] if state.waiting else None
+    return AttentionResponse(
+        blocking=state.blocking,
+        episode=AttentionEpisodeView(
+            id=state.episode.id,
+            started_at=state.episode.started_at,
+            acknowledged=state.episode.acknowledged,
+            tasks=list(state.episode.members),
+            lead_task_id=lead.id if lead else None,
+            lead_task_title=lead.title if lead else None,
+        ),
+    )
+
+
 @router.get("/attention", response_model=AttentionResponse)
 async def get_attention(
     manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_project),
 ) -> AttentionResponse:
-    """Return how many tasks are stopped waiting on a person, and nothing else.
+    """Return how many tasks are stopped waiting on a person, plus the episode.
 
     The header polls this on every surface, so it deliberately answers with one
-    integer instead of the records behind it -- see :class:`AttentionResponse`. It
-    is the same predicate the dashboard's own tile and the legacy header use, from
-    the same function, because a badge that disagrees with the page it links to is
-    worse than no badge.
+    integer and one small object instead of the records behind them -- see
+    :class:`AttentionResponse`. It is the same predicate the dashboard's own tile and
+    the legacy header use, from the same function, because a badge that disagrees with
+    the page it links to is worse than no badge.
+
+    **This read reconciles**, which is the one thing about it worth knowing. The
+    episode is a fact about the waiting set, so it is brought up to date here rather
+    than on a clock of its own: the header was polling anyway, and a reconcile is
+    idempotent, so polling cannot manufacture attention. Nothing in the answer depends
+    on a notification having been delivered.
     """
-    return AttentionResponse(blocking=count_blocking_human(manager))
+    return _attention_view(reconcile(manager, project.id))
+
+
+@router.post("/attention/ack", response_model=AttentionResponse)
+async def acknowledge_attention(
+    payload: AttentionAckRequest,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_project),
+) -> AttentionResponse:
+    """Record that a person deliberately acted on the episode they were shown.
+
+    Acknowledgment stops the *interruption*, not the indicator: the badge tracks the
+    waiting set and stays up until it empties. What it buys is that the next task to
+    stop on this person may interrupt again, which is the whole of the anti-fatigue
+    rule (task-422's decision entry).
+
+    An id that is no longer current is not an error -- see
+    :func:`agentjobs.attention.acknowledge`. The caller gets the current state back and
+    renders it.
+    """
+    return _attention_view(acknowledge(manager, project.id, payload.episode_id))

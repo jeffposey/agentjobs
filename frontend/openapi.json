@@ -657,12 +657,91 @@
         "title": "AttachmentUpload",
         "type": "object"
       },
+      "AttentionAckRequest": {
+        "description": "The episode a person has just deliberately acted on.\n\nThe id is required rather than implied by \"the current one\", so a click made\nagainst a screen one poll out of date acknowledges the episode the person actually\nsaw, or nothing at all -- never whichever episode happens to be open when the\nrequest lands.",
+        "properties": {
+          "episode_id": {
+            "title": "Episode Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "episode_id"
+        ],
+        "title": "AttentionAckRequest",
+        "type": "object"
+      },
+      "AttentionEpisodeView": {
+        "description": "The current attention episode, as much of it as a client needs to act.\n\n``id`` is what a client compares against the last episode it notified for, so one\ndesktop notification is drawn per episode however often the page polls. ``tasks``\nis the membership in inbox order; ``lead_task_id`` and ``lead_task_title`` are its\nhead, repeated as fields so a notification can name the task without a client\nre-deriving \"first\" from an array it did not sort.",
+        "properties": {
+          "acknowledged": {
+            "title": "Acknowledged",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lead_task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Task Id"
+          },
+          "lead_task_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Task Title"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "tasks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "started_at",
+          "acknowledged",
+          "tasks"
+        ],
+        "title": "AttentionEpisodeView",
+        "type": "object"
+      },
       "AttentionResponse": {
-        "description": "How much of this project is stopped waiting on a person.\n\nIts own endpoint rather than a field of the dashboard, because the header renders\nit on every surface and the dashboard projection is 900KB of task records --\nmeasured against this repository's own corpus, 2026-09-05. A badge that cost that\non the Tasks tab would not be worth having.",
+        "description": "How much of this project is stopped waiting on a person, and whether they know.\n\nIts own endpoint rather than a field of the dashboard, because the header renders\nit on every surface and the dashboard projection is 900KB of task records --\nmeasured against this repository's own corpus, 2026-09-05. A badge that cost that\non the Tasks tab would not be worth having. The episode added on task-422 keeps\nthat property: it is one small object, never the records.\n\n``blocking`` is unchanged and still the badge number. ``episode`` is ``null``\nexactly when nothing is waiting.",
         "properties": {
           "blocking": {
             "title": "Blocking",
             "type": "integer"
+          },
+          "episode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AttentionEpisodeView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -7811,7 +7890,7 @@
     },
     "/api/attention": {
       "get": {
-        "description": "Return how many tasks are stopped waiting on a person, and nothing else.\n\nThe header polls this on every surface, so it deliberately answers with one\ninteger instead of the records behind it -- see :class:`AttentionResponse`. It\nis the same predicate the dashboard's own tile and the legacy header use, from\nthe same function, because a badge that disagrees with the page it links to is\nworse than no badge.",
+        "description": "Return how many tasks are stopped waiting on a person, plus the episode.\n\nThe header polls this on every surface, so it deliberately answers with one\ninteger and one small object instead of the records behind them -- see\n:class:`AttentionResponse`. It is the same predicate the dashboard's own tile and\nthe legacy header use, from the same function, because a badge that disagrees with\nthe page it links to is worse than no badge.\n\n**This read reconciles**, which is the one thing about it worth knowing. The\nepisode is a fact about the waiting set, so it is brought up to date here rather\nthan on a clock of its own: the header was polling anyway, and a reconcile is\nidempotent, so polling cannot manufacture attention. Nothing in the answer depends\non a notification having been delivered.",
         "operationId": "get_attention_api_attention_get",
         "responses": {
           "200": {
@@ -7826,6 +7905,48 @@
           }
         },
         "summary": "Get Attention",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/attention/ack": {
+      "post": {
+        "description": "Record that a person deliberately acted on the episode they were shown.\n\nAcknowledgment stops the *interruption*, not the indicator: the badge tracks the\nwaiting set and stays up until it empties. What it buys is that the next task to\nstop on this person may interrupt again, which is the whole of the anti-fatigue\nrule (task-422's decision entry).\n\nAn id that is no longer current is not an error -- see\n:func:`agentjobs.attention.acknowledge`. The caller gets the current state back and\nrenders it.",
+        "operationId": "acknowledge_attention_api_attention_ack_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttentionAckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttentionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Acknowledge Attention",
         "tags": [
           "dashboard"
         ]
@@ -8715,7 +8836,7 @@
     },
     "/api/projects/{project_id}/attention": {
       "get": {
-        "description": "Return how many tasks are stopped waiting on a person, and nothing else.\n\nThe header polls this on every surface, so it deliberately answers with one\ninteger instead of the records behind it -- see :class:`AttentionResponse`. It\nis the same predicate the dashboard's own tile and the legacy header use, from\nthe same function, because a badge that disagrees with the page it links to is\nworse than no badge.",
+        "description": "Return how many tasks are stopped waiting on a person, plus the episode.\n\nThe header polls this on every surface, so it deliberately answers with one\ninteger and one small object instead of the records behind them -- see\n:class:`AttentionResponse`. It is the same predicate the dashboard's own tile and\nthe legacy header use, from the same function, because a badge that disagrees with\nthe page it links to is worse than no badge.\n\n**This read reconciles**, which is the one thing about it worth knowing. The\nepisode is a fact about the waiting set, so it is brought up to date here rather\nthan on a clock of its own: the header was polling anyway, and a reconcile is\nidempotent, so polling cannot manufacture attention. Nothing in the answer depends\non a notification having been delivered.",
         "operationId": "get_attention_api_projects__project_id__attention_get",
         "parameters": [
           {
@@ -8751,6 +8872,59 @@
           }
         },
         "summary": "Get Attention",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/attention/ack": {
+      "post": {
+        "description": "Record that a person deliberately acted on the episode they were shown.\n\nAcknowledgment stops the *interruption*, not the indicator: the badge tracks the\nwaiting set and stays up until it empties. What it buys is that the next task to\nstop on this person may interrupt again, which is the whole of the anti-fatigue\nrule (task-422's decision entry).\n\nAn id that is no longer current is not an error -- see\n:func:`agentjobs.attention.acknowledge`. The caller gets the current state back and\nrenders it.",
+        "operationId": "acknowledge_attention_api_projects__project_id__attention_ack_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttentionAckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttentionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Acknowledge Attention",
         "tags": [
           "dashboard"
         ]
