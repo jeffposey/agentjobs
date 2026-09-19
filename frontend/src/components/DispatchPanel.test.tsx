@@ -399,19 +399,19 @@ describe("refusals", () => {
         message:
           "This machine allows 2 concurrent run(s) and 2 are active: " +
           "run_aa11 on agentjobs/task-150 (running), run_bb22 on agentjobs/task-151 (starting). " +
-          "Refused rather than queued: a queue turns this click into a promise to spend " +
-          "money later, when nobody is watching. Cancel one of those runs, or dispatch " +
-          "this again once one finishes.",
+          "Send this dispatch again with `if_full: queue` to have it start on its own " +
+          "when a slot frees, cancel one of those runs, or wait for one to finish.",
         suggestedAction:
-          "Cancel one of the runs named above, wait for one to finish, or raise " +
-          "limits.max_concurrent_runs in ~/.agentjobs/dispatch.yaml.",
+          "Send the dispatch again with if_full=queue to have it start when a slot " +
+          "frees, cancel one of the runs named above, or raise "
+          + "limits.max_concurrent_runs in ~/.agentjobs/dispatch.yaml.",
       },
     });
 
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("run_aa11 on agentjobs/task-150 (running)");
     expect(alert).toHaveTextContent("run_bb22 on agentjobs/task-151 (starting)");
-    expect(alert).toHaveTextContent("Cancel one of the runs named above");
+    expect(alert).toHaveTextContent("cancel one of the runs named above");
     // The ceiling is a number now, so nothing on this surface may call it "the only slot".
     expect(alert).not.toHaveTextContent(/only slot/i);
   });
@@ -1070,5 +1070,57 @@ describe("a task that something is already working (task-354)", () => {
 
     expect(screen.getByRole("button", { name: /^▶ Dispatch/ })).toBeInTheDocument();
     expect(screen.queryByText(/already working/i)).toBeNull();
+  });
+});
+
+/**
+ * Queueing a dispatch the machine was too busy to start (task-459).
+ *
+ * The control is offered where the refusal is, and only there, because that is the one
+ * moment the question is certainly live. The prompt that asks *before* the first click
+ * is task-461; this is the affordance until it lands, and it is asserted on what the
+ * click sends rather than on the button existing.
+ */
+describe("queueing a dispatch for the next free slot", () => {
+  const full = {
+    reason: "concurrency_limit",
+    message: "This machine allows 1 concurrent run(s) and 1 is active: run_aa11.",
+  };
+
+  it("offers to queue it when the machine was full", () => {
+    renderPanel({ dispatchRefusal: full });
+
+    expect(screen.getByTestId("dispatch-queue-it")).toBeVisible();
+  });
+
+  it("sends if_full=queue, and sends nothing else it was not told to", () => {
+    const { onDispatch } = renderPanel({ dispatchRefusal: full });
+
+    fireEvent.click(screen.getByTestId("dispatch-queue-it"));
+
+    expect(onDispatch).toHaveBeenCalledWith({ if_full: "queue" });
+  });
+
+  it("offers nothing to queue for a refusal a queue would not fix", () => {
+    // A dirty tree is not made queueable by waiting: the server refuses it at start
+    // time too, and offering the button would teach the operator that the control lies.
+    renderPanel({
+      dispatchRefusal: { reason: "dirty_tree", message: "The project has uncommitted changes." },
+    });
+
+    expect(screen.queryByTestId("dispatch-queue-it")).not.toBeInTheDocument();
+  });
+
+  it("reports a queued dispatch as queued rather than as a run that started", () => {
+    renderPanel({
+      queuedNotice: "Queued for the next free slot — place 2 in line. Nothing has started yet.",
+    });
+
+    const notice = screen.getByTestId("dispatch-queued-notice");
+    expect(notice).toHaveTextContent("place 2 in line");
+    expect(notice).toHaveTextContent("Nothing has started");
+    // Not an alert, and not in the refusal box: a queued dispatch is the request being
+    // accepted, and orange-boxing it would read as a failure.
+    expect(notice).toHaveAttribute("role", "status");
   });
 });

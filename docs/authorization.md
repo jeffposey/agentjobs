@@ -40,12 +40,21 @@ human is asking, this stops being a table and becomes a role system.
 | `task.verb` | promote, claim, handoff, release, close, log, progress | ✓ | ✓ | ✓ |
 | `task.queue` | queue-move, queue-keep, reprioritize | ✓ | ✓ | ✓ |
 | `task.review` | approve, request-changes, answer, redirect, hold, resume, reject | ✓ | ✓ | — |
-| `dispatch.start` | task dispatch, playbook run, run cancel | ✓ | ✓ | — |
+| `dispatch.start` | task dispatch, playbook run, run cancel, queued-dispatch cancel | ✓ | ✓ | — |
 | `dispatch.admin` | dispatch enable / disable, idle-session settings | ✓ | ✓ | — |
 | `project.admin` | project register / init / inspect | ✓ | ✓ | — |
 | `queue.admin` | queue repair / compact | ✓ | ✓ | — |
 | `webhook.admin` | webhook create / delete / test | ✓ | ✓ | — |
 | `run.output` | run and finish output, tail, transcript | ✓ | ✓ | own run |
+
+**A queued dispatch is cancelled under `dispatch.start`, like the run it has not become**
+(task-459). It is the same route -- `POST /projects/{id}/dispatch/runs/{run_id}/cancel`,
+with the queue entry's id -- and deliberately not a capability of its own: a waiting entry
+and the run it turns into are one card to whoever is looking at it, and a click that lands
+a moment late must stop the agent rather than be refused for naming the wrong kind of
+thing. So an agent cannot cancel a queued dispatch, for the reason it cannot cancel a run:
+a run is a purchase a person signed for, and unqueueing one is a decision about that
+purchase.
 
 **The two human kinds are identical, deliberately.** `owner` and `tailnet` differ in how
 identity was established, not in what they may do. Narrowing `tailnet` would be an

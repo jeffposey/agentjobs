@@ -318,6 +318,15 @@ projects: {}
 #       This is the cap that bounds a runaway. The per-task caps below bound one task,
 #       and N tasks each dispatching at their own limit have no ceiling between them.
 #
+#     dispatch_queue_limit: 20
+#
+#       How many dispatches may WAIT for a slot at once. A dispatch sent with
+#       `if_full: queue` on a full machine is accepted as a durable queue entry and
+#       started by the server when a slot frees, with every gate re-checked then. This
+#       bounds how far ahead of itself an authorisation can get; it is not a spend
+#       control, because a queued start is counted by dispatches_per_hour when it
+#       starts, exactly as a click is.
+#
 #     auto: (the name is historical -- these bind every trigger since task-334)
 #
 #       Per-task budgets. They used to apply to auto-dispatch alone, on the argument
@@ -332,6 +341,7 @@ limits:
   session_stale_seconds: 3600    # a session that ended its turn without handing off
   session_stall_seconds: 1800    # one still claiming to work, emitting nothing (never kills)
   dispatches_per_hour: 30        # machine-wide takeoffs, every trigger
+  dispatch_queue_limit: 20       # dispatches that may wait for a slot at once
   auto:                          # per-task; historical name, binds every trigger
     per_task_per_day: 3
     per_task_lifetime: 10

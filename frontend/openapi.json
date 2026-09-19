@@ -1229,14 +1229,33 @@
         "type": "string"
       },
       "DispatchCancelResult": {
-        "description": "What cancelling asked for, and whether it happened.",
+        "description": "What cancelling asked for, and whether it happened.\n\nOne result for two things that can be cancelled at that id, because they are two\nstates of one act: a dispatch that is waiting for a slot (task-459) and the run it\nbecomes. ``run`` is null for the first and ``queued`` for the second, so a caller\nthat stops reading here still cannot mistake one for the other.",
         "properties": {
           "detail": {
             "title": "Detail",
             "type": "string"
           },
+          "queued": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueuedDispatchView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The removed queue entry, with its final status. Null when a run was cancelled."
+          },
           "run": {
-            "$ref": "#/components/schemas/DispatchRunView"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DispatchRunView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cancelled run. Null when a queued entry was removed."
           },
           "run_id": {
             "title": "Run Id",
@@ -1250,8 +1269,7 @@
         "required": [
           "run_id",
           "stopped",
-          "detail",
-          "run"
+          "detail"
         ],
         "title": "DispatchCancelResult",
         "type": "object"
@@ -1347,6 +1365,16 @@
             ],
             "description": "Runner group to choose from, overriding the project's. Names a group this machine already defines; it never creates one, and it cannot open a gate that is closed.",
             "title": "Group"
+          },
+          "if_full": {
+            "default": "refuse",
+            "description": "What to do when every machine slot is taken. 'refuse' is the historical behaviour and the default, so a caller that predates task-459 is unchanged: 409 'concurrency_limit'. 'queue' accepts the dispatch into the machine's dispatch queue instead -- 202 with 'queued': true and a 'queue_id' -- and the server starts it when a slot frees, with every dispatch gate judged at that moment rather than this one.",
+            "enum": [
+              "refuse",
+              "queue"
+            ],
+            "title": "If Full",
+            "type": "string"
           },
           "note": {
             "anyOf": [
@@ -1623,10 +1651,10 @@
         "type": "object"
       },
       "DispatchStarted": {
-        "description": "What a successful dispatch reports back.",
+        "description": "What a successful dispatch reports back -- or, since task-459, a queued one.\n\n**Read ``queued`` before anything else.** Both answers are 202, because both mean\n\"accepted, and how it ends arrives later on the task\". They are not the same event,\nand a client that renders \"Dispatched\" over a queued one has told somebody a run is\nworking when nothing has started.",
         "properties": {
           "caused_by": {
-            "description": "The log entry this dispatch is attributed to.",
+            "description": "The log entry this dispatch is attributed to. 0 while a dispatch is queued -- the authorising entry is written when it starts, exactly as for a click.",
             "title": "Caused By",
             "type": "integer"
           },
@@ -1643,17 +1671,41 @@
             "title": "Group"
           },
           "mode": {
-            "description": "session or batch.",
+            "description": "session or batch. Empty while a dispatch is queued.",
             "title": "Mode",
             "type": "string"
           },
           "posture": {
-            "description": "What the run is permitted to do.",
+            "description": "What the run is permitted to do. Empty while a dispatch is queued: the posture is resolved by the gates when it starts, not when it was queued.",
             "title": "Posture",
             "type": "string"
           },
+          "queue_position": {
+            "default": 0,
+            "description": "1-based place in line while queued; 0 for a dispatch that started.",
+            "title": "Queue Position",
+            "type": "integer"
+          },
+          "queued": {
+            "default": false,
+            "description": "True when the machine was full and the caller sent if_full=queue: nothing has started, and the entry waits in the machine's dispatch queue.",
+            "title": "Queued",
+            "type": "boolean"
+          },
+          "queued_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the entry joined the queue, UTC.",
+            "title": "Queued At"
+          },
           "run_id": {
-            "description": "AgentJobs' identifier for this run.",
+            "description": "AgentJobs' identifier for this run. On a queued dispatch this is the queue entry's id, which is what the cancel route takes while it waits.",
             "title": "Run Id",
             "type": "string"
           },
@@ -2737,6 +2789,20 @@
             "title": "Occupied",
             "type": "integer"
           },
+          "queue_limit": {
+            "default": 0,
+            "description": "`limits.dispatch_queue_limit` from ~/.agentjobs/dispatch.yaml: how many dispatches may wait at once.",
+            "title": "Queue Limit",
+            "type": "integer"
+          },
+          "queued": {
+            "description": "Dispatches waiting for a slot, in the order they will start (task-459). Empty on a machine where nobody has queued one. Filtered by what this caller may see, exactly as `runs` is.",
+            "items": {
+              "$ref": "#/components/schemas/QueuedDispatchView"
+            },
+            "title": "Queued",
+            "type": "array"
+          },
           "runs": {
             "items": {
               "$ref": "#/components/schemas/LiveRunView"
@@ -3498,7 +3564,7 @@
         "description": "A started playbook run: the dispatch, plus which brief it was given.",
         "properties": {
           "caused_by": {
-            "description": "The log entry this dispatch is attributed to.",
+            "description": "The log entry this dispatch is attributed to. 0 while a dispatch is queued -- the authorising entry is written when it starts, exactly as for a click.",
             "title": "Caused By",
             "type": "integer"
           },
@@ -3520,7 +3586,7 @@
             "title": "Group"
           },
           "mode": {
-            "description": "session or batch.",
+            "description": "session or batch. Empty while a dispatch is queued.",
             "title": "Mode",
             "type": "string"
           },
@@ -3540,12 +3606,36 @@
             "type": "string"
           },
           "posture": {
-            "description": "What the run is permitted to do.",
+            "description": "What the run is permitted to do. Empty while a dispatch is queued: the posture is resolved by the gates when it starts, not when it was queued.",
             "title": "Posture",
             "type": "string"
           },
+          "queue_position": {
+            "default": 0,
+            "description": "1-based place in line while queued; 0 for a dispatch that started.",
+            "title": "Queue Position",
+            "type": "integer"
+          },
+          "queued": {
+            "default": false,
+            "description": "True when the machine was full and the caller sent if_full=queue: nothing has started, and the entry waits in the machine's dispatch queue.",
+            "title": "Queued",
+            "type": "boolean"
+          },
+          "queued_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the entry joined the queue, UTC.",
+            "title": "Queued At"
+          },
           "run_id": {
-            "description": "AgentJobs' identifier for this run.",
+            "description": "AgentJobs' identifier for this run. On a queued dispatch this is the queue entry's id, which is what the cancel route takes while it waits.",
             "title": "Run Id",
             "type": "string"
           },
@@ -4699,6 +4789,95 @@
           "repair_command"
         ],
         "title": "QueueResponse",
+        "type": "object"
+      },
+      "QueuedDispatchView": {
+        "description": "One authorised dispatch waiting for a slot (task-459).\n\nBeside the live runs rather than in a call of its own, for the reason the capacity\nnumbers are: a board that read \"three of three busy\" from one endpoint and \"two\nwaiting\" from another would have two answers about one machine, taken a second apart.",
+        "properties": {
+          "detail": {
+            "default": "",
+            "description": "Why it is still waiting, when a start has already been tried and refused for a condition that clears on its own.",
+            "title": "Detail",
+            "type": "string"
+          },
+          "position": {
+            "description": "1-based place in line. FIFO by when it was queued.",
+            "title": "Position",
+            "type": "integer"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "project_name": {
+            "default": "",
+            "title": "Project Name",
+            "type": "string"
+          },
+          "queue_id": {
+            "description": "The entry's id. It is what `POST .../dispatch/runs/{run_id}/cancel` takes while the dispatch is waiting -- a queued entry cancels through the same route as the run it has not become.",
+            "title": "Queue Id",
+            "type": "string"
+          },
+          "queued_at": {
+            "description": "When it joined the queue, UTC.",
+            "title": "Queued At",
+            "type": "string"
+          },
+          "queued_by": {
+            "default": "",
+            "description": "Who asked for it. Empty for a dispatch nobody signed.",
+            "title": "Queued By",
+            "type": "string"
+          },
+          "source": {
+            "default": "manual",
+            "description": "`manual` today; `pull` is reserved.",
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "description": "`queued`, or `starting` for the seconds a tick is putting it through the dispatch gates. A `starting` entry is not yet a run and may still be refused.",
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "task_title": {
+            "default": "",
+            "title": "Task Title",
+            "type": "string"
+          },
+          "task_url": {
+            "description": "Where this entry's task is, in this app.",
+            "title": "Task Url",
+            "type": "string"
+          },
+          "waiting_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How long it has been waiting, computed on the server. The phone reading this page is not on the clock that wrote `queued_at`.",
+            "title": "Waiting Seconds"
+          }
+        },
+        "required": [
+          "queue_id",
+          "position",
+          "task_id",
+          "project_id",
+          "queued_at",
+          "status",
+          "task_url"
+        ],
+        "title": "QueuedDispatchView",
         "type": "object"
       },
       "RecentClosuresView": {
@@ -7517,7 +7696,7 @@
     },
     "/api/dispatch/runs/{run_id}/cancel": {
       "post": {
-        "description": "Stop one run and write its cancellation to the task record.",
+        "description": "Stop one run, or take one queued dispatch out of the line, and record it.\n\n**The queue is tried first, and only a *waiting* entry answers here.** A queued\ndispatch that started a second ago is a run, its queue row says ``started``, and this\nfalls through to the run path with the run's own id -- which is the one that stops\nsomething. The reverse ordering would report a cancellation over a live agent.\n\nSame route for both because they are the same act from where the person is standing:\nthe card they are cancelling is the same card, before and after a slot freed under it.",
         "operationId": "cancel_dispatch_run_api_dispatch_runs__run_id__cancel_post",
         "parameters": [
           {
@@ -8477,7 +8656,7 @@
     },
     "/api/projects/{project_id}/dispatch/runs/{run_id}/cancel": {
       "post": {
-        "description": "Stop one run and write its cancellation to the task record.",
+        "description": "Stop one run, or take one queued dispatch out of the line, and record it.\n\n**The queue is tried first, and only a *waiting* entry answers here.** A queued\ndispatch that started a second ago is a run, its queue row says ``started``, and this\nfalls through to the run path with the run's own id -- which is the one that stops\nsomething. The reverse ordering would report a cancellation over a live agent.\n\nSame route for both because they are the same act from where the person is standing:\nthe card they are cancelling is the same card, before and after a slot freed under it.",
         "operationId": "cancel_dispatch_run_api_projects__project_id__dispatch_runs__run_id__cancel_post",
         "parameters": [
           {
@@ -10263,7 +10442,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/DispatchRequestBody",
-                "default": {}
+                "default": {
+                  "if_full": "refuse"
+                }
               }
             }
           }
@@ -12911,7 +13092,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/DispatchRequestBody",
-                "default": {}
+                "default": {
+                  "if_full": "refuse"
+                }
               }
             }
           }

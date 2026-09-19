@@ -289,7 +289,15 @@ export const listDispatchRunsApiDispatchRunsGetOptions = (options?: Options<List
 /**
  * Cancel Dispatch Run
  *
- * Stop one run and write its cancellation to the task record.
+ * Stop one run, or take one queued dispatch out of the line, and record it.
+ *
+ * **The queue is tried first, and only a *waiting* entry answers here.** A queued
+ * dispatch that started a second ago is a run, its queue row says ``started``, and this
+ * falls through to the run path with the run's own id -- which is the one that stops
+ * something. The reverse ordering would report a cancellation over a live agent.
+ *
+ * Same route for both because they are the same act from where the person is standing:
+ * the card they are cancelling is the same card, before and after a slot freed under it.
  */
 export const cancelDispatchRunApiDispatchRunsRunIdCancelPostMutation = (options?: Partial<Options<CancelDispatchRunApiDispatchRunsRunIdCancelPostData>>): UseMutationOptions<CancelDispatchRunApiDispatchRunsRunIdCancelPostResponse, CancelDispatchRunApiDispatchRunsRunIdCancelPostError, Options<CancelDispatchRunApiDispatchRunsRunIdCancelPostData>> => {
     const mutationOptions: UseMutationOptions<CancelDispatchRunApiDispatchRunsRunIdCancelPostResponse, CancelDispatchRunApiDispatchRunsRunIdCancelPostError, Options<CancelDispatchRunApiDispatchRunsRunIdCancelPostData>> = {
@@ -793,7 +801,15 @@ export const listDispatchRunsApiProjectsProjectIdDispatchRunsGetOptions = (optio
 /**
  * Cancel Dispatch Run
  *
- * Stop one run and write its cancellation to the task record.
+ * Stop one run, or take one queued dispatch out of the line, and record it.
+ *
+ * **The queue is tried first, and only a *waiting* entry answers here.** A queued
+ * dispatch that started a second ago is a run, its queue row says ``started``, and this
+ * falls through to the run path with the run's own id -- which is the one that stops
+ * something. The reverse ordering would report a cancellation over a live agent.
+ *
+ * Same route for both because they are the same act from where the person is standing:
+ * the card they are cancelling is the same card, before and after a slot freed under it.
  */
 export const cancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostMutation = (options?: Partial<Options<CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostData>>): UseMutationOptions<CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostResponse, CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostError, Options<CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostData>> => {
     const mutationOptions: UseMutationOptions<CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostResponse, CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostError, Options<CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostData>> = {

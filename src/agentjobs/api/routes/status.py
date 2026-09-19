@@ -27,7 +27,10 @@ from starlette.concurrency import run_in_threadpool
 from agentjobs.actors import UnknownActorError, validate_actor
 from agentjobs.dispatch.address import api_base_from_server
 from agentjobs.dispatch.config import DispatchError, Posture
-from agentjobs.dispatch.guards import DispatchRequest, actor_kind, dispatch_task
+from agentjobs.dispatch import queue as dispatch_queue
+from agentjobs.dispatch.guards import DispatchRequest, actor_kind
+from agentjobs.dispatch.queue import dispatch_or_queue
+from agentjobs.execution.store import QueuedDispatch
 from agentjobs.dispatch.interactive import settle_for_task, start_interactive_run
 from agentjobs.dispatch.runner import DispatchRunError
 from agentjobs.manager import MoveOutcome, TaskManager, TaskNotFoundError
@@ -680,6 +683,10 @@ _DISPATCH_STATUS: dict = {
     "task_on_hold": status.HTTP_409_CONFLICT,
     "live_run_exists": status.HTTP_409_CONFLICT,
     "concurrency_limit": status.HTTP_409_CONFLICT,
+    # The dispatch queue's own two (task-459). Both clear on their own or on one click,
+    # so both are 409 rather than 403 for the same reason the caps above are.
+    "dispatch_queue_full": status.HTTP_409_CONFLICT,
+    "already_queued": status.HTTP_409_CONFLICT,
     # The budget caps (task-334). 409 rather than 403: none of them is a rule no amount
     # of retrying satisfies, which is what a 403 means here -- three of the four expire
     # on their own, and the fourth is raisable in a file on this machine.
@@ -723,8 +730,17 @@ _DISPATCH_ACTION: dict = {
     "task_on_hold": "Release the hold from the review panel, then dispatch.",
     "live_run_exists": "Wait for the run to finish, or cancel it.",
     "concurrency_limit": (
-        "Cancel one of the runs named above, wait for one to finish, or raise "
-        "limits.max_concurrent_runs in ~/.agentjobs/dispatch.yaml."
+        "Send the dispatch again with if_full=queue to have it start when a slot frees, "
+        "cancel one of the runs named above, or raise limits.max_concurrent_runs in "
+        "~/.agentjobs/dispatch.yaml."
+    ),
+    "dispatch_queue_full": (
+        "Cancel one of the waiting dispatches from the slot board, or raise "
+        "limits.dispatch_queue_limit in ~/.agentjobs/dispatch.yaml."
+    ),
+    "already_queued": (
+        "This task is already waiting for a slot. Cancel that entry from the slot board "
+        "if you meant to change what it will run."
     ),
     "dirty_tree": "Commit or stash the working tree, then dispatch.",
     "posture_above_ceiling": (
@@ -827,7 +843,7 @@ async def dispatch_task_endpoint(
         # server over MCP while startup is in progress. Running it inline deadlocks
         # that handshake, which surfaced as "connection closed: initialize response".
         handle = await run_in_threadpool(
-            dispatch_task,
+            dispatch_or_queue,
             manager=manager,
             project=project,
             project_config=project_config(project),
@@ -848,8 +864,15 @@ async def dispatch_task_endpoint(
                 # keep separate enums that mirror each other, and the mirror is checked
                 # here rather than by the two happening to agree.
                 posture=Posture(payload.posture.value) if payload.posture else None,
+                # Never read by a gate. It decides only what happens to a dispatch the
+                # ceiling refuses: told to the caller, or recorded as waiting for a slot.
+                if_full=payload.if_full,
             ),
+            # Both halves of this call read it: a dispatch that starts hands it to the
+            # agent, and one that queues *stores* it, so the start minutes later tells
+            # its agent the address this server answers on rather than a default.
             api_base=serving_api_base(request),
+            queued_by=payload.user or "",
         )
     except DispatchRunError as exc:
         raise _error(
@@ -861,6 +884,21 @@ async def dispatch_task_endpoint(
         ) from exc
     except DispatchError as exc:
         raise dispatch_refusal_error(exc, task_id) from exc
+
+    if isinstance(handle, QueuedDispatch):
+        # Accepted, not started. The 202 is the same because the meaning is the same --
+        # "taken, and the outcome reaches the task record" -- and `queued` is what tells
+        # the two apart. See `DispatchStarted`.
+        return DispatchStarted(
+            run_id=handle.queue_id,
+            mode="",
+            posture="",
+            task_id=task_id,
+            caused_by=0,
+            queued=True,
+            queue_position=dispatch_queue.position(default_home(), handle.queue_id),
+            queued_at=handle.queued_at,
+        )
 
     meta = handle.directory.read_meta()
     return DispatchStarted(

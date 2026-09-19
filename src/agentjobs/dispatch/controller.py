@@ -291,6 +291,7 @@ class Controller:
         except ExecutionStoreError as exc:
             report.say("controller", f"journal unavailable: {exc}")
             return report
+        self.start_queued(report)
         for execution in executions:
             try:
                 self.advance(execution, report)
@@ -300,6 +301,41 @@ class Controller:
             except Exception as exc:  # noqa: BLE001 - reported; the proposal stays for next tick
                 report.say(execution.execution_id, f"{type(exc).__name__}: {exc}")
         return report
+
+    def start_queued(self, report: ControllerReport) -> None:
+        """Start what the machine's dispatch queue owes, if a slot has freed (task-459).
+
+        **Before the executions, and unconditionally.** Before, because a queued entry has
+        been waiting longer than any relaunch this tick is about to propose and the slot
+        it is waiting for is the resource both want. Unconditionally, because a queue
+        entry is not an execution and has no ``controlled_by``: a machine whose
+        ``execution.controller`` is still ``shadow`` drives no executions here and must
+        still drain its queue, or a person's queued dispatch would wait for a setting they
+        were never told about.
+
+        Every entry goes through ``guards.dispatch_task`` in full. This method resolves a
+        project and a manager and does nothing else; the judgement is the gates'.
+        """
+        from agentjobs.dispatch import queue as dispatch_queue
+
+        def resolve(project_id: str) -> Optional[Tuple[TaskManagerLike, Project]]:
+            project = self.project(project_id)
+            manager = self.manager(project_id)
+            return (manager, project) if project is not None and manager is not None else None
+
+        try:
+            decisions = dispatch_queue.start_due(
+                self.home,
+                resolve=resolve,
+                api_base=self.api_base,
+                now=self.clock,
+                starter=self._dispatch,
+            )
+        except Exception as exc:  # noqa: BLE001 - the queue never takes the tick down
+            report.say("dispatch-queue", f"{type(exc).__name__}: {exc}")
+            return
+        for decision in decisions:
+            report.say("dispatch-queue", decision.describe())
 
     def advance(self, execution: Execution, report: ControllerReport) -> None:
         """One execution: replay, record the proposals, perform each."""

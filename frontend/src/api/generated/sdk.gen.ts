@@ -147,7 +147,15 @@ export const listDispatchRunsApiDispatchRunsGet = <ThrowOnError extends boolean 
 /**
  * Cancel Dispatch Run
  *
- * Stop one run and write its cancellation to the task record.
+ * Stop one run, or take one queued dispatch out of the line, and record it.
+ *
+ * **The queue is tried first, and only a *waiting* entry answers here.** A queued
+ * dispatch that started a second ago is a run, its queue row says ``started``, and this
+ * falls through to the run path with the run's own id -- which is the one that stops
+ * something. The reverse ordering would report a cancellation over a live agent.
+ *
+ * Same route for both because they are the same act from where the person is standing:
+ * the card they are cancelling is the same card, before and after a slot freed under it.
  */
 export const cancelDispatchRunApiDispatchRunsRunIdCancelPost = <ThrowOnError extends boolean = false>(options: Options<CancelDispatchRunApiDispatchRunsRunIdCancelPostData, ThrowOnError>) => (options.client ?? client).post<CancelDispatchRunApiDispatchRunsRunIdCancelPostResponses, CancelDispatchRunApiDispatchRunsRunIdCancelPostErrors, ThrowOnError>({ url: '/api/dispatch/runs/{run_id}/cancel', ...options });
 
@@ -420,7 +428,15 @@ export const listDispatchRunsApiProjectsProjectIdDispatchRunsGet = <ThrowOnError
 /**
  * Cancel Dispatch Run
  *
- * Stop one run and write its cancellation to the task record.
+ * Stop one run, or take one queued dispatch out of the line, and record it.
+ *
+ * **The queue is tried first, and only a *waiting* entry answers here.** A queued
+ * dispatch that started a second ago is a run, its queue row says ``started``, and this
+ * falls through to the run path with the run's own id -- which is the one that stops
+ * something. The reverse ordering would report a cancellation over a live agent.
+ *
+ * Same route for both because they are the same act from where the person is standing:
+ * the card they are cancelling is the same card, before and after a slot freed under it.
  */
 export const cancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPost = <ThrowOnError extends boolean = false>(options: Options<CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostData, ThrowOnError>) => (options.client ?? client).post<CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostResponses, CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostErrors, ThrowOnError>({ url: '/api/projects/{project_id}/dispatch/runs/{run_id}/cancel', ...options });
 

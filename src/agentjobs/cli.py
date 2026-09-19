@@ -32,7 +32,15 @@ from .dispatch.config import (
     sentinel_path,
     set_project_enabled,
 )
-from .dispatch.guards import DispatchRequest, dispatch_task
+from .dispatch import queue as dispatch_queue
+from .dispatch.guards import (
+    IF_FULL_QUEUE,
+    IF_FULL_REFUSE,
+    DispatchRequest,
+    dispatch_task,
+)
+from .dispatch.queue import dispatch_or_queue
+from .execution.store import QueuedDispatch
 from .dispatch.ledger import DispatchLedger, LedgerError, list_runs, live_runs
 from .dispatch.runner import DispatchRunError
 from .dispatch.scaffold import EXAMPLE_CONFIG, write_example_config
@@ -1395,6 +1403,14 @@ def dispatch_run(
             "own field. Refused above the project's max_posture."
         ),
     ),
+    queue: bool = typer.Option(
+        False,
+        "--queue",
+        help=(
+            "If every slot is taken, wait for one instead of refusing. The server starts "
+            "it when a slot frees, with every dispatch gate judged at that moment."
+        ),
+    ),
 ) -> None:
     """Start an agent on a task, if every gate permits it.
 
@@ -1429,7 +1445,7 @@ def dispatch_run(
         raise typer.Exit(code=1) from None
 
     try:
-        handle = dispatch_task(
+        handle = dispatch_or_queue(
             manager=manager,
             project=project,
             project_config=project.load_config(),
@@ -1439,12 +1455,28 @@ def dispatch_run(
                 runner=runner,
                 group=group,
                 posture=chosen_posture,
+                if_full=IF_FULL_QUEUE if queue else IF_FULL_REFUSE,
             ),
         )
     except (DispatchError, DispatchRunError) as exc:
         reason = getattr(exc, "reason", "dispatch_failed")
         typer.secho(f"Refused ({reason}): {exc}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
+
+    if isinstance(handle, QueuedDispatch):
+        # Not a run. Said in those words rather than with a tick, because the next thing
+        # this person does is decide whether to go and look for an agent.
+        place = dispatch_queue.position(default_home(), handle.queue_id)
+        typer.echo(
+            f"⏳ Queued {task_id} as {handle.queue_id} — place {place} in line. "
+            "Nothing has started."
+        )
+        typer.echo(
+            "   It starts when a slot frees, and every dispatch gate is judged then. "
+            "`agentjobs dispatch queue` lists it; `agentjobs dispatch cancel "
+            f"{handle.queue_id}` takes it out."
+        )
+        return
 
     typer.echo(f"✅ Dispatched {task_id} as run {handle.run_id} ({handle.mode.value}).")
     # Always, not only when something overrode the default: "which of the three sources
@@ -1905,11 +1937,54 @@ def dispatch_auth_check(
         raise typer.Exit(code=1)
 
 
+@dispatch_app.command("queue")
+def dispatch_queue_list() -> None:
+    """The dispatches waiting for a free slot, in the order they will start (task-459).
+
+    One machine, one queue, so this takes no project: the resource being waited for is
+    ``limits.max_concurrent_runs``, which is machine-wide, and an entry ahead of yours is
+    usually on somebody else's task in somebody else's project.
+    """
+    home = default_home()
+    entries = dispatch_queue.waiting(home)
+    limit = dispatch_queue.queue_limit(home)
+    free = dispatch_queue.free_slots(home)
+    if not entries:
+        typer.echo(f"Nothing is waiting for a slot. {free} slot(s) free; the queue holds {limit}.")
+        return
+    typer.echo(f"{len(entries)} waiting of {limit}; {free} slot(s) free.")
+    for position, entry in enumerate(entries, start=1):
+        who = f" by {entry.queued_by}" if entry.queued_by else ""
+        typer.echo(
+            f"{position:>3}. {entry.project_id}/{entry.task_id}  {entry.queue_id}  "
+            f"{entry.status}{who}, queued {entry.queued_at}"
+        )
+        if entry.detail:
+            typer.echo(f"     {entry.detail}")
+
+
 @dispatch_app.command("cancel")
 def dispatch_cancel(
-    run_id: str = typer.Argument(..., help="Run id from 'agentjobs dispatch status'."),
+    run_id: str = typer.Argument(
+        ..., help="Run id from 'agentjobs dispatch status', or a queue id from 'queue'."
+    ),
 ) -> None:
-    """Stop one run and record the outcome on its task."""
+    """Stop one run, or take one queued dispatch out of the line, and record it."""
+    home = default_home()
+    # The queue first, and only for an entry that is still waiting: one that started a
+    # second ago is a run, and the run is what there is to stop. Same ordering as the
+    # HTTP route, for the same reason.
+    entry = dispatch_queue.find(home, run_id)
+    if entry is not None and entry.waiting:
+        manager = None
+        try:
+            manager = dispatch_manager_for(ProjectRegistry().get(entry.project_id))
+        except (ProjectError, Exception):  # noqa: BLE001 - the note is a courtesy
+            manager = None
+        removed = dispatch_queue.cancel(home, run_id, requester="cli", manager=manager)
+        if removed is not None:
+            typer.echo(f"✅ {run_id}: removed from the dispatch queue before it started.")
+            return
     ledger = DispatchLedger(default_home())
     try:
         result = ledger.cancel(run_id, source="cli")

@@ -984,6 +984,17 @@ class DispatchRequestBody(BaseModel):
             "Becomes the body of the authorising entry. Only meaningful alongside 'user'."
         ),
     )
+    if_full: Literal["refuse", "queue"] = Field(
+        default="refuse",
+        description=(
+            "What to do when every machine slot is taken. 'refuse' is the historical "
+            "behaviour and the default, so a caller that predates task-459 is unchanged: "
+            "409 'concurrency_limit'. 'queue' accepts the dispatch into the machine's "
+            "dispatch queue instead -- 202 with 'queued': true and a 'queue_id' -- and "
+            "the server starts it when a slot frees, with every dispatch gate judged at "
+            "that moment rather than this one."
+        ),
+    )
 
     @model_validator(mode="after")
     def _one_authorization(self) -> "DispatchRequestBody":
@@ -1003,21 +1014,59 @@ class DispatchRequestBody(BaseModel):
 
 
 class DispatchStarted(BaseModel):
-    """What a successful dispatch reports back."""
+    """What a successful dispatch reports back -- or, since task-459, a queued one.
 
-    run_id: str = Field(..., description="AgentJobs' identifier for this run.")
+    **Read ``queued`` before anything else.** Both answers are 202, because both mean
+    "accepted, and how it ends arrives later on the task". They are not the same event,
+    and a client that renders "Dispatched" over a queued one has told somebody a run is
+    working when nothing has started.
+    """
+
+    run_id: str = Field(
+        ...,
+        description=(
+            "AgentJobs' identifier for this run. On a queued dispatch this is the queue "
+            "entry's id, which is what the cancel route takes while it waits."
+        ),
+    )
     session_id: Optional[str] = Field(
         default=None,
         description="Session mode only, and assigned by the CLI rather than by us.",
     )
-    mode: str = Field(..., description="session or batch.")
-    posture: str = Field(..., description="What the run is permitted to do.")
+    mode: str = Field(..., description="session or batch. Empty while a dispatch is queued.")
+    posture: str = Field(
+        ...,
+        description=(
+            "What the run is permitted to do. Empty while a dispatch is queued: the "
+            "posture is resolved by the gates when it starts, not when it was queued."
+        ),
+    )
     task_id: str = Field(..., description="The task the run is working.")
-    caused_by: int = Field(..., description="The log entry this dispatch is attributed to.")
+    caused_by: int = Field(
+        ...,
+        description=(
+            "The log entry this dispatch is attributed to. 0 while a dispatch is queued "
+            "-- the authorising entry is written when it starts, exactly as for a click."
+        ),
+    )
     runner: Optional[str] = Field(default=None, description="Runner that was selected and started.")
     group: Optional[str] = Field(
         default=None,
         description="Runner group it was selected from, when one participated.",
+    )
+    queued: bool = Field(
+        default=False,
+        description=(
+            "True when the machine was full and the caller sent if_full=queue: nothing "
+            "has started, and the entry waits in the machine's dispatch queue."
+        ),
+    )
+    queue_position: int = Field(
+        default=0,
+        description="1-based place in line while queued; 0 for a dispatch that started.",
+    )
+    queued_at: Optional[str] = Field(
+        default=None, description="When the entry joined the queue, UTC."
     )
 
 

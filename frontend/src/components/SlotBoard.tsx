@@ -1,6 +1,12 @@
 import { Link } from "react-router-dom";
 
-import type { LiveRunView, LiveRunsView, MachineHolderView, TaskRead } from "../api/types";
+import type {
+  LiveRunView,
+  LiveRunsView,
+  MachineHolderView,
+  QueuedDispatchView,
+  TaskRead,
+} from "../api/types";
 import { formatElapsed } from "./DispatchPanel";
 import {
   FinishBadge,
@@ -407,6 +413,105 @@ function EmptyCell({ projectId, quiet }: { projectId: string; quiet: boolean }) 
 }
 
 /**
+ * The dispatches waiting for a slot, in the order they will start (task-459).
+ *
+ * **A rail under the cells rather than cells of its own**, and the distinction is the
+ * one the board is built on: a cell is a slot, slots are what the machine has, and a
+ * queued dispatch has no slot -- that is its entire situation. Drawing it as a cell
+ * would say the machine is bigger than it is, which is the same mistake as counting a
+ * finish against the ceiling.
+ *
+ * The order is the server's `position`, not this array's index. They agree today and
+ * the server's is the one that is true: the rows are filtered by what this caller may
+ * see, so numbering them here would print 1, 2, 3 over entries that are really 1, 2
+ * and 5 and tell somebody their dispatch is next when it is not.
+ */
+function WaitingRail({
+  queued,
+  projectId,
+  limit,
+  renderAction,
+}: {
+  queued: QueuedDispatchView[];
+  projectId: string;
+  limit: number;
+  renderAction?: (entry: QueuedDispatchView) => React.ReactNode;
+}) {
+  if (queued.length === 0) return null;
+  return (
+    <section
+      data-testid="slot-board-queue"
+      data-queued={queued.length}
+      aria-label="Dispatches waiting for a slot"
+      className="mt-3 border-t border-dark-border pt-3"
+    >
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-dark-muted">
+          Waiting for a slot
+        </h3>
+        <span className="text-xs text-dark-muted">
+          {queued.length} of {limit || queued.length} — each starts on its own, with every
+          dispatch gate checked then
+        </span>
+      </div>
+      <ol className="space-y-2">
+        {queued.map((entry) => (
+          <li
+            key={entry.queue_id}
+            data-testid="queued-dispatch"
+            data-queue-id={entry.queue_id}
+            data-task-id={entry.task_id}
+            data-position={entry.position}
+            className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-amber-900/70 bg-dark-bg p-3"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="shrink-0 rounded bg-amber-900/40 px-2 py-1 font-mono text-xs text-amber-200">
+                {entry.position}
+              </span>
+              <Link
+                to={entry.task_url || projectPath(projectId, `/tasks/${entry.task_id}`)}
+                className="block min-w-0 hover:text-blue-300"
+              >
+                <div className="truncate font-mono text-xs text-blue-400">{entry.task_id}</div>
+                <div className="line-clamp-2 text-sm font-medium text-dark-text">
+                  {entry.task_title || entry.queue_id}
+                </div>
+              </Link>
+            </div>
+            <div className="flex shrink-0 items-center gap-3 text-xs text-dark-muted">
+              <span className="text-right">
+                {/* What a person wants here is how long it has been sitting, and whether
+                    the queue is actually moving. `starting` is the few seconds a tick is
+                    putting it through the gates, and saying so is what stops a card that
+                    changes under the cursor looking like a glitch. */}
+                {entry.status === "starting" ? "starting…" : waitedFor(entry)}
+                {entry.queued_by ? ` · ${entry.queued_by}` : ""}
+              </span>
+              {renderAction?.(entry)}
+            </div>
+          </li>
+        ))}
+      </ol>
+      {/* Only where a start has already been tried and put back. Silence is the normal
+          case and means the only thing in the way is the ceiling. */}
+      {queued.some((entry) => entry.detail) && (
+        <p data-testid="slot-board-queue-detail" className="mt-2 text-xs text-dark-muted">
+          {queued.find((entry) => entry.detail)?.detail}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** How long one entry has been waiting, or the moment it joined when that is unknown. */
+export function waitedFor(entry: QueuedDispatchView): string {
+  if (entry.waiting_seconds === null || entry.waiting_seconds === undefined) {
+    return "queued";
+  }
+  return `waiting ${formatElapsed(entry.waiting_seconds)}`;
+}
+
+/**
  * Runway locks with no finish card to explain them, under the board.
  *
  * Until task-352 every finish was down here too, as "finishing task-092 · 4m" in a
@@ -457,6 +562,15 @@ export type SlotBoardProps = {
   renderQueueGate?: () => React.ReactNode;
   /** The "why this one" disclosure, rendered in the first free cell. */
   renderWhyThisOne?: () => React.ReactNode;
+  /**
+   * The control for one waiting dispatch, supplied by the page (task-459).
+   *
+   * Cancel, in practice. It is the page's to render for the reason the Dispatch button
+   * is: this component knows the machine's shape and nothing about mutating it, and a
+   * cancel wired in here would have to carry a project, a mutation and a busy state
+   * that belong to whoever is already holding them.
+   */
+  renderQueuedAction?: (entry: QueuedDispatchView) => React.ReactNode;
 };
 
 export function SlotBoard({
@@ -467,6 +581,7 @@ export function SlotBoard({
   renderQueueAction,
   renderQueueGate,
   renderWhyThisOne,
+  renderQueuedAction,
 }: SlotBoardProps) {
   // Nothing until the machine has answered. A board that painted a default number of
   // cells and then corrected itself one poll later would be a page whose shape is a
@@ -475,7 +590,8 @@ export function SlotBoard({
 
   const layout = boardLayout(body, queue, projectId);
   const runways = unexplainedRunways(body);
-  if (layout.cells.length === 0 && runways.length === 0) return null;
+  const waiting = body.queued ?? [];
+  if (layout.cells.length === 0 && runways.length === 0 && waiting.length === 0) return null;
 
   let firstFree = true;
 
@@ -586,6 +702,15 @@ export function SlotBoard({
           {" is the long form."}
         </p>
       )}
+      {/* Above the gate line and the runway strip, and drawn even under an alarm:
+          work this machine has already been told to do is status, not a nudge. The one
+          thing `statusOnly` withholds is the cancel control, which is an action. */}
+      <WaitingRail
+        queued={waiting}
+        projectId={projectId}
+        limit={body.queue_limit ?? 0}
+        renderAction={statusOnly ? undefined : renderQueuedAction}
+      />
       {!statusOnly && renderQueueGate?.()}
       <RunwayStrip holders={runways} />
     </section>
