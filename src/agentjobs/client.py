@@ -375,7 +375,12 @@ class TaskClient:
         priority: Optional[Priority | str] = None,
         parent: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """List enriched task records, optionally filtered."""
+        """List enriched listing rows, optionally filtered.
+
+        Rows rather than whole records since task-484: this returns dictionaries, and
+        its callers read the state axes and the dependency facts off them. Use
+        :meth:`list_tasks` where ``Task`` objects are wanted.
+        """
         params: Dict[str, str] = {}
         if lifecycle is not None:
             params["lifecycle"] = self._enum_to_str(lifecycle)
@@ -483,7 +488,12 @@ class TaskClient:
             params["ball"] = self._enum_to_str(ball)
         if priority is not None:
             params["priority"] = self._enum_to_str(priority)
-        response = self._request("GET", self._path("/tasks"), params=params)
+        # `/tasks/full`, not `/tasks`: this returns `Task`, and `/tasks` answers with
+        # listing rows that carry no spec and no log (task-484). Parsing those as tasks
+        # would succeed -- `spec` would be the only thing missing -- and every caller
+        # would then read an empty log off a task that has one. Named explicitly so the
+        # cost is a choice; the callers that want rows call `read_tasks`.
+        response = self._request("GET", self._path("/tasks/full"), params=params)
         payload = response.json()
         return [self._parse_task(item) for item in payload]
 

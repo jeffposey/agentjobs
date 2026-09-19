@@ -46,7 +46,7 @@ from typing import (
     runtime_checkable,
 )
 
-from .models_v2 import Task
+from .models_v2 import Task, TaskSummary
 
 
 @runtime_checkable
@@ -61,6 +61,16 @@ class TaskStore(Protocol):
     def list_tasks(self) -> List[Task]:
         """Every task in the project, in listing order."""
 
+    def list_task_summaries(self) -> List[TaskSummary]:
+        """Every task as a listing needs it, in the same order as :meth:`list_tasks`.
+
+        Part of the boundary rather than an optimisation inside one backend, because
+        the callers that want it -- the list endpoint and every dependency computation
+        in the manager -- must not have to know which store they are talking to. A
+        backend with no cheaper path answers it by projecting whole records with
+        ``summary_of``; a backend with columns reads the columns (task-484).
+        """
+
     def search_tasks(self, query: str) -> List[Task]:
         """Tasks matching free text, most relevant first, exact id matches leading."""
 
@@ -74,6 +84,16 @@ class TaskStore(Protocol):
 
     def generate_task_id(self) -> str:
         """The next free task id."""
+
+    def load_errors(self) -> List[Any]:
+        """The records that could not be read, as ``TaskLoadError``s.
+
+        Separate from :meth:`load_all` so a caller that wants only the failures does not
+        have to load every record that succeeded to get at them. The manager's
+        dependency gate wants exactly that: it needs the broken ids so an unreadable
+        record can never be treated as done, and it gets the ids it *can* read from
+        :meth:`list_task_summaries` (task-484).
+        """
 
     def quarantined(self) -> List[Dict[str, Any]]:
         """Records that could not be loaded, with the error that stopped each.

@@ -62,7 +62,9 @@ from .models_v2 import (
     Priority,
     QuestionData,
     QuestionDraft,
+    LabelledTask,
     Task,
+    TaskSummary,
     utcnow,
 )
 from .queue import (
@@ -491,13 +493,39 @@ class TaskManager:
             tasks = [task for task in tasks if task.parent == parent]
         return sorted(tasks, key=listing_key)
 
+    def list_task_summaries(
+        self,
+        *,
+        lifecycle: Optional[Lifecycle] = None,
+        ball: Optional[Ball] = None,
+        priority: Optional[Priority] = None,
+        parent: Optional[str] = None,
+    ) -> List[TaskSummary]:
+        """:meth:`list_tasks`, projected -- same filters, same order, no prose or log.
+
+        The filters are applied here rather than in SQL for the same reason they are in
+        :meth:`list_tasks`: every backend then answers the same question the same way,
+        and the cost this exists to remove was never the ``WHERE`` clause. It was the
+        seven joined child tables, and the projection has already left those behind.
+        """
+        summaries = self.storage.list_task_summaries()
+        if lifecycle is not None:
+            summaries = [task for task in summaries if task.lifecycle == lifecycle]
+        if ball is not None:
+            summaries = [task for task in summaries if task.ball == ball]
+        if priority is not None:
+            summaries = [task for task in summaries if task.priority == priority]
+        if parent is not None:
+            summaries = [task for task in summaries if task.parent == parent]
+        return sorted(summaries, key=listing_key)
+
     def load_errors(self) -> List[TaskLoadError]:
         """Files in the task directory that exist but cannot be read as tasks.
 
         Exposed so listing surfaces can show them. A broken file that is only logged is
         invisible to someone whose window into the data is a web page.
         """
-        return self.storage.load_all().errors
+        return self.storage.load_errors()
 
     def get_task(self, task_id: str) -> Optional[Task]:
         """Get task by ID."""
@@ -525,13 +553,15 @@ class TaskManager:
         file is unreadable cannot be shown to be finished, and treating it as done would
         let a gate open on the strength of a corrupt file.
         """
-        result = self.storage.load_all()
-        states = {task.id: task.lifecycle is Lifecycle.CLOSED for task in result.tasks}
-        for error in result.errors:
+        states = {
+            task.id: task.lifecycle is Lifecycle.CLOSED
+            for task in self.storage.list_task_summaries()
+        }
+        for error in self.storage.load_errors():
             states.setdefault(error.task_id, False)
         return states
 
-    def _unmet_needs(self, task: Task, states: Dict[str, bool]) -> List[str]:
+    def _unmet_needs(self, task: LabelledTask, states: Dict[str, bool]) -> List[str]:
         """`needs` dependencies that do not permit this task to be claimed, with why.
 
         A reference to a task that is not in the project blocks, and says so. It
@@ -557,7 +587,9 @@ class TaskManager:
         return unmet
 
     @staticmethod
-    def _needs_cycles(tasks: List[Task]) -> Dict[str, Tuple[Tuple[str, ...], ...]]:
+    def _needs_cycles(
+        tasks: Sequence[LabelledTask],
+    ) -> Dict[str, Tuple[Tuple[str, ...], ...]]:
         """Return every directed ``needs`` cycle, indexed by each member.
 
         Missing ids are not vertices: ``_unmet_needs`` already names those. DFS
@@ -608,7 +640,9 @@ class TaskManager:
                 indexed[task_id].append(cycle)
         return {task_id: tuple(task_cycles) for task_id, task_cycles in indexed.items()}
 
-    def dependency_facts(self, tasks: Optional[List[Task]] = None) -> Dict[str, DependencyFacts]:
+    def dependency_facts(
+        self, tasks: Optional[Sequence[LabelledTask]] = None
+    ) -> Dict[str, DependencyFacts]:
         """Compute the claim gate, reverse impact, and cycle errors once.
 
         ``tasks`` selects which ids get an entry in the returned mapping.
@@ -628,7 +662,7 @@ class TaskManager:
         this task's scope. See task-180.
         """
 
-        project_tasks = tasks if tasks is not None else self.storage.list_tasks()
+        project_tasks = tasks if tasks is not None else self.storage.list_task_summaries()
         states = self._dependency_states()
         open_children = self._open_children()
         cycles = self._needs_cycles(project_tasks)
@@ -680,7 +714,7 @@ class TaskManager:
         gets dealt with.
         """
         open_children: Dict[str, List[str]] = {}
-        for task in self.storage.list_tasks():
+        for task in self.storage.list_task_summaries():
             if task.parent and task.is_open:
                 open_children.setdefault(task.parent, []).append(task.id)
         for ids in open_children.values():

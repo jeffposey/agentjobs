@@ -56,10 +56,12 @@ from .manager import (
 from .models_v2 import (
     Ball,
     BallReason,
+    LabelledTask,
     LogEntryType,
     Outcome,
     Priority,
     Task,
+    TaskSummary,
 )
 from .projects import Project
 from .sqlstore.history import HistoryWrite
@@ -194,6 +196,27 @@ class RemoteStorage:
         """The same: a request is always current, so there is no cache to bypass."""
         return self.list_tasks()
 
+    def list_task_summaries(self) -> List[TaskSummary]:
+        """Every task as a listing needs it, read from the listing route itself.
+
+        The one member of this shim that is genuinely cheaper than its whole-record
+        sibling rather than the same call wearing a different name: ``GET /tasks``
+        answers with rows, so the projection crosses the wire projected (task-484).
+        """
+        return [TaskSummary.model_validate(row) for row in self._client.read_tasks()]
+
+    def load_errors(self) -> List[Any]:
+        """Whatever the server reports as broken, in the file shape."""
+        from .taskfiles import TaskLoadError
+
+        return [
+            TaskLoadError(
+                Path(str(record.get("path") or record.get("filename") or "?")),
+                str(record.get("reason") or "unreadable"),
+            )
+            for record in self._client.read_broken_tasks()
+        ]
+
     def load_task(self, task_id: str) -> Optional[Task]:
         """One task, or ``None``."""
         try:
@@ -211,16 +234,9 @@ class RemoteStorage:
         project can still hold quarantined records from its import, and a listing that
         quietly reported none would hide exactly the records an operator needs to see.
         """
-        from .taskfiles import LoadResult, TaskLoadError
+        from .taskfiles import LoadResult
 
-        errors = [
-            TaskLoadError(
-                Path(str(record.get("path") or record.get("filename") or "?")),
-                str(record.get("reason") or "unreadable"),
-            )
-            for record in self._client.read_broken_tasks()
-        ]
-        return LoadResult(tasks=self.list_tasks(), errors=errors)
+        return LoadResult(tasks=self.list_tasks(), errors=self.load_errors())
 
     @property
     def attachments(self) -> Any:
@@ -283,6 +299,12 @@ class RemoteTaskManager:
     def list_tasks(self, **filters: Any) -> List[Task]:
         """Tasks, optionally filtered the way the REST listing filters them."""
         return self.client.list_tasks(**filters)
+
+    def list_task_summaries(self, **filters: Any) -> List[TaskSummary]:
+        """Listing rows, optionally filtered the way the REST listing filters them."""
+        return [
+            TaskSummary.model_validate(row) for row in self.client.read_tasks(**filters)
+        ]
 
     def search_tasks(self, query: str) -> List[Task]:
         """Free-text search, most relevant first."""
@@ -352,7 +374,9 @@ class RemoteTaskManager:
         """This task's children, in listing order."""
         return [task for task in self.list_tasks() if task.parent == task_id]
 
-    def dependency_facts(self, tasks: Optional[List[Task]] = None) -> Dict[str, DependencyFacts]:
+    def dependency_facts(
+        self, tasks: Optional[Sequence[LabelledTask]] = None
+    ) -> Dict[str, DependencyFacts]:
         """Dependency state per task, computed by the server over the whole corpus.
 
         Read from the listing's enriched rows rather than recomputed here. Two

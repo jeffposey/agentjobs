@@ -36,14 +36,15 @@ from typing import (
 import yaml
 
 from ..attachments import MEDIA_TYPES
-from ..models_v2 import Task
+from ..models_v2 import Ball, BallReason, Task, TaskSummary, self_clearing_wait_of
 from .blobs import SqlAttachmentStore
 from .connection import Database, SqlStoreError
 from .history import HistoryWrite, upsert_finish, upsert_gate_run
 from .reporting_tz import check_reporting_tz
 
 if TYPE_CHECKING:  # pragma: no cover - the shape the manager consumes
-    from ..taskfiles import LoadResult
+    from ..models_v2 import SelfClearingWait
+    from ..taskfiles import LoadResult, TaskLoadError
 
 #: Axes carried on every ``task_event`` row, as (event column stem, task attribute).
 EVENT_AXES: Tuple[Tuple[str, str], ...] = (
@@ -191,13 +192,35 @@ class SqlTaskStore:
         """Every task in the project, in the listing order the queue defines."""
         connection = self._connection()
         rows = connection.execute(
-            "SELECT * FROM task WHERE project_id = ? "
-            "ORDER BY (lifecycle = 'closed'), priority_rank, queue_position, task_id",
+            f"SELECT * FROM task WHERE project_id = ? {self._LISTING_ORDER}",
             (self.project_id,),
         ).fetchall()
         return self._assemble(connection, rows)
 
     list_tasks_uncached = list_tasks
+
+    # The listing order is the same sentence in both listings. Named once so a change to
+    # the band-then-place rule cannot reach whole records without reaching summaries.
+    _LISTING_ORDER = "ORDER BY (lifecycle = 'closed'), priority_rank, queue_position, task_id"
+
+    def list_task_summaries(self) -> List[TaskSummary]:
+        """Every task as a listing needs it, in the same order ``list_tasks`` returns.
+
+        The projection task-484 exists for. ``list_tasks`` joins seven child tables, and
+        ``log_entry`` is by far the largest of them: the agentjobs backlog is 479 tasks
+        and 5,428 log entries, so a listing that loads whole records pays for the entire
+        history of the project to draw a column of titles. This reads the task table, the
+        tags and the dependency edges -- and, for the handful of tasks parked on a
+        service, the one log row a quota-wait label is derived from.
+
+        Measured on that backlog, 2026-09-19: 40 ms against ``list_tasks``'s 287 ms.
+        """
+        connection = self._connection()
+        rows = connection.execute(
+            f"SELECT * FROM task WHERE project_id = ? {self._LISTING_ORDER}",
+            (self.project_id,),
+        ).fetchall()
+        return self._assemble_summaries(connection, rows)
 
     def search_tasks(self, query: str) -> List[Task]:
         """Full-text search, with an exact id match first.
@@ -400,6 +423,133 @@ class SqlTaskStore:
             )
         return tasks
 
+    def _assemble_summaries(
+        self, connection: sqlite3.Connection, rows: Sequence[sqlite3.Row]
+    ) -> List[TaskSummary]:
+        """Build ``TaskSummary`` records from task rows plus the two child tables a
+        listing needs, and the quota-wait rows for the few tasks that can have one.
+
+        Three queries where ``_assemble`` runs eight, and none of them touches
+        ``log_entry`` except for the parked handful. The shared columns go through
+        ``_summary_document`` with ``_document``, so the two listings cannot come to
+        disagree about what a stored column means.
+        """
+        if not rows:
+            return []
+        ids = [row["task_id"] for row in rows]
+        placeholders = ",".join("?" for _ in ids)
+        args = (self.project_id, *ids)
+
+        tags: Dict[str, List[sqlite3.Row]] = {task_id: [] for task_id in ids}
+        for item in connection.execute(
+            f"SELECT * FROM task_tag WHERE project_id = ? AND task_id IN ({placeholders}) "
+            "ORDER BY ord",
+            args,
+        ):
+            tags[item["task_id"]].append(item)
+        deps: Dict[str, List[sqlite3.Row]] = {task_id: [] for task_id in ids}
+        for item in connection.execute(
+            f"SELECT * FROM task_dependency WHERE project_id = ? AND task_id IN "
+            f"({placeholders}) ORDER BY ord",
+            args,
+        ):
+            deps[item["task_id"]].append(item)
+
+        waits = self._self_clearing_waits(connection, rows)
+
+        summaries: List[TaskSummary] = []
+        for row in rows:
+            task_id = row["task_id"]
+            document = self._summary_document(row, tags=tags[task_id], dependencies=deps[task_id])
+            wait = waits.get(task_id)
+            if wait is not None:
+                document["self_clearing_wait"] = wait.model_dump(mode="json")
+            summaries.append(TaskSummary.model_validate(document))
+        return summaries
+
+    def _self_clearing_waits(
+        self, connection: sqlite3.Connection, rows: Sequence[sqlite3.Row]
+    ) -> Dict[str, "SelfClearingWait"]:
+        """The quota wait for each row that is parked on a service, from one log row each.
+
+        Scoped to ``external``/``service`` rows deliberately: the derivation's first
+        condition is that ball, so every other task's answer is ``None`` without reading
+        anything. On the agentjobs backlog that is a handful of tasks rather than 479,
+        which is what keeps a projection that needs one log entry from re-joining the
+        table it exists to avoid.
+        """
+        parked = [
+            row["task_id"]
+            for row in rows
+            if row["ball"] == Ball.EXTERNAL.value and row["ball_reason"] == BallReason.SERVICE.value
+        ]
+        if not parked:
+            return {}
+        placeholders = ",".join("?" for _ in parked)
+        found: Dict[str, SelfClearingWait] = {}
+        for item in connection.execute(
+            f"SELECT task_id, data_json FROM log_entry WHERE project_id = ? AND task_id IN "
+            f"({placeholders}) AND type = 'handoff' ORDER BY task_id, entry_id",
+            (self.project_id, *parked),
+        ):
+            # Ordered ascending, so the last handoff row seen for a task wins -- the same
+            # "newest handoff" the whole-record derivation picks out of `log`.
+            wait = self_clearing_wait_of(json.loads(item["data_json"]))
+            if wait is not None:
+                found[item["task_id"]] = wait
+            else:
+                found.pop(item["task_id"], None)
+        return found
+
+    def _summary_document(
+        self,
+        row: sqlite3.Row,
+        *,
+        tags: Sequence[sqlite3.Row],
+        dependencies: Sequence[sqlite3.Row],
+    ) -> Dict[str, Any]:
+        """The columns every listing shares, in the shape both models validate.
+
+        ``_document`` calls this and then adds the prose, the criteria and the log, so
+        there is one reading of ``eligible_json``, of ``parent_id`` and of the rest --
+        which is the property that keeps a summary and a whole record from disagreeing
+        about a task.
+        """
+        document: Dict[str, Any] = {
+            "schema": 2,
+            "id": row["task_id"],
+            "title": row["title"],
+            "created": row["created_at"],
+            "updated": row["updated_at"],
+            "lifecycle": row["lifecycle"],
+            "archived": bool(row["archived"]),
+            "priority": row["priority"],
+            "category": row["category"],
+            "tags": [item["tag"] for item in tags],
+            "assignment": {"eligible": json.loads(row["eligible_json"])},
+            "dependencies": [],
+        }
+        for key, column in (
+            ("ball", "ball"),
+            ("ball_reason", "ball_reason"),
+            ("ball_prompt", "ball_prompt"),
+            ("outcome", "outcome"),
+            ("queue_position", "queue_position"),
+            ("effort", "effort"),
+            ("parent", "parent_id"),
+            ("posture", "posture"),
+        ):
+            if row[column] is not None:
+                document[key] = row[column]
+        if row["owner"] is not None:
+            document["assignment"]["owner"] = row["owner"]
+        for item in dependencies:
+            dependency: Dict[str, Any] = {"task": item["other_id"], "type": item["type"]}
+            if item["note"] is not None:
+                dependency["note"] = item["note"]
+            document["dependencies"].append(dependency)
+        return document
+
     def _document(
         self,
         row: sqlite3.Row,
@@ -419,44 +569,21 @@ class SqlTaskStore:
         is what "one authoritative representation per field, assembled into the existing
         shape" means in practice.
         """
-        document: Dict[str, Any] = {
-            "schema": 2,
-            "id": row["task_id"],
-            "title": row["title"],
-            "created": row["created_at"],
-            "updated": row["updated_at"],
-            "lifecycle": row["lifecycle"],
-            "archived": bool(row["archived"]),
-            "priority": row["priority"],
-            "category": row["category"],
-            "tags": [item["tag"] for item in tags],
-            "assignment": {"eligible": json.loads(row["eligible_json"])},
-            "spec": {
-                "summary": row["spec_summary"],
-                "description": row["spec_description"],
-                "context": json.loads(row["spec_context_json"]),
-            },
-            "acceptance": [],
-            "deliverables": [],
-            "dependencies": [],
-            "links": json.loads(row["links_json"]),
-            "branches": [],
-            "log": [],
-        }
-        for key, column in (
-            ("ball", "ball"),
-            ("ball_reason", "ball_reason"),
-            ("ball_prompt", "ball_prompt"),
-            ("outcome", "outcome"),
-            ("queue_position", "queue_position"),
-            ("effort", "effort"),
-            ("parent", "parent_id"),
-            ("posture", "posture"),
-        ):
-            if row[column] is not None:
-                document[key] = row[column]
-        if row["owner"] is not None:
-            document["assignment"]["owner"] = row["owner"]
+        document = self._summary_document(row, tags=tags, dependencies=dependencies)
+        document.update(
+            {
+                "spec": {
+                    "summary": row["spec_summary"],
+                    "description": row["spec_description"],
+                    "context": json.loads(row["spec_context_json"]),
+                },
+                "acceptance": [],
+                "deliverables": [],
+                "links": json.loads(row["links_json"]),
+                "branches": [],
+                "log": [],
+            }
+        )
         for key, column in (
             ("intent", "spec_intent"),
             ("constraints", "spec_constraints"),
@@ -479,11 +606,6 @@ class SqlTaskStore:
             if item["note"] is not None:
                 entry["note"] = item["note"]
             document["deliverables"].append(entry)
-        for item in dependencies:
-            dependency: Dict[str, Any] = {"task": item["other_id"], "type": item["type"]}
-            if item["note"] is not None:
-                dependency["note"] = item["note"]
-            document["dependencies"].append(dependency)
         for item in branches:
             branch: Dict[str, Any] = {"name": item["name"], "status": item["status"]}
             if item["merged_at"] is not None:
@@ -1217,16 +1339,25 @@ class SqlTaskStore:
         second shape. The mapping is exact: a row is a task, and a record that could not
         become a row is an error carrying the reason it was refused.
         """
-        from ..taskfiles import LoadResult, TaskLoadError
+        from ..taskfiles import LoadResult
 
-        errors = [
+        return LoadResult(tasks=self.list_tasks(), errors=self.load_errors())
+
+    def load_errors(self) -> List["TaskLoadError"]:
+        """Every quarantined record, as the load error a caller expects.
+
+        An index probe rather than a corpus read, which is why the dependency gate can
+        ask for the broken ids without paying for the readable ones.
+        """
+        from ..taskfiles import TaskLoadError
+
+        return [
             TaskLoadError(
                 Path(str(record.get("source_path") or record.get("task_id_guess") or "?")),
                 str(record.get("error") or "quarantined at import"),
             )
             for record in self.quarantined()
         ]
-        return LoadResult(tasks=self.list_tasks(), errors=errors)
 
     def refresh(self) -> None:
         """No-op: there is no snapshot cache to invalidate."""

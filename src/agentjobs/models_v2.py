@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import (
     BaseModel,
@@ -1455,7 +1455,159 @@ class Task(StrictModel):
         return PRIORITY_RANK.get(self.priority, len(PRIORITY_RANK))
 
 
-def display_status(task: "Task") -> str:
+class TaskSummary(StrictModel):
+    """One task as a listing needs it: everything but the prose, the criteria and the log.
+
+    A listing draws a title, a badge and a place in line. It was being served whole
+    records to do that -- 10.4 MB and four full corpus loads for the 479-task backlog,
+    growing with every log entry anybody appended to any task (task-484). This is the
+    shape that answers the same questions without the bulk.
+
+    **Deliberately not a base class of ``Task``, and not a subclass of it.** A subclass
+    would have to leave ``spec`` and ``log`` empty, and an empty log is a lie a reader
+    cannot detect: ``dispatch_count`` would answer 0 for a task dispatched twice, and the
+    runaway protection that reads it would be a limit that is wrong in the direction that
+    costs money. A separate type makes the absence a type error rather than a wrong
+    answer. Making it ``Task``'s base was the other alternative and was rejected for a
+    smaller reason: ``dependencies`` would move ahead of ``spec`` in every serialisation,
+    changing the canonical YAML export for no gain.
+
+    ``tests/test_task_summary.py`` holds the field set against ``Task``'s, so a field
+    added to one and not the other is caught rather than discovered by a surface that
+    reads it.
+    """
+
+    schema_version: int = Field(
+        default=SCHEMA_VERSION,
+        alias="schema",
+        description="Schema version stamp. Always 2 for this model (D3).",
+    )
+
+    id: str = Field(..., description="Unique task identifier.")
+    title: str = Field(..., description="Task title.")
+    created: datetime
+    updated: datetime
+
+    lifecycle: Lifecycle = Field(default=Lifecycle.DRAFT)
+    ball: Optional[Ball] = Field(default=None, description="Who acts next. Required while open.")
+    ball_reason: Optional[BallReason] = Field(
+        default=None, description="Why they hold it, scoped to the holder."
+    )
+    ball_prompt: Optional[str] = Field(
+        default=None,
+        description="The ask, addressed to whoever holds the ball. Required when ball is set.",
+    )
+    outcome: Optional[Outcome] = Field(
+        default=None, description="How it ended. Set only when closed."
+    )
+    archived: bool = Field(
+        default=False,
+        description="Visibility flag, orthogonal to how the task ended.",
+    )
+
+    priority: Priority = Field(default=Priority.MEDIUM)
+    queue_position: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description="Order within the priority band. Present if and only if the task is open.",
+    )
+    category: str = Field(..., description="Project taxonomy; validated against config.")
+    tags: List[str] = Field(default_factory=list)
+    effort: Optional[str] = Field(
+        default=None, description="Free text. An estimate, not a contract."
+    )
+
+    assignment: Assignment = Field(default_factory=Assignment)
+    parent: Optional[str] = Field(default=None, description="Task id of the umbrella task, if any.")
+
+    posture: Optional[DispatchPosture] = Field(
+        default=None,
+        description="This task's request for a dispatch envelope. A request, not a grant.",
+    )
+
+    dependencies: List[Dependency] = Field(default_factory=list)
+    """Kept, unlike the other collections, because two labels are derived from it.
+
+    ``display_status`` names the first blocker by id -- "Blocked on task-417" rather than
+    "Blocked" -- and the claim gate the list greys rows out by is computed from every
+    task's ``needs`` edges over the whole corpus. Both are per-row facts a listing draws,
+    and neither survives a projection that drops the edges. They are small: the backlog's
+    479 tasks carry a few hundred between them, against 5,428 log entries.
+    """
+
+    self_clearing_wait: Optional[SelfClearingWait] = None
+    """The quota wait, decided by whoever built this rather than derived on read.
+
+    The one field here that a whole ``Task`` computes for itself. It comes from the
+    newest handoff entry's marker, which is the single log row this projection does read
+    -- see ``self_clearing_wait_of``. A summary built without it says "Blocked on a
+    service" for a task that clears by itself, so the store fills it rather than leaving
+    it to a caller to remember.
+    """
+
+    @property
+    def is_open(self) -> bool:
+        """True while the task is not closed."""
+        return self.lifecycle is not Lifecycle.CLOSED
+
+    def priority_rank(self) -> int:
+        """Sort key: critical first. The band half of ``(band, place)``."""
+        return PRIORITY_RANK.get(self.priority, len(PRIORITY_RANK))
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def display_status(self) -> str:
+        """One human-readable label, derived on read and never stored."""
+        return display_status(self)
+
+
+def summary_of(task: "Task") -> TaskSummary:
+    """The listing projection of a whole record.
+
+    For a backend that has no cheaper way to answer -- the file store reads whole
+    records whatever is asked of it -- and for the tests that hold the two shapes
+    against each other. A store that *can* project reaches its columns directly and does
+    not come through here; this is the fallback, not the definition.
+    """
+    return TaskSummary.model_validate(
+        {
+            **task.model_dump(
+                mode="python",
+                by_alias=True,
+                include=set(TaskSummary.model_fields) | {"schema_version"},
+            ),
+            "self_clearing_wait": self_clearing_wait(task),
+        }
+    )
+
+
+LabelledTask = Union["Task", TaskSummary]
+"""Either shape a status label can be drawn from.
+
+``TaskRead`` is a ``Task``, so it takes the ``Task`` arm and keeps deriving its wait from
+the log it carries.
+"""
+
+
+def wait_of(task: "LabelledTask") -> Optional[SelfClearingWait]:
+    """The quota wait for a record, however much of the record is in hand.
+
+    A whole ``Task`` carries its log, so the wait is derived from it on every read and
+    cannot be stale. A ``TaskSummary`` deliberately does not carry one -- the log is the
+    bulk this projection exists to leave behind (task-484) -- so the store decides its
+    wait from the newest handoff entry alone and the summary carries the answer.
+
+    One function rather than a parameter on ``display_status`` because there are three
+    label call sites and a fourth would not know to pass it; the failure that would
+    produce is a task labelled "Blocked on a service" when the truth is that it clears by
+    itself, which is exactly what the wait exists to stop a reader believing.
+    """
+    if isinstance(task, TaskSummary):
+        return task.self_clearing_wait
+    return self_clearing_wait(task)
+
+
+def display_status(task: "LabelledTask") -> str:
     """``task``'s one human-readable label.
 
     A module function with the property delegating to it, rather than the other way
@@ -1464,6 +1616,7 @@ def display_status(task: "Task") -> str:
     fall back to this. Reaching a parent model's ``computed_field`` from a subclass
     override goes through a Pydantic descriptor proxy; a function does not.
     """
+    wait = wait_of(task)
     if task.lifecycle is Lifecycle.CLOSED:
         label = (task.outcome or Outcome.COMPLETED).value.capitalize()
         return f"{label} (archived)" if task.archived else label
@@ -1480,7 +1633,6 @@ def display_status(task: "Task") -> str:
         if task.ball_reason is BallReason.DEPENDENCY:
             blockers = [d.task for d in task.dependencies if d.type is DependencyType.NEEDS]
             return f"Blocked on {blockers[0]}" if blockers else "Blocked"
-        wait = self_clearing_wait(task)
         if wait is not None:
             # UTC because a label derived on the server cannot know the reader's
             # zone, and an unmarked local-looking time is the worse failure: the
@@ -1513,7 +1665,7 @@ def display_status(task: "Task") -> str:
     return str(task.lifecycle.value).capitalize()
 
 
-def queued_display_status(task: "Task", queued: Optional[QueuedDispatchState]) -> str:
+def queued_display_status(task: "LabelledTask", queued: Optional[QueuedDispatchState]) -> str:
     """``task``'s label, saying so when a dispatch of it is waiting for a slot.
 
     The one place the queued label is decided, so the prose a reader sees and the
@@ -1582,7 +1734,18 @@ def self_clearing_wait(task: "Task") -> Optional[SelfClearingWait]:
     )
     if newest is None:
         return None
-    marker = (newest.data or {}).get(AUTH_RECOVERY_MARKER)
+    return self_clearing_wait_of(newest.data)
+
+
+def self_clearing_wait_of(handoff_data: Optional[Dict[str, Any]]) -> Optional[SelfClearingWait]:
+    """The wait a newest-handoff entry's ``data`` describes, or ``None``.
+
+    The half of the derivation that reads one entry rather than a whole log, so a store
+    that fetched only the newest handoff row can reach the same answer as a reader
+    holding the record (task-484). The caller is responsible for the ball check above it:
+    this says what the entry means, not whether the task is parked at all.
+    """
+    marker = (handoff_data or {}).get(AUTH_RECOVERY_MARKER)
     if not isinstance(marker, dict):
         return None
     if marker.get("action") not in SELF_CLEARING_ACTIONS:

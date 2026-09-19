@@ -60,6 +60,7 @@ from ..models import (
     TaskCreateRequest,
     TaskDetailResponse,
     TaskRead,
+    TaskSummaryRead,
     TaskUpdateRequest,
 )
 
@@ -154,7 +155,7 @@ def decoded_attachments(uploads: Sequence[AttachmentUpload]) -> List[AttachmentP
     return payloads
 
 
-@router.get("", response_model=List[TaskRead])
+@router.get("", response_model=List[TaskSummaryRead])
 async def list_tasks(
     lifecycle: Optional[Lifecycle] = None,
     ball: Optional[Ball] = None,
@@ -163,12 +164,51 @@ async def list_tasks(
         default=None, description="Return only the children of this umbrella task."
     ),
     manager: TaskManager = Depends(get_task_manager),
-) -> List[TaskRead]:
-    """List tasks filtered along the state axes.
+) -> List[TaskSummaryRead]:
+    """List tasks filtered along the state axes, as listing rows.
 
     ``?ball=human`` is the human inbox: everything waiting on a person, each row
     carrying its ``ball_prompt``. ``?ball=external`` is the blocked list.
     ``?parent=task-063-schema-v2`` is one umbrella's children.
+
+    **A row, not a record.** This used to answer with complete tasks -- spec prose,
+    acceptance criteria and the entire log of each -- which on the agentjobs backlog was
+    10.4 MB and four full corpus loads to draw a column of titles, and grew with every
+    log entry appended to any task (task-484). It now answers with the fields a listing
+    reads. Open a task and ``/{task_id}/detail`` carries the rest, which is the fetch
+    every surface that shows a task already makes.
+
+    Whole records are at ``/tasks/full``, unchanged. Narrowing *this* route rather than
+    adding a narrow sibling is deliberate: the expensive shape should be the one a caller
+    asks for by name, so a new surface that never thought about it gets the cheap one.
+    """
+    summaries = manager.list_task_summaries(
+        lifecycle=lifecycle, ball=ball, priority=priority_filter, parent=parent
+    )
+    return TaskSummaryRead.from_summaries(manager.dependency_facts(), summaries)
+
+
+@router.get("/full", response_model=List[TaskRead])
+async def list_full_tasks(
+    lifecycle: Optional[Lifecycle] = None,
+    ball: Optional[Ball] = None,
+    priority_filter: Optional[Priority] = Query(default=None, alias="priority"),
+    parent: Optional[str] = Query(
+        default=None, description="Return only the children of this umbrella task."
+    ),
+    manager: TaskManager = Depends(get_task_manager),
+) -> List[TaskRead]:
+    """Every matching task as a complete record -- what ``GET /tasks`` used to return.
+
+    Kept because two callers genuinely need whole records for a listing, and neither is
+    a browser: ``TaskClient.list_tasks`` is the surface the CLI's ``TaskManager``
+    equivalent is built on, so it must return ``Task`` and not a shape missing a log;
+    and ``agentjobs branches`` reads ``branches[]`` off every task, which no listing
+    projection carries.
+
+    Expensive, and named so a caller has to choose it. Declared before ``/{task_id}``
+    for the reason ``/next`` and ``/broken`` are: otherwise "full" is captured as a task
+    id.
     """
     tasks = manager.list_tasks(
         lifecycle=lifecycle, ball=ball, priority=priority_filter, parent=parent
