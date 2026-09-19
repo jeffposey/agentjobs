@@ -1258,10 +1258,16 @@ describe("arming the pull mode (task-462)", () => {
     });
   });
 
-  it("offers an explicit no-bound rather than treating it as the default", () => {
-    // "Until disarmed" is a real answer and is offered as one. What must not happen is a
-    // form that arrives pre-set to it, which would choose the largest spend on the
-    // person's behalf in the one place they are entitled to be asked.
+  it("opens on the narrowest bound, never the open-ended one", () => {
+    // The default is not neutral and does not have to be -- it has to be safe. Somebody
+    // who presses Arm without reading spends three starts, not their evening.
+    renderPull(state({ pull: pull() }));
+
+    expect(screen.getByLabelText(/this many starts/i)).toBeChecked();
+    expect(screen.getByLabelText(/keep going until I disarm it/i)).not.toBeChecked();
+  });
+
+  it("offers the open-ended bound as an explicit choice", () => {
     const { onArm } = renderPull(state({ pull: pull() }));
 
     fireEvent.click(screen.getByLabelText(/keep going until I disarm it/i));

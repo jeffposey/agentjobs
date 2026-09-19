@@ -1135,10 +1135,13 @@ function groupOptionValue(name: string): string {
 /**
  * The pull mode's control: arm this project's backlog, or stop it (task-462).
  *
- * **The bound is a radio group and not a text field with a default**, because it is the
- * decision being made. Three starts and "until disarmed" are different orders of
- * magnitude of spend, and a control that preselected one would be choosing on the
- * person's behalf in the one place the design says a human must choose.
+ * **The bound is a radio group, and it opens on the narrowest one.** Three starts and
+ * "until disarmed" are different orders of magnitude of spend, so the default is not a
+ * neutral choice -- but it does not have to be neutral, it has to be safe. A form that
+ * opened on "until I disarm it" would spend the most on a person who pressed Arm without
+ * reading; one that opens on three starts spends the least on the same person, and
+ * anybody who wants the open-ended bound has to say so by clicking it. What is *not*
+ * offered is arming with no bound at all, which is what the API refuses.
  *
  * **The envelope says what it does to the branch, not what it is called.** The same
  * wording the dispatch chooser uses, from the same server-sent `posture_merge_policies`,
