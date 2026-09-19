@@ -28,6 +28,7 @@ from agentjobs.taskfiles import TaskLoadError
 from agentjobs.store_factory import close_databases, mark_server_process
 
 from .authorization import Forbidden, enforce_capability
+from .queued_dispatch import bind_queued_dispatches
 from .dependencies import PRINCIPAL_STATE_ATTR, resolve_request_principal
 from .routes import (
     PROJECT_SCOPED_ROUTERS,
@@ -213,7 +214,12 @@ app = FastAPI(
     # registered, and `tests/test_authorization.py` fails until somebody says which
     # capability it needs. A dependency rather than middleware, because middleware runs
     # before routing and would know neither the matched endpoint nor the path params.
-    dependencies=[Depends(enforce_capability)],
+    # The second application-wide dependency, and installed here for the same reason
+    # (task-476): it makes the machine's dispatch queue readable by every `TaskRead`
+    # a route builds, so a route added tomorrow cannot be the one surface that tells
+    # a person nothing is happening to a task already promised a slot. It is lazy --
+    # a request that builds no `TaskRead` reads nothing.
+    dependencies=[Depends(enforce_capability), Depends(bind_queued_dispatches)],
 )
 
 MEASUREMENT_HEADER = "X-Response-Time-Ms"

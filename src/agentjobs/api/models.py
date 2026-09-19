@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 from agentjobs.manager import DependencyFacts, TaskManager
 from agentjobs.models_v2 import (
@@ -23,11 +23,15 @@ from agentjobs.models_v2 import (
     Outcome,
     Priority,
     QuestionDraft,
+    QueuedDispatchState,
     SelfClearingWait,
     Spec,
     Task,
+    queued_display_status,
     self_clearing_wait,
 )
+
+from .queued_dispatch import queued_dispatch_for
 
 
 class TaskRead(Task):
@@ -48,6 +52,25 @@ class TaskRead(Task):
     a label is what ENGINEERING.md's rendered-value rule exists to prevent.
     """
 
+    queued_dispatch: Optional[QueuedDispatchState] = None
+    """Set when a dispatch of this task is waiting for a free slot on this machine.
+
+    Derived, never stored, and for the same reason as the field above: `dispatch.queue`
+    deliberately does not claim the task, because every dispatch gate is judged when a
+    slot frees rather than at enqueue (task-459). So `lifecycle`/`ball`/`ball_reason`
+    genuinely read `ready`/`agent`/`available` while a start has already been promised,
+    and a stored flag would be a second copy of a fact the queue owns.
+
+    Unlike `self_clearing_wait` it cannot be derived from the record at all -- the fact
+    lives in the machine's execution store -- so `_fill_queued_dispatch` reads the
+    request-scoped binding `api.queued_dispatch` installs. Outside a request there is no
+    binding and the field stays `None`.
+
+    Structure rather than only `display_status`'s prose: a client offering to cancel the
+    entry needs its `queue_id`, and matching on the words of a label is what
+    ENGINEERING.md's rendered-value rule exists to prevent.
+    """
+
     @model_validator(mode="after")
     def _fill_self_clearing_wait(self) -> "TaskRead":
         """Derive the wait from this record, overwriting anything passed for it.
@@ -59,6 +82,28 @@ class TaskRead(Task):
         """
         self.self_clearing_wait = self_clearing_wait(self)
         return self
+
+    @model_validator(mode="after")
+    def _fill_queued_dispatch(self) -> "TaskRead":
+        """Ask this request's dispatch queue about the task, overwriting what was passed.
+
+        Here for the reason above and one more: there are eight construction sites across
+        five route modules, and a site that forgot would be a surface telling a person
+        nothing is happening to a task the machine has already promised to start.
+        """
+        self.queued_dispatch = queued_dispatch_for(self.id)
+        return self
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def display_status(self) -> str:
+        """The record's label, with a waiting dispatch named where there is one.
+
+        Overridden here rather than on `Task`, which cannot see the machine's queue. The
+        derivation itself stays in `models_v2` beside the one it falls back to, so the
+        label and `queued_dispatch` cannot disagree about what is happening.
+        """
+        return queued_display_status(self, self.queued_dispatch)
 
     @classmethod
     def from_tasks(cls, manager: TaskManager, tasks: List[Task]) -> List["TaskRead"]:
