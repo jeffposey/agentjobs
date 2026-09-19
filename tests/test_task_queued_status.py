@@ -382,11 +382,19 @@ class TestTheCommandLine:
     """
 
     def run_list(self, box: Machine) -> str:
+        """``agentjobs list`` in this process, reading the store directly.
+
+        Inside ``server_process()`` because the CLI otherwise reaches its records through
+        a running service (task-273) and there is none here. That is a fact about how the
+        command finds the store and not about what it prints, which is what this checks.
+        """
         from typer.testing import CliRunner
 
         from agentjobs.cli import app
+        from agentjobs.store_factory import server_process
 
-        result = CliRunner().invoke(app, ["list"])
+        with server_process():
+            result = CliRunner().invoke(app, ["list"])
         assert result.exit_code == 0, result.output
         return result.output
 
