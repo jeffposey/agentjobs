@@ -8,6 +8,7 @@ from .dashboard import router as dashboard_router
 from .dispatch import router as dispatch_router
 from .playbooks import router as playbooks_router
 from .projects import router as projects_router
+from .push import router as push_router
 from .queue import router as queue_router
 from .recent import router as recent_router
 from .revision import router as revision_router
@@ -31,6 +32,7 @@ PROJECT_SCOPED_ROUTERS = (
     webhooks_router,
     revision_router,
     playbooks_router,
+    push_router,
 )
 """Routers mounted twice: unscoped at /api, and again under /api/projects/{project_id}.
 
@@ -48,6 +50,7 @@ __all__ = [
     "health_router",
     "playbooks_router",
     "projects_router",
+    "push_router",
     "queue_router",
     "recent_router",
     "revision_router",

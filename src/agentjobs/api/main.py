@@ -148,6 +148,7 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     "Task was destroyed but it is pending" line that looks like a fault and is not.
     """
     from agentjobs.dispatch.poller import poll_sessions_forever
+    from agentjobs.push.watcher import watch_forever as watch_push_forever
 
     _verify_served_source()
     # Fix which code this process is running *before* it serves anything. Captured here
@@ -162,13 +163,20 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     # memory afterwards.
     live_contract_digest(app_instance)
     poller = asyncio.create_task(poll_sessions_forever(default_home()))
+    # The other half of the attention epic (task-423). The desktop notifier is driven
+    # by a page polling `/attention`; this is what wakes a phone when there is no page,
+    # which is the whole case mobile push exists for. It is here rather than on a timer
+    # in a client for the same reason the dispatch poller is: a part of the system that
+    # only worked while something else was watching it was not working.
+    pusher = asyncio.create_task(watch_push_forever(default_home()))
     _reconcile_dispatch_runs()
     try:
         yield
     finally:
-        poller.cancel()
-        with suppress(asyncio.CancelledError):
-            await poller
+        for task in (poller, pusher):
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
         # Let SQLite checkpoint the WAL and run PRAGMA optimize now rather than
         # leaving both to the next start. A restart is meant to be a pause a client
         # rides through, and a store that has to recover on open makes it longer.
