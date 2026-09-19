@@ -18,6 +18,7 @@ that spawned it, and needs nothing from here.
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
@@ -36,6 +37,7 @@ from agentjobs.dispatch.runner import (
     SessionPhase,
 )
 from agentjobs.models_v2 import DispatchMode
+from agentjobs.background import never_abandoned
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
 from agentjobs.store_factory import TaskManagerLike, dispatch_manager_for
 
@@ -165,6 +167,7 @@ def poll_live_sessions(
     results.extend(_drive_controller(home, registry, managers))
     results.extend(_recover_parked(home, registry, managers))
     results.extend(_resume_interrupted_finishes(home, registry, managers))
+    results.extend(_retract_resolved_asks(registry, managers))
     results.extend(_sweep_idle_sessions(home))
     return results
 
@@ -188,6 +191,75 @@ def _release_finished_slots(
     except Exception as exc:  # noqa: BLE001 - the sweep must never take the poller down
         return [PollResult("slot-release", None, f"failed: {exc}")]
     return [PollResult(item.run_id, None, item.detail) for item in released]
+
+
+RETRACTION_SWEEP_SECONDS = 300.0
+"""How often the retraction sweep actually runs, whatever the poll interval is.
+
+It is a repair, not a heartbeat. The thing it corrects is a ball left standing for
+minutes or hours, so five minutes is not a compromise -- and reading every project's
+human-held tasks on every ten-second tick forever would be paying a recurring cost for
+a rare event. The same reasoning, and the same number, as the idle-session sweep.
+"""
+
+_last_retraction_sweep = 0.0
+"""When this process last swept. Process-local on purpose: a second server sweeping
+independently changes nothing, because the sweep is idempotent and reports only what it
+actually corrected."""
+
+
+def _retract_resolved_asks(
+    registry: ProjectRegistry, managers: Dict[str, TaskManagerLike]
+) -> List[PollResult]:
+    """Take back an ask whose reason has been resolved (task-467).
+
+    Late in the tick, after the walks above have had their say, so a parent a walk has
+    just corrected itself is already correct and is not found here twice.
+
+    This is the half of the attention rule that nothing used to own: an epic parent
+    handed to a person because a child was in review stayed there after the child
+    merged, because the walk that wrote it had already stopped and nothing was watching.
+    A permanent member of the waiting set keeps the badge lit *and*, under the
+    one-alert-per-episode rule, stops the next genuinely new wait from ever interrupting.
+    So the sweep runs on the clock rather than on somebody noticing, which is the whole
+    of the second clause.
+    """
+    from agentjobs.models_v2 import Ball
+    from agentjobs.retraction import retract
+
+    global _last_retraction_sweep
+    now = time.monotonic()
+    if _last_retraction_sweep and now - _last_retraction_sweep < RETRACTION_SWEEP_SECONDS:
+        return []
+    _last_retraction_sweep = now
+
+    results: List[PollResult] = []
+    try:
+        projects = registry.list_projects()
+    except ProjectError as exc:
+        return [PollResult("retraction", None, f"no projects to sweep: {exc}")]
+    for project in projects:
+        # Every registered project, not only the ones that happen to have a run this
+        # tick: a stale ask outlives the run that wrote it by definition, and a sweep
+        # that only visited busy projects would never reach the epic that went quiet.
+        try:
+            manager = managers.get(project.id) or dispatch_manager_for(project)
+            # Only the tasks that could possibly be findings, because this runs on every
+            # tick forever: the sweep's first condition is `ball is human`, so reading
+            # the whole corpus would deserialise every log in every project to discard
+            # almost all of it. Children are then asked for per candidate, and there are
+            # rarely more than a handful of candidates.
+            lines = retract(
+                manager.list_tasks(ball=Ball.HUMAN),
+                manager.get_subtasks,
+                handoff=manager.handoff,
+                log=manager.add_log_entry,
+            )
+        except Exception as exc:  # noqa: BLE001 - a sweep must never take the poller down
+            results.append(PollResult("retraction", None, f"{project.id}: failed: {exc}"))
+            continue
+        results.extend(PollResult("retraction", None, f"{project.id}: {line}") for line in lines)
+    return results
 
 
 def _sweep_idle_sessions(home: Path) -> List[PollResult]:
@@ -515,9 +587,10 @@ async def poll_sessions_forever(
       AgentJobs was down is then settled at startup rather than an interval later, which
       is what makes restarting clear it (task-157, sc-3) without `reconcile()` needing to
       learn about session phases.
-    - **The work runs in a thread.** `poll_live_sessions` blocks on subprocesses, and on
-      the event loop that would stall every request for as long as the runner takes to
-      answer.
+    - **The work runs in a thread, and a shutdown waits for it.** `poll_live_sessions`
+      blocks on subprocesses, and on the event loop that would stall every request for
+      as long as the runner takes to answer. It also reads SQLite, which is why the
+      thread is never abandoned on cancellation -- see :mod:`agentjobs.background`.
 
     Only *changes* are reported. A run that is still running says so once, not every ten
     seconds forever, so the server's output stays readable enough that the lines which do
@@ -526,7 +599,10 @@ async def poll_sessions_forever(
     seen: Dict[str, str] = {}
     while True:
         try:
-            results = await asyncio.to_thread(poll_live_sessions, home)
+            # Not `asyncio.to_thread`: cancelling that await abandons the thread, and
+            # the lifespan closes every database as soon as this task returns. See
+            # `agentjobs.background` for the crash that taught us (task-467).
+            results = await never_abandoned(poll_live_sessions, home)
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # pragma: no cover - poll_live_sessions handles its own

@@ -3846,10 +3846,29 @@ class ExecutionStore:
         started: Optional[int] = None,
         peak_in_flight: Optional[int] = None,
         host: Optional[str] = None,
+        clear_grounding: bool = False,
     ) -> Supervision:
-        """Record what a walk decided. Grounding is sticky: the first cause is kept."""
+        """Record what a walk decided. Grounding is sticky: the first cause is kept.
+
+        ``clear_grounding`` is the one exception, and it exists for exactly one caller
+        (task-467): a walk grounded because a child was parked on a person is grounded
+        on a condition that *clears*, and when the person resolves that child the walk
+        has to be able to take off again. Stickiness is right for every other cause --
+        a child that died stays the reason the epic stopped -- so this is a deliberate
+        lift rather than a relaxation of the rule, and it is refused unless the caller
+        asks for it by name. Passing both it and ``grounding`` sets the new one.
+        """
         with self.transaction("walk-update") as connection:
             self._walk_for_update(connection, walk_id, epoch)
+            if clear_grounding and grounding is None:
+                connection.execute(
+                    "UPDATE supervision SET grounding_json = NULL WHERE walk_id = ?", (walk_id,)
+                )
+            elif clear_grounding:
+                connection.execute(
+                    "UPDATE supervision SET grounding_json = ? WHERE walk_id = ?",
+                    (_dumps(dict(grounding or {})), walk_id),
+                )
             connection.execute(
                 "UPDATE supervision SET "
                 "grounding_json = COALESCE(grounding_json, ?), "

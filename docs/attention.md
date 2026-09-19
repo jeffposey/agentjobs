@@ -13,10 +13,57 @@ episode, and [Mobile push](push.md) is how it is registered and what it is sent.
 ## What is being tracked
 
 **The waiting set** is exactly what the badge counts: open tasks whose ball is on a
-human and whose lifecycle is not `draft`
-(`agentjobs.dashboard.human_waiting_tasks`). A parked draft is backlog, not a blockage —
-`tests/test_attention_tiers.py` records what counting them cost. One predicate, so a
-notification can never disagree with the page it links to.
+human, whose lifecycle is not `draft`, and which are not merely waiting on an open child
+that a person already holds (`agentjobs.dashboard.human_waiting_tasks`). A parked draft
+is backlog, not a blockage — `tests/test_attention_tiers.py` records what counting them
+cost. One predicate, so a notification can never disagree with the page it links to.
+
+**One click is one ask** (task-467). An epic parent whose child sits at `human`/`review`
+is not a second thing to do: the person has one button, on the child, and the parent is
+waiting for the consequence of pressing it. Counting both made one approval read as two
+asks on 2026-09-18, and the person read the second row as a gate in front of the first.
+
+## A demand has to be withdrawn, not only raised
+
+The rule has two clauses and **the second one is the one that broke**. A task may demand
+a person's attention only when there is something for them to do on that task now — *and
+the demand must be taken back the moment that stops being true, by something that does
+not depend on the person noticing*.
+
+On 2026-09-19 task-421's epic walk grounded on a child parked for review and handed the
+parent to `human`/`decision` as well. The child was approved, gated, merged and closed
+twenty minutes later. Nothing retracted the parent's ball, because the walk had written
+`state = 'stopped'` and no supervisor remained: resolving the child fired nothing at all.
+The parent became a *permanent* member of the waiting set — and since an episode only
+resets when that set empties, **one stuck row silenced the alarm for every genuinely new
+wait after it**. A stale member here does not add noise; it disables the feature.
+
+Three things now hold the second clause up, in the order they act:
+
+1. **A wait is not an ask.** A walk that stops because a child is parked, or because its
+   one open child is somebody else's live work, hands the parent to
+   `external`/`dependency` naming that child
+   (`agentjobs.dispatch.epic.waiting_child`). A genuine deadlock, or a child that died,
+   still reaches a person — those clear for nobody.
+2. **A waiting walk keeps walking.** Its record stays `walking` and moves to the server,
+   so an ordinary poll tick rebuilds it, lifts the grounding when the child lets go, and
+   takes off the next child with no human touch.
+3. **A sweep takes back what is already stale** (`agentjobs.retraction`). Every poll tick,
+   an open task holding a person for a reason that names a child which has since let go
+   is reported and corrected. `agentjobs attention repair --dry-run` is the same survey
+   by hand, and writes nothing.
+
+The sweep is deliberately conservative — a ball on a person is the most intrusive thing
+to move — so it only acts where the record itself names a child of that task. An ask that
+names no child is somebody's question and is never touched.
+
+**A standing invitation is not an ask either.** "File the next child whenever you want
+one" is true, useful, and has no act available today and no moment at which it stops
+being true, so the row it creates is permanent. The schema does **not** refuse one:
+whether a sentence describes an act available now is not decidable from the sentence, and
+a refusal that is wrong blocks the one honest ask. It is a convention with a warning at
+the moment of the write (`record_check.STANDING_INVITATION`), and the sanctioned home for
+an invitation is `agent`/`hold`.
 
 **An attention episode** is one run of that set being non-empty. It is not an event per
 task, and that is the whole design: a notification per handoff is what makes people turn

@@ -46,6 +46,8 @@ __all__ = [
     "PROSE_APPENDING_VERBS",
     "QUOTED_REMARK",
     "SPEC_WRITING_VERBS",
+    "STANDING_INVITATION",
+    "STANDING_INVITATION_PHRASES",
     "SUMMARY_WORD_CEILING",
     "UNNAMED_REVIEW_LINK",
     "WARNING_KINDS",
@@ -73,12 +75,46 @@ UNNAMED_REVIEW_LINK = "unnamed_review_link"
 #: that reaches the author while they can still fix it in the same breath.
 QUOTED_REMARK = "quoted_remark"
 
+#: A handoff put a standing invitation on a person rather than an ask (task-467).
+STANDING_INVITATION = "standing_invitation"
+
 #: Every kind this module can produce. The closed set a caller may branch on.
 WARNING_KINDS: Tuple[str, ...] = (
     LONG_SUMMARY,
     DEFAULT_BALL_PROMPT,
     UNNAMED_REVIEW_LINK,
     QUOTED_REMARK,
+    STANDING_INVITATION,
+)
+
+#: The shapes that say an ask has no deadline and no act available today.
+#:
+#: Deliberately a short list of phrasings rather than a judgement about meaning, because
+#: **the schema cannot refuse this and this module decided not to pretend otherwise**
+#: (task-467). Whether a sentence describes something a person can do *now* is not
+#: decidable from the sentence; a refusal that is wrong blocks the one honest ask, which
+#: is strictly worse than a row that should not be there. So the rule is a convention
+#: with a warning at the moment of the write, exactly like ``default_ball_prompt``, and
+#: the sanctioned home for an invitation is ``agent``/``hold`` -- which is what task-212
+#: was given by hand on 2026-09-18, before anything said so.
+#:
+#: Kept narrow for the reason this module exists: a warning that fires on ordinary
+#: handoffs is wallpaper. Each of these says, in so many words, that the reader may act
+#: whenever they feel like it.
+STANDING_INVITATION_PHRASES: Tuple[str, ...] = (
+    "when you are ready",
+    "when you're ready",
+    "whenever you are ready",
+    "whenever you're ready",
+    "whenever you like",
+    "whenever you want",
+    "whenever he wants",
+    "whenever she wants",
+    "whenever they want",
+    "at your leisure",
+    "no rush",
+    "no hurry",
+    "if and when you",
 )
 
 #: Where a summary stops being one or two sentences. The audit's number, and the one
@@ -184,6 +220,7 @@ def check_record(task: Task, *, verb: Optional[str] = None) -> List[RecordWarnin
         warnings.extend(_check_ball_prompt(task))
     if verb is None or verb in PROMPT_WRITING_VERBS:
         warnings.extend(_check_review_links(task))
+        warnings.extend(_check_standing_invitation(task))
     warnings.extend(_check_quotations(task, verb))
     return warnings
 
@@ -308,6 +345,40 @@ def _check_review_links(task: Task) -> List[RecordWarning]:
             "'Desktop shell: http://127.0.0.1:8910/app/', and refer to them in the "
             "prose by name. An address left mid-sentence stays there, which on a phone "
             "is several lines of a small screen and a row nobody can label.",
+        )
+    ]
+
+
+def _check_standing_invitation(task: Task) -> List[RecordWarning]:
+    """An invitation with no deadline, sitting on a person as though it were an ask.
+
+    The rule it enforces is task-467's: a task may demand a person's attention only when
+    there is something for them to do on that task *now*. "File the next child whenever
+    you want one" is a true and useful sentence, and it is not that -- it has no act
+    available today and no moment at which it stops being true, so the row it creates is
+    permanent. On 2026-09-18 one such row sat beside a child with a working Approve
+    button, and the person read it as a second gate in front of the first.
+
+    Only a ball on a **human**, and only a phrase from the short list above. Anything
+    cleverer would fire on ordinary handoffs, and this check is worth less than nothing
+    if it has to be skimmed past.
+    """
+    if task.ball is not Ball.HUMAN:
+        return []
+    prompt = (task.ball_prompt or "").lower()
+    matched = [phrase for phrase in STANDING_INVITATION_PHRASES if phrase in prompt]
+    if not matched:
+        return []
+    return [
+        RecordWarning(
+            STANDING_INVITATION,
+            f"ball_prompt says {matched[0]!r}, which reads as an invitation rather than "
+            "an ask: there is no act available today and no moment at which it stops "
+            "being true, so this row will sit in the person's blocked-on-you list "
+            "forever and hold the attention episode open behind it. If something is "
+            "genuinely needed now, say what and by when. If it is a standing offer, put "
+            "it in the spec or a note and move the ball to agent/hold, which is where "
+            "work that is nobody's next act belongs.",
         )
     ]
 

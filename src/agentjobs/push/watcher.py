@@ -25,6 +25,7 @@ import os
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
+from ..background import never_abandoned
 from ..manager import TaskManager
 from ..projects import Project, ProjectRegistry
 from ..store_factory import task_manager_for
@@ -122,8 +123,9 @@ async def watch_forever(
 ) -> None:
     """Poll until cancelled, reporting only the rounds that did something.
 
-    The work runs in a thread: it reads SQLite and posts to an external service, and on
-    the event loop either would stall every request for as long as it took.
+    The work runs in a thread, and a shutdown waits for that thread: it reads SQLite and
+    posts to an external service, and on the event loop either would stall every request
+    for as long as it took. See :mod:`agentjobs.background` for why it is not abandoned.
 
     Only rounds that attempted a delivery are reported, and each episode is reported
     once. A loop that printed a line every fifteen seconds forever would make the
@@ -148,7 +150,10 @@ async def _watch(
 ) -> None:
     while True:
         try:
-            results = await asyncio.to_thread(poll_once, home)
+            # Never `asyncio.to_thread` for work that reads the store: cancelling
+            # that await abandons the thread and the lifespan closes the databases out
+            # from under it (task-467, `agentjobs.background`).
+            results = await never_abandoned(poll_once, home)
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001 - see poll_once

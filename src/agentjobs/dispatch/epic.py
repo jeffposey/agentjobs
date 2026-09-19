@@ -729,6 +729,25 @@ class WalkStop(Enum):
     def is_success(self) -> bool:
         return self is WalkStop.ALL_CHILDREN_DONE
 
+    @property
+    def is_a_wait(self) -> bool:
+        """Whether this ending is something that clears on its own (task-467).
+
+        A walk that stops for one of these is not stuck and has nothing to report to a
+        person: a child parked for review is already in their list with a button on it,
+        and a sibling that is claimed or mid-finish is somebody else's live work. The
+        distinction decides two things -- that the parent is handed to
+        ``external``/``dependency`` naming the blocker rather than asked a second
+        question, and that the walk stays ``walking`` so an ordinary poll tick resumes
+        the epic when the blocker lets go.
+
+        ``NO_ELIGIBLE_CHILD`` is only conditionally a wait: it also covers a graph that
+        is genuinely deadlocked, which clears for nobody. Whether this particular one
+        waits is therefore decided by :func:`waiting_child`, against the live records,
+        rather than by the enum member alone.
+        """
+        return self in (WalkStop.CHILD_NEEDS_A_HUMAN, WalkStop.NO_ELIGIBLE_CHILD)
+
 
 @dataclass
 class WalkResult:
@@ -888,6 +907,80 @@ def open_children(manager: TaskManagerLike, parent_id: str) -> List[Task]:
     return [child for child in children if child.is_open]
 
 
+def waiting_child(
+    manager: TaskManagerLike,
+    parent_id: str,
+    stop: "WalkStop",
+    stopped_on: Optional[str] = None,
+) -> Optional[Task]:
+    """The open child this ending is merely waiting on, or ``None`` if it is a real stop.
+
+    The whole of task-467's first clause lives here. A walk that grounded because a
+    child parked for review is waiting on a person who already has that child in their
+    list with a button on it; asking them a second question about the parent is how one
+    click came to read as two asks. A walk that found nothing eligible because the only
+    open child is somebody else's live work is waiting too -- and handing *that* to a
+    person solicits the one action that cannot help.
+
+    ``NO_ELIGIBLE_CHILD`` is the interesting case, and it is why this is a function
+    against the live records rather than a property of the enum. The same member also
+    covers a graph in which every remaining child is blocked by a dependency that
+    nothing is working on, which clears for nobody and is exactly when a person should
+    be asked. So a wait is claimed only when some open child is actually holding the
+    ball: a person for a review, or an agent that has claimed it.
+    """
+    if not stop.is_a_wait:
+        return None
+    children = open_children(manager, parent_id)
+    if stop is WalkStop.CHILD_NEEDS_A_HUMAN:
+        named = next((child for child in children if child.id == stopped_on), None)
+        if named is not None and named.ball is Ball.HUMAN:
+            return named
+        return next((child for child in children if child.ball is Ball.HUMAN), None)
+    held_by_person = next((child for child in children if child.ball is Ball.HUMAN), None)
+    if held_by_person is not None:
+        return held_by_person
+    return next(
+        (
+            child
+            for child in children
+            if child.ball is Ball.AGENT and child.lifecycle is Lifecycle.ACTIVE
+        ),
+        None,
+    )
+
+
+def grounding_cleared(
+    manager: TaskManagerLike, stop: "WalkStop", stopped_on: Optional[str]
+) -> bool:
+    """Whether a recorded wait has stopped being true, so the walk may take off again.
+
+    Asked once per tick, of a walk rebuilt from its record. It is the counterpart to
+    :func:`waiting_child`: that one decides whether to keep waiting, this one decides
+    whether there is anything left to wait for.
+
+    A child that **closed unresolved** does not clear anything. It was parked on a
+    person, and the person cancelled it rather than finishing it -- a sibling that would
+    now take off could be building on the gap that cancellation left, which is precisely
+    what grounding exists to prevent. That ending is a stop for cause and is reported
+    as one.
+    """
+    if stop is WalkStop.NO_ELIGIBLE_CHILD:
+        # Re-derived from the frontier on every tick anyway, so a remembered one says
+        # nothing the next pass will not say better.
+        return True
+    if stop is not WalkStop.CHILD_NEEDS_A_HUMAN:
+        return False
+    if not stopped_on:
+        return False
+    child = manager.get_task(stopped_on)
+    if child is None:
+        return False
+    if child.is_open:
+        return child.ball is not Ball.HUMAN
+    return child.outcome is Outcome.COMPLETED
+
+
 @dataclass
 class Flight:
     """One child currently in the air: what was started, and when to give up on it."""
@@ -970,6 +1063,8 @@ class _Supervision:
         settings: "WalkSettings",
         host: str,
         wall: Optional[Callable[[], datetime]],
+        posture: Optional[Posture] = None,
+        actor: Optional[str] = None,
     ) -> Optional["_Supervision"]:
         if home is None:
             return None
@@ -993,6 +1088,13 @@ class _Supervision:
                     "max_concurrent": settings.max_concurrent,
                     "max_children": settings.max_children,
                     "child_timeout_seconds": settings.child_timeout_seconds,
+                    # Saved even for a walk this process intends to finish itself
+                    # (task-467): a walk that ends on a wait hands its record to the
+                    # server, and the tick that picks it up has no other way to learn
+                    # which envelope its children were authorised under or whose name
+                    # the outcome is written in.
+                    "posture": posture.value if posture is not None else None,
+                    "actor": actor,
                 },
                 host=host,
                 holder_alive=process_alive,
@@ -1245,7 +1347,29 @@ class _Supervision:
             grounding={"stop": stop.value, "detail": detail, "child": child},
         )
 
-    def finish(self, result: "WalkResult") -> None:
+    def finish(self, result: "WalkResult", *, waiting: bool = False) -> None:
+        """Close the walk's record -- unless it is only waiting (task-467).
+
+        A walk that stopped because a child is parked on a person, or because the one
+        remaining child is somebody else's live work, has not finished: it has nothing
+        to do *this tick*. Writing ``stopped`` there is what left task-421 with no
+        supervisor at all, so that approving its child fired nothing and the epic never
+        moved again. Such a walk stays ``walking`` and is handed to the server, whose
+        poll tick rebuilds it from this record and takes off the moment the blocker lets
+        go. The host moves to ``server`` with it, which is also what lets the next tick
+        adopt the walk rather than refuse it: ownership is only defended for a *process*
+        holder that is still alive, and this process is about to return.
+        """
+        if waiting:
+            self.store.update_walk(
+                self.walk.walk_id,
+                epoch=self.walk.epoch,
+                state="walking",
+                host="server",
+                stop=result.stop.value,
+                detail=result.detail[:2000],
+            )
+            return
         self.store.update_walk(
             self.walk.walk_id,
             epoch=self.walk.epoch,
@@ -1253,6 +1377,15 @@ class _Supervision:
             stop=result.stop.value,
             detail=result.detail[:2000],
         )
+
+    def lift_grounding(self) -> None:
+        """Forget a grounding whose cause has cleared, so the walk may take off again.
+
+        The only caller is the wait above. Grounding is sticky everywhere else because
+        the first cause is the one worth keeping; a wait is the one cause that stops
+        being true without anybody deciding it has.
+        """
+        self.store.update_walk(self.walk.walk_id, epoch=self.walk.epoch, clear_grounding=True)
 
 
 def _walk_epic(
@@ -1274,6 +1407,7 @@ def _walk_epic(
     once: bool = False,
     host: str = "process",
     wall: Optional[Callable[[], datetime]] = None,
+    actor: Optional[str] = None,
 ) -> Optional[WalkResult]:
     """Keep every eligible child flying, watch them all, and stop taking off on a bad one.
 
@@ -1418,6 +1552,8 @@ def _walk_epic(
         settings=settings,
         host=host,
         wall=wall,
+        posture=posture,
+        actor=actor,
     )
     if supervision is not None and supervision.refusal is not None:
         result.stop = WalkStop.ALREADY_SUPERVISED
@@ -1430,6 +1566,24 @@ def _walk_epic(
         result.attempts.extend(restored.attempts)
         grounded = restored.grounded
         grounded_on = restored.grounded_on
+        if (
+            grounded is not None
+            and grounded[0].is_a_wait
+            and grounding_cleared(manager, grounded[0], grounded_on)
+        ):
+            # task-467: the one grounding that is allowed to be forgotten. The child
+            # this walk stopped on has been resolved, so the reason no longer exists
+            # and the epic may move again -- which is the whole point of the walk
+            # having stayed alive instead of writing `stopped` and leaving nobody
+            # watching.
+            supervision.lift_grounding()
+            announce(
+                f"Resumed: the wait on {grounded_on or 'a child it did not name'} has "
+                "cleared, so this walk is taking off again."
+            )
+            _resume_parent(manager, parent_id, actor=actor)
+            grounded = None
+            grounded_on = None
         started = restored.started
         result.peak_in_flight = restored.peak_in_flight
         for line in restored.notes:
@@ -1718,9 +1872,9 @@ def _walk_epic(
             if supervision is not None:
                 supervision.take_off(flight, started=started, peak=result.peak_in_flight)
 
-        def finish() -> WalkResult:
+        def finish(*, waiting: bool = False) -> WalkResult:
             if supervision is not None:
-                supervision.finish(result)
+                supervision.finish(result, waiting=waiting)
             return result
 
         # ----- is there anything left to do? ----------------------------------
@@ -1743,7 +1897,10 @@ def _walk_epic(
         if grounded is not None:
             result.stop, result.detail = grounded
             result.stopped_on = grounded_on
-            return finish()
+            return finish(
+                waiting=waiting_child(manager, parent_id, result.stop, result.stopped_on)
+                is not None
+            )
 
         remaining = open_children(manager, parent_id)
         if not remaining:
@@ -1790,7 +1947,9 @@ def _walk_epic(
             "unmet dependency, already claimed, or holding open children of its own. "
             "This is not a finished epic and is reported separately from one."
         )
-        return finish()
+        return finish(
+            waiting=waiting_child(manager, parent_id, result.stop, result.stopped_on) is not None
+        )
 
 
 def walk_epic(**kwargs: Any) -> WalkResult:
@@ -1992,6 +2151,67 @@ def walk_report(result: WalkResult, *, started_at: Optional[datetime] = None) ->
             "supports it.",
         ]
     return "\n".join(body)
+
+
+def _resume_parent(
+    manager: TaskManagerLike, parent_id: str, *, actor: Optional[str] = None
+) -> None:
+    """Take a parent off the wait its walk has just lifted (task-467).
+
+    Narrow on purpose: only a parent sitting exactly where a wait put it is moved, so a
+    ball a person or another session set in the meantime is never overwritten. It hands
+    to ``agent``/``work`` rather than to anybody, because a walk *is* the agent working
+    this parent and that is what the record said while the epic was flying.
+    """
+    from agentjobs.models_v2 import BallReason
+
+    parent = manager.get_task(parent_id)
+    if parent is None or not parent.is_open:
+        return
+    if parent.ball is not Ball.EXTERNAL or parent.ball_reason is not BallReason.DEPENDENCY:
+        return
+    manager.handoff(
+        parent_id,
+        actor=actor or "dispatcher",
+        ball=Ball.AGENT,
+        ball_reason=BallReason.WORK,
+        ball_prompt=(
+            "The child this epic was waiting on has been resolved, so the walk has "
+            "taken off again. Nothing is needed here until it reports."
+        ),
+    )
+
+
+def waiting_on_prompt(result: WalkResult, child: Task) -> str:
+    """What the parent's ask becomes when its walk is only waiting on a child.
+
+    Addressed to whoever reads the parent next, and deliberately not to a person: the
+    ball that carries it is ``external``/``dependency``, so the parent is out of the
+    badge and out of the attention episode while the one real click sits on the child.
+    """
+    landed = ", ".join(result.merged_children) or "none"
+    held = "a person" if child.ball is Ball.HUMAN else "an agent"
+    return (
+        f"Waiting on {child.id}, which {held} is holding. "
+        f"{len(result.merged_children)} child/children completed in this walk ({landed}). "
+        f"Nothing on this parent needs doing until {child.id} is resolved; when it is, "
+        "the walk takes off again on its own."
+    )
+
+
+def already_waiting_on(task: Task, child_id: str) -> bool:
+    """Whether *task* already says it is waiting on *child_id*.
+
+    The idempotence the epic walk needs, because a hosted walk re-derives the same wait
+    on every poll tick. Without it a parent picked up a progress entry and a handoff
+    every few seconds for as long as its child sat in review, which is the log-flood
+    version of the same defect: a record nobody can read is a record nobody reads.
+    """
+    from agentjobs.models_v2 import BallReason
+
+    if task.ball is not Ball.EXTERNAL or task.ball_reason is not BallReason.DEPENDENCY:
+        return False
+    return child_id in (task.ball_prompt or "")
 
 
 def walk_handoff_prompt(result: WalkResult) -> str:
@@ -2234,6 +2454,11 @@ def record_walk_outcome(
     judgement to nobody, because there is no longer a supervisor session waiting to make
     it.
 
+    * A walk that is only **waiting** -- a child parked for review, or the one open
+      child being somebody else's live work -- hands the parent to
+      ``external``/``dependency`` naming that child, and says nothing at all if the
+      parent already says so (task-467). A person is not asked twice about one click,
+      and a hosted walk re-deriving the same wait every few seconds writes once.
     * A walk that **stopped for cause** hands the parent to ``human/decision`` with the
       child and the reason, exactly as before.
     * A walk that **landed every child** hands the parent to ``human/review`` -- or, at
@@ -2252,6 +2477,20 @@ def record_walk_outcome(
         # report here would hand the parent to a human mid-walk (task-444): the refused
         # walk says so to whoever started it, and writes nothing.
         return
+
+    # Decided *before* the report is written, because for a wait the right amount to
+    # write is nothing at all: a hosted walk reaches this function on every poll tick
+    # for as long as its child sits in review (task-467).
+    blocker = waiting_child(manager, parent_id, result.stop, result.stopped_on)
+    standing = manager.get_task(parent_id)
+    if (
+        blocker is not None
+        and standing is not None
+        and standing.is_open
+        and already_waiting_on(standing, blocker.id)
+    ):
+        return
+
     manager.add_log_entry(
         parent_id, actor=actor, type=LogEntryType.PROGRESS, body=walk_report(result)
     )
@@ -2259,6 +2498,16 @@ def record_walk_outcome(
     if refreshed is None or not refreshed.is_open:
         return
     if not result.stop.is_success:
+        if blocker is not None:
+            manager.handoff(
+                parent_id,
+                actor=actor,
+                ball=Ball.EXTERNAL,
+                ball_reason=BallReason.DEPENDENCY,
+                ball_prompt=waiting_on_prompt(result, blocker),
+                data={"waiting_on": blocker.id},
+            )
+            return
         if refreshed.ball is not Ball.HUMAN:
             manager.handoff(
                 parent_id,
@@ -2405,6 +2654,7 @@ def advance_hosted_walks(
                 once=True,
                 host="server",
                 wall=wall,
+                actor=str(saved.get("actor") or "dispatcher"),
             )
         except Exception as exc:  # noqa: BLE001 - reported; the next tick resumes the record
             lines.append(f"{walk.walk_id}: {type(exc).__name__}: {exc}")
