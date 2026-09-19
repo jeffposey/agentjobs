@@ -718,10 +718,11 @@ export function SlotBoard({
 
       {layout.overCeiling > 0 && (
         <p data-testid="slot-board-over-ceiling" className="mt-3 text-xs text-amber-300">
-          {`${layout.overCeiling} run${layout.overCeiling === 1 ? "" : "s"} above this `}
-          {"machine's ceiling, each started by a person who chose to. The count above is "}
-          {"the truth: nothing is queued behind them, and the machine is over its limit "}
-          {"until they end."}
+          {layout.overCeiling === 1
+            ? "1 run above this machine's ceiling, started by a person who chose to. "
+            : `${layout.overCeiling} runs above this machine's ceiling, each started by a person who chose to. `}
+          {"The count above is the truth rather than a number clipped to the limit, and "}
+          {"the machine stays over it until they end."}
         </p>
       )}
 

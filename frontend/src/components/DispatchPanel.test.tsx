@@ -1130,7 +1130,7 @@ describe("what the panel does when the machine is full", () => {
     expect(onDispatch).toHaveBeenCalledWith({ over_ceiling: true });
     // The server refuses the pair with a 400, so a panel that sent both would turn a
     // deliberate choice into a validation error.
-    expect(onDispatch.mock.calls[0][0]).not.toHaveProperty("if_full");
+    expect(onDispatch.mock.calls[0]?.[0]).not.toHaveProperty("if_full");
   });
 
   it("sends nothing at all for Cancel, and goes back to resting", () => {

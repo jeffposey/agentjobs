@@ -222,7 +222,7 @@ describe("a machine running over its ceiling", () => {
     // is told which one explains the difference.
     expect(screen.getAllByTestId("slot-over-ceiling")).toHaveLength(1);
     expect(screen.getByTestId("slot-board-over-ceiling")).toHaveTextContent(
-      "1 run above this machine's ceiling",
+      "1 run above this machine's ceiling, started by a person who chose to.",
     );
   });
 
