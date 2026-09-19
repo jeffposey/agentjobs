@@ -234,9 +234,14 @@ export function capacitySentence(body: LiveRunsView): string {
       body.occupied > 0 ? `${body.occupied} running` : "Dispatch is not configured on this machine";
     return `${head}${suffix}`;
   }
+  // "3 of 2 slots busy" is the honest sentence for a machine somebody chose to run over
+  // its ceiling (task-461), and clamping it to "2 of 2" would be the surface lying to
+  // keep a number tidy. The clause is what stops it reading as a counting bug.
+  const over = Math.max(0, body.occupied - body.max_concurrent_runs);
+  const overage = over > 0 ? ` · ${over} over the ceiling` : "";
   return `${body.occupied} of ${body.max_concurrent_runs} ${
     body.max_concurrent_runs === 1 ? "slot" : "slots"
-  } busy${suffix}`;
+  } busy${overage}${suffix}`;
 }
 
 /*

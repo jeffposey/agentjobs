@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import type { ReviewIdentity } from "../api/generated";
 import type { DispatchPosture, DispatchRunView, DispatchStateView } from "../api/types";
@@ -62,7 +62,7 @@ export const REFUSAL_ACTIONS: Record<string, string> = {
     "A person put this task on hold, and the release condition is in the panel above. Resume it there before dispatching an agent at it.",
   live_run_exists: "A run for this task is already going. Wait for it, or cancel it below.",
   concurrency_limit:
-    "Queue it for the next free slot, cancel one of the runs named above, or raise limits.max_concurrent_runs in ~/.agentjobs/dispatch.yaml. A queued dispatch starts on its own, with every dispatch gate checked at that moment.",
+    "The machine is full. Choose below: wait for the next free slot, start anyway above the ceiling, or leave it — or cancel one of the runs named above.",
   dirty_tree: "The project's working tree has uncommitted changes. Commit or stash them first.",
   claim_lost: "Someone else took this task. Re-read it before deciding again.",
   owner_mismatch: "This task is owned by a different agent. Release it, or dispatch its owner.",
@@ -81,6 +81,10 @@ export const REFUSAL_ACTIONS: Record<string, string> = {
 export const PAGE_REMEDY_REASONS = new Set([
   "no_causing_entry",
   "not_human_clocked",
+  // The remedy is the three-way prompt this panel renders under the refusal (task-461).
+  // The server's sentence is read by the CLI and by MCP, where the remedy is a flag
+  // rather than a button, so it cannot name the buttons and this one has to.
+  "concurrency_limit",
   // The remedy is the textarea this panel renders, which only exists here. The
   // server's sentence has to stay readable by the CLI and by MCP, so it cannot say
   // "type it in the box".
@@ -127,6 +131,15 @@ export type DispatchOptions = {
    * is the one moment the answer is certainly relevant.
    */
   if_full?: "refuse" | "queue";
+  /**
+   * Start now, above `limits.max_concurrent_runs` (task-461).
+   *
+   * The other answer to a full machine, and the opposite one: `if_full: queue` waits
+   * for a slot and this takes none. Sent only from the prompt's *Dispatch now*, and the
+   * server refuses it for anything but a human principal — the button is the offer, not
+   * the check.
+   */
+  over_ceiling?: boolean;
 };
 
 /** How often to re-read the runs list. Fast while something is running, never otherwise. */
@@ -315,6 +328,19 @@ export function DispatchPanel({
   // "let this one merge itself" onto the next task the reader opened, which is the one
   // sticky default nobody would want.
   const [posture, setPosture] = useState("");
+  // The three-way prompt a full machine gets instead of a refusal (task-461). Two
+  // pieces of state rather than one because the prompt has two sources: the reader
+  // pressed Dispatch on a machine the state endpoint already said was full, or a click
+  // came back `concurrency_limit` because it filled in between. Cancel has to close it
+  // from either, and only `dismissed` can close the second.
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [promptDismissed, setPromptDismissed] = useState(false);
+  // A *new* refusal re-opens a prompt the reader dismissed. Dismissing is an answer to
+  // the question in front of them, not a standing instruction to stop asking: the next
+  // click is a new question and deserves the choice again.
+  useEffect(() => {
+    setPromptDismissed(false);
+  }, [dispatchRefusal]);
 
   if (!taskIsDispatchable && runs.length === 0) return null;
   // Silent on a machine where dispatch was never set up. There is nothing to switch on
@@ -340,6 +366,12 @@ export function DispatchPanel({
   // One name for "the button must not be pressable", so the plain button and the
   // brief form cannot drift apart on what disables them.
   const blocked = busy || finishLive;
+  // What the state endpoint says about the machine, which is a different question from
+  // `can_dispatch` (the four configuration gates). Full is a question to ask, not a
+  // reason to withhold the button — see `FullMachinePrompt`.
+  const machineFull = Boolean(state?.machine_full);
+  const refusedFull = dispatchRefusal?.reason === "concurrency_limit";
+  const showFullPrompt = !promptDismissed && (promptOpen || refusedFull);
   /** What this click will send. Omitted keys are the point -- see `DispatchOptions`. */
   const options = (note?: string): DispatchOptions => ({
     ...(runner ? { runner } : {}),
@@ -432,7 +464,17 @@ export function DispatchPanel({
           <button
             type="button"
             disabled={blocked}
-            onClick={() => void onDispatch(options())}
+            onClick={() => {
+              // Asked rather than sent, when the machine is already known to be full
+              // (task-461). The round trip this saves is not the point; the point is
+              // that the answer is a decision and the reader is here to make it.
+              if (machineFull) {
+                setPromptDismissed(false);
+                setPromptOpen(true);
+                return;
+              }
+              void onDispatch(options());
+            }}
             className="touch-target rounded-lg bg-sky-600 px-4 font-semibold text-white hover:bg-sky-500 disabled:opacity-60"
           >
             ▶ Dispatch — start an agent now
@@ -545,23 +587,37 @@ export function DispatchPanel({
         </p>
       )}
       {taskIsDispatchable && gateRefusal && <RefusalNote refusal={gateRefusal} answered={false} />}
-      {dispatchRefusal && (
-        <RefusalNote refusal={dispatchRefusal}>
-          {/* Offered here rather than before the click, because this is the moment the
-              question is certainly live: the machine was full a second ago and the
-              person is reading that. The three-way prompt that asks first is task-461. */}
-          {dispatchRefusal.reason === "concurrency_limit" && (
-            <button
-              type="button"
-              disabled={blocked}
-              data-testid="dispatch-queue-it"
-              onClick={() => void onDispatch({ ...options(), if_full: "queue" })}
-              className="touch-target rounded-lg border border-amber-500/60 bg-amber-900/40 px-3 text-sm font-semibold text-amber-100 hover:bg-amber-900/60 disabled:opacity-60"
-            >
-              Queue it for the next free slot
-            </button>
-          )}
-        </RefusalNote>
+      {dispatchRefusal && !refusedFull && <RefusalNote refusal={dispatchRefusal} />}
+      {/* A full machine is rendered as the prompt rather than as a refusal, whichever
+          way the panel learned of it. Orange-boxing it would announce a failure to a
+          question that has three good answers and has not been asked yet. The refusal's
+          own sentence rides inside the prompt, because it is the sentence that names
+          the runs. */}
+      {showFullPrompt && (
+        <FullMachinePrompt
+          // The state endpoint's sentence where there is one — it is the current
+          // answer, and `onDispatch` re-reads it. The refusal's own sentence is the
+          // fallback: it names the same runs, in the same words, as of the click.
+          holders={state?.slot_holders || (refusedFull ? dispatchRefusal.message : "")}
+          occupied={state?.machine_occupied ?? 0}
+          ceiling={state?.machine_ceiling ?? 0}
+          busy={blocked}
+          onQueue={() => {
+            setPromptOpen(false);
+            setPromptDismissed(true);
+            void onDispatch({ ...options(), if_full: "queue" });
+          }}
+          onDispatchNow={() => {
+            setPromptOpen(false);
+            setPromptDismissed(true);
+            void onDispatch({ ...options(), over_ceiling: true });
+          }}
+          onCancel={() => {
+            // Nothing is sent, nothing is written, and the panel goes back to resting.
+            setPromptOpen(false);
+            setPromptDismissed(true);
+          }}
+        />
       )}
 
       <DispatchRunList
@@ -571,6 +627,108 @@ export function DispatchPanel({
         renderOutput={renderOutput}
       />
     </section>
+  );
+}
+
+/**
+ * The three-way choice a full machine gets, instead of a refusal (task-461).
+ *
+ * The ceiling stops a *click* starting an agent the machine cannot afford. That is a
+ * good default and a bad final answer: the person pressing Dispatch knows things
+ * `max_concurrent_runs` does not — that two of the three runs are stalled on a review,
+ * that this one is the five-minute job unblocking the others. So the panel asks
+ * instead of refusing, with the runs holding the slots named, and the three answers
+ * are the three things a person actually wants:
+ *
+ * - **Queue** — wait for a slot. `if_full: queue`, task-459's durable entry.
+ * - **Dispatch now** — take one anyway. `over_ceiling: true`, refused by the server for
+ *   anything but a human principal; this button is the offer, never the check.
+ * - **Cancel** — nothing happens, and nothing is written anywhere.
+ *
+ * **A prompt, not a modal.** It does not trap focus, it does not cover the page, and
+ * Escape is Cancel. What is behind it — the runs list, the task, the review panel — is
+ * exactly what somebody deciding between these three needs to be able to read.
+ */
+function FullMachinePrompt({
+  holders,
+  occupied,
+  ceiling,
+  busy,
+  onQueue,
+  onDispatchNow,
+  onCancel,
+}: {
+  /** The runs holding the slots, in the server's own sentence. */
+  holders: string;
+  occupied: number;
+  ceiling: number;
+  busy: boolean;
+  onQueue: () => void;
+  onDispatchNow: () => void;
+  onCancel: () => void;
+}) {
+  // The numbers are quoted only when they agree with the sentence above them. The
+  // prompt can be raised by a refusal that arrived before the state endpoint was
+  // re-read, and "every slot is taken — 0 of 1" is a sentence that argues with itself.
+  const counted = ceiling > 0 && occupied >= ceiling;
+  return (
+    <div
+      role="group"
+      aria-label="The machine is full"
+      data-testid="dispatch-full-prompt"
+      // Escape is Cancel. On the container rather than on each button so it works
+      // wherever focus happens to be inside the prompt, and `onKeyDown` rather than a
+      // document listener so it cannot swallow Escape from anything else on the page.
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          onCancel();
+        }
+      }}
+      className="space-y-3 rounded-lg border border-amber-600/50 bg-amber-950/30 p-3 text-sm text-amber-100"
+    >
+      <p className="font-semibold">
+        Every slot on this machine is taken{counted ? ` — ${occupied} of ${ceiling}` : ""}.
+      </p>
+      {/* Named, not counted. This panel's own run list shows only this task's runs, so
+          the run standing in the way is by definition one this page cannot draw. */}
+      {holders && <p className="text-amber-200">{holders}</p>}
+      <div className="mobile-action-row flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={busy}
+          data-testid="dispatch-queue-it"
+          onClick={onQueue}
+          className="touch-target rounded-lg bg-amber-600 px-4 font-semibold text-white hover:bg-amber-500 disabled:opacity-60"
+        >
+          Queue it for the next free slot
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          data-testid="dispatch-over-ceiling"
+          onClick={onDispatchNow}
+          className="touch-target rounded-lg border border-amber-500/60 bg-amber-900/40 px-3 text-sm font-semibold text-amber-100 hover:bg-amber-900/60 disabled:opacity-60"
+        >
+          Dispatch now — above the ceiling
+        </button>
+        <button
+          type="button"
+          data-testid="dispatch-full-cancel"
+          onClick={onCancel}
+          className="touch-target rounded-lg px-3 text-sm font-semibold text-amber-200 underline hover:text-amber-100"
+        >
+          Cancel
+        </button>
+      </div>
+      <p className="text-amber-200">
+        Queueing starts it on its own when a slot frees, with every dispatch gate judged
+        at that moment. Dispatching now runs{" "}
+        {counted ? `${occupied + 1} agents against a ceiling of ${ceiling}` : "one more agent than the ceiling allows"}{" "}
+        until one of them ends — every other limit still applies, including the hourly
+        cap. Cancel writes nothing.
+      </p>
+    </div>
   );
 }
 

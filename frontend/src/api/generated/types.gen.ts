@@ -1034,6 +1034,12 @@ export type DispatchRequestBody = {
      */
     note?: string | null;
     /**
+     * Over Ceiling
+     *
+     * Start this run although every machine slot is taken (task-461). A deliberate overage of limits.max_concurrent_runs for this one dispatch, and nothing else: every other gate binds as it always did, including the hourly cap, because an overage is a dispatch. Honoured only for a human principal -- a run credential sending it is refused 403 'capability_denied' under 'dispatch.over_ceiling'. Mutually exclusive with if_full=queue: asking to wait for a slot and asking to start without one are opposite answers to the same question.
+     */
+    over_ceiling?: boolean;
+    /**
      * What this one run may do, overriding both the project default and any posture on the task record. Refused with 'posture_above_ceiling' when it exceeds the project's machine-local max_posture -- populate a chooser from the dispatch state view's 'offerable_postures' so the refusal is never reachable by clicking (task-308).
      */
     posture?: DispatchPosture | null;
@@ -1251,6 +1257,12 @@ export type DispatchStarted = {
      */
     mode: string;
     /**
+     * Over Ceiling
+     *
+     * True when this run was started above limits.max_concurrent_runs because a person chose to (task-461). The machine is over its ceiling until it ends, and the slot board says so rather than clipping the count.
+     */
+    over_ceiling?: boolean;
+    /**
      * Posture
      *
      * What the run is permitted to do. Empty while a dispatch is queued: the posture is resolved by the gates when it starts, not when it was queued.
@@ -1361,6 +1373,24 @@ export type DispatchStateView = {
      */
     group?: string | null;
     /**
+     * Machine Ceiling
+     *
+     * `limits.max_concurrent_runs` from ~/.agentjobs/dispatch.yaml.
+     */
+    machine_ceiling?: number;
+    /**
+     * Machine Full
+     *
+     * Every slot is taken, so a dispatch would be refused `concurrency_limit` (task-461). Beside `can_dispatch` rather than folded into it, and that is the whole point: the four configuration gates are reasons the button should not be offered, while a full machine is a question to ask the person pressing it -- wait for a slot, take one anyway, or think better of it. Withholding the button would answer it for them.
+     */
+    machine_full?: boolean;
+    /**
+     * Machine Occupied
+     *
+     * Run slots in use on this machine right now, counted exactly as the concurrency guard counts them (task-461). Machine-wide rather than this project's: the ceiling is the machine's.
+     */
+    machine_occupied?: number;
+    /**
      * Master Enabled
      *
      * The machine-wide 'enabled:' switch.
@@ -1456,6 +1486,12 @@ export type DispatchStateView = {
      * Path of the kill-switch sentinel.
      */
     sentinel_file: string;
+    /**
+     * Slot Holders
+     *
+     * The runs holding the slots, in the same sentence the `concurrency_limit` refusal uses, so the prompt before the click and the refusal after one name the same runs in the same words. Empty when the machine is not full.
+     */
+    slot_holders?: string;
 };
 
 /**
@@ -1944,6 +1980,12 @@ export type LiveRunView = {
      * Where this run's captured output is readable.
      */
     output_url: string;
+    /**
+     * Over Ceiling
+     *
+     * This run was started above `max_concurrent_runs` because a person chose to (task-461). While it lives, `occupied` exceeds the ceiling -- and a board that could not say which run explains that would be showing a count nobody can reconcile.
+     */
+    over_ceiling?: boolean;
     /**
      * Posture
      */
@@ -2613,6 +2655,12 @@ export type PlaybookRunStarted = {
      * session or batch. Empty while a dispatch is queued.
      */
     mode: string;
+    /**
+     * Over Ceiling
+     *
+     * True when this run was started above limits.max_concurrent_runs because a person chose to (task-461). The machine is over its ceiling until it ends, and the slot board says so rather than clipping the count.
+     */
+    over_ceiling?: boolean;
     /**
      * Playbook
      *
