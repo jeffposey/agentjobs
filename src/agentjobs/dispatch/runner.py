@@ -1472,6 +1472,7 @@ class DispatchRunner:
         posture: Optional[ResolvedPosture] = None,
         push: Optional[bool] = None,
         history: Optional["History"] = None,
+        over_ceiling: bool = False,
     ) -> None:
         self.manager = manager
         self.resolution = resolution
@@ -1480,6 +1481,12 @@ class DispatchRunner:
         a continuation's recorded one (task-375); never wider than the project's."""
         self.history = history
         """The execution this run continues, or ``None`` for a new grant (task-375)."""
+        self.over_ceiling = over_ceiling
+        """This run was started above ``limits.max_concurrent_runs`` on purpose (task-461).
+
+        Held on the runner for the reason ``posture`` is: it reaches the run's metadata
+        and the run's dispatch entry, and a machine over its ceiling in one of those and
+        not the other is a record that cannot be reconciled afterwards."""
         self.execution_id: Optional[str] = None
         """The execution admission put this run under, when the caller admitted one."""
         self._session_names: Dict[str, str] = {}
@@ -1753,6 +1760,7 @@ class DispatchRunner:
                 "driver": self.runner.driver.value,
                 "posture": self.posture.posture.value,
                 **self.posture.as_data(),
+                **self.overage_meta(),
                 "status": "starting",
                 "codex_status": "starting",
                 "codex_lifecycle": "preflight",
@@ -2214,6 +2222,12 @@ class DispatchRunner:
         delivery: Optional[DispatchDeliveryData] = None,
     ) -> int:
         """Append the dispatch entry and return its id."""
+        if self.over_ceiling:
+            # Here rather than at the four call sites that compose a body: each of those
+            # says something about a driver, and "this machine is over its ceiling" is
+            # true of the dispatch whichever driver started it.
+            note = self.overage_note()
+            body = "\n\n".join([body, note]) if body else note
         updated = self.manager.record_dispatch(
             task.id,
             actor=actor,
@@ -2247,6 +2261,26 @@ class DispatchRunner:
             body=body,
         )
         return updated.log[-1].id
+
+    def overage_meta(self) -> Dict[str, object]:
+        """``over_ceiling: true`` for an overage run, and nothing at all otherwise.
+
+        Absent rather than ``false`` on an ordinary run, so every meta written before
+        task-461 reads identically to one written after it -- ``record_from_meta`` treats
+        a missing key as "no", which is the only thing it can honestly mean.
+        """
+        return {"over_ceiling": True} if self.over_ceiling else {}
+
+    def overage_note(self) -> str:
+        """The sentence an overage puts on the task's dispatch entry (task-461)."""
+        return (
+            "Started above this machine's ceiling. All "
+            f"{self.resolution.limits.max_concurrent_runs} slot(s) "
+            "`limits.max_concurrent_runs` allows were taken, and a person chose "
+            "*Dispatch now* with the runs holding them named in front of them, so this "
+            "run is recorded as an overage rather than counted into a ceiling it "
+            "exceeds."
+        )
 
     def envelope_data(self) -> DispatchEnvelopeData:
         """Which execution this run serves, and whether its grant is new or carried over."""
@@ -2635,6 +2669,7 @@ class DispatchRunner:
             "driver": self.runner.driver.value,
             "posture": self.posture.posture.value,
             **self.posture.as_data(),
+            **self.overage_meta(),
             "status": "starting",
             "started_at": self.clock().isoformat(),
             "caused_by": caused_by,
@@ -3957,6 +3992,7 @@ class DispatchRunner:
                 "driver": self.runner.driver.value,
                 "posture": self.posture.posture.value,
                 **self.posture.as_data(),
+                **self.overage_meta(),
                 "status": "starting",
                 "started_at": self.clock().isoformat(),
                 "caused_by": caused_by,

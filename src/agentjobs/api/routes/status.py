@@ -25,6 +25,7 @@ from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from agentjobs.actors import UnknownActorError, validate_actor
+from agentjobs.capabilities import Capability
 from agentjobs.dispatch.address import api_base_from_server
 from agentjobs.dispatch.config import DispatchError, Posture
 from agentjobs.dispatch import queue as dispatch_queue
@@ -40,7 +41,7 @@ from agentjobs.projects import Project, default_home
 from agentjobs.session_identity import SessionIdentity
 from agentjobs.sqlstore import TaskLockTimeout
 
-from ..authorization import assert_actor_agrees
+from ..authorization import assert_actor_agrees, assert_holds
 from ..dependencies import get_task_manager, project_config, request_project, storage_for
 from ..models import (
     ClaimRequest,
@@ -837,6 +838,13 @@ async def dispatch_task_endpoint(
     # person they named.
     if payload.user:
         assert_actor_agrees(request, project_config(project), payload.user, field="user")
+    if payload.over_ceiling:
+        # A second capability on the same route, because it answers a second question
+        # (task-461): `dispatch.start` is whether this caller may spend money, and
+        # `dispatch.over_ceiling` is whether they may spend it on a machine that has
+        # already said it is full. Only a person may, and the UI hiding the button is
+        # not the check -- this is.
+        assert_holds(request, Capability.DISPATCH_OVER_CEILING)
     try:
         # ``dispatch_task`` starts Codex App Server synchronously. Keep it off
         # FastAPI's event loop: the child must handshake with this same AgentJobs
@@ -867,6 +875,10 @@ async def dispatch_task_endpoint(
                 # Never read by a gate. It decides only what happens to a dispatch the
                 # ceiling refuses: told to the caller, or recorded as waiting for a slot.
                 if_full=payload.if_full,
+                # Read by exactly one gate, which it skips. Its right to be set was
+                # decided above; the guard layer honours it without re-deriving that,
+                # exactly as it does for `authorized_by`.
+                over_ceiling=payload.over_ceiling,
             ),
             # Both halves of this call read it: a dispatch that starts hands it to the
             # agent, and one that queues *stores* it, so the start minutes later tells
@@ -910,6 +922,7 @@ async def dispatch_task_endpoint(
         caused_by=_as_int(meta.get("caused_by")),
         runner=handle.runner,
         group=handle.group,
+        over_ceiling=payload.over_ceiling,
     )
 
 

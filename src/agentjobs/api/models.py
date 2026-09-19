@@ -996,6 +996,20 @@ class DispatchRequestBody(BaseModel):
         ),
     )
 
+    over_ceiling: bool = Field(
+        default=False,
+        description=(
+            "Start this run although every machine slot is taken (task-461). A "
+            "deliberate overage of limits.max_concurrent_runs for this one dispatch, "
+            "and nothing else: every other gate binds as it always did, including the "
+            "hourly cap, because an overage is a dispatch. Honoured only for a human "
+            "principal -- a run credential sending it is refused 403 "
+            "'capability_denied' under 'dispatch.over_ceiling'. Mutually exclusive with "
+            "if_full=queue: asking to wait for a slot and asking to start without one "
+            "are opposite answers to the same question."
+        ),
+    )
+
     @model_validator(mode="after")
     def _one_authorization(self) -> "DispatchRequestBody":
         """``caused_by`` cites an entry; ``user`` creates one. Never both.
@@ -1010,6 +1024,12 @@ class DispatchRequestBody(BaseModel):
             )
         if self.runner is not None and self.group is not None:
             raise ValueError("Send either 'runner' or 'group', not both.")
+        if self.over_ceiling and self.if_full == "queue":
+            raise ValueError(
+                "Send either 'over_ceiling' (start now, above the ceiling) or "
+                "'if_full: queue' (wait for a slot), not both. They are the two "
+                "different answers to a full machine."
+            )
         return self
 
 
@@ -1067,6 +1087,14 @@ class DispatchStarted(BaseModel):
     )
     queued_at: Optional[str] = Field(
         default=None, description="When the entry joined the queue, UTC."
+    )
+    over_ceiling: bool = Field(
+        default=False,
+        description=(
+            "True when this run was started above limits.max_concurrent_runs because a "
+            "person chose to (task-461). The machine is over its ceiling until it ends, "
+            "and the slot board says so rather than clipping the count."
+        ),
     )
 
 

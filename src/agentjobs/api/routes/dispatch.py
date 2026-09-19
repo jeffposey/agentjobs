@@ -36,9 +36,15 @@ from agentjobs.dispatch.config import (
     assert_dispatch_permitted,
     dispatch_config_path,
     load_dispatch_config,
+    machine_ceiling,
     sentinel_active,
     sentinel_path,
     set_project_enabled,
+)
+from agentjobs.dispatch.guards import (
+    describe_slot_holders,
+    effective_live_runs,
+    live_runs,
 )
 from agentjobs.dispatch.finish_status import (
     FinishStatus,
@@ -232,6 +238,36 @@ class DispatchStateView(BaseModel):
     can_dispatch: bool = Field(..., description="Every gate is open right now.")
     refusal: Optional[DispatchRefusalView] = Field(
         default=None, description="Which gate refuses, when can_dispatch is false."
+    )
+    machine_occupied: int = Field(
+        default=0,
+        description=(
+            "Run slots in use on this machine right now, counted exactly as the "
+            "concurrency guard counts them (task-461). Machine-wide rather than this "
+            "project's: the ceiling is the machine's."
+        ),
+    )
+    machine_ceiling: int = Field(
+        default=0, description="`limits.max_concurrent_runs` from ~/.agentjobs/dispatch.yaml."
+    )
+    machine_full: bool = Field(
+        default=False,
+        description=(
+            "Every slot is taken, so a dispatch would be refused `concurrency_limit` "
+            "(task-461). Beside `can_dispatch` rather than folded into it, and that is "
+            "the whole point: the four configuration gates are reasons the button "
+            "should not be offered, while a full machine is a question to ask the "
+            "person pressing it -- wait for a slot, take one anyway, or think better of "
+            "it. Withholding the button would answer it for them."
+        ),
+    )
+    slot_holders: str = Field(
+        default="",
+        description=(
+            "The runs holding the slots, in the same sentence the `concurrency_limit` "
+            "refusal uses, so the prompt before the click and the refusal after one name "
+            "the same runs in the same words. Empty when the machine is not full."
+        ),
     )
     config_path: str = Field(..., description="Where a human edits any of this.")
     sentinel_file: str = Field(..., description="Path of the kill-switch sentinel.")
@@ -726,6 +762,15 @@ def _state(project: Project) -> DispatchStateView:
             reason=getattr(exc, "reason", "dispatch_error"), message=str(exc)
         )
 
+    # Read here rather than left to the browser, and unconditionally rather than only
+    # when the four gates opened: a page that knows the machine is full can *ask* before
+    # it spends a round trip on a refusal, which is the whole of task-461. The numbers
+    # come from the same two functions `dispatch_task` counts with, so this surface and
+    # a refused dispatch cannot disagree about whether there is a slot.
+    ceiling, _configured = machine_ceiling(home)
+    holding = [run for run in effective_live_runs(home, live_runs(home)) if run.takes_slot]
+    machine_full = len(holding) >= ceiling
+
     return DispatchStateView(
         project_id=project.id,
         configured=config is not None or unreadable,
@@ -754,6 +799,12 @@ def _state(project: Project) -> DispatchStateView:
         resolved_from=resolved_from,
         can_dispatch=can_dispatch,
         refusal=refusal,
+        machine_occupied=len(holding),
+        machine_ceiling=ceiling,
+        machine_full=machine_full,
+        # Named only when the answer is "full". A sentence about runs the reader cannot
+        # act on is noise on every other poll of every other task page.
+        slot_holders=describe_slot_holders(holding) if machine_full else "",
         config_path=str(dispatch_config_path(home)),
         sentinel_file=str(sentinel_path(home)),
     )

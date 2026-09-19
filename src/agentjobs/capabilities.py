@@ -73,6 +73,18 @@ class Capability(str, Enum):
     DISPATCH = "dispatch.start"
     """Spend money: start a run on a task or a playbook, or cancel one."""
 
+    DISPATCH_OVER_CEILING = "dispatch.over_ceiling"
+    """Start a run although every machine slot is taken (task-461).
+
+    Separate from :attr:`DISPATCH` because it is a different decision, not a bigger one.
+    ``dispatch.start`` asks whether this caller may spend money; this asks whether they
+    may spend it on a machine that has already said it is full. The ceiling exists to
+    stop a click starting an agent the machine cannot afford, and a person choosing to
+    exceed it with the slot holders named in front of them is a judgement nothing else
+    in the system can make -- which is why it is granted to the two human kinds and to
+    no run, whatever ``dispatch.start`` is ever widened to.
+    """
+
     DISPATCH_ADMIN = "dispatch.admin"
     """Enable or disable dispatch for a project -- gate 3 of the dispatch design's four."""
 
