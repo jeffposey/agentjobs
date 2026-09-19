@@ -36,6 +36,7 @@ function env(overrides: Partial<PushEnvironment> = {}): PushEnvironment {
     permission: "default",
     isApplePlatform: false,
     isStandalone: false,
+    isHandheld: true,
     ...overrides,
   };
 }
