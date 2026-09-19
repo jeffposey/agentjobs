@@ -8,6 +8,7 @@ import type {
   LiveRunsView,
   MachineHolderView,
   QueuedDispatchView,
+  StartPauseView,
   TaskRead,
 } from "../api/types";
 import { capacitySentence } from "./LiveRuns";
@@ -887,5 +888,187 @@ describe("the projects the pull mode is armed for (task-462)", () => {
     );
 
     expect(screen.getByTestId("armed-project").dataset.projectId).toBe("beta");
+  });
+});
+
+function pause(overrides: Partial<StartPauseView> = {}): StartPauseView {
+  return {
+    incident_id: "inc_7ffcc0210a984e39",
+    kind: "usage_limit",
+    kind_word: "usage limit",
+    runner: "claude-opus-5",
+    resets_at: "2026-09-18T23:40:00Z",
+    opened_at: "2026-09-18T21:58:00Z",
+    resumes_by_itself: true,
+    queued: 1,
+    projects: ["alpha"],
+    detail: "paused until 2026-09-18T23:40:00+00:00: usage limit on claude-opus-5",
+    ...overrides,
+  };
+}
+
+/**
+ * The pause the two clickless starters take on a usage limit (task-463).
+ *
+ * The assertions are on the *rendered sentence* rather than on the presence of the
+ * notice, because the failure this rail exists to prevent is a person looking at a board
+ * full of waiting work and concluding the machine is broken. A notice that appeared but
+ * said "paused until 2026-09-18T23:40:00+00:00" would be that failure with extra steps:
+ * the reset is a wall-clock fact to whoever is waiting for it, and ENGINEERING.md's rule
+ * is to assert the value a browser will show.
+ */
+describe("the pause on a usage-limit incident (task-463)", () => {
+  const heldQueue = (overrides: Partial<StartPauseView> = {}) =>
+    body({
+      occupied: 0,
+      queued: [queued({ paused_by: "inc_7ffcc0210a984e39" })],
+      queue_limit: 20,
+      paused: [pause(overrides)],
+    });
+
+  it("says when the machine starts again, in the reader's own zone", () => {
+    renderBoard(<SlotBoard body={heldQueue()} queue={[]} projectId="alpha" />);
+
+    const notice = screen.getByTestId("slot-board-paused-queue");
+    const local = new Date("2026-09-18T23:40:00Z").toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    expect(notice).toHaveTextContent(`Paused until ${local}`);
+    expect(notice).not.toHaveTextContent("23:40:00Z");
+  });
+
+  it("names the credential that ran out, so two runners are told apart", () => {
+    renderBoard(<SlotBoard body={heldQueue()} queue={[]} projectId="alpha" />);
+
+    expect(screen.getByTestId("slot-board-paused-queue")).toHaveTextContent(
+      "usage limit on claude-opus-5",
+    );
+  });
+
+  it("says nobody is needed, which is the whole reason it is drawn", () => {
+    renderBoard(<SlotBoard body={heldQueue()} queue={[]} projectId="alpha" />);
+
+    expect(screen.getByTestId("slot-board-paused-queue")).toHaveTextContent(
+      "it starts again by itself",
+    );
+  });
+
+  it("promises no time for a kind that needs a person", () => {
+    // A dead login and a spend limit have no reset. A board counting down to one would
+    // be undertaking something nothing on this machine has undertaken.
+    renderBoard(
+      <SlotBoard
+        body={heldQueue({ kind: "auth", kind_word: "login", resets_at: null, resumes_by_itself: false })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    const notice = screen.getByTestId("slot-board-paused-queue");
+    expect(notice).toHaveTextContent("Paused until the incident clears: login");
+  });
+
+  it("marks the held entry so a partly-paused queue is not misread", () => {
+    renderBoard(
+      <SlotBoard
+        body={body({
+          occupied: 0,
+          queued: [
+            queued({ queue_id: "q_1", paused_by: "inc_7ffcc0210a984e39" }),
+            queued({ queue_id: "q_2", position: 2, task_id: "task-051" }),
+          ],
+          paused: [pause()],
+        })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    const cards = screen.getAllByTestId("queued-dispatch");
+    expect(cards.map((card) => card.dataset.pausedBy)).toEqual([
+      "inc_7ffcc0210a984e39",
+      undefined,
+    ]);
+    expect(cards[0]).toHaveTextContent("paused");
+    expect(cards[1]).not.toHaveTextContent("paused");
+  });
+
+  it("draws the notice on the armed rail too, and says the bound is untouched", () => {
+    renderBoard(
+      <SlotBoard
+        body={body({
+          armed: [armed({ paused_by: "inc_7ffcc0210a984e39" })],
+          paused: [pause({ queued: 0 })],
+        })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    expect(screen.getByTestId("slot-board-paused-armed")).toHaveTextContent("usage limit");
+    // The bound sits beside this badge, and a reader would otherwise assume a paused
+    // arming was spending it. It is not: that is the difference from the disarm.
+    expect(screen.getByTestId("armed-paused")).toHaveTextContent("bound untouched");
+  });
+
+  it("still names what the arming will start when the incident clears", () => {
+    // The steering affordance survives the pause: a person who disagrees with the choice
+    // has until the reset to go and move something, which is longer than they usually get.
+    renderBoard(
+      <SlotBoard
+        body={body({
+          armed: [armed({ paused_by: "inc_7ffcc0210a984e39" })],
+          paused: [pause({ queued: 0 })],
+        })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    expect(screen.getByTestId("armed-next")).toHaveTextContent("task-077");
+  });
+
+  it("draws no notice on a rail nothing on it is waiting for", () => {
+    // A queue held by a Claude incident must not put a notice over an armed project
+    // running on a credential that still answers.
+    renderBoard(
+      <SlotBoard
+        body={body({
+          occupied: 0,
+          queued: [queued({ paused_by: "inc_7ffcc0210a984e39" })],
+          armed: [armed()],
+          paused: [pause()],
+        })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    expect(screen.getByTestId("slot-board-paused-queue")).toBeVisible();
+    expect(screen.queryByTestId("slot-board-paused-armed")).not.toBeInTheDocument();
+  });
+
+  it("draws nothing at all on a machine with no incident", () => {
+    renderBoard(
+      <SlotBoard
+        body={body({ occupied: 0, queued: [queued()], armed: [armed()] })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    expect(screen.queryByTestId("slot-board-paused-queue")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("slot-board-paused-armed")).not.toBeInTheDocument();
+  });
+
+  it("is status, so it survives an alarm holding the page", () => {
+    // `statusOnly` withholds actions. A machine that will start work on its own again is
+    // exactly the status a person needs on a bad day.
+    renderBoard(
+      <SlotBoard body={heldQueue()} queue={[]} projectId="alpha" statusOnly />,
+    );
+
+    expect(screen.getByTestId("slot-board-paused-queue")).toBeVisible();
   });
 });

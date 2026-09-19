@@ -4169,6 +4169,48 @@ fallback, daemon-auth latch or blind retry of work against a dead store. The CLI
 perform its own refresh during a probe, which is normal CLI behaviour and is recorded
 as a confound in experiments about the cause of expiry.
 
+#### The same incident is also a start gate (task-463)
+
+Everything above is about a run that hits the limit **while it is running**. Once slots
+stay full, the thing that decides how much work a machine does is not the ceiling, the
+caps or the queue -- it is the subscription -- and the two starters that have nobody
+watching them, the dispatch queue (task-459) and the pull mode (task-462), were still
+taking off into a closed sky. Each such start is a park: the session comes up, asks for
+a turn, is refused, and joins the incident. One incident becomes a queue of parked
+sessions, a spent hourly cap, and a park note on every task that did nothing wrong.
+
+So an open incident **pauses** both of them. `dispatch.start_pause` is the whole of it,
+and the four properties below are what make it a gate rather than a second mechanism.
+
+| Question | Answer |
+| --- | --- |
+| What pauses | The dispatch queue's `start_due` and the pull mode's `pull_due`, before either reads a task. A paused tick spends no attempt, charges no cap and writes nothing to any task; the entry keeps its position and the arming keeps its bound |
+| What does **not** pause | A person clicking Dispatch. `guards.dispatch_task` never consults the book, so a click still starts and still gets the park above. The asymmetry is the point: the park is a message, and a person who just clicked is there to read it and decide whether to wait. A tick is not, and would only produce more of it |
+| What resumes it | Nothing, in the sense that matters -- there is no resume mechanism here. The gate reads the book every tick, so a closed incident is simply a tick that no longer finds one. Task-417's probe stays the only thing that decides an incident is over, and a pause needs no state, which is why a server restarted mid-pause resumes correctly with nothing to recover |
+| Which credential | `Profile.credential_key`: the driver, the Claude home and the *names* of the auth env vars. **Coarser than `Profile.key`**, which a probe uses -- readiness is a statement about one exact invocation, while a subscription's five-hour window is charged against the login, so a limit hit on Opus is equally in force for Sonnet on the same home. A gate keyed on `key` would wave through the very run the limit refuses. Dropping the driver too was rejected: a Codex limit says nothing about a Claude subscription, and one that paused the other would idle a machine with a working runner |
+| What a person sees | `GET /api/runs/live` carries `paused[]` -- the incident, the runner, the reset, and how many queued entries and which armed projects are waiting on it -- and each held row carries `paused_by`. The slot board draws it above both rails as *"Paused until 6:40 PM: usage limit on claude-opus-5"*, **in the reader's own zone**, with the reset time rendered in the browser because the limit is a wall-clock fact to whoever is waiting for it |
+
+**Every open kind pauses, not only `usage_limit`** -- decided rather than assumed. `auth`
+means the credential cannot log in and `spend_limit` means it will not be billed; a run
+started into either parks exactly as it does into a usage limit. What differs is the
+promise the board may make: only a usage limit ends by itself, so the other two render as
+*"until the incident clears"* and never as a time.
+
+**This replaces a disarm rather than adding a gate.** Until task-463 the pull mode
+retired every arming on the machine when any incident was open, on any credential
+(`pull._incident_stall`). That was the honest thing to do while nothing could resume, but
+it threw the authority away: the hours after the reset -- exactly the hours the arming was
+for -- were lost unless a person came back and armed it again. The pause is strictly
+narrower in what it stops and strictly better in what it keeps.
+
+**Not built here.** No forecast of quota ahead of a limit; the bound is the incident, not
+a prediction. No failover to a different runner in a group because one credential is
+limited -- that is a question about runner selection, and an incident silently changing
+which model does the work is a larger decision than this one. And a runner that overrides
+the Claude home through its own `env` is not distinguished from one that does not,
+because `auth_recovery.profile_for` does not distinguish it either; matching what the book
+actually writes is what makes the gate fire at all.
+
 ### Finishing and durable supervision
 
 Finish is part of the same execution. Persist approval, runway ownership, rebase, gate

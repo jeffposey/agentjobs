@@ -401,6 +401,12 @@ export type ArmedProjectView = {
      */
     next_task_url?: string;
     /**
+     * Paused By
+     *
+     * The incident id holding this arming's starts off (task-463), or empty. The arming keeps its bound and its authority while this is set and starts again on the first tick after the incident closes; `next_task_id` still says what it will start then.
+     */
+    paused_by?: string;
+    /**
      * Posture
      *
      * The envelope pulled runs get, or null for the project default.
@@ -2159,6 +2165,12 @@ export type LiveRunsView = {
      */
     occupied: number;
     /**
+     * Paused
+     *
+     * Why the machine is starting nothing on a credential (task-463). Empty on the ordinary machine, which is the point: a board that says nothing here is a board with nothing to explain. **Unfiltered by project**, on the same argument as `occupied`: the rows answer 'what may I read' and this answers 'why is nothing starting', and a machine out of quota is out of quota whether or not the run that spent it is one this caller may see.
+     */
+    paused?: Array<StartPauseView>;
+    /**
      * Queue Limit
      *
      * `limits.dispatch_queue_limit` from ~/.agentjobs/dispatch.yaml: how many dispatches may wait at once.
@@ -3769,6 +3781,12 @@ export type QueuedDispatchView = {
      */
     detail?: string;
     /**
+     * Paused By
+     *
+     * The incident id holding this entry off (task-463), or empty when nothing is. An entry with this set is not being tried at all: no attempt, no hourly cap, nothing written to its task. It keeps its position.
+     */
+    paused_by?: string;
+    /**
      * Position
      *
      * 1-based place in line. FIFO by when it was queued.
@@ -4192,6 +4210,83 @@ export type Spec = {
      * One or two sentences. The only summary, for every audience.
      */
     summary: string;
+};
+
+/**
+ * StartPauseView
+ *
+ * One open incident, as the reason the machine is starting nothing on a credential.
+ *
+ * **Machine-wide and about starts, not about runs.** The runs it already parked are
+ * task-417's business and appear on their own tasks; what this says is why the two
+ * clickless starters -- the dispatch queue and the pull mode -- are quiet, which is a
+ * question a person asks of the board and of nothing else.
+ *
+ * It is a list rather than one object because the pause is per credential: a machine
+ * with a Claude home out of quota and a working Codex runner has one pause, and the
+ * Codex rows carry on starting beside it.
+ */
+export type StartPauseView = {
+    /**
+     * Detail
+     *
+     * The same sentence the tick's own report prints, in UTC.
+     */
+    detail?: string;
+    /**
+     * Incident Id
+     *
+     * task-417's incident. The same id its park names.
+     */
+    incident_id: string;
+    /**
+     * Kind
+     *
+     * `usage_limit`, `auth` or `spend_limit`. Only `usage_limit` ends by itself, which is why `resets_at` is null for the other two.
+     */
+    kind: string;
+    /**
+     * Kind Word
+     *
+     * How the kind reads in a sentence: `usage limit`, `login`, `spend limit`.
+     */
+    kind_word: string;
+    /**
+     * Opened At
+     *
+     * When the incident opened, UTC.
+     */
+    opened_at: string;
+    /**
+     * Projects
+     *
+     * Armed projects whose pull mode is held by it, by project id.
+     */
+    projects?: Array<string>;
+    /**
+     * Queued
+     *
+     * Queued entries waiting on this incident, over the whole machine.
+     */
+    queued?: number;
+    /**
+     * Resets At
+     *
+     * When the subscription window reopens, UTC, or null. **Render it in the reader's own zone**: the limit is a wall-clock fact to whoever is waiting for it. Null means nothing has undertaken to clear this on its own and the board must not print a time.
+     */
+    resets_at?: string | null;
+    /**
+     * Resumes By Itself
+     *
+     * True when the reset arrives with no person involved, so the board may say 'paused until <time>' rather than 'until the incident clears'.
+     */
+    resumes_by_itself: boolean;
+    /**
+     * Runner
+     *
+     * The runner whose starts are held. Two runners sharing one login each report the same incident under their own name, because a board shows rows rather than credentials.
+     */
+    runner: string;
 };
 
 /**

@@ -465,3 +465,83 @@ class TestAManualClickIsUnchanged:
         machine.dispatch(task_id)
 
         assert [row["name"].rsplit("/", 1)[-1] for row in machine.rows()] == [task_id]
+
+
+# ----- ac-4: what the board is given ---------------------------------------------
+
+
+class TestTheApiSaysSo:
+    """``GET /api/runs/live``, against a real machine with a real incident.
+
+    The board can only draw what this carries, so the assertions are on the fields it
+    reads rather than on a count of rows: the incident, the runner, the reset, and which
+    entries and armings each pause is holding.
+    """
+
+    def live(self, box: Machine) -> Any:
+        from fastapi.testclient import TestClient
+
+        from agentjobs.api.dependencies import reset_dependency_cache
+        from agentjobs.api.main import app
+
+        reset_dependency_cache()
+        try:
+            response = TestClient(app).get("/api/runs/live")
+            assert response.status_code == 200, response.text
+            return response.json()
+        finally:
+            reset_dependency_cache()
+
+    def test_a_quiet_machine_carries_no_pause(self, machine: Machine) -> None:
+        machine.task()
+        arm(machine)
+
+        assert self.live(machine)["paused"] == []
+
+    def test_the_pause_names_the_incident_the_runner_and_the_reset(self, machine: Machine) -> None:
+        machine.task()
+        arm(machine)
+        seed_incident(machine, claude_profile(machine))
+
+        pauses = self.live(machine)["paused"]
+
+        assert len(pauses) == 1
+        assert pauses[0]["incident_id"] == "inc_7ffcc0210a984e39"
+        assert pauses[0]["kind"] == "usage_limit"
+        assert pauses[0]["runner"] == "fake"
+        assert pauses[0]["resets_at"] == RESET.isoformat()
+        assert pauses[0]["resumes_by_itself"] is True
+
+    def test_it_says_what_is_waiting_on_it(self, machine: Machine) -> None:
+        holding = fill_the_machine(machine)
+        waiting = machine.task()
+        enqueue(machine, waiting)
+        arm(machine)
+        seed_incident(machine, claude_profile(machine))
+        free_one_slot(machine, holding[0])
+
+        body = self.live(machine)
+
+        assert body["paused"][0]["queued"] == 1
+        assert body["paused"][0]["projects"] == ["sandbox"]
+        assert body["queued"][0]["paused_by"] == "inc_7ffcc0210a984e39"
+        assert body["armed"][0]["paused_by"] == "inc_7ffcc0210a984e39"
+
+    def test_a_kind_that_needs_a_person_carries_no_reset(self, machine: Machine) -> None:
+        arm(machine)
+        seed_incident(machine, claude_profile(machine), kind="auth", resets_at=None)
+
+        pauses = self.live(machine)["paused"]
+
+        assert pauses[0]["resets_at"] is None
+        assert pauses[0]["resumes_by_itself"] is False
+        assert pauses[0]["kind_word"] == "login"
+
+    def test_an_incident_on_another_credential_holds_nothing(self, machine: Machine) -> None:
+        arm(machine)
+        seed_incident(machine, codex_profile(), incident_id="inc_codex")
+
+        body = self.live(machine)
+
+        assert body["paused"] == []
+        assert body["armed"][0]["paused_by"] == ""

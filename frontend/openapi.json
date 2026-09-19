@@ -512,6 +512,12 @@
             "title": "Next Task Url",
             "type": "string"
           },
+          "paused_by": {
+            "default": "",
+            "description": "The incident id holding this arming's starts off (task-463), or empty. The arming keeps its bound and its authority while this is set and starts again on the first tick after the incident closes; `next_task_id` still says what it will start then.",
+            "title": "Paused By",
+            "type": "string"
+          },
           "posture": {
             "anyOf": [
               {
@@ -2933,6 +2939,14 @@
             "title": "Occupied",
             "type": "integer"
           },
+          "paused": {
+            "description": "Why the machine is starting nothing on a credential (task-463). Empty on the ordinary machine, which is the point: a board that says nothing here is a board with nothing to explain. **Unfiltered by project**, on the same argument as `occupied`: the rows answer 'what may I read' and this answers 'why is nothing starting', and a machine out of quota is out of quota whether or not the run that spent it is one this caller may see.",
+            "items": {
+              "$ref": "#/components/schemas/StartPauseView"
+            },
+            "title": "Paused",
+            "type": "array"
+          },
           "queue_limit": {
             "default": 0,
             "description": "`limits.dispatch_queue_limit` from ~/.agentjobs/dispatch.yaml: how many dispatches may wait at once.",
@@ -5110,6 +5124,12 @@
             "title": "Detail",
             "type": "string"
           },
+          "paused_by": {
+            "default": "",
+            "description": "The incident id holding this entry off (task-463), or empty when nothing is. An entry with this set is not being tried at all: no attempt, no hourly cap, nothing written to its task. It keeps its position.",
+            "title": "Paused By",
+            "type": "string"
+          },
           "position": {
             "description": "1-based place in line. FIFO by when it was queued.",
             "title": "Position",
@@ -5691,6 +5711,83 @@
           "description"
         ],
         "title": "Spec",
+        "type": "object"
+      },
+      "StartPauseView": {
+        "description": "One open incident, as the reason the machine is starting nothing on a credential.\n\n**Machine-wide and about starts, not about runs.** The runs it already parked are\ntask-417's business and appear on their own tasks; what this says is why the two\nclickless starters -- the dispatch queue and the pull mode -- are quiet, which is a\nquestion a person asks of the board and of nothing else.\n\nIt is a list rather than one object because the pause is per credential: a machine\nwith a Claude home out of quota and a working Codex runner has one pause, and the\nCodex rows carry on starting beside it.",
+        "properties": {
+          "detail": {
+            "default": "",
+            "description": "The same sentence the tick's own report prints, in UTC.",
+            "title": "Detail",
+            "type": "string"
+          },
+          "incident_id": {
+            "description": "task-417's incident. The same id its park names.",
+            "title": "Incident Id",
+            "type": "string"
+          },
+          "kind": {
+            "description": "`usage_limit`, `auth` or `spend_limit`. Only `usage_limit` ends by itself, which is why `resets_at` is null for the other two.",
+            "title": "Kind",
+            "type": "string"
+          },
+          "kind_word": {
+            "description": "How the kind reads in a sentence: `usage limit`, `login`, `spend limit`.",
+            "title": "Kind Word",
+            "type": "string"
+          },
+          "opened_at": {
+            "description": "When the incident opened, UTC.",
+            "title": "Opened At",
+            "type": "string"
+          },
+          "projects": {
+            "description": "Armed projects whose pull mode is held by it, by project id.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Projects",
+            "type": "array"
+          },
+          "queued": {
+            "default": 0,
+            "description": "Queued entries waiting on this incident, over the whole machine.",
+            "title": "Queued",
+            "type": "integer"
+          },
+          "resets_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the subscription window reopens, UTC, or null. **Render it in the reader's own zone**: the limit is a wall-clock fact to whoever is waiting for it. Null means nothing has undertaken to clear this on its own and the board must not print a time.",
+            "title": "Resets At"
+          },
+          "resumes_by_itself": {
+            "description": "True when the reset arrives with no person involved, so the board may say 'paused until <time>' rather than 'until the incident clears'.",
+            "title": "Resumes By Itself",
+            "type": "boolean"
+          },
+          "runner": {
+            "description": "The runner whose starts are held. Two runners sharing one login each report the same incident under their own name, because a board shows rows rather than credentials.",
+            "title": "Runner",
+            "type": "string"
+          }
+        },
+        "required": [
+          "incident_id",
+          "kind",
+          "kind_word",
+          "runner",
+          "opened_at",
+          "resumes_by_itself"
+        ],
+        "title": "StartPauseView",
         "type": "object"
       },
       "StuckGroup": {
