@@ -81,9 +81,14 @@ export function notificationFor(
   const count = attention.blocking;
   if (count <= 0) return null;
 
-  const lead = episode.lead_task_id
+  const named = episode.lead_task_id
     ? `${episode.lead_task_id}: ${episode.lead_task_title ?? ""}`.trim()
     : "";
+  // The ask leads, because it is the part that decides whether this is worth getting up
+  // for. Naming the task says which work is stopped and never what is wanted of you,
+  // and a person glancing at a lock screen is deciding exactly one thing: now or later.
+  const ask = episode.lead_ask ?? "";
+  const lead = ask && named ? `${ask} — ${named}` : ask || named;
   const title = count === 1 ? "1 task is waiting on you" : `${count} tasks are waiting on you`;
   let body = lead || "Open AgentJobs to see what has stopped.";
   if (count > 1 && lead) {

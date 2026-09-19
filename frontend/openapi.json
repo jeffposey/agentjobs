@@ -771,6 +771,11 @@
             "title": "Id",
             "type": "string"
           },
+          "lead_ask": {
+            "default": "",
+            "title": "Lead Ask",
+            "type": "string"
+          },
           "lead_task_id": {
             "anyOf": [
               {

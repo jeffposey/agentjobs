@@ -33,7 +33,13 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import httpx
 
-from ..attention import AttentionState, owes_notification, reconcile, waiting_path
+from ..attention import (
+    AttentionState,
+    ask_phrase,
+    owes_notification,
+    reconcile,
+    waiting_path,
+)
 from ..manager import TaskManager
 from .keys import VapidKey, authorization_header, load_or_create
 from .subscriptions import (
@@ -120,14 +126,23 @@ def payload_for(state: AttentionState, project_id: str, *, detail: str) -> Optio
     count = state.blocking
     title = "1 task is waiting on you" if count == 1 else f"{count} tasks are waiting on you"
     body = "Open AgentJobs to see what has stopped."
-    if detail == DETAIL_TASK and state.waiting:
+    if state.waiting:
         lead = state.waiting[0]
-        named = f"{lead.id}: {lead.title}".strip()
-        if count > 1:
+        # The ask carries in *both* detail modes, because it is not task content: it
+        # says what is wanted, never what the work is. "Needs review" is what tells the
+        # person whether to go and find a computer, which is the whole job of this line,
+        # while telling someone reading over their shoulder nothing about the project.
+        # Only the id and title are withheld at ``count``.
+        ask = ask_phrase(lead)
+        named = f"{lead.id}: {lead.title}".strip() if detail == DETAIL_TASK else ""
+        head = f"{ask} — {named}" if ask and named else ask or named
+        if head:
             others = count - 1
-            body = f"{named} — and {others} other{'' if others == 1 else 's'}."
-        else:
-            body = named
+            body = (
+                f"{head} — and {others} other{'' if others == 1 else 's'}."
+                if count > 1
+                else head
+            )
 
     return PushPayload(
         episode_id=episode.id,

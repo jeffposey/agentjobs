@@ -56,7 +56,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 from .dashboard import human_waiting_tasks
 from .dispatch.atomic_yaml import merge_yaml_atomically, read_yaml_resiliently
 from .manager import TaskManager
-from .models_v2 import Task
+from .models_v2 import BallReason, Task
 from .projects import default_home
 
 ATTENTION_DIRNAME = "attention"
@@ -195,6 +195,34 @@ def owes_notification(episode: Optional[Episode], last_notified_id: Optional[str
     if episode is None or episode.acknowledged:
         return False
     return episode.id != last_notified_id
+
+
+ASK_PHRASES = {
+    BallReason.REVIEW: "Needs review",
+    BallReason.DECISION: "Needs a decision",
+    BallReason.APPROVAL: "Needs approval",
+    BallReason.INPUT: "Needs your input",
+    BallReason.SPEC: "Needs a spec",
+}
+"""What each human-ball reason is called on a lock screen.
+
+Deliberately the *reason* rather than the ``ball_prompt``. The prompt is the complete
+ask and belongs on the record where there is room for it; a notification gets two or
+three words, and the reason is the part that survives being cut to that length while
+still changing what the person does next.
+"""
+
+
+def ask_phrase(task: Task) -> str:
+    """The lead task's ask, or empty where it has none a person would act on.
+
+    Empty rather than a placeholder: a client that prints "Needs something" has added a
+    line of text and no information, and simply naming the task is better than that.
+    """
+    reason = task.ball_reason
+    if reason is None:
+        return ""
+    return ASK_PHRASES.get(reason, "")
 
 
 def waiting_path(project_id: str, episode: Episode) -> str:

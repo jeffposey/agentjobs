@@ -612,6 +612,10 @@ export type AttentionEpisodeView = {
      */
     id: string;
     /**
+     * Lead Ask
+     */
+    lead_ask?: string;
+    /**
      * Lead Task Id
      */
     lead_task_id?: string | null;

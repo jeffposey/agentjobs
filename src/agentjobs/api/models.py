@@ -332,6 +332,17 @@ class AttentionEpisodeView(BaseModel):
     tasks: List[str]
     lead_task_id: Optional[str] = None
     lead_task_title: Optional[str] = None
+    lead_ask: str = ""
+    """What the lead task wants, in the two or three words a lock screen has room for.
+
+    A notification that names the task says *which* work is stopped and never *what is
+    being asked*, which is the only thing that decides whether the person has to go and
+    find a computer: "Needs review" and "Needs a decision" are acted on differently, and
+    a task title distinguishes neither. Rendered here rather than in each client for the
+    same reason as ``deep_link`` -- three callers in two languages -- and empty where the
+    task carries no reason, which is the one case a client must fall back from rather
+    than print a bare dash.
+    """
     deep_link: str = ""
     """Where a notification for this episode should land, acknowledgment marker and all.
 
