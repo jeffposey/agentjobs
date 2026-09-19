@@ -182,6 +182,25 @@ class TestARunIsRefused:
         assert refusal(client.post("/api/dispatch/enable"))["code"] == "capability_denied"
         assert refusal(client.post("/api/dispatch/disable"))["code"] == "capability_denied"
 
+    def test_it_cannot_arm_or_disarm_the_pull_mode(self, sandbox: Path) -> None:
+        """task-462's ac-2, and the strongest refusal on this list by consequence.
+
+        Arming is not one purchase, it is a standing authority for the server to keep
+        starting runs until a bound runs out. An agent that could arm the machine could
+        buy itself an unbounded supply of successors out of one act -- which is the
+        unbounded loop design section 2 exists to prevent, reached by a different door.
+        """
+        task_id = a_task(owner())
+        client, _ = dispatched(sandbox, task_id)
+
+        assert (
+            refusal(client.post("/api/dispatch/arm", json={"bound_kind": "starts", "starts": 5}))[
+                "code"
+            ]
+            == "capability_denied"
+        )
+        assert refusal(client.post("/api/dispatch/disarm"))["code"] == "capability_denied"
+
     def test_it_cannot_switch_on_the_idle_session_sweep(self, sandbox: Path) -> None:
         """Enforcement stops the owner's own sessions, so only the owner turns it on
         (task-447)."""
@@ -450,6 +469,16 @@ class TestAnOwnerLosesNothing:
 
         assert started.status_code != 403, started.text
         assert enabled.status_code != 403, enabled.text
+
+    def test_an_owner_reaches_the_pull_mode_controls(self, sandbox: Path) -> None:
+        """Not 403. On a temp home with no dispatch.yaml the gate refuses arming under
+        its own code, which is the route working; only a 403 would mean the owner had
+        lost the switch the run above was refused."""
+        armed = owner().post("/api/dispatch/arm", json={"bound_kind": "starts", "starts": 3})
+        disarmed = owner().post("/api/dispatch/disarm")
+
+        assert armed.status_code != 403, armed.text
+        assert disarmed.status_code != 403, disarmed.text
 
     def test_an_owner_can_write_as_an_agent(self, sandbox: Path) -> None:
         """The CLI and MCP run as the person at this machine and attribute to the tool.

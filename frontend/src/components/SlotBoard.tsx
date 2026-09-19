@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 
 import type {
+  ArmedProjectView,
   LiveRunView,
   LiveRunsView,
   MachineHolderView,
@@ -549,6 +550,102 @@ function WaitingRail({
   );
 }
 
+/**
+ * The projects the pull mode is armed for, and what each would start next (task-462).
+ *
+ * **A rail, like the waiting dispatches, and for the opposite reason.** A queued
+ * dispatch has no slot; an arming has no slot *yet* and will take whichever one frees.
+ * Neither is a cell, because a cell is a slot the machine actually has, and drawing
+ * either as one would say the machine is bigger than it is.
+ *
+ * **It names what starts next.** That is the affordance the mode needs and the reason
+ * the server sends it: the whole steering mechanism is the stored queue order, so a
+ * person who disagrees with the choice has to be able to see it *before* it happens and
+ * go and move something. A board that only said "armed" would leave them finding out
+ * from a run that had already started.
+ *
+ * Drawn even under an alarm, like the waiting rail: a machine that will keep starting
+ * work on its own is status, and arguably the most important status on the page. The one
+ * thing `statusOnly` withholds is Disarm, which is an action.
+ */
+function ArmedRail({
+  armed,
+  renderAction,
+}: {
+  armed: ArmedProjectView[];
+  renderAction?: (entry: ArmedProjectView) => React.ReactNode;
+}) {
+  if (armed.length === 0) return null;
+  return (
+    <section
+      data-testid="slot-board-armed"
+      data-armed={armed.length}
+      aria-label="Projects the pull mode is armed for"
+      className="mt-3 border-t border-dark-border pt-3"
+    >
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-dark-muted">
+          Pulling from the queue
+        </h3>
+        <span className="text-xs text-dark-muted">
+          free slots fill themselves, with every dispatch gate checked at the start
+        </span>
+      </div>
+      <ol className="space-y-2">
+        {armed.map((entry) => (
+          <li
+            key={entry.arming_id}
+            data-testid="armed-project"
+            data-arming-id={entry.arming_id}
+            data-project-id={entry.project_id}
+            className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-orange-800/70 bg-dark-bg p-3"
+          >
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-dark-text">
+                {entry.project_name || entry.project_id}
+                <span className="ml-2 text-xs text-dark-muted" data-testid="armed-bound">
+                  {entry.armed_by ? `armed by ${entry.armed_by} · ` : ""}
+                  {entry.bound}
+                  {entry.posture ? ` · ${entry.posture}` : ""}
+                </span>
+              </div>
+              {entry.next_task_id ? (
+                <Link
+                  to={entry.next_task_url || projectPath(entry.project_id, `/tasks/${entry.next_task_id}`)}
+                  data-testid="armed-next"
+                  className="mt-1 block min-w-0 hover:text-blue-300"
+                >
+                  <span className="text-xs text-dark-muted">next: </span>
+                  <span className="font-mono text-xs text-blue-400">{entry.next_task_id}</span>
+                  <span className="ml-2 text-sm text-dark-text">{entry.next_task_title}</span>
+                </Link>
+              ) : (
+                <p className="mt-1 text-xs text-dark-muted" data-testid="armed-next-empty">
+                  next: nothing claimable in that queue right now
+                </p>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-3 text-xs text-dark-muted">
+              {renderAction?.(entry)}
+            </div>
+          </li>
+        ))}
+      </ol>
+      {/* The precedence rule, said where it is visible rather than only in the design
+          doc: somebody watching a queued dispatch and an arming compete for one slot
+          should be able to read which wins off the board. */}
+      <p className="mt-2 text-xs text-dark-muted">
+        A dispatch you asked for by name starts before any of these.
+      </p>
+    </section>
+  );
+}
+
+/** Whether this project is one of the armed ones, for the board's own header. */
+export function armedHere(armed: ArmedProjectView[], projectId: string): boolean {
+  return armed.some((entry) => entry.project_id === projectId);
+}
+
 /** How long one entry has been waiting, or the moment it joined when that is unknown. */
 export function waitedFor(entry: QueuedDispatchView): string {
   if (entry.waiting_seconds === null || entry.waiting_seconds === undefined) {
@@ -617,6 +714,13 @@ export type SlotBoardProps = {
    * that belong to whoever is already holding them.
    */
   renderQueuedAction?: (entry: QueuedDispatchView) => React.ReactNode;
+  /**
+   * The control for one armed project, supplied by the page (task-462).
+   *
+   * Disarm, in practice, and the page's for the same reason Cancel is: this component
+   * knows the machine's shape and nothing about mutating it.
+   */
+  renderArmedAction?: (entry: ArmedProjectView) => React.ReactNode;
 };
 
 export function SlotBoard({
@@ -628,6 +732,7 @@ export function SlotBoard({
   renderQueueGate,
   renderWhyThisOne,
   renderQueuedAction,
+  renderArmedAction,
 }: SlotBoardProps) {
   // Nothing until the machine has answered. A board that painted a default number of
   // cells and then corrected itself one poll later would be a page whose shape is a
@@ -637,7 +742,14 @@ export function SlotBoard({
   const layout = boardLayout(body, queue, projectId);
   const runways = unexplainedRunways(body);
   const waiting = body.queued ?? [];
-  if (layout.cells.length === 0 && runways.length === 0 && waiting.length === 0) return null;
+  const armed = body.armed ?? [];
+  if (
+    layout.cells.length === 0 &&
+    runways.length === 0 &&
+    waiting.length === 0 &&
+    armed.length === 0
+  )
+    return null;
 
   let firstFree = true;
 
@@ -767,6 +879,9 @@ export function SlotBoard({
         limit={body.queue_limit ?? 0}
         renderAction={statusOnly ? undefined : renderQueuedAction}
       />
+      {/* Under the waiting rail, which is the order the two are honoured in: a dispatch
+          somebody asked for by name starts before the pull mode fills anything. */}
+      <ArmedRail armed={armed} renderAction={statusOnly ? undefined : renderArmedAction} />
       {!statusOnly && renderQueueGate?.()}
       <RunwayStrip holders={runways} />
     </section>

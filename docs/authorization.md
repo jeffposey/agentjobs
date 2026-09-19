@@ -42,7 +42,7 @@ human is asking, this stops being a table and becomes a role system.
 | `task.review` | approve, request-changes, answer, redirect, hold, resume, reject | ✓ | ✓ | — |
 | `dispatch.start` | task dispatch, playbook run, run cancel, queued-dispatch cancel | ✓ | ✓ | — |
 | `dispatch.over_ceiling` | the `over_ceiling` field on a task dispatch | ✓ | ✓ | — |
-| `dispatch.admin` | dispatch enable / disable, idle-session settings | ✓ | ✓ | — |
+| `dispatch.admin` | dispatch enable / disable, pull-mode arm / disarm, idle-session settings | ✓ | ✓ | — |
 | `project.admin` | project register / init / inspect | ✓ | ✓ | — |
 | `queue.admin` | queue repair / compact | ✓ | ✓ | — |
 | `webhook.admin` | webhook create / delete / test | ✓ | ✓ | — |
@@ -76,6 +76,20 @@ widened; `tests/test_capabilities.py` asserts it on its own terms, where such a 
 is what would break it. What an overage does *not* widen is everything else: it is a
 dispatch, so it counts against `dispatches_per_hour` like any other, and every other
 gate binds unchanged.
+
+**Arming the pull mode is `dispatch.admin`, and the reason is what it grants** (task-462).
+Every other row on this table is permission to do one thing once. An arming is a standing
+authority for the server to keep starting runs, unattended, until its bound runs out --
+which is why it sits with enable/disable rather than with `dispatch.start`: it is a change
+to what this machine will do on its own, not a purchase. A run holds neither capability,
+so the property that matters holds under either reading and is the one worth stating
+plainly: **an agent cannot arm the machine to keep starting agents.** It is refused 403
+with `capability_denied` before the handler is entered, by the same dependency that
+refuses it `approve`.
+
+Disarm shares the capability with arm, on the rule every kill switch follows here: whoever
+may turn a thing on may turn it off, and a switch reachable by fewer people than the thing
+it stops is worse than none.
 
 **The two human kinds are identical, deliberately.** `owner` and `tailnet` differ in how
 identity was established, not in what they may do. Narrowing `tailnet` would be an

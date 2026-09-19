@@ -255,7 +255,7 @@ CREATE TABLE child_wait (
 );
 """
 
-SCHEMA_REVISION = 5
+SCHEMA_REVISION = 6
 """Additive revisions applied on top of physical schema version 1 (task-416).
 
 Revision 3 (task-417) adds the auth-recovery incident, waiter and probe tables, which no
@@ -264,6 +264,9 @@ session the idle sweep stopped and every change of its enforcement mode. Revisio
 (task-459) adds ``dispatch_queue``, the machine's durable queue of authorised dispatches
 waiting for a slot -- a table the previous build neither reads nor writes, so a queue
 filled by the new server is simply invisible to an older process rather than misread.
+Revision 6 (task-462) adds ``pull_arming``, the per-project record of a person having
+switched the pull mode on with a bound -- the sole authority for a pulled dispatch, and
+again a table the previous build neither reads nor writes.
 
 **Deliberately not a ``user_version`` bump.** Processes running the previous build share
 this file with the new one -- an epic walk started before an upgrade keeps dispatching
@@ -405,6 +408,28 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_dispatch_queue_task
   ON dispatch_queue(project_id, task_id) WHERE status IN ('queued', 'starting');
 CREATE INDEX IF NOT EXISTS ix_dispatch_queue_waiting
   ON dispatch_queue(seq) WHERE status IN ('queued', 'starting');
+
+CREATE TABLE IF NOT EXISTS pull_arming (
+  arming_id     TEXT PRIMARY KEY,
+  project_id    TEXT NOT NULL,
+  armed_by      TEXT NOT NULL,
+  armed_at      TEXT NOT NULL,
+  bound_kind    TEXT NOT NULL CHECK (bound_kind IN ('starts', 'until', 'open')),
+  bound_starts  INTEGER,
+  bound_until   TEXT,
+  posture       TEXT,
+  state         TEXT NOT NULL DEFAULT 'armed'
+                CHECK (state IN ('armed', 'disarmed', 'spent', 'expired', 'faulted')),
+  started       INTEGER NOT NULL DEFAULT 0,
+  failures      INTEGER NOT NULL DEFAULT 0,
+  detail        TEXT NOT NULL DEFAULT '',
+  retired_at    TEXT,
+  retired_by    TEXT,
+  updated_at    TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_pull_arming_open
+  ON pull_arming(project_id) WHERE state = 'armed';
+CREATE INDEX IF NOT EXISTS ix_pull_arming_project ON pull_arming(project_id, armed_at);
 """
 
 _ADDED_COLUMNS = (
@@ -887,6 +912,86 @@ class QueuedDispatch:
             queued_at=row["queued_at"],
             claimed_at=row["claimed_at"],
             settled_at=row["settled_at"],
+            updated_at=row["updated_at"],
+        )
+
+
+PULL_ARMED = "armed"
+PULL_DISARMED = "disarmed"
+PULL_SPENT = "spent"
+PULL_EXPIRED = "expired"
+PULL_FAULTED = "faulted"
+
+PULL_RETIRED_STATES = (PULL_DISARMED, PULL_SPENT, PULL_EXPIRED, PULL_FAULTED)
+"""Every way an arming ends. Four rather than one, because the sentence a person reads
+on the board -- *you turned it off* against *it ran out* against *it kept failing* -- is
+the whole of what they need, and a single ``closed`` with a detail string would put that
+distinction somewhere only a careful reader finds it."""
+
+BOUND_STARTS = "starts"
+BOUND_UNTIL = "until"
+BOUND_OPEN = "open"
+
+
+@dataclass(frozen=True)
+class PullArming:
+    """One person having switched the pull mode on for one project, with a bound (task-462).
+
+    **The sole authority for a pulled dispatch.** Everything a later start has to be able
+    to establish without asking anybody is here: who armed it, when, how much of the
+    bound is left, and the posture they chose. It is read at every tick and never taken
+    from a request, which is what makes a pulled run's authorising entry evidence rather
+    than a claim -- see :mod:`agentjobs.dispatch.pull`.
+
+    It is not an execution and holds no run. A run it starts has its own execution, its
+    own envelope and its own record; this row only ever says that a person authorised
+    starting them.
+    """
+
+    arming_id: str
+    project_id: str
+    armed_by: str
+    armed_at: str
+    bound_kind: str
+    bound_starts: Optional[int]
+    bound_until: Optional[str]
+    posture: Optional[str]
+    state: str
+    started: int
+    failures: int
+    detail: str
+    retired_at: Optional[str]
+    retired_by: Optional[str]
+    updated_at: str
+
+    @property
+    def armed(self) -> bool:
+        return self.state == PULL_ARMED
+
+    @property
+    def starts_left(self) -> Optional[int]:
+        """How many more runs this arming may buy, or ``None`` when it is not counted."""
+        if self.bound_kind != BOUND_STARTS or self.bound_starts is None:
+            return None
+        return max(0, self.bound_starts - self.started)
+
+    @classmethod
+    def from_row(cls, row: sqlite3.Row) -> "PullArming":
+        return cls(
+            arming_id=row["arming_id"],
+            project_id=row["project_id"],
+            armed_by=row["armed_by"],
+            armed_at=row["armed_at"],
+            bound_kind=row["bound_kind"],
+            bound_starts=(None if row["bound_starts"] is None else int(row["bound_starts"])),
+            bound_until=row["bound_until"],
+            posture=row["posture"],
+            state=row["state"],
+            started=int(row["started"] or 0),
+            failures=int(row["failures"] or 0),
+            detail=row["detail"] or "",
+            retired_at=row["retired_at"],
+            retired_by=row["retired_by"],
             updated_at=row["updated_at"],
         )
 
@@ -2786,6 +2891,211 @@ class ExecutionStore:
             )
             return cursor.rowcount
 
+    # ----- the pull mode's arming record (task-462) --------------------------------
+
+    def arm_pull(
+        self,
+        project_id: str,
+        *,
+        armed_by: str,
+        bound_kind: str,
+        bound_starts: Optional[int] = None,
+        bound_until: Optional[str] = None,
+        posture: Optional[str] = None,
+        arming_id: Optional[str] = None,
+    ) -> PullArming:
+        """Record that a person switched the pull mode on for this project.
+
+        One armed row per project, enforced by a partial unique index inside the
+        transaction rather than by a read before it: two browsers arming the same project
+        in the same second is the race a per-project mode has to lose safely, and the
+        loser is told which arming won rather than silently creating a second budget.
+
+        The bound is stored as it was chosen, not as a derived deadline. ``starts`` counts
+        runs, which is the only bound that means the same thing on a machine whose clock
+        moved; ``until`` is a wall-clock end; ``open`` is *until somebody disarms it*,
+        which is a real answer and not the absence of one.
+        """
+        if bound_kind not in (BOUND_STARTS, BOUND_UNTIL, BOUND_OPEN):
+            raise ValueError(f"{bound_kind!r} is not a pull-mode bound")
+        if bound_kind == BOUND_STARTS and not (bound_starts and bound_starts > 0):
+            raise ValueError("a `starts` bound needs a positive number of starts")
+        if bound_kind == BOUND_UNTIL and not bound_until:
+            raise ValueError("an `until` bound needs a moment to stop at")
+        with self.transaction("pull-arm") as connection:
+            existing = connection.execute(
+                "SELECT * FROM pull_arming WHERE project_id = ? AND state = 'armed'",
+                (project_id,),
+            ).fetchone()
+            if existing is not None:
+                raise AlreadyQueued(
+                    f"{project_id} is already armed for the pull mode by "
+                    f"{existing['armed_by']!r} ({existing['arming_id']}); disarm it before "
+                    "arming it again",
+                    queue_id=existing["arming_id"],
+                )
+            moment = _iso(self.now())
+            identifier = arming_id or f"arm_{uuid.uuid4().hex[:12]}"
+            connection.execute(
+                "INSERT INTO pull_arming(arming_id, project_id, armed_by, armed_at, "
+                "bound_kind, bound_starts, bound_until, posture, state, updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?,'armed',?)",
+                (
+                    identifier,
+                    project_id,
+                    armed_by,
+                    moment,
+                    bound_kind,
+                    bound_starts if bound_kind == BOUND_STARTS else None,
+                    bound_until if bound_kind == BOUND_UNTIL else None,
+                    posture,
+                    moment,
+                ),
+            )
+            row = connection.execute(
+                "SELECT * FROM pull_arming WHERE arming_id = ?", (identifier,)
+            ).fetchone()
+            return PullArming.from_row(row)
+
+    def armed_pulls(self) -> List[PullArming]:
+        """Every project armed right now, oldest arming first. Round-robin order."""
+        return [
+            PullArming.from_row(row)
+            for row in self._read(
+                "SELECT * FROM pull_arming WHERE state = 'armed' ORDER BY armed_at, arming_id"
+            )
+        ]
+
+    def armed_pull(self, project_id: str) -> Optional[PullArming]:
+        """This project's live arming, or ``None`` when it is not armed."""
+        rows = self._read(
+            "SELECT * FROM pull_arming WHERE project_id = ? AND state = 'armed'", (project_id,)
+        )
+        return PullArming.from_row(rows[0]) if rows else None
+
+    def pull_arming(self, arming_id: str) -> Optional[PullArming]:
+        """One arming by its id, whatever state it is in. This is what a start reads."""
+        rows = self._read("SELECT * FROM pull_arming WHERE arming_id = ?", (arming_id,))
+        return PullArming.from_row(rows[0]) if rows else None
+
+    def pull_armings(self, project_id: str, *, limit: int = 20) -> List[PullArming]:
+        """This project's armings, newest first. The history behind the board's one line."""
+        return [
+            PullArming.from_row(row)
+            for row in self._read(
+                "SELECT * FROM pull_arming WHERE project_id = ? "
+                f"ORDER BY armed_at DESC LIMIT {int(limit)}",
+                (project_id,),
+            )
+        ]
+
+    def spend_pull_start(self, arming_id: str) -> Optional[PullArming]:
+        """Charge one start to this arming, refusing when the bound has no room left.
+
+        The increment and the bound check are one statement, which is the whole reason
+        this is a store method rather than arithmetic in the tick: two ticks -- a
+        server's and a hand-run one -- both reading ``started < bound`` and both starting
+        a run is exactly how a bound of three buys four.
+
+        ``None`` means the arming is not armed any more, or its bound is spent. The
+        caller retires it and says which; this method never changes ``state``, so a
+        refusal here is always recoverable by reading the row.
+        """
+        with self.transaction("pull-spend") as connection:
+            cursor = connection.execute(
+                "UPDATE pull_arming SET started = started + 1, updated_at = ? "
+                "WHERE arming_id = ? AND state = 'armed' "
+                "AND (bound_kind <> 'starts' OR started < bound_starts)",
+                (_iso(self.now()), arming_id),
+            )
+            if cursor.rowcount != 1:
+                return None
+            return PullArming.from_row(
+                connection.execute(
+                    "SELECT * FROM pull_arming WHERE arming_id = ?", (arming_id,)
+                ).fetchone()
+            )
+
+    def refund_pull_start(self, arming_id: str) -> None:
+        """Give back a start charged for a dispatch that then failed to launch.
+
+        Charging before the dispatch is what makes the bound safe under two ticks; the
+        refund is what stops a bound of three being spent by three refusals. It never
+        goes below zero and never touches ``failures``, which
+        :meth:`record_pull_failure` owns.
+        """
+        with self.transaction("pull-refund") as connection:
+            connection.execute(
+                "UPDATE pull_arming SET started = MAX(0, started - 1), updated_at = ? "
+                "WHERE arming_id = ?",
+                (_iso(self.now()), arming_id),
+            )
+
+    def clear_pull_failures(self, arming_id: str) -> None:
+        """Forget this arming's run of failed starts, because one has just succeeded.
+
+        Separate from :meth:`spend_pull_start` rather than folded into it, because the
+        bound is charged *before* the dispatch and a failure is only known afterwards.
+        Resetting at the charge would make the run of three unreachable: every failed
+        start would clear the count its own failure was about to add to.
+        """
+        with self.transaction("pull-recovered") as connection:
+            connection.execute(
+                "UPDATE pull_arming SET failures = 0, updated_at = ? WHERE arming_id = ?",
+                (_iso(self.now()), arming_id),
+            )
+
+    def record_pull_failure(self, arming_id: str) -> int:
+        """Count one start that failed, and answer how many have failed in a row.
+
+        Reset to zero by :meth:`clear_pull_failures`, so this counts *consecutive* failures
+        rather than failures. A machine-wide fault -- a runner that no longer launches, a
+        login that has expired -- fails every task it is offered, and a mode that kept
+        offering would burn the hourly cap on nothing; a run of three is the tick's
+        signal to stop and say so.
+        """
+        with self.transaction("pull-failure") as connection:
+            connection.execute(
+                "UPDATE pull_arming SET failures = failures + 1, updated_at = ? "
+                "WHERE arming_id = ?",
+                (_iso(self.now()), arming_id),
+            )
+            row = connection.execute(
+                "SELECT failures FROM pull_arming WHERE arming_id = ?", (arming_id,)
+            ).fetchone()
+            return int(row["failures"]) if row is not None else 0
+
+    def retire_pull(
+        self,
+        arming_id: str,
+        *,
+        state: str,
+        retired_by: str = "",
+        detail: str = "",
+    ) -> Optional[PullArming]:
+        """End an arming. ``None`` when it had already ended, so a double disarm is quiet.
+
+        The compare-and-set on ``state`` is what makes a disarm idempotent: a person
+        pressing Disarm twice, or pressing it in the same second a bound runs out, gets
+        one retirement and one reason rather than the second overwriting the first.
+        """
+        if state not in PULL_RETIRED_STATES:
+            raise ValueError(f"{state!r} is not a way an arming ends")
+        with self.transaction("pull-retire") as connection:
+            moment = _iso(self.now())
+            cursor = connection.execute(
+                "UPDATE pull_arming SET state = ?, retired_at = ?, retired_by = ?, "
+                "detail = ?, updated_at = ? WHERE arming_id = ? AND state = 'armed'",
+                (state, moment, retired_by, detail[:1000], moment, arming_id),
+            )
+            if cursor.rowcount != 1:
+                return None
+            return PullArming.from_row(
+                connection.execute(
+                    "SELECT * FROM pull_arming WHERE arming_id = ?", (arming_id,)
+                ).fetchone()
+            )
+
     def mark_controlled(self, execution_id: str, *, controlled_by: Optional[str]) -> None:
         """Hand an execution to the durable controller, or back. Quiescent boundary only."""
         with self.transaction("controlled-by") as connection:
@@ -3689,6 +3999,16 @@ __all__ = [
     "QUEUE_STARTED",
     "QUEUE_STARTING",
     "QUEUE_WAITING",
+    "BOUND_OPEN",
+    "BOUND_STARTS",
+    "BOUND_UNTIL",
+    "PULL_ARMED",
+    "PULL_DISARMED",
+    "PULL_EXPIRED",
+    "PULL_FAULTED",
+    "PULL_RETIRED_STATES",
+    "PULL_SPENT",
+    "PullArming",
     "QueuedDispatch",
     "SCHEMA_REVISION",
     "SCHEMA_VERSION",

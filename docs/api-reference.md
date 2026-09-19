@@ -254,6 +254,8 @@ the second switch and can never define what runs. See
 | `GET` | `/api/dispatch` | Whether dispatch is configured and enabled, and the runners this machine defines |
 | `POST` | `/api/dispatch/enable` | Enable dispatch for the project |
 | `POST` | `/api/dispatch/disable` | Disable it. Always available, deliberately without ceremony |
+| `POST` | `/api/dispatch/arm` | Arm the pull mode with a bound: free slots then fill themselves from this project's queue (task-462) |
+| `POST` | `/api/dispatch/disarm` | Stop it starting anything more. Kills nothing |
 | `POST` | `/api/tasks/{task_id}/dispatch` | Start an agent on this task |
 | `GET` | `/api/dispatch/runs` | Runs, live and historical, from the ledger |
 | `POST` | `/api/dispatch/runs/{run_id}/cancel` | Cancel one live run |
@@ -265,6 +267,12 @@ the second switch and can never define what runs. See
 
 `transcript.log` is a raw TTY capture, so a line appears in it once per terminal
 repaint. Link to it and read it; never compute a count from it.
+
+Arm and disarm need `dispatch.admin`, which no run holds: an agent cannot arm the
+machine to keep starting agents. A bound is required and has no default -- `starts`
+with a count, `until` with a moment, or `open` for *until disarmed* -- and both routes
+answer with the whole dispatch state, whose `pull` field carries the arming and what
+`task_next` says it would start next.
 
 ### The routes that are not project-scoped
 

@@ -23,11 +23,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from agentjobs.dispatch import pull as dispatch_pull
 from agentjobs.dispatch import queue as dispatch_queue
 from agentjobs.dispatch.config import machine_ceiling
 from agentjobs.dispatch.finish_status import read_finish_status
@@ -47,7 +48,7 @@ from agentjobs.exposure import Visibility, readable_by
 from agentjobs.principals import Principal
 from agentjobs.projects import Project, default_home
 
-from ..dependencies import get_principal, storage_for, visible_projects
+from ..dependencies import get_principal, manager_for, storage_for, visible_projects
 
 router = APIRouter(prefix="/api/runs", tags=["dispatch"])
 
@@ -182,6 +183,46 @@ class QueuedDispatchView(BaseModel):
     task_url: str = Field(..., description="Where this entry's task is, in this app.")
 
 
+class ArmedProjectView(BaseModel):
+    """One project the pull mode is armed for, as the slot board draws it (task-462).
+
+    Machine-wide, beside the runs and the waiting dispatches, because that is the scope
+    of the thing being described: the pull mode competes for the same `max_concurrent_runs`
+    every other row here is about, and a board that learned "armed" from a per-project
+    call would show an arming that is not the one taking the slot in front of it.
+    """
+
+    project_id: str
+    project_name: str = ""
+    arming_id: str
+    armed_by: str = Field(default="", description="The person who armed it.")
+    armed_at: str = Field(..., description="When they armed it, UTC.")
+    bound: str = Field(
+        ...,
+        description=(
+            "What is left of the bound, as one phrase -- e.g. `1 of 3 starts used`, "
+            "`until 2026-09-19T06:00:00Z`, `until disarmed`. Composed on the server so "
+            "the board, the CLI and the dispatch panel say the same words."
+        ),
+    )
+    starts_left: Optional[int] = Field(
+        default=None, description="Runs it may still start, or null when the bound is a moment."
+    )
+    posture: Optional[str] = Field(
+        default=None, description="The envelope pulled runs get, or null for the project default."
+    )
+    next_task_id: str = Field(
+        default="",
+        description=(
+            "What `task_next` says it would start next. Sent so a person can see it "
+            "*before* it happens and move something else to the top if they would rather. "
+            "Empty when nothing in that backlog is claimable right now."
+        ),
+    )
+    next_task_title: str = ""
+    next_task_url: str = Field(default="", description="Where that task is, in this app.")
+
+
 class LiveRunsView(BaseModel):
     """Everything both machine-wide surfaces need, in one response.
 
@@ -220,6 +261,14 @@ class LiveRunsView(BaseModel):
             "Dispatches waiting for a slot, in the order they will start (task-459). "
             "Empty on a machine where nobody has queued one. Filtered by what this "
             "caller may see, exactly as `runs` is."
+        ),
+    )
+    armed: List[ArmedProjectView] = Field(
+        default_factory=list,
+        description=(
+            "Projects the pull mode is armed for (task-462), oldest arming first. Empty "
+            "on a machine where nobody has armed one. Filtered by what this caller may "
+            "see, exactly as `runs` is."
         ),
     )
     queue_limit: int = Field(
@@ -458,6 +507,37 @@ def _holder_view(
     )
 
 
+def _armed_view(arming: Any, projects: Dict[str, Project]) -> ArmedProjectView:
+    """Render one armed project, with what it would start next. Never raises.
+
+    The next-task read goes through the project's manager and can fail in every way a
+    backlog can -- an unregistered project, a queue needing repair. All of them come back
+    as an empty `next_task_id`, because this is a status page and the fact worth showing
+    is *that the project is armed*; a board that 500'd over the preview would hide the
+    arming as well as the problem.
+    """
+    project = projects.get(arming.project_id)
+    task = None
+    if project is not None:
+        try:
+            task = dispatch_pull.next_task(manager_for(project))
+        except Exception:  # noqa: BLE001 - see the docstring
+            task = None
+    return ArmedProjectView(
+        project_id=arming.project_id,
+        project_name=project.name if project else arming.project_id,
+        arming_id=arming.arming_id,
+        armed_by=arming.armed_by,
+        armed_at=arming.armed_at,
+        bound=dispatch_pull.bound_sentence(arming),
+        starts_left=arming.starts_left,
+        posture=arming.posture,
+        next_task_id=task.id if task else "",
+        next_task_title=task.title if task else "",
+        next_task_url=_task_url(arming.project_id, task.id) if task else "",
+    )
+
+
 @router.get("/live", response_model=LiveRunsView)
 async def list_live_runs(
     principal: Optional[Principal] = Depends(get_principal),
@@ -514,6 +594,11 @@ async def list_live_runs(
         runs=[_run_view(record, projects) for record in records],
         holders=holders,
         queued=waiting,
+        armed=[
+            _armed_view(arming, projects)
+            for arming in dispatch_pull.armings(home)
+            if _may_see(arming.project_id, projects, principal)
+        ],
         queue_limit=dispatch_queue.queue_limit(home),
         generated_at=datetime.now(timezone.utc).isoformat(),
     )

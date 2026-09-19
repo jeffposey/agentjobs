@@ -112,6 +112,16 @@ ROUTE_CAPABILITIES: Dict[str, RouteRule] = {
     "cancel_dispatch_run": RouteRule(Capability.DISPATCH),
     "enable_dispatch": RouteRule(Capability.DISPATCH_ADMIN),
     "disable_dispatch": RouteRule(Capability.DISPATCH_ADMIN),
+    # Arming the pull mode is the strongest thing on this table by consequence
+    # (task-462): it is a standing authority to start runs without a further click. It
+    # sits under `DISPATCH_ADMIN` rather than `DISPATCH` because it is not one purchase,
+    # it is permission for the machine to keep making them -- and because a run holds
+    # neither, the property that matters is already true either way: **an agent cannot
+    # arm the machine to keep starting agents.** Disarming shares the capability for the
+    # ordinary reason a kill switch shares one with its switch: everyone who may turn it
+    # on may turn it off.
+    "arm_pull_mode": RouteRule(Capability.DISPATCH_ADMIN),
+    "disarm_pull_mode": RouteRule(Capability.DISPATCH_ADMIN),
     # Switching the idle-session sweep on lets it stop the owner's own sessions (task-447).
     "update_idle_session_settings": RouteRule(Capability.DISPATCH_ADMIN),
     # ----- machine-level administration -------------------------------------------

@@ -688,7 +688,14 @@ class TestDispatchToggle:
 
         assert writable
         for path in writable:
-            assert path.endswith(("/dispatch", "/enable", "/disable", "/cancel")), path
+            # `/arm` and `/disarm` joined the list in task-462. They are verbs in the
+            # same sense the four originals are: each names a decision a person makes
+            # about this machine, and none of them carries a command. What the check is
+            # for is unchanged -- a writable dispatch path nobody named here fails, so
+            # the execution surface cannot be widened without a deliberate edit.
+            assert path.endswith(
+                ("/dispatch", "/enable", "/disable", "/cancel", "/arm", "/disarm")
+            ), path
 
 
 class TestDispatchRuns:

@@ -11,6 +11,7 @@ import {
   runsPollInterval,
   type DispatchEnableTarget,
   type DispatchOptions,
+  type PullArmChoice,
 } from "./DispatchPanel";
 
 /**
@@ -1196,5 +1197,192 @@ describe("what the panel does when the machine is full", () => {
     // Not an alert, and not in the refusal box: a queued dispatch is the request being
     // accepted, and orange-boxing it would read as a failure.
     expect(notice).toHaveAttribute("role", "status");
+  });
+});
+
+/**
+ * The pull mode's arming control (task-462).
+ *
+ * Rendered through `DispatchSettings` rather than against `PullModeControl` directly,
+ * because "the person sees this on the dispatch page" is part of what ac-5 asks for and
+ * a component test that mounted it alone would pass with it wired to nothing.
+ */
+function renderPull(value: DispatchStateView, busy = false) {
+  const onArm = vi.fn(async (_choice: PullArmChoice) => undefined);
+  const onDisarm = vi.fn(async () => undefined);
+  render(
+    <DispatchSettings
+      state={value}
+      busy={busy}
+      error={null}
+      onEnable={vi.fn(async () => undefined)}
+      onDisable={vi.fn(async () => undefined)}
+      onArm={onArm}
+      onDisarm={onDisarm}
+    />,
+  );
+  return { onArm, onDisarm };
+}
+
+function pull(overrides: Partial<NonNullable<DispatchStateView["pull"]>> = {}) {
+  return {
+    armed: false,
+    arming_id: "",
+    armed_by: "",
+    armed_at: "",
+    bound_kind: "",
+    bound: "",
+    starts_used: 0,
+    starts_left: null,
+    posture: null,
+    next_task_id: "",
+    next_task_title: "",
+    last_state: "",
+    last_detail: "",
+    ...overrides,
+  };
+}
+
+describe("arming the pull mode (task-462)", () => {
+  it("sends the bound the person chose, and nothing it made up", () => {
+    const { onArm } = renderPull(state({ pull: pull() }));
+
+    fireEvent.change(screen.getByLabelText("Number of starts"), { target: { value: "5" } });
+    fireEvent.click(screen.getByTestId("pull-mode-arm"));
+
+    expect(onArm).toHaveBeenCalledWith({
+      bound_kind: "starts",
+      starts: 5,
+      until: null,
+      posture: null,
+    });
+  });
+
+  it("opens on the narrowest bound, never the open-ended one", () => {
+    // The default is not neutral and does not have to be -- it has to be safe. Somebody
+    // who presses Arm without reading spends three starts, not their evening.
+    renderPull(state({ pull: pull() }));
+
+    expect(screen.getByLabelText(/this many starts/i)).toBeChecked();
+    expect(screen.getByLabelText(/keep going until I disarm it/i)).not.toBeChecked();
+  });
+
+  it("offers the open-ended bound as an explicit choice", () => {
+    const { onArm } = renderPull(state({ pull: pull() }));
+
+    fireEvent.click(screen.getByLabelText(/keep going until I disarm it/i));
+    fireEvent.click(screen.getByTestId("pull-mode-arm"));
+
+    expect(onArm).toHaveBeenCalledWith(
+      expect.objectContaining({ bound_kind: "open", starts: null }),
+    );
+  });
+
+  it("will not arm an until-bound with no moment named", () => {
+    renderPull(state({ pull: pull() }));
+
+    fireEvent.click(screen.getByLabelText(/this moment/i));
+
+    expect(screen.getByTestId("pull-mode-arm")).toBeDisabled();
+  });
+
+  it("says what the chosen envelope will do to every branch it produces", () => {
+    // ac-5's second half. The sentence is outside the pulldown as well as in it: an
+    // <option> is read once, and this is the sentence the decision turns on.
+    renderPull(withPostures({ pull: pull() }));
+
+    fireEvent.change(screen.getByLabelText("Envelope"), { target: { value: "autonomous" } });
+
+    expect(screen.getByTestId("pull-mode-consequence")).toHaveTextContent(
+      "merges its own work when the gate passes, no review",
+    );
+  });
+
+  it("says a review posture stops for you, so the two read differently", () => {
+    renderPull(withPostures({ pull: pull() }));
+
+    fireEvent.change(screen.getByLabelText("Envelope"), { target: { value: "supervised" } });
+
+    expect(screen.getByTestId("pull-mode-consequence")).toHaveTextContent(
+      "stops for your review before merging",
+    );
+  });
+
+  it("cannot be armed while dispatch is off for the project", () => {
+    renderPull(state({ project_enabled: false, pull: pull() }));
+
+    expect(screen.getByTestId("pull-mode-arm")).toBeDisabled();
+  });
+
+  it("says how the last arming ended, rather than going quiet", () => {
+    renderPull(
+      state({
+        pull: pull({ last_state: "faulted", last_detail: "3 starts in a row failed to launch" }),
+      }),
+    );
+
+    expect(screen.getByTestId("pull-mode-last")).toHaveTextContent("faulted");
+    expect(screen.getByTestId("pull-mode-last")).toHaveTextContent("failed to launch");
+  });
+});
+
+describe("the pull mode while it is armed", () => {
+  const live = () =>
+    state({
+      pull: pull({
+        armed: true,
+        arming_id: "arm_abc",
+        armed_by: "Jeff Posey",
+        bound: "1 of 3 starts used",
+        starts_used: 1,
+        starts_left: 2,
+        next_task_id: "task-077",
+        next_task_title: "The one it would start",
+      }),
+    });
+
+  it("names who armed it and what is left of the bound", () => {
+    renderPull(live());
+
+    expect(screen.getByTestId("pull-mode-bound")).toHaveTextContent("Jeff Posey");
+    expect(screen.getByTestId("pull-mode-bound")).toHaveTextContent("1 of 3 starts used");
+  });
+
+  it("names what it would start next, in time to reorder the queue", () => {
+    renderPull(live());
+
+    expect(screen.getByTestId("pull-mode-next")).toHaveTextContent("task-077");
+    expect(screen.getByTestId("pull-mode-next")).toHaveTextContent("The one it would start");
+  });
+
+  it("offers Disarm with no ceremony, and says it kills nothing", () => {
+    // The kill-switch rule this file already follows for Disable: one click, no
+    // confirmation, no reason demanded. Plus the one fact a person hesitates over.
+    const { onDisarm } = renderPull(live());
+
+    fireEvent.click(screen.getByTestId("pull-mode-disarm"));
+
+    expect(onDisarm).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("pull-mode")).toHaveTextContent("Runs already going keep running");
+  });
+
+  it("offers no arming form while it is already armed", () => {
+    renderPull(live());
+
+    expect(screen.queryByTestId("pull-mode-arm")).not.toBeInTheDocument();
+  });
+
+  it("is absent entirely when the page supplies no handlers", () => {
+    // The settings page is the only surface that arms, and a control wired to nothing
+    // is a button that silently does nothing.
+    render(
+      <DispatchSettings
+        state={state({ pull: pull() })}
+        onEnable={vi.fn(async () => undefined)}
+        onDisable={vi.fn(async () => undefined)}
+      />,
+    );
+
+    expect(screen.queryByTestId("pull-mode")).not.toBeInTheDocument();
   });
 });

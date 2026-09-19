@@ -15,7 +15,9 @@ import {
 import {
   appendLogEntryApiProjectsProjectIdTasksTaskIdLogPostMutation,
   cancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostMutation,
+  armPullModeApiProjectsProjectIdDispatchArmPostMutation,
   disableDispatchApiProjectsProjectIdDispatchDisablePostMutation,
+  disarmPullModeApiProjectsProjectIdDispatchDisarmPostMutation,
   enableDispatchApiProjectsProjectIdDispatchEnablePostMutation,
   getAnalyticsApiProjectsProjectIdAnalyticsGetOptions,
   getDashboardApiProjectsProjectIdDashboardGetOptions,
@@ -212,6 +214,17 @@ function DashboardPage({ projectId }: { projectId: string }) {
               {dispatch.cancellingQueueId === entry.queue_id ? "Cancelling…" : "Cancel"}
             </button>
           )}
+          renderArmedAction={(entry) => (
+            <button
+              type="button"
+              data-testid="disarm-pull-mode"
+              disabled={dispatch.disarmingProject === entry.project_id}
+              onClick={() => void dispatch.disarm(entry.project_id)}
+              className="touch-target rounded-lg border border-dark-border px-2 text-xs text-dark-muted hover:border-red-700/70 hover:text-red-200 disabled:opacity-60"
+            >
+              {dispatch.disarmingProject === entry.project_id ? "Disarming…" : "Disarm"}
+            </button>
+          )}
         />
       )}
       renderRecentlyFinished={() => <RecentlyFinished body={closures} projectId={projectId} />}
@@ -237,6 +250,7 @@ function useDashboardDispatch(projectId: string) {
   const queryClient = useQueryClient();
   const [startingTaskId, setStartingTaskId] = useState<string | null>(null);
   const [cancellingQueueId, setCancellingQueueId] = useState<string | null>(null);
+  const [disarmingProject, setDisarmingProject] = useState<string | null>(null);
   const [refusal, setRefusal] = useState<{ taskId: string; refusal: DispatchRefusal } | null>(null);
 
   // The same endpoint the task page, the playbooks page and the settings page read, so
@@ -254,12 +268,27 @@ function useDashboardDispatch(projectId: string) {
   const cancelQueued = useMutation(
     cancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostMutation(),
   );
+  // Disarming from the board rather than only from the settings page (task-462),
+  // because the board is where a person is when they decide they have seen enough. It
+  // kills nothing, so it is safe to offer next to the thing it stops.
+  const disarm = useMutation(disarmPullModeApiProjectsProjectIdDispatchDisarmPostMutation());
 
   return {
     state: stateQuery.data ?? null,
     startingTaskId,
     cancellingQueueId,
+    disarmingProject,
     refusal,
+    disarm: async (armedProjectId: string): Promise<void> => {
+      setDisarmingProject(armedProjectId);
+      try {
+        // The armed project's own id, never the page's: the rail is machine-wide.
+        await disarm.mutateAsync({ path: { project_id: armedProjectId || projectId } });
+      } finally {
+        setDisarmingProject(null);
+        await queryClient.invalidateQueries();
+      }
+    },
     cancelQueued: async (entry: QueuedDispatchView): Promise<void> => {
       setCancellingQueueId(entry.queue_id);
       try {
@@ -704,12 +733,14 @@ function DispatchSettingsPage({ projectId }: { projectId: string }) {
   );
   const enable = useMutation(enableDispatchApiProjectsProjectIdDispatchEnablePostMutation());
   const disable = useMutation(disableDispatchApiProjectsProjectIdDispatchDisablePostMutation());
+  const armPull = useMutation(armPullModeApiProjectsProjectIdDispatchArmPostMutation());
+  const disarmPull = useMutation(disarmPullModeApiProjectsProjectIdDispatchDisarmPostMutation());
   const after = async () => { await queryClient.invalidateQueries(); };
 
   return (
     <DispatchSettings
       state={stateQuery.data ?? null}
-      busy={enable.isPending || disable.isPending}
+      busy={enable.isPending || disable.isPending || armPull.isPending || disarmPull.isPending}
       error={error}
       onEnable={async (target) => {
         setError(null);
@@ -730,6 +761,30 @@ function DispatchSettingsPage({ projectId }: { projectId: string }) {
         } catch (caught) {
           const refusal = readRefusal(caught);
           setError(refusal ? refusal.message : "Dispatch could not be disabled. Reload and try again.");
+        }
+        await after();
+      }}
+      onArm={async (choice) => {
+        setError(null);
+        try {
+          // `user` is left to the server, which resolves it from the principal this
+          // request arrived on. Sending a name read out of a listing is exactly the
+          // circular check task-332 removed, and arming is the last place to reintroduce
+          // it: this name goes on every run the mode starts.
+          await armPull.mutateAsync({ path: { project_id: projectId }, body: choice });
+        } catch (caught) {
+          const refusal = readRefusal(caught);
+          setError(refusal ? refusal.message : "The pull mode could not be armed. Reload and try again.");
+        }
+        await after();
+      }}
+      onDisarm={async () => {
+        setError(null);
+        try {
+          await disarmPull.mutateAsync({ path: { project_id: projectId } });
+        } catch (caught) {
+          const refusal = readRefusal(caught);
+          setError(refusal ? refusal.message : "The pull mode could not be disarmed. Reload and try again.");
         }
         await after();
       }}

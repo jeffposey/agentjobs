@@ -1989,6 +1989,12 @@ Two rejected triggers, both of which look natural given the existing code:
   dispatch happen with no log entry to attribute it to, so "who authorized this?" has no
   answer.
 
+  *Still rejected, exactly as written — and §5c below is not it.* The pull mode
+  (task-462, 2026-09-18) reads neither the ball nor an unbounded queue, and every run it
+  starts carries a human's authorising entry. The rejection above is kept in place rather
+  than edited because it is what §5c has to answer, clause by clause, to be allowed to
+  exist; read them together.
+
 ### 5a. The approval that starts no dispatch at all (task-241)
 
 An approval can now cause something other than a run: a **scripted finish**, which does
@@ -2083,6 +2089,119 @@ ball moved to the agent, and task-001 already has a live run"), the run then set
 the delivery started a run whose meta reads `resumed: true`, `resumed_from:
 run_f06c2fe6`, `caused_by: 5` -- entry 5 being the human's own Request Changes. One live
 run for the task throughout.
+
+### 5c. The pull mode: one human act, a bound, and every free slot (task-462, 2026-09-18)
+
+A person arms a project, with a stated bound. From then until the bound runs out or they
+disarm it, the server's tick fills any free machine slot with whatever `task_next` says is
+next in that project's backlog, with no further click.
+
+**The owner's reason for it, 2026-09-18:** the goal is agents running more of the time;
+there should be support to just keep pulling the next task and starting it, when the human
+wants that mode, with the real bound being subscription cost and limits. Local runners
+only.
+
+This is the trigger the bullet above rejects, so it owes that bullet an answer on each of
+its two clauses. Both answers are **structural** — they are properties of
+`src/agentjobs/dispatch/pull.py` that a reader can check, not assurances:
+
+- *"It turns the ball into an autonomous work queue."* **It does not read the ball.** It
+  reads `manager.claimable_tasks()` — `task_next`'s answer and its runners-up, in the
+  stored queue order, under the same claimability rules. So what runs is what somebody put
+  at the top of the backlog; `agentjobs queue move` is how you steer it; and
+  `agentjobs next --why` already answers "why that one, and not the one I expected".
+  Nothing about a handoff starts anything, which is the specific transition §2 forbids.
+
+- *"It makes dispatch happen with no log entry to attribute it to."* **Every pulled run
+  carries one.** `dispatch_task` gains a fourth authorisation path beside the click, the
+  CLI's stored entry and the epic's inheritance: given `pull_arming_id`, it reads the
+  arming human's actor id *off the stored arming row*, validates it as a configured human,
+  writes that person's authorising entry onto the task, and then puts **that stored entry**
+  through `assert_human_clocked` like everything else. The identity is never taken from
+  the request, so there is nothing a tick could forge — the same argument that makes the
+  epic walk's child dispatches legitimate (§"The epic walk"), applied to a backlog instead
+  of to a named set of children.
+
+**What the bound buys that the epic's attempt budget buys.** An epic's children were
+enumerated on its record at the moment somebody clicked it, so "how many runs did that
+click authorise" has a bounded answer by construction. A backlog has no such bound — it
+grows — so the arming carries one explicitly: a number of starts, a wall-clock end, or
+*until disarmed*. It is charged **before** each dispatch, inside the single statement that
+checks it (`ExecutionStore.spend_pull_start`), so two ticks racing cannot make a bound of
+three buy four; a dispatch that then fails refunds it. `--until-disarmed` is accepted and
+is a real answer; what is refused is arming with no bound named at all, because the
+difference between "three runs" and "all night" is the whole of the decision.
+
+**The §7 caps bind every pulled start, unchanged.** `dispatches_per_hour` is the machine
+bound and the pull mode is simply another caller of the same chokepoint. Nothing here has
+a side path: a pulled dispatch is `guards.dispatch_task` in full, with the kill switch, the
+ceiling, the clean-tree rule, the one-live-run-per-task rule, the per-task caps and the
+posture ceiling all judged **at the moment of the start** rather than at the moment of the
+arming. A ceiling lowered after arming refuses the next pull.
+
+**Precedence: the machine's dispatch queue goes first, and "first" means the whole tick.**
+Manual entries (§7's dispatch queue, task-459) are dispatches a person asked for by name.
+While any of them is waiting, the pull mode starts nothing at all — not merely "runs
+afterwards in the same tick", because a queued entry refused for a transient reason keeps
+its place, and a pull taking the slot it is waiting for would overtake it at the next tick
+while the board showed nothing happening. The cost is stated rather than hidden: a manual
+entry parked on a long-lived transient condition stalls the pull mode until somebody
+cancels it. That is visible on the slot board as a waiting entry, which is what makes it a
+thing a person can fix. The pull mode never enqueues; it starts into a free slot or it does
+not happen, because a bound on starts that could be spent on *intentions* is not a bound.
+
+**What stops it**, all four recorded on the arming row and readable afterwards:
+
+| Ending | Cause |
+| --- | --- |
+| `spent` | the bound's last start was used |
+| `expired` | an `until` bound's moment passed |
+| `disarmed` | a person pressed Disarm — or an auth/usage incident is open (see below) |
+| `faulted` | three starts in a row failed to *launch* |
+
+The four are kept apart rather than collapsed into "closed", because *you turned it off*
+and *it kept failing* are different things to read on a card. The failure run counts only
+launches that failed, which is a fact about the machine; a task refused for its own reason
+is walked past and does not count — a queue with three held tasks at the top is a normal
+backlog. **Disarming kills nothing.** Runs already going were authorised individually and
+have their own merge gates; withdrawing future authority is not a reason to destroy work
+the same authority already bought.
+
+**A refusal is judged by what it is about**, which is what makes the mode tolerable to
+watch. A refusal about the machine or the repository — a cap, a full machine, a dirty tree
+— ends the pass and writes on no task, because every task would meet it and a note per
+tick would be a note a minute on somebody's record. A refusal about the task — a hold, an
+agent's entry being newest so it is not human-clocked, a record too thin to brief anybody
+— is written on *that* task and the mode moves to the one behind it. Self-clearing
+per-task refusals (a cooldown, its own live run) are walked past silently. This is a
+different classification from the dispatch queue's `TRANSIENT_CLASSES`, deliberately:
+there the question is whether one entry keeps its place, and here it is whether to offer a
+different task.
+
+**The seam for the quota child.** An open auth or usage incident (task-417) means every run
+the mode started would park on the same login or the same reset, converting one incident
+into a queue of parked sessions and a spent hourly cap. Until pausing and resuming at the
+reset exists, the mode **disarms** with the incident named on the record. That is the
+honest interim: it stops takeoffs, kills nothing, and leaves a person something to fix.
+The sibling child replaces that disarm with a pause and a resume; nothing else about this
+section changes when it does.
+
+**Authorisation.** Arm and disarm are `dispatch.admin` (`docs/authorization.md`), which no
+run holds. An agent cannot arm the machine to keep starting agents, and that is enforced by
+the capability table rather than by a check somebody has to remember.
+
+**What it does to the review queue, accepted rather than solved.** At posture `auto` every
+pulled task ends in `human/review`, so the mode fills the owner's review queue instead of
+merging anything — the human bottleneck this document names in §2a, arrived at faster. At
+`autonomous` with `finish.enabled` it merges unattended, which is acceptable here for the
+reason §7 gives and no other: **nothing pushes**, so a bad merge is caught by whoever next
+reads `main` and reverted. A project that both arms the pull mode and permits pushing has
+given up that recovery.
+
+`DispatchTrigger.PULL` marks these runs, so a run's provenance reads *"pulled under arming
+`arm_…` by ‹person›"* and is distinguishable from both a click and an epic's child.
+
+---
 
 ## 5a. What *ends* a dispatch: the scripted finish (task-241, shipped)
 
