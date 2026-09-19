@@ -51,6 +51,17 @@ ACTIVATION_VARS = ("VIRTUAL_ENV", "POETRY_ACTIVE")
 # would measure the ambient environment rather than what it set up.
 RUN_VARS = ("AGENTJOBS_RUN_ID", "AGENTJOBS_RUN_DIR", "AGENTJOBS_RUN_CREDENTIAL")
 
+# The switch that stops a gate indexing itself in the store (task-472). Set to `off` on
+# every child for the reason RUN_VARS are removed: `pytest` runs this repository's tests
+# of `check.main`, and each simulated gate would otherwise write a real `gate_run` row.
+# Named the same way in `agentjobs.history`.
+GATE_HISTORY_ENV = "AGENTJOBS_GATE_HISTORY"
+
+# The gate's own index of this run, opened in `main` and fed by `record_phase`. Module
+# state rather than a parameter because `record_phase` is called from a dozen places
+# that have no business knowing whether the store is listening.
+HISTORY: object | None = None
+
 
 def same_environment(active: str) -> bool:
     """Is `active` the virtualenv this interpreter is already running in?"""
@@ -97,6 +108,7 @@ def child_environment() -> dict[str, str]:
     env.pop("PYTHONHOME", None)
     for name in RUN_VARS:
         env.pop(name, None)
+    env[GATE_HISTORY_ENV] = "off"
     active = env.get("VIRTUAL_ENV")
     if active and not same_environment(active):
         for name in ACTIVATION_VARS:
@@ -801,7 +813,47 @@ def record_phase(kind: str, **fields: object) -> None:
 
         record_phase_from_env(kind, **fields)
     except Exception:  # noqa: BLE001 - see the docstring; never fail the gate over this
-        return
+        pass
+    # The same event, to the store (task-472). After the file, so the phase file's
+    # `gate_started` count -- which numbers this gate -- already includes this one.
+    if HISTORY is not None:
+        try:
+            HISTORY.observe(kind, **fields)  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001 - the row is a gap in a chart, never a red gate
+            pass
+
+
+def open_gate_history() -> object | None:
+    """The store's index of this gate run, or None when nothing is listening.
+
+    Resolved from this checkout -- the registered project whose clone it is or is a
+    worktree of -- through `store_factory.task_manager_for`, never a path composed
+    here (task-472). Swallows the import as `record_phase` does: a checkout whose
+    `agentjobs` will not import still gets to report that Black failed.
+    """
+    try:
+        from agentjobs.history import GateHistory
+
+        history = GateHistory.open(ROOT)
+        if history is None and GateHistory.declined:
+            print(f"\nGate not indexed: {GateHistory.declined}.", flush=True)
+        return history
+    except Exception:  # noqa: BLE001 - see the docstring
+        return None
+
+
+def close_gate_history() -> str:
+    """Release the index's connection and say what indexing cost. Empty when none."""
+    global HISTORY
+    history, HISTORY = HISTORY, None
+    if history is None:
+        return ""
+    try:
+        line = str(history.summary())  # type: ignore[attr-defined]
+        history.close()  # type: ignore[attr-defined]
+        return line
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 def own_phases() -> list[dict[str, object]]:
@@ -1054,6 +1106,8 @@ def main(argv: list[str] | None = None) -> int:
         if repeat is not None:
             print(f"\n{repeat}", flush=True)
 
+    global HISTORY
+    HISTORY = open_gate_history()
     record_phase(
         "gate_started",
         scope=kind,
@@ -1094,7 +1148,8 @@ def main(argv: list[str] | None = None) -> int:
                 "for the stages above a second time.",
                 file=sys.stderr,
             )
-        print(f"\n{table}", flush=True)
+        indexed = close_gate_history()
+        print(f"\n{table}" + (f"\n{indexed}" if indexed else ""), flush=True)
         return code
 
     record_phase(
@@ -1118,6 +1173,11 @@ def main(argv: list[str] | None = None) -> int:
         receipt = f"\n{issue_receipt(None)}"
     elif kind == "necessity":
         receipt = f"\n{issue_receipt(scope_result.commit if scope_result else None)}"
+
+    # What indexing this gate in the store cost, under the stages it measured (task-472).
+    indexed = close_gate_history()
+    if indexed:
+        table = f"{table}\n{indexed}"
 
     # Repeated after the stages, not only before them: the line before is thousands of
     # lines of pytest output away by now, and the last thing printed is what gets read.

@@ -111,6 +111,7 @@ from agentjobs.dispatch.finish_receipts import (
 )
 from agentjobs.dispatch.phases import RUN_ID_ENV, read_phases, record_phase
 from agentjobs.dispatch.record_commit import commit_task_record
+from agentjobs.history import FinishHistory
 from agentjobs.models_v2 import (
     Ball,
     BallReason,
@@ -765,13 +766,29 @@ def write_spawn_marker(home: Path, task_id: str, *, project_id: str, approver: s
 
 @dataclass
 class FinishDirectory:
-    """Where one attempt writes itself down. Read by ``scripts/run_report.py``."""
+    """Where one attempt writes itself down. Read by ``scripts/run_report.py``.
+
+    Since task-472 it also indexes itself: ``history`` mirrors ``meta.yaml`` into the
+    store's ``finish`` row and every ``finish_step`` phase into ``finish_step``, through
+    the manager the finish already holds. The files stay the record a person reads;
+    the rows are what a page queries. ``history`` is ``None`` for a directory built
+    without a manager, which is how the tests of the files alone still read.
+    """
 
     path: Path
     finish_id: str
+    history: Optional[FinishHistory] = None
 
     @classmethod
-    def create(cls, home: Path, task_id: str, project_id: str, **fields: Any) -> "FinishDirectory":
+    def create(
+        cls,
+        home: Path,
+        task_id: str,
+        project_id: str,
+        *,
+        manager: Optional[TaskManagerLike] = None,
+        **fields: Any,
+    ) -> "FinishDirectory":
         """A new attempt's directory, with what authorised it written down (task-443).
 
         ``fields`` carries ``authority``, ``run_id``, ``resumed_from``: what
@@ -779,11 +796,15 @@ class FinishDirectory:
         read from the attempt itself rather than guessed afterwards. ``pid`` is always
         written, because a posture finish's lock names its run, and a run settled as gone
         can leave this process running.
+
+        ``manager`` is what the finish writes its index through; without one there is
+        no index, only the files.
         """
         finish_id = f"fin_{uuid.uuid4().hex[:8]}"
         path = finishes_root(home) / finish_id
         path.mkdir(parents=True, exist_ok=True)
-        directory = cls(path=path, finish_id=finish_id)
+        history = FinishHistory(manager, finish_id) if manager is not None else None
+        directory = cls(path=path, finish_id=finish_id, history=history)
         directory.write_meta(
             finish_id=finish_id,
             task_id=task_id,
@@ -818,10 +839,16 @@ class FinishDirectory:
             existing.update(fields)
             write_yaml_atomically(self.meta_path, existing, allow_unicode=True)
         except Exception:  # pragma: no cover - writing a record must not fail a finish
-            pass
+            return
+        if self.history is not None:
+            # The row is the merged file, so the store never holds a shape the file does
+            # not. `FinishHistory` swallows its own failures.
+            self.history.meta_written(existing)
 
     def record(self, kind: str, **fields: Any) -> None:
         record_phase(self.path, kind, finish_id=self.finish_id, **fields)
+        if kind == "finish_step" and self.history is not None:
+            self.history.step_recorded(datetime.now(timezone.utc), **fields)
 
 
 # ----- the steps --------------------------------------------------------------
@@ -2519,6 +2546,7 @@ def _resume_cleanup(
     task: Task,
     receipts: FinishReceipts,
     evidence: MergeEvidence,
+    manager: Optional[TaskManagerLike] = None,
 ) -> FinishResult:
     """Retire what a closed task's finish left behind, and nothing else (task-322)."""
     settings = FinishSettings(enabled=True, base_branch=evidence.base or "main")
@@ -2527,7 +2555,7 @@ def _resume_cleanup(
     except RunLockTimeout as exc:
         return FinishResult(task_id=task.id, outcome=DECLINED, reason="locked", detail=str(exc))
     try:
-        directory = FinishDirectory.create(home, task.id, project.id)
+        directory = FinishDirectory.create(home, task.id, project.id, manager=manager)
         lock.adopt_finish(directory.finish_id)
         steps: List[StepResult] = StepLog(directory)
         plan = recovery_plan(project.root, evidence, settings)
@@ -3026,7 +3054,7 @@ def finish_task(
     if task is not None and not task.is_open:
         cleanup = _outstanding_cleanup(project.root, task, receipts, settings)
         if cleanup is not None:
-            return _resume_cleanup(resolved_home, project, task, receipts, cleanup)
+            return _resume_cleanup(resolved_home, project, task, receipts, cleanup, manager)
     if task is None or not task.is_open:
         return FinishResult(
             task_id=task_id,
@@ -3094,6 +3122,7 @@ def finish_task(
         resolved_home,
         task_id,
         project.id,
+        manager=manager,
         authority=authority,
         run_id=(
             own_run_id(resolved_home, task_id, project_id=project.id)

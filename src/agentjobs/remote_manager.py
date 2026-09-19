@@ -62,6 +62,7 @@ from .models_v2 import (
     Task,
 )
 from .projects import Project
+from .sqlstore.history import HistoryWrite
 from .queue import Placement, QueueAssignment, QueueProblem
 from .queue_check import QueueWarning
 from .storage_config import StorageSettings
@@ -666,6 +667,26 @@ class RemoteTaskManager:
             "docstring for why that exception exists."
         )
 
+    def record_finish(
+        self,
+        finish_id: str,
+        record: Mapping[str, Any],
+        steps: Sequence[Mapping[str, Any]] = (),
+    ) -> HistoryWrite:
+        """Index a finish over the service; the same verb the local manager offers."""
+        answer = self.client.put_finish_record(finish_id, record=record, steps=steps)
+        return HistoryWrite(bool(answer.get("written")), answer.get("reason"))
+
+    def record_gate_run(
+        self,
+        gate_id: str,
+        record: Mapping[str, Any],
+        stages: Sequence[Mapping[str, Any]] = (),
+    ) -> HistoryWrite:
+        """Index a gate run over the service; the same verb the local manager offers."""
+        answer = self.client.put_gate_record(gate_id, record=record, stages=stages)
+        return HistoryWrite(bool(answer.get("written")), answer.get("reason"))
+
     def source_events(self, after: int, limit: int = 200) -> List[Dict[str, Any]]:
         """Refused: the log feed is read by the process that coordinates execution, which
         holds a local manager (``store_factory.dispatch_manager_for``)."""
@@ -692,6 +713,8 @@ def remote_manager_for(
     *,
     base_url: Optional[str] = None,
     settings: Optional[StorageSettings] = None,
+    timeout: float = 30.0,
+    patient: bool = True,
 ) -> RemoteTaskManager:
     """A manager addressing ``project`` on this machine's AgentJobs service.
 
@@ -699,6 +722,10 @@ def remote_manager_for(
     then ``api_base`` in ``~/.agentjobs/dispatch.yaml``, then loopback on the default
     port. One answer for the whole machine, so a non-default port is stated once
     rather than being wrong in several places.
+
+    ``timeout`` and ``patient`` exist for one caller: the gate, which records its own
+    run over this manager and must not stall for a service that is not there. Every
+    other caller keeps the defaults, which ride through a restart (task-273).
     """
     del settings
     from .dispatch.address import configured_api_base
@@ -709,8 +736,8 @@ def remote_manager_for(
     # instead of incidental.
     import httpx
 
-    connection = httpx.Client(base_url=address.rstrip("/"), timeout=30.0)
-    client = TaskClient(address, client=connection, project_id=project.id)
+    connection = httpx.Client(base_url=address.rstrip("/"), timeout=timeout)
+    client = TaskClient(address, client=connection, project_id=project.id, patient=patient)
     return RemoteTaskManager(client, project)
 
 

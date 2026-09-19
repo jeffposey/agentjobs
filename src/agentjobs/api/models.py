@@ -1251,6 +1251,118 @@ class DispatchStarted(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class FinishRecordWrite(BaseModel):
+    """The ``finish`` row a scripted finish indexes itself as (task-472).
+
+    Derived from the finish's ``meta.yaml`` by ``agentjobs.history``; the field names are
+    the column names. ``source`` says who is writing: ``native`` upserts, ``imported``
+    never overwrites a row that exists.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    task_id: str
+    started_at: str
+    finished_at: Optional[str] = None
+    seconds: Optional[float] = None
+    outcome: Literal["finished", "escalated", "declined", "interrupted", "running"]
+    reason: Optional[str] = None
+    stopped_at: Optional[str] = None
+    merged: bool = False
+    merge_commit: Optional[str] = None
+    run_id: Optional[str] = None
+    dispatched_run_id: Optional[str] = None
+    authority: Optional[str] = None
+    source: Literal["native", "imported"] = "native"
+
+
+class FinishStepWrite(BaseModel):
+    """One ``finish_step`` row: a step of the sequence and what it cost."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    seq: int = Field(..., ge=1)
+    step: str
+    ok: bool
+    skipped: bool = False
+    seconds: float = 0.0
+    detail: Optional[str] = None
+    ts: str
+
+
+class FinishHistoryWrite(BaseModel):
+    """Body of ``PUT /history/finishes/{finish_id}``: the row and every step so far."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    record: FinishRecordWrite
+    steps: List[FinishStepWrite] = Field(default_factory=list)
+
+
+class GateRunWrite(BaseModel):
+    """The ``gate_run`` row a gate indexes itself as (task-472).
+
+    ``origin`` says whose gate it was: the finisher's, a dispatched run's before its
+    handoff, or somebody's at a shell. ``scope`` is the gate's own vocabulary with one
+    rename -- the gate calls a reduced ``--since-gate`` run ``necessity``, the store
+    calls it ``since_gate`` -- and a partial run is a row, not an omitted one.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    origin: Literal["finish", "run", "manual"]
+    finish_id: Optional[str] = None
+    run_id: Optional[str] = None
+    task_id: Optional[str] = None
+    scope: Literal["full", "partial", "since_gate", "concurrent"]
+    tree: Optional[str] = None
+    checkout: Optional[str] = None
+    branch: Optional[str] = None
+    started_at: str
+    finished_at: Optional[str] = None
+    seconds: Optional[float] = None
+    passed: Optional[bool] = None
+    failed_stage: Optional[str] = None
+    stages_run: Optional[int] = None
+    stages_total: Optional[int] = None
+    source: Literal["native", "imported"] = "native"
+
+
+class GateStageWrite(BaseModel):
+    """One ``gate_stage`` row. ``seconds`` is null for the stage that failed."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    seq: int = Field(..., ge=1)
+    stage: str
+    seconds: Optional[float] = None
+    passed: Optional[bool] = None
+    started_at: str
+    finished_at: Optional[str] = None
+
+
+class GateHistoryWrite(BaseModel):
+    """Body of ``PUT /history/gates/{gate_id}``: the row and every stage so far."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    record: GateRunWrite
+    stages: List[GateStageWrite] = Field(default_factory=list)
+
+
+class HistoryWriteResult(BaseModel):
+    """What a history write did.
+
+    ``written`` false is an answer, not an error: ``exists`` means an imported write met
+    a row that was already there, and ``unknown_task`` means a finish named a task this
+    project does not have and was refused rather than inserted with the foreign key
+    off.
+    """
+
+    written: bool
+    reason: Optional[Literal["exists", "unknown_task"]] = None
+
+
 class AnalyticsRange(BaseModel):
     """The window every panel in one response was computed over.
 

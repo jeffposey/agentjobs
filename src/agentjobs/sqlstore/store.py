@@ -20,7 +20,18 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 import yaml
 
@@ -28,6 +39,7 @@ from ..attachments import MEDIA_TYPES
 from ..models_v2 import Task
 from .blobs import SqlAttachmentStore
 from .connection import Database, SqlStoreError
+from .history import HistoryWrite, upsert_finish, upsert_gate_run
 from .reporting_tz import check_reporting_tz
 
 if TYPE_CHECKING:  # pragma: no cover - the shape the manager consumes
@@ -832,7 +844,7 @@ class SqlTaskStore:
                 continue
             data = dict(entry.data)
             if entry.type in ("dispatch", "dispatch_result"):
-                self._record_run(connection, task.id, entry.type, data)
+                self._record_run(connection, task.id, entry.type, data, when=_iso(entry.ts))
             connection.execute(
                 "INSERT INTO log_entry(project_id, task_id, entry_id, ts, actor, type, "
                 "body, re, data_json) VALUES (?,?,?,?,?,?,?,?,?)",
@@ -891,18 +903,32 @@ class SqlTaskStore:
                 )
 
     def _record_run(
-        self, connection: sqlite3.Connection, task_id: str, entry_type: str, data: Dict[str, Any]
+        self,
+        connection: sqlite3.Connection,
+        task_id: str,
+        entry_type: str,
+        data: Dict[str, Any],
+        *,
+        when: Optional[str] = None,
     ) -> None:
-        """Make ``task_run`` the authoritative home of a dispatch entry's payload."""
+        """Make ``task_run`` the authoritative home of a dispatch entry's payload.
+
+        ``when`` is the entry's own timestamp and is what ``started_at`` and ``ended_at``
+        take. It used to be the clock, which for a native dispatch is the same instant
+        and for an import is the import: 171 rows cut over on 2026-09-07 carried that
+        minute as their start (analytics design section 20.5 A). Migration 005
+        re-stamps those from the entries; this stops the next import doing it again.
+        """
         run_id = data.get("run_id")
         if not run_id:
             return
+        moment = when or _now()
         if entry_type == "dispatch_result":
             connection.execute(
                 "UPDATE task_run SET ended_at = ?, outcome = ?, exit_code = ?, "
                 "duration_seconds = ?, log_path = ? WHERE project_id = ? AND run_id = ?",
                 (
-                    _now(),
+                    moment,
                     data.get("outcome"),
                     data.get("exit_code"),
                     data.get("duration_seconds"),
@@ -939,7 +965,7 @@ class SqlTaskStore:
                 data.get("cwd", ""),
                 json.dumps(data.get("argv") or []),
                 json.dumps(data["selection"]) if data.get("selection") else None,
-                _now(),
+                moment,
             ),
         )
 
@@ -1265,6 +1291,28 @@ class SqlTaskStore:
             (self.project_id,),
         ).fetchone()["n"]
         return int(summed), int(counted)
+
+    # -----------------------------------------------------------------------
+    # Finish and gate history (task-472)
+    # -----------------------------------------------------------------------
+
+    def record_finish(
+        self,
+        finish_id: str,
+        record: Mapping[str, Any],
+        steps: Sequence[Mapping[str, Any]] = (),
+    ) -> HistoryWrite:
+        """Write one finish and its steps; see :func:`sqlstore.history.upsert_finish`."""
+        return upsert_finish(self.database, self.project_id, finish_id, record, steps)
+
+    def record_gate_run(
+        self,
+        gate_id: str,
+        record: Mapping[str, Any],
+        stages: Sequence[Mapping[str, Any]] = (),
+    ) -> HistoryWrite:
+        """Write one gate run and its stages; see :func:`sqlstore.history.upsert_gate_run`."""
+        return upsert_gate_run(self.database, self.project_id, gate_id, record, stages)
 
 
 __all__ = ["SqlTaskStore", "TaskNotFound", "EVENT_AXES"]

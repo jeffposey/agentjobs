@@ -1728,6 +1728,83 @@ export type FinishGateView = {
 };
 
 /**
+ * FinishHistoryWrite
+ *
+ * Body of ``PUT /history/finishes/{finish_id}``: the row and every step so far.
+ */
+export type FinishHistoryWrite = {
+    record: FinishRecordWrite;
+    /**
+     * Steps
+     */
+    steps?: Array<FinishStepWrite>;
+};
+
+/**
+ * FinishRecordWrite
+ *
+ * The ``finish`` row a scripted finish indexes itself as (task-472).
+ *
+ * Derived from the finish's ``meta.yaml`` by ``agentjobs.history``; the field names are
+ * the column names. ``source`` says who is writing: ``native`` upserts, ``imported``
+ * never overwrites a row that exists.
+ */
+export type FinishRecordWrite = {
+    /**
+     * Authority
+     */
+    authority?: string | null;
+    /**
+     * Dispatched Run Id
+     */
+    dispatched_run_id?: string | null;
+    /**
+     * Finished At
+     */
+    finished_at?: string | null;
+    /**
+     * Merge Commit
+     */
+    merge_commit?: string | null;
+    /**
+     * Merged
+     */
+    merged?: boolean;
+    /**
+     * Outcome
+     */
+    outcome: 'finished' | 'escalated' | 'declined' | 'interrupted' | 'running';
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Run Id
+     */
+    run_id?: string | null;
+    /**
+     * Seconds
+     */
+    seconds?: number | null;
+    /**
+     * Source
+     */
+    source?: 'native' | 'imported';
+    /**
+     * Started At
+     */
+    started_at: string;
+    /**
+     * Stopped At
+     */
+    stopped_at?: string | null;
+    /**
+     * Task Id
+     */
+    task_id: string;
+};
+
+/**
  * FinishStepView
  *
  * One step of a scripted finish, as the task page renders it.
@@ -1757,6 +1834,164 @@ export type FinishStepView = {
      * 'done', 'skipped', 'stopped' (this is where the finish gave up), or 'running' (inferred from the fixed order, and true of a finish that is between steps as well as one in the middle of this one).
      */
     state: string;
+};
+
+/**
+ * FinishStepWrite
+ *
+ * One ``finish_step`` row: a step of the sequence and what it cost.
+ */
+export type FinishStepWrite = {
+    /**
+     * Detail
+     */
+    detail?: string | null;
+    /**
+     * Ok
+     */
+    ok: boolean;
+    /**
+     * Seconds
+     */
+    seconds?: number;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Skipped
+     */
+    skipped?: boolean;
+    /**
+     * Step
+     */
+    step: string;
+    /**
+     * Ts
+     */
+    ts: string;
+};
+
+/**
+ * GateHistoryWrite
+ *
+ * Body of ``PUT /history/gates/{gate_id}``: the row and every stage so far.
+ */
+export type GateHistoryWrite = {
+    record: GateRunWrite;
+    /**
+     * Stages
+     */
+    stages?: Array<GateStageWrite>;
+};
+
+/**
+ * GateRunWrite
+ *
+ * The ``gate_run`` row a gate indexes itself as (task-472).
+ *
+ * ``origin`` says whose gate it was: the finisher's, a dispatched run's before its
+ * handoff, or somebody's at a shell. ``scope`` is the gate's own vocabulary with one
+ * rename -- the gate calls a reduced ``--since-gate`` run ``necessity``, the store
+ * calls it ``since_gate`` -- and a partial run is a row, not an omitted one.
+ */
+export type GateRunWrite = {
+    /**
+     * Branch
+     */
+    branch?: string | null;
+    /**
+     * Checkout
+     */
+    checkout?: string | null;
+    /**
+     * Failed Stage
+     */
+    failed_stage?: string | null;
+    /**
+     * Finish Id
+     */
+    finish_id?: string | null;
+    /**
+     * Finished At
+     */
+    finished_at?: string | null;
+    /**
+     * Origin
+     */
+    origin: 'finish' | 'run' | 'manual';
+    /**
+     * Passed
+     */
+    passed?: boolean | null;
+    /**
+     * Run Id
+     */
+    run_id?: string | null;
+    /**
+     * Scope
+     */
+    scope: 'full' | 'partial' | 'since_gate' | 'concurrent';
+    /**
+     * Seconds
+     */
+    seconds?: number | null;
+    /**
+     * Source
+     */
+    source?: 'native' | 'imported';
+    /**
+     * Stages Run
+     */
+    stages_run?: number | null;
+    /**
+     * Stages Total
+     */
+    stages_total?: number | null;
+    /**
+     * Started At
+     */
+    started_at: string;
+    /**
+     * Task Id
+     */
+    task_id?: string | null;
+    /**
+     * Tree
+     */
+    tree?: string | null;
+};
+
+/**
+ * GateStageWrite
+ *
+ * One ``gate_stage`` row. ``seconds`` is null for the stage that failed.
+ */
+export type GateStageWrite = {
+    /**
+     * Finished At
+     */
+    finished_at?: string | null;
+    /**
+     * Passed
+     */
+    passed?: boolean | null;
+    /**
+     * Seconds
+     */
+    seconds?: number | null;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Stage
+     */
+    stage: string;
+    /**
+     * Started At
+     */
+    started_at: string;
 };
 
 /**
@@ -1819,6 +2054,27 @@ export type HandoffRequest = {
      * Questions to pose alongside this handoff, each optionally offering options. Written in the same mutation, so the human never opens a half-populated form.
      */
     questions?: Array<QuestionDraft>;
+};
+
+/**
+ * HistoryWriteResult
+ *
+ * What a history write did.
+ *
+ * ``written`` false is an answer, not an error: ``exists`` means an imported write met
+ * a row that was already there, and ``unknown_task`` means a finish named a task this
+ * project does not have and was refused rather than inserted with the foreign key
+ * off.
+ */
+export type HistoryWriteResult = {
+    /**
+     * Reason
+     */
+    reason?: 'exists' | 'unknown_task' | null;
+    /**
+     * Written
+     */
+    written: boolean;
 };
 
 /**
@@ -6633,6 +6889,66 @@ export type ApiHealthCheckApiHealthGetResponses = {
 
 export type ApiHealthCheckApiHealthGetResponse = ApiHealthCheckApiHealthGetResponses[keyof ApiHealthCheckApiHealthGetResponses];
 
+export type RecordFinishHistoryApiHistoryFinishesFinishIdPutData = {
+    body: FinishHistoryWrite;
+    path: {
+        /**
+         * Finish Id
+         */
+        finish_id: string;
+    };
+    query?: never;
+    url: '/api/history/finishes/{finish_id}';
+};
+
+export type RecordFinishHistoryApiHistoryFinishesFinishIdPutErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecordFinishHistoryApiHistoryFinishesFinishIdPutError = RecordFinishHistoryApiHistoryFinishesFinishIdPutErrors[keyof RecordFinishHistoryApiHistoryFinishesFinishIdPutErrors];
+
+export type RecordFinishHistoryApiHistoryFinishesFinishIdPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: HistoryWriteResult;
+};
+
+export type RecordFinishHistoryApiHistoryFinishesFinishIdPutResponse = RecordFinishHistoryApiHistoryFinishesFinishIdPutResponses[keyof RecordFinishHistoryApiHistoryFinishesFinishIdPutResponses];
+
+export type RecordGateHistoryApiHistoryGatesGateIdPutData = {
+    body: GateHistoryWrite;
+    path: {
+        /**
+         * Gate Id
+         */
+        gate_id: string;
+    };
+    query?: never;
+    url: '/api/history/gates/{gate_id}';
+};
+
+export type RecordGateHistoryApiHistoryGatesGateIdPutErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecordGateHistoryApiHistoryGatesGateIdPutError = RecordGateHistoryApiHistoryGatesGateIdPutErrors[keyof RecordGateHistoryApiHistoryGatesGateIdPutErrors];
+
+export type RecordGateHistoryApiHistoryGatesGateIdPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: HistoryWriteResult;
+};
+
+export type RecordGateHistoryApiHistoryGatesGateIdPutResponse = RecordGateHistoryApiHistoryGatesGateIdPutResponses[keyof RecordGateHistoryApiHistoryGatesGateIdPutResponses];
+
 export type GetPlaybooksApiPlaybooksGetData = {
     body?: never;
     path?: never;
@@ -7337,6 +7653,74 @@ export type ReadDispatchRunTranscriptApiProjectsProjectIdDispatchRunsRunIdTransc
 };
 
 export type ReadDispatchRunTranscriptApiProjectsProjectIdDispatchRunsRunIdTranscriptGetResponse = ReadDispatchRunTranscriptApiProjectsProjectIdDispatchRunsRunIdTranscriptGetResponses[keyof ReadDispatchRunTranscriptApiProjectsProjectIdDispatchRunsRunIdTranscriptGetResponses];
+
+export type RecordFinishHistoryApiProjectsProjectIdHistoryFinishesFinishIdPutData = {
+    body: FinishHistoryWrite;
+    path: {
+        /**
+         * Finish Id
+         */
+        finish_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/history/finishes/{finish_id}';
+};
+
+export type RecordFinishHistoryApiProjectsProjectIdHistoryFinishesFinishIdPutErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecordFinishHistoryApiProjectsProjectIdHistoryFinishesFinishIdPutError = RecordFinishHistoryApiProjectsProjectIdHistoryFinishesFinishIdPutErrors[keyof RecordFinishHistoryApiProjectsProjectIdHistoryFinishesFinishIdPutErrors];
+
+export type RecordFinishHistoryApiProjectsProjectIdHistoryFinishesFinishIdPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: HistoryWriteResult;
+};
+
+export type RecordFinishHistoryApiProjectsProjectIdHistoryFinishesFinishIdPutResponse = RecordFinishHistoryApiProjectsProjectIdHistoryFinishesFinishIdPutResponses[keyof RecordFinishHistoryApiProjectsProjectIdHistoryFinishesFinishIdPutResponses];
+
+export type RecordGateHistoryApiProjectsProjectIdHistoryGatesGateIdPutData = {
+    body: GateHistoryWrite;
+    path: {
+        /**
+         * Gate Id
+         */
+        gate_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/history/gates/{gate_id}';
+};
+
+export type RecordGateHistoryApiProjectsProjectIdHistoryGatesGateIdPutErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecordGateHistoryApiProjectsProjectIdHistoryGatesGateIdPutError = RecordGateHistoryApiProjectsProjectIdHistoryGatesGateIdPutErrors[keyof RecordGateHistoryApiProjectsProjectIdHistoryGatesGateIdPutErrors];
+
+export type RecordGateHistoryApiProjectsProjectIdHistoryGatesGateIdPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: HistoryWriteResult;
+};
+
+export type RecordGateHistoryApiProjectsProjectIdHistoryGatesGateIdPutResponse = RecordGateHistoryApiProjectsProjectIdHistoryGatesGateIdPutResponses[keyof RecordGateHistoryApiProjectsProjectIdHistoryGatesGateIdPutResponses];
 
 export type GetPlaybooksApiProjectsProjectIdPlaybooksGetData = {
     body?: never;

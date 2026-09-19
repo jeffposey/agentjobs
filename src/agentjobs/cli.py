@@ -3031,6 +3031,27 @@ def _databases_in_play(settings: StorageSettings, project_id: Optional[str]) -> 
     return [path for path in settings.databases(ids) if path.exists()]
 
 
+@storage_app.command("import-finishes")
+def storage_import_finishes(
+    project_id: Optional[str] = typer.Option(None, "--project"),
+) -> None:
+    """Index every finish record on disk into the store, once. Re-runnable (task-472).
+
+    Reads each ``fin_*`` directory under the home's ``finishes/`` and writes its
+    ``finish``, ``finish_step``, ``gate_run`` and ``gate_stage`` rows over the service,
+    so the server stays the only process that opens the database. A finish already in
+    the store is left alone and reported, which is what makes a second run safe; a
+    finish whose task the project does not have is refused and reported. The files are
+    not touched.
+    """
+    from .history import import_finishes
+
+    project = _storage_project(project_id)
+    manager = task_manager_for(project)
+    report = import_finishes(default_home(), manager, project.id)
+    typer.echo(report.render())
+
+
 @storage_app.command("backup")
 def storage_backup(
     destination: Optional[Path] = typer.Option(None, "--into", help="Where to write the snapshot."),

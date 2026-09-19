@@ -139,6 +139,13 @@ ROUTE_CAPABILITIES: Dict[str, RouteRule] = {
     "disarm_pull_mode": RouteRule(Capability.DISPATCH_ADMIN),
     # Switching the idle-session sweep on lets it stop the owner's own sessions (task-447).
     "update_idle_session_settings": RouteRule(Capability.DISPATCH_ADMIN),
+    # ----- the history index (task-472) --------------------------------------------
+    #
+    # No `task_param`: a gate run may name no task at all, and the finish names its task
+    # in the body rather than the path. Neither is scoped to a run's own task anyway,
+    # since `OWN_TASK_ONLY` is empty.
+    "record_finish_history": RouteRule(Capability.HISTORY_RECORD),
+    "record_gate_history": RouteRule(Capability.HISTORY_RECORD),
     # ----- machine-level administration -------------------------------------------
     "register_project": RouteRule(Capability.PROJECT_ADMIN),
     "initialize_and_register_project": RouteRule(Capability.PROJECT_ADMIN),

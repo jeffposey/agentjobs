@@ -234,6 +234,8 @@ def task_manager_for(
     *,
     settings: Optional[StorageSettings] = None,
     webhook_manager: Optional[Any] = None,
+    client_timeout: Optional[float] = None,
+    patient: bool = True,
 ) -> TaskManagerLike:
     """A manager for one project, local or remote according to who is asking.
 
@@ -247,6 +249,10 @@ def task_manager_for(
 
     A caller therefore does not have to know which side it is on, which is what keeps
     the CLI's twelve construction sites from each becoming a decision.
+
+    ``client_timeout`` and ``patient`` shape the remote side only, and exist for the gate
+    (task-472): it records its own run through this manager and must not wait a quarter
+    of a minute for a service that is not there. Inside the server both are ignored.
     """
     from .manager import TaskManager
 
@@ -254,7 +260,10 @@ def task_manager_for(
     if not is_server_process():
         from .remote_manager import remote_manager_for
 
-        return remote_manager_for(project, settings=resolved)
+        options: Dict[str, Any] = {"patient": patient}
+        if client_timeout is not None:
+            options["timeout"] = client_timeout
+        return remote_manager_for(project, settings=resolved, **options)
     return TaskManager(open_store(project, settings=resolved), webhook_manager)
 
 

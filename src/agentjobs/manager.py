@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import (
+    TYPE_CHECKING,
     Any,
     Collection,
     Dict,
@@ -20,7 +21,6 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    TYPE_CHECKING,
     Union,
     cast,
 )
@@ -36,6 +36,7 @@ from .operations import (
 )
 
 from .attachments import AttachmentPayload
+from .sqlstore.history import HistoryWrite
 from .models_v2 import (
     MANAGER_WRITTEN_LOG_TYPES,
     PRIORITY_RANK,
@@ -2866,6 +2867,35 @@ class TaskManager:
             return task
 
         return self._mutate(task_id, apply)
+
+    # ------------------------------------------------------------------
+    # Finish and gate history (task-472)
+    # ------------------------------------------------------------------
+
+    def record_finish(
+        self,
+        finish_id: str,
+        record: Mapping[str, Any],
+        steps: Sequence[Mapping[str, Any]] = (),
+    ) -> HistoryWrite:
+        """Index one scripted finish and its steps in the store.
+
+        Rows, not a log entry: the finish already writes its narrative onto the task
+        as ``progress`` entries, and what this adds is the queryable shape a page reads
+        (analytics design section 20). The files under the home directory stay the
+        human-readable record; ``record`` and ``steps`` are what ``agentjobs.history``
+        derived from them.
+        """
+        return self.storage.record_finish(finish_id, record, steps)
+
+    def record_gate_run(
+        self,
+        gate_id: str,
+        record: Mapping[str, Any],
+        stages: Sequence[Mapping[str, Any]] = (),
+    ) -> HistoryWrite:
+        """Index one gate run and its stages in the store. See :meth:`record_finish`."""
+        return self.storage.record_gate_run(gate_id, record, stages)
 
     # ------------------------------------------------------------------
     # Webhooks
