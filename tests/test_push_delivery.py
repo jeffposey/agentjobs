@@ -84,7 +84,9 @@ class FakeManager:
     """Just enough manager for :func:`human_waiting_tasks`.
 
     A real store would make every case below pay for a database to say something about
-    a set of task ids. ``reconcile`` reads exactly one method.
+    a set of task ids. ``reconcile`` reads two methods: the tasks, and each candidate's
+    children -- the second since task-467, because a parent merely waiting on a child a
+    person already holds is not a second thing for that person to do.
     """
 
     def __init__(self, tasks: List[Task]) -> None:
@@ -92,6 +94,9 @@ class FakeManager:
 
     def list_tasks(self, **_kwargs: Any) -> List[Task]:
         return list(self._tasks)
+
+    def get_subtasks(self, task_id: str) -> List[Task]:
+        return [task for task in self._tasks if task.parent == task_id]
 
     def set(self, tasks: List[Task]) -> None:
         self._tasks = tasks

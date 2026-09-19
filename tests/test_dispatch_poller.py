@@ -859,14 +859,21 @@ class TestTheServerStartsIt:
         assert len(polled) == before
 
 
-def test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved(machine) -> None:
+def test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved(machine, monkeypatch) -> None:
     """task-467. The sweep runs on the clock, not on somebody noticing.
 
     The whole point of putting it here is that nothing else was watching: the walk that
     wrote the ask had already stopped, so resolving its child fired nothing at all. It
     sweeps every *registered* project rather than only the ones with a run this tick,
     because a stale ask outlives the run that wrote it by definition.
+
+    The interval is set to zero because the throttle is process-local and a test is not
+    the only caller in its worker: what is being tested is what the sweep does when it
+    runs, not that five minutes is five minutes.
     """
+    from agentjobs.dispatch import poller
+
+    monkeypatch.setattr(poller, "RETRACTION_SWEEP_SECONDS", 0.0)
     home, _root, manager, _cli = machine
     parent = manager.create_task(
         title="Epic",
@@ -910,3 +917,25 @@ def test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved(machine) -> N
     manager.storage.refresh()
     corrected = manager.get_task(parent.id)
     assert corrected is not None and corrected.ball is not Ball.HUMAN
+
+
+def test_the_retraction_sweep_is_throttled_rather_than_run_every_tick(machine) -> None:
+    """It is a repair, not a heartbeat (task-467).
+
+    What it corrects is a ball left standing for minutes or hours, so reading every
+    project's human-held tasks on every ten-second tick forever would be a recurring
+    cost for a rare event. The first tick of a process always sweeps; the next one
+    inside the window does not.
+    """
+    from agentjobs.dispatch import poller
+
+    home, _root, _manager, _cli = machine
+    poller._last_retraction_sweep = 0.0
+
+    poll_live_sessions(home)
+    first = poller._last_retraction_sweep
+    assert first, "the first tick of a process must sweep"
+
+    poll_live_sessions(home)
+
+    assert poller._last_retraction_sweep == first, "it swept again inside the window"
