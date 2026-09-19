@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { TaskRead } from "../api/types";
-import { DependencyState } from "./DependencyState";
+import { DependencyState, dependencyState } from "./DependencyState";
 
 function closedTask(outcome: "completed" | "cancelled" | "superseded" | "duplicate", displayStatus: string): TaskRead {
   return {
@@ -224,5 +224,92 @@ describe("DependencyState on an external park", () => {
     render(<DependencyState task={parked} />);
 
     expect(screen.getByText("Blocked")).toBeVisible();
+  });
+});
+
+/**
+ * A dispatch of the task waiting for a free slot (task-476).
+ *
+ * The row used to read "Actionable now" in green, which invites a reader to start the
+ * agent the machine has already promised to start.
+ */
+describe("a queued dispatch", () => {
+  function task(overrides: Partial<TaskRead>): TaskRead {
+    return {
+      schema: 2,
+      id: "task-queued",
+      title: "A task with a dispatch waiting for a slot",
+      created: "2026-09-19T15:00:00Z",
+      updated: "2026-09-19T15:29:00Z",
+      lifecycle: "ready",
+      ball: "agent",
+      ball_reason: "available",
+      display_status: "Ready",
+      priority: "high",
+      category: "ops",
+      tags: [],
+      assignment: { eligible: [] },
+      spec: { summary: "Summary.", description: "Body." },
+      ...overrides,
+    };
+  }
+
+  const entry = {
+    queue_id: "q_e1aeca49780f",
+    position: 1,
+    queued_at: "2026-09-19T15:29:00Z",
+    queued_by: "Jeff Posey",
+    source: "manual",
+    status: "queued",
+    detail: "",
+    paused_by: "",
+  };
+
+  it("replaces the invitation with the server's own label", () => {
+    const state = dependencyState(
+      task({
+        lifecycle: "ready",
+        ball: "agent",
+        ball_reason: "available",
+        actionable: true,
+        display_status: "Queued",
+        queued_dispatch: entry,
+      }),
+    );
+
+    expect(state.label).toBe("Queued");
+    expect(state.kind).toBe("waiting");
+    expect(state.reasons.join(" ")).toMatch(/waiting for a free slot/i);
+  });
+
+  it("says when nothing is being tried at all", () => {
+    const state = dependencyState(
+      task({
+        lifecycle: "ready",
+        ball: "agent",
+        ball_reason: "available",
+        actionable: true,
+        display_status: "Queued (start paused)",
+        queued_dispatch: { ...entry, paused_by: "inc_7ffcc0210a984e39" },
+      }),
+    );
+
+    expect(state.label).toBe("Queued (start paused)");
+    expect(state.reasons.join(" ")).toMatch(/inc_7ffcc0210a984e39 is open/);
+  });
+
+  it("leaves a ready task with no waiting entry actionable", () => {
+    const state = dependencyState(
+      task({
+        lifecycle: "ready",
+        ball: "agent",
+        ball_reason: "available",
+        actionable: true,
+        display_status: "Ready",
+      }),
+    );
+
+    expect(state.label).toBe("Actionable now");
+    expect(state.kind).toBe("actionable");
   });
 });
