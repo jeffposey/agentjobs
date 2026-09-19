@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .analytics import router as analytics_router
+from .history import router as history_router
 from .health import router as health_router
 from .dashboard import router as dashboard_router
 from .dispatch import router as dispatch_router
@@ -24,6 +25,7 @@ from .webhooks import router as webhooks_router
 PROJECT_SCOPED_ROUTERS = (
     dashboard_router,
     analytics_router,
+    history_router,
     dispatch_router,
     tasks_router,
     status_router,
@@ -48,6 +50,7 @@ __all__ = [
     "dashboard_router",
     "dispatch_router",
     "health_router",
+    "history_router",
     "playbooks_router",
     "projects_router",
     "push_router",

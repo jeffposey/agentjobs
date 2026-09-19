@@ -39,6 +39,7 @@ human is asking, this stops being a table and becomes a role system.
 | `task.edit` | `PATCH`/`DELETE /tasks/{id}`, deliverables | ✓ | ✓ | ✓ |
 | `task.verb` | promote, claim, handoff, release, close, log, progress | ✓ | ✓ | ✓ |
 | `task.queue` | queue-move, queue-keep, reprioritize | ✓ | ✓ | ✓ |
+| `history.record` | `PUT /history/finishes/{id}`, `PUT /history/gates/{id}` -- a finish or a gate indexing itself (task-472) | ✓ | ✓ | ✓ |
 | `task.review` | approve, request-changes, answer, redirect, hold, resume, reject | ✓ | ✓ | — |
 | `dispatch.start` | task dispatch, playbook run, run cancel, queued-dispatch cancel | ✓ | ✓ | — |
 | `dispatch.over_ceiling` | the `over_ceiling` field on a task dispatch | ✓ | ✓ | — |

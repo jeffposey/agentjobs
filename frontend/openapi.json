@@ -2299,6 +2299,161 @@
         "title": "FinishGateView",
         "type": "object"
       },
+      "FinishHistoryWrite": {
+        "additionalProperties": false,
+        "description": "Body of ``PUT /history/finishes/{finish_id}``: the row and every step so far.",
+        "properties": {
+          "record": {
+            "$ref": "#/components/schemas/FinishRecordWrite"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/FinishStepWrite"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "record"
+        ],
+        "title": "FinishHistoryWrite",
+        "type": "object"
+      },
+      "FinishRecordWrite": {
+        "additionalProperties": false,
+        "description": "The ``finish`` row a scripted finish indexes itself as (task-472).\n\nDerived from the finish's ``meta.yaml`` by ``agentjobs.history``; the field names are\nthe column names. ``source`` says who is writing: ``native`` upserts, ``imported``\nnever overwrites a row that exists.",
+        "properties": {
+          "authority": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authority"
+          },
+          "dispatched_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dispatched Run Id"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "merge_commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merge Commit"
+          },
+          "merged": {
+            "default": false,
+            "title": "Merged",
+            "type": "boolean"
+          },
+          "outcome": {
+            "enum": [
+              "finished",
+              "escalated",
+              "declined",
+              "interrupted",
+              "running"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds"
+          },
+          "source": {
+            "default": "native",
+            "enum": [
+              "native",
+              "imported"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "started_at": {
+            "title": "Started At",
+            "type": "string"
+          },
+          "stopped_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stopped At"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "started_at",
+          "outcome"
+        ],
+        "title": "FinishRecordWrite",
+        "type": "object"
+      },
       "FinishStepView": {
         "description": "One step of a scripted finish, as the task page renders it.",
         "properties": {
@@ -2333,6 +2488,315 @@
           "state"
         ],
         "title": "FinishStepView",
+        "type": "object"
+      },
+      "FinishStepWrite": {
+        "additionalProperties": false,
+        "description": "One ``finish_step`` row: a step of the sequence and what it cost.",
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "seconds": {
+            "default": 0.0,
+            "title": "Seconds",
+            "type": "number"
+          },
+          "seq": {
+            "minimum": 1.0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "skipped": {
+            "default": false,
+            "title": "Skipped",
+            "type": "boolean"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "ts": {
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "step",
+          "ok",
+          "ts"
+        ],
+        "title": "FinishStepWrite",
+        "type": "object"
+      },
+      "GateHistoryWrite": {
+        "additionalProperties": false,
+        "description": "Body of ``PUT /history/gates/{gate_id}``: the row and every stage so far.",
+        "properties": {
+          "record": {
+            "$ref": "#/components/schemas/GateRunWrite"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/GateStageWrite"
+            },
+            "title": "Stages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "record"
+        ],
+        "title": "GateHistoryWrite",
+        "type": "object"
+      },
+      "GateRunWrite": {
+        "additionalProperties": false,
+        "description": "The ``gate_run`` row a gate indexes itself as (task-472).\n\n``origin`` says whose gate it was: the finisher's, a dispatched run's before its\nhandoff, or somebody's at a shell. ``scope`` is the gate's own vocabulary with one\nrename -- the gate calls a reduced ``--since-gate`` run ``necessity``, the store\ncalls it ``since_gate`` -- and a partial run is a row, not an omitted one.",
+        "properties": {
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "checkout": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkout"
+          },
+          "failed_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed Stage"
+          },
+          "finish_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finish Id"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "origin": {
+            "enum": [
+              "finish",
+              "run",
+              "manual"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "scope": {
+            "enum": [
+              "full",
+              "partial",
+              "since_gate",
+              "concurrent"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds"
+          },
+          "source": {
+            "default": "native",
+            "enum": [
+              "native",
+              "imported"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "stages_run": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stages Run"
+          },
+          "stages_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stages Total"
+          },
+          "started_at": {
+            "title": "Started At",
+            "type": "string"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "tree": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tree"
+          }
+        },
+        "required": [
+          "origin",
+          "scope",
+          "started_at"
+        ],
+        "title": "GateRunWrite",
+        "type": "object"
+      },
+      "GateStageWrite": {
+        "additionalProperties": false,
+        "description": "One ``gate_stage`` row. ``seconds`` is null for the stage that failed.",
+        "properties": {
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds"
+          },
+          "seq": {
+            "minimum": 1.0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "started_at": {
+            "title": "Started At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "stage",
+          "started_at"
+        ],
+        "title": "GateStageWrite",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -2429,6 +2893,35 @@
           "ball_reason"
         ],
         "title": "HandoffRequest",
+        "type": "object"
+      },
+      "HistoryWriteResult": {
+        "description": "What a history write did.\n\n``written`` false is an answer, not an error: ``exists`` means an imported write met\na row that was already there, and ``unknown_task`` means a finish named a task this\nproject does not have and was refused rather than inserted with the foreign key\noff.",
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "exists",
+                  "unknown_task"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "written": {
+            "title": "Written",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "written"
+        ],
+        "title": "HistoryWriteResult",
         "type": "object"
       },
       "HolderPoint": {
@@ -8779,6 +9272,112 @@
         ]
       }
     },
+    "/api/history/finishes/{finish_id}": {
+      "put": {
+        "description": "Index one scripted finish and the steps it has taken so far.\n\n``written`` is false, with a reason, when an imported record met a row already there\nor when the finish names a task this project does not have. Both are answers rather\nthan errors: the importer reports them, and the finisher never sends either.",
+        "operationId": "record_finish_history_api_history_finishes__finish_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "finish_id",
+            "required": true,
+            "schema": {
+              "title": "Finish Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinishHistoryWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryWriteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Finish History",
+        "tags": [
+          "history"
+        ]
+      }
+    },
+    "/api/history/gates/{gate_id}": {
+      "put": {
+        "description": "Index one gate run and the stages it has finished so far.",
+        "operationId": "record_gate_history_api_history_gates__gate_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "gate_id",
+            "required": true,
+            "schema": {
+              "title": "Gate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GateHistoryWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryWriteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Gate History",
+        "tags": [
+          "history"
+        ]
+      }
+    },
     "/api/playbooks": {
       "get": {
         "description": "Every playbook this project holds, with the files that would not load.",
@@ -9897,6 +10496,130 @@
         "summary": "Read Dispatch Run Transcript",
         "tags": [
           "dispatch"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/history/finishes/{finish_id}": {
+      "put": {
+        "description": "Index one scripted finish and the steps it has taken so far.\n\n``written`` is false, with a reason, when an imported record met a row already there\nor when the finish names a task this project does not have. Both are answers rather\nthan errors: the importer reports them, and the finisher never sends either.",
+        "operationId": "record_finish_history_api_projects__project_id__history_finishes__finish_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "finish_id",
+            "required": true,
+            "schema": {
+              "title": "Finish Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinishHistoryWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryWriteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Finish History",
+        "tags": [
+          "history"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/history/gates/{gate_id}": {
+      "put": {
+        "description": "Index one gate run and the stages it has finished so far.",
+        "operationId": "record_gate_history_api_projects__project_id__history_gates__gate_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "gate_id",
+            "required": true,
+            "schema": {
+              "title": "Gate Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GateHistoryWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryWriteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Gate History",
+        "tags": [
+          "history"
         ]
       }
     },

@@ -89,6 +89,9 @@ def no_receipt_from_a_simulated_gate(monkeypatch: pytest.MonkeyPatch) -> list[ob
     # commands to the list a test is counting, and the count is the assertion.
     monkeypatch.setattr(check.gate_scope, "tree_fingerprint", lambda root: "fingerprint")
     monkeypatch.setattr(check.gate_scope, "dirty_paths", lambda root: [])
+    # And no row in the store for a gate that executed nothing (task-472). The
+    # environment switch conftest sets already stops it; this makes the intent local.
+    monkeypatch.setattr(check, "open_gate_history", lambda: None)
     return written
 
 

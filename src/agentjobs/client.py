@@ -202,15 +202,23 @@ class TaskClient:
         transport: httpx.BaseTransport | None = None,
         client: httpx.Client | None = None,
         project_id: Optional[str] = None,
+        patient: bool = True,
     ) -> None:
         """Initialise the client with the API base URL and timeout.
 
         ``project_id`` addresses one project explicitly. Prefer
         :meth:`for_project` over passing it here; the two are equivalent, but the
         method reads as a scoping operation on an existing connection.
+
+        ``patient`` is whether a request rides through a restart on the backoff in
+        :data:`RETRY_BACKOFF_SECONDS`. It is on for everything a person or an agent
+        waits on. The gate turns it off: it records itself over this client and a
+        quarter of a minute spent waiting for a service that is not running would be
+        the gate being slowed by its own instrumentation (task-472).
         """
         self._base_url = base_url.rstrip("/") or "http://localhost:8765"
         self._project_id = project_id
+        self._patient = patient
         self._owns_client = client is None
         if client is not None:
             self._client = client
@@ -258,6 +266,7 @@ class TaskClient:
             self._base_url,
             client=self._client,
             project_id=project_id,
+            patient=self._patient,
         )
         # The parent owns the connection. Sharing without transferring ownership is
         # what makes scoping cheap enough to do per call.
@@ -566,6 +575,43 @@ class TaskClient:
         payload.update(self._serialise_payload(kwargs))
         response = self._request("POST", self._path("/tasks"), json=payload)
         return self._parse_task(response.json())
+
+    # ------------------------------------------------------------------
+    # Finish and gate history (task-472)
+    # ------------------------------------------------------------------
+    def put_finish_record(
+        self,
+        finish_id: str,
+        *,
+        record: Mapping[str, Any],
+        steps: Sequence[Mapping[str, Any]] = (),
+    ) -> Dict[str, Any]:
+        """Index one scripted finish and its steps. An upsert, so a retry is harmless."""
+        response = self._request(
+            "PUT",
+            self._path(f"/history/finishes/{quote(finish_id, safe='')}"),
+            json={"record": dict(record), "steps": [dict(step) for step in steps]},
+            replayable=True,
+        )
+        payload: Dict[str, Any] = response.json()
+        return payload
+
+    def put_gate_record(
+        self,
+        gate_id: str,
+        *,
+        record: Mapping[str, Any],
+        stages: Sequence[Mapping[str, Any]] = (),
+    ) -> Dict[str, Any]:
+        """Index one gate run and its stages. An upsert, so a retry is harmless."""
+        response = self._request(
+            "PUT",
+            self._path(f"/history/gates/{quote(gate_id, safe='')}"),
+            json={"record": dict(record), "stages": [dict(stage) for stage in stages]},
+            replayable=True,
+        )
+        payload: Dict[str, Any] = response.json()
+        return payload
 
     def update_task(self, task_id: str, **updates: Any) -> Task:
         """Partially update a task. State axes move through the verbs below."""
@@ -880,7 +926,10 @@ class TaskClient:
             )
 
         last: Optional[Exception] = None
-        for index, pause in enumerate((*RETRY_BACKOFF_SECONDS, None)):
+        pauses: Tuple[Optional[float], ...] = (
+            (*RETRY_BACKOFF_SECONDS, None) if self._patient else (None,)
+        )
+        for index, pause in enumerate(pauses):
             try:
                 response = self._client.request(method, url, **kwargs)
                 if response.status_code == 503:

@@ -2747,6 +2747,30 @@ class TestWritingTheRecordOverTheService:
         assert not world["worktree"].exists()
         assert world["branch"] not in worktree_paths(world["root"])
 
+        # And the finish indexed itself over the same service as it ran (task-472): the
+        # row is the finished `meta.yaml`, and every step of the sequence is a row.
+        database = world["manager"].storage.database
+        finish = (
+            database.reader()
+            .execute(
+                "SELECT outcome, merged, merge_commit, source FROM finish WHERE finish_id = ?",
+                (result.finish_id,),
+            )
+            .fetchone()
+        )
+        assert finish is not None
+        assert (finish["outcome"], finish["merged"], finish["source"]) == ("finished", 1, "native")
+        assert finish["merge_commit"] == result.merge_commit
+        recorded = [
+            row["step"]
+            for row in database.reader().execute(
+                "SELECT step FROM finish_step WHERE finish_id = ? ORDER BY seq",
+                (result.finish_id,),
+            )
+        ]
+        assert recorded == [step.step for step in result.steps]
+        assert "merge" in recorded and "close" in recorded
+
     def test_it_writes_no_task_file_and_leaves_no_dirty_checkout(
         self, world: Dict[str, Any], remote: Any
     ) -> None:

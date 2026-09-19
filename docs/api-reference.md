@@ -66,6 +66,20 @@ The human inbox is `GET /api/tasks?ball=human`; external blockers are
 `GET /api/tasks?ball=external`. These are derived from schema-v2 axes, not legacy status
 strings.
 
+## Finish and gate history
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `PUT` | `/api/history/finishes/{finish_id}` | Index a scripted finish and its steps: the `finish` row and every `finish_step` so far. An upsert; the body is the whole record each time |
+| `PUT` | `/api/history/gates/{gate_id}` | Index a gate run and its stages: the `gate_run` row and every `gate_stage` so far. An upsert |
+
+Both answer `{written, reason}`. `written: false` is an answer, not an error: `exists`
+means an `imported` record met a row already there, and `unknown_task` means a finish
+named a task this project does not have. The finisher and `scripts/check.py` are the
+writers, over the service rather than the database (task-273); `agentjobs storage
+import-finishes` is the one-time import of the directories on disk. Nothing reads these
+rows yet -- the series over them are task-473's. See [storage-sqlite.md](storage-sqlite.md#13-finish-and-gate-history-task-472).
+
 ## Task creation and editing
 
 | Method | Path | Purpose |

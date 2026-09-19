@@ -127,6 +127,10 @@ def never_inside_a_dispatched_run(monkeypatch) -> None:
     as that run instead of as the owner, so the suite would be measuring the ambient
     environment rather than the state it set up.
     """
+    # And no simulated gate indexes itself in the store (task-472): `check.main` is
+    # called with `subprocess.run` stubbed, and each such run would otherwise PUT a
+    # `gate_run` row at whatever service answers on this machine.
+    monkeypatch.setenv("AGENTJOBS_GATE_HISTORY", "off")
     for name in ("AGENTJOBS_RUN_ID", "AGENTJOBS_RUN_DIR", "AGENTJOBS_RUN_CREDENTIAL"):
         monkeypatch.delenv(name, raising=False)
 
