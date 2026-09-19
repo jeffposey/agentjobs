@@ -586,6 +586,22 @@ class TestADispatchedEpicHoldsNoSlot:
         assert len(walks) == 1, "the second dispatch adopted the open walk"
         assert [row.get("state") for row in walk.machine.rows()] == []
 
+    def test_a_full_machine_does_not_refuse_the_epic(self, walk: Epic) -> None:
+        """A walk reserves no slot, so a busy machine is backpressure rather than a refusal.
+
+        Refused, the click would be lost: the walk treats a full machine as something to
+        wait on, and each child is admitted on its own when a slot frees. The three runs
+        below are the machine's whole ceiling.
+        """
+        for _ in range(3):
+            walk.machine.dispatch(walk.machine.task())
+        walk.child("First")
+
+        handle = _dispatch_epic(walk)
+
+        assert handle.mode is DispatchMode.WALK
+        assert len(journal(walk.machine.home).open_walks()) == 1
+
     def test_the_walk_fills_the_whole_ceiling(self, walk: Epic) -> None:
         """ac-1. Three independent children, ceiling three, and nothing supervising.
 

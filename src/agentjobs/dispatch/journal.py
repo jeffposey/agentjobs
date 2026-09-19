@@ -549,6 +549,7 @@ def admit_dispatch(
     attempt_operation_id: Optional[str] = None,
     continues_execution_id: Optional[str] = None,
     controlled_by: Optional[str] = None,
+    takes_slot: bool = True,
 ) -> Attempt:
     """Admit one dispatch: ownership, slot and reservation in one transaction.
 
@@ -561,6 +562,18 @@ def admit_dispatch(
     a deliberate overage a person asked for (task-461), which is the same "no slot check"
     :func:`admit_session` has always passed. The hourly cap is separate and binds either
     way.
+
+    ``takes_slot`` is ``False`` for the two admissions that start no process of their own:
+    a session registering itself (task-354) and an epic handing its children to the server
+    (task-458). It still takes ownership of its task and still counts against the hourly
+    cap -- it is a dispatch somebody asked for -- but a full machine does not refuse it,
+    because there is nothing for a slot to be holding.
+
+    **The two are not the same exemption**, and keeping them apart is the point. An
+    overage is a ceiling a person chose to cross for a run that really does occupy the
+    machine; a walk never occupies it at all. Were a walk to go through the overage
+    instead, every epic dispatched onto a busy machine would be recorded as having been
+    pushed past the ceiling, which is a claim about the machine that is not true.
     """
     release_ended(home, resolve_manager)
     legacy = legacy_view(home, project_id=project_id, task_id=task_id)
@@ -578,6 +591,7 @@ def admit_dispatch(
         legacy_owners=legacy.owners,
         legacy_recent_starts=legacy.recent_starts,
         reservation=reservation,
+        takes_slot=takes_slot,
         attempt_operation_id=attempt_operation_id,
         continues_execution_id=continues_execution_id,
         controlled_by=controlled_by,

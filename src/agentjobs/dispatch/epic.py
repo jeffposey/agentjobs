@@ -865,6 +865,24 @@ def frontier(
     return candidates
 
 
+def starts_a_walk(manager: TaskManagerLike, task_id: str) -> bool:
+    """Whether dispatching this task hands an epic to the server rather than starting an agent.
+
+    One open child is enough, which is the same property ``get_next_task()`` uses to refuse
+    to hand out a parent and the same one the prompt stub used before task-458: it needs no
+    field, no label anybody has to remember to set, and no judgement at spawn time.
+
+    A task whose children cannot be listed is dispatched as an ordinary task rather than
+    not dispatched at all, which is the reading ``DispatchRunner.open_child_ids`` has always
+    taken of the same failure: this decorates a dispatch, and must never be able to refuse
+    one.
+    """
+    try:
+        return any(child.is_open for child in manager.get_subtasks(task_id))
+    except Exception:  # noqa: BLE001 - see the docstring
+        return False
+
+
 def open_children(manager: TaskManagerLike, parent_id: str) -> List[Task]:
     children = manager.get_subtasks(parent_id)
     return [child for child in children if child.is_open]

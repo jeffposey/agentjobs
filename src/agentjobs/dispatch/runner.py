@@ -2318,6 +2318,7 @@ class DispatchRunner:
         caused_by: int,
         trigger: DispatchTrigger = DispatchTrigger.MANUAL,
         run_id: Optional[str] = None,
+        walk: Optional[bool] = None,
     ) -> RunHandle:
         """Start a run for ``task`` in whichever mode the runner declares.
 
@@ -2325,8 +2326,13 @@ class DispatchRunner:
         journal (task-264). It is minted *before* the launch so the journal names the
         attempt before any worker exists; omitted, one is minted here, which is what every
         caller outside ``dispatch_task`` has always had.
+
+        ``walk`` is the same shape: ``dispatch_task`` decided it before admitting, because
+        a walk is admitted without a slot, and passes its answer here so the admission and
+        the launch cannot describe two different dispatches. Omitted, this reads the record
+        itself, which is what every other caller has always had.
         """
-        if self.open_child_ids(task.id):
+        if self.open_child_ids(task.id) if walk is None else walk:
             # **An epic starts no agent** (task-458). Its dispatch hands the walk to the
             # server and concludes in this same call, so the ceiling it is about to fill
             # with children has nothing of its own in it. Before `_assert_spawnable`

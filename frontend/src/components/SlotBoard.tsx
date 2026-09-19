@@ -73,7 +73,10 @@ export const BOARD_CELL_LIMIT = 6;
  *
  * An **interactive** run -- a session somebody is working the task in (task-354) -- is
  * a `run` cell like any other and is added the same way, for the same reason: it is in
- * `runs` and not in `occupied`, because it holds its task rather than a slot.
+ * `runs` and not in `occupied`, because it holds its task rather than a slot. A **walk**
+ * run, which handed an epic's children to the server and started no agent (task-458), is
+ * added the same way and for the same reason; it is normally over before any board is
+ * drawn, and one that is not must not be shown taking a cell it does not take.
  */
 /**
  * An **overage** run -- one a person started above the ceiling (task-461) -- is a `run`
@@ -148,6 +151,17 @@ export function orderedFinishes(finishes: MachineHolderView[]): MachineHolderVie
  * Pure, and separate from the rendering, because every rule worth arguing about is in
  * here: how many cells there are, which are busy, and what fills the rest.
  */
+/**
+ * Whether this run is one of the machine's `occupied` slots.
+ *
+ * The mirror of `LiveRun.takes_slot` on the server, and it has to stay one: a run drawn
+ * in a slot cell that the server does not count is a board that disagrees with the
+ * dispatch guard about whether there is room.
+ */
+export function holdsSlot(run: LiveRunView): boolean {
+  return run.mode !== "interactive" && run.mode !== "walk";
+}
+
 export function boardLayout(
   body: LiveRunsView,
   queue: TaskRead[],
@@ -157,8 +171,10 @@ export function boardLayout(
   // Slot cells are filled from the runs that *hold* slots. An interactive session is in
   // `runs` and not in `occupied` (task-354), so indexing the slot cells into the whole
   // list would put a chat session in a slot cell and push a dispatched run out of one.
-  const slotted = orderedRuns(body.runs.filter((run) => run.mode !== "interactive"));
-  const attended = orderedRuns(body.runs.filter((run) => run.mode === "interactive"));
+  // The split is on holding a slot rather than on one mode's name, because task-458 made
+  // a second mode that is in `runs` and not in `occupied`.
+  const slotted = orderedRuns(body.runs.filter(holdsSlot));
+  const attended = orderedRuns(body.runs.filter((run) => !holdsSlot(run)));
   // `occupied`, never `runs.length`. The count is the machine's and the list is this
   // caller's, and the cell that exists for the difference is `opaque`.
   // A machine may be *over* its ceiling: a person chose Dispatch now with every slot
