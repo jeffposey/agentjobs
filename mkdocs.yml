@@ -73,6 +73,7 @@ nav:
       - Analytics page design: analytics-design.md
       - The Tasks surface: tasks-shell.md
       - Attention and notifications: attention.md
+      - Mobile push: push.md
       - Queue position design: task-selection-design.md
       - Task schema reference: task-schema.md
       - API reference: api-reference.md

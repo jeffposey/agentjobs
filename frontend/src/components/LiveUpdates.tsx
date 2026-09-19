@@ -64,6 +64,14 @@ export const NON_TASK_PROJECT_QUERY_IDS = new Map([
     "Webhook subscriptions are configuration, not task data; task writes never change them.",
   ],
   [
+    "getPushStatusApiProjectsProjectIdPushGet",
+    "The devices registered for mobile push, and the key they subscribe against. " +
+      "Configuration about hardware rather than about work: it changes only when " +
+      "somebody presses a button in the notifications panel, and refetching it on " +
+      "every task write would be polling for an event that cannot happen without " +
+      "that panel already knowing (task-423).",
+  ],
+  [
     "getWebhookApiProjectsProjectIdWebhooksWebhookIdGet",
     "Same as the webhook list: configuration, unaffected by task writes.",
   ],

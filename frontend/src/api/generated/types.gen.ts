@@ -558,6 +558,10 @@ export type AttentionEpisodeView = {
      */
     acknowledged: boolean;
     /**
+     * Deep Link
+     */
+    deep_link?: string;
+    /**
      * Id
      */
     id: string;
@@ -3284,6 +3288,207 @@ export type PullModeView = {
      * Runs this arming has already started.
      */
     starts_used?: number;
+};
+
+/**
+ * PushDeviceView
+ *
+ * One registered device, with its endpoint deliberately absent.
+ *
+ * A push endpoint is a URL anybody holding it can send a notification to, so it is
+ * treated as a secret: the API answers with the push service's host, a label the
+ * person chose, and what happened to the last attempt. ``healthy`` is false once a
+ * device has failed enough times in a row to be worth mentioning -- it is a report,
+ * not a removal.
+ */
+export type PushDeviceView = {
+    /**
+     * Consecutive Failures
+     */
+    consecutive_failures?: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Healthy
+     */
+    healthy?: boolean;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Last Attempt At
+     */
+    last_attempt_at?: string | null;
+    /**
+     * Last Error
+     */
+    last_error?: string | null;
+    /**
+     * Last Status
+     */
+    last_status?: number | null;
+    /**
+     * Service
+     */
+    service: string;
+};
+
+/**
+ * PushSendResult
+ *
+ * What one deliberate test push did.
+ *
+ * ``outcome`` rather than the status alone: ``gone`` means the device was forgotten
+ * as a result, which a status code on its own would not tell the page.
+ */
+export type PushSendResult = {
+    /**
+     * Error
+     */
+    error?: string | null;
+    /**
+     * Outcome
+     */
+    outcome: string;
+    /**
+     * Status
+     */
+    status?: number | null;
+    /**
+     * Subscription Id
+     */
+    subscription_id: string;
+};
+
+/**
+ * PushStatusResponse
+ *
+ * What the notifications panel needs to render itself.
+ *
+ * ``vapid_public_key`` is the application-server key a browser must subscribe
+ * against. It is public by construction -- the private half never leaves this
+ * process -- and reading it is what creates the machine's keypair on first use.
+ */
+export type PushStatusResponse = {
+    /**
+     * Contact
+     */
+    contact: string;
+    /**
+     * Devices
+     */
+    devices?: Array<PushDeviceView>;
+    /**
+     * Poll Seconds
+     */
+    poll_seconds: number;
+    /**
+     * Vapid Public Key
+     */
+    vapid_public_key: string;
+    /**
+     * Watching
+     */
+    watching: boolean;
+};
+
+/**
+ * PushSubscribeRequest
+ *
+ * A device asking to be woken.
+ *
+ * Exactly the shape ``PushSubscription.toJSON()`` produces, plus two fields of ours,
+ * so the client can pass the browser's object through without reassembling it.
+ *
+ * ``label`` is for the person -- "Pixel 9", "iPad" -- and is the only way to tell two
+ * rows apart in the UI, because the endpoint is never shown. ``detail`` is the
+ * lock-screen privacy setting for this device; it defaults to the quiet one.
+ */
+export type PushSubscribeRequest = {
+    /**
+     * Detail
+     */
+    detail?: string;
+    /**
+     * Endpoint
+     */
+    endpoint: string;
+    keys: PushSubscriptionKeys;
+    /**
+     * Label
+     */
+    label?: string;
+};
+
+/**
+ * PushSubscriptionKeys
+ *
+ * The two values a browser hands out with a subscription, base64url as it gives them.
+ */
+export type PushSubscriptionKeys = {
+    /**
+     * Auth
+     */
+    auth: string;
+    /**
+     * P256Dh
+     */
+    p256dh: string;
+};
+
+/**
+ * PushTestRequest
+ *
+ * Which device to prove delivery to. Omitted means every registered device.
+ */
+export type PushTestRequest = {
+    /**
+     * Subscription Id
+     */
+    subscription_id?: string | null;
+};
+
+/**
+ * PushTestResponse
+ *
+ * One result per device the test was aimed at.
+ */
+export type PushTestResponse = {
+    /**
+     * Results
+     */
+    results?: Array<PushSendResult>;
+};
+
+/**
+ * PushUnsubscribeRequest
+ *
+ * A device asking to be forgotten, by whichever handle the caller has.
+ *
+ * The page has the id; a service worker reacting to ``pushsubscriptionchange`` has
+ * only the endpoint it is losing. Either identifies a row, and neither is an error
+ * when it matches nothing -- a device is routinely removed from both ends at once.
+ */
+export type PushUnsubscribeRequest = {
+    /**
+     * Endpoint
+     */
+    endpoint?: string | null;
+    /**
+     * Subscription Id
+     */
+    subscription_id?: string | null;
 };
 
 /**
@@ -7231,6 +7436,126 @@ export type RunPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostResponses
 
 export type RunPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostResponse = RunPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostResponses[keyof RunPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostResponses];
 
+export type GetPushStatusApiProjectsProjectIdPushGetData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/push';
+};
+
+export type GetPushStatusApiProjectsProjectIdPushGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetPushStatusApiProjectsProjectIdPushGetError = GetPushStatusApiProjectsProjectIdPushGetErrors[keyof GetPushStatusApiProjectsProjectIdPushGetErrors];
+
+export type GetPushStatusApiProjectsProjectIdPushGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PushStatusResponse;
+};
+
+export type GetPushStatusApiProjectsProjectIdPushGetResponse = GetPushStatusApiProjectsProjectIdPushGetResponses[keyof GetPushStatusApiProjectsProjectIdPushGetResponses];
+
+export type SubscribePushDeviceApiProjectsProjectIdPushSubscribePostData = {
+    body: PushSubscribeRequest;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/push/subscribe';
+};
+
+export type SubscribePushDeviceApiProjectsProjectIdPushSubscribePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SubscribePushDeviceApiProjectsProjectIdPushSubscribePostError = SubscribePushDeviceApiProjectsProjectIdPushSubscribePostErrors[keyof SubscribePushDeviceApiProjectsProjectIdPushSubscribePostErrors];
+
+export type SubscribePushDeviceApiProjectsProjectIdPushSubscribePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PushStatusResponse;
+};
+
+export type SubscribePushDeviceApiProjectsProjectIdPushSubscribePostResponse = SubscribePushDeviceApiProjectsProjectIdPushSubscribePostResponses[keyof SubscribePushDeviceApiProjectsProjectIdPushSubscribePostResponses];
+
+export type SendTestPushApiProjectsProjectIdPushTestPostData = {
+    body: PushTestRequest;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/push/test';
+};
+
+export type SendTestPushApiProjectsProjectIdPushTestPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SendTestPushApiProjectsProjectIdPushTestPostError = SendTestPushApiProjectsProjectIdPushTestPostErrors[keyof SendTestPushApiProjectsProjectIdPushTestPostErrors];
+
+export type SendTestPushApiProjectsProjectIdPushTestPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PushTestResponse;
+};
+
+export type SendTestPushApiProjectsProjectIdPushTestPostResponse = SendTestPushApiProjectsProjectIdPushTestPostResponses[keyof SendTestPushApiProjectsProjectIdPushTestPostResponses];
+
+export type UnsubscribePushDeviceApiProjectsProjectIdPushUnsubscribePostData = {
+    body: PushUnsubscribeRequest;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/push/unsubscribe';
+};
+
+export type UnsubscribePushDeviceApiProjectsProjectIdPushUnsubscribePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UnsubscribePushDeviceApiProjectsProjectIdPushUnsubscribePostError = UnsubscribePushDeviceApiProjectsProjectIdPushUnsubscribePostErrors[keyof UnsubscribePushDeviceApiProjectsProjectIdPushUnsubscribePostErrors];
+
+export type UnsubscribePushDeviceApiProjectsProjectIdPushUnsubscribePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PushStatusResponse;
+};
+
+export type UnsubscribePushDeviceApiProjectsProjectIdPushUnsubscribePostResponse = UnsubscribePushDeviceApiProjectsProjectIdPushUnsubscribePostResponses[keyof UnsubscribePushDeviceApiProjectsProjectIdPushUnsubscribePostResponses];
+
 export type GetQueueApiProjectsProjectIdQueueGetData = {
     body?: never;
     path: {
@@ -8760,6 +9085,97 @@ export type TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostResponses = 
 };
 
 export type TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostResponse = TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostResponses[keyof TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostResponses];
+
+export type GetPushStatusApiPushGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/push';
+};
+
+export type GetPushStatusApiPushGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PushStatusResponse;
+};
+
+export type GetPushStatusApiPushGetResponse = GetPushStatusApiPushGetResponses[keyof GetPushStatusApiPushGetResponses];
+
+export type SubscribePushDeviceApiPushSubscribePostData = {
+    body: PushSubscribeRequest;
+    path?: never;
+    query?: never;
+    url: '/api/push/subscribe';
+};
+
+export type SubscribePushDeviceApiPushSubscribePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SubscribePushDeviceApiPushSubscribePostError = SubscribePushDeviceApiPushSubscribePostErrors[keyof SubscribePushDeviceApiPushSubscribePostErrors];
+
+export type SubscribePushDeviceApiPushSubscribePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PushStatusResponse;
+};
+
+export type SubscribePushDeviceApiPushSubscribePostResponse = SubscribePushDeviceApiPushSubscribePostResponses[keyof SubscribePushDeviceApiPushSubscribePostResponses];
+
+export type SendTestPushApiPushTestPostData = {
+    body: PushTestRequest;
+    path?: never;
+    query?: never;
+    url: '/api/push/test';
+};
+
+export type SendTestPushApiPushTestPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SendTestPushApiPushTestPostError = SendTestPushApiPushTestPostErrors[keyof SendTestPushApiPushTestPostErrors];
+
+export type SendTestPushApiPushTestPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PushTestResponse;
+};
+
+export type SendTestPushApiPushTestPostResponse = SendTestPushApiPushTestPostResponses[keyof SendTestPushApiPushTestPostResponses];
+
+export type UnsubscribePushDeviceApiPushUnsubscribePostData = {
+    body: PushUnsubscribeRequest;
+    path?: never;
+    query?: never;
+    url: '/api/push/unsubscribe';
+};
+
+export type UnsubscribePushDeviceApiPushUnsubscribePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UnsubscribePushDeviceApiPushUnsubscribePostError = UnsubscribePushDeviceApiPushUnsubscribePostErrors[keyof UnsubscribePushDeviceApiPushUnsubscribePostErrors];
+
+export type UnsubscribePushDeviceApiPushUnsubscribePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PushStatusResponse;
+};
+
+export type UnsubscribePushDeviceApiPushUnsubscribePostResponse = UnsubscribePushDeviceApiPushUnsubscribePostResponses[keyof UnsubscribePushDeviceApiPushUnsubscribePostResponses];
 
 export type GetQueueApiQueueGetData = {
     body?: never;

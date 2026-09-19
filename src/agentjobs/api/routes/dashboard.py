@@ -11,7 +11,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends
 
-from agentjobs.attention import AttentionState, acknowledge, reconcile
+from agentjobs.attention import AttentionState, acknowledge, reconcile, waiting_path
 from agentjobs.dashboard import build_dashboard_snapshot
 from agentjobs.dispatch.config import machine_ceiling
 from agentjobs.manager import TaskManager
@@ -79,7 +79,7 @@ async def get_dashboard(
     )
 
 
-def _attention_view(state: AttentionState) -> AttentionResponse:
+def _attention_view(state: AttentionState, project_id: str) -> AttentionResponse:
     """Render reconciled attention state for a client."""
     if state.episode is None:
         return AttentionResponse(blocking=state.blocking, episode=None)
@@ -93,6 +93,10 @@ def _attention_view(state: AttentionState) -> AttentionResponse:
             tasks=list(state.episode.members),
             lead_task_id=lead.id if lead else None,
             lead_task_title=lead.title if lead else None,
+            # Computed once, server-side, because task-423 gave the rule a third caller
+            # in a second language: a service worker rendering a push that arrived while
+            # no page was running cannot import the React module that used to own it.
+            deep_link=waiting_path(project_id, state.episode),
         ),
     )
 
@@ -116,7 +120,7 @@ async def get_attention(
     idempotent, so polling cannot manufacture attention. Nothing in the answer depends
     on a notification having been delivered.
     """
-    return _attention_view(reconcile(manager, project.id))
+    return _attention_view(reconcile(manager, project.id), project.id)
 
 
 @router.post("/attention/ack", response_model=AttentionResponse)
@@ -136,4 +140,4 @@ async def acknowledge_attention(
     :func:`agentjobs.attention.acknowledge`. The caller gets the current state back and
     renders it.
     """
-    return _attention_view(acknowledge(manager, project.id, payload.episode_id))
+    return _attention_view(acknowledge(manager, project.id, payload.episode_id), project.id)

@@ -96,11 +96,18 @@ export function notificationFor(
     title,
     body,
     tag: notificationTag(projectId),
-    url: waitingPath(projectId, {
-      id: episode.id,
-      tasks: episode.tasks,
-      lead_task_id: episode.lead_task_id,
-    }),
+    // The server's `deep_link` first (task-423). The rule now has three callers in two
+    // languages -- this notifier, the push payload, and the service worker rendering a
+    // push that arrived while no page was running -- so it is computed once, on the
+    // server, and `waitingPath` stays as the fallback for a bundle talking to a server
+    // that predates the field.
+    url:
+      episode.deep_link ||
+      waitingPath(projectId, {
+        id: episode.id,
+        tasks: episode.tasks,
+        lead_task_id: episode.lead_task_id,
+      }),
   };
 }
 

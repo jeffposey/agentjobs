@@ -678,6 +678,11 @@
             "title": "Acknowledged",
             "type": "boolean"
           },
+          "deep_link": {
+            "default": "",
+            "title": "Deep Link",
+            "type": "string"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -4519,6 +4524,270 @@
           "armed"
         ],
         "title": "PullModeView",
+        "type": "object"
+      },
+      "PushDeviceView": {
+        "description": "One registered device, with its endpoint deliberately absent.\n\nA push endpoint is a URL anybody holding it can send a notification to, so it is\ntreated as a secret: the API answers with the push service's host, a label the\nperson chose, and what happened to the last attempt. ``healthy`` is false once a\ndevice has failed enough times in a row to be worth mentioning -- it is a report,\nnot a removal.",
+        "properties": {
+          "consecutive_failures": {
+            "default": 0,
+            "title": "Consecutive Failures",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "healthy": {
+            "default": true,
+            "title": "Healthy",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last_attempt_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Attempt At"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Status"
+          },
+          "service": {
+            "title": "Service",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "service",
+          "label",
+          "detail",
+          "created_at"
+        ],
+        "title": "PushDeviceView",
+        "type": "object"
+      },
+      "PushSendResult": {
+        "description": "What one deliberate test push did.\n\n``outcome`` rather than the status alone: ``gone`` means the device was forgotten\nas a result, which a status code on its own would not tell the page.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "subscription_id": {
+            "title": "Subscription Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subscription_id",
+          "outcome"
+        ],
+        "title": "PushSendResult",
+        "type": "object"
+      },
+      "PushStatusResponse": {
+        "description": "What the notifications panel needs to render itself.\n\n``vapid_public_key`` is the application-server key a browser must subscribe\nagainst. It is public by construction -- the private half never leaves this\nprocess -- and reading it is what creates the machine's keypair on first use.",
+        "properties": {
+          "contact": {
+            "title": "Contact",
+            "type": "string"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/PushDeviceView"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "poll_seconds": {
+            "title": "Poll Seconds",
+            "type": "number"
+          },
+          "vapid_public_key": {
+            "title": "Vapid Public Key",
+            "type": "string"
+          },
+          "watching": {
+            "title": "Watching",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "vapid_public_key",
+          "contact",
+          "watching",
+          "poll_seconds"
+        ],
+        "title": "PushStatusResponse",
+        "type": "object"
+      },
+      "PushSubscribeRequest": {
+        "description": "A device asking to be woken.\n\nExactly the shape ``PushSubscription.toJSON()`` produces, plus two fields of ours,\nso the client can pass the browser's object through without reassembling it.\n\n``label`` is for the person -- \"Pixel 9\", \"iPad\" -- and is the only way to tell two\nrows apart in the UI, because the endpoint is never shown. ``detail`` is the\nlock-screen privacy setting for this device; it defaults to the quiet one.",
+        "properties": {
+          "detail": {
+            "default": "count",
+            "title": "Detail",
+            "type": "string"
+          },
+          "endpoint": {
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "keys": {
+            "$ref": "#/components/schemas/PushSubscriptionKeys"
+          },
+          "label": {
+            "default": "",
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys"
+        ],
+        "title": "PushSubscribeRequest",
+        "type": "object"
+      },
+      "PushSubscriptionKeys": {
+        "description": "The two values a browser hands out with a subscription, base64url as it gives them.",
+        "properties": {
+          "auth": {
+            "title": "Auth",
+            "type": "string"
+          },
+          "p256dh": {
+            "title": "P256Dh",
+            "type": "string"
+          }
+        },
+        "required": [
+          "p256dh",
+          "auth"
+        ],
+        "title": "PushSubscriptionKeys",
+        "type": "object"
+      },
+      "PushTestRequest": {
+        "description": "Which device to prove delivery to. Omitted means every registered device.",
+        "properties": {
+          "subscription_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subscription Id"
+          }
+        },
+        "title": "PushTestRequest",
+        "type": "object"
+      },
+      "PushTestResponse": {
+        "description": "One result per device the test was aimed at.",
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PushSendResult"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "title": "PushTestResponse",
+        "type": "object"
+      },
+      "PushUnsubscribeRequest": {
+        "description": "A device asking to be forgotten, by whichever handle the caller has.\n\nThe page has the id; a service worker reacting to ``pushsubscriptionchange`` has\nonly the endpoint it is losing. Either identifies a row, and neither is an error\nwhen it matches nothing -- a device is routinely removed from both ends at once.",
+        "properties": {
+          "endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint"
+          },
+          "subscription_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subscription Id"
+          }
+        },
+        "title": "PushUnsubscribeRequest",
         "type": "object"
       },
       "QuestionDraft": {
@@ -9788,6 +10057,208 @@
         ]
       }
     },
+    "/api/projects/{project_id}/push": {
+      "get": {
+        "description": "The application-server key, and every device registered for this project.",
+        "operationId": "get_push_status_api_projects__project_id__push_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Push Status",
+        "tags": [
+          "push"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/push/subscribe": {
+      "post": {
+        "description": "Register a device, or refresh one that already exists.\n\n**A device registered mid-episode is not immediately pushed.** The new row inherits\nnothing, so ``last_episode_id`` is seeded with whatever episode is currently open:\na person who opts in from a page that is already showing \"3 waiting\" has seen the\nthree, and interrupting them about it a second later would be the alert fatigue the\nepisode model exists to prevent. The *next* episode wakes them, which is the thing\nthey subscribed for; ``POST /push/test`` is how they confirm it works before then.\n\nRe-subscribing an endpoint that is already registered keeps its id and its episode\nid -- see :func:`agentjobs.push.subscriptions.upsert`.",
+        "operationId": "subscribe_push_device_api_projects__project_id__push_subscribe_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscribeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Subscribe Push Device",
+        "tags": [
+          "push"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/push/test": {
+      "post": {
+        "description": "Prove delivery to one device, or to all of them.\n\nThe answer to \"did that actually work\", which nothing else gives: a device that\nopted in while nothing was waiting would otherwise find out whether push reaches it\nat the moment it matters least. It does not touch the episode -- a test must not be\nable to consume the interruption a real episode is owed.",
+        "operationId": "send_test_push_api_projects__project_id__push_test_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushTestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Send Test Push",
+        "tags": [
+          "push"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/push/unsubscribe": {
+      "post": {
+        "description": "Forget a device, by id from the page or by endpoint from a service worker.\n\nIdempotent, and silent about whether anything matched. A device is routinely\nremoved from both ends at once -- the button here and the browser's own permission\nreset -- and a 404 for the second of those would be an error message about a race.",
+        "operationId": "unsubscribe_push_device_api_projects__project_id__push_unsubscribe_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushUnsubscribeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unsubscribe Push Device",
+        "tags": [
+          "push"
+        ]
+      }
+    },
     "/api/projects/{project_id}/queue": {
       "get": {
         "description": "The whole ordered backlog, band by band. This is the list a human reviews.\n\nEvery band appears, including the empty ones: \"critical is empty\" is a fact a\nreader of an ordered backlog wants stated rather than inferred from a heading that\nis not there. Every open task carries its claimability and, when it is not\nclaimable, the rule that excluded it -- the same sentence ``/tasks/next/explain``\ngives, from the same place, so the two can never disagree.\n\n**This does not 409 on a broken queue**, unlike ``/tasks/next``. It is one of the\ntwo deliberate exceptions in design section 8: you have to be able to see a broken\nqueue in order to fix it, so the offending bands still render and ``problems``\nnames what is wrong beside ``repair_command``.\n\nEach entry also carries ``last_move`` -- the move that set its place, with the\nactor, that actor's kind from this project's vocabulary, the reason recorded with\nit, and whether a human kept the place over a warning. That is the anchor evidence\n``reorder`` reads, and it is here so a run costs one request instead of one record\nfetch per open task.",
@@ -12520,6 +12991,154 @@
         "summary": "Test Webhook",
         "tags": [
           "webhooks"
+        ]
+      }
+    },
+    "/api/push": {
+      "get": {
+        "description": "The application-server key, and every device registered for this project.",
+        "operationId": "get_push_status_api_push_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Push Status",
+        "tags": [
+          "push"
+        ]
+      }
+    },
+    "/api/push/subscribe": {
+      "post": {
+        "description": "Register a device, or refresh one that already exists.\n\n**A device registered mid-episode is not immediately pushed.** The new row inherits\nnothing, so ``last_episode_id`` is seeded with whatever episode is currently open:\na person who opts in from a page that is already showing \"3 waiting\" has seen the\nthree, and interrupting them about it a second later would be the alert fatigue the\nepisode model exists to prevent. The *next* episode wakes them, which is the thing\nthey subscribed for; ``POST /push/test`` is how they confirm it works before then.\n\nRe-subscribing an endpoint that is already registered keeps its id and its episode\nid -- see :func:`agentjobs.push.subscriptions.upsert`.",
+        "operationId": "subscribe_push_device_api_push_subscribe_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscribeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Subscribe Push Device",
+        "tags": [
+          "push"
+        ]
+      }
+    },
+    "/api/push/test": {
+      "post": {
+        "description": "Prove delivery to one device, or to all of them.\n\nThe answer to \"did that actually work\", which nothing else gives: a device that\nopted in while nothing was waiting would otherwise find out whether push reaches it\nat the moment it matters least. It does not touch the episode -- a test must not be\nable to consume the interruption a real episode is owed.",
+        "operationId": "send_test_push_api_push_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushTestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Send Test Push",
+        "tags": [
+          "push"
+        ]
+      }
+    },
+    "/api/push/unsubscribe": {
+      "post": {
+        "description": "Forget a device, by id from the page or by endpoint from a service worker.\n\nIdempotent, and silent about whether anything matched. A device is routinely\nremoved from both ends at once -- the button here and the browser's own permission\nreset -- and a 404 for the second of those would be an error message about a race.",
+        "operationId": "unsubscribe_push_device_api_push_unsubscribe_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushUnsubscribeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unsubscribe Push Device",
+        "tags": [
+          "push"
         ]
       }
     },

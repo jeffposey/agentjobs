@@ -40,6 +40,13 @@ python-multipart = "^0.0.9"
 # server. Pinned to the 1.x line: the wire protocol is negotiated at initialize
 # time, but the SDK's Python API is only stable within a major version.
 mcp = "^1.29"
+# Web Push (task-423). Both of these are already in the closure -- the MCP SDK pulls
+# `pyjwt[crypto]` -- but AgentJobs now imports them itself, and a dependency you import
+# is yours to declare. `cryptography` does the ECDH, HKDF and AES-GCM of RFC 8291;
+# PyJWT signs the ES256 VAPID assertion of RFC 8292. Nothing else was needed, which is
+# why there is no push client library here: see `docs/push.md`.
+cryptography = ">=42"
+pyjwt = "^2.10"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4"

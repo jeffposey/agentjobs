@@ -145,6 +145,15 @@ class AttentionEpisodeView(BaseModel):
     tasks: List[str]
     lead_task_id: Optional[str] = None
     lead_task_title: Optional[str] = None
+    deep_link: str = ""
+    """Where a notification for this episode should land, acknowledgment marker and all.
+
+    Added by task-423 because the rule now has three callers in two languages -- the
+    React notifier, the push payload, and the service worker rendering a push that
+    arrived while no page was running. Published by the server so the other two read it
+    instead of each re-deriving it; ``waitingPath`` in ``episode.ts`` stays as the
+    fallback for a bundle talking to a server that predates this field.
+    """
 
 
 class AttentionResponse(BaseModel):
@@ -162,6 +171,104 @@ class AttentionResponse(BaseModel):
 
     blocking: int
     episode: Optional[AttentionEpisodeView] = None
+
+
+class PushSubscriptionKeys(BaseModel):
+    """The two values a browser hands out with a subscription, base64url as it gives them."""
+
+    p256dh: str
+    auth: str
+
+
+class PushSubscribeRequest(BaseModel):
+    """A device asking to be woken.
+
+    Exactly the shape ``PushSubscription.toJSON()`` produces, plus two fields of ours,
+    so the client can pass the browser's object through without reassembling it.
+
+    ``label`` is for the person -- "Pixel 9", "iPad" -- and is the only way to tell two
+    rows apart in the UI, because the endpoint is never shown. ``detail`` is the
+    lock-screen privacy setting for this device; it defaults to the quiet one.
+    """
+
+    endpoint: str
+    keys: PushSubscriptionKeys
+    label: str = ""
+    detail: str = "count"
+
+
+class PushUnsubscribeRequest(BaseModel):
+    """A device asking to be forgotten, by whichever handle the caller has.
+
+    The page has the id; a service worker reacting to ``pushsubscriptionchange`` has
+    only the endpoint it is losing. Either identifies a row, and neither is an error
+    when it matches nothing -- a device is routinely removed from both ends at once.
+    """
+
+    subscription_id: Optional[str] = None
+    endpoint: Optional[str] = None
+
+
+class PushTestRequest(BaseModel):
+    """Which device to prove delivery to. Omitted means every registered device."""
+
+    subscription_id: Optional[str] = None
+
+
+class PushDeviceView(BaseModel):
+    """One registered device, with its endpoint deliberately absent.
+
+    A push endpoint is a URL anybody holding it can send a notification to, so it is
+    treated as a secret: the API answers with the push service's host, a label the
+    person chose, and what happened to the last attempt. ``healthy`` is false once a
+    device has failed enough times in a row to be worth mentioning -- it is a report,
+    not a removal.
+    """
+
+    id: str
+    service: str
+    label: str
+    detail: str
+    created_at: datetime
+    last_attempt_at: Optional[datetime] = None
+    last_status: Optional[int] = None
+    last_error: Optional[str] = None
+    consecutive_failures: int = 0
+    healthy: bool = True
+
+
+class PushStatusResponse(BaseModel):
+    """What the notifications panel needs to render itself.
+
+    ``vapid_public_key`` is the application-server key a browser must subscribe
+    against. It is public by construction -- the private half never leaves this
+    process -- and reading it is what creates the machine's keypair on first use.
+    """
+
+    vapid_public_key: str
+    contact: str
+    watching: bool
+    poll_seconds: float
+    devices: List[PushDeviceView] = Field(default_factory=list)
+
+
+class PushSendResult(BaseModel):
+    """What one deliberate test push did.
+
+    ``outcome`` rather than the status alone: ``gone`` means the device was forgotten
+    as a result, which a status code on its own would not tell the page.
+    """
+
+    subscription_id: str
+    outcome: str
+    status: Optional[int] = None
+    error: Optional[str] = None
+
+
+class PushTestResponse(BaseModel):
+    """One result per device the test was aimed at."""
+
+    results: List[PushSendResult] = Field(default_factory=list)
 
 
 class AttentionAckRequest(BaseModel):

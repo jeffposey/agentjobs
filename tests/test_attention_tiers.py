@@ -477,7 +477,8 @@ class TestTheAttentionEndpoint:
         task-422 added the episode, which is ids and two strings, so the assertion is
         no longer "one integer" -- it is that nothing here is a *record*. The episode
         names its tasks; it does not carry their specs, logs or acceptance criteria,
-        which is what the size above was standing in for.
+        which is what the size above was standing in for. task-423 added `deep_link`,
+        which is one URL built from an id the payload already carries.
         """
         client, base = client_for([BLOCKED_ON_HUMAN, PARKED_DRAFT, CLAIMABLE, FINISHED])
 
@@ -491,6 +492,7 @@ class TestTheAttentionEndpoint:
             "tasks",
             "lead_task_id",
             "lead_task_title",
+            "deep_link",
         }
         # One id per waiting task and one title, against a dashboard's 900KB.
         assert payload["episode"]["tasks"] == [BLOCKED_ON_HUMAN.id]

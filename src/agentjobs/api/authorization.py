@@ -111,6 +111,16 @@ ROUTE_CAPABILITIES: Dict[str, RouteRule] = {
     # Names no task, because an episode is not about one: it is the whole waiting set
     # as one thing, which is the point of the episode model.
     "acknowledge_attention": RouteRule(Capability.ATTENTION_ACK),
+    # ----- the owner's own devices ------------------------------------------------
+    #
+    # The read is here on purpose, unlike every other read in this application. Two
+    # reasons, and either would do: it answers with the labels of the devices a person
+    # carries, and calling it is what generates the machine's VAPID keypair, so it is
+    # not the pure read its verb suggests.
+    "get_push_status": RouteRule(Capability.PUSH_MANAGE),
+    "subscribe_push_device": RouteRule(Capability.PUSH_MANAGE),
+    "unsubscribe_push_device": RouteRule(Capability.PUSH_MANAGE),
+    "send_test_push": RouteRule(Capability.PUSH_MANAGE),
     # ----- spending money ---------------------------------------------------------
     "dispatch_task_endpoint": RouteRule(Capability.DISPATCH),
     "run_playbook_endpoint": RouteRule(Capability.DISPATCH),
