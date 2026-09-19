@@ -292,6 +292,7 @@ class Controller:
             report.say("controller", f"journal unavailable: {exc}")
             return report
         self.start_queued(report)
+        self.pull_next(report)
         for execution in executions:
             try:
                 self.advance(execution, report)
@@ -336,6 +337,45 @@ class Controller:
             return
         for decision in decisions:
             report.say("dispatch-queue", decision.describe())
+
+    def pull_next(self, report: ControllerReport) -> None:
+        """Fill what is left of the machine from every armed project's queue (task-462).
+
+        **After the dispatch queue and before the executions.** After, because a person's
+        queued dispatch is work already asked for and a pulled one is work being found;
+        the pull pass reads that queue itself and yields the whole tick while anything is
+        waiting in it, so the ordering here is belt to that braces rather than the rule.
+        Before the executions for the reason the queue is: a relaunch this tick has not
+        been proposed yet, and a slot spent on it is a slot an armed backlog was already
+        entitled to.
+
+        Unconditional, like the queue and for the same reason: an arming is not an
+        execution and has no ``controlled_by``, so a machine whose ``execution.controller``
+        is still ``shadow`` must still honour what somebody armed.
+
+        Every start goes through ``guards.dispatch_task`` in full. This method resolves a
+        project and a manager and does nothing else.
+        """
+        from agentjobs.dispatch import pull
+
+        def resolve(project_id: str) -> Optional[Tuple[TaskManagerLike, Project]]:
+            project = self.project(project_id)
+            manager = self.manager(project_id)
+            return (manager, project) if project is not None and manager is not None else None
+
+        try:
+            decisions = pull.pull_due(
+                self.home,
+                resolve=resolve,
+                api_base=self.api_base,
+                now=self.clock,
+                starter=self._dispatch,
+            )
+        except Exception as exc:  # noqa: BLE001 - the pull mode never takes the tick down
+            report.say("pull-mode", f"{type(exc).__name__}: {exc}")
+            return
+        for decision in decisions:
+            report.say("pull-mode", decision.describe())
 
     def advance(self, execution: Execution, report: ControllerReport) -> None:
         """One execution: replay, record the proposals, perform each."""

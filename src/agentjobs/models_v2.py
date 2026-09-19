@@ -360,6 +360,19 @@ class DispatchTrigger(ValueEnum):
     evidence against the parent's acceptance criteria.
     """
 
+    PULL = "pull"
+    """The pull mode filled a free slot with what the queue said was next (task-462).
+
+    Distinguished from ``child`` for the same reason ``child`` is distinguished from
+    ``manual``: what the person authorised is different in each case. ``child`` means
+    they clicked one epic and its children were named on its record; ``pull`` means they
+    armed a *project*, with a bound, and the stored queue order chose this task
+    afterwards. The authorising entry written on the task names the arming and the
+    person, so "why did it start this one" is answerable from the record alone -- and
+    ``agentjobs next --why`` answers the other half, which is why that task rather than
+    the one behind it.
+    """
+
 
 class DispatchMode(ValueEnum):
     """Which process lifecycle a run had (design doc section 4, task-077).

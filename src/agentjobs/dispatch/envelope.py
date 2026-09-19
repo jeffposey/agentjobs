@@ -110,6 +110,7 @@ def is_continuation(request: "DispatchRequest") -> bool:
         and request.posture is None
         and not (request.authorized_by or "").strip()
         and not request.on_behalf_of_parent
+        and request.pull_arming_id is None
     )
 
 

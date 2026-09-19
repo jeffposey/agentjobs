@@ -881,6 +881,30 @@ class DispatchRequest:
     else naming it is refused.
     """
 
+    pull_arming_id: Optional[str] = None
+    """Take this run's authorisation from a project's pull-mode arming (task-462).
+
+    The fourth caller of ``_write_authorizing_entry`` and, with the epic's, the stricter
+    kind: it takes **no identity claim at all**. It reads the human's actor id off the
+    stored arming row, submits it to ``assert_authorizer_is_human``, writes that person's
+    authorising entry onto the task, and then puts the stored entry through
+    ``assert_human_clocked`` like everything else. There is no input here a tick could
+    get wrong or forge, which is why a server tick with nobody present is allowed to
+    invoke it.
+
+    What the person authorised is a *backlog*, not a task. An epic's children were named
+    on its record at the moment somebody clicked it; a pull mode's tasks are whatever the
+    stored queue order says is next when a slot frees, which is a weaker claim and is why
+    the arming carries a bound the epic's attempt budget is the analogue of. Both bounds
+    are enforced rather than promised: :meth:`ExecutionStore.spend_pull_start` charges the
+    start inside the same statement that checks the bound.
+
+    Mutually exclusive with ``caused_by``, ``authorized_by`` and ``on_behalf_of_parent``,
+    for the reason those three are mutually exclusive with each other: naming an entry,
+    creating one, inheriting one and pulling one are four different acts, and a request
+    asking for two of them has not decided which.
+    """
+
     admission_operation_id: Optional[str] = None
     """A stable id for this admission, so a caller that died after the journal committed
     it and before it learned the run id finds the same attempt rather than a second one
@@ -988,6 +1012,14 @@ def dispatch_task(
             "named an entry or an authoriser of its own. Send one: naming an entry, "
             "creating one, and inheriting one are three different acts."
         )
+    if request.pull_arming_id is not None and (
+        authorizer_id is not None or request.caused_by is not None or request.on_behalf_of_parent
+    ):
+        raise ConflictingAuthorizationError(
+            f"This dispatch asked to stand on a pull-mode arming of {project.id} *and* "
+            "named an entry, an authoriser or an epic of its own. Send one: naming an "
+            "entry, creating one, inheriting one and pulling one are four different acts."
+        )
 
     if task.lifecycle is Lifecycle.CLOSED:
         raise TaskClosedError(
@@ -1074,7 +1106,7 @@ def dispatch_task(
     )
     machine_home = resolve_machine_home(home, resolution)
 
-    # Two ways in, and they differ only in where the authorising entry comes from.
+    # Four ways in, and they differ only in where the authorising entry comes from.
     #
     #   * A caller that names the human clicking (the browser) gets that human's entry
     #     *written* below, inside the run lock, once every refusal that can be judged
@@ -1089,14 +1121,59 @@ def dispatch_task(
     # for a run that never started.
     #   * A caller inheriting the epic's authorisation (task-022) reads the human's entry
     #     off the *parent's* stored record and copies that human onto the child, then
-    #     lands in the same deferred write as the browser path. It is the only one of the
-    #     three that also has to buy its run out of a budget.
+    #     lands in the same deferred write as the browser path.
+    #   * A caller standing on a pull-mode arming (task-462) reads the human's actor id
+    #     off the stored arming row and does the same. It is the newest of the four and
+    #     the one with nobody present at all, which is exactly why it takes no claim from
+    #     its caller: a tick supplies an arming id, and every fact about the authority
+    #     comes from the row that id names.
+    #
+    # The last two are the ones that also have to buy their run out of a bound -- an
+    # attempt budget per child, a start budget per arming -- because they are the two
+    # that a machine rather than a person can invoke.
     causing: Optional[LogEntry] = None
     authorizer: Optional[Actor] = None
-    epic_note: Optional[str] = None
-    epic_data: Optional[Dict[str, object]] = None
-    epic_posture: Optional[Posture] = None
-    if inherited is not None:
+    # The three things a *granted* authorisation supplies and a claimed one does not:
+    # the sentence to write, the marker to write with it, and the envelope the person
+    # chose when they made the grant. Shared by the epic and the pull mode, because the
+    # deferred write below is one piece of code and naming them after either would make
+    # the other read like a special case of it.
+    granted_note: Optional[str] = None
+    granted_data: Optional[Dict[str, object]] = None
+    granted_posture: Optional[Posture] = None
+    if request.pull_arming_id is not None:
+        from agentjobs.dispatch.journal import journal as _journal
+        from agentjobs.dispatch.pull import posture_of, resolve_pull_authorization
+
+        pulled = resolve_pull_authorization(
+            project_config, _journal(machine_home).pull_arming(request.pull_arming_id)
+        )
+        if pulled.arming.project_id != project.id:
+            raise ConflictingAuthorizationError(
+                f"Arming {pulled.arming.arming_id} was made for "
+                f"{pulled.arming.project_id!r} and this dispatch is of a task in "
+                f"{project.id!r}. An arming authorises one project's backlog and no "
+                "other's."
+            )
+        if not record_can_brief(task):
+            # The same rule the epic path applies, for the same reason and with more
+            # force: nobody at all is present here, and the pull mode reaches whatever
+            # the queue put at the top rather than a task somebody chose to walk.
+            raise RecordCannotBriefError(
+                f"{task.id} has no spec.description, so a run the pull mode started on "
+                "it would have nothing to work from and nobody to ask. Write the spec, "
+                "or move the task down the queue."
+            )
+        authorizer = pulled.actor
+        granted_note = pulled.describe()
+        granted_data = pulled.data()
+        # The posture the person chose when they armed, carried the way an epic's is:
+        # read off a stored row rather than taken from the request, and put through
+        # `resolve_posture` and its ceiling like every other source. Arming refuses a
+        # posture above the ceiling where a person is waiting for the answer; this is
+        # what happens if the ceiling is lowered afterwards, and it refuses too.
+        granted_posture = posture_of(pulled.arming)
+    elif inherited is not None:
         from agentjobs.dispatch.epic import assert_attempts_remain
 
         assert_attempts_remain(inherited, task)
@@ -1110,14 +1187,14 @@ def dispatch_task(
                 "ask. Write the child's spec before walking the epic."
             )
         authorizer = inherited.actor
-        epic_note = inherited.describe()
-        epic_data = inherited.data()
+        granted_note = inherited.describe()
+        granted_data = inherited.data()
         # Read off the parent's stored record rather than taken from the request, for
         # the same reason the identity above is: there is no input here a caller could
         # get wrong or forge. A `DispatchRequest.posture` field would have made the
         # child's envelope something the walk asserts; this makes it something the
         # parent's own dispatch entry already says (task-316).
-        epic_posture = inherited.posture
+        granted_posture = inherited.posture
     elif authorizer_id is None:
         causing = resolve_causing_entry(task, request.caused_by)
         assert_human_clocked(project_config, causing)
@@ -1197,7 +1274,7 @@ def dispatch_task(
         resolution.settings,
         task=Posture(task.posture.value) if task.posture is not None else None,
         requested=request.posture,
-        inherited=epic_posture,
+        inherited=granted_posture,
         history=history.posture if history is not None else None,
     )
     # Push only ever narrows across a continuation, like the ceiling: a project that has
@@ -1363,9 +1440,9 @@ def dispatch_task(
                 manager,
                 task,
                 authorizer=authorizer,
-                note=epic_note or note,
+                note=granted_note or note,
                 surface=request.surface,
-                data=epic_data,
+                data=granted_data,
                 raised_from=resolution.settings.posture if escalated else None,
                 raised_to=posture.posture if escalated else None,
             )
