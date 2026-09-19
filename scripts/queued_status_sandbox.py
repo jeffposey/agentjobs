@@ -17,14 +17,14 @@ the one an agent starts on the moment a slot frees.
                         Its page offers to cancel the waiting entry instead of offering
                         to start a second agent on the same repository.
 
-    third in line       ``task-003``. Reads **Queued (place 2)**. The place is counted
-                        over the whole machine's queue, not over this project's share of
-                        it, because the question the number answers is *when*.
+    third in line       ``task-003``. Also reads **Queued**. The place in line is on
+                        ``queued_dispatch.position`` and in the dispatch panel's prose,
+                        not in the chip.
 
-    nothing being tried ``task-004``. Reads **Queued (start paused)**. An open usage-limit
-                        incident is holding every start on that credential off, so the
-                        entry keeps its place and is not being attempted at all. It must
-                        not read the same as one that is next in line.
+    nothing being tried ``task-004``. Also reads **Queued**. An open usage-limit incident
+                        is holding every start on that credential off, so the entry keeps
+                        its place and is not being attempted at all -- which its page says
+                        in a sentence, naming the incident.
 
 Everything here is throwaway. Click anything, including the destructive controls --
 nothing touches the live corpus, the 8876 dashboard, or its registry. The data lives under
@@ -42,16 +42,18 @@ What to look for, since "it renders" is not the property under review:
   * **The task list, glanced at rather than studied.** Four ready rows, three of which the
     machine has already promised to start. If the eye cannot separate them, the wording is
     not doing its job and that is worth saying.
-  * **Whether "Queued (place 2)" earns its parenthesis** at 194px, or whether the bare
-    word would do and the number belongs only on the task's own page.
+  * **Whether one word is enough.** All three queued rows read the same, and what
+    separates them -- second in line, not being tried at all -- is on each task's own
+    page rather than in the chip. If a glance at the list now needs a click it did not
+    need before, that is worth saying.
   * **task-002's page**, where Dispatch used to be. The panel now names the entry and
     offers one button: *Cancel the queued dispatch*. Press it -- the row goes back to
     **Ready** in front of you, and the task's log gains a note saying nothing ran.
   * **task-004's page**, which says which incident is holding it and that it keeps its
     place. Whether that reads as reassurance or as jargon is a judgement.
   * **The dashboard**, which draws the same badge on its own lists.
-  * **At 390x844.** "Queued (start paused)" is longer than "Ready" was; check it does not
-    push a row onto three lines on a phone.
+  * **At 390x844.** "Queued" is a word longer than "Ready"; check the rows still sit on
+    the same number of lines on a phone.
 
 Nothing drives the queue here: the server is started with its lifespan off, so the
 dispatch poller -- which would correctly drain the queue the moment a slot freed -- never

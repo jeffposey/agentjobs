@@ -1514,7 +1514,7 @@ def display_status(task: "Task") -> str:
 
 
 def queued_display_status(task: "Task", queued: Optional[QueuedDispatchState]) -> str:
-    """``task``'s label, with a waiting dispatch of it named where there is one.
+    """``task``'s label, saying so when a dispatch of it is waiting for a slot.
 
     The one place the queued label is decided, so the prose a reader sees and the
     ``queued_dispatch`` structure a client filters on cannot disagree -- the same rule
@@ -1526,28 +1526,22 @@ def queued_display_status(task: "Task", queued: Optional[QueuedDispatchState]) -
     would hide it. Those tasks still carry the structure, so a surface that wants to draw
     the entry can -- it just does not get to overwrite the sentence.
 
-    Four labels rather than one, because the four are four different answers to "is
-    anything going to happen":
+    **One word, deliberately.** This first shipped as four labels -- ``Queued (place 2)``
+    and ``Queued (start paused)`` among them -- and the owner rejected the parentheses on
+    sight (2026-09-19): a status chip is read at a glance in a 194px column, and a
+    qualifier there is read as noise rather than as detail. The qualifiers were never
+    lost, only moved: ``position`` and ``paused_by`` are fields on ``queued_dispatch``,
+    and the task page's dispatch panel says the place in line and names the incident in
+    prose, where there is room to read it.
 
-    - ``Starting`` -- a tick is putting it through the dispatch gates right now. It is not
-      a run yet and may still be refused, which is why it is not "In progress".
-    - ``Queued (start paused)`` -- an open incident is holding every start on this
-      credential off (task-463). It is not being tried at all, so it must not read the
-      same as an entry that is next in line.
-    - ``Queued`` -- next. The slot that frees is this entry's.
-    - ``Queued (place N)`` -- N-1 dispatches go first, counted over the machine's whole
-      queue rather than this project's share of it.
+    ``Starting`` is the one distinction kept in the label, because it is a different
+    answer to "is anything going to happen": a tick is putting the entry through the
+    dispatch gates right now. It is one word, so it costs the chip nothing.
     """
     label = display_status(task)
     if queued is None or label != "Ready":
         return label
-    if queued.status == "starting":
-        return "Starting"
-    if queued.paused_by:
-        return "Queued (start paused)"
-    if queued.position <= 1:
-        return "Queued"
-    return f"Queued (place {queued.position})"
+    return "Starting" if queued.status == "starting" else "Queued"
 
 
 def self_clearing_wait(task: "Task") -> Optional[SelfClearingWait]:

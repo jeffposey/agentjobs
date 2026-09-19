@@ -647,9 +647,15 @@ describe("a task whose dispatch is waiting for a slot", () => {
     expect(screen.queryByText("Ready")).toBeNull();
   });
 
-  it("names the place in line when the entry is not next", () => {
-    renderDetail(waiting("Queued (place 2)"));
+  it("says the same word whatever place in line the entry holds", () => {
+    // The place is on `queued_dispatch.position` and in the dispatch panel's prose, not
+    // in the chip: a qualifier in a status chip is read as noise rather than as detail.
+    const second = waiting("Queued");
+    second.task.queued_dispatch = { ...second.task.queued_dispatch!, position: 2 };
 
-    expect(screen.getAllByText("Queued (place 2)").length).toBeGreaterThan(0);
+    renderDetail(second);
+
+    expect(screen.getAllByText("Queued").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/place 2/)).toBeNull();
   });
 });

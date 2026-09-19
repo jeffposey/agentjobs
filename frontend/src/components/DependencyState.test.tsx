@@ -289,12 +289,12 @@ describe("a queued dispatch", () => {
         ball: "agent",
         ball_reason: "available",
         actionable: true,
-        display_status: "Queued (start paused)",
+        display_status: "Queued",
         queued_dispatch: { ...entry, paused_by: "inc_7ffcc0210a984e39" },
       }),
     );
 
-    expect(state.label).toBe("Queued (start paused)");
+    expect(state.label).toBe("Queued");
     expect(state.reasons.join(" ")).toMatch(/inc_7ffcc0210a984e39 is open/);
   });
 

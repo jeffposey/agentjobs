@@ -105,9 +105,16 @@ class TestTheLabel:
         assert idle_row["display_status"] == "Ready"
         assert idle_row["queued_dispatch"] is None
 
-    def test_the_place_in_line_is_named_when_the_entry_is_not_next(
+    def test_the_place_in_line_is_a_field_and_not_part_of_the_label(
         self, machine: Machine, served: TestClient
     ) -> None:
+        """Both entries read the same word; only the structure says which is second.
+
+        The owner rejected ``Queued (place 2)`` on sight: a chip is glanced at, and a
+        parenthesis there reads as noise. The number is still carried, because the task
+        page's panel says the place in line in prose and a client must not have to parse
+        it back out of a label.
+        """
         fill_the_machine(machine)
         first = machine.task()
         enqueue(machine, first)
@@ -115,19 +122,23 @@ class TestTheLabel:
         enqueue(machine, second)
 
         assert detail(served, first)["display_status"] == "Queued"
-        assert detail(served, second)["display_status"] == "Queued (place 2)"
+        assert detail(served, second)["display_status"] == "Queued"
+        assert detail(served, first)["queued_dispatch"]["position"] == 1
         assert detail(served, second)["queued_dispatch"]["position"] == 2
 
-    def test_an_entry_held_off_by_an_incident_does_not_read_as_next_in_line(
+    def test_an_entry_held_off_by_an_incident_carries_the_incident_not_a_longer_label(
         self, machine: Machine, served: TestClient
     ) -> None:
-        """A start paused on a usage limit is not being tried at all (task-463)."""
+        """A start paused on a usage limit is not being tried at all (task-463).
+
+        Which the record says in a field rather than in the chip, for the reason above.
+        """
         queued, _, _ = a_waiting_dispatch(machine)
         incident = seed_incident(machine, claude_profile(machine))
 
         row = detail(served, queued)
 
-        assert row["display_status"] == "Queued (start paused)"
+        assert row["display_status"] == "Queued"
         assert row["queued_dispatch"]["paused_by"] == incident
 
     def test_the_label_replaces_ready_rather_than_a_more_urgent_sentence(self) -> None:
