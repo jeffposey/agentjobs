@@ -507,5 +507,6 @@ class TestTheAttentionEndpoint:
         # A fixed phrase, never the task's own prose: `ball_prompt` is unbounded and is
         # what this endpoint must not start carrying.
         assert payload["episode"]["lead_ask"] in ASK_PHRASES.values()
-        assert BLOCKED_ON_HUMAN.ball_prompt not in json.dumps(payload)
+        prompt = BLOCKED_ON_HUMAN.ball_prompt
+        assert prompt and prompt not in json.dumps(payload)
         assert len(client.get("/api/projects/inbox/attention").content) < 500
