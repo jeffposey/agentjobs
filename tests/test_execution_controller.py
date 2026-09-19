@@ -222,10 +222,16 @@ class Machine:
             "resume_sessions": False,
         }
         project.update(extra.pop("project", {}))
+        # A second runner is how a test says "a different credential" (task-463): the
+        # credential a start would spend is read off the runner definition, so two of
+        # them differing only in `env` are two subscriptions as far as the gate is
+        # concerned.
+        runners: Dict[str, object] = {"fake": runner}
+        runners.update(extra.pop("runners", {}))
         config = {
             "version": 1,
             "enabled": True,
-            "runners": {"fake": runner},
+            "runners": runners,
             "projects": {"sandbox": project},
             "limits": {"max_concurrent_runs": 3, **extra.pop("limits", {})},
             "execution": {"controller": controller, **extra.pop("execution", {})},

@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field
 
 from agentjobs.dispatch import pull as dispatch_pull
 from agentjobs.dispatch import queue as dispatch_queue
+from agentjobs.dispatch import start_pause
 from agentjobs.dispatch.config import machine_ceiling
 from agentjobs.dispatch.finish_status import read_finish_status
 from agentjobs.dispatch.ledger import (
@@ -181,6 +182,75 @@ class QueuedDispatchView(BaseModel):
         ),
     )
     task_url: str = Field(..., description="Where this entry's task is, in this app.")
+    paused_by: str = Field(
+        default="",
+        description=(
+            "The incident id holding this entry off (task-463), or empty when nothing "
+            "is. An entry with this set is not being tried at all: no attempt, no "
+            "hourly cap, nothing written to its task. It keeps its position."
+        ),
+    )
+
+
+class StartPauseView(BaseModel):
+    """One open incident, as the reason the machine is starting nothing on a credential.
+
+    **Machine-wide and about starts, not about runs.** The runs it already parked are
+    task-417's business and appear on their own tasks; what this says is why the two
+    clickless starters -- the dispatch queue and the pull mode -- are quiet, which is a
+    question a person asks of the board and of nothing else.
+
+    It is a list rather than one object because the pause is per credential: a machine
+    with a Claude home out of quota and a working Codex runner has one pause, and the
+    Codex rows carry on starting beside it.
+    """
+
+    incident_id: str = Field(..., description="task-417's incident. The same id its park names.")
+    kind: str = Field(
+        ...,
+        description=(
+            "`usage_limit`, `auth` or `spend_limit`. Only `usage_limit` ends by itself, "
+            "which is why `resets_at` is null for the other two."
+        ),
+    )
+    kind_word: str = Field(
+        ..., description="How the kind reads in a sentence: `usage limit`, `login`, `spend limit`."
+    )
+    runner: str = Field(
+        ...,
+        description=(
+            "The runner whose starts are held. Two runners sharing one login each report "
+            "the same incident under their own name, because a board shows rows rather "
+            "than credentials."
+        ),
+    )
+    resets_at: Optional[str] = Field(
+        default=None,
+        description=(
+            "When the subscription window reopens, UTC, or null. **Render it in the "
+            "reader's own zone**: the limit is a wall-clock fact to whoever is waiting "
+            "for it. Null means nothing has undertaken to clear this on its own and the "
+            "board must not print a time."
+        ),
+    )
+    opened_at: str = Field(..., description="When the incident opened, UTC.")
+    resumes_by_itself: bool = Field(
+        ...,
+        description=(
+            "True when the reset arrives with no person involved, so the board may say "
+            "'paused until <time>' rather than 'until the incident clears'."
+        ),
+    )
+    queued: int = Field(
+        default=0, description="Queued entries waiting on this incident, over the whole machine."
+    )
+    projects: List[str] = Field(
+        default_factory=list,
+        description="Armed projects whose pull mode is held by it, by project id.",
+    )
+    detail: str = Field(
+        default="", description="The same sentence the tick's own report prints, in UTC."
+    )
 
 
 class ArmedProjectView(BaseModel):
@@ -221,6 +291,15 @@ class ArmedProjectView(BaseModel):
     )
     next_task_title: str = ""
     next_task_url: str = Field(default="", description="Where that task is, in this app.")
+    paused_by: str = Field(
+        default="",
+        description=(
+            "The incident id holding this arming's starts off (task-463), or empty. The "
+            "arming keeps its bound and its authority while this is set and starts again "
+            "on the first tick after the incident closes; `next_task_id` still says what "
+            "it will start then."
+        ),
+    )
 
 
 class LiveRunsView(BaseModel):
@@ -276,6 +355,17 @@ class LiveRunsView(BaseModel):
         description=(
             "`limits.dispatch_queue_limit` from ~/.agentjobs/dispatch.yaml: how many "
             "dispatches may wait at once."
+        ),
+    )
+    paused: List[StartPauseView] = Field(
+        default_factory=list,
+        description=(
+            "Why the machine is starting nothing on a credential (task-463). Empty on "
+            "the ordinary machine, which is the point: a board that says nothing here "
+            "is a board with nothing to explain. **Unfiltered by project**, on the same "
+            "argument as `occupied`: the rows answer 'what may I read' and this answers "
+            "'why is nothing starting', and a machine out of quota is out of quota "
+            "whether or not the run that spent it is one this caller may see."
         ),
     )
     generated_at: str = Field(..., description="When this answer was assembled, in UTC.")
@@ -410,16 +500,25 @@ def _run_view(record: RunRecord, projects: Dict[str, Project]) -> LiveRunView:
 
 
 def queued_dispatch_view(
-    entry: QueuedDispatch, position: int, projects: Dict[str, Project]
+    entry: QueuedDispatch,
+    position: int,
+    projects: Dict[str, Project],
+    *,
+    paused_by: str = "",
 ) -> QueuedDispatchView:
     """Render one waiting dispatch for the browser.
 
     Public, and the one renderer: the project-scoped cancel route returns the entry it
     removed, and two renderings of one row would eventually disagree about what a
     queued dispatch is called.
+
+    ``paused_by`` defaults to empty so the cancel route -- which is answering "what did I
+    just remove" and not "why is the machine quiet" -- does not have to read the incident
+    book to render a row it is about to throw away.
     """
     project = projects.get(entry.project_id)
     return QueuedDispatchView(
+        paused_by=paused_by,
         queue_id=entry.queue_id,
         position=position,
         task_id=entry.task_id,
@@ -507,7 +606,9 @@ def _holder_view(
     )
 
 
-def _armed_view(arming: Any, projects: Dict[str, Project]) -> ArmedProjectView:
+def _armed_view(
+    arming: Any, projects: Dict[str, Project], *, paused_by: str = ""
+) -> ArmedProjectView:
     """Render one armed project, with what it would start next. Never raises.
 
     The next-task read goes through the project's manager and can fail in every way a
@@ -524,6 +625,7 @@ def _armed_view(arming: Any, projects: Dict[str, Project]) -> ArmedProjectView:
         except Exception:  # noqa: BLE001 - see the docstring
             task = None
     return ArmedProjectView(
+        paused_by=paused_by,
         project_id=arming.project_id,
         project_name=project.name if project else arming.project_id,
         arming_id=arming.arming_id,
@@ -581,11 +683,37 @@ async def list_live_runs(
     # FIFO, and the position is assigned over the machine's whole queue before this
     # caller's filter runs: a rail numbered 1, 2, 3 over rows that are really 1, 2 and 5
     # would be a lie about when the third one starts.
+    # One reading of the incident book for the whole answer (task-463). Each row is
+    # judged against it rather than re-reading it per row, so a board of twenty waiting
+    # entries costs the same as a board of one.
+    incidents = start_pause.open_pauses(home)
+    every_entry = dispatch_queue.waiting(home)
+    entry_pauses = {
+        entry.queue_id: start_pause.pause_for(
+            home,
+            entry.project_id,
+            runner=entry.request.get("runner"),
+            group=entry.request.get("group"),
+            incidents=incidents,
+        )
+        for entry in every_entry
+    }
     waiting = [
-        queued_dispatch_view(entry, index, projects)
-        for index, entry in enumerate(dispatch_queue.waiting(home), start=1)
+        queued_dispatch_view(
+            entry,
+            index,
+            projects,
+            paused_by=(pause.incident_id if (pause := entry_pauses[entry.queue_id]) else ""),
+        )
+        for index, entry in enumerate(every_entry, start=1)
         if _may_see(entry.project_id, projects, principal)
     ]
+
+    every_arming = list(dispatch_pull.armings(home))
+    arming_pauses = {
+        arming.arming_id: start_pause.pause_for(home, arming.project_id, incidents=incidents)
+        for arming in every_arming
+    }
 
     return LiveRunsView(
         occupied=len(occupied),
@@ -595,10 +723,59 @@ async def list_live_runs(
         holders=holders,
         queued=waiting,
         armed=[
-            _armed_view(arming, projects)
-            for arming in dispatch_pull.armings(home)
+            _armed_view(
+                arming,
+                projects,
+                paused_by=(pause.incident_id if (pause := arming_pauses[arming.arming_id]) else ""),
+            )
+            for arming in every_arming
             if _may_see(arming.project_id, projects, principal)
         ],
         queue_limit=dispatch_queue.queue_limit(home),
+        paused=_pause_views(entry_pauses.values(), arming_pauses, every_arming),
         generated_at=datetime.now(timezone.utc).isoformat(),
     )
+
+
+def _pause_views(
+    entries: Any,
+    arming_pauses: Dict[str, Any],
+    armings: List[Any],
+) -> List[StartPauseView]:
+    """Every open pause, with what is waiting on it counted over the whole machine.
+
+    **The counts are unfiltered while the rows above are filtered**, and the two are
+    different questions on purpose -- the same split ``occupied`` makes. "Three entries
+    are waiting on this reset" is a fact about the machine; showing a caller two because
+    the third is in a project they cannot see would be a number that disagrees with the
+    reason beside it.
+    """
+    found: Dict[str, StartPauseView] = {}
+    project_of = {arming.arming_id: arming.project_id for arming in armings}
+
+    def seen(pause: Any) -> StartPauseView:
+        view = found.get(pause.incident_id)
+        if view is None:
+            view = StartPauseView(
+                incident_id=pause.incident_id,
+                kind=pause.kind,
+                kind_word=pause.kind_word,
+                runner=pause.runner,
+                resets_at=pause.resets_at.isoformat() if pause.resets_at else None,
+                opened_at=pause.opened_at.isoformat(),
+                resumes_by_itself=pause.resumes_by_itself,
+                detail=pause.sentence(),
+            )
+            found[pause.incident_id] = view
+        return view
+
+    for pause in entries:
+        if pause is not None:
+            seen(pause).queued += 1
+    for arming_id, pause in arming_pauses.items():
+        if pause is not None:
+            view = seen(pause)
+            project_id = project_of.get(arming_id, "")
+            if project_id and project_id not in view.projects:
+                view.projects.append(project_id)
+    return list(found.values())

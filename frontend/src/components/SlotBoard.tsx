@@ -6,6 +6,7 @@ import type {
   LiveRunsView,
   MachineHolderView,
   QueuedDispatchView,
+  StartPauseView,
   TaskRead,
 } from "../api/types";
 import { formatElapsed } from "./DispatchPanel";
@@ -473,15 +474,98 @@ function EmptyCell({ projectId, quiet }: { projectId: string; quiet: boolean }) 
  * see, so numbering them here would print 1, 2, 3 over entries that are really 1, 2
  * and 5 and tell somebody their dispatch is next when it is not.
  */
+/**
+ * When the subscription reopens, in the zone of whoever is reading (task-463).
+ *
+ * **The zone is the whole point.** The server sends UTC because that is the only thing
+ * it can be right about, and "paused until 23:40Z" is a sum a person has to do in their
+ * head at the moment they least want to. `toLocaleTimeString` with no locale argument
+ * uses the browser's own, which is the reader's.
+ *
+ * A reset in the past is still printed rather than hidden. It means the probe has not
+ * run yet, which is a few seconds at most and is honest; replacing it with "any moment"
+ * would be the board inventing a state the machine does not have.
+ */
+export function resetInLocalTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+/** The one sentence a pause gets, wherever it is drawn. */
+export function pauseSentence(pause: StartPauseView): string {
+  const when = pause.resumes_by_itself
+    ? `until ${resetInLocalTime(pause.resets_at)}`
+    : "until the incident clears";
+  return `Paused ${when}: ${pause.kind_word} on ${pause.runner}`;
+}
+
+/**
+ * Why the machine is starting nothing, drawn above whichever rail it is holding.
+ *
+ * **It is status and never an action**, so it is drawn under an alarm and in
+ * `statusOnly` like the rails themselves. The whole reason it exists is that a person
+ * glancing at a board full of waiting work needs to know the machine is not broken and
+ * does not need them -- which is the opposite of a call to action, and is exactly the
+ * thing they would otherwise go and investigate.
+ */
+function PausedNotice({ pauses, scope }: { pauses: StartPauseView[]; scope: string }) {
+  if (pauses.length === 0) return null;
+  return (
+    <ul
+      data-testid={`slot-board-paused-${scope}`}
+      data-paused={pauses.length}
+      className="mb-2 space-y-1"
+    >
+      {pauses.map((pause) => (
+        <li
+          key={pause.incident_id}
+          data-testid="start-pause"
+          data-incident-id={pause.incident_id}
+          data-kind={pause.kind}
+          data-resets-at={pause.resets_at ?? ""}
+          className="rounded-lg border border-dashed border-sky-800/70 bg-sky-950/30 px-3 py-2 text-xs text-sky-200"
+        >
+          <span className="font-medium">{pauseSentence(pause)}</span>
+          <span className="ml-2 text-sky-300/70">
+            nothing is wrong and nobody is needed — it starts again by itself
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** The pauses holding at least one of these queued entries, newest incident last. */
+export function pausesHoldingQueue(
+  queued: QueuedDispatchView[],
+  pauses: StartPauseView[],
+): StartPauseView[] {
+  const held = new Set(queued.map((entry) => entry.paused_by).filter(Boolean));
+  return pauses.filter((pause) => held.has(pause.incident_id));
+}
+
+/** The pauses holding at least one of these armed projects. */
+export function pausesHoldingArmings(
+  armed: ArmedProjectView[],
+  pauses: StartPauseView[],
+): StartPauseView[] {
+  const held = new Set(armed.map((entry) => entry.paused_by).filter(Boolean));
+  return pauses.filter((pause) => held.has(pause.incident_id));
+}
+
 function WaitingRail({
   queued,
   projectId,
   limit,
+  pauses,
   renderAction,
 }: {
   queued: QueuedDispatchView[];
   projectId: string;
   limit: number;
+  pauses: StartPauseView[];
   renderAction?: (entry: QueuedDispatchView) => React.ReactNode;
 }) {
   if (queued.length === 0) return null;
@@ -501,6 +585,7 @@ function WaitingRail({
           dispatch gate checked then
         </span>
       </div>
+      <PausedNotice pauses={pauses} scope="queue" />
       <ol className="space-y-2">
         {queued.map((entry) => (
           <li
@@ -509,6 +594,7 @@ function WaitingRail({
             data-queue-id={entry.queue_id}
             data-task-id={entry.task_id}
             data-position={entry.position}
+            data-paused-by={entry.paused_by || undefined}
             className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-amber-900/70 bg-dark-bg p-3"
           >
             <div className="flex min-w-0 items-center gap-3">
@@ -531,7 +617,15 @@ function WaitingRail({
                     the queue is actually moving. `starting` is the few seconds a tick is
                     putting it through the gates, and saying so is what stops a card that
                     changes under the cursor looking like a glitch. */}
-                {entry.status === "starting" ? "starting…" : waitedFor(entry)}
+                {/* A paused entry is not "waiting for a slot" even when it is also
+                    doing that: the slot may well be free. Saying so on the row keeps
+                    the notice above from having to be read as applying to all of them
+                    on a machine where only some are held. */}
+                {entry.paused_by
+                  ? `paused · ${waitedFor(entry)}`
+                  : entry.status === "starting"
+                    ? "starting…"
+                    : waitedFor(entry)}
                 {entry.queued_by ? ` · ${entry.queued_by}` : ""}
               </span>
               {renderAction?.(entry)}
@@ -570,9 +664,11 @@ function WaitingRail({
  */
 function ArmedRail({
   armed,
+  pauses,
   renderAction,
 }: {
   armed: ArmedProjectView[];
+  pauses: StartPauseView[];
   renderAction?: (entry: ArmedProjectView) => React.ReactNode;
 }) {
   if (armed.length === 0) return null;
@@ -591,6 +687,7 @@ function ArmedRail({
           free slots fill themselves, with every dispatch gate checked at the start
         </span>
       </div>
+      <PausedNotice pauses={pauses} scope="armed" />
       <ol className="space-y-2">
         {armed.map((entry) => (
           <li
@@ -598,6 +695,7 @@ function ArmedRail({
             data-testid="armed-project"
             data-arming-id={entry.arming_id}
             data-project-id={entry.project_id}
+            data-paused-by={entry.paused_by || undefined}
             className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-orange-800/70 bg-dark-bg p-3"
           >
             <div className="min-w-0">
@@ -608,6 +706,17 @@ function ArmedRail({
                   {entry.bound}
                   {entry.posture ? ` · ${entry.posture}` : ""}
                 </span>
+                {/* On the row as well as in the notice, because the bound beside it is
+                    the thing a person would otherwise assume was being spent. It is
+                    not: a paused arming starts nothing and keeps every start it has. */}
+                {entry.paused_by && (
+                  <span
+                    data-testid="armed-paused"
+                    className="ml-2 rounded bg-sky-900/40 px-2 py-0.5 text-xs text-sky-200"
+                  >
+                    paused · bound untouched
+                  </span>
+                )}
               </div>
               {entry.next_task_id ? (
                 <Link
@@ -743,6 +852,7 @@ export function SlotBoard({
   const runways = unexplainedRunways(body);
   const waiting = body.queued ?? [];
   const armed = body.armed ?? [];
+  const pauses = body.paused ?? [];
   if (
     layout.cells.length === 0 &&
     runways.length === 0 &&
@@ -877,11 +987,16 @@ export function SlotBoard({
         queued={waiting}
         projectId={projectId}
         limit={body.queue_limit ?? 0}
+        pauses={pausesHoldingQueue(waiting, pauses)}
         renderAction={statusOnly ? undefined : renderQueuedAction}
       />
       {/* Under the waiting rail, which is the order the two are honoured in: a dispatch
           somebody asked for by name starts before the pull mode fills anything. */}
-      <ArmedRail armed={armed} renderAction={statusOnly ? undefined : renderArmedAction} />
+      <ArmedRail
+        armed={armed}
+        pauses={pausesHoldingArmings(armed, pauses)}
+        renderAction={statusOnly ? undefined : renderArmedAction}
+      />
       {!statusOnly && renderQueueGate?.()}
       <RunwayStrip holders={runways} />
     </section>
