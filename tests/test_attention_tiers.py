@@ -12,6 +12,7 @@ handed to the Alpine component), not on the presence of markup.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Tuple
@@ -21,6 +22,7 @@ import yaml
 from fastapi.testclient import TestClient
 
 from agentjobs.api.dependencies import TASKS_DIR_ENV, reset_dependency_cache
+from agentjobs.attention import ASK_PHRASES
 from agentjobs.api.main import app
 from agentjobs.api.routes.web import awaits_human_input, blocks_human
 from agentjobs.dashboard import QUEUE_PREVIEW_LIMIT
@@ -479,6 +481,11 @@ class TestTheAttentionEndpoint:
         names its tasks; it does not carry their specs, logs or acceptance criteria,
         which is what the size above was standing in for. task-423 added `deep_link`,
         which is one URL built from an id the payload already carries.
+
+        task-421 added `lead_ask`: one of five fixed phrases chosen by the lead task's
+        `ball_reason`, bounded at about fifteen characters and not copied from the
+        record. It is deliberately *not* `ball_prompt`, which is the complete ask, is
+        unbounded, and is exactly the kind of field this test exists to keep out.
         """
         client, base = client_for([BLOCKED_ON_HUMAN, PARKED_DRAFT, CLAIMABLE, FINISHED])
 
@@ -492,8 +499,13 @@ class TestTheAttentionEndpoint:
             "tasks",
             "lead_task_id",
             "lead_task_title",
+            "lead_ask",
             "deep_link",
         }
         # One id per waiting task and one title, against a dashboard's 900KB.
         assert payload["episode"]["tasks"] == [BLOCKED_ON_HUMAN.id]
+        # A fixed phrase, never the task's own prose: `ball_prompt` is unbounded and is
+        # what this endpoint must not start carrying.
+        assert payload["episode"]["lead_ask"] in ASK_PHRASES.values()
+        assert BLOCKED_ON_HUMAN.ball_prompt not in json.dumps(payload)
         assert len(client.get("/api/projects/inbox/attention").content) < 500
