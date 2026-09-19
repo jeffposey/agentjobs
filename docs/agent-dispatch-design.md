@@ -889,6 +889,11 @@ walk's `--max-concurrent` can only narrow the machine's ceiling, never widen it,
 hitting that ceiling mid-walk is **backpressure rather than a refusal** — something else on
 the machine holding a slot is a normal condition and not a fact about this epic. The walk
 waits and retries; a machine full for the whole per-child ceiling stops it, saying which.
+Since task-480 that wait is no longer a race it can lose to something merely *finding*
+work: the pull mode stands aside for a live walk, on the ladder in
+[Who gets the next free slot](#who-gets-the-next-free-slot-task-480-2026-09-19). The walk
+itself is unchanged by that — it still asks and still treats a full machine as
+backpressure, which is what keeps it portable to a machine that is not this one.
 
 ##### The runway, which is the harder half
 
@@ -2139,16 +2144,15 @@ ceiling, the clean-tree rule, the one-live-run-per-task rule, the per-task caps 
 posture ceiling all judged **at the moment of the start** rather than at the moment of the
 arming. A ceiling lowered after arming refuses the next pull.
 
-**Precedence: the machine's dispatch queue goes first, and "first" means the whole tick.**
-Manual entries (§7's dispatch queue, task-459) are dispatches a person asked for by name.
-While any of them is waiting, the pull mode starts nothing at all — not merely "runs
-afterwards in the same tick", because a queued entry refused for a transient reason keeps
-its place, and a pull taking the slot it is waiting for would overtake it at the next tick
-while the board showed nothing happening. The cost is stated rather than hidden: a manual
-entry parked on a long-lived transient condition stalls the pull mode until somebody
-cancels it. That is visible on the slot board as a waiting entry, which is what makes it a
-thing a person can fix. The pull mode never enqueues; it starts into a free slot or it does
-not happen, because a bound on starts that could be spent on *intentions* is not a bound.
+**Precedence: this mode is the bottom rung, and it yields the whole tick to either rung
+above it.** A dispatch queue entry is a person naming a task and a live epic walk is a
+person naming an epic; this is standing authority to find work, so it starts nothing at
+all while either is waiting — not merely "runs afterwards in the same tick". The ladder,
+what each rung costs and why a walk yields rather than enqueues are
+[Who gets the next free slot](#who-gets-the-next-free-slot-task-480-2026-09-19) in §7, and
+are not restated here. What is this mode's own is the other half: **it never enqueues
+itself.** It starts into a free slot or it does not happen, because a bound on starts that
+could be spent on *intentions* is not a bound.
 
 **What stops it**, all four recorded on the arming row and readable afterwards:
 
@@ -2858,6 +2862,76 @@ reason; and *raising the shipped default in `config.py`*, because one 16-core ma
 numbers are not a laptop's and the setting is machine-local precisely so its owner
 decides.
 
+### Who gets the next free slot (task-480, 2026-09-19)
+
+Four paths reach a machine slot, and until this task only three of them arbitrated. This
+is the one place that says who goes first; everything else cites it.
+
+**The ladder. An explicit human act about named work outranks standing authority to find
+work.**
+
+1. **The machine's dispatch queue.** A person named *this task* and is waiting for it.
+2. **An epic walk's children.** A person named *this epic*: a bounded set, one click.
+3. **The pull mode.** A standing authority to find whatever is next.
+
+**Each rung yields the whole tick to the one above it, not a place in one tick's
+ordering.** Running second within a tick is not deference when the thing above you is on a
+different clock: a queued entry refused for a transient reason keeps its place and waits,
+and a walk's next pass is seconds away while the tick's is now. Either way a lower rung
+that started into the contested slot would overtake the higher one at the next tick, with
+the board showing nothing but a full machine. So rung 3 starts nothing at all while
+anything is waiting at rung 1 or flying at rung 2, and says which in its decision.
+
+**How each rung asks, and why they are not the same mechanism:**
+
+| Path | How it gets a slot |
+| --- | --- |
+| A single dispatch | `guards.dispatch_task`; a full machine gives the person [the three-way prompt](#the-overage-a-person-may-go-past-the-ceiling-task-461-2026-09-18) |
+| The dispatch queue | the controller tick, `queue.start_due`, first |
+| An epic walk | its own loop, calling `dispatch_task` directly and treating a full machine as backpressure |
+| The pull mode | the controller tick, `pull.pull_due`, last — and it yields to both of the above |
+
+**The walk does not enqueue, and the reason outlives this machine.** Enqueueing an epic's
+children is the obvious fix and it is the wrong one: the dispatch queue is a *machine's*
+table of "start this here", so putting children in it binds the epic to one machine at the
+moment of the click. A walk that keeps asking `dispatch_task` for a slot wherever it can
+get one, with each machine's pull mode standing aside locally, is the shape that still
+works when there is a second dispatch machine. Yielding forecloses nothing; enqueueing
+bakes the single-machine assumption in. It is also a large change to control flow built
+around starting a child and watching it, not around handing it to something else to start.
+(Task-459 rejected the same thing for a second reason, from the authorisation side:
+children started by the controller would be outside the walk's bound of two runs per child
+per authorisation.)
+
+**Refusing to arm while a walk runs was considered and rejected.** Mutual exclusion is
+simpler and costs idle slots: a two-child epic on a three-slot machine would leave one
+empty for the whole walk, which is the thing the pull mode exists to prevent. The yield
+buys the same safety and keeps the slot. No new refusal reaches anybody — arming during a
+walk and walking while armed are both still allowed.
+
+**The cost, stated rather than hidden.** A walk that has finished flying and is only
+waiting on [the merge runway](#the-walk-is-a-rolling-frontier-and-the-merge-is-a-runway-task-223-2026-08-27)
+is still live, so the pull mode idles for those minutes too. That is accepted: the runway
+is contended anyway, and a rule that tried to tell "a walk that wants a slot" from "a walk
+that is only watching" would be guessing at a state the walk does not publish. If the idle
+time turns out to matter, it is a separate task with a measurement behind it.
+
+**The yield is judged from the walk's record at the moment of the pass**, never from
+anything cached when the project was armed — one `walking` row in the execution journal,
+from the click that started the walk until it lands or is grounded. A `walking` row is not
+quite the same as a flying walk, and `pull.walking_now` makes the one narrowing that
+matters: a server-hosted walk is stepped by the same poll that runs the pull pass, so it is
+being advanced by construction, while an attached `dispatch walk` is somebody's own process
+and can die between two ticks. `open_walk` tolerates the row it leaves because its only
+other reader takes such a walk over; a reader that instead yielded to it would idle this
+machine forever on a supervisor nobody is running. So an attached walk counts only while
+its holder is alive, with the same pid-reuse check `open_walk` already makes.
+
+**What this changed and what it did not.** Rung 1 is exactly as task-459 left it. The
+walk's own behaviour is untouched — it still calls `dispatch_task`, still treats a full
+machine as backpressure, still retries on its next pass. Nothing here moves the §7 caps,
+the posture ceiling, or what authorises a pulled start.
+
 ### The dispatch queue (task-459, 2026-09-18)
 
 **A dispatch sent with `if_full: queue` that finds every slot taken is accepted as a
@@ -2953,12 +3027,15 @@ complaint, and it still names the runs holding the slots and the task each is wo
 rather than reporting a count. What it no longer does is argue that queueing is the wrong
 answer.
 
-**The epic walk keeps retrying rather than enqueueing** (decided on task-459). It has its
-own notion of order and its own grounding rule, and a child that went into this queue
-would be started by the controller outside the walk's bound of two runs per child per
-authorisation. Rejected: having the walk enqueue its children, which would have removed
-its retry loop at the cost of moving the authorisation bound somewhere that does not
-enforce it.
+**The epic walk keeps retrying rather than enqueueing** (decided on task-459, and
+reaffirmed on task-480 for a second reason). It has its own notion of order and its own
+grounding rule, and a child that went into this queue would be started by the controller
+outside the walk's bound of two runs per child per authorisation. Rejected: having the
+walk enqueue its children, which would have removed its retry loop at the cost of moving
+the authorisation bound somewhere that does not enforce it. What the walk gets instead of
+a place in this queue is a rung of its own —
+[Who gets the next free slot](#who-gets-the-next-free-slot-task-480-2026-09-19), which is
+also where the multi-machine argument for keeping it out of here lives.
 
 ### The overage: a person may go past the ceiling (task-461, 2026-09-18)
 
