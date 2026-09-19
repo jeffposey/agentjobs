@@ -196,3 +196,106 @@ For a physical-device release check:
 4. Confirm build B appears without clearing site data.
 5. Stop AgentJobs, relaunch the app, and confirm it shows the unavailable screen with
    no task rows or counts.
+
+## Dictating into a field
+
+Typing a task into a phone is the reason tasks do not get filed, so dictation is a
+mobile-access question rather than a feature request. Task-171 measured what the devices
+on this tailnet actually do, over this page's HTTPS origin, in September 2026. The
+instrument is `scripts/voice_input_probe.py`; re-run it before trusting any of this on a
+new browser version.
+
+### What was measured
+
+| Device / browser | `SpeechRecognition` | On-device API | `available({processLocally:true})` | `MediaRecorder` | Keyboard mic in a plain field |
+| --- | --- | --- | --- | --- | --- |
+| Galaxy Z Flip 6, Android, Chrome 153 | yes, both spellings | yes | **`unavailable`** | yes | **yes** — `insertCompositionText` |
+| Windows 11, Chrome 153 | yes, both spellings | yes | **`downloadable`** → `available` after `install()` | yes | not measured |
+| Windows 11, Edge 153 | yes, both spellings | yes | **`unavailable`** | yes | not measured |
+| Firefox 153 | **no, neither spelling** | no | n/a | yes | not measured |
+
+The tailnet HTTPS origin is a secure context on the phone (`isSecureContext` true), so
+both the microphone and the speech API are reachable the way this page's recommended
+setup already serves the app. A plain-http LAN address is not, and the
+[direct-bind fallback](#direct-bind-fallback-no-https) therefore has no dictation at all
+on top of everything else it loses.
+
+Two of those cells are the reason this section exists.
+
+**The on-device language pack is not there by default, and on two of the three
+Chromium browsers it cannot be fetched at all.** A mic button that opens with
+`processLocally = true` fails on first press with `language-not-supported` — on the
+phone, permanently. Only desktop Chrome reported `downloadable`, where `install()`
+returned `true` and flipped the state to `available`.
+
+**Firefox has neither spelling of the constructor.** It is not a matter of a permission
+or a language: `window.SpeechRecognition` and `window.webkitSpeechRecognition` are both
+absent, so a mic button rendered there is a button that does nothing.
+
+### What ships
+
+**The operating system keyboard's own microphone, always.** It needs no code, no
+permission prompt and no network, and it is already working: Gboard dictated into the
+probe's plain `<textarea>` over the tailnet origin, arriving as `insertCompositionText`.
+The issue reporter's details field is an ordinary `<textarea>` whose only
+`preventDefault` is on paste and drop, so the path is live in the app today.
+
+**This is a constraint on anything built later, not a feature to maintain.** A control
+that replaces the textarea, or that cancels `beforeinput` or `keydown`, removes the one
+dictation path that works everywhere — including the browsers where nothing else does.
+`tests/test_voice_input_probe.py` guards the probe's copy of that property; the shipped
+control needs its own equivalent.
+
+**An in-page mic button where the constructor exists, feature-detected, never
+assumed** — and it must not force `processLocally`, because on the phone that is a
+permanent failure rather than a first-run download. So on Android the audio goes to the
+browser's speech service, and **the control has to say which mode it is in** rather than
+imply a privacy property it has not got. Where `available({processLocally:true})`
+reports `available`, say the audio stays on the device; where it reports `downloadable`,
+offer the one-time download and say what it costs; otherwise say plainly where the audio
+goes.
+
+**Where the constructor is absent the button is absent** — not present and dead, not
+disabled with a tooltip. The field still takes the keyboard microphone, and that is the
+answer for Firefox.
+
+### Two behaviours to build around
+
+**`continuous = true` is not honoured on Android Chrome.** Recognition ended 7.4 seconds
+in, mid-paragraph, while the speaker was still talking. Continuous dictation there means
+restarting the recogniser on `end` and stitching the results — the behaviour the Web
+Speech literature attributes to iOS, observed here on Android.
+
+**Android marks each progressively longer result final and re-sends it.** The usual
+`finals += results[i][0].transcript` over the slice from `event.resultIndex` produces
+`"the menuthe menu salethe menu sale in task..."`. Rebuild the transcript from the whole
+`event.results` list on every event instead. The probe shipped with this bug and scored
+its first real phone run on the corrupted string.
+
+### Transcript quality, and what was not measured
+
+On the phone, against a deliberately task-shaped paragraph, the Web Speech path returned
+`the menu sale in task 167 needs a decision for ships to work tree is already` before
+cutting out. It normalised "task one six seven" to `task 167`, which is the useful
+behaviour; it lost `shell` to "sale" and split `worktree` into "work tree". The keyboard
+microphone, reading the same page aloud, was comparable — "touches his box" for "touches
+this box". **Treat both as good enough to draft with and not good enough to submit
+unread**, which is an argument for dictating into a visible field the person edits
+rather than into anything that acts on what it heard.
+
+Three cells above are blank and should stay honestly blank until someone fills them. The
+tablet was not exercised — it is the same operating system and browser family as the
+phone, so it is expected to match, and that expectation is not evidence. Desktop
+transcript quality was not measured because Chrome's speech recogniser does not read
+`--use-file-for-fake-audio-capture` and this machine's default input device captures
+digital silence.
+
+### Sending audio to a server instead
+
+Rejected for now; see task-173. It is the only path that covers a browser with no speech
+API and the only one where AgentJobs decides where the audio goes, and it costs a local
+transcription model, an audio upload path and the latency of both. What it buys over the
+two paths above is an in-page button for Firefox users — who already have their
+operating system's microphone key in the same field. Reopen it if a browser appears here
+with no speech API *and* no usable keyboard dictation, or if audio leaving the device
+becomes a reason someone will not use the feature.

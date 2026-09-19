@@ -282,17 +282,27 @@ function record(mode) {
                       box.textContent = "listening (" + mode + ")…"; };
   r.onaudiostart = () => mark("audiostart");
   r.onspeechstart = () => mark("speechstart");
+  // Rebuild the whole transcript from `e.results` every time rather than appending the
+  // slice from `e.resultIndex`. Appending is the pattern everyone writes and it is
+  // wrong on Android Chrome, which marks each progressively longer result `isFinal`
+  // and re-sends it: the first phone this probe met returned "the menuthe menu salethe
+  // menu sale in task..." and scored the run on that. `results` is the live list, so
+  // reading all of it is both simpler and correct on every platform.
   r.onresult = (e) => {
+    let final = "";
     let interim = "";
-    for (let i = e.resultIndex; i < e.results.length; i++) {
+    out.confidence = [];
+    out.chunks = [];
+    for (let i = 0; i < e.results.length; i++) {
       const alt = e.results[i][0];
+      out.chunks.push({ isFinal: e.results[i].isFinal, text: alt.transcript });
       if (e.results[i].isFinal) {
-        finals += alt.transcript;
+        final += alt.transcript;
         out.confidence.push(alt.confidence);
       } else interim += alt.transcript;
     }
-    out.transcript = finals;
-    box.textContent = "[" + mode + "] " + finals + (interim ? " · " + interim : "");
+    out.transcript = final;
+    box.textContent = "[" + mode + "] " + final + (interim ? " · " + interim : "");
   };
   r.onerror = (e) => { out.error = e.error + (e.message ? " / " + e.message : "");
                        mark("error:" + e.error); };
