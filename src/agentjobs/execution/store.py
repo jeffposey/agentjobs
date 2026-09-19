@@ -255,7 +255,7 @@ CREATE TABLE child_wait (
 );
 """
 
-SCHEMA_REVISION = 6
+SCHEMA_REVISION = 7
 """Additive revisions applied on top of physical schema version 1 (task-416).
 
 Revision 3 (task-417) adds the auth-recovery incident, waiter and probe tables, which no
@@ -267,6 +267,11 @@ filled by the new server is simply invisible to an older process rather than mis
 Revision 6 (task-462) adds ``pull_arming``, the per-project record of a person having
 switched the pull mode on with a bound -- the sole authority for a pulled dispatch, and
 again a table the previous build neither reads nor writes.
+
+Revision 7 (task-482) adds ``run_attempt.slot_released_at`` and ``slot_released_reason``:
+when an attempt gave its machine slot back while still live. The previous build does not
+read them and so keeps counting such an attempt -- it refuses a dispatch it could have
+allowed, which is the safe direction for an old process to be wrong in.
 
 **Deliberately not a ``user_version`` bump.** Processes running the previous build share
 this file with the new one -- an epic walk started before an upgrade keeps dispatching
@@ -435,13 +440,17 @@ CREATE INDEX IF NOT EXISTS ix_pull_arming_project ON pull_arming(project_id, arm
 _ADDED_COLUMNS = (
     ("run_attempt", "operation_id", "TEXT"),
     ("execution", "controlled_by", "TEXT"),
+    ("run_attempt", "slot_released_at", "TEXT"),
+    ("run_attempt", "slot_released_reason", "TEXT"),
 )
 """``run_attempt.operation_id`` is the admission's stable operation id, so a supervisor
 that died between a child's admission and its own bookkeeping finds the same attempt
 rather than admitting a second one. ``execution.controlled_by`` is ``controller`` for an
 execution the durable controller drives and ``NULL`` for everything else -- including
 every row the previous build writes, which is what keeps the legacy poller in charge of
-them."""
+them. ``run_attempt.slot_released_at`` and ``slot_released_reason`` are task-482's: when
+and why a live attempt stopped counting against the machine ceiling, ``NULL`` for every
+attempt that still counts."""
 
 CONTROLLED_BY_CONTROLLER = "controller"
 
@@ -556,10 +565,30 @@ class Attempt:
     launched_at: Optional[str]
     concluded_at: Optional[str]
     operation_id: Optional[str] = None
+    slot_released_at: Optional[str] = None
+    """When this attempt gave its machine slot back while still live (task-482).
+
+    ``None`` for every attempt that still counts, which is nearly all of them. It is set
+    once and never cleared: a run that has released its slot does not take one again, and
+    a release that could be undone would be a slot two dispatches could both be told is
+    free."""
+    slot_released_reason: str = ""
+    """Why, in one machine-readable word. ``task_closed`` is the only one today."""
 
     @property
     def is_live(self) -> bool:
         return self.state != ATTEMPT_TERMINAL
+
+    @property
+    def holds_slot(self) -> bool:
+        """Whether this attempt is one of the machine's occupied slots *now*.
+
+        ``takes_slot`` is the admission's fact -- what this kind of run costs the machine
+        -- and stays true for the life of the row. This is the live question, and the two
+        differ for exactly as long as a session outlives the task it was dispatched for.
+        Every count of the ceiling asks this one.
+        """
+        return self.takes_slot and self.slot_released_at is None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Attempt":
@@ -589,6 +618,8 @@ class Attempt:
             launched_at=row["launched_at"],
             concluded_at=row["concluded_at"],
             operation_id=_column(row, "operation_id"),
+            slot_released_at=_column(row, "slot_released_at"),
+            slot_released_reason=_column(row, "slot_released_reason") or "",
         )
 
 
@@ -1755,9 +1786,14 @@ class ExecutionStore:
             if takes_slot and capacity is not None:
                 holders = [
                     row["run_id"]
+                    # `slot_released_at IS NULL`, not `takes_slot = 1` alone: a session
+                    # whose task has closed gave its slot back and is still live
+                    # (task-482). Counting it here is what let a finished run block the
+                    # next dispatch for as long as the person kept talking to it.
                     for row in connection.execute(
                         "SELECT run_id FROM run_attempt WHERE state <> 'terminal' "
-                        "AND takes_slot = 1 ORDER BY admitted_at"
+                        "AND takes_slot = 1 AND slot_released_at IS NULL "
+                        "ORDER BY admitted_at"
                     )
                 ]
                 holders.extend(sorted(legacy_slots - known))
@@ -1890,6 +1926,39 @@ class ExecutionStore:
             parameters,
         )
         return [Attempt.from_row(row) for row in rows]
+
+    def release_slot(self, run_id: str, *, reason: str) -> Optional[Attempt]:
+        """Give this live attempt's machine slot back, leaving the attempt live (task-482).
+
+        Idempotent and one-way. A row that has already released keeps its first release's
+        time and reason, and a terminal row is left alone -- its slot went back when it
+        concluded, and stamping a release on it would put two endings on one run.
+
+        Nothing else about the attempt changes: it still owns its task, it is still
+        followed by the poller, it can still be stopped, and it still appears on every
+        surface that lists what is running. The one thing it stops doing is standing
+        between the next dispatch and a free machine.
+
+        ``None`` when there is no row for ``run_id`` -- a pre-journal run, which is judged
+        from its ``meta.yaml`` instead.
+        """
+        with self.transaction("release_slot") as connection:
+            row = connection.execute(
+                "SELECT * FROM run_attempt WHERE run_id = ?", (run_id,)
+            ).fetchone()
+            if row is None:
+                return None
+            if row["state"] == ATTEMPT_TERMINAL or _column(row, "slot_released_at"):
+                return Attempt.from_row(row)
+            connection.execute(
+                "UPDATE run_attempt SET slot_released_at = ?, slot_released_reason = ? "
+                "WHERE run_id = ?",
+                (_iso(self.now()), reason, run_id),
+            )
+            found = connection.execute(
+                "SELECT * FROM run_attempt WHERE run_id = ?", (run_id,)
+            ).fetchone()
+            return Attempt.from_row(found)
 
     def mark_launched(
         self, run_id: str, *, session_id: Optional[str] = None, epoch: Optional[int] = None

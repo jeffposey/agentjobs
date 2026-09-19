@@ -1002,6 +1002,16 @@ class RunRecord:
     happened rather than of what is true this second.
     """
 
+    slot_released_at: Optional[datetime] = None
+    """When this run gave its machine slot back while still alive (task-482)."""
+    slot_released_reason: str = ""
+    """Why it did. ``task_closed`` is the only reason today."""
+
+    @property
+    def slot_released(self) -> bool:
+        """Whether this run has given its slot back and is still going."""
+        return self.slot_released_at is not None
+
     @property
     def is_live(self) -> bool:
         """True while nothing has declared this run over."""
@@ -1028,8 +1038,13 @@ class RunRecord:
 
     @property
     def takes_slot(self) -> bool:
-        """Whether this run counts against ``limits.max_concurrent_runs``."""
-        return not self.is_interactive and not self.is_walk
+        """Whether this run counts against ``limits.max_concurrent_runs``.
+
+        The third exemption is task-482's and is the only one that can arrive *after* the
+        run started: a session whose task has closed has released its slot and is merely
+        still open. See :attr:`slot_released`.
+        """
+        return not self.is_interactive and not self.is_walk and not self.slot_released
 
     def elapsed_seconds(self, now: Optional[datetime] = None) -> Optional[float]:
         """How long this run has been going, or how long it ran for.
@@ -1123,6 +1138,8 @@ def read_run(directory: Path) -> RunRecord:
         origin=str(meta.get("origin") or ""),
         over_ceiling=bool(meta.get("over_ceiling")),
         handback_pending=_as_optional_int(meta.get("handback_pending")),
+        slot_released_at=_as_moment(meta.get("slot_released_at")),
+        slot_released_reason=str(meta.get("slot_released_reason") or ""),
     )
 
 
@@ -1216,6 +1233,7 @@ HEALTH_ORPHANED = "orphaned"
 HEALTH_UNKNOWN = "unknown"
 HEALTH_IDLE = "idle"
 HEALTH_HANDBACK = "handback"
+HEALTH_WORK_DONE = "work_done"
 
 INTERACTIVE_IDLE_SECONDS = 600.0
 """How long an interactive session's transcript may go unwritten before it reads as
@@ -1267,6 +1285,12 @@ def run_health(record: RunRecord) -> str:
       both are true, and *feedback waiting* is the one that answers the question the
       reader actually has. It was reading *Revising (claude)* beside a run in its 50th
       minute that made a person wait rather than look.
+    - ``work_done`` -- the task this run was dispatched for is closed and the session is
+      still open (task-482). Ahead of everything but ``handback`` for the same reason
+      that one is ahead of ``working``: a reader looking at a run beside a task marked
+      Completed is asking which of the two to believe, and the answer is both. The run
+      holds no slot from here on, so this word and the machine's capacity say the same
+      thing.
     - ``unknown`` -- an unreadable or unrecognised meta. ``read_run`` deliberately keeps
       such a run live rather than calling it finished, and this is what stops that
       caution being rendered as confidence.
@@ -1282,6 +1306,8 @@ def run_health(record: RunRecord) -> str:
     status = record.status
     if record.handback_pending is not None:
         return HEALTH_HANDBACK
+    if record.slot_released:
+        return HEALTH_WORK_DONE
     if status == "parked":
         return HEALTH_PARKED
     if status == "stalled":

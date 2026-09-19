@@ -37,7 +37,7 @@ from agentjobs.dispatch.poller import (
 )
 from agentjobs.dispatch.runner import TRANSCRIPT_FILENAME, DispatchRunner, SessionPhase
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType
+from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome
 from agentjobs.projects import ProjectRegistry
 from support import task_store
 
@@ -244,6 +244,30 @@ class TestPollingFindsAndSettlesRuns:
         assert result.phase is SessionPhase.RUNNING
         assert result.acted is False
         assert _run_meta(home, run_id)["status"] == "running"
+
+    def test_a_session_whose_task_closed_gives_its_slot_back_and_keeps_going(self, machine) -> None:
+        """task-482: the tick that ends the state where a finished run blocks a dispatch.
+
+        The session is busy -- somebody is talking to it -- and its task is closed. Every
+        other poll outcome here settles the run; this one deliberately does not, because
+        the process is doing something the person wants. What it stops doing is counting
+        against `limits.max_concurrent_runs`.
+        """
+        from agentjobs.dispatch.ledger import live_runs, read_run, run_health
+
+        home, _, manager, fake_cli = machine
+        run_id = _start_session(machine)
+        task_id = _run_meta(home, run_id)["task_id"]
+        manager.close_task(task_id, actor="claude", outcome=Outcome.COMPLETED, body="Merged.")
+        _set_ledger(fake_cli, [{"id": "b55b35ad", "status": "busy", "state": "working"}])
+
+        poll_live_sessions(home)
+
+        record = read_run(home / "runs" / run_id)
+        assert record.is_live and record.status == "running"
+        assert record.takes_slot is False
+        assert run_health(record) == "work_done"
+        assert [item for item in live_runs(home) if item.takes_slot] == []
 
     def test_a_parked_session_becomes_a_handoff_from_the_poller_alone(self, machine) -> None:
         home, _, manager, fake_cli = machine

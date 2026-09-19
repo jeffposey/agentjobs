@@ -160,12 +160,34 @@ def poll_live_sessions(
             continue
         results.extend(follow_session(home, record, registry=registry, managers=managers))
 
+    results.extend(_release_finished_slots(home, registry, managers))
     results.extend(_shadow_journal(home, registry, managers))
     results.extend(_drive_controller(home, registry, managers))
     results.extend(_recover_parked(home, registry, managers))
     results.extend(_resume_interrupted_finishes(home, registry, managers))
     results.extend(_sweep_idle_sessions(home))
     return results
+
+
+def _release_finished_slots(
+    home: Path, registry: ProjectRegistry, managers: Dict[str, TaskManagerLike]
+) -> List[PollResult]:
+    """Free the slot of every live run whose task has closed (task-482).
+
+    After the session polls, so a run that ended this tick is already terminal and is not
+    swept; before everything that decides whether to *start* something, so a slot freed
+    here is free for this tick's queue rather than the next one's.
+
+    ``phase`` is None for the same reason the interactive sweep's is: nothing observed the
+    session, something merely read its task.
+    """
+    from agentjobs.dispatch.slots import sweep_released_slots
+
+    try:
+        released = sweep_released_slots(home, registry=registry, managers=managers)
+    except Exception as exc:  # noqa: BLE001 - the sweep must never take the poller down
+        return [PollResult("slot-release", None, f"failed: {exc}")]
+    return [PollResult(item.run_id, None, item.detail) for item in released]
 
 
 def _sweep_idle_sessions(home: Path) -> List[PollResult]:

@@ -110,6 +110,7 @@ from agentjobs.dispatch.finish_receipts import (
     MergeEvidence,
 )
 from agentjobs.dispatch.phases import RUN_ID_ENV, read_phases, record_phase
+from agentjobs.dispatch.slots import release_slot_for_task
 from agentjobs.dispatch.record_commit import commit_task_record
 from agentjobs.history import FinishHistory
 from agentjobs.models_v2 import (
@@ -3627,6 +3628,7 @@ def _sequence(
                 receipts=receipts,
                 guard=guard,
                 root=root,
+                home=resolved_home,
             )
 
     began = time.monotonic()
@@ -3729,6 +3731,7 @@ def _sequence(
         guard=guard,
         gate=verdict,
         recovering=False,
+        home=resolved_home,
     )
 
 
@@ -3755,6 +3758,7 @@ def _resume_delivery(
     receipts: FinishReceipts,
     guard: "AuthorityGuard",
     root: Path,
+    home: Path,
 ) -> FinishResult:
     """Pick delivery up from a merge an earlier attempt made. Nothing is merged or gated.
 
@@ -3799,6 +3803,7 @@ def _resume_delivery(
         guard=guard,
         gate=None,
         recovering=True,
+        home=home,
     )
 
 
@@ -3817,6 +3822,7 @@ def _deliver(
     guard: "AuthorityGuard",
     gate: Optional[GateVerdict],
     recovering: bool,
+    home: Path,
 ) -> FinishResult:
     """Rebuild, restart, verify, close and clean up after ``merge_commit``, from receipts.
 
@@ -3918,6 +3924,13 @@ def _deliver(
         steps.append(StepResult("close", True, "closed completed", 0.0))
     else:
         steps.append(StepResult("close", True, "already closed", 0.0, skipped=True))
+
+    # The task is closed either way by here, so whatever session asked for this finish is
+    # a process with no work left. Its slot goes back now rather than whenever it happens
+    # to exit, which may be an hour later if the person is still talking to it (task-482).
+    # No step row: nothing a reader of the finish needs to act on, and the run itself now
+    # says so on every surface that draws it.
+    release_slot_for_task(home, project_id=receipts.project_id, task_id=task.id)
 
     steps.extend(_clean_up(plan, receipts, finish_id, key))
     commit_task_record(

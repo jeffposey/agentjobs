@@ -58,6 +58,7 @@ from agentjobs.dispatch.guards import (
     resolve_causing_entry,
 )
 from agentjobs.dispatch import journal as guards_journal
+from agentjobs.dispatch.slots import release_slot_for_task
 from agentjobs.dispatch.runner import DispatchRunner, RunHandle
 from agentjobs.execution.factory import execution_store_for
 from agentjobs.manager import TaskManager
@@ -747,6 +748,42 @@ class TestConcurrency:
         assert first.run_id in message, message
         assert ready_task.id in message, message
         settle(first)
+
+    def test_a_run_whose_task_closed_no_longer_stands_in_the_way(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """task-482, at the surface a person meets: the refusal above, then no refusal.
+
+        The first run is still live -- its session is open and somebody may be typing
+        into it -- and that is asserted at the end, because a fix that ended the run
+        would let the second dispatch through for the wrong reason.
+        """
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        other = manager.create_task(
+            title="Other",
+            category="general",
+            summary="s",
+            description="d",
+            lifecycle=Lifecycle.READY,
+            actor="Jeff Posey",
+        )
+        manager.add_log_entry(other.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go.")
+
+        first = run(manager, project, home, ready_task.id)
+        hold_live(first)
+        with pytest.raises(ConcurrencyLimitError):
+            run(manager, project, home, other.id)
+
+        # What the scripted finish does: close the task, then hand the slot back.
+        manager.close_task(ready_task.id, actor="claude", outcome=Outcome.COMPLETED, body="Merged.")
+        released = release_slot_for_task(home, project_id=project.id, task_id=ready_task.id)
+        assert released == [first.run_id]
+
+        second = run(manager, project, home, other.id)
+        assert second.run_id != first.run_id
+        still_there = next(item for item in live_runs(home) if item.run_id == first.run_id)
+        assert still_there.takes_slot is False
+        settle(second)
 
     def test_a_concurrent_double_dispatch_starts_exactly_one_process(
         self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
