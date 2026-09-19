@@ -139,9 +139,7 @@ def payload_for(state: AttentionState, project_id: str, *, detail: str) -> Optio
         if head:
             others = count - 1
             body = (
-                f"{head} — and {others} other{'' if others == 1 else 's'}."
-                if count > 1
-                else head
+                f"{head} — and {others} other{'' if others == 1 else 's'}." if count > 1 else head
             )
 
     return PushPayload(
