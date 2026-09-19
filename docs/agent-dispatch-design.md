@@ -2641,9 +2641,19 @@ refusal in the same second and taking their ball away would be the tool respondi
 click by changing the thing clicked on; and not for the transient caps (cooldown, hourly),
 where waiting is the whole remedy.
 
-**Refuse rather than queue.** A concurrency limit that queues turns a click into a
-promise to spend money later, at a moment you are not watching. "Busy, try again" is
-worse UX and better behaviour.
+**Queue only when asked, and only for the ceiling** (reversed 2026-09-18, task-459).
+A dispatch that finds every slot taken is refused as before unless the caller sent
+`if_full: queue`, in which case it is accepted into the machine's dispatch queue and
+started when a slot frees. Nothing else queues: every other gate refuses now and refuses
+again later, so a dirty tree or a closed task is a refusal whether the machine is busy or
+not. The mechanism, and what answers the original objections, is
+[The dispatch queue](#the-dispatch-queue-task-459-2026-09-18) below.
+
+*The previous rule, kept as history.* From task-191 until 2026-09-18 this section read:
+**"Refuse rather than queue. A concurrency limit that queues turns a click into a promise
+to spend money later, at a moment you are not watching. 'Busy, try again' is worse UX and
+better behaviour."** It was right for as long as a queued start would have been judged by
+gates nobody re-ran.
 
 Defaults were chosen conservative (D3) on the explicit understanding that they are cheap
 to raise once auto-dispatch has been boring for a while, and expensive to discover you
@@ -2699,9 +2709,11 @@ eventually binds here is further out than four simultaneous gates.
 *What binds instead is the human, and that is §2 doing its job rather than a shortfall.*
 Every run that finishes is a review request, and the loop is human-clocked by design. A
 ceiling above what one person can hold in their head does not produce more merged work;
-it produces a queue of unreviewed branches, which is the queue this section refuses,
-relocated into a person. The machine-wide ceiling is therefore set from **review
-bandwidth bounded by a measurement**, not from the measurement alone.
+it produces a queue of unreviewed branches, which is the cost this section is trying to
+avoid, relocated into a person. The machine-wide ceiling is therefore set from **review
+bandwidth bounded by a measurement**, not from the measurement alone. Note that the
+dispatch queue below does nothing about this: it queues *takeoffs*, and what binds here
+is landings.
 
 **The ceiling counts dispatched runs and nothing else.** A session a human starts by hand
 is invisible to it. On the machine above that is not a corner case — two or three are
@@ -2717,37 +2729,107 @@ reason; and *raising the shipped default in `config.py`*, because one 16-core ma
 numbers are not a laptop's and the setting is machine-local precisely so its owner
 decides.
 
-### Does a raised ceiling imply a queue? No — and the reason gets stronger, not weaker
+### The dispatch queue (task-459, 2026-09-18)
 
-Answered here so it stops being re-opened by whoever next finds the refusal annoying
-(task-191, ac-5).
+**A dispatch sent with `if_full: queue` that finds every slot taken is accepted as a
+durable queue entry and started by the server when a slot frees, with every gate judged
+at that moment.** Default `refuse`, so nothing that predates this behaves differently.
 
-The recorded reason for refusing is that **a queue turns this click into a promise to
-spend money later, when nobody is watching.** Raising the ceiling does not weaken that
-argument. It sharpens it, in two ways:
+#### What reversed the old answer
 
-- At a ceiling of 1, a queued dispatch would start within minutes, because the thing
-  ahead of it is one run. At a ceiling of 3 the machine is only ever full when three
-  agents are already working, which is exactly the moment a queued fourth would sit
-  longest and start furthest from the click that authorised it. The gap between "I meant
-  this" and "this ran" is widest precisely where a queue would be doing its work.
-- §2's rule is that a run is attributed to a human log entry that caused it. A queue
-  breaks the timing that rule depends on: the entry is written now, the run happens at an
-  unpredictable later moment, and the authorisation the guard checks has meanwhile become
-  a statement about a repository state that no longer exists. `require_clean_tree`,
-  `claim_lost` and `owner_mismatch` are all judged at spawn time for this reason, and a
-  queued run would fail them at a moment nobody is present to read the failure.
+The question was settled the other way in task-191 (ac-5), under the heading *"Does a
+raised ceiling imply a queue? No — and the reason gets stronger, not weaker"*. Its two
+arguments are kept here in full, because a reversal that hides what it overturned is a
+reversal nobody can check:
 
-**And the refusal is now cheap to act on**, which was the other half of the complaint. It
-names the runs holding the slots and the task each is working, rather than reporting a
-count — so "busy, try again" comes with somewhere to go. A count was a dead end on the
-task page specifically, because that page's run list shows only *this* task's runs and the
-run occupying the machine is by definition on a different task.
+1. *"A queue turns this click into a promise to spend money later, when nobody is
+   watching."* And raising the ceiling sharpened rather than weakened it: at a ceiling of
+   1 a queued dispatch starts within minutes, while at 3 the machine is only full when
+   three agents are working, which is exactly when a queued fourth would sit longest and
+   start furthest from the click that authorised it.
+2. *"§2's rule is that a run is attributed to a human log entry that caused it. A queue
+   breaks the timing that rule depends on: the entry is written now, the run happens at
+   an unpredictable later moment, and the authorisation the guard checks has meanwhile
+   become a statement about a repository state that no longer exists. `require_clean_tree`,
+   `claim_lost` and `owner_mismatch` are all judged at spawn time for this reason, and a
+   queued run would fail them at a moment nobody is present to read the failure."*
 
-What would reopen this: auto-dispatch becoming the normal way runs start. The refusal is
-right for a click, because a person is there to read it. A condition that fires on its own
-and is refused has nobody to tell, and that is a genuinely different problem — it wants a
-retry policy rather than a queue, and it is not this section's answer to give.
+**The second argument is answered by task-416 and nothing else.** The durable controller
+already holds a *continued* execution in `capacity_wait` and relaunches it through
+`guards.dispatch_task` with `policy_observed` recorded at the moment of effect — which is
+to say the machinery for "re-run every gate later, with nobody present, and write down
+what it said" was built, shipped and in production before this queue existed. A queued
+first admission is that mechanism one step earlier. The failure the old text describes —
+failing a spawn-time gate where nobody reads it — is now a queue entry that **dequeues
+itself and writes the refusal on the task**, which is a reader finding it later rather
+than nobody finding it at all.
+
+**The first argument is answered by narrowing the promise rather than denying it.** The
+promise is still real; what changed is that it is now explicit, visible, bounded and
+revocable:
+
+- **Explicit.** A caller has to send `if_full: queue`. Nothing enqueues on anybody's
+  behalf, and the unchanged default is still the refusal.
+- **Visible.** `GET /api/runs/live` carries the queue, and the Dashboard's slot board
+  draws it as a rail under the cells — each entry naming its task, its place in line, who
+  queued it and how long it has waited. The owner asked for this explicitly; it is the
+  part that makes "nobody is watching" false.
+- **Bounded.** `limits.dispatch_queue_limit` (default 20). A full queue refuses under its
+  own code.
+- **Revocable.** Cancel removes a waiting entry through the same route that cancels a
+  run.
+- **Still capped.** A queued start is counted by `dispatches_per_hour` when it *starts*,
+  which is when the money is spent. §7's caps bind it exactly as they bind a click.
+
+**The section's own stated reopen trigger has also come true.** The old text ended: *"What
+would reopen this: auto-dispatch becoming the normal way runs start. The refusal is right
+for a click, because a person is there to read it. A condition that fires on its own and
+is refused has nobody to tell."* The pull mode (task-462) makes that the normal case, and
+this queue is what it feeds.
+
+#### How it works
+
+- **The entry is a row in the execution journal** (`dispatch_queue`, schema revision 5),
+  not a list in a process. A server restart finds the queue where it left it. It holds
+  what was *asked for* — the task, the project, the authorising entry or the identity
+  claim, the runner or group, the posture, who queued it — and nothing that was
+  *granted*. The grant is made at start time by the gates, which is the whole argument
+  for this being safe.
+- **Order is arrival**, by a sequence stored in the same transaction as the insert, so
+  two processes queueing in the same millisecond still have an order. Rejected: sorting by
+  the task queue's own band and position, which answers a question the person did not ask
+  — they queued *that* dispatch. The backlog's order is the pull mode's business and it
+  reads `task_next` rather than this table.
+- **One waiting entry per task**, and a task with a live run cannot be queued at all: the
+  live-run gate is above the ceiling gate in `dispatch_task`, so it refuses first.
+- **A start is a real dispatch.** The controller's tick claims the head entry it can and
+  calls `guards.dispatch_task` with the stable admission id derived from the queue id — so
+  `require_clean_tree`, `claim_lost`, `owner_mismatch`, the live-run check, the kill
+  switch, the §7 caps and the recorded-runner rule all run then. A crash between the
+  admission and the answer finds the same attempt rather than paying for a second.
+- **A permanent refusal dequeues and writes on the task**; only a condition that clears on
+  its own keeps a place in line, and the list of those is deliberately short
+  (`dispatch/queue.py`, `TRANSIENT_CLASSES`). An entry that cannot start does not starve
+  the ones behind it: FIFO decides who is *offered* the slot, and the next is tried in the
+  same pass.
+- **The caps are pre-checked without writing** before an entry is claimed. `dispatch_task`
+  checks them again and is the authority; what the pre-check avoids is its side effect,
+  which is to record the refusal on the task — right for a click somebody is reading, and
+  a note a minute on twenty tasks for a queue meeting a cooldown at the tick's rate.
+
+#### What did not change
+
+**The refusal is still cheap to act on**, which was the other half of the original
+complaint, and it still names the runs holding the slots and the task each is working
+rather than reporting a count. What it no longer does is argue that queueing is the wrong
+answer.
+
+**The epic walk keeps retrying rather than enqueueing** (decided on task-459). It has its
+own notion of order and its own grounding rule, and a child that went into this queue
+would be started by the controller outside the walk's bound of two runs per child per
+authorisation. Rejected: having the walk enqueue its children, which would have removed
+its retry loop at the cost of moving the authorisation bound somewhere that does not
+enforce it.
 
 ---
 

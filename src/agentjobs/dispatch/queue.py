@@ -39,6 +39,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
+from agentjobs.dispatch.address import probe_api_base
 from agentjobs.dispatch.budget import DISPATCHER_ACTOR, check_budget, check_machine_budget
 from agentjobs.dispatch.config import (
     DispatchError,
@@ -230,6 +231,7 @@ def enqueue(
     queued_by: str = "",
     source: str = SOURCE_MANUAL,
     detail: str = "",
+    api_base: Optional[str] = None,
 ) -> QueuedDispatch:
     """Record an authorised dispatch that found no slot. Starts nothing.
 
@@ -248,7 +250,7 @@ def enqueue(
         entry = store.enqueue_dispatch(
             project.id,
             request.task_id,
-            request=request_payload(request),
+            request={**request_payload(request), "api_base": api_base},
             queued_by=queued_by,
             source=source,
             limit=queue_limit(home),
@@ -325,6 +327,9 @@ def dispatch_or_queue(
             queued_by=queued_by,
             source=source,
             detail=str(exc),
+            # The address the *authorising* server answers on, carried so the start can
+            # hand the agent the same one a click would have (see `start_api_base`).
+            api_base=api_base,
         )
 
 
@@ -391,6 +396,31 @@ def _position(entries: Sequence[QueuedDispatch], queue_id: str) -> int:
         if entry.queue_id == queue_id:
             return index
     return 0
+
+
+def start_api_base(entry: QueuedDispatch, fallback: Optional[str]) -> Optional[str]:
+    """The address a queued start should tell its agent AgentJobs is at.
+
+    **The one thing a queue entry carries that a request does not: where the server that
+    accepted it answers.** A dispatch from the browser derives that from the socket its
+    own request arrived on, which is why the reachability gate lets it through; a start
+    minutes later happens on a tick that has no request and no socket, so without this it
+    falls back to a machine-wide default. On a machine that never wrote ``api_base:`` --
+    or wrote it before the dashboard moved port -- the default is dead, and every queued
+    dispatch is then refused with ``api_base_unreachable`` at the gate. Observed in
+    task-459's own sandbox, where both entries dequeued rather than starting.
+
+    **The stored address is used only while it still answers.** A server restarted on
+    another port makes a stored address exactly the stale claim
+    ``assert_api_base_answers`` exists to refuse, so the probe is what promotes it from a
+    claim to evidence -- and a failed probe hands the question back rather than guessing,
+    which means the gate resolves an address and refuses on its own terms.
+    """
+    stored = entry.request.get("api_base")
+    if isinstance(stored, str) and stored.strip():
+        if probe_api_base(stored).answered:
+            return stored
+    return fallback
 
 
 # ----- starting ------------------------------------------------------------------
@@ -537,7 +567,7 @@ def _start_one(
             project_config=project.load_config(),
             request=request,
             home=home,
-            api_base=api_base,
+            api_base=start_api_base(claimed, api_base),
             now=clock(),
         )
     except AlreadyAdmittedError as exc:
@@ -653,6 +683,7 @@ __all__ = [
     "queue_limit",
     "rebuild_request",
     "request_payload",
+    "start_api_base",
     "start_due",
     "waiting",
 ]

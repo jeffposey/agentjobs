@@ -868,6 +868,9 @@ async def dispatch_task_endpoint(
                 # ceiling refuses: told to the caller, or recorded as waiting for a slot.
                 if_full=payload.if_full,
             ),
+            # Both halves of this call read it: a dispatch that starts hands it to the
+            # agent, and one that queues *stores* it, so the start minutes later tells
+            # its agent the address this server answers on rather than a default.
             api_base=serving_api_base(request),
             queued_by=payload.user or "",
         )

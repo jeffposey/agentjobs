@@ -440,3 +440,85 @@ def waiting_id(box: Machine, task_id: str) -> str:
         if entry.task_id == task_id:
             return entry.queue_id
     raise AssertionError(f"no queue entry for {task_id}")
+
+
+class TestTheAddressAQueuedStartHandsOver:
+    """Where a queued start tells its agent AgentJobs is (task-459).
+
+    The one thing a queue entry carries that a ``DispatchRequest`` does not. A dispatch
+    from the browser derives the address from the socket its own request arrived on; a
+    start minutes later happens on a tick with no request and no socket, and on a machine
+    that never wrote ``api_base:`` the fallback is dead. Found in this task's own sandbox,
+    where both queued dispatches dequeued with ``api_base_unreachable`` instead of
+    starting.
+    """
+
+    def test_the_entry_remembers_the_address_that_accepted_it(self, machine: Machine) -> None:
+        machine.configure(limits={"max_concurrent_runs": 1})
+        machine.dispatch(machine.task())
+        entry = enqueue(machine, machine.task())
+
+        assert isinstance(entry, QueuedDispatch)
+        assert entry.request["api_base"] == "http://127.0.0.1:9"
+
+    def test_a_stored_address_that_answers_is_what_the_start_uses(
+        self, machine: Machine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        machine.configure(limits={"max_concurrent_runs": 1})
+        entry = QueuedDispatch(
+            queue_id="q_x",
+            seq=1,
+            project_id="sandbox",
+            task_id="task-001",
+            source="manual",
+            request={"api_base": "http://127.0.0.1:9"},
+            queued_by="",
+            status="queued",
+            run_id=None,
+            detail="",
+            attempts=0,
+            queued_at="",
+            claimed_at=None,
+            settled_at=None,
+            updated_at="",
+        )
+        monkeypatch.setattr(dispatch_queue, "probe_api_base", lambda address: _Probe(True))
+
+        assert dispatch_queue.start_api_base(entry, None) == "http://127.0.0.1:9"
+
+    def test_a_stored_address_that_has_gone_is_handed_back_to_the_gate(
+        self, machine: Machine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A server restarted on another port makes a stored address a stale claim.
+
+        Handing it over anyway would defeat ``assert_api_base_answers``, which only
+        judges an address when the caller has none -- so a dead one resolves to ``None``
+        and the gate refuses on its own terms instead.
+        """
+        entry = QueuedDispatch(
+            queue_id="q_x",
+            seq=1,
+            project_id="sandbox",
+            task_id="task-001",
+            source="manual",
+            request={"api_base": "http://127.0.0.1:9"},
+            queued_by="",
+            status="queued",
+            run_id=None,
+            detail="",
+            attempts=0,
+            queued_at="",
+            claimed_at=None,
+            settled_at=None,
+            updated_at="",
+        )
+        monkeypatch.setattr(dispatch_queue, "probe_api_base", lambda address: _Probe(False))
+
+        assert dispatch_queue.start_api_base(entry, None) is None
+
+
+class _Probe:
+    """What ``probe_api_base`` answers, in the one field ``start_api_base`` reads."""
+
+    def __init__(self, answered: bool) -> None:
+        self.answered = answered
