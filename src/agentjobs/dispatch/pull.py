@@ -29,8 +29,13 @@ the moment of the start and not at the moment of the arming. What is decided her
 
 **It never enqueues.** A pulled dispatch starts into a free slot or does not happen; the
 machine's dispatch queue (task-459) is for a dispatch a person asked for, and a pull that
-queued would turn a bound on starts into a bound on intentions. It also yields to that
-queue entirely -- see :func:`pull_due`.
+queued would turn a bound on starts into a bound on intentions.
+
+**It is the bottom rung of the slot ladder**, and the two above it are read in
+:func:`pull_due`: the dispatch queue, then a live epic walk (task-480). Both are a person
+naming work, and this is standing authority to find work; a whole tick is yielded to
+either rather than a place in one tick's ordering. The ladder and its argument are one
+section of ``docs/agent-dispatch-design.md`` -- *Who gets the next free slot*, in §7.
 """
 
 from __future__ import annotations
@@ -38,7 +43,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from agentjobs.actors import Actor
 from agentjobs.dispatch.budget import DISPATCHER_ACTOR
@@ -66,6 +71,7 @@ from agentjobs.execution.store import (
     PULL_FAULTED,
     PULL_SPENT,
     PullArming,
+    Supervision,
 )
 from agentjobs.models_v2 import DispatchTrigger, LogEntryType, Task
 from agentjobs.projects import Project
@@ -394,6 +400,56 @@ class PullDecision:
 Resolver = Callable[[str], Optional[Tuple[TaskManagerLike, Project]]]
 
 
+def walking_now(home: Path) -> List[Supervision]:
+    """Every epic walk still flying on this machine, judged at the moment of the pass.
+
+    **Read from the walk's own record, never from anything cached at arming time**
+    (task-480). A walk is one row in the execution journal from the click that started it
+    until it lands or is grounded, so "is a walk waiting for a slot right now" is a query
+    rather than an inference from what a tick happened to see.
+
+    **A ``walking`` row is not by itself a flying walk**, which is the whole of the
+    narrowing here. A server-hosted walk is stepped by the same poll that runs the pull
+    pass, so while the server is up it is being advanced by construction. An attached one
+    is a person's own ``dispatch walk`` process, and that process can die between two
+    ticks -- leaving a row nothing will ever close, which ``open_walk`` tolerates because
+    its only other reader takes such a walk over. A reader that yielded to it instead
+    would idle this machine's slots forever on a supervisor nobody is running, so an
+    attached walk counts only while its holder is alive, with the pid-reuse check
+    ``open_walk`` already makes against the moment the holder last wrote.
+    """
+    from agentjobs.dispatch.ledger import process_alive
+    from agentjobs.execution.store import process_created_after
+
+    flying: List[Supervision] = []
+    for walk in journal(home).open_walks():
+        if walk.host == "server":
+            flying.append(walk)
+            continue
+        pid = walk.holder_pid
+        if pid is None or not process_alive(int(pid)):
+            continue
+        moment = _moment(walk.updated_at)
+        if moment is not None and process_created_after(int(pid), moment):
+            continue  # the number was recycled; the supervisor that wrote this is gone
+        flying.append(walk)
+    return flying
+
+
+def walk_sentence(flying: Sequence[Supervision]) -> str:
+    """Why a pull pass started nothing, in the terms a person can act on.
+
+    It names the epic rather than the walk id, because the thing a reader of the slot
+    board is holding is the epic they clicked.
+    """
+    first = flying[0].parent_task_id
+    more = f" (and {len(flying) - 1} more)" if len(flying) > 1 else ""
+    return (
+        f"an epic walk on {first}{more} is live, and a person named that epic, "
+        "so free slots are its children's"
+    )
+
+
 def pull_due(
     home: Path,
     *,
@@ -404,6 +460,12 @@ def pull_due(
 ) -> List[PullDecision]:
     """Fill free slots from every armed project's queue. One pass; never raises.
 
+    **This is the bottom rung of the slot ladder**, and both rungs above it are read
+    here: the machine's dispatch queue, then a live epic walk. The ladder itself, and the
+    argument for its order, is one section of ``docs/agent-dispatch-design.md`` --
+    *Who gets the next free slot* in section 7. What follows is only what this function
+    does about it.
+
     **The manual dispatch queue goes first, and "first" means it yields the whole tick.**
     Running after ``queue.start_due`` within one tick is not enough: a queued entry
     refused for a transient reason keeps its place and waits, and a pull starting into
@@ -413,6 +475,14 @@ def pull_due(
     parked on a long-lived transient condition -- a task somebody put on hold -- stalls
     the pull mode until it is cancelled. It is visible on the board as a waiting entry,
     which is what makes it a thing a person can fix; a silent overtake would not be.
+
+    **A live epic walk goes second, and yields the whole tick for the same reason**
+    (task-480). A walk never enqueues -- it asks ``dispatch_task`` for a slot and treats a
+    full machine as backpressure, retried on its next pass -- so before this rule existed
+    a waiting walk was invisible here and the pull mode, running on the faster clock, took
+    the slots out from under the epic somebody had clicked. Starting after the walk within
+    one tick would not fix it: the walk's next pass is seconds away and the tick's is now.
+    So while any walk is flying on this machine, free slots are its children's.
 
     **Round-robin over armed projects, one start each per pass.** A machine runs a
     handful of projects and a pass happens every few seconds, so fairness costs nothing
@@ -459,6 +529,15 @@ def pull_due(
         return [
             PullDecision("", "", "held", "a manual dispatch is waiting for a slot and starts first")
         ]
+
+    try:
+        flying = walking_now(home)
+    except ExecutionStoreError:
+        # The journal answered a moment ago and does not now. Starting a run on a store
+        # that cannot be read is the one direction that is not recoverable by waiting.
+        return decisions
+    if flying:
+        return [PullDecision("", "", "held", walk_sentence(flying))]
 
     room = free_slots(home)
     if room <= 0:
@@ -822,4 +901,6 @@ __all__ = [
     "posture_of",
     "pull_due",
     "resolve_pull_authorization",
+    "walk_sentence",
+    "walking_now",
 ]

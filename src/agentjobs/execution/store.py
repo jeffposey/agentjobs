@@ -1016,6 +1016,13 @@ class Supervision:
     epoch: int
     started: int
     peak_in_flight: int
+    updated_at: str = ""
+    """When the holder last wrote to this walk.
+
+    Read back so a reader outside the walk can tell a live supervisor from a pid the
+    operating system has since handed to something else -- the same question
+    :meth:`open_walk` settles with :func:`process_created_after`, asked by anything that
+    has to know whether a walk is still flying."""
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Supervision":
@@ -1036,6 +1043,7 @@ class Supervision:
             epoch=int(row["epoch"]),
             started=int(row["started"]),
             peak_in_flight=int(row["peak_in_flight"]),
+            updated_at=row["updated_at"],
         )
 
 
