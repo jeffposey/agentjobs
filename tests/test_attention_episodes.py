@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import pytest
 import yaml
@@ -191,9 +191,10 @@ def client_for(tmp_path: Path, monkeypatch):
     reset_dependency_cache()
 
 
-def episode_of(client: TestClient) -> dict:
+def episode_of(client: TestClient) -> Any:
     """The episode the endpoint currently answers with."""
-    return client.get("/api/projects/inbox/attention").json()["episode"]
+    payload: Dict[str, Any] = client.get("/api/projects/inbox/attention").json()
+    return payload["episode"]
 
 
 class TestTheEndpoint:
@@ -214,9 +215,7 @@ class TestTheEndpoint:
         assert episode["lead_task_title"] == "Urgent one"
         assert sorted(episode["tasks"]) == ["task-001", "task-002"]
 
-    def test_polling_repeatedly_does_not_manufacture_a_second_episode(
-        self, client_for
-    ) -> None:
+    def test_polling_repeatedly_does_not_manufacture_a_second_episode(self, client_for) -> None:
         """The reconcile lives on a GET, so this is the property that makes that safe."""
         client, _ = client_for([waiting_task("task-001")])
 
@@ -224,9 +223,7 @@ class TestTheEndpoint:
 
         assert len(ids) == 1
 
-    def test_acknowledging_marks_the_episode_without_clearing_the_badge(
-        self, client_for
-    ) -> None:
+    def test_acknowledging_marks_the_episode_without_clearing_the_badge(self, client_for) -> None:
         """Acknowledgment governs interruption; the indicator tracks the waiting set."""
         client, _ = client_for([waiting_task("task-001")])
         episode = episode_of(client)
@@ -240,9 +237,7 @@ class TestTheEndpoint:
         assert body["episode"]["acknowledged"] is True
         assert body["blocking"] == 1, "work is still stopped on the person"
 
-    def test_a_stale_acknowledgment_is_a_no_op_rather_than_an_error(
-        self, client_for
-    ) -> None:
+    def test_a_stale_acknowledgment_is_a_no_op_rather_than_an_error(self, client_for) -> None:
         """A click made one poll out of date races nothing and explains nothing."""
         client, _ = client_for([waiting_task("task-001")])
         current = episode_of(client)
@@ -288,9 +283,7 @@ class TestTheEndpoint:
         assert home in stored.parents
         assert not list((tmp_path / "inbox").rglob("*.yaml.lock"))
 
-    def test_a_corrupt_state_file_costs_one_alert_and_not_the_badge(
-        self, client_for
-    ) -> None:
+    def test_a_corrupt_state_file_costs_one_alert_and_not_the_badge(self, client_for) -> None:
         """Forgiving on purpose: the badge must not go down with the state file."""
         client, home = client_for([waiting_task("task-001")])
         first = episode_of(client)
@@ -305,9 +298,7 @@ class TestTheEndpoint:
 class TestSeveralHandoffsAtOnce:
     """Nearly simultaneous handoffs are one episode, not a race between polls."""
 
-    def test_two_concurrent_reconciles_agree_on_one_episode(
-        self, client_for
-    ) -> None:
+    def test_two_concurrent_reconciles_agree_on_one_episode(self, client_for) -> None:
         from concurrent.futures import ThreadPoolExecutor
 
         client, _ = client_for([waiting_task("task-001"), waiting_task("task-002")])
@@ -322,9 +313,7 @@ class TestSeveralHandoffsAtOnce:
 
         assert len({result["episode"]["id"] for result in results}) == 1
 
-    def test_the_store_holds_the_same_episode_the_endpoint_reported(
-        self, client_for
-    ) -> None:
+    def test_the_store_holds_the_same_episode_the_endpoint_reported(self, client_for) -> None:
         client, home = client_for([waiting_task("task-001")])
 
         reported = episode_of(client)

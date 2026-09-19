@@ -47,6 +47,7 @@ import {
   updateTaskApiProjectsProjectIdTasksTaskIdPatchMutation,
 } from "./api/generated/@tanstack/react-query.gen";
 import type {
+  AttentionResponse,
   DispatchRunView,
   MutationResultOutput,
   Priority,
@@ -79,7 +80,14 @@ import { LiveRunCount, LiveRunsPage, useLiveRuns } from "./components/LiveRuns";
 import { RecentlyFinished, useRecentClosures } from "./components/RecentlyFinished";
 import { IdleSessionsSection } from "./components/IdleSessions";
 import { Playbooks, type PlaybookRunRequest } from "./components/Playbooks";
-import { AttentionBadge, useHumanAttention } from "./components/AttentionBadge";
+import { AttentionBadge, useAttention } from "./components/AttentionBadge";
+import {
+  AttentionNotifier,
+  NotificationDelivery,
+  useAcknowledgeAttention,
+  useAcknowledgeFromUrl,
+  useAcknowledgeOnOpen,
+} from "./components/attention/WindowsAttention";
 import { PrimaryNav } from "./components/PrimaryNav";
 import { QueueBroken } from "./components/QueueBroken";
 import { QueueDispatch, QueueDispatchGate } from "./components/QueueDispatch";
@@ -228,6 +236,7 @@ function DashboardPage({ projectId }: { projectId: string }) {
         />
       )}
       renderRecentlyFinished={() => <RecentlyFinished body={closures} projectId={projectId} />}
+      renderNotificationDelivery={() => <NotificationDelivery />}
     />
   );
 }
@@ -1107,12 +1116,34 @@ function PlaybooksPage({ projectId }: { projectId: string }) {
  * green one is machine-wide and says what is running, the red one is this project's
  * and says what has stopped on you (task-338).
  */
-function ProjectShellNav({ projectId }: { projectId: string }) {
+function ProjectShellNav({
+  projectId,
+  attention,
+  onAcknowledge,
+}: {
+  projectId: string;
+  /**
+   * Supplied by the shell rather than queried here, so the badge and the notifier read
+   * one answer. React Query would have deduped the request; what it would not dedupe is
+   * the two of them disagreeing for a render after an acknowledgment.
+   */
+  attention: AttentionResponse | null;
+  onAcknowledge: (episodeId: string) => void;
+}) {
+  const episodeId = attention?.episode?.id;
   return (
     <PrimaryNav
       projectId={projectId}
       badge={<LiveRunCount body={useLiveRuns()} />}
-      attention={<AttentionBadge count={useHumanAttention(projectId)} projectId={projectId} />}
+      attention={
+        <AttentionBadge
+          count={attention?.blocking ?? null}
+          projectId={projectId}
+          onAcknowledge={() => {
+            if (episodeId) onAcknowledge(episodeId);
+          }}
+        />
+      }
     />
   );
 }
@@ -1145,8 +1176,33 @@ function useTasksSurface(): boolean {
   return Boolean(index) || (detail !== null && detail.params.taskId !== "new");
 }
 
+/**
+ * Which task record is open, or `null` on every other surface.
+ *
+ * The same `useMatch` the layout uses, asked for the id rather than for a boolean:
+ * opening a task the attention episode names is one of the three acts that acknowledge
+ * it (task-422), and that has to be decided from the URL rather than from inside the
+ * detail page, which does not know what the episode holds.
+ */
+function useOpenTaskId(): string | null {
+  const detail = useMatch("/p/:projectId/tasks/:taskId");
+  const taskId = detail?.params.taskId ?? null;
+  return taskId === "new" ? null : taskId;
+}
+
 function ProjectApp() {
   const { projectId = "" } = useParams<{ projectId: string }>();
+  /**
+   * Attention, read once for the whole shell (task-422).
+   *
+   * The badge renders it, the notifier drives the Windows taskbar and the desktop
+   * notification from it, and the three acknowledging acts all post against the episode
+   * id in it. One read, so none of those can be looking at a different answer.
+   */
+  const attention = useAttention(projectId);
+  const acknowledgeAttention = useAcknowledgeAttention(projectId);
+  useAcknowledgeFromUrl(acknowledgeAttention);
+  useAcknowledgeOnOpen(attention, useOpenTaskId(), acknowledgeAttention);
   /**
    * Two surfaces are framed to exactly one viewport; every other one keeps the document
    * scroll.
@@ -1189,7 +1245,15 @@ function ProjectApp() {
         framed ? "h-dvh overflow-hidden" : "min-h-dvh"
       }`}
     >
-      <ProjectShellNav projectId={projectId} />
+      <ProjectShellNav
+        projectId={projectId}
+        attention={attention}
+        onAcknowledge={acknowledgeAttention}
+      />
+      {/* Renders nothing. It drives the taskbar badge, the tab icon and the desktop
+          notification, and it is mounted once here rather than per surface because the
+          badge is a property of the window: two components setting it would fight. */}
+      <AttentionNotifier projectId={projectId} attention={attention} />
       <main className={`w-full px-4 sm:px-6 lg:px-8 ${layout}`}>
         <LiveUpdateStatus projectId={projectId} />
         <Routes>

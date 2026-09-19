@@ -37,6 +37,20 @@ type DashboardProps = {
    * not take space from the board or compete with the page's one next step.
    */
   renderRecentlyFinished?: () => React.ReactNode;
+  /**
+   * Whether a Windows notification can be raised, and how to fix it if not (task-422).
+   *
+   * On the Dashboard only, and it renders nothing once permission is granted. Both
+   * alternatives were worse: in the header it would spend width `NAV_INLINE_MIN_PX`
+   * has measured as unavailable, and on every surface it would nag on pages that are
+   * not about what has stopped on you. This is the landing page, and it is where the
+   * alarm already lives.
+   *
+   * Below the alarm, never above it. "N tasks are blocked on you" is the page's one
+   * call to action; a notice about a *delivery channel* for that alarm must not be the
+   * first thing read on a day the alarm is up.
+   */
+  renderNotificationDelivery?: () => React.ReactNode;
 };
 
 const priorityClasses: Record<string, string> = {
@@ -309,6 +323,7 @@ export function Dashboard({
   projectId,
   renderSlotBoard,
   renderRecentlyFinished,
+  renderNotificationDelivery,
 }: DashboardProps) {
   /**
    * Whether an alarm holds the page.
@@ -375,12 +390,14 @@ export function Dashboard({
         {alarming ? (
           <>
             <NextAction dashboard={dashboard} projectId={projectId} />
+            {renderNotificationDelivery?.()}
             {renderSlotBoard?.(true)}
           </>
         ) : (
           <>
             {dashboard.next_action !== "empty_project" && renderSlotBoard?.(false)}
             <NextAction dashboard={dashboard} projectId={projectId} />
+            {renderNotificationDelivery?.()}
           </>
         )}
       </div>
