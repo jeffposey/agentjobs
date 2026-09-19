@@ -9,6 +9,7 @@ import type {
   QueuedDispatchView,
   TaskRead,
 } from "../api/types";
+import { capacitySentence } from "./LiveRuns";
 import { BOARD_CELL_LIMIT, SlotBoard, boardLayout, orderedRuns } from "./SlotBoard";
 
 /**
@@ -169,6 +170,69 @@ describe("how many cells the board has", () => {
 
     expect(layout.unconfigured).toBe(true);
     expect(layout.cells.map((cell) => cell.kind)).toEqual(["queued", "queued"]);
+  });
+});
+
+describe("a machine running over its ceiling", () => {
+  /**
+   * task-461: `occupied` may exceed `max_concurrent_runs`, because a person chose
+   * *Dispatch now* on a full machine. The board's job then is to be honest — a board of
+   * slots that showed one card while two agents wrote to two repositories would be the
+   * single most misleading thing on the page.
+   */
+  const overage = () =>
+    body({
+      max_concurrent_runs: 1,
+      occupied: 2,
+      runs: [run(), run({ run_id: "run_b", task_id: "task-002", over_ceiling: true })],
+    });
+
+  it("draws every occupied slot rather than clipping to the ceiling", () => {
+    const layout = boardLayout(overage(), [task("task-next")], "alpha");
+
+    expect(layout.cells.map((cell) => cell.kind)).toEqual(["run", "run"]);
+    expect(layout.overCeiling).toBe(1);
+    // Nothing is hidden and nothing is free: the extra card is not a slot the machine
+    // allows, so it must not be reported as one it is not drawing either.
+    expect(layout.hiddenSlots).toBe(0);
+    expect(layout.hiddenBusy).toBe(0);
+  });
+
+  it("is still bounded by the drawing limit", () => {
+    const layout = boardLayout(
+      body({ max_concurrent_runs: 1, occupied: BOARD_CELL_LIMIT + 3 }),
+      [],
+      "alpha",
+    );
+
+    expect(layout.cells).toHaveLength(BOARD_CELL_LIMIT);
+    expect(layout.overCeiling).toBe(BOARD_CELL_LIMIT + 2);
+  });
+
+  it("reports nothing over the ceiling on an ordinary full machine", () => {
+    const layout = boardLayout(body({ max_concurrent_runs: 1, occupied: 1, runs: [run()] }), [], "alpha");
+
+    expect(layout.overCeiling).toBe(0);
+  });
+
+  it("marks the overage run and says so in words", () => {
+    renderBoard(<SlotBoard body={overage()} queue={[]} projectId="alpha" />);
+
+    // The badge is on the card, so a reader counting two cards against a ceiling of one
+    // is told which one explains the difference.
+    expect(screen.getAllByTestId("slot-over-ceiling")).toHaveLength(1);
+    expect(screen.getByTestId("slot-board-over-ceiling")).toHaveTextContent(
+      "1 run above this machine's ceiling",
+    );
+  });
+
+  it("counts honestly in the capacity sentence", () => {
+    // "2 of 1 slots busy" is the true sentence. Clamping it would be the surface lying
+    // to keep a number tidy, and the clause is what stops it reading as a counting bug.
+    expect(capacitySentence(overage())).toBe("2 of 1 slot busy · 1 over the ceiling");
+    expect(capacitySentence(body({ occupied: 1, max_concurrent_runs: 3 }))).toBe(
+      "1 of 3 slots busy",
+    );
   });
 });
 

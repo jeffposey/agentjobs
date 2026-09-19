@@ -70,6 +70,23 @@ class TestDispatchCli:
         ProjectRegistry(home=home()).add(root, project_id=project_id)
         return root
 
+    def test_queue_and_over_ceiling_are_refused_together(self, tmp_path: Path) -> None:
+        """The two opposite answers to a full machine, refused rather than ranked.
+
+        Checked before anything is resolved, so the refusal costs nothing and cannot be
+        confused with a gate: either precedence rule would silently do the thing the
+        other flag asked for (task-461).
+        """
+        self.make_project(tmp_path, "alpha")
+
+        result = runner.invoke(
+            app,
+            ["dispatch", "run", "task-001", "--project", "alpha", "--queue", "--over-ceiling"],
+        )
+
+        assert result.exit_code == 1, result.output
+        assert "Choose one." in result.output
+
     def test_config_reports_every_gate_when_nothing_is_configured(self) -> None:
         result = runner.invoke(app, ["dispatch", "config"])
 

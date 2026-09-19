@@ -126,6 +126,7 @@ class TestTheTable:
         [
             Capability.TASK_REVIEW,
             Capability.DISPATCH,
+            Capability.DISPATCH_OVER_CEILING,
             Capability.DISPATCH_ADMIN,
             Capability.PROJECT_ADMIN,
             Capability.QUEUE_ADMIN,
@@ -135,6 +136,20 @@ class TestTheTable:
     def test_a_run_holds_none_of_the_human_acts(self, capability: Capability) -> None:
         """Every item on the spec's "may not" list, asserted one at a time."""
         assert capability not in GRANTS[PrincipalKind.RUN]
+
+    def test_the_overage_is_denied_on_its_own_terms(self) -> None:
+        """task-461's second lock, asserted where widening the first would break it.
+
+        No run holds ``dispatch.start`` today, so nothing can currently reach the
+        overage check on the dispatch route. That is the argument for the capability
+        rather than against it: the two answer different questions, and a day when a run
+        may spend money is not a day when it may also spend it past the ceiling. This is
+        the test that turns red if someone grants the first and assumes the second came
+        with it.
+        """
+        assert Capability.DISPATCH_OVER_CEILING not in GRANTS[PrincipalKind.RUN]
+        for kind in (PrincipalKind.OWNER, PrincipalKind.TAILNET):
+            assert Capability.DISPATCH_OVER_CEILING in GRANTS[kind]
 
     def test_the_scoped_set_is_a_subset_of_what_a_run_holds(self) -> None:
         """Scoping something a run cannot do at all would be a rule nothing reaches."""

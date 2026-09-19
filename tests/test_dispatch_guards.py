@@ -919,6 +919,160 @@ class TestConcurrency:
             assert run_id in message, message
             assert task_id in message, message
 
+    def test_dispatch_now_starts_a_run_above_the_ceiling(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """The overage (task-461): a full machine, and a person choosing to go past it.
+
+        The machine is genuinely full -- the same state that raises
+        ``ConcurrencyLimitError`` in the test above -- and the only difference is the
+        field. Two runs live against a ceiling of one is the state this exists to
+        produce, and the assertion is that both really are counted, not that the second
+        started.
+        """
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        other = manager.create_task(
+            title="Other",
+            category="general",
+            summary="s",
+            description="d",
+            lifecycle=Lifecycle.READY,
+            actor="Jeff Posey",
+        )
+        manager.add_log_entry(other.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go.")
+
+        first = run(manager, project, home, ready_task.id)
+        hold_live(first)
+
+        second = dispatch_task(
+            manager=manager,
+            project=project,
+            project_config=PROJECT_CONFIG,
+            request=DispatchRequest(task_id=other.id, over_ceiling=True),
+            home=home,
+        )
+        hold_live(second)
+
+        assert len([item for item in live_runs(home) if item.takes_slot]) == 2, (
+            "the machine really is over its ceiling; a count that clamped would be the "
+            "defect this feature must not introduce"
+        )
+        assert second.directory.read_meta().get("over_ceiling") is True
+
+    def test_an_overage_is_named_as_one_in_the_next_refusal(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """A count above its own limit is unreadable unless the record says why.
+
+        The next dispatch is refused as always -- an overage widens nothing for anyone
+        else -- and the sentence it is refused with has to explain a machine running two
+        runs against a ceiling of one, or it reads as a broken counter.
+        """
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        others = []
+        for title in ("Second", "Third"):
+            task = manager.create_task(
+                title=title,
+                category="general",
+                summary="s",
+                description="d",
+                lifecycle=Lifecycle.READY,
+                actor="Jeff Posey",
+            )
+            manager.add_log_entry(task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go.")
+            others.append(task.id)
+
+        first = run(manager, project, home, ready_task.id)
+        hold_live(first)
+        second = dispatch_task(
+            manager=manager,
+            project=project,
+            project_config=PROJECT_CONFIG,
+            request=DispatchRequest(task_id=others[0], over_ceiling=True),
+            home=home,
+        )
+        hold_live(second)
+
+        with pytest.raises(ConcurrencyLimitError) as caught:
+            run(manager, project, home, others[1])
+
+        message = str(caught.value)
+        assert second.run_id in message, message
+        assert "over the ceiling" in message, message
+        # The overage is one run's licence, not the machine's. Nothing else gets in.
+        assert len([item for item in live_runs(home) if item.takes_slot]) == 2, message
+
+    def test_an_overage_still_answers_to_the_hourly_cap(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """The bound that is kept, and the argument for not adding a second one.
+
+        An overage is a dispatch. Section 7's hourly cap is what actually bounds a loop
+        of them, so it has to bind here or the field is a way round it.
+        """
+        write_dispatch_config(
+            home, fake_runner, require_clean_tree=False, limits={"dispatches_per_hour": 1}
+        )
+        other = manager.create_task(
+            title="Other",
+            category="general",
+            summary="s",
+            description="d",
+            lifecycle=Lifecycle.READY,
+            actor="Jeff Posey",
+        )
+        manager.add_log_entry(other.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go.")
+
+        first = run(manager, project, home, ready_task.id)
+        hold_live(first)
+
+        with pytest.raises(BudgetCapError) as caught:
+            dispatch_task(
+                manager=manager,
+                project=project,
+                project_config=PROJECT_CONFIG,
+                request=DispatchRequest(task_id=other.id, over_ceiling=True),
+                home=home,
+            )
+
+        assert caught.value.reason == "machine_per_hour"
+
+    def test_the_task_records_that_its_run_was_an_overage(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """The run's own directory is on this machine; the task record travels.
+
+        A reader asking six months later why two agents ran against a ceiling of one has
+        the task, not the run directory, so the sentence goes on the dispatch entry.
+        """
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        other = manager.create_task(
+            title="Other",
+            category="general",
+            summary="s",
+            description="d",
+            lifecycle=Lifecycle.READY,
+            actor="Jeff Posey",
+        )
+        manager.add_log_entry(other.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go.")
+
+        first = run(manager, project, home, ready_task.id)
+        hold_live(first)
+        second = dispatch_task(
+            manager=manager,
+            project=project,
+            project_config=PROJECT_CONFIG,
+            request=DispatchRequest(task_id=other.id, over_ceiling=True),
+            home=home,
+        )
+        settle(second)
+
+        recorded = manager.get_task(other.id)
+        assert recorded is not None
+        entries = [item for item in recorded.log if item.type is LogEntryType.DISPATCH]
+        assert len(entries) == 1, entries
+        assert "above this machine's ceiling" in (entries[0].body or ""), entries[0].body
+
     def test_a_refusal_summarises_rather_than_listing_every_holder(self) -> None:
         """A ceiling raised high enough to hold twenty runs must not print twenty."""
         holders = [

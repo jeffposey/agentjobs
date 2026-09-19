@@ -393,6 +393,10 @@ describe("refusals", () => {
     // page cannot show. "2 run(s) already active" is therefore a dead end -- a reader is
     // told to cancel something and given nowhere to go. The server's sentence names the
     // run and the task each is working, and this asserts that it survives to the screen.
+    //
+    // Since task-461 it survives into the three-way prompt rather than into a refusal
+    // note, which is a change of container and not of the requirement: the names are
+    // exactly what a person choosing between Queue and Dispatch now is deciding on.
     renderPanel({
       dispatchRefusal: {
         reason: "concurrency_limit",
@@ -408,12 +412,11 @@ describe("refusals", () => {
       },
     });
 
-    const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("run_aa11 on agentjobs/task-150 (running)");
-    expect(alert).toHaveTextContent("run_bb22 on agentjobs/task-151 (starting)");
-    expect(alert).toHaveTextContent("cancel one of the runs named above");
+    const prompt = screen.getByTestId("dispatch-full-prompt");
+    expect(prompt).toHaveTextContent("run_aa11 on agentjobs/task-150 (running)");
+    expect(prompt).toHaveTextContent("run_bb22 on agentjobs/task-151 (starting)");
     // The ceiling is a number now, so nothing on this surface may call it "the only slot".
-    expect(alert).not.toHaveTextContent(/only slot/i);
+    expect(prompt).not.toHaveTextContent(/only slot/i);
   });
 
   it("says something useful even when the server could not be reached at all", () => {
@@ -1074,31 +1077,101 @@ describe("a task that something is already working (task-354)", () => {
 });
 
 /**
- * Queueing a dispatch the machine was too busy to start (task-459).
+ * The three-way prompt a full machine gets (task-461).
  *
- * The control is offered where the refusal is, and only there, because that is the one
- * moment the question is certainly live. The prompt that asks *before* the first click
- * is task-461; this is the affordance until it lands, and it is asserted on what the
- * click sends rather than on the button existing.
+ * Every assertion here is about what the click *sends* — or, for Cancel, about it
+ * sending nothing. A test that only found the buttons would pass against a prompt whose
+ * Queue button dispatched at full price, which is the one failure that costs money.
  */
-describe("queueing a dispatch for the next free slot", () => {
-  const full = {
+describe("what the panel does when the machine is full", () => {
+  const holders = "run_aa11 on agentjobs/task-150 (running)";
+  const full = state({
+    machine_full: true,
+    machine_occupied: 1,
+    machine_ceiling: 1,
+    slot_holders: holders,
+  });
+  const refusal = {
     reason: "concurrency_limit",
-    message: "This machine allows 1 concurrent run(s) and 1 is active: run_aa11.",
+    message: `This machine allows 1 concurrent run(s) and 1 is active: ${holders}.`,
   };
 
-  it("offers to queue it when the machine was full", () => {
-    renderPanel({ dispatchRefusal: full });
+  it("asks instead of sending, and names the runs holding the slots", () => {
+    const { onDispatch } = renderPanel({ state: full });
 
-    expect(screen.getByTestId("dispatch-queue-it")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /^▶ Dispatch/ }));
+
+    const prompt = screen.getByTestId("dispatch-full-prompt");
+    expect(prompt).toHaveTextContent("Every slot on this machine is taken — 1 of 1");
+    expect(prompt).toHaveTextContent(holders);
+    expect(within(prompt).getByTestId("dispatch-queue-it")).toBeVisible();
+    expect(within(prompt).getByTestId("dispatch-over-ceiling")).toBeVisible();
+    expect(within(prompt).getByTestId("dispatch-full-cancel")).toBeVisible();
+    // The click that opened it spent nothing. This is the whole difference between a
+    // prompt and a refusal: the refusal is what you get for having already asked.
+    expect(onDispatch).not.toHaveBeenCalled();
   });
 
-  it("sends if_full=queue, and sends nothing else it was not told to", () => {
-    const { onDispatch } = renderPanel({ dispatchRefusal: full });
+  it("sends if_full=queue for Queue, and nothing else it was not told to", () => {
+    const { onDispatch } = renderPanel({ state: full });
+    fireEvent.click(screen.getByRole("button", { name: /^▶ Dispatch/ }));
 
     fireEvent.click(screen.getByTestId("dispatch-queue-it"));
 
     expect(onDispatch).toHaveBeenCalledWith({ if_full: "queue" });
+  });
+
+  it("sends over_ceiling for Dispatch now, and never both", () => {
+    const { onDispatch } = renderPanel({ state: full });
+    fireEvent.click(screen.getByRole("button", { name: /^▶ Dispatch/ }));
+
+    fireEvent.click(screen.getByTestId("dispatch-over-ceiling"));
+
+    expect(onDispatch).toHaveBeenCalledWith({ over_ceiling: true });
+    // The server refuses the pair with a 400, so a panel that sent both would turn a
+    // deliberate choice into a validation error.
+    expect(onDispatch.mock.calls[0][0]).not.toHaveProperty("if_full");
+  });
+
+  it("sends nothing at all for Cancel, and goes back to resting", () => {
+    const { onDispatch } = renderPanel({ state: full });
+    fireEvent.click(screen.getByRole("button", { name: /^▶ Dispatch/ }));
+
+    fireEvent.click(screen.getByTestId("dispatch-full-cancel"));
+
+    expect(onDispatch).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("dispatch-full-prompt")).not.toBeInTheDocument();
+    // Still pressable. Cancel answers this question, not every future one.
+    expect(screen.getByRole("button", { name: /^▶ Dispatch/ })).toBeInTheDocument();
+  });
+
+  it("treats Escape as Cancel", () => {
+    const { onDispatch } = renderPanel({ state: full });
+    fireEvent.click(screen.getByRole("button", { name: /^▶ Dispatch/ }));
+
+    fireEvent.keyDown(screen.getByTestId("dispatch-full-prompt"), { key: "Escape" });
+
+    expect(screen.queryByTestId("dispatch-full-prompt")).not.toBeInTheDocument();
+    expect(onDispatch).not.toHaveBeenCalled();
+  });
+
+  it("raises the same prompt when a click came back refused", () => {
+    // The machine filled between the poll and the press, so the state said nothing and
+    // the server did. The reader gets the same three answers either way.
+    renderPanel({ state: state(), dispatchRefusal: refusal });
+
+    const prompt = screen.getByTestId("dispatch-full-prompt");
+    expect(prompt).toHaveTextContent(holders);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("does not prompt on an idle machine", () => {
+    const { onDispatch } = renderPanel({ state: state() });
+
+    fireEvent.click(screen.getByRole("button", { name: /^▶ Dispatch/ }));
+
+    expect(screen.queryByTestId("dispatch-full-prompt")).not.toBeInTheDocument();
+    expect(onDispatch).toHaveBeenCalledWith({});
   });
 
   it("offers nothing to queue for a refusal a queue would not fix", () => {
@@ -1109,6 +1182,7 @@ describe("queueing a dispatch for the next free slot", () => {
     });
 
     expect(screen.queryByTestId("dispatch-queue-it")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("dispatch-over-ceiling")).not.toBeInTheDocument();
   });
 
   it("reports a queued dispatch as queued rather than as a run that started", () => {
