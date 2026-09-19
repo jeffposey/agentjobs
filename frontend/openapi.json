@@ -1388,6 +1388,12 @@
             "description": "What the human typed, when the record could not brief an agent on its own. Becomes the body of the authorising entry. Only meaningful alongside 'user'.",
             "title": "Note"
           },
+          "over_ceiling": {
+            "default": false,
+            "description": "Start this run although every machine slot is taken (task-461). A deliberate overage of limits.max_concurrent_runs for this one dispatch, and nothing else: every other gate binds as it always did, including the hourly cap, because an overage is a dispatch. Honoured only for a human principal -- a run credential sending it is refused 403 'capability_denied' under 'dispatch.over_ceiling'. Mutually exclusive with if_full=queue: asking to wait for a slot and asking to start without one are opposite answers to the same question.",
+            "title": "Over Ceiling",
+            "type": "boolean"
+          },
           "posture": {
             "anyOf": [
               {
@@ -1675,6 +1681,12 @@
             "title": "Mode",
             "type": "string"
           },
+          "over_ceiling": {
+            "default": false,
+            "description": "True when this run was started above limits.max_concurrent_runs because a person chose to (task-461). The machine is over its ceiling until it ends, and the slot board says so rather than clipping the count.",
+            "title": "Over Ceiling",
+            "type": "boolean"
+          },
           "posture": {
             "description": "What the run is permitted to do. Empty while a dispatch is queued: the posture is resolved by the gates when it starts, not when it was queued.",
             "title": "Posture",
@@ -1819,6 +1831,24 @@
             "description": "Runner group this project is pointed at, if any.",
             "title": "Group"
           },
+          "machine_ceiling": {
+            "default": 0,
+            "description": "`limits.max_concurrent_runs` from ~/.agentjobs/dispatch.yaml.",
+            "title": "Machine Ceiling",
+            "type": "integer"
+          },
+          "machine_full": {
+            "default": false,
+            "description": "Every slot is taken, so a dispatch would be refused `concurrency_limit` (task-461). Beside `can_dispatch` rather than folded into it, and that is the whole point: the four configuration gates are reasons the button should not be offered, while a full machine is a question to ask the person pressing it -- wait for a slot, take one anyway, or think better of it. Withholding the button would answer it for them.",
+            "title": "Machine Full",
+            "type": "boolean"
+          },
+          "machine_occupied": {
+            "default": 0,
+            "description": "Run slots in use on this machine right now, counted exactly as the concurrency guard counts them (task-461). Machine-wide rather than this project's: the ceiling is the machine's.",
+            "title": "Machine Occupied",
+            "type": "integer"
+          },
           "master_enabled": {
             "description": "The machine-wide 'enabled:' switch.",
             "title": "Master Enabled",
@@ -1954,6 +1984,12 @@
           "sentinel_file": {
             "description": "Path of the kill-switch sentinel.",
             "title": "Sentinel File",
+            "type": "string"
+          },
+          "slot_holders": {
+            "default": "",
+            "description": "The runs holding the slots, in the same sentence the `concurrency_limit` refusal uses, so the prompt before the click and the refusal after one name the same runs in the same words. Empty when the machine is not full.",
+            "title": "Slot Holders",
             "type": "string"
           }
         },
@@ -2688,6 +2724,12 @@
             "description": "Where this run's captured output is readable.",
             "title": "Output Url",
             "type": "string"
+          },
+          "over_ceiling": {
+            "default": false,
+            "description": "This run was started above `max_concurrent_runs` because a person chose to (task-461). While it lives, `occupied` exceeds the ceiling -- and a board that could not say which run explains that would be showing a count nobody can reconcile.",
+            "title": "Over Ceiling",
+            "type": "boolean"
           },
           "posture": {
             "title": "Posture",
@@ -3589,6 +3631,12 @@
             "description": "session or batch. Empty while a dispatch is queued.",
             "title": "Mode",
             "type": "string"
+          },
+          "over_ceiling": {
+            "default": false,
+            "description": "True when this run was started above limits.max_concurrent_runs because a person chose to (task-461). The machine is over its ceiling until it ends, and the slot board says so rather than clipping the count.",
+            "title": "Over Ceiling",
+            "type": "boolean"
           },
           "playbook": {
             "description": "The playbook whose brief this run has.",
@@ -10443,7 +10491,8 @@
               "schema": {
                 "$ref": "#/components/schemas/DispatchRequestBody",
                 "default": {
-                  "if_full": "refuse"
+                  "if_full": "refuse",
+                  "over_ceiling": false
                 }
               }
             }
@@ -13093,7 +13142,8 @@
               "schema": {
                 "$ref": "#/components/schemas/DispatchRequestBody",
                 "default": {
-                  "if_full": "refuse"
+                  "if_full": "refuse",
+                  "over_ceiling": false
                 }
               }
             }

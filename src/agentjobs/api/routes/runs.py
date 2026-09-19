@@ -95,6 +95,15 @@ class LiveRunView(BaseModel):
     )
     task_url: str = Field(..., description="Where this run's task is, in this app.")
     output_url: str = Field(..., description="Where this run's captured output is readable.")
+    over_ceiling: bool = Field(
+        default=False,
+        description=(
+            "This run was started above `max_concurrent_runs` because a person chose to "
+            "(task-461). While it lives, `occupied` exceeds the ceiling -- and a board "
+            "that could not say which run explains that would be showing a count nobody "
+            "can reconcile."
+        ),
+    )
 
 
 class MachineHolderView(BaseModel):
@@ -347,6 +356,7 @@ def _run_view(record: RunRecord, projects: Dict[str, Project]) -> LiveRunView:
             if record.project_id
             else ""
         ),
+        over_ceiling=record.over_ceiling,
     )
 
 

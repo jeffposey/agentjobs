@@ -983,6 +983,11 @@ class RunRecord:
     origin: str = ""
     """``claimed`` or ``registered`` for a run AgentJobs did not start. Empty for a
     dispatched one."""
+    over_ceiling: bool = False
+    """Started above ``limits.max_concurrent_runs`` because a person chose to (task-461).
+
+    Absent from every meta written before that and from every ordinary run since, and a
+    missing key reads as ``False`` -- which is the only thing it can honestly mean."""
     handback_pending: Optional[int] = None
     """The log entry id of a human handback this run was told about but not given.
 
@@ -1106,6 +1111,7 @@ def read_run(directory: Path) -> RunRecord:
         argv=[str(item) for item in argv] if isinstance(argv, list) else [],
         cwd=str(meta.get("cwd") or ""),
         origin=str(meta.get("origin") or ""),
+        over_ceiling=bool(meta.get("over_ceiling")),
         handback_pending=_as_optional_int(meta.get("handback_pending")),
     )
 

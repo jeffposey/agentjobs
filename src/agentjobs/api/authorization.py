@@ -252,6 +252,26 @@ def assert_actor_agrees(
         raise Forbidden(denial)
 
 
+def assert_holds(request: Request, capability: Capability) -> None:
+    """Refuse a request whose principal does not hold ``capability``.
+
+    The same check :func:`enforce_capability` runs, asked about a *field* rather than a
+    route. One endpoint, two capabilities: ``POST .../dispatch`` needs ``dispatch.start``
+    from everyone, and ``dispatch.over_ceiling`` as well from a body that asks to exceed
+    the machine's ceiling (task-461).
+
+    **The route rule fires first, so a run reaching the second check is currently
+    impossible** -- no run holds ``dispatch.start``. That is the argument for having it
+    rather than against: the overage is granted on a different question from the one
+    ``dispatch.start`` answers, and a day when a run is allowed to spend money is not a
+    day when it should also be allowed to spend it past the ceiling. Written here so
+    that widening the first grants nothing of the second.
+    """
+    denial = authorize(_resolution(request), capability)
+    if denial is not None:
+        raise Forbidden(denial)
+
+
 def _resolution(request: Optional[Request]) -> Resolution:
     """This request's principal resolution, or an empty one when there is no request.
 

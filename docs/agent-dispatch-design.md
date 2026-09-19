@@ -2831,6 +2831,64 @@ authorisation. Rejected: having the walk enqueue its children, which would have 
 its retry loop at the cost of moving the authorisation bound somewhere that does not
 enforce it.
 
+### The overage: a person may go past the ceiling (task-461, 2026-09-18)
+
+**A full machine is asked, not refused.** The Dispatch button on a machine with every
+slot taken opens a three-way prompt naming the runs holding them — *Queue*, *Dispatch
+now*, *Cancel* — and the middle one starts the run above `limits.max_concurrent_runs`.
+
+The two answers are not variants of one thing. Queueing is the section above: nothing
+starts, the entry waits, and every gate is judged when a slot frees. An overage starts
+now, on a machine the ceiling says is full, and the request carries `over_ceiling: true`
+rather than `if_full: queue`. Sending both is refused at the body rather than resolved by
+precedence, because either precedence rule silently does the thing the other field asked
+for.
+
+#### Why a person may and a run may not
+
+The ceiling's purpose is in §7's own words: to stop a *click* starting an agent the
+machine cannot afford. It is a guess at what this machine can carry, made once, in a
+file, by somebody who was not looking at what was running. The person pressing Dispatch
+is, and knows things the number does not — that two of the three runs are parked on a
+review, that this is the five-minute job unblocking the other two.
+
+**This is the one place where D3's argument survives task-334's reversal.** D3 held that
+a human clicking repeatedly is a decision rather than a malfunction; task-334 reversed it
+for the budget caps, because nothing could tell a human's click from an agent's loop.
+Task-332 changed that: the server resolves a principal, so *here* the distinction is
+enforceable rather than assumed. `dispatch.over_ceiling` is a capability the two human
+kinds hold and no run does — see [authorization](authorization.md) for the two locks and
+why the second is currently unreachable on purpose.
+
+#### What an overage does not widen
+
+**One number, and nothing else.** The slot check in `dispatch_task` is skipped and the
+journal admits with no capacity; every other gate runs exactly as it did, including
+`require_clean_tree`, `live_run_exists` and the four budget caps. In particular
+`dispatches_per_hour` binds: an overage is a dispatch, and the hourly cap is what
+actually bounds a loop of them.
+
+**Overages are not bounded further, and that is a decision rather than an omission.** The
+alternatives considered were one overage at a time, and a hard ceiling-plus-one. Both
+were rejected: the hourly cap and the presence of a person choosing it with the holders
+named in front of them are already the bound, and a second number would be one more thing
+the owner has to tune and one more refusal to explain — for a control whose whole purpose
+is to be the escape hatch from a number that was wrong.
+
+#### The machine says it is over its ceiling
+
+`occupied` may now exceed `max_concurrent_runs`, and every surface reports that rather
+than clamping it. The run carries `over_ceiling` in its metadata and on `GET
+/api/runs/live`; the slot board draws a card for it, badged, instead of clipping the grid
+to the ceiling; the capacity sentence reads *"2 of 1 slot busy · 1 over the ceiling"*; and
+the next `concurrency_limit` refusal names it as an overage. That last one is the point of
+all of them: a machine reporting more runs than its own limit allows, with nothing to say
+why, reads as a broken counter — and the next person to see it would go looking for the
+bug rather than for the decision.
+
+The task record carries the same sentence on the run's `dispatch` entry, because the run
+directory is on this machine and the task record is what travels.
+
 ---
 
 ## 8. Concurrency

@@ -154,6 +154,27 @@ class TestARunIsRefused:
 
         assert body["code"] == "capability_denied"
 
+    def test_it_cannot_dispatch_above_the_machine_ceiling(self, sandbox: Path) -> None:
+        """task-461's overage, refused to a run in the words the table uses.
+
+        The route rule refuses this before the body is read -- no run holds
+        ``dispatch.start`` -- and that is the answer a client gets, so this asserts the
+        outcome rather than which of the two locks turned it away. The second lock is
+        asserted on its own terms in ``tests/test_capabilities.py``, where widening the
+        first is what would break it.
+        """
+        task_id = in_review(owner())
+        client, _ = dispatched(sandbox, task_id)
+
+        body = refusal(
+            client.post(
+                f"/api/tasks/{task_id}/dispatch",
+                json={"user": "Jeff Posey", "over_ceiling": True},
+            )
+        )
+
+        assert body["code"] == "capability_denied"
+
     def test_it_cannot_enable_dispatch(self, sandbox: Path) -> None:
         task_id = a_task(owner())
         client, _ = dispatched(sandbox, task_id)

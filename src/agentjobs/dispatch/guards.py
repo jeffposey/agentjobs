@@ -637,6 +637,11 @@ class LiveRun:
     status: str
     path: Path
     mode: str = ""
+    over_ceiling: bool = False
+    """Started above ``limits.max_concurrent_runs`` because a person chose to (task-461).
+
+    Read back so a refusal can say *why* the machine is over its ceiling. A count that
+    exceeds its own limit with nothing to explain it reads as a bug in the counter."""
 
     @property
     def is_interactive(self) -> bool:
@@ -691,6 +696,7 @@ def live_runs(home: Path) -> List[LiveRun]:
                 status=status,
                 path=directory,
                 mode=str(meta.get("mode") or ""),
+                over_ceiling=bool(meta.get("over_ceiling")),
             )
         )
     return found
@@ -720,6 +726,10 @@ def describe_slot_holders(runs: Sequence[LiveRun]) -> str:
     """
     named = [
         f"{run.run_id} on {run.project_id or '?'}/{run.task_id or '?'} ({run.status})"
+        # Named rather than counted silently, for the same reason the run ids are: a
+        # machine showing three runs against a ceiling of two is either over its ceiling
+        # on purpose or miscounting, and only the record can say which (task-461).
+        + (" — over the ceiling" if run.over_ceiling else "")
         for run in runs[:SLOT_HOLDERS_NAMED]
     ]
     remaining = len(runs) - len(named)
@@ -859,6 +869,25 @@ class DispatchRequest:
     """A stable id for this admission, so a caller that died after the journal committed
     it and before it learned the run id finds the same attempt rather than a second one
     (task-416). The epic walk and the controller's relaunch pass one."""
+
+    over_ceiling: bool = False
+    """Start although every slot is taken: a deliberate overage of the ceiling (task-461).
+
+    The only field here that *widens* a gate, and the only one whose right to be set is
+    decided somewhere else. The API refuses it unless the caller holds
+    ``dispatch.over_ceiling``, which no run holds; the CLI is served as the owner, which
+    is why its flag is honoured. Nothing in this module re-derives that -- a request
+    arriving here with it set has already been judged, exactly as ``authorized_by`` has.
+
+    What it widens is one number and no more. The slot check below is skipped and the
+    journal admits with no capacity, so the run starts beside a full machine; every
+    other gate is untouched, including ``dispatches_per_hour``, because an overage is a
+    dispatch and the hourly cap is what actually bounds a loop (section 7).
+
+    Deliberately not bounded further -- no "one at a time", no "ceiling plus one". The
+    hourly cap and the fact that a person is standing there choosing it are the bound,
+    and a second number would be one more thing to tune and one more refusal to explain.
+    """
 
     if_full: str = IF_FULL_REFUSE
     """What to do when every machine slot is taken: ``refuse`` or ``queue`` (task-459).
@@ -1093,7 +1122,10 @@ def dispatch_task(
     # Slots, not runs: an interactive session holds its task (above) but no slot
     # (task-354), so it is not what stands between this click and a free machine.
     holding = [run for run in running if run.takes_slot]
-    if len(holding) >= resolution.limits.max_concurrent_runs:
+    # An overage skips this and only this (task-461). The person clicking *Dispatch now*
+    # was shown exactly these holders by the prompt, so the refusal has already been read
+    # and answered; raising it again would be asking the same question twice.
+    if not request.over_ceiling and len(holding) >= resolution.limits.max_concurrent_runs:
         raise ConcurrencyLimitError(
             f"This machine allows {resolution.limits.max_concurrent_runs} concurrent "
             f"run(s) and {len(holding)} are active: {describe_slot_holders(holding)}. "
@@ -1171,6 +1203,7 @@ def dispatch_task(
         posture=posture,
         push=push,
         history=history,
+        over_ceiling=request.over_ceiling,
     )
 
     # Taken before the claim and held for the run's lifetime. The storage lock the
@@ -1202,7 +1235,14 @@ def dispatch_task(
             project_id=project.id,
             task_id=task.id,
             run_id=run_id,
-            capacity=resolution.limits.max_concurrent_runs,
+            # `None` is "no slot check", which is what an overage is (task-461). Passing
+            # a raised number instead would put a second ceiling in the journal for this
+            # one admission, and the journal's ceiling is the one two racing dispatches
+            # are adjudicated against -- an overage means the person chose to go past it,
+            # not that it moved.
+            capacity=None if request.over_ceiling else resolution.limits.max_concurrent_runs,
+            # Untouched by the overage, deliberately: an overage is a dispatch, and the
+            # hourly cap is what bounds a loop of them (section 7).
             hourly_limit=resolution.limits.dispatches_per_hour,
             envelope=build_envelope(
                 resolution,

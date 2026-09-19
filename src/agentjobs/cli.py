@@ -1411,6 +1411,15 @@ def dispatch_run(
             "it when a slot frees, with every dispatch gate judged at that moment."
         ),
     ),
+    over_ceiling: bool = typer.Option(
+        False,
+        "--over-ceiling",
+        help=(
+            "Start even if every slot is taken, above limits.max_concurrent_runs. A "
+            "deliberate overage for this one run; every other gate still binds, "
+            "including the hourly cap."
+        ),
+    ),
 ) -> None:
     """Start an agent on a task, if every gate permits it.
 
@@ -1437,6 +1446,16 @@ def dispatch_run(
         raise typer.Exit(code=1) from exc
 
     manager = dispatch_manager_for(project)
+    if queue and over_ceiling:
+        # The two opposite answers to a full machine. Refused here rather than resolved
+        # by precedence, because either resolution silently does the thing the other
+        # flag asked for.
+        typer.secho(
+            "--queue waits for a slot and --over-ceiling starts without one. " "Choose one.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+
     try:
         chosen_posture = Posture(posture) if posture else None
     except ValueError:
@@ -1456,6 +1475,10 @@ def dispatch_run(
                 group=group,
                 posture=chosen_posture,
                 if_full=IF_FULL_QUEUE if queue else IF_FULL_REFUSE,
+                # Honoured here because a CLI verb is served as the owner (task-332), who
+                # holds `dispatch.over_ceiling`. The HTTP path checks the capability; a
+                # shell on this machine already has everything that check protects.
+                over_ceiling=over_ceiling,
             ),
         )
     except (DispatchError, DispatchRunError) as exc:
@@ -1479,6 +1502,15 @@ def dispatch_run(
         return
 
     typer.echo(f"✅ Dispatched {task_id} as run {handle.run_id} ({handle.mode.value}).")
+    if over_ceiling:
+        # Said on the way out as well as recorded on the task: the next thing this
+        # machine does is run more agents than it is configured for, and that is worth
+        # reading at the moment it becomes true rather than only in a log.
+        typer.echo(
+            "   Above the ceiling: this machine is now running more than "
+            "limits.max_concurrent_runs allows, by your choice. It is recorded as an "
+            "overage on the run and on the task."
+        )
     # Always, not only when something overrode the default: "which of the three sources
     # decided what this run may do" is the question task-308 exists so that nobody has
     # to reconstruct, and a line that appears only sometimes trains a reader to skim it.

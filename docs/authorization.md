@@ -41,6 +41,7 @@ human is asking, this stops being a table and becomes a role system.
 | `task.queue` | queue-move, queue-keep, reprioritize | ✓ | ✓ | ✓ |
 | `task.review` | approve, request-changes, answer, redirect, hold, resume, reject | ✓ | ✓ | — |
 | `dispatch.start` | task dispatch, playbook run, run cancel, queued-dispatch cancel | ✓ | ✓ | — |
+| `dispatch.over_ceiling` | the `over_ceiling` field on a task dispatch | ✓ | ✓ | — |
 | `dispatch.admin` | dispatch enable / disable, idle-session settings | ✓ | ✓ | — |
 | `project.admin` | project register / init / inspect | ✓ | ✓ | — |
 | `queue.admin` | queue repair / compact | ✓ | ✓ | — |
@@ -55,6 +56,26 @@ a moment late must stop the agent rather than be refused for naming the wrong ki
 thing. So an agent cannot cancel a queued dispatch, for the reason it cannot cancel a run:
 a run is a purchase a person signed for, and unqueueing one is a decision about that
 purchase.
+
+**`dispatch.over_ceiling` is the one row keyed to a body field rather than to a route**
+(task-461). `POST .../tasks/{id}/dispatch` needs `dispatch.start` from everybody, and a
+body carrying `over_ceiling: true` needs this as well -- the request asks to start a run
+although `limits.max_concurrent_runs` says the machine is full, which is a different
+question from whether the caller may spend money at all. The ceiling exists to stop a
+click starting an agent the machine cannot afford; a person choosing to exceed it with
+the slot holders named in front of them is a judgement about *this* machine at *this*
+moment, and it is the one place where "a human clicking repeatedly is a decision rather
+than a malfunction" survives, because since task-332 the server can tell a person from a
+run.
+
+Two locks, not one, and the second is currently unreachable on purpose. No run holds
+`dispatch.start`, so the route rule already refuses a run before the body is read --
+which is the answer a client gets, and what `tests/test_run_authorization.py` asserts.
+The field check is what stops the overage riding along if `dispatch.start` is ever
+widened; `tests/test_capabilities.py` asserts it on its own terms, where such a widening
+is what would break it. What an overage does *not* widen is everything else: it is a
+dispatch, so it counts against `dispatches_per_hour` like any other, and every other
+gate binds unchanged.
 
 **The two human kinds are identical, deliberately.** `owner` and `tailnet` differ in how
 identity was established, not in what they may do. Narrowing `tailnet` would be an

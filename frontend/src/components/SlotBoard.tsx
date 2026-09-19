@@ -75,6 +75,12 @@ export const BOARD_CELL_LIMIT = 6;
  * a `run` cell like any other and is added the same way, for the same reason: it is in
  * `runs` and not in `occupied`, because it holds its task rather than a slot.
  */
+/**
+ * An **overage** run -- one a person started above the ceiling (task-461) -- is a `run`
+ * cell like any other, and the board simply has more of them than the ceiling. There is
+ * no `overage` kind, because a cell's kind says what is in it rather than how it got
+ * there, and the run itself carries `over_ceiling` for the badge.
+ */
 export type SlotCell =
   | { kind: "run"; key: string; run: LiveRunView }
   | { kind: "opaque"; key: string }
@@ -88,6 +94,8 @@ export type BoardLayout = {
   hiddenSlots: number;
   /** How many of those are busy, so the footer can say the board is not the whole truth. */
   hiddenBusy: number;
+  /** Runs above `max_concurrent_runs`, each a deliberate overage (task-461). */
+  overCeiling: number;
   /** A ceiling nobody chose: the board degrades to a queue rather than asserting a shape. */
   unconfigured: boolean;
 };
@@ -153,9 +161,15 @@ export function boardLayout(
   const attended = orderedRuns(body.runs.filter((run) => run.mode === "interactive"));
   // `occupied`, never `runs.length`. The count is the machine's and the list is this
   // caller's, and the cell that exists for the difference is `opaque`.
+  // A machine may be *over* its ceiling: a person chose Dispatch now with every slot
+  // taken (task-461). The board draws the extra runs rather than clipping them --
+  // `Math.min(occupied, ceiling)` would have shown "1 of 1 busy" over one card while
+  // two agents were writing to two repositories, which is the one thing a board of
+  // slots must never do. Still bounded by BOARD_CELL_LIMIT, for the reason any large
+  // ceiling is: past six cells this page stops fitting a viewport.
   const slots = unconfigured
     ? Math.min(body.occupied, BOARD_CELL_LIMIT)
-    : Math.min(body.max_concurrent_runs, BOARD_CELL_LIMIT);
+    : Math.min(Math.max(body.max_concurrent_runs, body.occupied), BOARD_CELL_LIMIT);
   const busy = Math.min(body.occupied, slots);
 
   const cells: SlotCell[] = [];
@@ -210,6 +224,10 @@ export function boardLayout(
     cells,
     hiddenSlots: Math.max(0, ceiling - slots),
     hiddenBusy: Math.max(0, body.occupied - busy),
+    // How far past the ceiling this machine is running. Reported rather than left to
+    // be inferred from the cell count, because the footer says it in words and the
+    // board's cells are capped.
+    overCeiling: unconfigured ? 0 : Math.max(0, body.occupied - body.max_concurrent_runs),
     unconfigured,
   };
 }
@@ -268,6 +286,18 @@ function RunCell({ run, projectId }: { run: LiveRunView; projectId: string }) {
             {formatElapsed(run.elapsed_seconds)}
           </span>
         </div>
+        {/* The one cell that has to explain itself. Every other card on this board is a
+            slot the machine allows; this one is a slot it does not, and a reader
+            counting four cards against a ceiling of three needs the fourth to say so
+            rather than be left to wonder which number is wrong (task-461). */}
+        {run.over_ceiling && (
+          <div
+            data-testid="slot-over-ceiling"
+            className="mb-1 inline-flex rounded bg-amber-900/50 px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-amber-200"
+          >
+            Over the ceiling
+          </div>
+        )}
         {/* Absolute and server-built: a row for another project must link into that
             project, not into whichever one the reader happens to be looking at. */}
         <Link to={run.task_url} className="block min-w-0 hover:text-blue-300">
@@ -685,6 +715,16 @@ export function SlotBoard({
           }
         })}
       </div>
+
+      {layout.overCeiling > 0 && (
+        <p data-testid="slot-board-over-ceiling" className="mt-3 text-xs text-amber-300">
+          {layout.overCeiling === 1
+            ? "1 run above this machine's ceiling, started by a person who chose to. "
+            : `${layout.overCeiling} runs above this machine's ceiling, each started by a person who chose to. `}
+          {"The count above is the truth rather than a number clipped to the limit, and "}
+          {"the machine stays over it until they end."}
+        </p>
+      )}
 
       {layout.hiddenSlots > 0 && (
         <p data-testid="slot-board-overflow" className="mt-3 text-xs text-dark-muted">

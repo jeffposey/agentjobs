@@ -389,6 +389,114 @@ def wait_for(predicate, *, timeout: float = 15.0, interval: float = 0.05) -> boo
     return bool(predicate())
 
 
+class TestTheFullMachinePrompt:
+    """The three answers a full machine gets, over HTTP (task-461).
+
+    Every test here holds a real slot with a sleeping runner rather than faking a
+    ledger, because the thing under test is whether the concurrency gate and this
+    endpoint agree, and two surfaces reading two different sources is the failure it
+    exists to prevent.
+    """
+
+    def test_the_state_says_the_machine_is_full_and_names_what_holds_it(
+        self, served, tmp_path: Path
+    ) -> None:
+        """The prompt has to be raisable *before* the click, and with facts on it.
+
+        `can_dispatch` stays true, deliberately: the four configuration gates are
+        reasons not to offer the button, and a full machine is a question to ask the
+        person pressing it.
+        """
+        client, root, home = served
+        enable_dispatch(home, tmp_path, body="import time\ntime.sleep(120)\n")
+        first = seed_task(root)
+        started = client.post(f"/api/projects/sandbox/tasks/{first}/dispatch", json={})
+        assert started.status_code == 202, started.text
+        run_id = started.json()["run_id"]
+
+        body = client.get("/api/projects/sandbox/dispatch").json()
+
+        assert body["machine_full"] is True
+        assert body["machine_occupied"] == 1
+        assert body["machine_ceiling"] == 1
+        assert run_id in body["slot_holders"], body["slot_holders"]
+        assert first in body["slot_holders"], body["slot_holders"]
+        assert body["can_dispatch"] is True, "a full machine is a question, not a closed gate"
+
+        client.post(f"/api/projects/sandbox/dispatch/runs/{run_id}/cancel")
+
+    def test_an_empty_machine_says_so_and_names_nobody(self, served, tmp_path: Path) -> None:
+        """The common case, asserted so the prompt cannot appear on an idle machine."""
+        client, _, home = served
+        enable_dispatch(home, tmp_path)
+
+        body = client.get("/api/projects/sandbox/dispatch").json()
+
+        assert body["machine_full"] is False
+        assert body["slot_holders"] == ""
+
+    def test_dispatch_now_starts_a_second_run_above_the_ceiling(
+        self, served, tmp_path: Path
+    ) -> None:
+        """The overage, end to end, and the count that must not be clamped."""
+        client, root, home = served
+        enable_dispatch(home, tmp_path, body="import time\ntime.sleep(120)\n")
+        first = seed_task(root)
+        second = seed_task(root)
+        first_run = client.post(f"/api/projects/sandbox/tasks/{first}/dispatch", json={}).json()[
+            "run_id"
+        ]
+
+        refused = client.post(f"/api/projects/sandbox/tasks/{second}/dispatch", json={})
+        assert refused.status_code == 409
+        assert refused.json()["code"] == "concurrency_limit"
+
+        accepted = client.post(
+            f"/api/projects/sandbox/tasks/{second}/dispatch", json={"over_ceiling": True}
+        )
+
+        assert accepted.status_code == 202, accepted.text
+        assert accepted.json()["queued"] is False, "an overage starts; it does not wait"
+        assert accepted.json()["over_ceiling"] is True
+        second_run = accepted.json()["run_id"]
+
+        live = client.get("/api/runs/live").json()
+        assert live["occupied"] == 2
+        assert live["max_concurrent_runs"] == 1, (
+            "the ceiling did not move; a person went past it, and the board has to be "
+            "able to say so"
+        )
+        overage = [run for run in live["runs"] if run["run_id"] == second_run]
+        assert overage and overage[0]["over_ceiling"] is True
+        ordinary = [run for run in live["runs"] if run["run_id"] == first_run]
+        assert ordinary and ordinary[0]["over_ceiling"] is False
+
+        for run_id in (first_run, second_run):
+            client.post(f"/api/projects/sandbox/dispatch/runs/{run_id}/cancel")
+
+    def test_queueing_and_starting_now_cannot_be_asked_for_together(
+        self, served, tmp_path: Path
+    ) -> None:
+        """Two opposite answers to one question, refused rather than ranked.
+
+        Either precedence rule silently does the thing the other field asked for, and a
+        caller that sent both has not decided which it wanted.
+        """
+        client, root, home = served
+        enable_dispatch(home, tmp_path)
+        task_id = seed_task(root)
+
+        response = client.post(
+            f"/api/projects/sandbox/tasks/{task_id}/dispatch",
+            json={"if_full": "queue", "over_ceiling": True},
+        )
+
+        # 400, the same answer `caused_by` + `user` gets: this application renders a
+        # body-validation failure under its own handler rather than FastAPI's 422.
+        assert response.status_code == 400, response.text
+        assert "not both" in response.json()["detail"], response.text
+
+
 class TestDispatchState:
     """What the browser reads before it decides whether to offer a Dispatch button."""
 

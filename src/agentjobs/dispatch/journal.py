@@ -540,7 +540,7 @@ def admit_dispatch(
     project_id: str,
     task_id: str,
     run_id: str,
-    capacity: int,
+    capacity: Optional[int],
     hourly_limit: Optional[int],
     envelope: Mapping[str, object],
     mode: str,
@@ -556,6 +556,11 @@ def admit_dispatch(
     row behind costs one reconciliation rather than a permanently occupied slot. Raises the
     store's ``OwnershipConflict`` or ``CapacityExhausted`` for the caller to turn into
     the refusal a person reads.
+
+    ``capacity`` is ``None`` for an admission that is not subject to the slot ceiling --
+    a deliberate overage a person asked for (task-461), which is the same "no slot check"
+    :func:`admit_session` has always passed. The hourly cap is separate and binds either
+    way.
     """
     release_ended(home, resolve_manager)
     legacy = legacy_view(home, project_id=project_id, task_id=task_id)
