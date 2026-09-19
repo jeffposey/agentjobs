@@ -349,6 +349,12 @@ class Controller:
         been proposed yet, and a slot spent on it is a slot an armed backlog was already
         entitled to.
 
+        **A live epic walk is not ordered here at all, and could not be** (task-480): it
+        runs on its own clock rather than on this tick, so the deference to it is the pull
+        pass's own, read from the walk's record at the moment of the pass. The rule both
+        it and the queue are instances of is *Who gets the next free slot* in §7 of
+        ``docs/agent-dispatch-design.md``.
+
         Unconditional, like the queue and for the same reason: an arming is not an
         execution and has no ``controlled_by``, so a machine whose ``execution.controller``
         is still ``shadow`` must still honour what somebody armed.

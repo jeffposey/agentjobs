@@ -15,14 +15,19 @@ on:
 * **The order** (ac-1). The tasks are moved in the *stored queue* and the mode is
   expected to follow, which is the difference between reading ``task_next`` and reading
   a timestamp.
-* **The precedence** (ac-3). A real queued dispatch is enqueued through
-  ``dispatch_or_queue`` and a real slot is freed, and the pull mode is expected to leave
-  it alone.
+* **The precedence** (ac-3, and task-480's ladder). A real queued dispatch is enqueued
+  through ``dispatch_or_queue`` and a real slot is freed, and the pull mode is expected to
+  leave it alone. The same for a real detached epic walk, advanced by the production
+  ``advance_hosted_walks`` between ticks in the order the poller runs them -- a stubbed
+  walk would have been a test of the stub, the defect being precisely that the two
+  pollers could not see each other.
 """
 
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 
@@ -30,6 +35,7 @@ import pytest
 
 from agentjobs.dispatch import pull as dispatch_pull
 from agentjobs.dispatch import queue as dispatch_queue
+from agentjobs.dispatch.epic import WalkSettings, advance_hosted_walks, detach_walk
 from agentjobs.dispatch.guards import (
     IF_FULL_QUEUE,
     ConflictingAuthorizationError,
@@ -54,6 +60,7 @@ from agentjobs.execution.store import (
 from agentjobs.models_v2 import DispatchTrigger, Lifecycle, LogEntryType
 from agentjobs.projects import ProjectRegistry
 
+from test_epic_supervision import Epic
 from test_execution_controller import Machine, machine
 
 __all__ = ["machine"]  # a fixture, imported by name -- the harness is task-416's
@@ -460,6 +467,163 @@ class TestPrecedence:
         machine.tick(2)
 
         assert dispatch_queue.waiting(machine.home) == []
+
+
+# ----- an epic walk outranks the pull mode (task-480) ---------------------------------
+
+
+def detach(epic: Epic) -> str:
+    """Hand this epic's children to the server, exactly as dispatching the parent does."""
+    project = ProjectRegistry(home=epic.machine.home).get("sandbox")
+    return detach_walk(
+        manager=epic.machine.manager,
+        project_id=project.id,
+        parent_id=epic.parent_id,
+        home=epic.machine.home,
+        settings=WalkSettings(max_concurrent=1),
+        posture=None,
+        actor="claude",
+    )
+
+
+def walk_pass(epic: Epic) -> List[str]:
+    """One step of every walk the server hosts -- what the poller does after each tick."""
+    project = ProjectRegistry(home=epic.machine.home).get("sandbox")
+
+    def resolve(project_id: str) -> Any:
+        return epic.machine.manager, project
+
+    return advance_hosted_walks(epic.machine.home, resolve=resolve)
+
+
+class TestAWalkOutranksThePullMode:
+    """A person who clicked one named epic does not lose its slots to a standing arming.
+
+    The walk here is a real detached walk -- the record a dispatch of the parent writes --
+    advanced by the production ``advance_hosted_walks`` between real controller ticks, in
+    the order the poller runs them. Nothing about the walk is stubbed, because the defect
+    was that the two pollers could not see each other and a fake walk would have been a
+    test of the fake.
+    """
+
+    def test_the_pull_mode_yields_the_whole_tick_while_a_walk_is_flying(
+        self, machine: Machine
+    ) -> None:
+        """ac-1 and ac-5: nothing starts, and the decision says which epic took the slot."""
+        machine.configure(limits={"max_concurrent_runs": 1})
+        epic = Epic(machine)
+        epic.child("First")
+        machine.task()  # what the pull mode would otherwise reach
+        arm(machine, bound_kind=BOUND_STARTS, bound_starts=3)
+        detach(epic)
+
+        lines = machine.tick()
+
+        assert started_tasks(machine) == [], lines
+        assert any(f"an epic walk on {epic.parent_id} is live" in line for line in lines), lines
+        assert any("free slots are its children's" in line for line in lines), lines
+
+    def test_the_slot_the_pull_mode_left_is_the_one_the_walk_takes(self, machine: Machine) -> None:
+        """ac-1: the yield is not merely politeness -- the child gets the slot."""
+        machine.configure(limits={"max_concurrent_runs": 1})
+        epic = Epic(machine)
+        first = epic.child("First")
+        machine.task()
+        arm(machine, bound_kind=BOUND_STARTS, bound_starts=3)
+        detach(epic)
+
+        machine.tick()
+        walk_pass(epic)
+
+        assert started_tasks(machine) == [first]
+
+    def test_the_next_tick_after_the_walk_lands_starts_normally(self, machine: Machine) -> None:
+        """ac-2: no further human act. The walk ending is the whole of the release."""
+        machine.configure(limits={"max_concurrent_runs": 1})
+        epic = Epic(machine)
+        first = epic.child("First")
+        later = machine.task()
+        arm(machine, bound_kind=BOUND_STARTS, bound_starts=3)
+        walk_id = detach(epic)
+
+        machine.tick()
+        walk_pass(epic)
+        assert started_tasks(machine) == [first]
+
+        epic.complete_active()
+        lines = walk_pass(epic)
+        record = journal(machine.home).walk(walk_id)
+        assert record is not None and record.state != "walking", lines
+        free_slot(machine, first)
+
+        machine.tick()
+
+        assert started_tasks(machine) == [first, later]
+
+    def test_the_dispatch_queue_still_outranks_both(self, machine: Machine) -> None:
+        """ac-3. Rung 1 is unchanged: the queued entry starts, and the pull still waits."""
+        machine.configure(limits={"max_concurrent_runs": 1})
+        holding = machine.task()
+        machine.dispatch(holding)
+        asked_for = machine.task()
+        enqueue(machine, asked_for)
+        epic = Epic(machine)
+        epic.child("First")
+        arm(machine, bound_kind=BOUND_STARTS, bound_starts=3)
+        detach(epic)
+
+        # Both rungs are occupied. The queue is the one the pull pass names, because it
+        # is the one that is checked first -- and nothing starts either way.
+        lines = machine.tick()
+        assert started_tasks(machine) == [holding], lines
+        assert any("waiting for a slot and starts first" in line for line in lines), lines
+
+        free_slot(machine, holding)
+        machine.tick()
+        assert started_tasks(machine) == [holding, asked_for]
+
+        # With the queue drained the walk is what is left above the pull mode, and the
+        # pull pass still starts nothing.
+        free_slot(machine, asked_for)
+        lines = machine.tick()
+
+        assert started_tasks(machine) == [holding, asked_for], lines
+        assert any("free slots are its children's" in line for line in lines), lines
+
+    def test_a_walk_whose_supervisor_died_does_not_stall_the_machine(
+        self, machine: Machine
+    ) -> None:
+        """A ``walking`` row nothing is advancing is not a walk, and must not idle a slot.
+
+        Nothing closes the row an attached ``dispatch walk`` leaves when its process dies;
+        ``open_walk`` tolerates that because its only other reader takes such a walk over.
+        A pull pass that deferred to it would wait for a supervisor nobody is running.
+        """
+        machine.configure(limits={"max_concurrent_runs": 1})
+        epic = Epic(machine)
+        epic.child("First")
+        machine.task()
+        arm(machine, bound_kind=BOUND_STARTS, bound_starts=3)
+        parent = machine.manager.get_task(epic.parent_id)
+        assert parent is not None
+        entry = [item for item in parent.log if item.type is LogEntryType.NOTE][-1]
+        dead = subprocess.Popen([sys.executable, "-c", "pass"])
+        dead.wait()
+        journal(machine.home).open_walk(
+            project_id="sandbox",
+            parent_task_id=epic.parent_id,
+            authority_entry=entry.id,
+            authority_actor=entry.actor,
+            settings={"max_concurrent": 1},
+            host="process",
+            holder="a supervisor that died",
+            holder_pid=dead.pid,
+        )
+
+        assert dispatch_pull.walking_now(machine.home) == []
+        machine.tick()
+
+        assert started_tasks(machine), "a dead supervisor's row must not idle the machine"
 
 
 # ----- disarming, skipping and faulting (ac-4) -----------------------------------------
