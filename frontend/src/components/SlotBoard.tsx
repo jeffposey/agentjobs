@@ -156,12 +156,16 @@ export function orderedFinishes(finishes: MachineHolderView[]): MachineHolderVie
 /**
  * Whether this run is one of the machine's `occupied` slots.
  *
- * The mirror of `LiveRun.takes_slot` on the server, and it has to stay one: a run drawn
- * in a slot cell that the server does not count is a board that disagrees with the
- * dispatch guard about whether there is room.
+ * The server's own answer, read off the row rather than re-derived from `mode`. It used
+ * to be a mirror of `LiveRun.takes_slot` written in TypeScript, and task-482 is what a
+ * mirror costs: a third exemption arrived -- a run whose task has closed while its
+ * session stayed open -- and a board deriving this from the mode would have kept drawing
+ * that run in a slot cell the server had already freed. A run drawn in a cell the server
+ * does not count is a board disagreeing with the dispatch guard about whether there is
+ * room, which is the one thing this function exists to prevent.
  */
 export function holdsSlot(run: LiveRunView): boolean {
-  return run.mode !== "interactive" && run.mode !== "walk";
+  return run.holds_slot;
 }
 
 export function boardLayout(

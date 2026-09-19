@@ -24,7 +24,12 @@ import { BOARD_CELL_LIMIT, SlotBoard, boardLayout, orderedRuns } from "./SlotBoa
  * elapsed time, the link a foreign run points at, and the button on a free cell.
  */
 
+// `holds_slot` mirrors the server's own rule here so that a fixture naming only a mode
+// is still a run the server could have sent. A test about the released slot (task-482)
+// sets it explicitly, which is the whole point of it being a field rather than a
+// derivation.
 function run(overrides: Partial<LiveRunView> = {}): LiveRunView {
+  const mode = overrides.mode ?? "session";
   return {
     run_id: "run_a",
     task_id: "task-001",
@@ -40,6 +45,7 @@ function run(overrides: Partial<LiveRunView> = {}): LiveRunView {
     elapsed_seconds: 90,
     task_url: "/p/alpha/tasks/task-001",
     output_url: "/api/projects/alpha/dispatch/runs/run_a/output",
+    holds_slot: mode !== "interactive" && mode !== "walk",
     ...overrides,
   };
 }
@@ -715,6 +721,50 @@ describe("dispatches waiting for a slot", () => {
     );
 
     expect(screen.getByTestId("slot-board-queue")).toBeVisible();
+  });
+});
+
+describe("a run whose task closed while its session stayed open (task-482)", () => {
+  const finished = (overrides: Partial<LiveRunView> = {}) =>
+    run({
+      run_id: "run_done",
+      health: "work_done",
+      holds_slot: false,
+      task_id: "task-done",
+      task_title: "Merged an hour ago",
+      task_url: "/p/alpha/tasks/task-done",
+      ...overrides,
+    });
+
+  it("takes no cell, because the server stopped counting it", () => {
+    // The reported symptom: a task reading Completed beside a run holding a third of
+    // the machine. The board follows `holds_slot` rather than the mode, so a run the
+    // server has released cannot be drawn in a cell the server says is free.
+    renderBoard(
+      <SlotBoard
+        body={body({ occupied: 0, runs: [finished()] })}
+        queue={[task("task-one"), task("task-two"), task("task-three")]}
+        projectId="alpha"
+        renderQueueAction={(item) => <button type="button">Dispatch {item.id}</button>}
+      />,
+    );
+
+    expect(cellStates()).toEqual(["run", "queued", "queued", "queued"]);
+    expect(screen.getAllByRole("button", { name: /^Dispatch/ })).toHaveLength(3);
+    expect(screen.getByTestId("slot-board-capacity")).toHaveTextContent("0 of 3 slots busy");
+  });
+
+  it("is still drawn, and says the work is done rather than that it is working", () => {
+    renderBoard(
+      <SlotBoard
+        body={body({ occupied: 0, runs: [finished()] })}
+        queue={[]}
+        projectId="alpha"
+        renderQueueAction={() => null}
+      />,
+    );
+
+    expect(screen.getByText("Work done")).toHaveAttribute("data-health", "work_done");
   });
 });
 

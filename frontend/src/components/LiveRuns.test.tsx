@@ -25,7 +25,12 @@ import {
  * react-query rather than this file.
  */
 
+// `holds_slot` mirrors the server's own rule here so that a fixture naming only a mode
+// is still a run the server could have sent. A test about the released slot (task-482)
+// sets it explicitly, which is the whole point of it being a field rather than a
+// derivation.
 function run(overrides: Partial<LiveRunView> = {}): LiveRunView {
+  const mode = overrides.mode ?? "session";
   return {
     run_id: "run_a",
     task_id: "task-001",
@@ -41,6 +46,7 @@ function run(overrides: Partial<LiveRunView> = {}): LiveRunView {
     elapsed_seconds: 90,
     task_url: "/p/alpha/tasks/task-001",
     output_url: "/api/projects/alpha/dispatch/runs/run_a/output",
+    holds_slot: mode !== "interactive" && mode !== "walk",
     ...overrides,
   };
 }
@@ -202,6 +208,19 @@ describe("the Runs tab", () => {
     renderIn(<LiveRunsPage body={body({ occupied: 1, runs: [run({ health: "parked" })] })} />);
     const row = screen.getByText("Waiting on you");
     expect(row).toHaveAttribute("data-health", "parked");
+    expect(screen.queryByText("Working")).toBeNull();
+  });
+
+  it("says the work is done for a run whose task closed (task-482)", () => {
+    // The pair that made a third of the machine unavailable: a task reading Completed
+    // beside a run reading `running`. The run is real and the session is open, so it is
+    // still listed -- with the word that says why it is not in the occupied count.
+    renderIn(
+      <LiveRunsPage
+        body={body({ occupied: 0, runs: [run({ health: "work_done", holds_slot: false })] })}
+      />,
+    );
+    expect(screen.getByText("Work done")).toHaveAttribute("data-health", "work_done");
     expect(screen.queryByText("Working")).toBeNull();
   });
 
