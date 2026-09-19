@@ -8,7 +8,7 @@ and you certainly cannot make one of them belong to a project you are not lookin
 so this seeds each of them and hands over a URL.
 
     python scripts/slot_board_sandbox.py [port] [--idle] [--finishing] [--alarm]
-                                         [--ceiling N] [--unconfigured]
+                                         [--work-done] [--ceiling N] [--unconfigured]
 
 Six things to look at, and the comparison is the point:
 
@@ -25,6 +25,12 @@ Six things to look at, and the comparison is the point:
                        holds its task, not a slot. Open task-101 to see the other half:
                        the task page names the session and withholds the Dispatch button
                        instead of offering to start a second agent on it.
+    --work-done        both sides of task-482, side by side: one run working task-101
+                       and holding a cell, and one whose task closed while its session
+                       stayed open. The second is drawn beyond the cells, badged *Work
+                       done*, and the capacity sentence counts only the first -- which is
+                       the whole fix. Before it, that run read *Working* and held a third
+                       of the machine for as long as somebody kept talking to it.
     --finishing        no runs, two finishes: one in the gate for a task in this
                        project, one queued behind it on the merge runway. This is the
                        state task-352 was filed from -- the badge read 0 and the Runs tab
@@ -265,6 +271,7 @@ def main() -> None:
     idle = "--idle" in argv
     finishing = "--finishing" in argv
     attended = "--attended" in argv
+    work_done = "--work-done" in argv
     alarm = "--alarm" in argv
     unconfigured = "--unconfigured" in argv
     ceiling = DEFAULT_CEILING
@@ -288,10 +295,24 @@ def main() -> None:
     # and a free cell offering the task whose merge is on the card beside it would be
     # the duplicate the board exists to avoid.
     running_here: Tuple[str, ...] = (
-        ("task-101",) if attended else ("task-102",) if finishing else () if idle else ("task-101",)
+        ("task-101", "task-102")
+        if work_done
+        else ("task-101",)
+        if attended
+        else ("task-102",)
+        if finishing
+        else ()
+        if idle
+        else ("task-101",)
     )
     running_elsewhere: Tuple[str, ...] = (
-        () if attended else ("task-501",) if finishing else () if idle else ("task-501",)
+        ()
+        if attended or work_done
+        else ("task-501",)
+        if finishing
+        else ()
+        if idle
+        else ("task-501",)
     )
     here = build_project(
         root,
@@ -340,6 +361,55 @@ def main() -> None:
             started_at=_ago(900),
         )
         print("[board] seeded a chat session working task-101", flush=True)
+
+    def seed_work_done() -> None:
+        """A run still working beside one whose task has closed (task-482).
+
+        Both in this project and both real runs, because the comparison is the point: the
+        cells and the capacity sentence count the first and not the second, while the
+        second is still drawn, still linked, and still stoppable. It is seeded with the
+        field the release actually writes -- ``slot_released_at`` in the run's meta -- so
+        the board, the Runs tab and the badge read exactly what they would on the machine
+        this was observed on.
+        """
+        seed_run(
+            home,
+            run_id="run_here01",
+            task_id="task-101",
+            project_id="sandbox-here",
+            mode="session",
+            posture="auto",
+            status="running",
+            session_id="here01",
+        )
+        seed_run(
+            home,
+            run_id="run_merged1",
+            task_id="task-102",
+            project_id="sandbox-here",
+            mode="session",
+            posture="autonomous",
+            status="running",
+            session_id="merged01",
+            started_at=_ago(3_000),
+            slot_released_at=_ago(2_950),
+            slot_released_reason="task_closed",
+        )
+        from agentjobs.manager import TaskManager
+        from agentjobs.models_v2 import Outcome
+        from sandbox_store import sandbox_store
+
+        manager = TaskManager(sandbox_store(here / "tasks", project_id="sandbox-here"))
+        manager.close_task(
+            "task-102",
+            actor="claude",
+            outcome=Outcome.COMPLETED,
+            body="Merged and delivered. The session is still open.",
+        )
+        print(
+            "[board] seeded one run holding a cell and one that released its slot",
+            flush=True,
+        )
 
     def seed_finishing() -> None:
         """The state task-352 was filed from: no runs, one finish in the gate, one queued.
@@ -430,6 +500,8 @@ def main() -> None:
 
     if attended:
         threading.Timer(2.0, seed_attended).start()
+    elif work_done:
+        threading.Timer(2.0, seed_work_done).start()
     elif finishing:
         threading.Timer(2.0, seed_finishing).start()
     elif not idle:
@@ -444,6 +516,8 @@ def main() -> None:
         shape = "no runs -- one finish in the gate, one queued for the runway"
     if attended:
         shape = "no dispatched runs -- one chat session working a task"
+    if work_done:
+        shape = "one run holding a cell, one whose task closed and gave its slot back"
     if unconfigured:
         shape = "no dispatch config -- a queue rather than a board"
     if alarm:

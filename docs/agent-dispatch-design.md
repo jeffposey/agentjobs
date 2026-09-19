@@ -2932,6 +2932,65 @@ walk's own behaviour is untouched — it still calls `dispatch_task`, still trea
 machine as backpressure, still retries on its next pass. Nothing here moves the §7 caps,
 the posture ceiling, or what authorises a pulled start.
 
+### What a slot is counting (task-482, 2026-09-19)
+
+**The work, not the process.** A run whose task has closed releases its slot at once and
+stays alive in every other respect: listed, polled, stoppable, and usable by the person
+talking to it. Until this task the slot was held until the process ended, which is a
+different thing and the wrong one.
+
+`run_b400b920`, 2026-09-19, is the case. `agentjobs finish` merged the branch, closed the
+task and exited 0. Fifty minutes later the dashboard showed the task **Completed** and the
+run **running**, holding one of three slots — the session was genuinely alive, in an
+exchange with the person who dispatched it. Nothing was stale and nothing would have been
+settled by `dispatch reconcile` or `dispatch reap`: this was the accounting working as
+built. The owner read it as a bug on sight, which is the finding: a task reading Completed
+beside a run reading Running and occupying a runner is not a state a reader can make sense
+of.
+
+**The alternative was to keep the accounting and fix the display**, so a run past its
+close reads as something other than plain `running` on every surface. Rejected. It leaves
+the bound measuring process lifetime, and the bound exists to cap how much of this machine
+agents use at once — a session with nothing to do is not using it. With
+`max_concurrent_runs` at three, one such session is a third of the machine, for however
+long the conversation goes on. The display half is *kept* anyway, because it is needed
+either way: the run reads `work_done`.
+
+**Releasing cannot double-book the slot**, which was the objection that had to be answered
+first. Dispatching a task whose session still exists does not re-enter that run: whether it
+forks the conversation or messages the session where it stands, it is admitted as a **new**
+run with its own id and its own slot (`dispatch/wake.py`). So the released slot is free
+exactly once, and whatever the session is asked to do next pays for itself.
+
+**What the release is.** `run_attempt.slot_released_at` in the execution journal, and
+`slot_released_at` in the run's `meta.yaml` — the same authority-and-projection pair every
+other run fact has since task-264. The journal is what `ExecutionStore.admit` counts inside
+the transaction that allocates a slot; the meta is what every surface reads. It is set once
+and never cleared, because a slot that could be reclaimed is a slot two dispatches could
+both be told is free. `takes_slot` — the admission's fact, what this *kind* of run costs —
+is left alone, so the record still says what the run was admitted as.
+
+**Two callers, one function** (`dispatch/slots.py`). The scripted finish releases at the
+moment it closes the task, because it knows that moment exactly. The poller sweeps every
+slot-holding live run each tick and releases the ones whose task is closed, because a task
+closed any other way — an agent's own `close`, a person's click — is the same state. Neither
+is the other's fallback: the finish makes it immediate, the sweep makes it general. A task
+that cannot be read leaves its run alone; failing to find a record is not evidence the work
+is over.
+
+**What it is not.** The finish does **not** end the session. It was mid-conversation when
+this was observed, and killing it would free the slot by taking away the thing the person
+was using. And this is not the stale-run case: a run whose process is gone is
+`dispatch reconcile` and `dispatch reap`, and those still do what they did.
+
+**Every surface asks one question.** `takes_slot` on the ledger's `RunRecord` and on the
+guard's `LiveRun`, `Attempt.holds_slot` in the journal, `holds_slot` on `LiveRunView`, and
+`holdsSlot` in the slot board — which now reads the server's field instead of re-deriving
+it from `mode`. That mirror is what this task cost: a third exemption arrived and a board
+computing the rule in TypeScript would have kept drawing a run in a cell the server had
+already freed. `agentjobs dispatch status` gains a `SLOT` column saying `slot`, `released`
+or `no slot`, because `running` alone could not say which.
+
 ### The dispatch queue (task-459, 2026-09-18)
 
 **A dispatch sent with `if_full: queue` that finds every slot taken is accepted as a
