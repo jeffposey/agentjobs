@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
@@ -78,13 +78,19 @@ from agentjobs.manager import TaskManager
 from agentjobs.principals import Principal
 from agentjobs.projects import Project, default_home
 
+from agentjobs.dispatch import pull as dispatch_pull
+from agentjobs.dispatch.journal import journal
 from agentjobs.dispatch import queue as dispatch_queue
 
 from .runs import QueuedDispatchView, queued_dispatch_view
 
+from ..authorization import assert_actor_agrees
 from ..dependencies import (
+    current_user,
     get_principal,
     get_task_manager,
+    manager_for,
+    project_config,
     project_visible_to,
     request_project,
 )
@@ -269,8 +275,72 @@ class DispatchStateView(BaseModel):
             "the same runs in the same words. Empty when the machine is not full."
         ),
     )
+    pull: Optional["PullModeView"] = Field(
+        default=None,
+        description=(
+            "The pull mode's state for this project (task-462). Null only on a machine "
+            "whose execution store could not be read at all; an unarmed project sends "
+            "`armed: false` rather than nothing, so a control can tell 'off' from "
+            "'unknown'."
+        ),
+    )
     config_path: str = Field(..., description="Where a human edits any of this.")
     sentinel_file: str = Field(..., description="Path of the kill-switch sentinel.")
+
+
+class PullModeView(BaseModel):
+    """Whether the pull mode is armed for this project, and what it would do (task-462).
+
+    On the dispatch state rather than in a call of its own, for the reason the capacity
+    numbers ride with the live runs: a control that read "armed" from one endpoint and
+    "two starts left" from another would have two answers about one arming, taken a
+    second apart.
+    """
+
+    armed: bool = Field(..., description="Whether this project is pulling right now.")
+    arming_id: str = Field(default="", description="The arming's id. Empty when not armed.")
+    armed_by: str = Field(default="", description="The person who armed it.")
+    armed_at: str = Field(default="", description="When they armed it, UTC.")
+    bound_kind: str = Field(
+        default="",
+        description="`starts` (a number of runs), `until` (a moment) or `open` (until disarmed).",
+    )
+    bound: str = Field(
+        default="",
+        description=(
+            "What is left of the bound, as one phrase a person reads on a card -- e.g. "
+            "`1 of 3 starts used`. Composed on the server so the board and the CLI say "
+            "the same words about the same row."
+        ),
+    )
+    starts_used: int = Field(default=0, description="Runs this arming has already started.")
+    starts_left: Optional[int] = Field(
+        default=None,
+        description="Runs it may still start, or null when the bound is not a count.",
+    )
+    posture: Optional[str] = Field(
+        default=None,
+        description="The envelope pulled runs get, or null for the project's own default.",
+    )
+    next_task_id: str = Field(
+        default="",
+        description=(
+            "What `task_next` says it would start next, so a person can reorder the "
+            "queue before it happens. Empty when nothing is claimable, and empty when "
+            "the project is not armed -- this field is about an arming, not a backlog."
+        ),
+    )
+    next_task_title: str = ""
+    last_state: str = Field(
+        default="",
+        description=(
+            "How the previous arming ended, when there was one and this project is not "
+            "armed now: `disarmed`, `spent`, `expired` or `faulted`. The four are kept "
+            "apart because *you turned it off* and *it kept failing* are different "
+            "things to read."
+        ),
+    )
+    last_detail: str = Field(default="", description="Why it ended, in the mode's own words.")
 
 
 class DispatchRunView(BaseModel):
@@ -541,6 +611,43 @@ class DispatchEnableRequest(BaseModel):
 # ----- helpers ----------------------------------------------------------------
 
 
+class PullArmRequest(BaseModel):
+    """What a person chooses when they arm the pull mode.
+
+    The bound is required and has no default, which is the one piece of validation worth
+    arguing for: the difference between "three runs" and "all night" is the whole of the
+    decision being made, and a server-side default would make it on the person's behalf
+    in the one place they are entitled to be asked.
+    """
+
+    bound_kind: str = Field(
+        default="",
+        description="`starts`, `until` or `open`. Required -- there is no default bound.",
+    )
+    starts: Optional[int] = Field(
+        default=None, ge=1, description="How many runs, for a `starts` bound."
+    )
+    until: Optional[str] = Field(
+        default=None, description="An ISO-8601 moment to stop at, for an `until` bound."
+    )
+    posture: Optional[str] = Field(
+        default=None,
+        description=(
+            "The envelope pulled runs get. Omitted, they get the project's own default. "
+            "Refused here, where a person is waiting for the answer, when it exceeds this "
+            "project's machine-local ceiling."
+        ),
+    )
+    user: Optional[str] = Field(
+        default=None,
+        description=(
+            "The person arming it. Validated against the principal this request resolved "
+            "to, exactly as a dispatch's `user` is: the identity every pulled run will be "
+            "attributed to must be the caller's own, not one read out of a listing."
+        ),
+    )
+
+
 def _home() -> Path:
     """The AgentJobs home whose dispatch config and runs this server acts on."""
     return default_home()
@@ -805,6 +912,7 @@ def _state(project: Project) -> DispatchStateView:
         # Named only when the answer is "full". A sentence about runs the reader cannot
         # act on is noise on every other poll of every other task page.
         slot_holders=describe_slot_holders(holding) if machine_full else "",
+        pull=_pull_view(project),
         config_path=str(dispatch_config_path(home)),
         sentinel_file=str(sentinel_path(home)),
     )
@@ -876,6 +984,124 @@ async def disable_dispatch(project: Project = Depends(request_project)) -> Dispa
         set_project_enabled(project.id, False, home=_home())
     except DispatchError as exc:
         raise _refusal_error(exc) from exc
+    return _state(project)
+
+
+def _pull_view(project: Project) -> PullModeView:
+    """The pull mode's state for one project. Never raises at a reader.
+
+    An unarmed project answers ``armed: false`` with the previous arming's ending, which
+    is what makes the control able to say *it stopped because the bound ran out* rather
+    than going quiet. A store that cannot be read answers ``armed: false`` too: this is a
+    status page, and a traceback here would take the whole dispatch panel down over a
+    field nobody was looking at.
+    """
+    home = _home()
+    arming = dispatch_pull.armed(home, project.id)
+    if arming is None:
+        previous = None
+        try:
+            history = journal(home).pull_armings(project.id, limit=1)
+            previous = history[0] if history else None
+        except Exception:  # noqa: BLE001 - see the docstring
+            previous = None
+        return PullModeView(
+            armed=False,
+            last_state=previous.state if previous else "",
+            last_detail=previous.detail if previous else "",
+        )
+    next_task = None
+    try:
+        next_task = dispatch_pull.next_task(manager_for(project))
+    except Exception:  # noqa: BLE001 - see the docstring
+        next_task = None
+    return PullModeView(
+        armed=True,
+        arming_id=arming.arming_id,
+        armed_by=arming.armed_by,
+        armed_at=arming.armed_at,
+        bound_kind=arming.bound_kind,
+        bound=dispatch_pull.bound_sentence(arming),
+        starts_used=arming.started,
+        starts_left=arming.starts_left,
+        posture=arming.posture,
+        next_task_id=next_task.id if next_task else "",
+        next_task_title=next_task.title if next_task else "",
+    )
+
+
+@router.post("/arm", response_model=DispatchStateView)
+async def arm_pull_mode(
+    request: Request,
+    payload: PullArmRequest = PullArmRequest(),
+    project: Project = Depends(request_project),
+) -> DispatchStateView:
+    """Arm the pull mode for this project. Starts nothing; the server's tick does.
+
+    **Human-only, and enforced in one place rather than here.** ``DISPATCH_ADMIN`` is not
+    in a run's grant, so a run credential is refused 403 by the capability dependency
+    before this function is entered -- which is the property that matters: a run must not
+    be able to arm the machine to keep starting runs, and that is a rule about the table
+    rather than about anyone remembering to check it in a handler.
+
+    The ``user`` is checked against the principal the request resolved to, on the same
+    terms a dispatch's is (task-332): every run this arming buys will carry that person's
+    name, so naming somebody else would be signing their authorisation.
+    """
+    if payload.user:
+        assert_actor_agrees(request, project_config(project), payload.user, field="user")
+    who = payload.user or current_user(project, get_principal(request))
+    if not who:
+        raise _refusal_error(
+            dispatch_pull.PullArmingError(
+                "This request could not be attributed to a configured person, so the "
+                "runs it would authorise would have nobody's name on them. Sign in, or "
+                "add yourself to 'actors:' in .agentjobs/config.yaml with 'kind: human'."
+            )
+        )
+    try:
+        posture = Posture(payload.posture) if payload.posture else None
+    except ValueError as exc:
+        raise _refusal_error(
+            dispatch_pull.PullArmingError(
+                f"{payload.posture!r} is not a posture. This project offers: "
+                + ", ".join(item.value for item in Posture)
+            )
+        ) from exc
+    try:
+        dispatch_pull.arm(
+            _home(),
+            project,
+            project_config(project),
+            armed_by=who,
+            bound_kind=payload.bound_kind or "",
+            bound_starts=payload.starts,
+            bound_until=payload.until,
+            posture=posture,
+        )
+    except DispatchError as exc:
+        raise _refusal_error(exc) from exc
+    return _state(project)
+
+
+@router.post("/disarm", response_model=DispatchStateView)
+async def disarm_pull_mode(
+    request: Request,
+    project: Project = Depends(request_project),
+) -> DispatchStateView:
+    """Stop the pull mode starting anything more. **Kills nothing.**
+
+    Takes nothing and asks nothing, like ``/disable`` and for the same reason: a switch
+    you cannot reach is not one, and one that argues with you is worse than none. Runs
+    already going are untouched -- each was authorised individually and has its own merge
+    gate, and destroying work somebody's arming already bought is not what "stop" means.
+
+    Quiet when the project was not armed, which covers a second press and a press that
+    raced a bound running out.
+    """
+    dispatch_pull.disarm(
+        _home(), project.id, requester=current_user(project, get_principal(request)) or ""
+    )
     return _state(project)
 
 

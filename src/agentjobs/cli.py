@@ -32,7 +32,9 @@ from .dispatch.config import (
     sentinel_path,
     set_project_enabled,
 )
+from .dispatch import pull as dispatch_pull
 from .dispatch import queue as dispatch_queue
+from .execution.store import BOUND_OPEN, BOUND_STARTS, BOUND_UNTIL
 from .dispatch.guards import (
     IF_FULL_QUEUE,
     IF_FULL_REFUSE,
@@ -2011,6 +2013,116 @@ def dispatch_queue_list() -> None:
         )
         if entry.detail:
             typer.echo(f"     {entry.detail}")
+
+
+@dispatch_app.command("arm")
+def dispatch_arm(
+    project_id: str = typer.Argument(..., help="Registered project whose queue to pull from."),
+    user: str = typer.Option(
+        ..., "--user", help="The person arming it. Must be a configured human actor."
+    ),
+    starts: Optional[int] = typer.Option(
+        None, "--starts", help="Stop after this many task starts. The bound most people want."
+    ),
+    until: Optional[str] = typer.Option(
+        None, "--until", help="Stop at this UTC moment, ISO-8601. Not with --starts."
+    ),
+    open_ended: bool = typer.Option(
+        False, "--until-disarmed", help="No bound but a person pressing Disarm."
+    ),
+    posture: Optional[str] = typer.Option(
+        None, "--posture", help="Envelope for the pulled runs. Defaults to the project's."
+    ),
+) -> None:
+    """Arm the pull mode: fill free slots with what the queue says is next (task-462).
+
+    A bound is **required** and has to be said out loud. ``--until-disarmed`` is a real
+    answer and is accepted; what is refused is arming with no bound named at all, because
+    the difference between "three runs" and "all night" is the whole decision and a
+    default would make it for you.
+    """
+    chosen = [
+        name
+        for name, given in (
+            ("--starts", starts is not None),
+            ("--until", bool(until)),
+            ("--until-disarmed", open_ended),
+        )
+        if given
+    ]
+    if len(chosen) != 1:
+        typer.secho(
+            "Name exactly one bound: --starts N, --until <moment>, or --until-disarmed. "
+            f"Got: {', '.join(chosen) or 'none'}.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+    bound_kind = BOUND_STARTS if starts is not None else (BOUND_UNTIL if until else BOUND_OPEN)
+    try:
+        project = ProjectRegistry().get(project_id)
+        arming = dispatch_pull.arm(
+            default_home(),
+            project,
+            project.load_config(),
+            armed_by=user,
+            bound_kind=bound_kind,
+            bound_starts=starts,
+            bound_until=until,
+            posture=Posture(posture) if posture else None,
+        )
+    except ValueError as exc:
+        typer.secho(f"{posture!r} is not a posture: {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    except (ProjectError, DispatchError) as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        f"✅ Pull mode armed for '{project_id}' by {user} ({arming.arming_id}): "
+        f"{dispatch_pull.bound_sentence(arming)}."
+    )
+    typer.echo(
+        "   Nothing has started. The server's tick fills free slots from the queue; "
+        "'agentjobs dispatch pull' says what it would start next."
+    )
+
+
+@dispatch_app.command("disarm")
+def dispatch_disarm(
+    project_id: str = typer.Argument(..., help="Project to stop pulling for."),
+) -> None:
+    """Stop the pull mode starting anything more. Runs already going keep running."""
+    retired = dispatch_pull.disarm(default_home(), project_id, requester="cli")
+    if retired is None:
+        typer.echo(f"'{project_id}' was not armed. Nothing to disarm.")
+        return
+    typer.echo(
+        f"✅ Pull mode disarmed for '{project_id}' after {retired.started} start(s). "
+        "Live runs were not touched."
+    )
+
+
+@dispatch_app.command("pull")
+def dispatch_pull_status() -> None:
+    """Which projects are armed, how much of each bound is left, and what starts next."""
+    home = default_home()
+    live = dispatch_pull.armings(home)
+    if not live:
+        typer.echo("No project is armed for the pull mode.")
+        return
+    registry = ProjectRegistry()
+    for arming in live:
+        typer.echo(
+            f"{arming.project_id}: armed by {arming.armed_by} at {arming.armed_at} — "
+            f"{dispatch_pull.bound_sentence(arming)}"
+            + (f", posture {arming.posture}" if arming.posture else "")
+        )
+        try:
+            manager = dispatch_manager_for(registry.get(arming.project_id))
+        except (ProjectError, DispatchError):
+            typer.echo("     (this project is not resolvable on this machine right now)")
+            continue
+        nxt = dispatch_pull.next_task(manager)
+        typer.echo(f"     next: {nxt.id} — {nxt.title}" if nxt else "     next: nothing claimable")
 
 
 @dispatch_app.command("cancel")

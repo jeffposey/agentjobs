@@ -352,6 +352,77 @@ export type AnswerSubmission = {
 };
 
 /**
+ * ArmedProjectView
+ *
+ * One project the pull mode is armed for, as the slot board draws it (task-462).
+ *
+ * Machine-wide, beside the runs and the waiting dispatches, because that is the scope
+ * of the thing being described: the pull mode competes for the same `max_concurrent_runs`
+ * every other row here is about, and a board that learned "armed" from a per-project
+ * call would show an arming that is not the one taking the slot in front of it.
+ */
+export type ArmedProjectView = {
+    /**
+     * Armed At
+     *
+     * When they armed it, UTC.
+     */
+    armed_at: string;
+    /**
+     * Armed By
+     *
+     * The person who armed it.
+     */
+    armed_by?: string;
+    /**
+     * Arming Id
+     */
+    arming_id: string;
+    /**
+     * Bound
+     *
+     * What is left of the bound, as one phrase -- e.g. `1 of 3 starts used`, `until 2026-09-19T06:00:00Z`, `until disarmed`. Composed on the server so the board, the CLI and the dispatch panel say the same words.
+     */
+    bound: string;
+    /**
+     * Next Task Id
+     *
+     * What `task_next` says it would start next. Sent so a person can see it *before* it happens and move something else to the top if they would rather. Empty when nothing in that backlog is claimable right now.
+     */
+    next_task_id?: string;
+    /**
+     * Next Task Title
+     */
+    next_task_title?: string;
+    /**
+     * Next Task Url
+     *
+     * Where that task is, in this app.
+     */
+    next_task_url?: string;
+    /**
+     * Posture
+     *
+     * The envelope pulled runs get, or null for the project default.
+     */
+    posture?: string | null;
+    /**
+     * Project Id
+     */
+    project_id: string;
+    /**
+     * Project Name
+     */
+    project_name?: string;
+    /**
+     * Starts Left
+     *
+     * Runs it may still start, or null when the bound is a moment.
+     */
+    starts_left?: number | null;
+};
+
+/**
  * Assignment
  *
  * Live ownership and authoring-time eligibility.
@@ -1433,6 +1504,10 @@ export type DispatchStateView = {
      */
     project_id: string;
     /**
+     * The pull mode's state for this project (task-462). Null only on a machine whose execution store could not be read at all; an unarmed project sends `armed: false` rather than nothing, so a control can tell 'off' from 'unknown'.
+     */
+    pull?: PullModeView | null;
+    /**
      * Push
      *
      * Whether this project permits pushing. Per project and never a posture property (task-021), and false everywhere today. Surfaced because 'this project will merge my work without asking me, and publish it' is the one thing worth knowing beside a Dispatch button.
@@ -2049,6 +2124,12 @@ export type LiveRunView = {
  * ``dispatch/guards.py`` about whether the machine is full.
  */
 export type LiveRunsView = {
+    /**
+     * Armed
+     *
+     * Projects the pull mode is armed for (task-462), oldest arming first. Empty on a machine where nobody has armed one. Filtered by what this caller may see, exactly as `runs` is.
+     */
+    armed?: Array<ArmedProjectView>;
     /**
      * Dispatch Configured
      *
@@ -2999,6 +3080,138 @@ export type PromoteRequest = {
      * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
      */
     operation_id?: string | null;
+};
+
+/**
+ * PullArmRequest
+ *
+ * What a person chooses when they arm the pull mode.
+ *
+ * The bound is required and has no default, which is the one piece of validation worth
+ * arguing for: the difference between "three runs" and "all night" is the whole of the
+ * decision being made, and a server-side default would make it on the person's behalf
+ * in the one place they are entitled to be asked.
+ */
+export type PullArmRequest = {
+    /**
+     * Bound Kind
+     *
+     * `starts`, `until` or `open`. Required -- there is no default bound.
+     */
+    bound_kind?: string;
+    /**
+     * Posture
+     *
+     * The envelope pulled runs get. Omitted, they get the project's own default. Refused here, where a person is waiting for the answer, when it exceeds this project's machine-local ceiling.
+     */
+    posture?: string | null;
+    /**
+     * Starts
+     *
+     * How many runs, for a `starts` bound.
+     */
+    starts?: number | null;
+    /**
+     * Until
+     *
+     * An ISO-8601 moment to stop at, for an `until` bound.
+     */
+    until?: string | null;
+    /**
+     * User
+     *
+     * The person arming it. Validated against the principal this request resolved to, exactly as a dispatch's `user` is: the identity every pulled run will be attributed to must be the caller's own, not one read out of a listing.
+     */
+    user?: string | null;
+};
+
+/**
+ * PullModeView
+ *
+ * Whether the pull mode is armed for this project, and what it would do (task-462).
+ *
+ * On the dispatch state rather than in a call of its own, for the reason the capacity
+ * numbers ride with the live runs: a control that read "armed" from one endpoint and
+ * "two starts left" from another would have two answers about one arming, taken a
+ * second apart.
+ */
+export type PullModeView = {
+    /**
+     * Armed
+     *
+     * Whether this project is pulling right now.
+     */
+    armed: boolean;
+    /**
+     * Armed At
+     *
+     * When they armed it, UTC.
+     */
+    armed_at?: string;
+    /**
+     * Armed By
+     *
+     * The person who armed it.
+     */
+    armed_by?: string;
+    /**
+     * Arming Id
+     *
+     * The arming's id. Empty when not armed.
+     */
+    arming_id?: string;
+    /**
+     * Bound
+     *
+     * What is left of the bound, as one phrase a person reads on a card -- e.g. `1 of 3 starts used`. Composed on the server so the board and the CLI say the same words about the same row.
+     */
+    bound?: string;
+    /**
+     * Bound Kind
+     *
+     * `starts` (a number of runs), `until` (a moment) or `open` (until disarmed).
+     */
+    bound_kind?: string;
+    /**
+     * Last Detail
+     *
+     * Why it ended, in the mode's own words.
+     */
+    last_detail?: string;
+    /**
+     * Last State
+     *
+     * How the previous arming ended, when there was one and this project is not armed now: `disarmed`, `spent`, `expired` or `faulted`. The four are kept apart because *you turned it off* and *it kept failing* are different things to read.
+     */
+    last_state?: string;
+    /**
+     * Next Task Id
+     *
+     * What `task_next` says it would start next, so a person can reorder the queue before it happens. Empty when nothing is claimable, and empty when the project is not armed -- this field is about an arming, not a backlog.
+     */
+    next_task_id?: string;
+    /**
+     * Next Task Title
+     */
+    next_task_title?: string;
+    /**
+     * Posture
+     *
+     * The envelope pulled runs get, or null for the project's own default.
+     */
+    posture?: string | null;
+    /**
+     * Starts Left
+     *
+     * Runs it may still start, or null when the bound is not a count.
+     */
+    starts_left?: number | null;
+    /**
+     * Starts Used
+     *
+     * Runs this arming has already started.
+     */
+    starts_used?: number;
 };
 
 /**
@@ -5703,6 +5916,31 @@ export type GetDispatchStateApiDispatchGetResponses = {
 
 export type GetDispatchStateApiDispatchGetResponse = GetDispatchStateApiDispatchGetResponses[keyof GetDispatchStateApiDispatchGetResponses];
 
+export type ArmPullModeApiDispatchArmPostData = {
+    body?: PullArmRequest;
+    path?: never;
+    query?: never;
+    url: '/api/dispatch/arm';
+};
+
+export type ArmPullModeApiDispatchArmPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ArmPullModeApiDispatchArmPostError = ArmPullModeApiDispatchArmPostErrors[keyof ArmPullModeApiDispatchArmPostErrors];
+
+export type ArmPullModeApiDispatchArmPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchStateView;
+};
+
+export type ArmPullModeApiDispatchArmPostResponse = ArmPullModeApiDispatchArmPostResponses[keyof ArmPullModeApiDispatchArmPostResponses];
+
 export type DisableDispatchApiDispatchDisablePostData = {
     body?: never;
     path?: never;
@@ -5718,6 +5956,22 @@ export type DisableDispatchApiDispatchDisablePostResponses = {
 };
 
 export type DisableDispatchApiDispatchDisablePostResponse = DisableDispatchApiDispatchDisablePostResponses[keyof DisableDispatchApiDispatchDisablePostResponses];
+
+export type DisarmPullModeApiDispatchDisarmPostData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/dispatch/disarm';
+};
+
+export type DisarmPullModeApiDispatchDisarmPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchStateView;
+};
+
+export type DisarmPullModeApiDispatchDisarmPostResponse = DisarmPullModeApiDispatchDisarmPostResponses[keyof DisarmPullModeApiDispatchDisarmPostResponses];
 
 export type EnableDispatchApiDispatchEnablePostData = {
     body?: DispatchEnableRequest;
@@ -6290,6 +6544,36 @@ export type GetDispatchStateApiProjectsProjectIdDispatchGetResponses = {
 
 export type GetDispatchStateApiProjectsProjectIdDispatchGetResponse = GetDispatchStateApiProjectsProjectIdDispatchGetResponses[keyof GetDispatchStateApiProjectsProjectIdDispatchGetResponses];
 
+export type ArmPullModeApiProjectsProjectIdDispatchArmPostData = {
+    body?: PullArmRequest;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/dispatch/arm';
+};
+
+export type ArmPullModeApiProjectsProjectIdDispatchArmPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ArmPullModeApiProjectsProjectIdDispatchArmPostError = ArmPullModeApiProjectsProjectIdDispatchArmPostErrors[keyof ArmPullModeApiProjectsProjectIdDispatchArmPostErrors];
+
+export type ArmPullModeApiProjectsProjectIdDispatchArmPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchStateView;
+};
+
+export type ArmPullModeApiProjectsProjectIdDispatchArmPostResponse = ArmPullModeApiProjectsProjectIdDispatchArmPostResponses[keyof ArmPullModeApiProjectsProjectIdDispatchArmPostResponses];
+
 export type DisableDispatchApiProjectsProjectIdDispatchDisablePostData = {
     body?: never;
     path: {
@@ -6319,6 +6603,36 @@ export type DisableDispatchApiProjectsProjectIdDispatchDisablePostResponses = {
 };
 
 export type DisableDispatchApiProjectsProjectIdDispatchDisablePostResponse = DisableDispatchApiProjectsProjectIdDispatchDisablePostResponses[keyof DisableDispatchApiProjectsProjectIdDispatchDisablePostResponses];
+
+export type DisarmPullModeApiProjectsProjectIdDispatchDisarmPostData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/dispatch/disarm';
+};
+
+export type DisarmPullModeApiProjectsProjectIdDispatchDisarmPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DisarmPullModeApiProjectsProjectIdDispatchDisarmPostError = DisarmPullModeApiProjectsProjectIdDispatchDisarmPostErrors[keyof DisarmPullModeApiProjectsProjectIdDispatchDisarmPostErrors];
+
+export type DisarmPullModeApiProjectsProjectIdDispatchDisarmPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchStateView;
+};
+
+export type DisarmPullModeApiProjectsProjectIdDispatchDisarmPostResponse = DisarmPullModeApiProjectsProjectIdDispatchDisarmPostResponses[keyof DisarmPullModeApiProjectsProjectIdDispatchDisarmPostResponses];
 
 export type EnableDispatchApiProjectsProjectIdDispatchEnablePostData = {
     body?: DispatchEnableRequest;

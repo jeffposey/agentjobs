@@ -472,6 +472,89 @@
         "title": "AnswerSubmission",
         "type": "object"
       },
+      "ArmedProjectView": {
+        "description": "One project the pull mode is armed for, as the slot board draws it (task-462).\n\nMachine-wide, beside the runs and the waiting dispatches, because that is the scope\nof the thing being described: the pull mode competes for the same `max_concurrent_runs`\nevery other row here is about, and a board that learned \"armed\" from a per-project\ncall would show an arming that is not the one taking the slot in front of it.",
+        "properties": {
+          "armed_at": {
+            "description": "When they armed it, UTC.",
+            "title": "Armed At",
+            "type": "string"
+          },
+          "armed_by": {
+            "default": "",
+            "description": "The person who armed it.",
+            "title": "Armed By",
+            "type": "string"
+          },
+          "arming_id": {
+            "title": "Arming Id",
+            "type": "string"
+          },
+          "bound": {
+            "description": "What is left of the bound, as one phrase -- e.g. `1 of 3 starts used`, `until 2026-09-19T06:00:00Z`, `until disarmed`. Composed on the server so the board, the CLI and the dispatch panel say the same words.",
+            "title": "Bound",
+            "type": "string"
+          },
+          "next_task_id": {
+            "default": "",
+            "description": "What `task_next` says it would start next. Sent so a person can see it *before* it happens and move something else to the top if they would rather. Empty when nothing in that backlog is claimable right now.",
+            "title": "Next Task Id",
+            "type": "string"
+          },
+          "next_task_title": {
+            "default": "",
+            "title": "Next Task Title",
+            "type": "string"
+          },
+          "next_task_url": {
+            "default": "",
+            "description": "Where that task is, in this app.",
+            "title": "Next Task Url",
+            "type": "string"
+          },
+          "posture": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The envelope pulled runs get, or null for the project default.",
+            "title": "Posture"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "project_name": {
+            "default": "",
+            "title": "Project Name",
+            "type": "string"
+          },
+          "starts_left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Runs it may still start, or null when the bound is a moment.",
+            "title": "Starts Left"
+          }
+        },
+        "required": [
+          "project_id",
+          "arming_id",
+          "armed_at",
+          "bound"
+        ],
+        "title": "ArmedProjectView",
+        "type": "object"
+      },
       "Assignment": {
         "additionalProperties": false,
         "description": "Live ownership and authoring-time eligibility.\n\nv1's `assigned_to` conflated these: documented as \"currently assigned\" and used as\na static label.",
@@ -1903,6 +1986,17 @@
             "title": "Project Id",
             "type": "string"
           },
+          "pull": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PullModeView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The pull mode's state for this project (task-462). Null only on a machine whose execution store could not be read at all; an unarmed project sends `armed: false` rather than nothing, so a control can tell 'off' from 'unknown'."
+          },
           "push": {
             "default": false,
             "description": "Whether this project permits pushing. Per project and never a posture property (task-021), and false everywhere today. Surfaced because 'this project will merge my work without asking me, and publish it' is the one thing worth knowing beside a Dispatch button.",
@@ -2804,6 +2898,14 @@
       "LiveRunsView": {
         "description": "Everything both machine-wide surfaces need, in one response.\n\nThe capacity numbers ride along with the list rather than being fetched separately\nor recomputed in TypeScript: a browser that divided a count by a ceiling it read from\nsomewhere else would be the one place in the system able to disagree with\n``dispatch/guards.py`` about whether the machine is full.",
         "properties": {
+          "armed": {
+            "description": "Projects the pull mode is armed for (task-462), oldest arming first. Empty on a machine where nobody has armed one. Filtered by what this caller may see, exactly as `runs` is.",
+            "items": {
+              "$ref": "#/components/schemas/ArmedProjectView"
+            },
+            "title": "Armed",
+            "type": "array"
+          },
           "dispatch_configured": {
             "description": "False on a machine with no dispatch.yaml at all, where the ceiling below is a default rather than a setting anyone chose.",
             "title": "Dispatch Configured",
@@ -4164,6 +4266,166 @@
           "actor"
         ],
         "title": "PromoteRequest",
+        "type": "object"
+      },
+      "PullArmRequest": {
+        "description": "What a person chooses when they arm the pull mode.\n\nThe bound is required and has no default, which is the one piece of validation worth\narguing for: the difference between \"three runs\" and \"all night\" is the whole of the\ndecision being made, and a server-side default would make it on the person's behalf\nin the one place they are entitled to be asked.",
+        "properties": {
+          "bound_kind": {
+            "default": "",
+            "description": "`starts`, `until` or `open`. Required -- there is no default bound.",
+            "title": "Bound Kind",
+            "type": "string"
+          },
+          "posture": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The envelope pulled runs get. Omitted, they get the project's own default. Refused here, where a person is waiting for the answer, when it exceeds this project's machine-local ceiling.",
+            "title": "Posture"
+          },
+          "starts": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How many runs, for a `starts` bound.",
+            "title": "Starts"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An ISO-8601 moment to stop at, for an `until` bound.",
+            "title": "Until"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The person arming it. Validated against the principal this request resolved to, exactly as a dispatch's `user` is: the identity every pulled run will be attributed to must be the caller's own, not one read out of a listing.",
+            "title": "User"
+          }
+        },
+        "title": "PullArmRequest",
+        "type": "object"
+      },
+      "PullModeView": {
+        "description": "Whether the pull mode is armed for this project, and what it would do (task-462).\n\nOn the dispatch state rather than in a call of its own, for the reason the capacity\nnumbers ride with the live runs: a control that read \"armed\" from one endpoint and\n\"two starts left\" from another would have two answers about one arming, taken a\nsecond apart.",
+        "properties": {
+          "armed": {
+            "description": "Whether this project is pulling right now.",
+            "title": "Armed",
+            "type": "boolean"
+          },
+          "armed_at": {
+            "default": "",
+            "description": "When they armed it, UTC.",
+            "title": "Armed At",
+            "type": "string"
+          },
+          "armed_by": {
+            "default": "",
+            "description": "The person who armed it.",
+            "title": "Armed By",
+            "type": "string"
+          },
+          "arming_id": {
+            "default": "",
+            "description": "The arming's id. Empty when not armed.",
+            "title": "Arming Id",
+            "type": "string"
+          },
+          "bound": {
+            "default": "",
+            "description": "What is left of the bound, as one phrase a person reads on a card -- e.g. `1 of 3 starts used`. Composed on the server so the board and the CLI say the same words about the same row.",
+            "title": "Bound",
+            "type": "string"
+          },
+          "bound_kind": {
+            "default": "",
+            "description": "`starts` (a number of runs), `until` (a moment) or `open` (until disarmed).",
+            "title": "Bound Kind",
+            "type": "string"
+          },
+          "last_detail": {
+            "default": "",
+            "description": "Why it ended, in the mode's own words.",
+            "title": "Last Detail",
+            "type": "string"
+          },
+          "last_state": {
+            "default": "",
+            "description": "How the previous arming ended, when there was one and this project is not armed now: `disarmed`, `spent`, `expired` or `faulted`. The four are kept apart because *you turned it off* and *it kept failing* are different things to read.",
+            "title": "Last State",
+            "type": "string"
+          },
+          "next_task_id": {
+            "default": "",
+            "description": "What `task_next` says it would start next, so a person can reorder the queue before it happens. Empty when nothing is claimable, and empty when the project is not armed -- this field is about an arming, not a backlog.",
+            "title": "Next Task Id",
+            "type": "string"
+          },
+          "next_task_title": {
+            "default": "",
+            "title": "Next Task Title",
+            "type": "string"
+          },
+          "posture": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The envelope pulled runs get, or null for the project's own default.",
+            "title": "Posture"
+          },
+          "starts_left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Runs it may still start, or null when the bound is not a count.",
+            "title": "Starts Left"
+          },
+          "starts_used": {
+            "default": 0,
+            "description": "Runs this arming has already started.",
+            "title": "Starts Used",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "armed"
+        ],
+        "title": "PullModeView",
         "type": "object"
       },
       "QuestionDraft": {
@@ -7516,6 +7778,50 @@
         ]
       }
     },
+    "/api/dispatch/arm": {
+      "post": {
+        "description": "Arm the pull mode for this project. Starts nothing; the server's tick does.\n\n**Human-only, and enforced in one place rather than here.** ``DISPATCH_ADMIN`` is not\nin a run's grant, so a run credential is refused 403 by the capability dependency\nbefore this function is entered -- which is the property that matters: a run must not\nbe able to arm the machine to keep starting runs, and that is a rule about the table\nrather than about anyone remembering to check it in a handler.\n\nThe ``user`` is checked against the principal the request resolved to, on the same\nterms a dispatch's is (task-332): every run this arming buys will carry that person's\nname, so naming somebody else would be signing their authorisation.",
+        "operationId": "arm_pull_mode_api_dispatch_arm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PullArmRequest",
+                "default": {
+                  "bound_kind": ""
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchStateView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Arm Pull Mode",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
     "/api/dispatch/disable": {
       "post": {
         "description": "Stop dispatching for this project. Takes nothing, asks nothing.\n\nRefuses only when there is no config file at all, which is already a state in which\nnothing can dispatch -- so there is no reachable case where a human wants this off\nand cannot have it.",
@@ -7533,6 +7839,28 @@
           }
         },
         "summary": "Disable Dispatch",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/dispatch/disarm": {
+      "post": {
+        "description": "Stop the pull mode starting anything more. **Kills nothing.**\n\nTakes nothing and asks nothing, like ``/disable`` and for the same reason: a switch\nyou cannot reach is not one, and one that argues with you is worse than none. Runs\nalready going are untouched -- each was authorised individually and has its own merge\ngate, and destroying work somebody's arming already bought is not what \"stop\" means.\n\nQuiet when the project was not armed, which covers a second press and a press that\nraced a bound running out.",
+        "operationId": "disarm_pull_mode_api_dispatch_disarm_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchStateView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Disarm Pull Mode",
         "tags": [
           "dispatch"
         ]
@@ -8417,6 +8745,61 @@
         ]
       }
     },
+    "/api/projects/{project_id}/dispatch/arm": {
+      "post": {
+        "description": "Arm the pull mode for this project. Starts nothing; the server's tick does.\n\n**Human-only, and enforced in one place rather than here.** ``DISPATCH_ADMIN`` is not\nin a run's grant, so a run credential is refused 403 by the capability dependency\nbefore this function is entered -- which is the property that matters: a run must not\nbe able to arm the machine to keep starting runs, and that is a rule about the table\nrather than about anyone remembering to check it in a handler.\n\nThe ``user`` is checked against the principal the request resolved to, on the same\nterms a dispatch's is (task-332): every run this arming buys will carry that person's\nname, so naming somebody else would be signing their authorisation.",
+        "operationId": "arm_pull_mode_api_projects__project_id__dispatch_arm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PullArmRequest",
+                "default": {
+                  "bound_kind": ""
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchStateView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Arm Pull Mode",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
     "/api/projects/{project_id}/dispatch/disable": {
       "post": {
         "description": "Stop dispatching for this project. Takes nothing, asks nothing.\n\nRefuses only when there is no config file at all, which is already a state in which\nnothing can dispatch -- so there is no reachable case where a human wants this off\nand cannot have it.",
@@ -8455,6 +8838,49 @@
           }
         },
         "summary": "Disable Dispatch",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/dispatch/disarm": {
+      "post": {
+        "description": "Stop the pull mode starting anything more. **Kills nothing.**\n\nTakes nothing and asks nothing, like ``/disable`` and for the same reason: a switch\nyou cannot reach is not one, and one that argues with you is worse than none. Runs\nalready going are untouched -- each was authorised individually and has its own merge\ngate, and destroying work somebody's arming already bought is not what \"stop\" means.\n\nQuiet when the project was not armed, which covers a second press and a press that\nraced a bound running out.",
+        "operationId": "disarm_pull_mode_api_projects__project_id__dispatch_disarm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchStateView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disarm Pull Mode",
         "tags": [
           "dispatch"
         ]
