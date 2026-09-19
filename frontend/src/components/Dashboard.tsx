@@ -46,9 +46,13 @@ type DashboardProps = {
    * not about what has stopped on you. This is the landing page, and it is where the
    * alarm already lives.
    *
-   * Below the alarm, never above it. "N tasks are blocked on you" is the page's one
-   * call to action; a notice about a *delivery channel* for that alarm must not be the
-   * first thing read on a day the alarm is up.
+   * **At the head of the tail, not in the glance**, and the gate is what settled that.
+   * The glance is sized to its content and takes the space it needs before anything
+   * else gets any, so a 63px notice in it put the phone's three-slot Dashboard 710px
+   * of content into a 647px frame and `dashboard-one-screen.spec.ts` failed. The
+   * finding is not really about pixels: the glance is for the page's one call to
+   * action, and a notice about a *delivery channel* for an alarm is not one. The tail
+   * is the remainder with its own scroll, and this sits at the top of it.
    */
   renderNotificationDelivery?: () => React.ReactNode;
 };
@@ -390,14 +394,12 @@ export function Dashboard({
         {alarming ? (
           <>
             <NextAction dashboard={dashboard} projectId={projectId} />
-            {renderNotificationDelivery?.()}
             {renderSlotBoard?.(true)}
           </>
         ) : (
           <>
             {dashboard.next_action !== "empty_project" && renderSlotBoard?.(false)}
             <NextAction dashboard={dashboard} projectId={projectId} />
-            {renderNotificationDelivery?.()}
           </>
         )}
       </div>
@@ -405,6 +407,7 @@ export function Dashboard({
         data-testid="dashboard-tail"
         className={`flex ${TAIL_MIN} flex-1 flex-col gap-3 overflow-y-auto`}
       >
+        {renderNotificationDelivery?.()}
         <section className="shrink-0 rounded-lg border border-dark-border bg-dark-surface">
           <div className="flex items-baseline justify-between gap-4 border-b border-dark-border px-4 py-2">
             <h2 className="text-sm font-medium text-dark-text">
