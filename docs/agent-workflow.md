@@ -239,9 +239,17 @@ however small it looks, and you do not work two at once. Several children may *r
 once — see [how many children fly at once](#how-many-children-fly-at-once) — but none of
 them runs in your session.
 
-Your prompt says which of these you are, because dispatch reads it off the record: a task
-with open children gets the supervisor prompt, and every other task gets the ordinary
-one. There is no flag to set and no judgement call at spawn time.
+**If you were dispatched at an epic, you are not reading this** (task-458). A dispatch
+aimed at a task with open children starts no agent: it hands the children to a
+server-hosted walk and ends. What reaches you here is the other way in -- a person telling
+an interactive session to work a parent -- and an interactive session holds its task but
+no machine slot, so the blocking walk below is still the right thing for you to run.
+
+The one run an epic does get is its **evaluation**, dispatched after the walk has landed
+every child and only where the epic was dispatched at `autonomous`. Its prompt says so:
+read the children's evidence against this parent's acceptance criteria, close it or hand
+it back, take no worktree and start nothing. There is still no flag to set and no
+judgement call at spawn time.
 
 ### A refusal is not a wall — but three in a row is
 
@@ -266,9 +274,10 @@ that same help command was approved twenty-five seconds before an identical one 
 refused, so a refusal is not a stable property of a command. And they are about
 **content** — an agent writing an instruction that tells another agent to skip human
 review and merge to `main` gets declined, because the authorisation for that lives on the
-task record, where the classifier cannot see it. A supervisor's log writes look exactly
-like that, which is why dispatch pre-approves the project's own MCP servers for supervisor
-runs, and only for those (task-220).
+task record, where the classifier cannot see it. Writing an epic's record looks exactly
+like that, which is why dispatch pre-approves the project's own MCP servers for the run
+that does it, and only for that one (task-220). Since task-458 that run is the epic's
+evaluation rather than a supervisor waiting on the walk.
 
 ### Why a session, and where the line is
 
@@ -403,11 +412,16 @@ been an ordinary dispatch since task-022, so it is counted against that ceiling 
 anything else — the older claim that children are uncounted subprocesses stopped being
 true then. `dispatch walk --max-concurrent N` can only narrow it.
 
-**Your own supervising run holds one of those slots**, so an epic walk needs at least two
-and gets `ceiling - 1` children in the air. Hitting the ceiling mid-walk is **backpressure,
-not a refusal**: the walk waits and tries again, because something else on the machine
-holding a slot is a normal condition and not a fact about this epic. A machine that stays
-full for the whole per-child ceiling does stop the walk, and says which.
+**A walk the server hosts holds no slot of its own**, so a dispatched epic flies the whole
+ceiling (task-458). A walk you run yourself from a session AgentJobs dispatched is the
+exception: that session's slot is real, so the walk subtracts it and gets `ceiling - 1`
+children in the air. An interactive session holds no slot, so a person's walk does not
+narrow either.
+
+Hitting the ceiling mid-walk is **backpressure, not a refusal**: the walk waits and tries
+again, because something else on the machine holding a slot is a normal condition and not
+a fact about this epic. A machine that stays full for the whole per-child ceiling does
+stop the walk, and says which.
 
 #### What it looks like when it is working
 

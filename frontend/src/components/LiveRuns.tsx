@@ -108,9 +108,14 @@ const HEALTH_CLASSES: Record<string, string> = {
  * An interactive run has no posture -- AgentJobs did not choose that session's
  * permission envelope and cannot read it (task-354) -- so printing the field would print
  * an empty cell. "You, in a chat window" is what the reader needs instead.
+ *
+ * A walk run has a posture and no agent: it handed an epic's children to the server and
+ * ended (task-458). Printing its posture would say what its *children* run at, over a row
+ * that is not running anything, so it is named for what it is instead.
  */
 export function runKindLabel(run: LiveRunView): string {
   if (run.mode === "interactive") return "your session";
+  if (run.mode === "walk") return "epic walk · no agent";
   return `${run.posture}${run.session ? "" : " · batch"}`;
 }
 

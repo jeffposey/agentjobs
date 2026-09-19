@@ -204,6 +204,7 @@ def build(
     resolution: DispatchResolution,
     *,
     clock: Callable[[], datetime] = utcnow,
+    evaluation: bool = False,
 ) -> DispatchRunner:
     return DispatchRunner(
         manager=manager,
@@ -213,6 +214,7 @@ def build(
         api_base="http://localhost:8899",
         grace_seconds=2.0,
         clock=clock,
+        evaluation=evaluation,
     )
 
 
@@ -1793,25 +1795,45 @@ class TestMergeAndPushPolicyReachesTheAgent:
         assert "stops at the merge gate" in prompt
         assert "is permitted" in prompt
 
-    def test_a_supervisor_is_told_what_its_children_will_do(
+    def test_an_evaluation_is_told_it_holds_no_branch(
         self, workspace: Path, manager: TaskManager, epic
     ) -> None:
-        """A supervisor holds no branch, so the worker's clause would be wrong for it."""
-        runner = build(workspace, manager, make_resolution(["fake"], posture=Posture.AUTONOMOUS))
+        """An evaluation run holds no branch, so the worker's clause would be wrong for it.
+
+        The command the worker's clause names is the failure mode being prevented: a run
+        told to ``agentjobs finish --posture-release`` with no branch under it either
+        merges somebody else's work or spends its turn finding out it cannot.
+        """
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(["fake"], posture=Posture.AUTONOMOUS),
+            evaluation=True,
+        )
 
         prompt = runner.build_prompt(epic.id, "run_abcd1234")
 
-        assert "a child you start merges its own work" in prompt.lower()
+        assert "nothing here for you to merge" in prompt
         assert "--posture-release" not in prompt
 
-    def test_a_supervising_review_posture_says_it_approves_nothing(
+    def test_an_evaluation_says_the_same_thing_at_a_review_posture(
         self, workspace: Path, manager: TaskManager, epic
     ) -> None:
-        runner = build(workspace, manager, make_resolution(["fake"], posture=Posture.AUTO))
+        """One clause at every posture (task-458).
+
+        What the two versions of this used to differ on -- whether a child merges on an
+        approval or on its own gate -- is a fact about runs that are over by the time an
+        evaluation starts. The posture is still named, so the run that closes an epic can
+        say on the record what envelope it closed it under.
+        """
+        runner = build(
+            workspace, manager, make_resolution(["fake"], posture=Posture.AUTO), evaluation=True
+        )
 
         prompt = runner.build_prompt(epic.id, "run_abcd1234")
 
-        assert "You approve nothing yourself" in prompt
+        assert "nothing here for you to merge" in prompt
+        assert "`auto`" in prompt
 
     def test_the_clause_survives_into_the_composed_argv(
         self, workspace: Path, manager: TaskManager, task
@@ -1851,31 +1873,29 @@ class TestDescribeChildren:
         assert ids[CHILDREN_NAMED] not in described
 
 
-class TestSupervisorStub:
-    def test_a_task_with_open_children_is_told_to_supervise(
+class TestEvaluationStub:
+    def test_an_evaluation_is_told_to_judge_rather_than_work(
         self, workspace: Path, manager: TaskManager, epic
     ) -> None:
-        """task-164. The record picks the stub: an open child means an epic."""
-        runner = build(workspace, manager, make_resolution(["fake"]))
+        """task-164, task-458. The trigger picks the stub, because the record cannot."""
+        runner = build(workspace, manager, make_resolution(["fake"]), evaluation=True)
 
         prompt = runner.build_prompt(epic.id, "run_abcd1234")
 
-        assert "supervising parent task" in prompt
-        assert "supervisor, not the worker" in prompt
-        assert "separate session for one eligible child" in prompt
-        for child in manager.get_subtasks(epic.id):
-            assert (child.id in prompt) is child.is_open
+        assert "evaluating epic" in prompt
+        assert "not the worker" in prompt
+        assert "acceptance criteria" in prompt
 
-    def test_the_supervisor_is_told_not_to_take_a_worktree(
+    def test_an_evaluation_is_told_not_to_take_a_worktree(
         self, workspace: Path, manager: TaskManager, epic
     ) -> None:
         """The inversion that makes this a second stub rather than a longer one.
 
-        A supervisor that obeyed ``PROMPT_STUB`` would check out a branch in the shared
-        clone -- the collision the worktree rule exists to prevent -- and would then
-        commit the parent's records where the dashboard cannot see them.
+        A run that obeyed ``PROMPT_STUB`` would check out a branch in the shared clone --
+        the collision the worktree rule exists to prevent -- for a job that writes no code
+        at all.
         """
-        prompt = build(workspace, manager, make_resolution(["fake"])).build_prompt(
+        prompt = build(workspace, manager, make_resolution(["fake"]), evaluation=True).build_prompt(
             epic.id, "run_abcd1234"
         )
 
@@ -1883,19 +1903,25 @@ class TestSupervisorStub:
         assert "check nothing out" in prompt
         assert "git worktree add" not in prompt
 
-    def test_a_parent_whose_children_all_closed_gets_the_worker_stub(
+    def test_a_task_with_open_children_gets_no_prompt_at_all(
         self, workspace: Path, manager: TaskManager, epic
     ) -> None:
-        """Nothing is left to supervise, so it is an ordinary task again."""
-        for child in manager.get_subtasks(epic.id):
-            if child.is_open:
-                manager.close_task(child.id, actor="claude", outcome=Outcome.COMPLETED)
+        """task-458. An epic is not given an agent, so there is nothing to word.
+
+        The stub this replaces existed because an epic's run had to be told it was a
+        supervisor. There is no such run now: ``start`` detaches a server-hosted walk and
+        concludes. What is asserted here is that the prompt builder no longer consults the
+        children at all -- a leftover that still did would be a second, disagreeing answer
+        to a question ``start`` has already settled.
+        """
         runner = build(workspace, manager, make_resolution(["fake"]))
 
         prompt = runner.build_prompt(epic.id, "run_abcd1234")
 
-        assert "supervising parent task" not in prompt
         assert "git worktree add ../worktrees/" in prompt
+        assert "evaluating epic" not in prompt
+        for child in manager.get_subtasks(epic.id):
+            assert child.id not in prompt
 
     def test_a_leaf_task_is_unaffected(self, workspace: Path, manager: TaskManager, task) -> None:
         """The regression that matters: an ordinary dispatch gets the stub it always had."""
@@ -1919,23 +1945,24 @@ class TestSupervisorStub:
         )
         assert runner.build_prompt(task.id, "run_abcd1234") == f"{stub} {clause}"
 
-    def test_the_supervisor_stub_is_still_a_pointer(
+    def test_the_evaluation_stub_is_still_a_pointer(
         self, workspace: Path, manager: TaskManager, epic
     ) -> None:
-        runner = build(workspace, manager, make_resolution(["fake"]))
+        runner = build(workspace, manager, make_resolution(["fake"]), evaluation=True)
 
         prompt = runner.build_prompt(epic.id, "run_abcd1234")
 
         assert GUIDE_PATH in prompt
         assert "run_abcd1234" in prompt
         assert epic.spec.description not in prompt
-        # 900 -> 1100 (task-021, the merge policy) -> 1450 (task-022, the walk command).
-        # Both rises are the same kind of thing and neither is drift: the stub stays a
-        # pointer to the record, and what has been added to it twice is an *instruction
-        # the record cannot carry* -- derived from machine-local config the agent may not
-        # read, and naming the exact command, because an instruction a model can satisfy
-        # several ways gets satisfied in the cheapest one. The assertion that matters is
-        # the line above this block, which is that the spec is still not in here.
+        # 900 -> 1100 (task-021, the merge policy) -> 1450 (task-022, the walk command)
+        # -> 1450 still (task-458, which took the walk command back out and put the
+        # judging brief in). Each rise is the same kind of thing and none is drift: the
+        # stub stays a pointer to the record, and what has been added to it is an
+        # *instruction the record cannot carry* -- derived from machine-local config the
+        # agent may not read, and naming the exact act, because an instruction a model can
+        # satisfy several ways gets satisfied in the cheapest one. The assertion that
+        # matters is the line above this block, which is that the spec is still not here.
         assert len(prompt) < 1450
 
     def test_open_child_ids_survives_a_task_it_cannot_resolve(
@@ -3039,9 +3066,13 @@ class TestSupervisorMcpGrant:
     """run_d5ab5caf parked before it launched anything, on its own log writes.
 
     Two of the three classifier blocks that armed the breaker were the same
-    ``task_log_append``: the supervisor writing a child's brief, which said the child
-    could merge without human review. That is what a supervisor does and an ordinary run
-    never does, so the grant is scoped to that role and nothing else.
+    ``task_log_append``: a supervisor writing an epic's record through MCP. That is what
+    supervising an epic does and an ordinary run never does, so the grant is scoped to
+    that role and nothing else.
+
+    **The role has moved and the grant has not** (task-458). Supervision's waiting half is
+    the server's now and needs no permissions at all; its judging half is the evaluation
+    run, which reads an epic's children and closes the parent through exactly these tools.
     """
 
     def write_mcp_json(self, project_root: Path, *names: str) -> None:
@@ -3098,15 +3129,16 @@ class TestSupervisorMcpGrant:
             "bypassPermissions",
         ]
 
-    def test_an_epic_dispatch_carries_the_grant_end_to_end(
+    def test_an_evaluation_dispatch_carries_the_grant_end_to_end(
         self, workspace: Path, manager: TaskManager, epic
     ) -> None:
-        """ac-2 through the real path: the record's open children reach the argv."""
+        """ac-2 through the real path: the run's role reaches the argv."""
         self.write_mcp_json(workspace / "project", "agentjobs")
         runner = build(
             workspace,
             manager,
             make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.AUTO),
+            evaluation=True,
         )
 
         argv = runner.build_argv(epic.id, "run_abcd1234")
@@ -3133,23 +3165,26 @@ class TestSupervisorMcpGrant:
     def test_the_prompt_and_the_grant_cannot_disagree(
         self, workspace: Path, manager: TaskManager, epic
     ) -> None:
-        """One read of the record decides both, so a supervisor prompt implies the grant.
+        """One property decides both, so the judging prompt implies the grant.
 
         This is the pairing that broke: a session told to supervise, with a worker's
         permissions. Asserting them together is what makes a future refactor that splits
-        the two reads fail here rather than in a parked run at 3am.
+        the two reads fail here rather than in a parked run at 3am. Since task-458 the
+        property is the run's role rather than a count of open children, which is the one
+        change that could have reintroduced two reads.
         """
         self.write_mcp_json(workspace / "project", "agentjobs")
         runner = build(
             workspace,
             manager,
             make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.AUTO),
+            evaluation=True,
         )
 
         argv = runner.build_argv(epic.id, "run_abcd1234")
 
         settings = json.loads(argv[argv.index("--settings") + 1])
-        assert any("supervisor, not the worker" in arg for arg in argv)
+        assert any("not the worker" in arg for arg in argv)
         assert "mcp__agentjobs" in settings["permissions"]["allow"]
 
 

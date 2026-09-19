@@ -1786,7 +1786,7 @@ def dispatch_walk(
         try:
             walk_id = detach_walk(
                 manager=manager,
-                project=project,
+                project_id=project.id,
                 parent_id=parent.id,
                 home=home,
                 settings=settings,
@@ -1835,15 +1835,33 @@ def dispatch_walk(
     # process dies in the next second the record still says what the walk did.
     from agentjobs.dispatch.epic import record_walk_outcome
 
-    record_walk_outcome(manager, parent.id, actor=actor, result=result)
+    record_walk_outcome(
+        manager,
+        parent.id,
+        actor=actor,
+        result=result,
+        home=home,
+        project=project,
+    )
     typer.echo("")
     typer.echo(result.summary())
 
     if result.stop.is_success:
+        # What happens next was decided by `record_walk_outcome` above and depends on the
+        # epic's posture, so it is read back off the record rather than asserted here: an
+        # autonomous epic has just had an evaluation run dispatched at it, and every other
+        # one is now somebody's to read. Printing one of those sentences unconditionally
+        # is how a CLI comes to describe a state it did not produce.
+        settled = manager.get_task(parent.id)
+        where = (
+            f"{settled.ball.value}/{settled.ball_reason.value}"
+            if settled is not None and settled.ball and settled.ball_reason
+            else "unchanged"
+        )
         typer.secho(
-            "✅ Every open child is done. The parent is still open on purpose: evaluate "
-            "its acceptance criteria against the children's evidence and close it "
-            "yourself.",
+            "✅ Every open child is done. The parent is still open on purpose -- no open "
+            f"child remaining is not its acceptance criteria being met. Its ball is {where}; "
+            "the record says who judges that and why.",
             fg=typer.colors.GREEN,
         )
         return

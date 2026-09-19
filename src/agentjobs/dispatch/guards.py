@@ -649,16 +649,32 @@ class LiveRun:
         return self.mode == DispatchMode.INTERACTIVE.value
 
     @property
+    def is_walk(self) -> bool:
+        """A dispatch that handed an epic's children to the server (task-458).
+
+        It has no worker and is concluded in the call that created it, so one that is
+        still readable as live is a conclusion that did not commit -- which must not be
+        allowed to hold a slot no process is using.
+        """
+        return self.mode == DispatchMode.WALK.value
+
+    @property
     def takes_slot(self) -> bool:
         """Whether this run counts against ``limits.max_concurrent_runs``.
 
-        Every run but an interactive one. That exemption is the whole of task-354's
-        argument about slots: the ceiling exists to stop a click starting an agent the
-        machine cannot afford, and a session somebody is already typing into is not a
-        cost this click is about to incur. It still holds its *task*, which is the check
-        directly above this one in ``dispatch_task``.
+        Every run but an interactive one and a walk. The first exemption is the whole of
+        task-354's argument about slots: the ceiling exists to stop a click starting an
+        agent the machine cannot afford, and a session somebody is already typing into is
+        not a cost this click is about to incur. It still holds its *task*, which is the
+        check directly above this one in ``dispatch_task``.
+
+        The second is task-458's, and rests on the same question: a walk dispatch starts
+        no process at all, so there is no cost for a slot to be reserving. It is written
+        as a rule rather than left to the run being terminal because the consequence of
+        being wrong is asymmetric -- a walk whose conclusion did not commit would
+        otherwise hold one of three slots until somebody noticed.
         """
-        return not self.is_interactive
+        return not self.is_interactive and not self.is_walk
 
 
 def live_runs(home: Path) -> List[LiveRun]:
@@ -945,9 +961,18 @@ def dispatch_task(
     a test seam: every caller in the application leaves it ``None`` and gets the real
     clock, and a test that needs a cooldown to have expired says so rather than sleeping.
     """
+    from agentjobs.dispatch.epic import starts_a_walk
+
     task = manager.get_task(request.task_id)
     if task is None:
         raise DispatchRefused(f"No task {request.task_id!r} in project {project.id!r}.")
+
+    # **Read once, here, and carried** (task-458). Whether this dispatch starts an agent or
+    # hands an epic's children to the server decides three things below -- whether a full
+    # machine refuses it, whether it reserves a slot, and what the runner does with it --
+    # and the three must not be able to disagree. That is the pairing task-220 fixed for
+    # the prompt and the permission grant, applied to the same question one level up.
+    starts_walk = starts_a_walk(manager, task.id)
 
     authorizer_id = (request.authorized_by or "").strip() or None
     note = (request.authorization_note or "").strip() or None
@@ -1122,10 +1147,18 @@ def dispatch_task(
     # Slots, not runs: an interactive session holds its task (above) but no slot
     # (task-354), so it is not what stands between this click and a free machine.
     holding = [run for run in running if run.takes_slot]
-    # An overage skips this and only this (task-461). The person clicking *Dispatch now*
-    # was shown exactly these holders by the prompt, so the refusal has already been read
-    # and answered; raising it again would be asking the same question twice.
-    if not request.over_ceiling and len(holding) >= resolution.limits.max_concurrent_runs:
+    # Two things skip this check and nothing else, for opposite reasons. **An overage**
+    # skips it because the person clicking *Dispatch now* was shown exactly these holders
+    # by the prompt, so the refusal has already been read and answered and raising it
+    # again would ask the same question twice (task-461). **A walk** skips it because it
+    # is not a dispatch this ceiling is about: it starts no process, so there is no cost
+    # for a slot to be reserving, and the children it is about to start are each counted
+    # here on their own as slots free (task-458).
+    if (
+        not request.over_ceiling
+        and not starts_walk
+        and len(holding) >= resolution.limits.max_concurrent_runs
+    ):
         raise ConcurrencyLimitError(
             f"This machine allows {resolution.limits.max_concurrent_runs} concurrent "
             f"run(s) and {len(holding)} are active: {describe_slot_holders(holding)}. "
@@ -1204,6 +1237,11 @@ def dispatch_task(
         push=push,
         history=history,
         over_ceiling=request.over_ceiling,
+        # The trigger is the only place an end-of-walk evaluation differs from an ordinary
+        # dispatch (task-458): by the time one runs, the epic has no open children left
+        # and its record reads like any other task's. Read here rather than inside the
+        # runner because this is where the request is.
+        evaluation=request.trigger is DispatchTrigger.EVALUATION,
     )
 
     # Taken before the claim and held for the run's lifetime. The storage lock the
@@ -1253,7 +1291,8 @@ def dispatch_task(
                 history=history,
                 retry_policy=DEFAULT_RETRY_POLICY if controlled else None,
             ),
-            mode=resolution.runner.mode.value,
+            mode=DispatchMode.WALK.value if starts_walk else resolution.runner.mode.value,
+            takes_slot=not starts_walk,
             resolve_manager=_manager_resolver(machine_home, project.id, manager),
             reservation={"trigger": request.trigger.value},
             attempt_operation_id=request.admission_operation_id,
@@ -1355,6 +1394,7 @@ def dispatch_task(
             caused_by=causing.id,
             trigger=request.trigger,
             run_id=run_id,
+            walk=starts_walk,
         )
     except BaseException as exc:
         # The attempt ends with the dispatch that raised. Its reservation is refunded only
@@ -1384,6 +1424,12 @@ def dispatch_task(
     # permanent (task-190).
     lock.adopt(handle.run_id)
     handle.lock = lock
+    if handle.mode is DispatchMode.WALK:
+        # This run is already terminal: detaching the walk *was* the run (task-458). Every
+        # other mode has something that comes back later to release this -- a poller, a
+        # supervisor thread -- and a walk has nothing, so a lock left here would refuse
+        # every future dispatch at this epic with "a run is already live".
+        handle.release_lock()
     return handle
 
 

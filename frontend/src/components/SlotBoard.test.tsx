@@ -715,3 +715,46 @@ describe("dispatches waiting for a slot", () => {
     expect(screen.getByTestId("slot-board-queue")).toBeVisible();
   });
 });
+
+describe("a walk run, which started no agent (task-458)", () => {
+  const walk = (overrides: Partial<LiveRunView> = {}) =>
+    run({
+      run_id: "run_walk",
+      mode: "walk",
+      session: false,
+      task_id: "task-epic",
+      task_title: "An epic whose children the server is flying",
+      task_url: "/p/alpha/tasks/task-epic",
+      ...overrides,
+    });
+
+  it("takes no cell from the board", () => {
+    // It is in `runs` and not in `occupied`, like an interactive session and for a
+    // sharper reason: there is no process. A walk run is normally over before any board
+    // is drawn, and one that is not must not be shown taking a slot it does not take.
+    renderBoard(
+      <SlotBoard
+        body={body({ runs: [walk()] })}
+        queue={[task("task-one"), task("task-two"), task("task-three")]}
+        projectId="alpha"
+        renderQueueAction={(item) => <button type="button">Dispatch {item.id}</button>}
+      />,
+    );
+
+    expect(cellStates()).toEqual(["run", "queued", "queued", "queued"]);
+    expect(screen.getAllByRole("button", { name: /^Dispatch/ })).toHaveLength(3);
+    expect(screen.getByTestId("slot-board-capacity")).toHaveTextContent("0 of 3 slots busy");
+  });
+
+  it("does not displace a dispatched run from a slot cell", () => {
+    const layout = boardLayout(
+      body({ occupied: 1, runs: [walk({ started_at: "2026-09-04T00:00:00Z" }), run()] }),
+      [task("task-next")],
+      "alpha",
+    );
+
+    expect(layout.cells.map((cell) => (cell.kind === "run" ? cell.run.run_id : cell.kind))).toEqual(
+      ["run_a", "run_walk", "queued", "empty"],
+    );
+  });
+});

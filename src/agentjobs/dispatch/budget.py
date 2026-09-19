@@ -47,6 +47,7 @@ from agentjobs.models_v2 import (
     DispatchTrigger,
     LogEntryType,
     Task,
+    spends_a_run,
     utcnow,
 )
 from agentjobs.store_factory import TaskManagerLike
@@ -82,11 +83,16 @@ def last_dispatch_at(task: Task) -> Optional[datetime]:
     Read from the log rather than from a stored field, for the same reason
     ``Task.dispatch_count`` is derived: a second copy of a fact can disagree with the
     evidence for it, and here it would disagree in the direction that spends money.
+
+    A ``walk`` dispatch is not one of these, by ``spends_a_run``. The cooldown's own words
+    are that it refuses "two runs in the same breath", and handing an epic's children to
+    the server starts no run at all -- counted, it would refuse the one evaluation the
+    landing of a short epic is supposed to cause (task-458).
     """
     stamps = [
         entry.ts if entry.ts.tzinfo else entry.ts.replace(tzinfo=timezone.utc)
         for entry in task.log
-        if entry.type is LogEntryType.DISPATCH
+        if spends_a_run(entry)
     ]
     return max(stamps) if stamps else None
 

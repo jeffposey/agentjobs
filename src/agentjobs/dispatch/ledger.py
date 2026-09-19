@@ -1017,9 +1017,19 @@ class RunRecord:
         return self.mode == DispatchMode.INTERACTIVE.value
 
     @property
+    def is_walk(self) -> bool:
+        """A dispatch that handed an epic's children to the server (task-458).
+
+        It has no worker and is concluded in the call that created it, so one that is
+        still readable as live is a conclusion that did not commit -- which must not be
+        allowed to hold a slot no process is using.
+        """
+        return self.mode == DispatchMode.WALK.value
+
+    @property
     def takes_slot(self) -> bool:
         """Whether this run counts against ``limits.max_concurrent_runs``."""
-        return not self.is_interactive
+        return not self.is_interactive and not self.is_walk
 
     def elapsed_seconds(self, now: Optional[datetime] = None) -> Optional[float]:
         """How long this run has been going, or how long it ran for.
