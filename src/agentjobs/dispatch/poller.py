@@ -207,6 +207,7 @@ def _retract_resolved_asks(
     So the sweep runs on the clock rather than on somebody noticing, which is the whole
     of the second clause.
     """
+    from agentjobs.models_v2 import Ball
     from agentjobs.retraction import retract
 
     results: List[PollResult] = []
@@ -220,8 +221,13 @@ def _retract_resolved_asks(
         # that only visited busy projects would never reach the epic that went quiet.
         try:
             manager = managers.get(project.id) or dispatch_manager_for(project)
+            # Only the tasks that could possibly be findings, because this runs on every
+            # tick forever: the sweep's first condition is `ball is human`, so reading
+            # the whole corpus would deserialise every log in every project to discard
+            # almost all of it. Children are then asked for per candidate, and there are
+            # rarely more than a handful of candidates.
             lines = retract(
-                manager.list_tasks(),
+                manager.list_tasks(ball=Ball.HUMAN),
                 manager.get_subtasks,
                 handoff=manager.handoff,
                 log=manager.add_log_entry,

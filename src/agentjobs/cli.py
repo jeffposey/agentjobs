@@ -3250,10 +3250,13 @@ def attention_repair(
 
     Silence means nothing is stale, which is the normal answer.
     """
+    from agentjobs.models_v2 import Ball
     from agentjobs.retraction import retract, survey
 
     manager = _build_manager(Path.cwd())
-    tasks = manager.list_tasks()
+    # The sweep's first condition, applied in the store rather than in Python: nothing
+    # else can ever be a finding, and this is the same set the poller hands it.
+    tasks = manager.list_tasks(ball=Ball.HUMAN)
     if dry_run:
         findings = survey(tasks, manager.get_subtasks)
         if not findings:

@@ -150,6 +150,12 @@ def survey(tasks: Sequence[Task], children_of: Callable[[str], Sequence[Task]]) 
 
     Pure, so that the dry run and the sweep answer identically and a reader can trust
     one to predict the other.
+
+    ``tasks`` may be the whole corpus or only the human-held part of it: the first
+    condition below discards everything else, and both callers narrow it in the store
+    because this runs on every poll tick of every project, forever. Children are asked
+    for per candidate rather than mapped up front for the same reason -- there are rarely
+    more than a handful of candidates, and there are always many more tasks.
     """
     findings: List[Finding] = []
     for task in tasks:
