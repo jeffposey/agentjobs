@@ -100,6 +100,51 @@ describe("reading the environment", () => {
   it("survives a browser with no globals at all", () => {
     expect(readEnvironment(undefined as never).hasPushManager).toBe(false);
   });
+
+  /**
+   * Which of the two notification panels a device is offered (task-421). Client hints
+   * are preferred because they are the browser answering the question rather than us
+   * inferring it from a string the same browser controls; the user-agent cases are the
+   * fallback for browsers that do not send them.
+   */
+  describe("telling a handheld from a desktop", () => {
+    function scopeFor(userAgent: string, extras: Record<string, unknown> = {}) {
+      return {
+        navigator: { userAgent, maxTouchPoints: 0, ...extras },
+        matchMedia: () => ({ matches: false }),
+      } as unknown as Window;
+    }
+
+    it("believes a client hint over the user-agent string", () => {
+      const scope = scopeFor("Mozilla/5.0 (Windows NT 10.0; Win64; x64)", {
+        userAgentData: { mobile: true },
+      });
+      expect(readEnvironment(scope).isHandheld).toBe(true);
+    });
+
+    it("believes a client hint that says desktop", () => {
+      const scope = scopeFor("Mozilla/5.0 (Linux; Android 14; Pixel 9) Mobile", {
+        userAgentData: { mobile: false },
+      });
+      expect(readEnvironment(scope).isHandheld).toBe(false);
+    });
+
+    it.each([
+      ["Mozilla/5.0 (Linux; Android 14; Pixel 9) Mobile Chrome", true],
+      ["Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) Safari", true],
+      ["Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome", false],
+      ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", false],
+    ])("falls back to the user agent: %s", (ua, expected) => {
+      expect(readEnvironment(scopeFor(ua)).isHandheld).toBe(expected);
+    });
+
+    it("counts an iPad that calls itself a Mac as a handheld", () => {
+      const scope = scopeFor("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", {
+        maxTouchPoints: 5,
+      });
+      expect(readEnvironment(scope).isHandheld).toBe(true);
+    });
+  });
 });
 
 describe("naming a device", () => {

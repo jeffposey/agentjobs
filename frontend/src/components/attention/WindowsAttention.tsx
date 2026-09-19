@@ -13,6 +13,7 @@ import {
   writeLastNotified,
   type DeliveryState,
 } from "./episode";
+import { readEnvironment } from "./push";
 import { applyAppBadge, deliver, paintFavicon } from "./shell";
 
 /**
@@ -194,10 +195,22 @@ export function useDeliveryState(): [DeliveryState, () => void] {
 }
 
 /**
- * What the page says when a Windows notification cannot be raised.
+ * What the page says when a desktop notification cannot be raised.
  *
  * Renders **nothing** when permission is granted. A permanent line confirming that a
  * working thing works is the same mistake as a badge that never reaches zero.
+ *
+ * Renders nothing on a phone or tablet either, where `MobilePush` is the panel that
+ * applies. Until task-421's revision both were shown on every device, so a phone was
+ * told about Windows notifications and a desktop was offered iPhone Home Screen
+ * instructions -- each device carrying the other's advice. Neither panel is a
+ * capability claim (a phone can raise a local notification, a desktop can take a push
+ * subscription); they are two different answers to "how does AgentJobs reach me when I
+ * am not looking at this", and only one of them is the right answer per device.
+ *
+ * The wording says "desktop" rather than "Windows" because this is served over a
+ * tailnet to whatever opens it, and naming the wrong operating system is the same
+ * defect in a smaller font.
  *
  * The two failing states are deliberately different sentences. "Blocked" is a decision
  * the person can reverse and the page says where; "not supported" is a browser that
@@ -208,7 +221,9 @@ export function useDeliveryState(): [DeliveryState, () => void] {
  */
 export function NotificationDelivery() {
   const [state, request] = useDeliveryState();
+  const [handheld] = useState(() => readEnvironment().isHandheld);
 
+  if (handheld) return null;
   if (state === "granted") return null;
 
   if (state === "askable") {
@@ -218,7 +233,7 @@ export function NotificationDelivery() {
         data-delivery="askable"
         className="shrink-0 rounded-lg border border-blue-500/40 bg-blue-950/20 px-4 py-3 text-sm text-blue-100"
       >
-        <strong className="font-semibold">Windows notifications are off.</strong>{" "}
+        <strong className="font-semibold">Desktop notifications are off.</strong>{" "}
         AgentJobs can raise a desktop alert the first time work stops on you, so you do
         not have to keep this window in view.
         <button
@@ -243,15 +258,15 @@ export function NotificationDelivery() {
       {state === "denied" ? (
         <>
           <strong className="font-semibold text-dark-text">
-            Windows notifications are blocked for this site.
+            Desktop notifications are blocked for this site.
           </strong>{" "}
-          Allow them in Chrome under Settings → Privacy and security → Site settings →
-          Notifications to get a desktop alert.
+          Allow them in your browser’s site settings — in Chrome, Settings → Privacy and
+          security → Site settings → Notifications — to get a desktop alert.
         </>
       ) : (
         <>
           <strong className="font-semibold text-dark-text">
-            This browser cannot raise Windows notifications.
+            This browser cannot raise desktop notifications.
           </strong>{" "}
           Open AgentJobs in Chrome, or install it as an app, for desktop alerts.
         </>

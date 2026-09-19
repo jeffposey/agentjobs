@@ -244,11 +244,14 @@ function DashboardPage({ projectId }: { projectId: string }) {
       renderRecentlyFinished={() => <RecentlyFinished body={closures} projectId={projectId} />}
       renderNotificationDelivery={() => (
         <>
+          {/* Two answers to one question -- how does AgentJobs reach me when I am not
+              looking at this -- and they share this slot rather than living on a page
+              of their own, which is what keeps the phone half from being the one
+              nobody finds (task-423). Each renders only on the kind of device it is
+              the answer for, so exactly one of them appears here (task-421); they were
+              both shown everywhere until a phone was told its Windows notifications
+              were off. */}
           <NotificationDelivery />
-          {/* Beside the desktop notice, not on a page of its own: they are two answers
-              to one question -- how does AgentJobs reach me when I am not looking at
-              this -- and separating them would make the phone half the one nobody
-              finds (task-423). */}
           <MobilePush projectId={projectId} />
         </>
       )}

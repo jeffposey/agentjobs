@@ -81,9 +81,15 @@ notifications off.
 
 The three acts that acknowledge an episode, and nothing else does:
 
-1. activating the Windows notification;
+1. activating the notification — the desktop banner or a phone push;
 2. clicking the red badge in the header;
 3. opening the detail of a task the episode names.
+
+Which notification a device offers is decided by the device, not by what its browser can
+do. A desktop gets the local banner (`NotificationDelivery`); a phone or tablet gets push
+(`MobilePush`). Both panels used to render everywhere, which told a phone its Windows
+notifications were off and offered a desktop the iPhone Home Screen instructions; the
+signal that separates them is `isHandheld` in `push.ts`.
 
 ### What acknowledgment does and does not do
 

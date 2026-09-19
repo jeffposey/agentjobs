@@ -356,7 +356,40 @@ describe("the degraded state", () => {
       render(<NotificationDelivery />);
       const notice = screen.getByTestId("attention-delivery");
       expect(notice).toHaveAttribute("data-delivery", "unsupported");
-      expect(notice).toHaveTextContent(/cannot raise Windows notifications/);
+      expect(notice).toHaveTextContent(/cannot raise desktop notifications/);
+    } finally {
+      restore();
+    }
+  });
+
+  /**
+   * task-421: this notice and the phone panel both rendered on every device, so a phone
+   * was told its Windows notifications were off. The permission state here is the one
+   * that would otherwise produce the loudest banner.
+   */
+  it("says nothing at all on a phone, whatever the permission state", () => {
+    const restore = withNotificationPermission("default");
+    Object.defineProperty(navigator, "userAgentData", {
+      configurable: true,
+      value: { mobile: true },
+    });
+    try {
+      const { container } = render(<NotificationDelivery />);
+      expect(container).toBeEmptyDOMElement();
+    } finally {
+      Object.defineProperty(navigator, "userAgentData", {
+        configurable: true,
+        value: undefined,
+      });
+      restore();
+    }
+  });
+
+  it("never names an operating system the person may not be on", () => {
+    const restore = withNotificationPermission("denied");
+    try {
+      render(<NotificationDelivery />);
+      expect(screen.getByTestId("attention-delivery")).not.toHaveTextContent(/Windows/);
     } finally {
       restore();
     }

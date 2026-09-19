@@ -28,14 +28,22 @@ function installBrowser({
   pushManager = true,
   notification = true,
   existing = null as null | { endpoint: string },
+  handheld = true,
   onSubscribe,
 }: {
   permission?: NotificationPermission;
   pushManager?: boolean;
   notification?: boolean;
   existing?: null | { endpoint: string };
+  handheld?: boolean;
   onSubscribe?: ReturnType<typeof vi.fn>;
 } = {}): Fake {
+  // This panel is for a phone, so a phone is the default here. jsdom's own user agent
+  // is a desktop one, which would otherwise gate every case below out of existence.
+  Object.defineProperty(navigator, "userAgentData", {
+    configurable: true,
+    value: { mobile: handheld },
+  });
   const subscription = {
     endpoint: "https://fcm.example/send/this-device",
     toJSON: () => ({
@@ -124,6 +132,41 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe("which device the panel belongs on", () => {
+  /**
+   * task-421: this panel and the desktop notice both rendered on every device, so a
+   * Windows desktop was shown iPhone Home Screen instructions and a phone was told
+   * about Windows notifications. The browser here is fully push-capable -- the gate is
+   * the kind of device, not what it can do.
+   */
+  it("renders nothing on a desktop, however capable the browser is", async () => {
+    installBrowser({ handheld: false });
+    apiMockServer.use(
+      http.get("*/api/projects/inbox/push", () => HttpResponse.json(statusBody())),
+    );
+    renderPanel();
+
+    await waitFor(() => expect(screen.queryByTestId("mobile-push")).not.toBeInTheDocument());
+    expect(screen.queryByTestId("enable-push")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the user agent where client hints are absent", async () => {
+    installBrowser();
+    // @ts-expect-error - a browser that does not implement client hints at all
+    delete navigator.userAgentData;
+    Object.defineProperty(navigator, "userAgent", {
+      configurable: true,
+      value: "Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome Mobile",
+    });
+    apiMockServer.use(
+      http.get("*/api/projects/inbox/push", () => HttpResponse.json(statusBody())),
+    );
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByTestId("mobile-push")).toBeInTheDocument());
+  });
 });
 
 describe("what the panel says on each kind of device", () => {

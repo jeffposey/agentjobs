@@ -85,8 +85,20 @@ function statusLine(device: PushDeviceView): string {
   return "waiting for the first alert";
 }
 
+/**
+ * Registering *this* device for push, shown only on a phone or tablet.
+ *
+ * The gate is `isHandheld`, and it is about which answer applies rather than what the
+ * browser can do -- a desktop Chrome will take a push subscription perfectly well. On a
+ * desktop the local notification `NotificationDelivery` offers is the better answer to
+ * the same question and arrives without a round trip through a push service, so
+ * offering both there is two ways to do one thing. Before task-421's revision this
+ * panel rendered everywhere, which is how a Windows desktop came to be given
+ * instructions for adding AgentJobs to an iPhone Home Screen.
+ */
 export function MobilePush({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
+  const [handheld] = useState(() => readEnvironment().isHandheld);
   const [availability, setAvailability] = useState<PushAvailability>(() =>
     pushAvailability(readEnvironment()),
   );
@@ -249,6 +261,8 @@ export function MobilePush({ projectId }: { projectId: string }) {
       setBusy(false);
     }
   }, [projectId, refresh, testMutation]);
+
+  if (!handheld) return null;
 
   // A read that 403s is a run asking, which is the capability boundary working. Say
   // nothing rather than render a refusal into a person's Dashboard.

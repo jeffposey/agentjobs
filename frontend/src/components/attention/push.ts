@@ -36,6 +36,15 @@ export type PushEnvironment = {
   permission: NotificationPermission | null;
   isApplePlatform: boolean;
   isStandalone: boolean;
+  /**
+   * A phone or tablet rather than a desktop.
+   *
+   * Which of the two notification panels applies, and nothing else. It is deliberately
+   * not a capability: push and local notifications both work on both kinds of device,
+   * so this decides which *answer* a person is offered, not which one the browser could
+   * technically perform.
+   */
+  isHandheld: boolean;
 };
 
 /**
@@ -80,6 +89,7 @@ export function readEnvironment(scope?: Partial<Window> & { navigator?: Navigato
       permission: null,
       isApplePlatform: false,
       isStandalone: false,
+      isHandheld: false,
     };
   }
   const nav = view.navigator;
@@ -91,15 +101,27 @@ export function readEnvironment(scope?: Partial<Window> & { navigator?: Navigato
   } catch {
     // A browser that throws on an unknown media query keeps whatever the property said.
   }
+  // `MacIntel` with a touch screen is an iPad claiming to be a Mac, which is the
+  // default on iPadOS and the reason platform strings are not enough on their own.
+  const applePlatform =
+    /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && (nav?.maxTouchPoints ?? 0) > 1);
+  // Client hints first: `userAgentData.mobile` is the browser answering the question
+  // directly rather than us inferring it from a string it also controls. Chromium-only,
+  // so the user-agent test remains the fallback, and an iPad reaches it through
+  // `applePlatform` because its own string says Macintosh.
+  const hinted = (nav as Navigator & { userAgentData?: { mobile?: boolean } })?.userAgentData;
+  const handheld =
+    typeof hinted?.mobile === "boolean"
+      ? hinted.mobile
+      : /Android|iPhone|iPod|Mobile/.test(ua) || applePlatform;
   return {
     hasServiceWorker: Boolean(nav && "serviceWorker" in nav),
     hasPushManager: "PushManager" in view,
     hasNotification: Boolean(view.Notification),
     permission: view.Notification ? view.Notification.permission : null,
-    // `MacIntel` with a touch screen is an iPad claiming to be a Mac, which is the
-    // default on iPadOS and the reason platform strings are not enough on their own.
-    isApplePlatform: /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && (nav?.maxTouchPoints ?? 0) > 1),
+    isApplePlatform: applePlatform,
     isStandalone: standalone,
+    isHandheld: handheld,
   };
 }
 
