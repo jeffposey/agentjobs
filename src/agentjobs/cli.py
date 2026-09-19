@@ -43,7 +43,7 @@ from .dispatch.guards import (
 )
 from .dispatch.queue import dispatch_or_queue
 from .execution.store import QueuedDispatch
-from .dispatch.ledger import DispatchLedger, LedgerError, list_runs, live_runs
+from .dispatch.ledger import DispatchLedger, LedgerError, RunRecord, list_runs, live_runs
 from .dispatch.runner import DispatchRunError
 from .dispatch.scaffold import EXAMPLE_CONFIG, write_example_config
 from .manager import MoveOutcome, QueueEntry, QueueListing, TaskManager
@@ -1912,6 +1912,23 @@ def dispatch_example(
     )
 
 
+def _slot_word(record: RunRecord) -> str:
+    """Whether a run is holding one of the machine's slots, in one word.
+
+    Three values rather than two. `released` is a run that took a slot and gave it back
+    when its task closed (task-482); `no slot` never took one -- an interactive session
+    or an epic walk. Collapsing them would make a finished session indistinguishable from
+    a chat window, which is the confusion this column exists to remove. A concluded run
+    reads `-`: its slot went back when it ended, and saying anything else would invite
+    the reader to look for it.
+    """
+    if not record.is_live:
+        return "-"
+    if record.slot_released:
+        return "released"
+    return "slot" if record.takes_slot else "no slot"
+
+
 @dispatch_app.command("status")
 def dispatch_status(
     limit: int = typer.Option(20, "--limit", help="How many recent runs to show."),
@@ -1923,14 +1940,18 @@ def dispatch_status(
         typer.echo("No runs recorded." if not live_only else "No live runs.")
         return
 
-    typer.echo(f"{'RUN':14} {'TASK':34} {'MODE':8} {'STATE':10} {'ELAPSED':>9}  SESSION")
+    typer.echo(f"{'RUN':14} {'TASK':34} {'MODE':8} {'STATE':10} {'SLOT':9} {'ELAPSED':>9}  SESSION")
     for record in records[:limit]:
         elapsed = record.elapsed_seconds()
         shown = f"{elapsed:,.0f}s" if elapsed is not None else "-"
         state = record.outcome or record.status
+        # A column rather than a word folded into STATE, because the two answer different
+        # questions and the pair is the answer: a live run reading `running released` is
+        # a session that finished its task and is still open (task-482), which is what
+        # `running` alone could not say.
         typer.echo(
             f"{record.run_id:14} {record.task_id[:34]:34} {record.mode:8} "
-            f"{state[:10]:10} {shown:>9}  {record.session_id or '-'}"
+            f"{state[:10]:10} {_slot_word(record):9} {shown:>9}  {record.session_id or '-'}"
         )
 
 

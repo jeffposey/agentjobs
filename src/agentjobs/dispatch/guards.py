@@ -643,6 +643,9 @@ class LiveRun:
     Read back so a refusal can say *why* the machine is over its ceiling. A count that
     exceeds its own limit with nothing to explain it reads as a bug in the counter."""
 
+    slot_released: bool = False
+    """This run's task has closed and it gave its slot back, while staying alive (task-482)."""
+
     @property
     def is_interactive(self) -> bool:
         """A session a person is sitting in, recorded by its own claim (task-354)."""
@@ -662,7 +665,8 @@ class LiveRun:
     def takes_slot(self) -> bool:
         """Whether this run counts against ``limits.max_concurrent_runs``.
 
-        Every run but an interactive one and a walk. The first exemption is the whole of
+        Every run but an interactive one, a walk, and one whose work is over. The first
+        exemption is the whole of
         task-354's argument about slots: the ceiling exists to stop a click starting an
         agent the machine cannot afford, and a session somebody is already typing into is
         not a cost this click is about to incur. It still holds its *task*, which is the
@@ -673,8 +677,15 @@ class LiveRun:
         as a rule rather than left to the run being terminal because the consequence of
         being wrong is asymmetric -- a walk whose conclusion did not commit would
         otherwise hold one of three slots until somebody noticed.
+
+        The third is task-482's, and is the only one that can become true after the run
+        has started. The bound exists to cap how much of this machine agents use at once;
+        a session that has closed its task and merged its branch is not using it for
+        anything, so the slot goes back when the *work* ends rather than when the process
+        does. That is safe because a later dispatch does not reach this run: waking its
+        conversation admits a **new** run with its own id, which takes a slot of its own.
         """
-        return not self.is_interactive and not self.is_walk
+        return not self.is_interactive and not self.is_walk and not self.slot_released
 
 
 def live_runs(home: Path) -> List[LiveRun]:
@@ -713,6 +724,7 @@ def live_runs(home: Path) -> List[LiveRun]:
                 path=directory,
                 mode=str(meta.get("mode") or ""),
                 over_ceiling=bool(meta.get("over_ceiling")),
+                slot_released=bool(meta.get("slot_released_at")),
             )
         )
     return found

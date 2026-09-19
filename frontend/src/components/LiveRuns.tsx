@@ -89,6 +89,10 @@ export const HEALTH_LABELS: Record<string, string> = {
   // Ahead of "Working" in `run_health` because both are true and this is the one the
   // reader is asking about: the click landed, and it is queued for this session.
   handback: "Feedback waiting",
+  // The task this run was dispatched for is closed, and the session is still open
+  // (task-482). It holds no slot from here on, so a board that draws this badge is
+  // drawing a run outside the slot cells.
+  work_done: "Work done",
 };
 
 const HEALTH_CLASSES: Record<string, string> = {
@@ -100,6 +104,7 @@ const HEALTH_CLASSES: Record<string, string> = {
   unknown: "bg-red-900 text-red-200",
   idle: "bg-slate-700 text-slate-200",
   handback: "bg-sky-900 text-sky-200",
+  work_done: "bg-slate-700 text-slate-200",
 };
 
 /**

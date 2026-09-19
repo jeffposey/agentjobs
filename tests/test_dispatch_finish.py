@@ -54,7 +54,13 @@ from agentjobs.dispatch.finish import (
     worktree_paths,
 )
 from agentjobs.dispatch.finish_status import read_finish_status
-from agentjobs.dispatch.ledger import LockHolder
+from agentjobs.dispatch.ledger import (
+    HEALTH_WORK_DONE,
+    LockHolder,
+    live_runs,
+    read_run,
+    run_health,
+)
 from agentjobs.dispatch.phases import RUN_ID_ENV
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
@@ -476,6 +482,49 @@ class TestTheCommonCase:
         run(world)
         locks = world["home"] / "runs" / ".locks"
         assert not locks.exists() or not list(locks.iterdir())
+
+    def test_it_frees_the_slot_of_the_session_that_asked_for_it(
+        self, world: Dict[str, Any]
+    ) -> None:
+        """The case observed on run_b400b920 (task-482), constructed exactly.
+
+        A dispatched session asks for the finish and is still alive when it returns --
+        normally because the person who dispatched it is still talking to it. Before this,
+        the task read Completed on the dashboard while its run read `running` and held one
+        of three slots, for as long as the conversation went on.
+
+        Both halves are asserted. The session must keep its run record and stay live: a
+        fix that ended the run would free the slot and take the session away from the
+        person mid-sentence, which is the one thing this must not do.
+        """
+        home: Path = world["home"]
+        directory = home / "runs" / "run_session"
+        directory.mkdir(parents=True)
+        (directory / "meta.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "run_id": "run_session",
+                    "task_id": world["task_id"],
+                    "project_id": "demo",
+                    "mode": "session",
+                    "status": "running",
+                    "session_id": "0123abcd",
+                    "started_at": "2026-09-19T16:00:00+00:00",
+                }
+            ),
+            encoding="utf-8",
+        )
+        before = read_run(directory)
+        assert before.takes_slot and before.is_live
+
+        result = run(world)
+        assert result.outcome == FINISHED, result.render()
+
+        after = read_run(directory)
+        assert after.is_live, "the session is still open and must keep working"
+        assert after.takes_slot is False, "its work is over; the slot goes back"
+        assert run_health(after) == HEALTH_WORK_DONE
+        assert [record for record in live_runs(home) if record.takes_slot] == []
 
 
 # ----- deleting the branch, and the two cases where it must not ---------------

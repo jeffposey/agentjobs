@@ -83,8 +83,8 @@ class LiveRunView(BaseModel):
         ...,
         description=(
             "What the run is actually doing: working, starting, parked, silent, "
-            "orphaned or unknown. `live` means only that nothing has declared the run "
-            "over, so this is the field a surface renders."
+            "work_done, orphaned or unknown. `live` means only that nothing has declared "
+            "the run over, so this is the field a surface renders."
         ),
     )
     started_at: Optional[str] = None
@@ -104,6 +104,17 @@ class LiveRunView(BaseModel):
             "(task-461). While it lives, `occupied` exceeds the ceiling -- and a board "
             "that could not say which run explains that would be showing a count nobody "
             "can reconcile."
+        ),
+    )
+    holds_slot: bool = Field(
+        ...,
+        description=(
+            "Whether this run is one of the `occupied` slots. False for an interactive "
+            "session and a walk, which never took one, and for a run whose task has "
+            "closed while its session stayed open (task-482) -- that one released its "
+            "slot and reads `work_done` in `health`. Sent rather than re-derived from "
+            "`mode`, so a board can never draw a run in a slot cell the server does not "
+            "count."
         ),
     )
 
@@ -317,9 +328,10 @@ class LiveRunsView(BaseModel):
             "Run slots in use. Counted exactly as the concurrency guard counts them -- "
             "`len(slot_runs(home))` -- so this surface and a refused dispatch can never "
             "disagree. An interactive run (mode `interactive`) is in `runs` and not in "
-            "this count: it holds its task, not a slot (task-354). Finishes and the "
-            "runway are not in it either: they hold locks, not run "
-            "slots."
+            "this count: it holds its task, not a slot (task-354). Nor is a run whose "
+            "task has closed while its session stayed open, which released its slot "
+            "(task-482) -- `holds_slot` is false on both. Finishes and the runway are "
+            "not in it either: they hold locks, not run slots."
         ),
     )
     max_concurrent_runs: int = Field(
@@ -496,6 +508,7 @@ def _run_view(record: RunRecord, projects: Dict[str, Project]) -> LiveRunView:
             else ""
         ),
         over_ceiling=record.over_ceiling,
+        holds_slot=record.takes_slot,
     )
 
 
