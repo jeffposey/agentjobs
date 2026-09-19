@@ -8,8 +8,16 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 
-from scripts.voice_input_probe import CRITICAL_TOKENS, REFERENCE_TEXT, build_page
+from starlette.testclient import TestClient
+
+from scripts.voice_input_probe import (
+    CRITICAL_TOKENS,
+    REFERENCE_TEXT,
+    build_page,
+    make_app,
+)
 
 
 def _script(page: str) -> str:
@@ -39,9 +47,9 @@ def test_every_js_string_literal_closes_on_its_own_line() -> None:
     )
     for number, line in enumerate(code, start=1):
         unescaped = re.sub(r"\\.", "", line)
-        assert unescaped.count('"') % 2 == 0, (
-            f"line {number} of the probe script leaves a string literal open: {line!r}"
-        )
+        assert (
+            unescaped.count('"') % 2 == 0
+        ), f"line {number} of the probe script leaves a string literal open: {line!r}"
 
 
 def test_the_reference_prose_reaches_the_page_as_data() -> None:
@@ -67,8 +75,54 @@ def test_the_plain_field_is_a_plain_field() -> None:
         assert handler not in field.group(0)
     # `beforeinput` is observed, never cancelled: a listener that called
     # preventDefault() would be the very breakage this section is here to detect.
-    listener = re.search(
-        r"plain\.addEventListener\(\"beforeinput\".*?\}\);", page, re.DOTALL
-    )
+    listener = re.search(r"plain\.addEventListener\(\"beforeinput\".*?\}\);", page, re.DOTALL)
     assert listener, "the probe no longer records what reached the plain field"
     assert "preventDefault" not in listener.group(0)
+
+
+def test_a_device_can_actually_submit_its_findings(tmp_path: Path) -> None:
+    """The one round trip that matters, exercised the way a phone exercises it.
+
+    This is not a formality. The submission endpoint answered `422` to every device,
+    because this module uses postponed annotations and FastAPI resolves them against
+    module globals -- a function-local `Request` import left the parameter reclassified
+    as a query parameter. Nothing in the page, the log or the process said so. The only
+    place it was visible was here: a person finishing the work and being told "server
+    said 422".
+    """
+    results = tmp_path / "results.jsonl"
+    client = TestClient(make_app(results))
+
+    assert client.get("/results").text.startswith("nothing reported yet")
+
+    payload = {
+        "label": "a device",
+        "env": {"userAgent": "some browser", "secureContext": True},
+        "features": {"SpeechRecognition": False},
+        "runs": {},
+        "plain": {"events": ["insertCompositionText"], "text": "dictated"},
+    }
+    response = client.post("/record", json=payload)
+    assert response.status_code == 200, response.text
+    assert response.json() == {"ok": True}
+
+    written = [json.loads(line) for line in results.read_text().splitlines()]
+    assert len(written) == 1
+    assert written[0]["label"] == "a device"
+    assert written[0]["plain"]["events"] == ["insertCompositionText"]
+    assert "received" in written[0]
+    assert "a device" in client.get("/results").text
+
+
+def test_the_page_is_served_with_the_policy_it_measures(tmp_path: Path) -> None:
+    """The on-device API is gated by a Permissions-Policy, so the probe states it.
+
+    Relying on the same-origin default would make the policy one more variable in a
+    measurement that exists to remove variables.
+    """
+    client = TestClient(make_app(tmp_path / "results.jsonl"))
+    response = client.get("/")
+    assert response.status_code == 200
+    policy = response.headers["permissions-policy"]
+    assert "microphone=(self)" in policy
+    assert "on-device-speech-recognition=(self)" in policy

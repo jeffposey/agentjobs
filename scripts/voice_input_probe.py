@@ -68,6 +68,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+
 DEFAULT_PORT = 8914
 
 # The prose every device reads. Task-shaped on purpose: a recogniser tuned for ordinary
@@ -348,10 +351,15 @@ def build_page() -> str:
 
 
 def make_app(results_path: Path) -> Any:
-    """A FastAPI app serving the probe page and collecting what devices report."""
-    from fastapi import FastAPI, Request
-    from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+    """A FastAPI app serving the probe page and collecting what devices report.
 
+    FastAPI is imported at module scope rather than here on purpose. This module uses
+    `from __future__ import annotations`, so every annotation is a string that FastAPI
+    resolves against the module's globals -- and a function-local `Request` is not in
+    them. It does not fail loudly: the parameter is silently reclassified as a query
+    parameter and every submission is answered `422`, which a device reports as "server
+    said 422" after the person has already done the work.
+    """
     app = FastAPI(title="voice input probe (task-171)")
     page = build_page()
 
