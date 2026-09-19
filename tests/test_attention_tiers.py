@@ -445,12 +445,12 @@ class TestTheAttentionEndpoint:
         response = client.get("/api/projects/inbox/attention")
 
         assert response.status_code == 200
-        assert response.json() == {"blocking": 0}
+        assert response.json() == {"blocking": 0, "episode": None}
 
     def test_a_task_at_the_merge_gate_raises_a_badge_of_one(self, client_for) -> None:
         client, base = client_for([BLOCKED_ON_HUMAN, PARKED_DRAFT, CLAIMABLE])
 
-        assert client.get("/api/projects/inbox/attention").json() == {"blocking": 1}
+        assert client.get("/api/projects/inbox/attention").json()["blocking"] == 1
 
     def test_it_agrees_with_the_jinja_badge_and_the_dashboard_tile(self, client_for) -> None:
         """One number or none of them is trustworthy -- the thesis of this file."""
@@ -468,15 +468,30 @@ class TestTheAttentionEndpoint:
 
         assert (endpoint, jinja, tile) == (2, 2, 2)
 
-    def test_the_payload_is_the_count_and_nothing_else(self, client_for) -> None:
+    def test_the_payload_carries_no_task_records(self, client_for) -> None:
         """It is fetched on every surface, so it may not grow task records.
 
         The dashboard projection holds the same number and 900KB of records with it;
         putting the badge on that query is the mistake this endpoint exists to avoid.
+
+        task-422 added the episode, which is ids and two strings, so the assertion is
+        no longer "one integer" -- it is that nothing here is a *record*. The episode
+        names its tasks; it does not carry their specs, logs or acceptance criteria,
+        which is what the size above was standing in for.
         """
         client, base = client_for([BLOCKED_ON_HUMAN, PARKED_DRAFT, CLAIMABLE, FINISHED])
 
-        response = client.get("/api/projects/inbox/attention")
+        payload = client.get("/api/projects/inbox/attention").json()
 
-        assert set(response.json()) == {"blocking"}
-        assert len(response.content) < 200
+        assert set(payload) == {"blocking", "episode"}
+        assert set(payload["episode"]) == {
+            "id",
+            "started_at",
+            "acknowledged",
+            "tasks",
+            "lead_task_id",
+            "lead_task_title",
+        }
+        # One id per waiting task and one title, against a dashboard's 900KB.
+        assert payload["episode"]["tasks"] == [BLOCKED_ON_HUMAN.id]
+        assert len(client.get("/api/projects/inbox/attention").content) < 500

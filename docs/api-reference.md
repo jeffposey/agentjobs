@@ -53,7 +53,8 @@ the scoped form so switching projects never depends on the server's current dire
 | `GET` | `/api/tasks/broken` | Report task records that exist but cannot be loaded |
 | `GET` | `/api/search?q=...` | Search task id, title, spec, ball prompt and tags |
 | `GET` | `/api/dashboard` | Return dashboard counts and activity |
-| `GET` | `/api/attention` | Count the tasks stopped waiting on a person; the header's red badge |
+| `GET` | `/api/attention` | The tasks stopped waiting on a person -- the header's red badge, plus the attention episode driving the Windows taskbar and notification. **Reconciles the episode**, so the answer is idempotent rather than read-only |
+| `POST` | `/api/attention/ack` | Record that a person deliberately acted on the episode they were shown. Stops the next interruption being suppressed; does **not** clear the indicator. Takes `episode_id`; a stale one is a no-op. No run may call it |
 | `GET` | `/api/analytics` | Backlog, throughput, aging and where work is stuck, over one range. `range` is `30d`, `90d`, `12m` or `all` |
 | `GET` | `/api/revision` | Return the project revision used for client refresh |
 

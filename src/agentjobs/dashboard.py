@@ -72,6 +72,20 @@ def awaits_human_input(task: Task) -> bool:
     return task.ball is Ball.HUMAN and task.lifecycle is Lifecycle.DRAFT
 
 
+def human_waiting_tasks(manager: TaskManager) -> List[Task]:
+    """Every task a person is actually holding up, in the order the inbox shows them.
+
+    The set behind the badge number, given a name because task-422 needs the records
+    rather than only the count: a notification has to say *which* task when there is
+    one, and open the filtered list when there are several. Same predicate and same
+    order as the dashboard's own panel, so an alert and the page it leads to cannot
+    disagree about what is waiting or which of them is first.
+    """
+    return _inbox_order(
+        [task for task in manager.list_tasks(ball=Ball.HUMAN) if blocks_human(task)]
+    )
+
+
 def count_blocking_human(manager: TaskManager) -> int:
     """The badge number: tasks where a person is actually holding work up.
 
@@ -83,7 +97,7 @@ def count_blocking_human(manager: TaskManager) -> int:
 
     Only ``blocks_human``: a draft is backlog, not a blockage.
     """
-    return sum(1 for task in manager.list_tasks(ball=Ball.HUMAN) if blocks_human(task))
+    return len(human_waiting_tasks(manager))
 
 
 def _inbox_order(tasks: List[Task]) -> List[Task]:

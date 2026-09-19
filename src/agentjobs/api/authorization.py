@@ -106,6 +106,11 @@ ROUTE_CAPABILITIES: Dict[str, RouteRule] = {
     "hold_task": RouteRule(Capability.TASK_REVIEW),
     "resume_task": RouteRule(Capability.TASK_REVIEW),
     "reject_task": RouteRule(Capability.TASK_REVIEW),
+    # ----- saying you have seen it ------------------------------------------------
+    #
+    # Names no task, because an episode is not about one: it is the whole waiting set
+    # as one thing, which is the point of the episode model.
+    "acknowledge_attention": RouteRule(Capability.ATTENTION_ACK),
     # ----- spending money ---------------------------------------------------------
     "dispatch_task_endpoint": RouteRule(Capability.DISPATCH),
     "run_playbook_endpoint": RouteRule(Capability.DISPATCH),

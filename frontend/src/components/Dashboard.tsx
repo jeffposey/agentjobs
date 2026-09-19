@@ -37,6 +37,24 @@ type DashboardProps = {
    * not take space from the board or compete with the page's one next step.
    */
   renderRecentlyFinished?: () => React.ReactNode;
+  /**
+   * Whether a Windows notification can be raised, and how to fix it if not (task-422).
+   *
+   * On the Dashboard only, and it renders nothing once permission is granted. Both
+   * alternatives were worse: in the header it would spend width `NAV_INLINE_MIN_PX`
+   * has measured as unavailable, and on every surface it would nag on pages that are
+   * not about what has stopped on you. This is the landing page, and it is where the
+   * alarm already lives.
+   *
+   * **At the head of the tail, not in the glance**, and the gate is what settled that.
+   * The glance is sized to its content and takes the space it needs before anything
+   * else gets any, so a 63px notice in it put the phone's three-slot Dashboard 710px
+   * of content into a 647px frame and `dashboard-one-screen.spec.ts` failed. The
+   * finding is not really about pixels: the glance is for the page's one call to
+   * action, and a notice about a *delivery channel* for an alarm is not one. The tail
+   * is the remainder with its own scroll, and this sits at the top of it.
+   */
+  renderNotificationDelivery?: () => React.ReactNode;
 };
 
 const priorityClasses: Record<string, string> = {
@@ -309,6 +327,7 @@ export function Dashboard({
   projectId,
   renderSlotBoard,
   renderRecentlyFinished,
+  renderNotificationDelivery,
 }: DashboardProps) {
   /**
    * Whether an alarm holds the page.
@@ -388,6 +407,7 @@ export function Dashboard({
         data-testid="dashboard-tail"
         className={`flex ${TAIL_MIN} flex-1 flex-col gap-3 overflow-y-auto`}
       >
+        {renderNotificationDelivery?.()}
         <section className="shrink-0 rounded-lg border border-dark-border bg-dark-surface">
           <div className="flex items-baseline justify-between gap-4 border-b border-dark-border px-4 py-2">
             <h2 className="text-sm font-medium text-dark-text">
