@@ -7,53 +7,46 @@ anyone can construct by hand, so this seeds the machine and hands over a URL.
 
     python scripts/pull_mode_sandbox.py [port] [--disarmed] [--ceiling N] [--starts N]
 
+**It is meant to still be interesting when you open it.** The armed half is armed
+*until disarmed* over a backlog of twelve tasks, so it holds two runs and always has a
+next task, however long after starting you get to it. The first version armed for three
+starts over five tasks, spent the bound inside a minute and retired itself; the owner
+opened it an hour later and correctly reported that there was nothing there. Pass
+`--starts N` to get that behaviour deliberately -- it is how you watch a bound run out.
+
 Two halves, and the comparison is the point:
 
-    default (armed)  a ceiling of 2, five briefable tasks in a stored order, one of them
-                     held and one of them filed as a title with no spec. The project is
-                     armed for three starts. Within a few seconds two runs are going --
-                     in queue order -- and the board's "Pulling from the queue" rail says
-                     who armed it, what is left of the bound, and which task is next.
-                     Nothing was clicked.
+    default (armed)  a ceiling of 2 over twelve briefable tasks, one held and one filed
+                     as a title with no spec. Two runs are going within ~15s, in queue
+                     order, with nobody clicking. The Dashboard's board shows two busy
+                     cells and, under them, a "Pulling from the queue" rail: armed by
+                     whom, what is left of the bound, which task is next, and Disarm.
 
     --disarmed       the identical machine with nothing armed: the Arm control on the
-                     dispatch settings page, unpressed, with the bound unset. This is
-                     what the page looks like before anyone decides anything, and it is
-                     the half that shows the control *asks* for a bound rather than
-                     defaulting to one.
+                     Dispatch page, unpressed. This is the half that shows the control
+                     asks for a bound and says what the envelope does to your branches.
 
 Run both at once to compare:
 
     python scripts/pull_mode_sandbox.py 8912
     python scripts/pull_mode_sandbox.py 8913 --disarmed
 
-**What to try, beyond looking at it.**
+**What to try, in the order that makes sense.**
 
-    * **Watch the third start.** Two runs hold the two slots and one start is left in the
-      bound. Cancel one run from the Runs tab; within a poll the third task starts by
-      itself, and the rail's bound reads "3 of 3 starts used" before the arming
-      disappears. Nothing was clicked except Cancel.
-    * **Reorder mid-run, and see the reorder respected.** The rail names what starts
-      next. Drag a different task to the top of its band on the Queue page, come back,
-      and the rail names the task you moved. That is the whole steering mechanism: the
-      stored queue order decides, so `queue move` is how you change its mind.
-    * **Disarm with a run going.** Press Disarm on the rail. Takeoffs stop immediately
-      and the run that is going keeps going -- it was authorised on its own and has its
-      own merge gate. The Runs tab is where to check that.
-    * **Read a pulled run's provenance.** Open a task the mode started. Its newest note
-      is an authorising entry in *your* name, saying which arming bought the run and what
-      bound that arming carries, and the `dispatch` entry beneath it is triggered `pull`.
-      That entry is what `assert_human_clocked` passed on -- the same check a click's
-      entry passes, not a bypass of it.
-    * **The task with no spec.** `task-205` is filed as a title and a hope. The mode
-      reaches it, cannot start it, writes why on its record, and moves to the next task
-      rather than stopping. Open it and read the note.
-    * **The held task.** `task-202` was put on hold, so it is not claimable and the mode
-      never offers it at all. Release it from its review panel and it rejoins the queue.
-    * **Precedence.** Queue a dispatch of a task by name from its own page while the
-      machine is full (the refusal offers "Queue it for the next free slot"). Now free a
-      slot. The card you queued starts, and the pull mode waits -- a dispatch somebody
-      asked for by name goes first.
+    1. Open the Dashboard on the armed half. Two cells are busy and the rail under them
+       names what starts next. Nothing was clicked to make that happen.
+    2. Go to the Runs tab and Cancel one run. Come back to the Dashboard. Within a poll
+       a third run is going -- the task the rail was naming. That is the whole feature.
+    3. Go to the Queue page, drag a different task to the top of its band, come back.
+       The rail names the task you moved. Reordering the queue is how you steer it.
+    4. Press Disarm on the rail. The rail goes. Check the Runs tab: the runs that were
+       going are still going, because each was authorised on its own.
+    5. Open a task the mode started. Its newest note is an authorising entry in *your*
+       name saying which arming bought the run, and the `dispatch` entry under it reads
+       `trigger: pull`. That entry is what the human-clocked check passed on.
+    6. Open `task-205`, which was filed as a title with no spec. The mode reached it,
+       could not start it, wrote why on its record, and moved to the next task rather
+       than stopping.
 
 Nothing here touches the live corpus or the 8876 dashboard. Everything lives under a
 temporary directory with its own ``AGENTJOBS_HOME`` registry, deleted when this process
@@ -74,7 +67,6 @@ import yaml
 
 DEFAULT_PORT = 8912
 DEFAULT_CEILING = 2
-DEFAULT_STARTS = 3
 
 PROJECT_ID = "sandbox-pull"
 ARMER = "Jeff Posey"
@@ -85,7 +77,23 @@ TASKS: List[Tuple[str, str]] = [
     ("task-203", "Stop the exporter rounding the last column"),
     ("task-204", "Give the date parser one home"),
     ("task-206", "Retire the second copy of the slug helper"),
+    ("task-207", "Make the CSV reader admit what it skipped"),
+    ("task-208", "Give the retry loop a ceiling"),
+    ("task-209", "Stop the log writer opening the file twice"),
+    ("task-210", "Name the two things called `state`"),
+    ("task-211", "Teach the diff viewer about renames"),
+    ("task-212", "Drop the second timezone helper"),
+    ("task-213", "Say which column the parser choked on"),
 ]
+"""Twelve, and the count is the point rather than padding.
+
+A fixture is looked at whenever the person gets to it, which is not when it was
+started. The first version of this seeded five tasks and armed for three starts: it
+spent its bound within a minute, retired itself, and anybody arriving an hour later
+found an empty board and no rail -- a fixture that had already finished being
+interesting. At a ceiling of two this many tasks keeps two runs going and something in
+`next` for as long as anyone is likely to be looking.
+"""
 
 THIN = ("task-205", "Something about the cache")
 """A task filed as a title and a hope. It sits between 204 and 206 in the queue and is
@@ -193,8 +201,11 @@ def main() -> None:
     argv = sys.argv[1:]
     disarmed = "--disarmed" in argv
     ceiling = DEFAULT_CEILING
-    starts = DEFAULT_STARTS
-    for flag, default in (("--ceiling", None), ("--starts", None)):
+    # No bound by default, which is the opposite of what the *control* should default to
+    # and right for the same reason: a control defaults to the safest thing, and a
+    # fixture defaults to the thing that is still there when somebody opens it.
+    starts = 0
+    for flag in ("--ceiling", "--starts"):
         if flag in argv:
             index = argv.index(flag)
             value = int(argv[index + 1])
@@ -228,7 +239,7 @@ def main() -> None:
         the point of the fixture: nothing here starts a run, the server does.
         """
         from agentjobs.dispatch import pull as dispatch_pull
-        from agentjobs.execution.store import BOUND_STARTS
+        from agentjobs.execution.store import BOUND_OPEN, BOUND_STARTS
 
         project = ProjectRegistry(home).get(PROJECT_ID)
         dispatch_pull.arm(
@@ -236,12 +247,13 @@ def main() -> None:
             project,
             project.load_config(),
             armed_by=ARMER,
-            bound_kind=BOUND_STARTS,
-            bound_starts=starts,
+            bound_kind=BOUND_STARTS if starts else BOUND_OPEN,
+            bound_starts=starts or None,
         )
         print(
-            f"[pull] armed for {starts} starts by {ARMER}. Nothing has started yet -- "
-            "the server's tick does that.",
+            f"[pull] armed by {ARMER} "
+            + (f"for {starts} starts" if starts else "until disarmed")
+            + ". Nothing has started yet -- the server's tick does that.",
             flush=True,
         )
 
@@ -255,7 +267,11 @@ def main() -> None:
     shape = (
         "nothing armed -- the Arm control, unpressed"
         if disarmed
-        else f"armed for {starts} starts at a ceiling of {ceiling}"
+        else (
+            f"armed for {starts} starts at a ceiling of {ceiling}"
+            if starts
+            else f"armed until disarmed at a ceiling of {ceiling}"
+        )
     )
     print(f"[pull] pull mode sandbox ({shape})", flush=True)
     print(f"[pull]   Dashboard  http://127.0.0.1:{port}/app/p/{PROJECT_ID}", flush=True)
