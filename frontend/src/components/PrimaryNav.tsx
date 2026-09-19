@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 
+import { ActionsMenu } from "./ActionsMenu";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 
 /**
@@ -29,10 +30,11 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * entry is now the brightest thing in the row, tinted and ringed, and carries
  * `aria-current="page"`; see {@link currentDestinationPath} for which entry that is.
  *
- * The burger is at the **left** end on purpose. task-168 puts an *actions* menu in
- * the top-right (Report issue, About, later dispatch); navigation-left/actions-right
- * keeps the two apart, and keeps navigation out of the component task-169 wants to
- * embed in somebody else's app.
+ * The burger is at the **left** end on purpose. task-168's *actions* menu is in the
+ * top-right ({@link ActionsMenu} -- About and the API docs today, Playbooks and
+ * Dispatch settings once task-345 sheds them from this row);
+ * navigation-left/actions-right keeps the two apart, and keeps navigation out of the
+ * component task-169 wants to embed in somebody else's app.
  */
 
 /**
@@ -52,22 +54,30 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * row's gap went from `gap-6` to `gap-4` (56px back across seven gaps) and the number
  * moved less than it otherwise would have.
  *
- * 1208px is where the bar last overflows, with the project switcher at the 224px
+ * **Re-measured again for task-168's actions menu**, which adds a 44px trigger plus a
+ * gap at the right end -- and unlike a destination it is there at *every* width, since
+ * a menu that vanishes on a phone is not somewhere task-345 can move Dispatch settings
+ * to. Dropped straight in, the row fitted only at 1278 of the 1280 the `max-w-7xl`
+ * header can ever reach, and a 2px margin is not one. So the **outer** gap went from
+ * `gap-6` to `gap-4` at the breakpoint -- the lever task-465 pulled on the inline
+ * group, four gaps here rather than seven, 32px back -- and the last overflow landed
+ * at 1244.
+ *
+ * 1244px is where the bar last overflows, with the project switcher at the 224px
  * (`max-w-56`) it reaches for a long project name -- the case the constant has to hold
  * for, not the four-character one a sandbox happens to have. Overflow, not wrapping, is
  * how this now fails: `flex-nowrap` and `min-w-0` mean the switcher is squeezed and then
  * the row runs off the right edge, so a header measured only by its height would have
- * called every width below this fine. 1220 for a margin over 1208, measured in Chromium
- * with the switcher pinned to its maximum and every link forced `nowrap`, at 1170 to
- * 1280 in 10px steps. Between 1220 and 1241 the row's last link sits inside the
- * header's right padding; from 1241 the padding is whole.
+ * called every width below this fine. 1256 for a margin over 1244, measured in Chromium
+ * with the switcher pinned to its maximum, the attention badge showing and every link
+ * forced `nowrap`, at 1200 to 1290 in 2px steps.
  *
  * **The badge is why this first moved and it is also why the move is cheap.** It
  * renders only when work has actually stopped on you, so the 34px is spent on the rare
  * screen rather than every screen -- but the constant has to hold for the screen that
  * spends it, since that is the one a person is being asked to read.
  *
- * The cost is the 960-1219 band -- landscape tablets, split-screen desktop windows --
+ * The cost is the 960-1255 band -- landscape tablets, split-screen desktop windows --
  * moving from an inline row to the burger. That is the trade task-292 already made once
  * at 960, and the burger keeps every destination one tap away. Task-345 intends to
  * take the bar down to three destinations, which would move this number back down.
@@ -76,7 +86,7 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * at once; Tailwind needs the literal in the class, so the two are checked against
  * each other by a test rather than by the compiler.
  */
-export const NAV_INLINE_MIN_PX = 1220;
+export const NAV_INLINE_MIN_PX = 1256;
 
 /** Shown inline above the breakpoint, and inside the panel below it. */
 const DESTINATIONS: ReadonlyArray<{
@@ -290,18 +300,18 @@ export function PrimaryNav({
       className="sticky top-0 z-30 border-b border-dark-border bg-dark-surface"
     >
       <nav
-        className="mx-auto flex min-h-16 max-w-7xl flex-nowrap items-center gap-2 px-4 py-2 min-[1220px]:gap-6 sm:px-6 lg:px-8"
+        className="mx-auto flex min-h-16 max-w-7xl flex-nowrap items-center gap-2 px-4 py-2 min-[1256px]:gap-4 sm:px-6 lg:px-8"
         aria-label="Primary navigation"
       >
         {/*
           The breakpoint lives on this wrapper rather than on the button, and that is
           not a stylistic choice. `styles.css` carries `.touch-target:not(.block) {
           display: inline-flex }`, whose specificity (0,2,0) beats a Tailwind utility's
-          (0,1,0) -- so `min-[1220px]:hidden` on a `touch-target` element loses, and the
+          (0,1,0) -- so `min-[1256px]:hidden` on a `touch-target` element loses, and the
           burger stays visible at every width. Caught in a browser at 1280px; jsdom
           would never have shown it.
         */}
-        <div className="shrink-0 min-[1220px]:hidden">
+        <div className="shrink-0 min-[1256px]:hidden">
           <button
             ref={triggerRef}
             type="button"
@@ -329,10 +339,17 @@ export function PrimaryNav({
           at 24px apart do not fit inside `max-w-7xl` with the switcher at its widest
           and the badge showing (task-465). See NAV_INLINE_MIN_PX for the measurement.
         */}
-        <div className="hidden items-center gap-4 min-[1220px]:flex">
+        <div className="hidden items-center gap-4 min-[1256px]:flex">
           {destinations}
           {apiDocs}
         </div>
+        {/*
+          The actions menu (task-168), at the opposite end from the burger and present
+          at every width. `ml-auto` lives on its own root, so it is the only thing in
+          this row that is right-aligned and the destinations keep the positions they
+          had. Its 44px is counted in NAV_INLINE_MIN_PX.
+        */}
+        <ActionsMenu projectId={projectId} onOpen={close} />
       </nav>
       {open && (
         <div
@@ -340,7 +357,7 @@ export function PrimaryNav({
           // Absolute rather than in flow, so opening the panel overlays the page
           // instead of pushing it down under a bar that is already pinned. `sticky`
           // is a positioned value, so the header is the containing block already.
-          className="absolute inset-x-0 top-full border-b border-dark-border bg-dark-surface shadow-lg min-[1220px]:hidden"
+          className="absolute inset-x-0 top-full border-b border-dark-border bg-dark-surface shadow-lg min-[1256px]:hidden"
         >
           <div
             className="mx-auto flex max-w-7xl flex-col px-4 py-2 sm:px-6"
